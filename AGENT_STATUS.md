@@ -25,6 +25,26 @@ Register active work before making implementation changes so agents can see what
 - `blocked` — cannot proceed; record the reason
 - `completed` — implementation and required verification finished
 
+## Entry format
+
+Copy this template for a new task:
+
+```yaml
+- id: agent-<short-id>
+  agent: <agent name or handle>
+  task: <short task description>
+  status: active
+  files:
+    - <path>
+  scope: <specific responsibility and boundaries>
+  started: <YYYY-MM-DD>
+  last_update: <YYYY-MM-DDTHH:MM:SSZ>
+  progress: <current state>
+  tests: <tests run / planned>
+  pr: <PR number or null>
+  blockers: <none or blocker description>
+```
+
 ## Active work
 
 ```yaml
@@ -41,33 +61,32 @@ Register active work before making implementation changes so agents can see what
   scope: Add stable seam assembly metadata and a minimal backend factory/protocol without making external solvers core dependencies.
   started: 2026-08-28
   last_update: 2026-08-28T14:48:00Z
-  progress: Generic seam allowance geometry merged as PR #49 with all canonical jobs green; next simulation slice is now registered.
-  tests: Canonical PR #49 run #101 passed on Python 3.10/3.11/3.12 and FreeCAD smoke.
-  pr: null
-  blockers: none
-
-- id: agent-seam-backend-20260828
-  agent: subagent
-  task: Implement robust seam graph and solver backend adapter (#46)
-  status: active
-  files:
-    - SeamGraph.py
-    - ClothBackend.py
-    - tests/test_seam_graph.py
-    - tests/test_backend_adapter.py
-    - AGENT_STATUS.md
-  scope: FreeCAD-independent seam graph validation/assembly metadata and a stable simulation backend adapter around the existing ClothSystem; do not modify PatternGeometry.py, PatternModel.py, PatternGui.py, or supervisor-owned files.
-  started: 2026-08-28
-  last_update: 2026-08-28T16:44:00Z
-  progress: Scope registered; implementation not yet started.
-  tests: Planned focused headless seam/backend tests plus existing suite.
+  progress: Generic seam allowance geometry merged as PR #49 with all canonical jobs green; next simulation slice is now registered. Existing #46 seam graph/backend adapter implementation is merged as PR #50 in separate files; coordinate before changing overlapping concepts.
+  tests: Canonical PR #49 run #101 passed on Python 3.10/3.11/3.12 and FreeCAD smoke; PR #50 run #102 passed on all canonical jobs.
   pr: null
   blockers: none
 ```
 
 ## Completed / blocked history
 
-```yaml
+- id: agent-seam-backend-20260828
+  agent: subagent
+  task: Implement robust seam graph and solver backend adapter (#46)
+  status: completed
+  files:
+    - SeamGraph.py
+    - ClothBackend.py
+    - tests/test_seam_graph.py
+    - tests/test_backend_adapter.py
+    - AGENT_STATUS.md
+  scope: FreeCAD-independent seam graph validation/assembly metadata and a stable simulation backend adapter around the existing ClothSystem; did not modify supervisor-owned pattern geometry files.
+  started: 2026-08-28
+  last_update: 2026-08-28T16:48:00Z
+  progress: Implemented seam graph validation, normalized/reversed stitch-pair generation, persistent assembly transforms, XPBD backend adapter, deterministic reset/replay, and named backend registry. PR #50 merged to main.
+  tests: Canonical PR #50 run #102 passed on Python 3.10/3.11/3.12 and FreeCAD smoke.
+  pr: 50 (merged)
+  blockers: none
+
 - id: agent-supervisor-seam-allowance-20260828
   status: completed
   progress: Generic deterministic seam-allowance outline geometry merged as PR #49; issue #48 completed.
@@ -95,4 +114,3 @@ Register active work before making implementation changes so agents can see what
   tests: Canonical main run #98 passed.
   pr: null
   blockers: none
-```
