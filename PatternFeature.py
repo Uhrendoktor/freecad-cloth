@@ -31,10 +31,6 @@ class PatternPieceFeature:
         if len(points) < 3:
             raise ValueError("pattern outline needs at least three points")
 
-        # A closed wire + face is useful to both the drafting view and later
-        # mesh generation.  Seam allowance is metadata here; offsetting is a
-        # separate deterministic geometry operation so the base outline stays
-        # stable for sewing semantics.
         vectors = _points(points)
         vectors.append(vectors[0])
         obj.Shape = Part.Face(Part.makePolygon(vectors))
@@ -49,7 +45,7 @@ class PatternPieceFeature:
 def add_pattern_feature(doc, name="PatternPiece", width=100.0, height=60.0):
     """Create an editable rectangular pattern piece in *doc*."""
     geometry = rectangle(width, height)
-    obj = doc.addObject("PartDesign::FeaturePython", name)
+    obj = doc.addObject("Part::FeaturePython", name)
     obj.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
     obj.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = name
     obj.addProperty("App::PropertyEnumeration", "DraftKind", "Cloth")
