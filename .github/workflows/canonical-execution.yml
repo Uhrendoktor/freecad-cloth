@@ -36,6 +36,7 @@ jobs:
           python tests/test_side_tasks.py
           python tests/test_simulation_scene.py
           python tests/test_collisions.py
+          python tests/test_freecad_objects.py
       - name: Python syntax check
         run: python -m compileall -q .
       - name: Package structure validation
