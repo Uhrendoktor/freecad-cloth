@@ -57,14 +57,6 @@ def add_seam():
     doc.recompute()
 
 
-def create_drape_scene():
-    """Create and advance a deterministic two-panel 3D drape scene."""
-    import FreeCAD as App
-    from SimulationObjects import create_drape_scene as _create
-    doc = App.ActiveDocument or App.newDocument("ClothDrape")
-    return _create(doc)
-
-
 class _FunctionCommand:
     def __init__(self, function):
         self.function = function
@@ -84,7 +76,6 @@ COMMANDS = [
     "ClothPattern_CreateCustomPiece",
     "ClothPattern_CreateMesh",
     "ClothPattern_AddSeam",
-    "ClothSimulation_CreateDrape",
 ]
 
 try:
@@ -94,6 +85,5 @@ try:
         Gui.addCommand("ClothPattern_CreateCustomPiece", _FunctionCommand(create_custom_pattern_piece))
         Gui.addCommand("ClothPattern_CreateMesh", _FunctionCommand(create_pattern_mesh))
         Gui.addCommand("ClothPattern_AddSeam", _FunctionCommand(add_seam))
-        Gui.addCommand("ClothSimulation_CreateDrape", _FunctionCommand(create_drape_scene))
 except (ImportError, AttributeError):
     pass

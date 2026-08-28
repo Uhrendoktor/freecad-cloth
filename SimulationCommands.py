@@ -1,4 +1,4 @@
-"""Commands for the simulation workbench."""
+"""Commands for the Cloth Simulation workbench."""
 
 
 def create_simulation():
@@ -15,6 +15,14 @@ def create_simulation():
     obj.addProperty("App::PropertyLink", "ResultMesh", "Simulation")
     doc.recompute()
     return obj
+
+
+def create_drape_scene():
+    """Create and advance a deterministic two-panel 3D drape scene."""
+    import FreeCAD as App
+    from SimulationObjects import create_drape_scene as _create
+    doc = App.ActiveDocument or App.newDocument("ClothDrape")
+    return _create(doc)
 
 
 def simulate_selected(steps=None):
@@ -68,6 +76,17 @@ class _CreateSimulationCommand:
         }
 
 
+class _CreateDrapeCommand:
+    def Activated(self):
+        create_drape_scene()
+
+    def GetResources(self):
+        return {
+            "MenuText": "Create Drape Scene",
+            "ToolTip": "Create a deterministic two-panel cloth drape scene",
+        }
+
+
 class _SimulateCommand:
     def Activated(self):
         simulate_selected()
@@ -79,11 +98,17 @@ class _SimulateCommand:
         }
 
 
-COMMANDS = ["ClothSimulation_Create", "ClothSimulation_Step"]
+COMMANDS = [
+    "ClothSimulation_Create",
+    "ClothSimulation_CreateDrape",
+    "ClothSimulation_Step",
+]
 
 try:
     import FreeCADGui as Gui
-    Gui.addCommand("ClothSimulation_Create", _CreateSimulationCommand())
-    Gui.addCommand("ClothSimulation_Step", _SimulateCommand())
-except ImportError:
+    if hasattr(Gui, "addCommand"):
+        Gui.addCommand("ClothSimulation_Create", _CreateSimulationCommand())
+        Gui.addCommand("ClothSimulation_CreateDrape", _CreateDrapeCommand())
+        Gui.addCommand("ClothSimulation_Step", _SimulateCommand())
+except (ImportError, AttributeError):
     pass
