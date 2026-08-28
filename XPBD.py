@@ -1,4 +1,4 @@
-"""Small, deterministic XPBD particle solver for cloth prototyping."""
+"""Deterministic XPBD particle solver for cloth prototyping and garment tests."""
 from dataclasses import dataclass
 from math import sqrt
 from typing import Iterable, List, Sequence, Tuple
@@ -17,8 +17,17 @@ class DistanceConstraint:
 
 
 @dataclass(frozen=True)
+class ShearConstraint(DistanceConstraint):
+    """In-plane diagonal/shear constraint."""
+
+
+@dataclass(frozen=True)
+class BendingConstraint(DistanceConstraint):
+    """Reduced bending constraint between opposite vertices of adjacent faces."""
+
+
+@dataclass(frozen=True)
 class SphereCollider:
-    """Static spherical collision proxy for early avatar/body prototypes."""
     center: Vec3
     radius: float
     thickness: float = 0.0
@@ -30,7 +39,6 @@ class SphereCollider:
 
 @dataclass(frozen=True)
 class CapsuleCollider:
-    """Static capsule collision proxy defined by two segment endpoints."""
     point_a: Vec3
     point_b: Vec3
     radius: float
@@ -58,6 +66,40 @@ def structural_constraints(mesh: TriangleMesh, compliance: float = 0.0) -> Tuple
     return tuple(result)
 
 
+def shear_constraints(mesh: TriangleMesh, compliance: float = 0.0) -> Tuple[ShearConstraint, ...]:
+    """Build explicit cross-diagonal constraints for each pair of triangles sharing an edge."""
+    if compliance < 0:
+        raise ValueError("compliance must be non-negative")
+    edge_faces = {}
+    for face in mesh.triangles:
+        for a, b in ((face[0], face[1]), (face[1], face[2]), (face[2], face[0])):
+            edge_faces.setdefault((min(a, b), max(a, b)), []).append(face)
+    result = []
+    seen = set()
+    for edge, faces in edge_faces.items():
+        if len(faces) != 2:
+            continue
+        opposite = []
+        for face in faces:
+            opposite.append(next(v for v in face if v not in edge))
+        pair = (min(opposite), max(opposite))
+        if pair in seen:
+            continue
+        seen.add(pair)
+        result.append(ShearConstraint(pair[0], pair[1], _distance(mesh.vertices[pair[0]], mesh.vertices[pair[1]]), compliance))
+    return tuple(result)
+
+
+def bending_constraints(mesh: TriangleMesh, compliance: float = 0.0) -> Tuple[BendingConstraint, ...]:
+    """Build reduced-distance bending constraints across adjacent triangle edges."""
+    if compliance < 0:
+        raise ValueError("compliance must be non-negative")
+    result = []
+    for constraint in shear_constraints(mesh, compliance):
+        result.append(BendingConstraint(constraint.a, constraint.b, constraint.rest_length, constraint.compliance))
+    return tuple(result)
+
+
 def stitches_to_constraints(stitches: Iterable[Stitch], positions: Sequence[Vec3], compliance: float = 0.0) -> Tuple[DistanceConstraint, ...]:
     if compliance < 0:
         raise ValueError("compliance must be non-negative")
@@ -65,15 +107,20 @@ def stitches_to_constraints(stitches: Iterable[Stitch], positions: Sequence[Vec3
 
 
 class XPBDClothSolver:
-    """CPU XPBD distance-constraint solver with gravity, pins and primitive collisions."""
-    def __init__(self, constraints: Iterable[DistanceConstraint] = (), gravity: Vec3 = (0.0, 0.0, -9810.0), iterations: int = 8, pinned: Iterable[int] = (), colliders: Iterable[object] = ()):
+    """CPU XPBD solver with stretch, shear, bending, pins, body and self collision."""
+    def __init__(self, constraints: Iterable[DistanceConstraint] = (), gravity: Vec3 = (0.0, 0.0, -9810.0), iterations: int = 8, pinned: Iterable[int] = (), colliders: Iterable[object] = (), shear: Iterable[ShearConstraint] = (), bending: Iterable[BendingConstraint] = (), self_collision_radius: float = 0.0):
         if iterations < 1:
             raise ValueError("iterations must be positive")
+        if self_collision_radius < 0:
+            raise ValueError("self_collision_radius must be non-negative")
         self.constraints = tuple(constraints)
+        self.shear = tuple(shear)
+        self.bending = tuple(bending)
         self.gravity = gravity
         self.iterations = iterations
         self.pinned = frozenset(pinned)
         self.colliders = tuple(colliders)
+        self.self_collision_radius = self_collision_radius
         for collider in self.colliders:
             collider.validate()
 
@@ -100,13 +147,17 @@ class XPBDClothSolver:
         for _ in range(self.iterations):
             for constraint in self.constraints:
                 _project(constraint, positions, inv_masses, alpha_scale)
+            for constraint in self.shear:
+                _project(constraint, positions, inv_masses, alpha_scale)
+            for constraint in self.bending:
+                _project(constraint, positions, inv_masses, alpha_scale)
+            if self.self_collision_radius:
+                _project_self_collision(positions, inv_masses, self.self_collision_radius)
             for collider in self.colliders:
                 if isinstance(collider, SphereCollider):
-                    for i in range(n):
-                        _project_sphere(i, positions, inv_masses, collider)
+                    for i in range(n): _project_sphere(i, positions, inv_masses, collider)
                 elif isinstance(collider, CapsuleCollider):
-                    for i in range(n):
-                        _project_capsule(i, positions, inv_masses, collider)
+                    for i in range(n): _project_capsule(i, positions, inv_masses, collider)
                 else:
                     raise TypeError("unsupported collider type")
         for i in range(n):
@@ -134,6 +185,26 @@ def _project(c: DistanceConstraint, positions, inv_masses, dt2):
     direction = _scale(delta, 1.0 / length)
     positions[c.a] = _sub(positions[c.a], _scale(direction, correction * wa))
     positions[c.b] = _add(positions[c.b], _scale(direction, correction * wb))
+
+
+def _project_self_collision(positions, inv_masses, radius):
+    minimum = 2.0 * radius
+    minimum_sq = minimum * minimum
+    for i in range(len(positions)):
+        if inv_masses[i] == 0.0:
+            continue
+        for j in range(i + 1, len(positions)):
+            if inv_masses[j] == 0.0:
+                continue
+            delta = _sub(positions[i], positions[j])
+            d2 = sum(x * x for x in delta)
+            if d2 >= minimum_sq:
+                continue
+            d = sqrt(d2)
+            direction = (1.0, 0.0, 0.0) if d < 1e-12 else _scale(delta, 1.0 / d)
+            correction = (minimum - d) / (inv_masses[i] + inv_masses[j])
+            positions[i] = _add(positions[i], _scale(direction, correction * inv_masses[i]))
+            positions[j] = _sub(positions[j], _scale(direction, correction * inv_masses[j]))
 
 
 def _project_sphere(index, positions, inv_masses, collider: SphereCollider):
@@ -172,27 +243,15 @@ def _closest_point_on_segment(point, a, b):
 
 
 def _capsule_fallback_direction(point, collider):
-    # A deterministic radial direction is needed when a particle lies exactly
-    # on the capsule axis. Prefer the least-aligned coordinate axis.
     axis = _sub(collider.point_b, collider.point_a)
     candidates = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
-    direction = min(candidates, key=lambda v: abs(sum(v[i] * axis[i] for i in range(3))))
-    return direction
+    return min(candidates, key=lambda v: abs(sum(v[i] * axis[i] for i in range(3))))
 
 
 def _distance(a, b):
-    if len(a) == 3 and len(b) == 3:
-        return sqrt(sum((a[i] - b[i]) ** 2 for i in range(3)))
-    return sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
+    return sqrt(sum((a[i] - b[i]) ** 2 for i in range(3)))
 
 
-def _add(a, b):
-    return tuple(a[i] + b[i] for i in range(3))
-
-
-def _sub(a, b):
-    return tuple(a[i] - b[i] for i in range(3))
-
-
-def _scale(a, scalar):
-    return tuple(x * scalar for x in a)
+def _add(a, b): return tuple(a[i] + b[i] for i in range(3))
+def _sub(a, b): return tuple(a[i] - b[i] for i in range(3))
+def _scale(a, scalar): return tuple(x * scalar for x in a)
