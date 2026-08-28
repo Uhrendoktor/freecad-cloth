@@ -93,10 +93,14 @@ jobs:
             debian:trixie-slim \
             bash -euxo pipefail -c '
               apt-get update -qq
-              apt-get install -y -qq freecad xvfb
-              Xvfb :99 -screen 0 1280x720x24 >/tmp/xvfb.log 2>&1 &
+              apt-get install -y -qq freecad xvfb openbox
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 &
               XVFB_PID=$!
               trap "kill $XVFB_PID || true" EXIT
+              sleep 2
+              openbox >/tmp/openbox.log 2>&1 &
+              OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID || true; kill $XVFB_PID || true" EXIT
               sleep 2
               timeout 180s freecad tests/freecad_screenshot.py
               test -s docs/images/generated/cloth-pattern.png
