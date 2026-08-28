@@ -28,6 +28,24 @@ Coordination registry for parallel work on `freecad-cloth`.
   tests: n/a until task execution
   pr: null
   blockers: Autonomous Codex delegation is currently unavailable because the workspace runner reported provider quota exhaustion; supervisor retains coordination until a delegated executor is available.
+
+- id: agent-sewing-assembly-20260828
+  agent: subagent
+  task: Sewing-piece assembly and seam pairing UI (#67)
+  status: active
+  files:
+    - SewingObjects.py
+    - SewingCommands.py
+    - SewingGui.py
+    - tests/
+    - AGENT_STATUS.md
+  scope: Add a FreeCAD-facing seam-pairing/assembly layer on top of the existing seam graph without changing solver behavior or avatar collision files.
+  started: 2026-08-28
+  last_update: 2026-08-28T15:18:00Z
+  progress: Existing sewing operation UI inspected; implementation will extend document objects and commands rather than alter SeamGraph.py.
+  tests: pending
+  pr: pending
+  blockers: none
 ```
 
 ## Completed / blocked history
