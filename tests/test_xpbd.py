@@ -1,0 +1,32 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from PatternGeometry import rectangle
+from PatternMesh import triangulate
+from XPBD import XPBDClothSolver, structural_constraints
+from SimulationBackend import ClothState
+
+
+def test_structural_constraints_are_unique():
+    mesh = triangulate(rectangle(100.0, 50.0))
+    constraints = structural_constraints(mesh)
+    assert len(constraints) == 5
+    assert len({(c.a, c.b) for c in constraints}) == 5
+
+
+def test_xpbd_pin_and_gravity():
+    state = ClothState([(0.0, 0.0, 0.0), (100.0, 0.0, 0.0)])
+    state.inverse_masses = [0.0, 1.0]
+    state.velocities = [(0.0, 0.0, 0.0), (0.0, 0.0, 0.0)]
+    solver = XPBDClothSolver([structural_constraints(triangulate(rectangle(100.0, 1.0)))[0]], iterations=4, pinned=[0])
+    solver.step(state, 0.001)
+    assert state.positions[0] == (0.0, 0.0, 0.0)
+    assert state.positions[1][2] < 0.0
+
+
+if __name__ == "__main__":
+    for name, fn in globals().copy().items():
+        if name.startswith("test_"):
+            fn()
+    print("xpbd tests passed")
