@@ -92,6 +92,7 @@ def to_svg(
 
     payload = build_export_metadata(pattern, units, derived, metadata)
     metadata_json = escape(json.dumps(payload, sort_keys=True, separators=(",", ":")), quote=False)
+    edge_ids = escape(" ".join(segment.id for segment in pattern.segments), quote=True)
     elements = [
         f'<path id="sewing-boundary" d="{svg_path(sewing_points, True)}" fill="none" stroke="black"/>',
     ]
@@ -104,7 +105,7 @@ def to_svg(
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{_fmt(width)}{escape(units)}" '
         f'height="{_fmt(height)}{escape(units)}" viewBox="0 0 {_fmt(width)} {_fmt(height)}" '
-        f'data-units="{escape(units)}">'
+        f'data-units="{escape(units)}" data-edge-ids="{edge_ids}">'
         f'<metadata id="freecad-cloth-pattern">{metadata_json}</metadata>\n'
         + "\n".join(elements)
         + "\n</svg>"
