@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package>
+  <name>freecad-cloth</name>
+  <description>Parametric sewing patterns and cloth simulation workbenches for FreeCAD.</description>
+  <version>0.1.0</version>
+  <author email="">Uhrendoktor</author>
+  <license>LGPL-2.1-or-later</license>
+  <url type="repository">https://github.com/Uhrendoktor/freecad-cloth</url>
+</package>

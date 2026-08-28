@@ -1,0 +1,34 @@
+name: Canonical execution
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '17 * * * *'
+
+concurrency:
+  group: canonical-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Core Python tests
+        run: python3 tests/test_core.py
+      - name: Python syntax check
+        run: python3 -m compileall -q .
+      - name: FreeCAD smoke test when available
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v freecadcmd >/dev/null 2>&1; then
+            freecadcmd -c 'import sys; sys.path.insert(0, "."); import PatternModel; print("FreeCAD import smoke test passed")'
+          else
+            echo 'freecadcmd not installed; core tests remain authoritative for this runner.'
+          fi
