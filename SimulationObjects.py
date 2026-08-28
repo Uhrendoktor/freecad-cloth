@@ -59,19 +59,38 @@ class SimulationProxy:
     def reset(self,obj):
         self.backend.reset();obj.Steps=0;obj.SimulatedTime=0.;obj.ParticleCount=len(self.backend.positions());obj.FiniteState=self.backend.finite();self.last_steps=0
 
+def create_humanoid_avatar(doc, scale=1.0):
+    """Create a deterministic, editable mannequin collision proxy for draping tests."""
+    import Part,FreeCAD
+    s=float(scale)
+    if s<=0: raise ValueError("avatar scale must be positive")
+    parts=[]
+    parts.append(Part.makeCylinder(28*s,70*s,FreeCAD.Vector(0,0,-30*s)))
+    parts.append(Part.makeSphere(22*s,FreeCAD.Vector(0,0,62*s)))
+    parts.append(Part.makeCylinder(12*s,60*s,FreeCAD.Vector(-40*s,0,20*s),FreeCAD.Vector(0,0,1)))
+    parts.append(Part.makeCylinder(12*s,60*s,FreeCAD.Vector(28*s,0,20*s),FreeCAD.Vector(0,0,1)))
+    parts.append(Part.makeCylinder(14*s,75*s,FreeCAD.Vector(-15*s,0,-105*s),FreeCAD.Vector(0,0,1)))
+    parts.append(Part.makeCylinder(14*s,75*s,FreeCAD.Vector(1*s,0,-105*s),FreeCAD.Vector(0,0,1)))
+    avatar=doc.addObject("Part::Feature","HumanoidAvatar");avatar.Label="Humanoid Avatar";avatar.Shape=Part.makeCompound(parts)
+    avatar.addProperty("App::PropertyString","AvatarType","Avatar").AvatarType="ParametricHumanoid"
+    avatar.addProperty("App::PropertyFloat","Scale","Avatar").Scale=s
+    return avatar
+
 def create_avatar_collision(doc, source_obj=None, thickness=2.0, deflection=1.0):
     """Create a solver-neutral collision proxy linked to an imported body mesh."""
-    import Part,FreeCAD
+    import FreeCAD
     avatar=doc.addObject("App::FeaturePython","AvatarCollision");avatar.Label="Avatar Collision Proxy";avatar.addProperty("App::PropertyString","CollisionType","Simulation").CollisionType="SphereProxy";avatar.addProperty("App::PropertyLink","SourceObject","Simulation");avatar.addProperty("App::PropertyFloat","CollisionThickness","Simulation").CollisionThickness=float(thickness);avatar.addProperty("App::PropertyFloat","CollisionDeflection","Simulation").CollisionDeflection=float(deflection);avatar.addProperty("App::PropertyInteger","CollisionVertexCount","Simulation").CollisionVertexCount=0;avatar.addProperty("App::PropertyInteger","CollisionTriangleCount","Simulation").CollisionTriangleCount=0
     if source_obj is not None:
         from AvatarCollision import surface_from_freecad
         surface=surface_from_freecad(source_obj,deflection,thickness);avatar.SourceObject=source_obj;avatar.CollisionType="MeshSurface";avatar.CollisionVertexCount=len(surface.vertices);avatar.CollisionTriangleCount=len(surface.triangles)
     else:
-        shape=doc.addObject("Part::Feature","AvatarSphere");shape.Label="Avatar Sphere Fallback";shape.Shape=Part.makeSphere(38.,FreeCAD.Vector(0,0,0));avatar.SourceObject=shape
+        shape=create_humanoid_avatar(doc)
+        avatar.SourceObject=shape;avatar.CollisionType="MeshSurface"
+        surface=surface_from_freecad(shape,deflection,thickness);avatar.CollisionVertexCount=len(surface.vertices);avatar.CollisionTriangleCount=len(surface.triangles)
     return avatar
 
 def set_avatar_collision_source(scene, source_obj, thickness=2.0, deflection=1.0):
-    """Replace the scene's fallback sphere with a real FreeCAD body/mesh source."""
+    """Replace the scene's fallback avatar with a real FreeCAD body/mesh source."""
     avatar=scene.Document.getObject("AvatarCollision")
     if avatar is None or getattr(avatar,"TypeId","") != "App::FeaturePython":
         avatar=create_avatar_collision(scene.Document,source_obj,thickness,deflection)
@@ -83,8 +102,7 @@ def set_avatar_collision_source(scene, source_obj, thickness=2.0, deflection=1.0
     return avatar
 
 def create_simulation_scene(doc):
-    import Part,FreeCAD
-    scene=doc.addObject("App::FeaturePython","ClothSimulation");scene.Label="Cloth Simulation";scene.addProperty("App::PropertyInteger","Iterations","Solver").Iterations=8;scene.addProperty("App::PropertyFloat","TimeStep","Solver").TimeStep=1/60;scene.addProperty("App::PropertyFloat","GravityX","Solver").GravityX=0.;scene.addProperty("App::PropertyFloat","GravityY","Solver").GravityY=0.;scene.addProperty("App::PropertyFloat","GravityZ","Solver").GravityZ=-9810.;scene.addProperty("App::PropertyInteger","Steps","Solver").Steps=0;scene.addProperty("App::PropertyLinkList","ClothPieces","Selection");scene.addProperty("App::PropertyLink","AvatarProxy","Selection");scene.addProperty("App::PropertyStringList","PinSelection","Selection").PinSelection=["0","7","40","47"];scene.addProperty("App::PropertyStringList","SeamSelection","Selection").SeamSelection=["7-8","15-16","23-24","31-32","39-40"];scene.addProperty("App::PropertyFloat","SimulatedTime","State").SimulatedTime=0.;scene.addProperty("App::PropertyInteger","ParticleCount","State").ParticleCount=0;scene.addProperty("App::PropertyBool","FiniteState","State").FiniteState=True;scene.addProperty("App::PropertyFloat","CollisionX","Collision").CollisionX=0.;scene.addProperty("App::PropertyFloat","CollisionY","Collision").CollisionY=0.;scene.addProperty("App::PropertyFloat","CollisionZ","Collision").CollisionZ=0.;scene.addProperty("App::PropertyFloat","CollisionRadius","Collision").CollisionRadius=38.
+    scene=doc.addObject("App::FeaturePython","ClothSimulation");scene.Label="Cloth Simulation";scene.addProperty("App::PropertyInteger","Iterations","Solver").Iterations=8;scene.addProperty("App::PropertyFloat","TimeStep","Solver").TimeStep=1/60;scene.addProperty("App::PropertyInteger","Steps","Solver").Steps=0;scene.addProperty("App::PropertyFloat","GravityX","Solver").GravityX=0.;scene.addProperty("App::PropertyFloat","GravityY","Solver").GravityY=0.;scene.addProperty("App::PropertyFloat","GravityZ","Solver").GravityZ=-9810.;scene.addProperty("App::PropertyLinkList","ClothPieces","Selection");scene.addProperty("App::PropertyLink","AvatarProxy","Selection");scene.addProperty("App::PropertyStringList","PinSelection","Selection").PinSelection=["0","7","40","47"];scene.addProperty("App::PropertyStringList","SeamSelection","Selection").SeamSelection=["7-8","15-16","23-24","31-32","39-40"];scene.addProperty("App::PropertyFloat","SimulatedTime","State").SimulatedTime=0.;scene.addProperty("App::PropertyInteger","ParticleCount","State").ParticleCount=0;scene.addProperty("App::PropertyBool","FiniteState","State").FiniteState=True;scene.addProperty("App::PropertyFloat","CollisionX","Collision").CollisionX=0.;scene.addProperty("App::PropertyFloat","CollisionY","Collision").CollisionY=0.;scene.addProperty("App::PropertyFloat","CollisionZ","Collision").CollisionZ=0.;scene.addProperty("App::PropertyFloat","CollisionRadius","Collision").CollisionRadius=38.
     proxy=SimulationProxy();scene.Proxy=proxy;a=_mesh_object(doc,"DrapePanelA","Drape Panel A");b=_mesh_object(doc,"DrapePanelB","Drape Panel B");scene.ClothPieces=[a,b];avatar=create_avatar_collision(doc);scene.AvatarProxy=avatar;proxy._build(scene);_write_grid_mesh(a,proxy.backend.positions(),proxy.left_indices,8,5);_write_grid_mesh(b,proxy.backend.positions(),proxy.right_indices,8,5);return scene
 
 def step_scene(scene,steps=1):scene.Steps=int(scene.Steps)+int(steps);scene.Document.recompute();return scene
