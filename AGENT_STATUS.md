@@ -48,16 +48,48 @@ Copy this template for a new task:
 ## Active work
 
 ```yaml
-[]
+- id: agent-supervisor-avatar-20260828
+  agent: supervisor
+  task: Avatar/body collision proxy import and fitting setup (#54)
+  status: active
+  files:
+    - AvatarModel.py
+    - SimulationObjects.py
+    - tests/test_avatar_model.py
+    - AGENT_STATUS.md
+    - TOOL_STATE.md
+  scope: Define solver-neutral avatar metadata/collision proxy contract and deterministic fitting-scene setup; do not couple the document model to a specific solver.
+  started: 2026-08-28
+  last_update: 2026-08-28T14:51:00Z
+  progress: Seam graph/backend architecture from subagent PR #50 is canonical. Supervisor duplicate abstractions were audited and removed by corrective PR #56.
+  tests: Corrective PR #56 canonical run #112 passed on Python 3.10/3.11/3.12 and FreeCAD smoke.
+  pr: null
+  blockers: none
 ```
 
 ## Completed / blocked history
 
+- id: agent-supervisor-cleanup-20260828
+  agent: supervisor
+  task: Remove duplicate seam graph/backend abstractions introduced by PR #53 (#55)
+  status: completed
+  files:
+    - PatternModel.py
+    - SimulationBackend.py
+    - tests/test_simulation_backend.py
+  scope: Restore canonical contracts supplied by subagent PR #50 and remove redundant supervisor additions.
+  started: 2026-08-28
+  last_update: 2026-08-28T14:51:00Z
+  progress: Audit found PR #50 already contained the superior SeamGraph.py/ClothBackend.py implementation. PR #56 restored the pre-#53 contracts and removed duplicate tests.
+  tests: Canonical run #112 passed all Python versions and FreeCAD smoke.
+  pr: 56 (merged)
+  blockers: none
+
 - id: agent-supervisor-seam-graph-20260828
   status: completed
-  progress: Supervisor seam-graph assembly/backend-adapter slice is no longer active.
-  tests: Existing canonical validation recorded in repository history.
-  pr: null
+  progress: Supervisor duplicate seam-graph/backend slice was superseded by the canonical subagent implementation and then cleaned up in PR #56.
+  tests: Canonical corrective run #112 passed.
+  pr: 53 (merged, corrected by #56)
   blockers: none
 
 - id: agent-seam-backend-20260828
