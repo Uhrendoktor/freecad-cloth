@@ -2,6 +2,7 @@
 
 
 def create_pattern_piece():
+    """Create a 100 x 60 mm parametric demo pattern piece."""
     import FreeCAD as App
     from PatternModel import PatternPiece
     from PatternObjects import add_pattern_piece
@@ -9,7 +10,8 @@ def create_pattern_piece():
 
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
     geometry = rectangle(100.0, 60.0)
-    add_pattern_piece(doc, PatternPiece("PatternPiece", geometry.sampled_outline()))
+    piece = PatternPiece("PatternPiece", geometry.sampled_outline(), id="pattern-piece-1")
+    add_pattern_piece(doc, piece)
     doc.recompute()
 
 
@@ -26,11 +28,12 @@ def create_pattern_mesh():
 
 
 def add_seam():
+    """Create a sample seam record with stable semantic identity."""
     import FreeCAD as App
     from PatternModel import Seam
     from PatternObjects import add_seam
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
-    add_seam(doc, Seam("PatternPiece", 0, "PatternPiece", 1))
+    add_seam(doc, Seam("PatternPiece", 0, "PatternPiece", 1, id="sample-seam"))
     doc.recompute()
 
 
