@@ -1,4 +1,5 @@
-"""Initial commands for the pattern workbench."""
+"""Commands for the pattern workbench."""
+
 
 def create_pattern_piece():
     import FreeCAD as App
@@ -18,11 +19,25 @@ def add_seam():
     doc.recompute()
 
 
+class _FunctionCommand:
+    def __init__(self, function):
+        self.function = function
+
+    def Activated(self):
+        self.function()
+
+    def GetResources(self):
+        return {
+            "MenuText": self.function.__name__.replace("_", " ").title(),
+            "ToolTip": self.function.__doc__ or "Cloth pattern command",
+        }
+
+
 COMMANDS = ["ClothPattern_CreatePiece", "ClothPattern_AddSeam"]
 
 try:
     import FreeCADGui as Gui
-    Gui.addCommand("ClothPattern_CreatePiece", create_pattern_piece)
-    Gui.addCommand("ClothPattern_AddSeam", add_seam)
+    Gui.addCommand("ClothPattern_CreatePiece", _FunctionCommand(create_pattern_piece))
+    Gui.addCommand("ClothPattern_AddSeam", _FunctionCommand(add_seam))
 except ImportError:
     pass
