@@ -1,10 +1,5 @@
-"""Small, deterministic XPBD particle solver for cloth prototyping.
-
-This is intentionally a reference backend rather than a production-quality
-solver. It provides the numerical contract needed by the workbench while
-leaving collision, bending and GPU implementations replaceable.
-"""
-from dataclasses import dataclass, field
+"""Small, deterministic XPBD particle solver for cloth prototyping."""
+from dataclasses import dataclass
 from math import sqrt
 from typing import Iterable, List, Sequence, Tuple
 
@@ -21,8 +16,19 @@ class DistanceConstraint:
     compliance: float = 0.0
 
 
+@dataclass(frozen=True)
+class SphereCollider:
+    """Static spherical collision proxy for early avatar/body prototypes."""
+    center: Vec3
+    radius: float
+    thickness: float = 0.0
+
+    def validate(self) -> None:
+        if self.radius <= 0 or self.thickness < 0:
+            raise ValueError("sphere radius must be positive and thickness non-negative")
+
+
 def structural_constraints(mesh: TriangleMesh, compliance: float = 0.0) -> Tuple[DistanceConstraint, ...]:
-    """Create one distance constraint for every unique mesh edge."""
     if compliance < 0:
         raise ValueError("compliance must be non-negative")
     edges = set()
@@ -44,14 +50,17 @@ def stitches_to_constraints(stitches: Iterable[Stitch], positions: Sequence[Vec3
 
 
 class XPBDClothSolver:
-    """CPU XPBD distance-constraint solver with gravity and optional pins."""
-    def __init__(self, constraints: Iterable[DistanceConstraint] = (), gravity: Vec3 = (0.0, 0.0, -9810.0), iterations: int = 8, pinned: Iterable[int] = ()):
+    """CPU XPBD distance-constraint solver with gravity, pins and sphere collisions."""
+    def __init__(self, constraints: Iterable[DistanceConstraint] = (), gravity: Vec3 = (0.0, 0.0, -9810.0), iterations: int = 8, pinned: Iterable[int] = (), colliders: Iterable[SphereCollider] = ()):
         if iterations < 1:
             raise ValueError("iterations must be positive")
         self.constraints = tuple(constraints)
         self.gravity = gravity
         self.iterations = iterations
         self.pinned = frozenset(pinned)
+        self.colliders = tuple(colliders)
+        for collider in self.colliders:
+            collider.validate()
 
     def step(self, state: ClothState, dt: float) -> ClothState:
         if dt < 0:
@@ -59,13 +68,9 @@ class XPBDClothSolver:
         n = len(state.positions)
         if n == 0 or dt == 0:
             return state
-        velocities = list(getattr(state, "velocities", [(0.0, 0.0, 0.0)] * n))
-        if len(velocities) != n:
-            raise ValueError("velocity count must match position count")
+        velocities = list(state.velocities)
         positions = [tuple(p) for p in state.positions]
-        inv_masses = list(getattr(state, "inverse_masses", [1.0] * n))
-        if len(inv_masses) != n:
-            raise ValueError("inverse mass count must match position count")
+        inv_masses = list(state.inverse_masses)
         for i in self.pinned:
             if i < 0 or i >= n:
                 raise ValueError("pinned vertex index outside state")
@@ -80,6 +85,9 @@ class XPBDClothSolver:
         for _ in range(self.iterations):
             for constraint in self.constraints:
                 _project(constraint, positions, inv_masses, alpha_scale)
+            for collider in self.colliders:
+                for i in range(n):
+                    _project_sphere(i, positions, inv_masses, collider)
         for i in range(n):
             if inv_masses[i] == 0.0:
                 velocities[i] = (0.0, 0.0, 0.0)
@@ -107,8 +115,22 @@ def _project(c: DistanceConstraint, positions, inv_masses, dt2):
     positions[c.b] = _add(positions[c.b], _scale(direction, correction * wb))
 
 
+def _project_sphere(index, positions, inv_masses, collider: SphereCollider):
+    if inv_masses[index] == 0.0:
+        return
+    delta = _sub(positions[index], collider.center)
+    distance = sqrt(sum(x * x for x in delta))
+    minimum = collider.radius + collider.thickness
+    if distance >= minimum:
+        return
+    direction = (0.0, 0.0, 1.0) if distance < 1e-12 else _scale(delta, 1.0 / distance)
+    positions[index] = _add(collider.center, _scale(direction, minimum))
+
+
 def _distance(a, b):
-    return sqrt(sum((a[i] - b[i]) ** 2 for i in range(3))) if len(a) == 3 else sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
+    if len(a) == 3 and len(b) == 3:
+        return sqrt(sum((a[i] - b[i]) ** 2 for i in range(3)))
+    return sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
 
 
 def _add(a, b):
