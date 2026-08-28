@@ -4,7 +4,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from PatternGeometry import rectangle
 from PatternMesh import triangulate
-from XPBD import XPBDClothSolver, structural_constraints
+from XPBD import DistanceConstraint, XPBDClothSolver, structural_constraints
 from SimulationBackend import ClothState
 
 
@@ -19,7 +19,7 @@ def test_xpbd_pin_and_gravity():
     state = ClothState([(0.0, 0.0, 0.0), (100.0, 0.0, 0.0)])
     state.inverse_masses = [0.0, 1.0]
     state.velocities = [(0.0, 0.0, 0.0), (0.0, 0.0, 0.0)]
-    solver = XPBDClothSolver([structural_constraints(triangulate(rectangle(100.0, 1.0)))[0]], iterations=4, pinned=[0])
+    solver = XPBDClothSolver([DistanceConstraint(0, 1, 100.0)], iterations=4, pinned=[0])
     solver.step(state, 0.001)
     assert state.positions[0] == (0.0, 0.0, 0.0)
     assert state.positions[1][2] < 0.0
