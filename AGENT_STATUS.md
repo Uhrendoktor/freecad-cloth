@@ -29,6 +29,23 @@ Coordination registry for parallel work on `freecad-cloth`.
   tests: Canonical main run #120 passed after the previous workbench merge.
   pr: null
   blockers: none
+- id: agent-subagent-seam-geometry-export-20260828
+  agent: subagent
+  task: Production seam allowance geometry, marks and deterministic SVG/DXF export contracts (#45)
+  status: active
+  files:
+    - PatternDerivedGeometry.py
+    - PatternExport.py
+    - PatternModel.py
+    - tests/test_derived_geometry.py
+    - tests/test_pattern_export.py
+  scope: Extend the existing sewing-pattern model/derived geometry/export layer without touching avatar/simulation or existing GUI workbench registration; preserve current APIs while adding cut/sewing semantics, persisted construction metadata and deterministic SVG/DXF interchange.
+  started: 2026-08-28
+  last_update: 2026-08-28T15:10:00Z
+  progress: Registered before implementation; inspecting existing pattern geometry, marks and export contracts.
+  tests: pending
+  pr: null
+  blockers: none
 ```
 
 ## Completed / blocked history
