@@ -32,20 +32,19 @@ Coordination registry for parallel work on `freecad-cloth`.
   blockers: none
 
 - id: agent-docs-quality-20260828
-  agent: delegated-quality-task
+  agent: subagent
   task: Docs / cleanup / quality-control pass (#63)
-  status: queued
+  status: review
   files:
     - README.md
-    - docs/
     - AGENT_STATUS.md
-  scope: Audit documentation, research/license claims, stale registry entries, public API documentation and test gaps without changing solver behavior.
+  scope: Audit documentation and public workflow descriptions without changing solver behavior or active implementation scopes.
   started: 2026-08-28
-  last_update: 2026-08-28T15:16:00Z
-  progress: Issue #63 is scoped. Research documentation was refreshed in the avatar milestone; a focused independent quality pass remains queued.
-  tests: n/a until task execution
+  last_update: 2026-08-28T16:00:00Z
+  progress: Refreshed README to document Cloth Sewing, fitting workflow, source-of-truth architecture and canonical testing. Registry updated to reflect current active PRs.
+  tests: Documentation-only; no runtime behavior changed.
   pr: null
-  blockers: Autonomous Codex delegation is currently unavailable because the workspace runner reported provider quota exhaustion; supervisor retains coordination until a delegated executor is available.
+  blockers: none
 
 - id: agent-sewing-assembly-20260828
   agent: subagent
@@ -80,7 +79,6 @@ Coordination registry for parallel work on `freecad-cloth`.
     - tests/test_side_tasks.py
     - tests/freecad_smoke.py
     - docs/SEWING_WORKFLOW_RESEARCH.md
-  scope: Convert FreeCAD body/mesh surfaces into solver-neutral CollisionSurface data and feed deterministic triangle-surface collision into the CPU XPBD backend; retain sphere fallback and collision thickness metadata.
   started: 2026-08-28
   last_update: 2026-08-28T15:16:00Z
   progress: PR #64 merged. Canonical PR run #129 and post-merge main run #135 passed Python 3.10/3.11/3.12 and real FreeCAD smoke; the cleanup job also deleted the merged source branch. Research and planning were updated in issue #43 and the repository docs.
