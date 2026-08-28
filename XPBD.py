@@ -28,6 +28,21 @@ class SphereCollider:
             raise ValueError("sphere radius must be positive and thickness non-negative")
 
 
+@dataclass(frozen=True)
+class CapsuleCollider:
+    """Static capsule collision proxy defined by two segment endpoints."""
+    point_a: Vec3
+    point_b: Vec3
+    radius: float
+    thickness: float = 0.0
+
+    def validate(self) -> None:
+        if self.radius <= 0 or self.thickness < 0:
+            raise ValueError("capsule radius must be positive and thickness non-negative")
+        if _distance(self.point_a, self.point_b) < 1e-12:
+            raise ValueError("capsule endpoints must be distinct")
+
+
 def structural_constraints(mesh: TriangleMesh, compliance: float = 0.0) -> Tuple[DistanceConstraint, ...]:
     if compliance < 0:
         raise ValueError("compliance must be non-negative")
@@ -50,8 +65,8 @@ def stitches_to_constraints(stitches: Iterable[Stitch], positions: Sequence[Vec3
 
 
 class XPBDClothSolver:
-    """CPU XPBD distance-constraint solver with gravity, pins and sphere collisions."""
-    def __init__(self, constraints: Iterable[DistanceConstraint] = (), gravity: Vec3 = (0.0, 0.0, -9810.0), iterations: int = 8, pinned: Iterable[int] = (), colliders: Iterable[SphereCollider] = ()):
+    """CPU XPBD distance-constraint solver with gravity, pins and primitive collisions."""
+    def __init__(self, constraints: Iterable[DistanceConstraint] = (), gravity: Vec3 = (0.0, 0.0, -9810.0), iterations: int = 8, pinned: Iterable[int] = (), colliders: Iterable[object] = ()):
         if iterations < 1:
             raise ValueError("iterations must be positive")
         self.constraints = tuple(constraints)
@@ -86,8 +101,14 @@ class XPBDClothSolver:
             for constraint in self.constraints:
                 _project(constraint, positions, inv_masses, alpha_scale)
             for collider in self.colliders:
-                for i in range(n):
-                    _project_sphere(i, positions, inv_masses, collider)
+                if isinstance(collider, SphereCollider):
+                    for i in range(n):
+                        _project_sphere(i, positions, inv_masses, collider)
+                elif isinstance(collider, CapsuleCollider):
+                    for i in range(n):
+                        _project_capsule(i, positions, inv_masses, collider)
+                else:
+                    raise TypeError("unsupported collider type")
         for i in range(n):
             if inv_masses[i] == 0.0:
                 velocities[i] = (0.0, 0.0, 0.0)
@@ -125,6 +146,38 @@ def _project_sphere(index, positions, inv_masses, collider: SphereCollider):
         return
     direction = (0.0, 0.0, 1.0) if distance < 1e-12 else _scale(delta, 1.0 / distance)
     positions[index] = _add(collider.center, _scale(direction, minimum))
+
+
+def _project_capsule(index, positions, inv_masses, collider: CapsuleCollider):
+    if inv_masses[index] == 0.0:
+        return
+    closest = _closest_point_on_segment(positions[index], collider.point_a, collider.point_b)
+    delta = _sub(positions[index], closest)
+    distance = sqrt(sum(x * x for x in delta))
+    minimum = collider.radius + collider.thickness
+    if distance >= minimum:
+        return
+    direction = _scale(delta, 1.0 / distance) if distance >= 1e-12 else _capsule_fallback_direction(positions[index], collider)
+    positions[index] = _add(closest, _scale(direction, minimum))
+
+
+def _closest_point_on_segment(point, a, b):
+    segment = _sub(b, a)
+    denominator = sum(x * x for x in segment)
+    if denominator < 1e-24:
+        return a
+    t = sum((point[i] - a[i]) * segment[i] for i in range(3)) / denominator
+    t = max(0.0, min(1.0, t))
+    return _add(a, _scale(segment, t))
+
+
+def _capsule_fallback_direction(point, collider):
+    # A deterministic radial direction is needed when a particle lies exactly
+    # on the capsule axis. Prefer the least-aligned coordinate axis.
+    axis = _sub(collider.point_b, collider.point_a)
+    candidates = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
+    direction = min(candidates, key=lambda v: abs(sum(v[i] * axis[i] for i in range(3))))
+    return direction
 
 
 def _distance(a, b):
