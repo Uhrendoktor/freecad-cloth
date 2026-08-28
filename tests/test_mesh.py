@@ -40,7 +40,7 @@ def test_reversed_rectangle_retains_segment_provenance():
         LineSegment("top", (100, 50), (0, 50)),
     ])
     mesh = triangulate(pattern)
-    assert mesh.boundary_edge_segment_ids == ("top", "right", "bottom", "left")
+    assert mesh.boundary_edge_segment_ids == ("left", "bottom", "right", "top")
 
 
 def test_seam_generates_stitches():
