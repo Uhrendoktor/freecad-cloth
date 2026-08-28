@@ -46,10 +46,35 @@ class ClothSimulationWorkbench:
         return "Gui::PythonWorkbench"
 
 
+class ClothSewingWorkbench:
+    MenuText = "Cloth Sewing"
+    ToolTip = "Sewing operations and seam validation"
+
+    def Initialize(self):
+        import SewingCommands
+        self.commands = SewingCommands.COMMANDS
+        self.appendToolbar("Cloth Sewing", self.commands)
+        self.appendMenu("Cloth Sewing", self.commands)
+
+    def Activated(self):
+        return None
+
+    def Deactivated(self):
+        return None
+
+    def ContextMenu(self, recipient):
+        if recipient in ("view", "tree"):
+            self.appendContextMenu("Cloth Sewing", self.commands)
+
+    def GetClassName(self):
+        return "Gui::PythonWorkbench"
+
+
 try:
     import FreeCADGui as Gui
     Gui.addWorkbench(ClothPatternWorkbench())
     Gui.addWorkbench(ClothSimulationWorkbench())
+    Gui.addWorkbench(ClothSewingWorkbench())
 except ImportError:
     # Allows static imports/tests outside FreeCAD.
     Gui = None
