@@ -5,8 +5,12 @@ def create_pattern_piece():
     import FreeCAD as App
     from PatternModel import PatternPiece
     from PatternObjects import add_pattern_piece
+    from PatternGeometry import rectangle
+
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
-    add_pattern_piece(doc, PatternPiece("PatternPiece", [(0, 0), (100, 0), (100, 60), (0, 60)]))
+    geometry = rectangle(100.0, 60.0)
+    outline = geometry.sampled_outline()
+    add_pattern_piece(doc, PatternPiece("PatternPiece", outline))
     doc.recompute()
 
 
