@@ -3,12 +3,12 @@ def _mesh_object(doc,name,label):
     import Mesh
     obj=doc.addObject("Mesh::Feature",name);obj.Label=label;obj.addProperty("App::PropertyString","ClothMeshType","Simulation").ClothMeshType="DrapedCloth";return obj
 
-def _write_grid_mesh(obj,system,indices,nx,ny):
+def _write_grid_mesh(obj,positions,indices,nx,ny):
     import FreeCAD as App,Mesh
     native=Mesh.Mesh()
     for j in range(ny-1):
         for i in range(nx-1):
-            a=indices[j*nx+i];b=indices[j*nx+i+1];c=indices[(j+1)*nx+i+1];d=indices[(j+1)*nx+i];native.addFacet(App.Vector(*system.particles[a].position()),App.Vector(*system.particles[b].position()),App.Vector(*system.particles[c].position()));native.addFacet(App.Vector(*system.particles[a].position()),App.Vector(*system.particles[c].position()),App.Vector(*system.particles[d].position()))
+            a=positions[indices[j*nx+i]];b=positions[indices[j*nx+i+1]];c=positions[indices[(j+1)*nx+i+1]];d=positions[indices[(j+1)*nx+i]];native.addFacet(App.Vector(*a),App.Vector(*b),App.Vector(*c));native.addFacet(App.Vector(*a),App.Vector(*c),App.Vector(*d))
     obj.Mesh=native
 
 def _parse_pair_list(values,particle_count=None):
@@ -32,29 +32,32 @@ def _parse_int_list(values,particle_count=None):
 
 class SimulationProxy:
     Type="ClothSimulation"
-    def __init__(self):self.system=None;self.left_indices=None;self.right_indices=None;self.last_steps=0;self.collision_surface=None
+    def __init__(self):self.backend=None;self.left_indices=None;self.right_indices=None;self.last_steps=0;self.collision_surface=None
     def execute(self,obj):
-        if self.system is None or int(obj.Steps)<self.last_steps:self._build(obj)
+        if self.backend is None or int(obj.Steps)<self.last_steps:self._build(obj)
         steps=int(obj.Steps)
         if steps>self.last_steps:
             for _ in range(steps-self.last_steps):
-                self.system.step(float(obj.TimeStep),int(obj.Iterations),(float(obj.GravityX),float(obj.GravityY),float(obj.GravityZ)),(float(obj.CollisionX),float(obj.CollisionY),float(obj.CollisionZ),float(obj.CollisionRadius)),self.collision_surface)
+                self.backend.step(float(obj.TimeStep),int(obj.Iterations),(float(obj.GravityX),float(obj.GravityY),float(obj.GravityZ)),(float(obj.CollisionX),float(obj.CollisionY),float(obj.CollisionZ),float(obj.CollisionRadius)),self.collision_surface)
             self.last_steps=steps
+        positions=self.backend.positions()
         a,b=obj.Document.getObject("DrapePanelA"),obj.Document.getObject("DrapePanelB")
-        if a:_write_grid_mesh(a,self.system,self.left_indices,8,5)
-        if b:_write_grid_mesh(b,self.system,self.right_indices,8,5)
-        obj.SimulatedTime=self.system.time;obj.ParticleCount=len(self.system.particles);obj.FiniteState=self.system.finite()
+        if a:_write_grid_mesh(a,positions,self.left_indices,8,5)
+        if b:_write_grid_mesh(b,positions,self.right_indices,8,5)
+        obj.SimulatedTime=self.backend.time;obj.ParticleCount=len(positions);obj.FiniteState=self.backend.finite()
     def _build(self,obj):
         from ClothSolver import ClothSystem
+        from ClothBackend import default_backend_registry
         from AvatarCollision import surface_from_freecad
-        nx,ny=8,5;left=ClothSystem.grid(100.,60.,nx,ny,origin=(-100.,-30.,90.));right=ClothSystem.grid(100.,60.,nx,ny,origin=(0.,-30.,90.));offset=len(left.particles);particles=left.particles+right.particles;constraints=list(left.constraints)+[type(c)(c.a+offset,c.b+offset,c.rest,c.compliance) for c in right.constraints];self.system=ClothSystem(particles,constraints);self.left_indices=tuple(range(offset));self.right_indices=tuple(range(offset,offset*2));default_seams=[(j*nx+nx-1,offset+j*nx) for j in range(ny)];self.system.add_stitches(_parse_pair_list(obj.SeamSelection,len(particles)) or tuple(default_seams));default_pins=(0,nx-1,offset,offset+nx-1);self.system.pin(_parse_int_list(obj.PinSelection,len(particles)) or default_pins)
+        nx,ny=8,5;left=ClothSystem.grid(100.,60.,nx,ny,origin=(-100.,-30.,90.));right=ClothSystem.grid(100.,60.,nx,ny,origin=(0.,-30.,90.));offset=len(left.particles);particles=left.particles+right.particles;constraints=list(left.constraints)+[type(c)(c.a+offset,c.b+offset,c.rest,c.compliance) for c in right.constraints];system=ClothSystem(particles,constraints);self.backend=default_backend_registry().create("xpbd-cpu",system);self.left_indices=tuple(range(offset));self.right_indices=tuple(range(offset,offset*2));default_seams=[(j*nx+nx-1,offset+j*nx) for j in range(ny)];self.backend.set_stitches(_parse_pair_list(obj.SeamSelection,len(particles)) or tuple(default_seams));default_pins=(0,nx-1,offset,offset+nx-1);self.backend.pin(_parse_int_list(obj.PinSelection,len(particles)) or default_pins)
         self.collision_surface=None
         avatar=getattr(obj,"AvatarProxy",None)
         source=getattr(avatar,"SourceObject",None) if avatar is not None else None
         if source is not None:
             self.collision_surface=surface_from_freecad(source, float(getattr(avatar,"CollisionDeflection",1.0)), float(getattr(avatar,"CollisionThickness",0.0)))
         self.last_steps=0
-    def reset(self,obj):self._build(obj);obj.Steps=0;obj.SimulatedTime=0.;obj.ParticleCount=len(self.system.particles);obj.FiniteState=self.system.finite()
+    def reset(self,obj):
+        self.backend.reset();obj.Steps=0;obj.SimulatedTime=0.;obj.ParticleCount=len(self.backend.positions());obj.FiniteState=self.backend.finite();self.last_steps=0
 
 def create_avatar_collision(doc, source_obj=None, thickness=2.0, deflection=1.0):
     """Create a solver-neutral collision proxy linked to an imported body mesh."""
@@ -82,7 +85,7 @@ def set_avatar_collision_source(scene, source_obj, thickness=2.0, deflection=1.0
 def create_simulation_scene(doc):
     import Part,FreeCAD
     scene=doc.addObject("App::FeaturePython","ClothSimulation");scene.Label="Cloth Simulation";scene.addProperty("App::PropertyInteger","Iterations","Solver").Iterations=8;scene.addProperty("App::PropertyFloat","TimeStep","Solver").TimeStep=1/60;scene.addProperty("App::PropertyFloat","GravityX","Solver").GravityX=0.;scene.addProperty("App::PropertyFloat","GravityY","Solver").GravityY=0.;scene.addProperty("App::PropertyFloat","GravityZ","Solver").GravityZ=-9810.;scene.addProperty("App::PropertyInteger","Steps","Solver").Steps=0;scene.addProperty("App::PropertyLinkList","ClothPieces","Selection");scene.addProperty("App::PropertyLink","AvatarProxy","Selection");scene.addProperty("App::PropertyStringList","PinSelection","Selection").PinSelection=["0","7","40","47"];scene.addProperty("App::PropertyStringList","SeamSelection","Selection").SeamSelection=["7-8","15-16","23-24","31-32","39-40"];scene.addProperty("App::PropertyFloat","SimulatedTime","State").SimulatedTime=0.;scene.addProperty("App::PropertyInteger","ParticleCount","State").ParticleCount=0;scene.addProperty("App::PropertyBool","FiniteState","State").FiniteState=True;scene.addProperty("App::PropertyFloat","CollisionX","Collision").CollisionX=0.;scene.addProperty("App::PropertyFloat","CollisionY","Collision").CollisionY=0.;scene.addProperty("App::PropertyFloat","CollisionZ","Collision").CollisionZ=0.;scene.addProperty("App::PropertyFloat","CollisionRadius","Collision").CollisionRadius=38.
-    proxy=SimulationProxy();scene.Proxy=proxy;a=_mesh_object(doc,"DrapePanelA","Drape Panel A");b=_mesh_object(doc,"DrapePanelB","Drape Panel B");scene.ClothPieces=[a,b];avatar=create_avatar_collision(doc);scene.AvatarProxy=avatar;proxy._build(scene);_write_grid_mesh(a,proxy.system,proxy.left_indices,8,5);_write_grid_mesh(b,proxy.system,proxy.right_indices,8,5);return scene
+    proxy=SimulationProxy();scene.Proxy=proxy;a=_mesh_object(doc,"DrapePanelA","Drape Panel A");b=_mesh_object(doc,"DrapePanelB","Drape Panel B");scene.ClothPieces=[a,b];avatar=create_avatar_collision(doc);scene.AvatarProxy=avatar;proxy._build(scene);_write_grid_mesh(a,proxy.backend.positions(),proxy.left_indices,8,5);_write_grid_mesh(b,proxy.backend.positions(),proxy.right_indices,8,5);return scene
 
 def step_scene(scene,steps=1):scene.Steps=int(scene.Steps)+int(steps);scene.Document.recompute();return scene
 

@@ -64,6 +64,19 @@ Coordination registry for parallel work on `freecad-cloth`.
   tests: planned FreeCAD GUI smoke/documentation workflow
   pr: null
   blockers: none
+
+- id: agent-solver-authority-20260828
+  agent: subagent
+  task: Consolidate simulation solver authority behind ClothSimulationBackend (#87)
+  status: implementation
+  files: [SimulationObjects.py, tests/test_backend_authority.py, AGENT_STATUS.md]
+  scope: Keep the document-facing simulation proxy dependent on ClothSimulationBackend, with the bundled XPBD solver selected through the backend registry; preserve semantic scene behavior and avoid active XPBD implementation files.
+  started: 2026-08-28
+  last_update: 2026-08-28T17:56:00+02:00
+  progress: Registered after confirming no overlap with active PatternSketch/XPBD, backend-audit, native-geometry, or GUI-doc scopes. Refactoring SimulationProxy to drive all solver state through the backend and adding headless authority regression coverage.
+  tests: planned Python 3.10/3.11/3.12 plus real FreeCAD smoke
+  pr: pending
+  blockers: none
 ```
 
 ## Current issue map
