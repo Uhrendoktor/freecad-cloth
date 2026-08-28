@@ -23,7 +23,7 @@ Coordination registry for parallel work on `freecad-cloth`.
     - AGENT_STATUS.md
   scope: Audit documentation, research/license claims, stale registry entries, public API documentation and test gaps without changing solver behavior.
   started: 2026-08-28
-  last_update: 2026-08-28T15:12:00Z
+  last_update: 2026-08-28T15:16:00Z
   progress: Issue #63 is scoped. Research documentation was refreshed in the avatar milestone; a focused independent quality pass remains queued.
   tests: n/a until task execution
   pr: null
@@ -47,9 +47,9 @@ Coordination registry for parallel work on `freecad-cloth`.
     - docs/SEWING_WORKFLOW_RESEARCH.md
   scope: Convert FreeCAD body/mesh surfaces into solver-neutral CollisionSurface data and feed deterministic triangle-surface collision into the CPU XPBD backend; retain sphere fallback and collision thickness metadata.
   started: 2026-08-28
-  last_update: 2026-08-28T15:12:00Z
-  progress: PR #64 merged. Canonical PR run #129 and post-merge main run #132 passed Python 3.10/3.11/3.12 and real FreeCAD smoke. Research and planning were updated in issue #43 and the repository docs.
-  tests: Canonical PR #129 and main #132 green.
+  last_update: 2026-08-28T15:16:00Z
+  progress: PR #64 merged. Canonical PR run #129 and post-merge main run #135 passed Python 3.10/3.11/3.12 and real FreeCAD smoke; the cleanup job also deleted the merged source branch. Research and planning were updated in issue #43 and the repository docs.
+  tests: Canonical PR #129 and main #135 green; merged source branch verified deleted.
   pr: 64 (merged)
   blockers: none
 
