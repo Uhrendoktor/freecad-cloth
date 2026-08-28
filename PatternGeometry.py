@@ -1,7 +1,7 @@
 """FreeCAD-independent parametric 2D pattern geometry primitives."""
 from dataclasses import dataclass
 from math import hypot
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Sequence, Tuple
 
 Point = Tuple[float, float]
 
@@ -88,6 +88,73 @@ class ParametricPattern:
                 points = segment.polyline(curve_samples)
                 values[segment.id] = sum(_distance(a, b) for a, b in zip(points, points[1:]))
         return values
+
+
+def seam_allowance_outline(pattern: ParametricPattern, allowance: float, curve_samples: int = 32) -> List[Point]:
+    """Return a deterministic cut-line outline offset from a sewing boundary.
+
+    The pattern boundary remains the source of truth; this function only
+    generates display/export geometry. Curves are sampled before offsetting.
+    Positive allowance offsets outward from the closed polygon. The helper
+    supports ordinary simple convex/concave outlines and deliberately leaves
+    self-intersection resolution to a later geometry layer.
+    """
+    allowance = float(allowance)
+    if allowance < 0.0:
+        raise ValueError("seam allowance cannot be negative")
+    points = pattern.sampled_outline(curve_samples)
+    if len(points) < 3:
+        raise ValueError("pattern needs at least three outline points")
+    if allowance == 0.0:
+        return list(points)
+    area = _signed_area(points)
+    if abs(area) < 1e-12:
+        raise ValueError("pattern outline must enclose a non-zero area")
+
+    ccw = area > 0.0
+    edges = []
+    for index, start in enumerate(points):
+        end = points[(index + 1) % len(points)]
+        dx, dy = end[0] - start[0], end[1] - start[1]
+        length = hypot(dx, dy)
+        if length < 1e-12:
+            raise ValueError("pattern outline contains a zero-length edge")
+        if ccw:
+            normal = (dy / length, -dx / length)
+        else:
+            normal = (-dy / length, dx / length)
+        offset = (normal[0] * allowance, normal[1] * allowance)
+        edges.append(((start[0] + offset[0], start[1] + offset[1]),
+                      (end[0] + offset[0], end[1] + offset[1])))
+
+    result = []
+    for index in range(len(edges)):
+        previous = edges[(index - 1) % len(edges)]
+        current = edges[index]
+        point = _line_intersection(previous[0], previous[1], current[0], current[1])
+        if point is None:
+            point = current[0]
+        result.append(point)
+    return result
+
+
+def _signed_area(points: Sequence[Point]) -> float:
+    return 0.5 * sum(
+        points[i][0] * points[(i + 1) % len(points)][1]
+        - points[(i + 1) % len(points)][0] * points[i][1]
+        for i in range(len(points))
+    )
+
+
+def _line_intersection(a1: Point, a2: Point, b1: Point, b2: Point):
+    ax, ay = a2[0] - a1[0], a2[1] - a1[1]
+    bx, by = b2[0] - b1[0], b2[1] - b1[1]
+    denominator = ax * by - ay * bx
+    if abs(denominator) < 1e-12:
+        return None
+    cx, cy = b1[0] - a1[0], b1[1] - a1[1]
+    t = (cx * by - cy * bx) / denominator
+    return a1[0] + t * ax, a1[1] + t * ay
 
 
 def rectangle(width: float, height: float) -> ParametricPattern:
