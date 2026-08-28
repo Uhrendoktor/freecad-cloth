@@ -33,6 +33,58 @@ def distance(a, b):
     return sqrt((a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2)
 
 
+def _closest_point_triangle(p, a, b, c):
+    """Return the closest point on triangle ABC to point P."""
+    ab = tuple(b[i] - a[i] for i in range(3))
+    ac = tuple(c[i] - a[i] for i in range(3))
+    ap = tuple(p[i] - a[i] for i in range(3))
+    d1 = sum(ab[i] * ap[i] for i in range(3))
+    d2 = sum(ac[i] * ap[i] for i in range(3))
+    if d1 <= 0.0 and d2 <= 0.0:
+        return a
+    bp = tuple(p[i] - b[i] for i in range(3))
+    d3 = sum(ab[i] * bp[i] for i in range(3))
+    d4 = sum(ac[i] * bp[i] for i in range(3))
+    if d3 >= 0.0 and d4 <= d3:
+        return b
+    vc = d1 * d4 - d3 * d2
+    if vc <= 0.0 and d1 >= 0.0 and d3 <= 0.0:
+        v = d1 / (d1 - d3)
+        return tuple(a[i] + v * ab[i] for i in range(3))
+    cp = tuple(p[i] - c[i] for i in range(3))
+    d5 = sum(ab[i] * cp[i] for i in range(3))
+    d6 = sum(ac[i] * cp[i] for i in range(3))
+    if d6 >= 0.0 and d5 <= d6:
+        return c
+    vb = d5 * d2 - d1 * d6
+    if vb <= 0.0 and d2 >= 0.0 and d6 <= 0.0:
+        w = d2 / (d2 - d6)
+        return tuple(a[i] + w * ac[i] for i in range(3))
+    va = d3 * d6 - d5 * d4
+    if va <= 0.0 and (d4 - d3) >= 0.0 and (d5 - d6) >= 0.0:
+        w = (d4 - d3) / ((d4 - d3) + (d5 - d6))
+        return tuple(b[i] + w * (c[i] - b[i]) for i in range(3))
+    denom = 1.0 / (va + vb + vc)
+    v = vb * denom
+    w = vc * denom
+    return tuple(a[i] + ab[i] * v + ac[i] * w for i in range(3))
+
+
+def _cross(a, b):
+    return (
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    )
+
+
+def _normalize(v):
+    length = sqrt(sum(c * c for c in v))
+    if length < 1e-12:
+        return None
+    return tuple(c / length for c in v)
+
+
 class ClothSystem:
     def __init__(self, particles, constraints=(), stitches=(), pins=()):
         self.particles = list(particles)
@@ -67,7 +119,7 @@ class ClothSystem:
                     constraints.append(DistanceConstraint(idx(i+1,j), idx(i,j+1), distance(a,b)))
         return cls(particles, constraints)
 
-    def step(self, dt=1.0/60.0, iterations=8, gravity=(0.0, 0.0, -9810.0), sphere=None):
+    def step(self, dt=1.0/60.0, iterations=8, gravity=(0.0, 0.0, -9810.0), sphere=None, surface=None):
         if dt <= 0 or iterations < 1:
             raise ValueError("dt and iterations must be positive")
         gx, gy, gz = gravity
@@ -83,7 +135,9 @@ class ClothSystem:
         for _ in range(iterations):
             for c in self.constraints + self.stitches:
                 self._project(c)
-            if sphere is not None:
+            if surface is not None:
+                self._collide_surface(surface)
+            elif sphere is not None:
                 self._collide_sphere(*sphere)
             for i, pos in self.pins.items():
                 p = self.particles[i]
@@ -108,6 +162,39 @@ class ClothSystem:
             b.x -= dx * correction * b.inv_mass
             b.y -= dy * correction * b.inv_mass
             b.z -= dz * correction * b.inv_mass
+
+    def _collide_surface(self, surface):
+        surface.validate()
+        center = surface.center
+        prepared = []
+        for ia, ib, ic in surface.triangles:
+            a, b, c = surface.vertices[ia], surface.vertices[ib], surface.vertices[ic]
+            normal = _normalize(_cross(tuple(b[i] - a[i] for i in range(3)), tuple(c[i] - a[i] for i in range(3))))
+            if normal is None:
+                continue
+            face_center = tuple((a[i] + b[i] + c[i]) / 3.0 for i in range(3))
+            if sum(normal[i] * (center[i] - face_center[i]) for i in range(3)) > 0.0:
+                normal = tuple(-c for c in normal)
+            prepared.append((a, b, c, normal))
+        for p in self.particles:
+            if p.inv_mass == 0.0 or not prepared:
+                continue
+            position = p.position()
+            best = None
+            for a, b, c, normal in prepared:
+                closest = _closest_point_triangle(position, a, b, c)
+                delta = tuple(position[i] - closest[i] for i in range(3))
+                signed = sum(delta[i] * normal[i] for i in range(3))
+                if signed < surface.thickness:
+                    distance_sq = sum(d * d for d in delta)
+                    if best is None or distance_sq < best[0]:
+                        best = (distance_sq, closest, normal, signed)
+            if best is not None:
+                _, _, normal, signed = best
+                correction = surface.thickness - signed
+                p.x += normal[0] * correction
+                p.y += normal[1] * correction
+                p.z += normal[2] * correction
 
     def _collide_sphere(self, cx, cy, cz, radius):
         for p in self.particles:
