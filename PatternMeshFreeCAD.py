@@ -185,10 +185,21 @@ def _nearest_segment_id(pattern: ParametricPattern, point: Point) -> str:
     for segment in pattern.segments:
         if hasattr(segment, "control"):
             samples = segment.polyline(64)
+            distance = min(_point_to_segment_distance(point, a, b) for a, b in zip(samples, samples[1:]))
         else:
-            samples = (segment.start, segment.end)
-        distance = min(hypot(point[0] - sample[0], point[1] - sample[1]) for sample in samples)
+            distance = _point_to_segment_distance(point, segment.start, segment.end)
         if distance < best_distance:
             best_id = segment.id
             best_distance = distance
     return best_id
+
+
+def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
+    dx, dy = end[0] - start[0], end[1] - start[1]
+    length_squared = dx * dx + dy * dy
+    if length_squared <= 1e-24:
+        return hypot(point[0] - start[0], point[1] - start[1])
+    t = ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy) / length_squared
+    t = max(0.0, min(1.0, t))
+    closest = (start[0] + t * dx, start[1] + t * dy)
+    return hypot(point[0] - closest[0], point[1] - closest[1])
