@@ -17,15 +17,26 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+    strategy:
+      matrix:
+        python: ['3.10', '3.11', '3.12']
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
       - name: Core and geometry tests
         run: |
-          python3 tests/test_core.py
-          python3 tests/test_mesh.py
-          python3 tests/test_xpbd.py
+          python tests/test_core.py
+          python tests/test_mesh.py
+          python tests/test_xpbd.py
       - name: Python syntax check
-        run: python3 -m compileall -q .
+        run: python -m compileall -q .
+      - name: Package structure validation
+        run: |
+          test -f package.xml
+          test -f Init.py
+          test -f InitGui.py
       - name: FreeCAD smoke test when available
         shell: bash
         run: |
