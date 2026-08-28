@@ -16,17 +16,18 @@ Coordination registry for parallel work on `freecad-cloth`.
 - id: agent-avatar-fitting-20260828
   agent: subagent
   task: Body measurement/avatar fitting workflow (#69)
-  status: implementation
+  status: review
   files:
     - AvatarFitting.py
     - FittingCommands.py
+    - InitGui.py
     - tests/test_avatar_fitting.py
     - AGENT_STATUS.md
   scope: Add solver-neutral deterministic body measurements and fitting-scene metadata, plus lazy FreeCAD-facing commands to associate pattern pieces with an avatar collision proxy. Do not modify active sewing assembly files or solver behavior.
   started: 2026-08-28
-  last_update: 2026-08-28T15:30:00Z
-  progress: Registered scope; implementation starting.
-  tests: pending
+  last_update: 2026-08-28T15:42:00Z
+  progress: Implemented fitting scene metadata, measurement persistence, avatar association, reproducible piece placement, and bridge into the existing simulation scene. Added headless contract tests and exposed commands through Cloth Sewing.
+  tests: pending canonical CI
   pr: null
   blockers: none
 
