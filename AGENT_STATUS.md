@@ -19,16 +19,34 @@ Coordination registry for parallel work on `freecad-cloth`.
   status: active
   files:
     - AvatarCollision.py
+    - ClothSolver.py
+    - ClothBackend.py
     - SimulationObjects.py
     - tests/test_side_tasks.py
-    - tests/test_avatar_collision.py
-  scope: Convert FreeCAD mesh/body surfaces into solver-neutral CollisionSurface data and feed deterministic mesh collision data into the simulation scene; retain sphere fallback and collision thickness metadata.
+    - tests/freecad_smoke.py
+  scope: Convert FreeCAD body/mesh surfaces into solver-neutral CollisionSurface data and feed deterministic triangle-surface collision into the CPU XPBD backend; retain sphere fallback and collision thickness metadata.
   started: 2026-08-28
-  last_update: 2026-08-28T14:59:00Z
-  progress: AvatarSpec/CollisionSurface and sphere-backed fitting proxy are already integrated. Issue #54 is complete; #59 tracks the remaining real humanoid mesh collision gap.
-  tests: Canonical main run #120 passed after the previous workbench merge.
-  pr: null
+  last_update: 2026-08-28T15:10:00Z
+  progress: Implemented FreeCAD tessellation import, collision metadata, backend plumbing, triangle contact projection, and regression/smoke coverage. CI verification and review are pending.
+  tests: pending on feature branch
+  pr: pending
   blockers: none
+
+- id: agent-docs-quality-20260828
+  agent: delegated-quality-task
+  task: Docs / cleanup / quality-control pass (#63)
+  status: queued
+  files:
+    - README.md
+    - docs/
+    - AGENT_STATUS.md
+  scope: Audit documentation, research/license claims, stale registry entries, public API documentation and test gaps without changing solver behavior.
+  started: 2026-08-28
+  last_update: 2026-08-28T15:08:00Z
+  progress: Issue #63 created and scoped; no overlapping avatar implementation changes assigned.
+  tests: n/a until task execution
+  pr: null
+  blockers: Autonomous Codex delegation is currently unavailable because the workspace runner reported provider quota exhaustion; supervisor will retain coordination until a delegated executor is available.
 ```
 
 ## Completed / blocked history
