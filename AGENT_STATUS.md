@@ -48,26 +48,17 @@ Copy this template for a new task:
 ## Active work
 
 ```yaml
-- id: agent-supervisor-seam-graph-20260828
-  agent: supervisor
-  task: Implement seam-graph assembly constraints and backend adapter (#52)
-  status: active
-  files:
-    - PatternModel.py
-    - SimulationBackend.py
-    - tests/test_simulation_backend.py
-    - AGENT_STATUS.md
-    - TOOL_STATE.md
-  scope: Add stable seam assembly metadata and a minimal backend factory/protocol without making external solvers core dependencies.
-  started: 2026-08-28
-  last_update: 2026-08-28T14:48:00Z
-  progress: Generic seam allowance geometry merged as PR #49 with all canonical jobs green; next simulation slice is now registered. Existing #46 seam graph/backend adapter implementation is merged as PR #50 in separate files; coordinate before changing overlapping concepts.
-  tests: Canonical PR #49 run #101 passed on Python 3.10/3.11/3.12 and FreeCAD smoke; PR #50 run #102 passed on all canonical jobs.
-  pr: null
-  blockers: none
+[]
 ```
 
 ## Completed / blocked history
+
+- id: agent-supervisor-seam-graph-20260828
+  status: completed
+  progress: Supervisor seam-graph assembly/backend-adapter slice is no longer active.
+  tests: Existing canonical validation recorded in repository history.
+  pr: null
+  blockers: none
 
 - id: agent-seam-backend-20260828
   agent: subagent
