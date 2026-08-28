@@ -31,6 +31,7 @@ jobs:
       - name: Core and geometry tests
         run: |
           python tests/test_core.py
+          python tests/test_pattern_feature.py
           python tests/test_mesh.py
           python tests/test_xpbd.py
           python tests/test_side_tasks.py
@@ -48,7 +49,7 @@ jobs:
         run: |
           set -euo pipefail
           if command -v freecadcmd >/dev/null 2>&1; then
-            freecadcmd -c 'import sys; sys.path.insert(0, "."); import InitGui; import PatternModel; import PatternMesh; import XPBD; import SimulationScene; print("FreeCAD workbench import smoke test passed")'
+            freecadcmd -c 'import sys; sys.path.insert(0, "."); import InitGui; import PatternFeature; import PatternModel; import PatternMesh; import XPBD; import SimulationScene; print("FreeCAD workbench import smoke test passed")'
           else
             echo 'freecadcmd not installed; FreeCAD-specific smoke test skipped.'
           fi
