@@ -1,6 +1,6 @@
 """Simulation backend interface and shared cloth state."""
 from dataclasses import dataclass, field
-from typing import Protocol, Tuple
+from typing import Callable, Dict, Protocol, Tuple
 
 Vec3 = Tuple[float, float, float]
 
@@ -36,3 +36,42 @@ class NullSolver:
         if dt < 0:
             raise ValueError("dt must be non-negative")
         return state
+
+
+BackendFactory = Callable[[], ClothSolver]
+
+
+class BackendRegistry:
+    """Small named backend registry; external solvers remain optional."""
+
+    def __init__(self):
+        self._factories: Dict[str, BackendFactory] = {}
+
+    def register(self, name: str, factory: BackendFactory) -> None:
+        key = str(name).strip().lower()
+        if not key:
+            raise ValueError("backend name must not be empty")
+        if key in self._factories:
+            raise ValueError(f"backend already registered: {key}")
+        self._factories[key] = factory
+
+    def create(self, name: str) -> ClothSolver:
+        key = str(name).strip().lower()
+        try:
+            factory = self._factories[key]
+        except KeyError as exc:
+            raise KeyError(f"unknown cloth backend: {key}") from exc
+        solver = factory()
+        if not hasattr(solver, "step"):
+            raise TypeError(f"backend {key} does not provide step(state, dt)")
+        return solver
+
+    def names(self):
+        return tuple(sorted(self._factories))
+
+
+def default_backend_registry() -> BackendRegistry:
+    """Return a fresh registry containing only the dependency-free default."""
+    registry = BackendRegistry()
+    registry.register("null", NullSolver)
+    return registry
