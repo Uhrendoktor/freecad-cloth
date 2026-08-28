@@ -3,7 +3,6 @@ import os
 import FreeCAD as App
 import FreeCADGui as Gui
 
-import InitGui  # noqa: F401
 from PatternCommands import create_pattern_piece_from_parameters
 from SimulationObjects import create_drape_scene
 
