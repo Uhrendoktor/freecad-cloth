@@ -44,6 +44,14 @@ jobs:
           python tests/test_avatar_fitting.py
           python tests/test_drape_quality.py
           python tests/test_pattern_sketch.py
+      - name: Reference drape benchmark
+        run: python tests/benchmark_drape.py
+      - name: Upload reference drape benchmark
+        uses: actions/upload-artifact@v4
+        with:
+          name: drape-benchmark-${{ matrix.python }}
+          path: artifacts/drape-benchmark.json
+          if-no-files-found: error
       - name: Python syntax check
         run: python -m compileall -q .
       - name: Package structure validation
@@ -102,7 +110,7 @@ jobs:
               OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               sleep 2
-              freecad tests/freecad_screenshot.py >/tmp/freecad-gui.log 2>&1 &
+              freecadcmd tests/freecad_screenshot.py >/tmp/freecad-gui.log 2>&1 &
               FREECAD_PID=$!
               for i in $(seq 1 60); do
                 if test -s docs/images/generated/cloth-pattern.png && test -s docs/images/generated/cloth-simulation.png; then
