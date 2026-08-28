@@ -1,9 +1,4 @@
-"""FreeCAD-independent derived geometry for sewing patterns.
-
-The original sewing boundary remains untouched.  The cut boundary is derived
-as a sampled, miter-joined offset, which keeps the calculation deterministic
-and usable by later FreeCAD display adapters.
-"""
+"""FreeCAD-independent derived geometry and construction marks for patterns."""
 from dataclasses import dataclass
 from math import atan2, cos, hypot, sin
 from typing import Dict, Iterable, List, Tuple
@@ -28,6 +23,26 @@ class Notch:
 
 
 @dataclass(frozen=True)
+class PatternMark:
+    """A persistent semantic construction mark attached to the sewing line."""
+    id: str
+    kind: str
+    segment_id: str = ""
+    t: float = 0.5
+    angle: float = 0.0
+    length: float = 40.0
+    text: str = ""
+
+    def validate(self) -> None:
+        if not self.id.strip() or not self.kind.strip():
+            raise ValueError("pattern mark ID and kind must not be empty")
+        if not 0.0 <= self.t <= 1.0:
+            raise ValueError("pattern mark position must be between 0 and 1")
+        if self.length <= 0:
+            raise ValueError("pattern mark length must be positive")
+
+
+@dataclass(frozen=True)
 class OffsetEdge:
     id: str
     points: Tuple[Point, ...]
@@ -38,6 +53,7 @@ class DerivedPattern:
     sewing_boundary: ParametricPattern
     cut_boundary: Tuple[OffsetEdge, ...]
     notches: Tuple[Notch, ...]
+    marks: Tuple[PatternMark, ...] = ()
 
 
 def derive_cut_boundary(
@@ -47,13 +63,7 @@ def derive_cut_boundary(
     curve_samples: int = 32,
     miter_limit: float = 4.0,
 ) -> DerivedPattern:
-    """Return a deterministic cut boundary offset from the sewing boundary.
-
-    Positive width means outward from the closed pattern. Per-edge widths may
-    override the common width. Curves are sampled before offsetting; this is a
-    deliberate dependency-free approximation and the sampling density is part
-    of the deterministic calculation contract.
-    """
+    """Return a deterministic cut boundary offset from the sewing boundary."""
     if width < 0:
         raise ValueError("seam allowance width must be non-negative")
     if curve_samples < 2:
@@ -68,46 +78,67 @@ def derive_cut_boundary(
         raise ValueError("seam allowance widths must be non-negative")
 
     sampled = _sample_segments(pattern.segments, curve_samples)
-    orientation = _signed_area([point for points in sampled for point in points[:-1]])
+    outline = [point for points in sampled for point in points[:-1]]
+    orientation = _signed_area(outline)
+    if abs(orientation) < 1e-12 and width:
+        raise ValueError("pattern outline must enclose a non-zero area")
     outward_sign = -1.0 if orientation > 0 else 1.0
     cut_edges: List[OffsetEdge] = []
-    for index, (segment, points) in enumerate(zip(pattern.segments, sampled)):
+    for segment, points in zip(pattern.segments, sampled):
         allowance = edge_widths.get(segment.id, width)
-        cut_edges.append(
-            OffsetEdge(
-                segment.id,
-                tuple(_offset_polyline(points, allowance, outward_sign, miter_limit)),
-            )
-        )
+        cut_edges.append(OffsetEdge(segment.id, tuple(_offset_polyline(points, allowance, outward_sign, miter_limit))))
     return DerivedPattern(pattern, tuple(cut_edges), ())
 
 
-def add_notches(
-    derived: DerivedPattern,
-    notches: Iterable[Notch],
-) -> DerivedPattern:
-    """Attach validated sewing marks without changing the cut geometry."""
+def add_notches(derived: DerivedPattern, notches: Iterable[Notch]) -> DerivedPattern:
+    """Attach validated notch marks without changing cut geometry."""
     by_id = derived.sewing_boundary.by_id()
     result = list(derived.notches)
-    ids = {notch.id for notch in result}
+    ids = {notch.id for notch in result} | {mark.id for mark in derived.marks}
     for notch in notches:
         notch.validate()
         if notch.segment_id not in by_id:
             raise ValueError(f"notch references unknown segment: {notch.segment_id}")
         if notch.id in ids:
-            raise ValueError(f"duplicate notch ID: {notch.id}")
+            raise ValueError(f"duplicate construction mark ID: {notch.id}")
         ids.add(notch.id)
         result.append(notch)
-    return DerivedPattern(derived.sewing_boundary, derived.cut_boundary, tuple(result))
+    return DerivedPattern(derived.sewing_boundary, derived.cut_boundary, tuple(result), derived.marks)
+
+
+def add_marks(derived: DerivedPattern, marks: Iterable[PatternMark]) -> DerivedPattern:
+    """Attach grainline/fold/label/internal marks by stable segment references."""
+    by_id = derived.sewing_boundary.by_id()
+    result = list(derived.marks)
+    ids = {notch.id for notch in derived.notches} | {mark.id for mark in result}
+    for mark in marks:
+        mark.validate()
+        if mark.segment_id and mark.segment_id not in by_id:
+            raise ValueError(f"pattern mark references unknown segment: {mark.segment_id}")
+        if mark.id in ids:
+            raise ValueError(f"duplicate construction mark ID: {mark.id}")
+        ids.add(mark.id)
+        result.append(mark)
+    return DerivedPattern(derived.sewing_boundary, derived.cut_boundary, derived.notches, tuple(result))
 
 
 def notch_point(pattern: ParametricPattern, notch: Notch) -> Point:
-    """Return the exact sewing-boundary point associated with a notch."""
     notch.validate()
     segment = pattern.by_id().get(notch.segment_id)
     if segment is None:
         raise ValueError(f"notch references unknown segment: {notch.segment_id}")
     return segment.point(notch.t)
+
+
+def mark_point(pattern: ParametricPattern, mark: PatternMark) -> Point:
+    mark.validate()
+    if not mark.segment_id:
+        points = pattern.sampled_outline(2)
+        return points[0]
+    segment = pattern.by_id().get(mark.segment_id)
+    if segment is None:
+        raise ValueError(f"pattern mark references unknown segment: {mark.segment_id}")
+    return segment.point(mark.t)
 
 
 def _sample_segments(segments: Iterable[Segment], curve_samples: int) -> List[List[Point]]:
@@ -122,9 +153,7 @@ def _sample_segments(segments: Iterable[Segment], curve_samples: int) -> List[Li
     return result
 
 
-def _offset_polyline(
-    points: List[Point], width: float, outward_sign: float, miter_limit: float
-) -> List[Point]:
+def _offset_polyline(points: List[Point], width: float, outward_sign: float, miter_limit: float) -> List[Point]:
     if width == 0:
         return list(points)
     if len(points) < 2:
@@ -148,7 +177,6 @@ def _offset_polyline(
             summed = (n1[0] + n2[0], n1[1] + n2[1])
             norm = hypot(*summed)
             normal = (n2 if norm == 0 else (summed[0] / norm, summed[1] / norm))
-        # Limit sharp-corner displacement to avoid pathological miters.
         scale = width
         if index not in (0, len(points) - 1):
             tangent_change = abs(atan2(normals[index][1], normals[index][0]) - atan2(normals[index - 1][1], normals[index - 1][0]))
@@ -161,7 +189,4 @@ def _offset_polyline(
 
 
 def _signed_area(points: List[Point]) -> float:
-    return 0.5 * sum(
-        a[0] * b[1] - b[0] * a[1]
-        for a, b in zip(points, points[1:] + points[:1])
-    )
+    return 0.5 * sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(points, points[1:] + points[:1]))
