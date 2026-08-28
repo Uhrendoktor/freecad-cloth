@@ -71,3 +71,27 @@ jobs:
               freecadcmd --version
               freecadcmd tests/freecad_smoke.py
             '
+
+  cleanup-merged-branches:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    needs: [test, freecad-smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Delete merged PR source branches after green main validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          branches=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '.[].head.ref' || true)
+          for branch in $branches; do
+            [ "$branch" = "main" ] && continue
+            if gh api "repos/$REPO/git/ref/heads/$branch" >/dev/null 2>&1; then
+              gh api --method DELETE "repos/$REPO/git/refs/heads/$branch"
+              echo "deleted merged source branch: $branch"
+            fi
+          done
