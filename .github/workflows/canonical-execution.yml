@@ -42,6 +42,7 @@ jobs:
           python tests/test_sewing_workbench.py
           python tests/test_avatar_fitting.py
           python tests/test_drape_quality.py
+          python tests/test_pattern_sketch.py
       - name: Python syntax check
         run: python -m compileall -q .
       - name: Package structure validation
@@ -74,9 +75,43 @@ jobs:
               freecadcmd tests/freecad_smoke.py
             '
 
+  gui-screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate FreeCAD GUI screenshots under Xvfb
+        run: |
+          mkdir -p "$PWD/docs/images/generated"
+          docker run --rm \
+            -e DISPLAY=:99 \
+            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            debian:trixie-slim \
+            bash -euxo pipefail -c '
+              apt-get update -qq
+              apt-get install -y -qq freecad xvfb
+              Xvfb :99 -screen 0 1280x720x24 >/tmp/xvfb.log 2>&1 &
+              XVFB_PID=$!
+              trap "kill $XVFB_PID || true" EXIT
+              sleep 2
+              freecad tests/freecad_screenshot.py
+              test -s docs/images/generated/cloth-pattern.png
+              test -s docs/images/generated/cloth-simulation.png
+            '
+      - name: Upload GUI screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloth-gui-screenshots
+          path: docs/images/generated/*.png
+          if-no-files-found: error
+
   cleanup-merged-branches:
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    needs: [test, freecad-smoke]
+    needs: [test, freecad-smoke, gui-screenshots]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
