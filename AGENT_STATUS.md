@@ -25,10 +25,10 @@ Coordination registry for parallel work on `freecad-cloth`.
     - AGENT_STATUS.md
   scope: Add solver-neutral deterministic body measurements and fitting-scene metadata, plus lazy FreeCAD-facing commands to associate pattern pieces with an avatar collision proxy. Do not modify active sewing assembly files or solver behavior.
   started: 2026-08-28
-  last_update: 2026-08-28T15:42:00Z
-  progress: Implemented fitting scene metadata, measurement persistence, avatar association, reproducible piece placement, and bridge into the existing simulation scene. Added headless contract tests and exposed commands through Cloth Sewing.
-  tests: pending canonical CI
-  pr: null
+  last_update: 2026-08-28T15:43:00Z
+  progress: PR #73 open. Canonical run #142 is pending after the latest CI update.
+  tests: Python 3.10/3.11/3.12 and FreeCAD smoke pending on run #142
+  pr: 73
   blockers: none
 
 - id: agent-docs-quality-20260828
