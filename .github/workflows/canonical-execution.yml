@@ -40,6 +40,7 @@ jobs:
           python tests/test_freecad_objects.py
           python tests/test_gui_structure.py
           python tests/test_sewing_workbench.py
+          python tests/test_pattern_export.py
       - name: Python syntax check
         run: python -m compileall -q .
       - name: Package structure validation
