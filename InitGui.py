@@ -3,7 +3,8 @@ class ClothPatternWorkbench:
     ToolTip = "Parametric sewing-pattern design"
     def Initialize(self):
         import PatternCommands
-        self.commands = PatternCommands.COMMANDS
+        import PatternMarks
+        self.commands = PatternCommands.COMMANDS + PatternMarks.COMMANDS
         self.appendToolbar("Cloth Pattern", self.commands)
         self.appendMenu("Cloth Pattern", self.commands)
     def Activated(self): return None
