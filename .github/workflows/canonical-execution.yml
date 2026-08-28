@@ -71,27 +71,3 @@ jobs:
               freecadcmd --version
               freecadcmd tests/freecad_smoke.py
             '
-
-  one-shot-branch-cleanup:
-    if: "${{ github.event_name == 'push' && github.event.head_commit.message == 'chore: one-shot stale branch cleanup' }}"
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Delete confirmed stale branches
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          repo="${GITHUB_REPOSITORY}"
-          stale_branches=(
-            'agent-seam-backend-20260828'
-          )
-          for branch in "${stale_branches[@]}"; do
-            echo "Deleting $branch"
-            curl --fail-with-body --silent --show-error \
-              -X DELETE \
-              -H "Authorization: Bearer ${GH_TOKEN}" \
-              -H 'Accept: application/vnd.github+json' \
-              "https://api.github.com/repos/${repo}/git/refs/heads/${branch}"
-          done
