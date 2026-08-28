@@ -168,7 +168,17 @@ def _canonical_boundary_loop(edges: Sequence[Tuple[int, int]], vertices: Sequenc
         next_vertex = candidates[0]
         if len(loop) > len(edges):
             raise ValueError("native tessellator boundary is not a simple loop")
+    if _signed_loop_area(loop, vertices) < 0.0:
+        loop = [loop[0]] + list(reversed(loop[1:]))
     return loop
+
+
+def _signed_loop_area(loop: Sequence[int], vertices: Sequence[Point]) -> float:
+    return 0.5 * sum(
+        vertices[loop[index]][0] * vertices[loop[(index + 1) % len(loop)]][1]
+        - vertices[loop[(index + 1) % len(loop)]][0] * vertices[loop[index]][1]
+        for index in range(len(loop))
+    )
 
 
 def _loop_edges(loop: Sequence[int]) -> Iterable[Tuple[int, int]]:
