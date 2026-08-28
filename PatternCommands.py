@@ -1,32 +1,57 @@
 """Commands for the Cloth Pattern workbench."""
 
 
-def create_pattern_piece():
-    """Create a 100 x 60 mm parametric demo pattern piece."""
+def create_pattern_piece_from_parameters(name, width, height, allowance, grainline):
     import FreeCAD as App
     from PatternModel import PatternPiece
     from PatternObjects import add_pattern_piece
     from PatternGeometry import rectangle
 
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
-    geometry = rectangle(100.0, 60.0)
-    piece = PatternPiece("PatternPiece", geometry.sampled_outline(), id="pattern-piece-1")
-    add_pattern_piece(doc, piece)
+    geometry = rectangle(float(width), float(height))
+    piece_id = "pattern-piece-" + str(len([o for o in doc.Objects if getattr(o, "PatternType", "") == "PatternPiece"]) + 1)
+    piece = PatternPiece(name, geometry.sampled_outline(), id=piece_id, seam_allowance=float(allowance), grainline_angle=float(grainline))
+    obj = add_pattern_piece(doc, piece)
+    obj.Width = float(width)
+    obj.Height = float(height)
+    obj.SeamAllowance = float(allowance)
+    obj.GrainlineAngle = float(grainline)
+    obj.Label = name
     doc.recompute()
+    return obj
+
+
+def create_pattern_piece():
+    """Create a 100 x 60 mm parametric demo pattern piece."""
+    return create_pattern_piece_from_parameters("PatternPiece", 100.0, 60.0, 0.0, 0.0)
+
+
+def edit_pattern_piece():
+    """Open the Pattern Piece task panel for the selected piece."""
+    import FreeCADGui as Gui
+    selection = Gui.Selection.getSelection()
+    obj = next((o for o in selection if getattr(o, "PatternType", "") == "PatternPiece"), None)
+    if obj is None:
+        raise ValueError("select a pattern piece before editing it")
+    from PatternGui import show_pattern_piece_task
+    show_pattern_piece_task(obj)
+
+
+def create_pattern_piece_task():
+    """Open a task panel for creating a new pattern piece."""
+    from PatternGui import show_pattern_piece_task
+    show_pattern_piece_task()
+
+
+def show_pattern_2d():
+    """Switch the active document to a top-down 2D drafting view."""
+    from PatternGui import show_pattern_view
+    show_pattern_view()
 
 
 def create_custom_pattern_piece():
     """Create a second, larger parametric pattern piece for drafting."""
-    import FreeCAD as App
-    from PatternModel import PatternPiece
-    from PatternObjects import add_pattern_piece
-    from PatternGeometry import rectangle
-
-    doc = App.ActiveDocument or App.newDocument("ClothPattern")
-    geometry = rectangle(180.0, 120.0)
-    piece = PatternPiece("PatternPiece_Large", geometry.sampled_outline(), id="pattern-piece-large")
-    add_pattern_piece(doc, piece)
-    doc.recompute()
+    return create_pattern_piece_from_parameters("PatternPiece_Large", 180.0, 120.0, 0.0, 0.0)
 
 
 def create_pattern_mesh():
@@ -35,7 +60,6 @@ def create_pattern_mesh():
     from PatternGeometry import rectangle
     from PatternMesh import triangulate
     from PatternObjects import add_pattern_mesh
-
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
     add_pattern_mesh(doc, triangulate(rectangle(100.0, 60.0)))
     doc.recompute()
@@ -46,7 +70,6 @@ def add_seam():
     import FreeCAD as App
     from PatternModel import Seam
     from PatternObjects import add_seam
-
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
     pieces = [obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"]
     if len(pieces) < 2:
@@ -58,20 +81,16 @@ def add_seam():
 
 
 class _FunctionCommand:
-    def __init__(self, function):
-        self.function = function
-
-    def Activated(self):
-        self.function()
-
+    def __init__(self, function): self.function = function
+    def Activated(self): self.function()
     def GetResources(self):
-        return {
-            "MenuText": self.function.__name__.replace("_", " ").title(),
-            "ToolTip": self.function.__doc__ or "Cloth pattern command",
-        }
+        return {"MenuText": self.function.__name__.replace("_", " ").title(), "ToolTip": self.function.__doc__ or "Cloth pattern command"}
 
 
 COMMANDS = [
+    "ClothPattern_CreatePieceTask",
+    "ClothPattern_EditPiece",
+    "ClothPattern_Show2D",
     "ClothPattern_CreatePiece",
     "ClothPattern_CreateCustomPiece",
     "ClothPattern_CreateMesh",
@@ -81,6 +100,9 @@ COMMANDS = [
 try:
     import FreeCADGui as Gui
     if hasattr(Gui, "addCommand"):
+        Gui.addCommand("ClothPattern_CreatePieceTask", _FunctionCommand(create_pattern_piece_task))
+        Gui.addCommand("ClothPattern_EditPiece", _FunctionCommand(edit_pattern_piece))
+        Gui.addCommand("ClothPattern_Show2D", _FunctionCommand(show_pattern_2d))
         Gui.addCommand("ClothPattern_CreatePiece", _FunctionCommand(create_pattern_piece))
         Gui.addCommand("ClothPattern_CreateCustomPiece", _FunctionCommand(create_custom_pattern_piece))
         Gui.addCommand("ClothPattern_CreateMesh", _FunctionCommand(create_pattern_mesh))
