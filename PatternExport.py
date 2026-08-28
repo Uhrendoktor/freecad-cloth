@@ -47,7 +47,7 @@ def to_svg(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm
     edge_ids = " ".join(escape(s.id, quote=True) for s in pattern.segments)
     metadata = json.dumps({"version": 1, "units": units, "edge_ids": [s.id for s in pattern.segments]}, sort_keys=True, separators=(",", ":"))
     lines = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{_fmt(width)}{escape(units)}" height="{_fmt(height)}{escape(units)}" viewBox="0 0 {_fmt(width)} {_fmt(height)}">',
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{_fmt(width)}{escape(units)}" height="{_fmt(height)}{escape(units)}" viewBox="0 0 {_fmt(width)} {_fmt(height)}" data-units="{escape(units, quote=True)}" data-edge-ids="{edge_ids}">',
         f'  <metadata>{escape(metadata)}</metadata>',
         f'  <g id="sewing-boundary" data-edge-ids="{edge_ids}"><path d="{path(sewing)}" fill="none"/></g>',
     ]
