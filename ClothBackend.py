@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from copy import deepcopy
 from typing import Callable, Iterable, Mapping, Sequence, Tuple
 
+from AvatarCollision import CollisionSurface
 from ClothSolver import ClothSystem
 from SeamGraph import SeamGraph
 
@@ -17,7 +18,7 @@ class ClothSimulationBackend(ABC):
     name = "abstract"
 
     @abstractmethod
-    def step(self, dt=1.0 / 60.0, iterations=8, gravity=(0.0, 0.0, -9810.0), sphere=None):
+    def step(self, dt=1.0 / 60.0, iterations=8, gravity=(0.0, 0.0, -9810.0), sphere=None, surface=None):
         raise NotImplementedError
 
     @abstractmethod
@@ -64,8 +65,10 @@ class XPBDBackend(ClothSimulationBackend):
     def time(self):
         return self.system.time
 
-    def step(self, dt=1.0 / 60.0, iterations=8, gravity=(0.0, 0.0, -9810.0), sphere=None):
-        self.system.step(dt=dt, iterations=iterations, gravity=gravity, sphere=sphere)
+    def step(self, dt=1.0 / 60.0, iterations=8, gravity=(0.0, 0.0, -9810.0), sphere=None, surface=None):
+        if surface is not None and not isinstance(surface, CollisionSurface):
+            raise TypeError("surface must be a CollisionSurface")
+        self.system.step(dt=dt, iterations=iterations, gravity=gravity, sphere=sphere, surface=surface)
 
     def reset(self):
         self.system = deepcopy(self._initial)
