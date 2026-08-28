@@ -81,6 +81,19 @@ Coordination registry for parallel work on `freecad-cloth`.
 
 ## Completed milestones
 
+- id: agent-meshpart-netgen-20260828
+  agent: subagent
+  task: Evaluate MeshPart/Netgen triangulation adapter (#86)
+  status: completed
+  files: [PatternMesh.py, PatternMeshFreeCAD.py, tests/test_mesh.py, tests/test_meshpart_adapter.py, tests/freecad_meshpart_smoke.py, .github/workflows/canonical-execution.yml, AGENT_STATUS.md]
+  scope: Compare FreeCAD MeshPart/Netgen triangulation with the semantic TriangleMesh contract, preserving pattern-edge boundary provenance and deterministic sewing constraint generation.
+  started: 2026-08-28
+  last_update: 2026-08-28T18:05:00+02:00
+  progress: Hardened the existing native MeshPart adapter rather than introducing a duplicate module; added canonical vertex/boundary ordering, stable pattern-segment provenance, headless regression coverage and real FreeCAD smoke coverage. The deterministic ear-clipping path remains the headless reference backend.
+  tests: Canonical workflow run #166 passed Python 3.10/3.11/3.12 and real FreeCAD smoke before this registry-only update.
+  pr: 91 (pending)
+  blockers: none
+
 - Workbench skeleton and canonical CI
 - Parametric pattern model and semantic construction metadata
 - Drafting UI and seam allowance/export contracts
