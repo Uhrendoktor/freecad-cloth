@@ -27,5 +27,8 @@ Gui.activeDocument().activeView().saveImage(os.path.join(OUT, "cloth-simulation.
 
 print("generated", os.path.join(OUT, "cloth-pattern.png"))
 print("generated", os.path.join(OUT, "cloth-simulation.png"))
-Gui.activeDocument().activeView().getCameraOrientation()
 doc.close()
+try:
+    Gui.getMainWindow().close()
+except Exception:
+    pass
