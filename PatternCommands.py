@@ -37,6 +37,20 @@ def edit_pattern_piece():
     show_pattern_piece_task(obj)
 
 
+def create_pattern_sketch():
+    """Create a native Sketcher representation of the selected pattern piece."""
+    import FreeCAD as App
+    import FreeCADGui as Gui
+    from PatternModel import PatternPiece
+    from PatternSketch import create_sketch_for_piece
+    obj = next((o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"), None)
+    if obj is None:
+        raise ValueError("select a pattern piece before creating its Sketcher representation")
+    points = [(float(p.x), float(p.y)) for p in obj.Shape.Vertexes]
+    piece = PatternPiece(obj.Label, points, seam_allowance=float(getattr(obj, "SeamAllowance", 0.0)), grainline_angle=float(getattr(obj, "GrainlineAngle", 0.0)), id=str(obj.PieceId))
+    return create_sketch_for_piece(piece, App.ActiveDocument)
+
+
 def create_pattern_piece_task():
     """Open a task panel for creating a new pattern piece."""
     from PatternGui import show_pattern_piece_task
@@ -90,6 +104,7 @@ class _FunctionCommand:
 COMMANDS = [
     "ClothPattern_CreatePieceTask",
     "ClothPattern_EditPiece",
+    "ClothPattern_CreateSketch",
     "ClothPattern_Show2D",
     "ClothPattern_CreatePiece",
     "ClothPattern_CreateCustomPiece",
@@ -102,6 +117,7 @@ try:
     if hasattr(Gui, "addCommand"):
         Gui.addCommand("ClothPattern_CreatePieceTask", _FunctionCommand(create_pattern_piece_task))
         Gui.addCommand("ClothPattern_EditPiece", _FunctionCommand(edit_pattern_piece))
+        Gui.addCommand("ClothPattern_CreateSketch", _FunctionCommand(create_pattern_sketch))
         Gui.addCommand("ClothPattern_Show2D", _FunctionCommand(show_pattern_2d))
         Gui.addCommand("ClothPattern_CreatePiece", _FunctionCommand(create_pattern_piece))
         Gui.addCommand("ClothPattern_CreateCustomPiece", _FunctionCommand(create_custom_pattern_piece))
