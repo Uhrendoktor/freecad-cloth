@@ -44,6 +44,14 @@ jobs:
           python tests/test_avatar_fitting.py
           python tests/test_drape_quality.py
           python tests/test_pattern_sketch.py
+      - name: Reference drape benchmark
+        run: python tests/benchmark_drape.py
+      - name: Upload reference drape benchmark
+        uses: actions/upload-artifact@v4
+        with:
+          name: drape-benchmark-${{ matrix.python }}
+          path: artifacts/drape-benchmark.json
+          if-no-files-found: error
       - name: Python syntax check
         run: python -m compileall -q .
       - name: Package structure validation
