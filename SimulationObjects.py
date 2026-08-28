@@ -24,27 +24,31 @@ def _write_grid_mesh(obj, system, indices, nx, ny):
     obj.Mesh = native
 
 
-def _parse_pair_list(values):
+def _parse_pair_list(values, particle_count=None):
     pairs = []
     for value in values or ():
         text = str(value).replace(",", "-")
         parts = [p.strip() for p in text.split("-") if p.strip()]
         if len(parts) == 2:
             try:
-                pairs.append((int(parts[0]), int(parts[1])))
+                pair = (int(parts[0]), int(parts[1]))
             except ValueError:
-                pass
-    return tuple(pairs)
+                continue
+            if particle_count is None or all(0 <= index < particle_count for index in pair):
+                pairs.append(pair)
+    return tuple(dict.fromkeys(pairs))
 
 
-def _parse_int_list(values):
+def _parse_int_list(values, particle_count=None):
     result = []
     for value in values or ():
         for part in str(value).replace(";", ",").split(","):
             try:
-                result.append(int(part.strip()))
+                index = int(part.strip())
             except ValueError:
-                pass
+                continue
+            if particle_count is None or 0 <= index < particle_count:
+                result.append(index)
     return tuple(dict.fromkeys(result))
 
 
@@ -87,9 +91,10 @@ class SimulationProxy:
         self.left_indices = tuple(range(offset))
         self.right_indices = tuple(range(offset, offset*2))
         default_seams = [(j*nx + (nx-1), offset + j*nx) for j in range(ny)]
-        seam_pairs = _parse_pair_list(obj.SeamSelection) or tuple(default_seams)
+        seam_pairs = _parse_pair_list(obj.SeamSelection, len(particles)) or tuple(default_seams)
         self.system.add_stitches(seam_pairs)
-        pins = _parse_int_list(obj.PinSelection) or (0, nx-1, offset, offset+nx-1)
+        default_pins = (0, nx-1, offset, offset+nx-1)
+        pins = _parse_int_list(obj.PinSelection, len(particles)) or default_pins
         self.system.pin(pins)
         self.last_steps = 0
 
@@ -113,7 +118,7 @@ def create_simulation_scene(doc):
     scene.addProperty("App::PropertyInteger", "Steps", "Solver").Steps = 0
     scene.addProperty("App::PropertyLinkList", "ClothPieces", "Selection")
     scene.addProperty("App::PropertyLink", "AvatarProxy", "Selection")
-    scene.addProperty("App::PropertyStringList", "PinSelection", "Selection").PinSelection = ["0", "7", "32", "39"]
+    scene.addProperty("App::PropertyStringList", "PinSelection", "Selection").PinSelection = ["0", "7", "40", "47"]
     scene.addProperty("App::PropertyStringList", "SeamSelection", "Selection").SeamSelection = ["7-8", "15-16", "23-24", "31-32", "39-40"]
     scene.addProperty("App::PropertyFloat", "SimulatedTime", "State").SimulatedTime = 0.0
     scene.addProperty("App::PropertyInteger", "ParticleCount", "State").ParticleCount = 0
