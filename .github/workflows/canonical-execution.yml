@@ -11,6 +11,9 @@ concurrency:
   group: canonical-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  PYTHONPATH: .
+
 jobs:
   test:
     runs-on: ubuntu-latest
