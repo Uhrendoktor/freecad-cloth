@@ -3,18 +3,14 @@ from PatternModel import PatternPiece, Seam
 
 
 class PatternPieceProxy:
-    """Recomputable proxy for a rectangular parametric pattern piece.
-
-    The semantic pattern model remains FreeCAD-independent; this proxy only
-    translates the model into native Part geometry when FreeCAD recomputes the
-    document object.
-    """
+    """Recomputable proxy for a rectangular parametric pattern piece."""
 
     Type = "ClothPatternPiece"
 
     def execute(self, obj):
         import FreeCAD as App
         import Part
+        from PatternDrafting import default_points, parse_points, serialize_points, bounds, seam_allowance_preview
 
         width = float(obj.Width)
         height = float(obj.Height)
@@ -24,29 +20,34 @@ class PatternPieceProxy:
         if allowance < 0:
             raise ValueError("seam allowance cannot be negative")
 
-        sewing = [
-            App.Vector(0, 0, 0),
-            App.Vector(width, 0, 0),
-            App.Vector(width, height, 0),
-            App.Vector(0, height, 0),
-            App.Vector(0, 0, 0),
-        ]
+        try:
+            points = parse_points(obj.DraftingBoundary)
+        except (ValueError, AttributeError):
+            points = ()
+        if not points:
+            points = default_points(width, height)
+        points = tuple(points)
+        obj.DraftingBoundary = serialize_points(points)
+        obj.SemanticSegments = "bottom,right,top,left"
+        if not getattr(obj, "GrainlineMarker", ""):
+            obj.GrainlineMarker = "centerline"
+        if not getattr(obj, "NotchMarkers", ""):
+            obj.NotchMarkers = "0,0;1,0;2,0;3,0"
+
+        x0, y0, x1, y1 = bounds(points)
+        obj.Width = max(0.001, x1 - x0)
+        obj.Height = max(0.001, y1 - y0)
         obj.SewingBoundary = "bottom,right,top,left"
-        obj.SewingOutline = repr([(0.0, 0.0), (width, 0.0), (width, height), (0.0, height)])
-
-        if allowance == 0:
-            outline = sewing
+        obj.SewingOutline = repr(points)
+        sewing = [App.Vector(x, y, 0) for x, y in points]
+        sewing.append(sewing[0])
+        if allowance:
+            preview = seam_allowance_preview(points, allowance)
+            outline = [App.Vector(x, y, 0) for x, y in preview]
+            outline.append(outline[0])
         else:
-            outline = [
-                App.Vector(-allowance, -allowance, 0),
-                App.Vector(width + allowance, -allowance, 0),
-                App.Vector(width + allowance, height + allowance, 0),
-                App.Vector(-allowance, height + allowance, 0),
-                App.Vector(-allowance, -allowance, 0),
-            ]
-        wire = Part.makePolygon(outline)
-        obj.Shape = Part.Face(wire)
-
+            outline = sewing
+        obj.Shape = Part.Face(Part.makePolygon(outline))
 
 
 def add_pattern_piece(doc, piece: PatternPiece):
@@ -62,11 +63,14 @@ def add_pattern_piece(doc, piece: PatternPiece):
     obj.addProperty("App::PropertyAngle", "GrainlineAngle", "Cloth").GrainlineAngle = piece.grainline_angle
     obj.addProperty("App::PropertyString", "SewingBoundary", "Cloth")
     obj.addProperty("App::PropertyString", "SewingOutline", "Cloth")
+    obj.addProperty("App::PropertyString", "DraftingBoundary", "Drafting")
+    obj.addProperty("App::PropertyString", "SemanticSegments", "Drafting")
+    obj.addProperty("App::PropertyString", "GrainlineMarker", "Marks")
+    obj.addProperty("App::PropertyString", "NotchMarkers", "Marks")
     proxy = PatternPieceProxy()
     obj.Proxy = proxy
     proxy.execute(obj)
     return obj
-
 
 
 def add_seam(doc, seam: Seam):
@@ -84,7 +88,6 @@ def add_seam(doc, seam: Seam):
     obj.addProperty("App::PropertyFloat", "EndB", "Seam").EndB = seam.end_b
     obj.addProperty("App::PropertyBool", "ReversedB", "Seam").ReversedB = seam.reversed_b
     return obj
-
 
 
 def add_pattern_mesh(doc, mesh, name="ClothMesh"):
