@@ -80,28 +80,31 @@ Coordination registry for parallel work on `freecad-cloth`.
   tests: planned FreeCAD GUI smoke/documentation workflow
   pr: null
   blockers: none
-
-- id: agent-meshpart-netgen-20260828
-  agent: subagent
-  task: Evaluate MeshPart/Netgen triangulation adapter (#86)
-  status: active
-  files:
-    - PatternMesh.py
-    - tests/
-    - docs/
-    - AGENT_STATUS.md
-  scope: Compare FreeCAD MeshPart/Netgen triangulation with the semantic TriangleMesh contract, preserving pattern-edge boundary provenance and deterministic sewing constraint generation. Avoid changes to active Sketcher, sewing assembly, or XPBD solver scopes.
-  started: 2026-08-28
-  last_update: 2026-08-28T17:50:00+02:00
-  progress: Registered from current main after checking active work. Inspecting existing mesh contract and FreeCAD smoke/test conventions before implementation.
-  tests: planned Python 3.10/3.11/3.12 plus real FreeCAD smoke where MeshPart is available
-  pr: null
-  blockers: none
 ```
 
 ## Completed milestones
 
 ```yaml
+- id: agent-meshpart-netgen-20260828
+  agent: subagent
+  task: Evaluate MeshPart/Netgen triangulation adapter (#86)
+  status: completed
+  files:
+    - PatternMesh.py
+    - PatternMeshFreeCAD.py
+    - tests/test_mesh.py
+    - tests/test_meshpart_adapter.py
+    - tests/freecad_meshpart_smoke.py
+    - .github/workflows/canonical-execution.yml
+    - AGENT_STATUS.md
+  scope: Compare FreeCAD MeshPart/Netgen triangulation with the semantic TriangleMesh contract, preserving pattern-edge boundary provenance and deterministic sewing constraint generation. Avoid changes to active Sketcher, sewing assembly, or XPBD solver scopes.
+  started: 2026-08-28
+  last_update: 2026-08-28T17:55:00+02:00
+  progress: Added optional MeshPart tessellation adapter, canonical vertex/boundary ordering, stable pattern-segment provenance, headless regression coverage and real FreeCAD smoke coverage. The existing deterministic ear-clipping backend remains the reference path.
+  tests: Canonical workflow run #166 passed Python 3.10/3.11/3.12 and real FreeCAD smoke.
+  pr: 90 (open, ready to merge)
+  blockers: none
+
 - id: agent-supervisor-drape-quality-20260828
   agent: supervisor
   task: Deterministic drape quality gates (#70)
