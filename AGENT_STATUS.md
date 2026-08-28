@@ -65,11 +65,14 @@ Copy this template for a new task:
   tests: Corrective PR #56 canonical run #112 passed on Python 3.10/3.11/3.12 and FreeCAD smoke.
   pr: null
   blockers: none
+```
+
+## Completed / blocked history
 
 - id: agent-subagent-sewing-workbench-20260828
   agent: subagent
   task: Harden sewing workbench registration/load smoke coverage (#27, workbench slice)
-  status: active
+  status: review
   files:
     - InitGui.py
     - tests/test_gui_structure.py
@@ -77,14 +80,11 @@ Copy this template for a new task:
     - AGENT_STATUS.md
   scope: Own only workbench discovery/registration and FreeCAD runtime smoke assertions; do not modify pattern/simulation/sewing object models or canonical workflow logic.
   started: 2026-08-28
-  last_update: 2026-08-28T16:55:00Z
-  progress: Existing three workbenches and sewing commands confirmed; next step is to add isolated registration/runtime assertions without touching model architecture.
-  tests: Planned: test_gui_structure.py and freecad_smoke.py.
-  pr: null
+  last_update: 2026-08-28T16:58:00Z
+  progress: PR #58 opened. Static GUI checks now cover all three workbench registrations and sewing GUI/commands; real FreeCAD smoke imports InitGui and validates all three workbench contracts.
+  tests: Canonical CI triggered by PR #58; local execution unavailable in this environment.
+  pr: 58
   blockers: none
-```
-
-## Completed / blocked history
 
 - id: agent-supervisor-cleanup-20260828
   agent: supervisor
