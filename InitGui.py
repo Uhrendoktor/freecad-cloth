@@ -31,10 +31,11 @@ class ClothSimulationWorkbench:
 
 class ClothSewingWorkbench:
     MenuText = "Cloth Sewing"
-    ToolTip = "Sewing operations and seam validation"
+    ToolTip = "Sewing operations and avatar fitting"
     def Initialize(self):
         import SewingCommands
-        self.commands = SewingCommands.COMMANDS
+        import FittingCommands
+        self.commands = SewingCommands.COMMANDS + FittingCommands.COMMANDS
         self.appendToolbar("Cloth Sewing", self.commands)
         self.appendMenu("Cloth Sewing", self.commands)
     def Activated(self): return None

@@ -13,6 +13,24 @@ Coordination registry for parallel work on `freecad-cloth`.
 ## Active work
 
 ```yaml
+- id: agent-avatar-fitting-20260828
+  agent: subagent
+  task: Body measurement/avatar fitting workflow (#69)
+  status: review
+  files:
+    - AvatarFitting.py
+    - FittingCommands.py
+    - InitGui.py
+    - tests/test_avatar_fitting.py
+    - AGENT_STATUS.md
+  scope: Add solver-neutral deterministic body measurements and fitting-scene metadata, plus lazy FreeCAD-facing commands to associate pattern pieces with an avatar collision proxy. Do not modify active sewing assembly files or solver behavior.
+  started: 2026-08-28
+  last_update: 2026-08-28T15:43:00Z
+  progress: PR #73 open. Canonical run #142 is pending after the latest CI update.
+  tests: Python 3.10/3.11/3.12 and FreeCAD smoke pending on run #142
+  pr: 73
+  blockers: none
+
 - id: agent-docs-quality-20260828
   agent: delegated-quality-task
   task: Docs / cleanup / quality-control pass (#63)
