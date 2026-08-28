@@ -73,7 +73,7 @@ jobs:
             '
 
   one-shot-branch-cleanup:
-    if: ${{ github.event_name == 'push' && github.event.head_commit.message == 'chore: one-shot stale branch cleanup' }}
+    if: "${{ github.event_name == 'push' && github.event.head_commit.message == 'chore: one-shot stale branch cleanup' }}"
     runs-on: ubuntu-latest
     permissions:
       contents: write
