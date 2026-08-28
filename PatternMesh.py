@@ -3,10 +3,11 @@
 The mesher deliberately consumes the sewing boundary rather than the cut
 boundary: seam allowance is manufacturing geometry, while the cloth solver
 needs the physical panel boundary.  Ear clipping keeps this first backend
-small and deterministic; a constrained-Delaunay backend can replace it later.
+small and deterministic; FreeCAD-facing MeshPart/Netgen adapters can replace
+it without changing the semantic mesh contract.
 """
 from dataclasses import dataclass
-from math import isclose
+from math import hypot, isclose
 from typing import Dict, List, Sequence, Tuple
 
 from PatternGeometry import ParametricPattern, Point
@@ -14,10 +15,16 @@ from PatternGeometry import ParametricPattern, Point
 
 @dataclass(frozen=True)
 class TriangleMesh:
-    """Triangle mesh in pattern coordinates, in millimetres."""
+    """Triangle mesh in pattern coordinates, in millimetres.
+
+    ``boundary_edge_segment_ids`` is optional provenance for the ordered
+    boundary edges.  It lets native meshing adapters retain stable pattern
+    segment IDs even when the tessellator inserts or reorders vertices.
+    """
     vertices: Tuple[Point, ...]
     triangles: Tuple[Tuple[int, int, int], ...]
     boundary_vertex_indices: Tuple[int, ...]
+    boundary_edge_segment_ids: Tuple[str, ...] = ()
 
     def validate(self) -> None:
         if len(self.vertices) < 3:
@@ -28,6 +35,8 @@ class TriangleMesh:
                 raise ValueError("invalid triangle index")
         if len(self.boundary_vertex_indices) < 3:
             raise ValueError("mesh needs at least three boundary vertices")
+        if self.boundary_edge_segment_ids and len(self.boundary_edge_segment_ids) != len(self.boundary_vertex_indices):
+            raise ValueError("boundary provenance must match boundary edge count")
 
     @property
     def area(self) -> float:
@@ -52,9 +61,12 @@ def triangulate(pattern: ParametricPattern, curve_samples: int = 16) -> Triangle
     if _self_intersects(points):
         raise ValueError("pattern boundary self-intersects")
 
+    edge_ids = _edge_segment_ids(pattern, points)
+
     # Ear clipping is easiest in counter-clockwise orientation.
     if _signed_area(points) < 0:
         points = list(reversed(points))
+        edge_ids = list(reversed(edge_ids))
     vertices = tuple(points)
     remaining = list(range(len(vertices)))
     triangles: List[Tuple[int, int, int]] = []
@@ -79,7 +91,7 @@ def triangulate(pattern: ParametricPattern, curve_samples: int = 16) -> Triangle
             raise ValueError("unable to triangulate polygon; boundary may be degenerate")
     if len(remaining) == 3:
         triangles.append(tuple(remaining))
-    mesh = TriangleMesh(vertices, tuple(triangles), tuple(range(len(vertices))))
+    mesh = TriangleMesh(vertices, tuple(triangles), tuple(range(len(vertices))), tuple(edge_ids))
     mesh.validate()
     return mesh
 
@@ -92,6 +104,27 @@ def _deduplicate_consecutive(points: Sequence[Point]) -> List[Point]:
             result.append(point)
     if len(result) > 1 and isclose(result[0][0], result[-1][0], abs_tol=1e-9) and isclose(result[0][1], result[-1][1], abs_tol=1e-9):
         result.pop()
+    return result
+
+
+def _edge_segment_ids(pattern: ParametricPattern, points: Sequence[Point]) -> List[str]:
+    """Map sampled boundary edges to stable semantic pattern segment IDs."""
+    result: List[str] = []
+    for index, start in enumerate(points):
+        end = points[(index + 1) % len(points)]
+        midpoint = ((start[0] + end[0]) / 2.0, (start[1] + end[1]) / 2.0)
+        best_index = 0
+        best_distance = float("inf")
+        for segment_index, segment in enumerate(pattern.segments):
+            if hasattr(segment, "control"):
+                samples = segment.polyline(32)
+            else:
+                samples = [segment.start, segment.end]
+            distance = min(hypot(midpoint[0] - point[0], midpoint[1] - point[1]) for point in samples)
+            if distance < best_distance:
+                best_index = segment_index
+                best_distance = distance
+        result.append(pattern.segments[best_index].id)
     return result
 
 
