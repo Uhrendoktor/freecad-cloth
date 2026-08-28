@@ -13,6 +13,22 @@ Coordination registry for parallel work on `freecad-cloth`.
 ## Active work
 
 ```yaml
+- id: agent-drape-quality-20260828
+  agent: subagent
+  task: Deterministic drape quality gates and benchmarks (#70)
+  status: implementation
+  files:
+    - DrapeQuality.py
+    - tests/test_drape_quality.py
+    - AGENT_STATUS.md
+  scope: Add solver-observing quality metrics, bounded residual/displacement gates, and repeat-run benchmark reporting without changing solver behavior or active sewing/avatar files.
+  started: 2026-08-28
+  last_update: 2026-08-28T15:25:00Z
+  progress: Added deterministic metrics and benchmark helper plus headless regression tests. CI validation pending.
+  tests: pending canonical CI
+  pr: null
+  blockers: none
+
 - id: agent-docs-quality-20260828
   agent: delegated-quality-task
   task: Docs / cleanup / quality-control pass (#63)
@@ -62,7 +78,6 @@ Coordination registry for parallel work on `freecad-cloth`.
     - tests/test_side_tasks.py
     - tests/freecad_smoke.py
     - docs/SEWING_WORKFLOW_RESEARCH.md
-  scope: Convert FreeCAD body/mesh surfaces into solver-neutral CollisionSurface data and feed deterministic triangle-surface collision into the CPU XPBD backend; retain sphere fallback and collision thickness metadata.
   started: 2026-08-28
   last_update: 2026-08-28T15:16:00Z
   progress: PR #64 merged. Canonical PR run #129 and post-merge main run #135 passed Python 3.10/3.11/3.12 and real FreeCAD smoke; the cleanup job also deleted the merged source branch. Research and planning were updated in issue #43 and the repository docs.
