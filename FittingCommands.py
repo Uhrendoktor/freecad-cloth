@@ -135,7 +135,14 @@ class _FittingProxy:
         FittingScene(measurements, avatar_name, placements).validate()
 
 
-COMMANDS = {
+COMMANDS = [
+    "ClothFitting_CreateScene",
+    "ClothFitting_SetMeasurements",
+    "ClothFitting_AssignAvatar",
+    "ClothFitting_AddPieces",
+    "ClothFitting_CreateSimulation",
+]
+_COMMAND_HANDLERS = {
     "ClothFitting_CreateScene": create_fitting_scene,
     "ClothFitting_SetMeasurements": lambda: set_body_measurements({"height": 1700, "chest": 900, "waist": 760, "hip": 960, "shoulder": 420}),
     "ClothFitting_AssignAvatar": assign_avatar_source,
@@ -146,6 +153,6 @@ COMMANDS = {
 try:
     import FreeCADGui as Gui
     from CommandAdapter import register_commands
-    register_commands(Gui, COMMANDS)
+    register_commands(Gui, _COMMAND_HANDLERS)
 except (ImportError, AttributeError):
     pass
