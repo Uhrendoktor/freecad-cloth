@@ -97,6 +97,8 @@ jobs:
           mkdir -p "$PWD/docs/images/generated"
           docker run --rm \
             -e DISPLAY=:99 \
+            -e QT_X11_NO_MITSHM=1 \
+            -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -v "$PWD:/workspace" \
             -w /workspace \
@@ -110,7 +112,7 @@ jobs:
               OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               sleep 2
-              freecadcmd tests/freecad_screenshot.py >/tmp/freecad-gui.log 2>&1 &
+              freecad tests/freecad_screenshot.py >/tmp/freecad-gui.log 2>&1 &
               FREECAD_PID=$!
               for i in $(seq 1 60); do
                 if test -s docs/images/generated/cloth-pattern.png && test -s docs/images/generated/cloth-simulation.png; then
