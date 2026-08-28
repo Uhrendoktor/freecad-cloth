@@ -23,3 +23,23 @@ def add_seam(doc, seam: Seam):
     obj.addProperty("App::PropertyString", "PieceB", "Seam").PieceB = seam.piece_b
     obj.addProperty("App::PropertyInteger", "EdgeB", "Seam").EdgeB = seam.edge_b
     return obj
+
+
+def add_pattern_mesh(doc, mesh, name="ClothMesh"):
+    """Create a native FreeCAD Mesh::Feature from a solver-neutral mesh."""
+    import Mesh
+    import FreeCAD as App
+    native = Mesh.Mesh()
+    for a, b, c in mesh.triangles:
+        native.addFacet(
+            App.Vector(mesh.vertices[a][0], mesh.vertices[a][1], 0.0),
+            App.Vector(mesh.vertices[b][0], mesh.vertices[b][1], 0.0),
+            App.Vector(mesh.vertices[c][0], mesh.vertices[c][1], 0.0),
+        )
+    obj = doc.addObject("Mesh::Feature", name)
+    obj.Label = name
+    obj.Mesh = native
+    obj.addProperty("App::PropertyString", "ClothMeshType", "Cloth").ClothMeshType = "PatternSurface"
+    obj.addProperty("App::PropertyInteger", "VertexCount", "Cloth").VertexCount = len(mesh.vertices)
+    obj.addProperty("App::PropertyInteger", "TriangleCount", "Cloth").TriangleCount = len(mesh.triangles)
+    return obj
