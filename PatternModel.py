@@ -1,5 +1,6 @@
 """Shared, FreeCAD-independent pattern data model."""
 from dataclasses import dataclass, field
+from math import isfinite
 from typing import Dict, List, Tuple
 
 Point = Tuple[float, float]
@@ -62,12 +63,10 @@ class AssemblyTransform:
     rotation_deg: float = 0.0
 
     def validate(self) -> None:
-        if len(self.translation) != 3:
-            raise ValueError("assembly translation must have three components")
-        if any(float(value) != value for value in self.translation):
-            raise ValueError("assembly translation must contain finite numeric values")
-        if float(self.rotation_deg) != self.rotation_deg:
-            raise ValueError("assembly rotation must be numeric")
+        if len(self.translation) != 3 or not all(isfinite(float(value)) for value in self.translation):
+            raise ValueError("assembly translation must contain three finite numeric values")
+        if not isfinite(float(self.rotation_deg)):
+            raise ValueError("assembly rotation must be finite")
 
 
 class SeamGraph:
