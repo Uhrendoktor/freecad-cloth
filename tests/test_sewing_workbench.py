@@ -14,7 +14,7 @@ def test_proxy_validation():
     class S:pass
     oldf,oldp=sys.modules.get("FreeCAD"),sys.modules.get("Part");sys.modules["FreeCAD"]=SimpleNamespace(Vector=V);sys.modules["Part"]=SimpleNamespace(Shape=S,makeLine=lambda a,b:(a,b),makeCompound=lambda x:tuple(x))
     try:
-        s=SimpleNamespace(EdgeA=0,StartA=0,EndA=1,EdgeB=0,StartB=0,EndB=1,ReversedB=False);a=SimpleNamespace(Width=100,Height=60);b=SimpleNamespace(Width=100.2,Height=60);o=SimpleNamespace(Seam=s,PieceA=a,PieceB=b,Tolerance=.5,Stitches=8,Status="Incomplete",LengthA=0,LengthB=0,LengthDifference=0,StitchCount=0,Shape=None);SewingOperationProxy().execute(o);assert o.Status=="Valid" and o.LengthDifference==.2 and o.Shape;o.Tolerance=.1;SewingOperationProxy().execute(o);assert o.Status=="Length mismatch"
+        s=SimpleNamespace(EdgeA=0,StartA=0,EndA=1,EdgeB=0,StartB=0,EndB=1,ReversedB=False);a=SimpleNamespace(Width=100,Height=60);b=SimpleNamespace(Width=100.2,Height=60);o=SimpleNamespace(Seam=s,PieceA=a,PieceB=b,Tolerance=.5,Stitches=8,Status="Incomplete",LengthA=0,LengthB=0,LengthDifference=0,StitchCount=0,Shape=None);SewingOperationProxy().execute(o);assert o.Status=="Valid" and abs(o.LengthDifference-.2)<1e-9 and o.Shape;o.Tolerance=.1;SewingOperationProxy().execute(o);assert o.Status=="Length mismatch"
     finally:
         if oldf is None:sys.modules.pop("FreeCAD",None)
         else:sys.modules["FreeCAD"]=oldf
