@@ -2,7 +2,6 @@
 
 
 def create_simulation():
-    """Create a simulation object from the first available cloth mesh."""
     import FreeCAD as App
     doc = App.ActiveDocument or App.newDocument("ClothSimulation")
     obj = doc.addObject("App::FeaturePython", "ClothSimulation")
@@ -18,97 +17,69 @@ def create_simulation():
 
 
 def create_drape_scene():
-    """Create and advance a deterministic two-panel 3D drape scene."""
     import FreeCAD as App
     from SimulationObjects import create_drape_scene as _create
     doc = App.ActiveDocument or App.newDocument("ClothDrape")
     return _create(doc)
 
 
+def edit_simulation():
+    """Open the simulation controls task panel."""
+    import FreeCADGui as Gui
+    scene = next((o for o in Gui.ActiveDocument.Document.Objects if hasattr(o, "FiniteState") and hasattr(o, "Steps")), None) if Gui.ActiveDocument else None
+    from SimulationGui import show_simulation_task
+    show_simulation_task(scene)
+
+
 def simulate_selected(steps=None):
-    """Run the reference XPBD solver on a selected PatternMesh object."""
     import FreeCAD as App
     from PatternMesh import TriangleMesh
     from SimulationScene import SimulationScene
-
     doc = App.ActiveDocument
-    if doc is None:
-        raise RuntimeError("no active document")
+    if doc is None: raise RuntimeError("no active document")
     simulation = next((o for o in doc.Objects if getattr(o, "SolverBackend", "") == "XPBDClothSolver"), None)
     source = getattr(simulation, "SourceMesh", None) if simulation else None
-    if source is None:
-        source = next((o for o in doc.Objects if getattr(o, "ClothMeshType", "") == "PatternSurface"), None)
-    if source is None:
-        raise RuntimeError("create a pattern mesh before starting simulation")
+    if source is None: source = next((o for o in doc.Objects if getattr(o, "ClothMeshType", "") == "PatternSurface"), None)
+    if source is None: raise RuntimeError("create a pattern mesh before starting simulation")
     vertices = tuple((float(v.x), float(v.y)) for v in source.Mesh.Points)
     triangles = tuple(tuple(int(i) for i in facet) for facet in source.Mesh.Facets)
     mesh = TriangleMesh(vertices, triangles, tuple(range(len(vertices))))
     scene = SimulationScene.from_mesh(mesh, iterations=getattr(simulation, "Iterations", 8))
     scene.step_many(int(steps if steps is not None else getattr(simulation, "Steps", 1)), float(getattr(simulation, "TimeStep", 0.01)))
-
     result = getattr(simulation, "ResultMesh", None) if simulation else None
     if result is None:
-        result = doc.addObject("Mesh::Feature", "DrapedCloth")
-        result.Label = "Draped Cloth"
+        result = doc.addObject("Mesh::Feature", "DrapedCloth"); result.Label = "Draped Cloth"
         result.addProperty("App::PropertyString", "ClothMeshType", "Cloth").ClothMeshType = "SimulationResult"
-        if simulation:
-            simulation.ResultMesh = result
+        if simulation: simulation.ResultMesh = result
     import Mesh
     native = Mesh.Mesh()
     for a, b, c in mesh.triangles:
         pa, pb, pc = scene.state.positions[a], scene.state.positions[b], scene.state.positions[c]
         native.addFacet(App.Vector(*pa), App.Vector(*pb), App.Vector(*pc))
     result.Mesh = native
-    if simulation:
-        simulation.SourceMesh = source
-    doc.recompute()
-    return result
+    if simulation: simulation.SourceMesh = source
+    doc.recompute(); return result
 
 
-class _CreateSimulationCommand:
-    def Activated(self):
-        create_simulation()
-
-    def GetResources(self):
-        return {
-            "MenuText": "Create Simulation",
-            "ToolTip": "Create a cloth simulation object",
-        }
-
-
-class _CreateDrapeCommand:
-    def Activated(self):
-        create_drape_scene()
-
-    def GetResources(self):
-        return {
-            "MenuText": "Create Drape Scene",
-            "ToolTip": "Create a deterministic two-panel cloth drape scene",
-        }
-
-
-class _SimulateCommand:
-    def Activated(self):
-        simulate_selected()
-
-    def GetResources(self):
-        return {
-            "MenuText": "Step Simulation",
-            "ToolTip": "Advance the reference XPBD cloth simulation",
-        }
+class _FunctionCommand:
+    def __init__(self, fn, text, tip): self.fn, self.text, self.tip = fn, text, tip
+    def Activated(self): self.fn()
+    def GetResources(self): return {"MenuText": self.text, "ToolTip": self.tip}
 
 
 COMMANDS = [
     "ClothSimulation_Create",
     "ClothSimulation_CreateDrape",
+    "ClothSimulation_Edit",
     "ClothSimulation_Step",
 ]
 
 try:
     import FreeCADGui as Gui
     if hasattr(Gui, "addCommand"):
-        Gui.addCommand("ClothSimulation_Create", _CreateSimulationCommand())
-        Gui.addCommand("ClothSimulation_CreateDrape", _CreateDrapeCommand())
-        Gui.addCommand("ClothSimulation_Step", _SimulateCommand())
+        Gui.addCommand("ClothSimulation_Create", _FunctionCommand(create_simulation, "Create Simulation", "Create a cloth simulation object"))
+        Gui.addCommand("ClothSimulation_CreateDrape", _FunctionCommand(create_drape_scene, "Create Drape Scene", "Create a deterministic two-panel cloth drape scene"))
+        Gui.addCommand("ClothSimulation_Edit", _FunctionCommand(edit_simulation, "Simulation Controls", "Open the cloth simulation task panel"))
+        Gui.addCommand("ClothSimulation_Step", _FunctionCommand(lambda: simulate_selected(), "Step Simulation", "Advance the reference XPBD cloth simulation"))
 except (ImportError, AttributeError):
     pass
