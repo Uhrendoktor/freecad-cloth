@@ -135,28 +135,17 @@ class _FittingProxy:
         FittingScene(measurements, avatar_name, placements).validate()
 
 
-class _FunctionCommand:
-    def __init__(self, function): self.function = function
-    def Activated(self): self.function()
-    def GetResources(self):
-        return {"MenuText": self.function.__name__.replace("_", " ").title(), "ToolTip": self.function.__doc__ or "Cloth fitting command"}
-
-
-COMMANDS = [
-    "ClothFitting_CreateScene",
-    "ClothFitting_SetMeasurements",
-    "ClothFitting_AssignAvatar",
-    "ClothFitting_AddPieces",
-    "ClothFitting_CreateSimulation",
-]
+COMMANDS = {
+    "ClothFitting_CreateScene": create_fitting_scene,
+    "ClothFitting_SetMeasurements": lambda: set_body_measurements({"height": 1700, "chest": 900, "waist": 760, "hip": 960, "shoulder": 420}),
+    "ClothFitting_AssignAvatar": assign_avatar_source,
+    "ClothFitting_AddPieces": add_selected_pattern_pieces,
+    "ClothFitting_CreateSimulation": create_simulation_from_fitting,
+}
 
 try:
     import FreeCADGui as Gui
-    if hasattr(Gui, "addCommand"):
-        Gui.addCommand("ClothFitting_CreateScene", _FunctionCommand(create_fitting_scene))
-        Gui.addCommand("ClothFitting_SetMeasurements", _FunctionCommand(lambda: set_body_measurements({"height": 1700, "chest": 900, "waist": 760, "hip": 960, "shoulder": 420})))
-        Gui.addCommand("ClothFitting_AssignAvatar", _FunctionCommand(assign_avatar_source))
-        Gui.addCommand("ClothFitting_AddPieces", _FunctionCommand(add_selected_pattern_pieces))
-        Gui.addCommand("ClothFitting_CreateSimulation", _FunctionCommand(create_simulation_from_fitting))
+    from CommandAdapter import register_commands
+    register_commands(Gui, COMMANDS)
 except (ImportError, AttributeError):
     pass
