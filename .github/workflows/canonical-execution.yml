@@ -44,12 +44,21 @@ jobs:
           test -f package.xml
           test -f Init.py
           test -f InitGui.py
-      - name: FreeCAD smoke test when available
-        shell: bash
+
+  freecad-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install FreeCAD runtime
         run: |
-          set -euo pipefail
-          if command -v freecadcmd >/dev/null 2>&1; then
-            freecadcmd -c 'import sys; sys.path.insert(0, "."); import InitGui; import PatternModel; import PatternMesh; import XPBD; import SimulationScene; print("FreeCAD workbench import smoke test passed")'
-          else
-            echo 'freecadcmd not installed; FreeCAD-specific smoke test skipped.'
-          fi
+          sudo apt-get update -y -qq
+          sudo apt-get install -y -qq freecad
+      - name: Verify FreeCAD runtime
+        run: |
+          command -v freecadcmd
+          freecadcmd --version
+      - name: Workbench and document smoke test
+        run: freecadcmd tests/freecad_smoke.py
