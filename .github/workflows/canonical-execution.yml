@@ -78,7 +78,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Delete confirmed stale branches
+      - name: Delete confirmed stale branches idempotently
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -88,10 +88,26 @@ jobs:
             'agent-seam-backend-20260828'
           )
           for branch in "${stale_branches[@]}"; do
+            echo "Checking $branch"
+            code=$(curl --silent --show-error --output /tmp/ref.json --write-out '%{http_code}' \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H 'Accept: application/vnd.github+json' \
+              "https://api.github.com/repos/${repo}/git/ref/heads/${branch}")
+            case "$code" in
+              200) ;;
+              404) echo "$branch is already absent; continuing"; continue ;;
+              *) echo "Unexpected GET status $code for $branch"; cat /tmp/ref.json; exit 1 ;;
+            esac
+
             echo "Deleting $branch"
-            curl --fail-with-body --silent --show-error \
+            delete_code=$(curl --silent --show-error --output /tmp/delete.json --write-out '%{http_code}' \
               -X DELETE \
               -H "Authorization: Bearer ${GH_TOKEN}" \
               -H 'Accept: application/vnd.github+json' \
-              "https://api.github.com/repos/${repo}/git/refs/heads/${branch}"
+              "https://api.github.com/repos/${repo}/git/refs/heads/${branch}")
+            case "$delete_code" in
+              204) echo "$branch deleted" ;;
+              404|422) echo "$branch disappeared before deletion; continuing" ;;
+              *) echo "Unexpected DELETE status $delete_code for $branch"; cat /tmp/delete.json; exit 1 ;;
+            esac
           done
