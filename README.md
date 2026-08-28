@@ -9,6 +9,8 @@ The **Cloth Pattern** workbench creates native, recomputable `Part::FeaturePytho
 
 The workbench menu provides commands to create a standard piece, create a larger drafting piece, generate a solver-ready mesh, and connect the first two pattern pieces with a seam. The FreeCAD-independent geometry/model layers remain suitable for headless tests and downstream simulation.
 
-Early development. See [issue #1](https://github.com/Uhrendoktor/freecad-cloth/issues/1) for research and the implementation plan.
+The current architecture keeps the pattern model authoritative and regenerates simulation meshes from it. Imported FreeCAD body/mesh geometry can now populate a solver-neutral `CollisionSurface`, with the sphere collider retained as a fallback.
 
-The repository has a single canonical GitHub Actions workflow, `canonical-execution.yml`, which runs core tests and syntax checks on pushes and pull requests. A FreeCAD smoke test runs when a `freecadcmd` executable is available.
+Early development. See the [workflow and backend research](docs/SEWING_WORKFLOW_RESEARCH.md) for the current implementation plan and external-project evaluation.
+
+The repository has a single canonical GitHub Actions workflow, `canonical-execution.yml`, which runs core tests and syntax checks on pushes and pull requests. A FreeCAD smoke test runs in a Debian container with `freecadcmd`.
