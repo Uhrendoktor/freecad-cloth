@@ -30,9 +30,10 @@ def validate_seams():
 def show_sewing_2d():
     import FreeCADGui as Gui
     if Gui.activeDocument():Gui.activeDocument().activeView().viewTop();Gui.activeDocument().activeView().fitAll()
-COMMANDS={"ClothSewing_CreateOperation":create_sewing_operation,"ClothSewing_EditOperation":edit_sewing_operation,"ClothSewing_Validate":validate_seams,"ClothSewing_Show2D":show_sewing_2d}
+COMMANDS=["ClothSewing_CreateOperation","ClothSewing_EditOperation","ClothSewing_Validate","ClothSewing_Show2D"]
+_COMMAND_HANDLERS={"ClothSewing_CreateOperation":create_sewing_operation,"ClothSewing_EditOperation":edit_sewing_operation,"ClothSewing_Validate":validate_seams,"ClothSewing_Show2D":show_sewing_2d}
 try:
     import FreeCADGui as Gui
     from CommandAdapter import register_commands
-    register_commands(Gui,COMMANDS)
+    register_commands(Gui,_COMMAND_HANDLERS)
 except (ImportError,AttributeError):pass
