@@ -12,6 +12,9 @@ from typing import Any, Mapping
 from PatternGeometry import ParametricPattern, LineSegment, QuadraticBezier
 
 
+_DXF_UNITS = {"in": 1, "inch": 1, "mm": 4, "cm": 5, "m": 6}
+
+
 def build_export_metadata(
     pattern: ParametricPattern,
     units: str = "mm",
@@ -82,21 +85,21 @@ def to_svg(
     if width <= 0 or height <= 0:
         raise ValueError("pattern must have non-zero extent")
 
-    def svg_path(points):
+    def svg_path(points, closed):
         def fmt(point):
             return f"{_fmt(point[0] - min_x)},{_fmt(max_y - point[1])}"
-        return "M " + " L ".join(fmt(point) for point in points) + " Z"
+        return "M " + " L ".join(fmt(point) for point in points) + (" Z" if closed else "")
 
     payload = build_export_metadata(pattern, units, derived, metadata)
-    metadata_json = escape(json.dumps(payload, sort_keys=True, separators=(",", ":")))
+    metadata_json = escape(json.dumps(payload, sort_keys=True, separators=(",", ":")), quote=False)
     elements = [
-        f'<path id="sewing-boundary" d="{svg_path(sewing_points)}" fill="none" stroke="black"/>',
+        f'<path id="sewing-boundary" d="{svg_path(sewing_points, True)}" fill="none" stroke="black"/>',
     ]
     if cut_paths:
         for edge, points in zip(derived.cut_boundary, cut_paths):
             elements.append(
                 f'<path id="cut-{escape(edge.id)}" data-edge-id="{escape(edge.id)}" '
-                f'd="{svg_path(points)}" fill="none" stroke="black"/>'
+                f'd="{svg_path(points, False)}" fill="none" stroke="black"/>'
             )
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{_fmt(width)}{escape(units)}" '
@@ -115,38 +118,40 @@ def to_dxf(
     derived: Any = None,
     metadata: Mapping[str, Any] | None = None,
 ) -> str:
-    """Serialize sewing/cut geometry as deterministic ASCII DXF (R12 style)."""
+    """Serialize sewing/cut geometry as deterministic ASCII DXF."""
     if not units:
         raise ValueError("units must not be empty")
+    if units.lower() not in _DXF_UNITS:
+        raise ValueError(f"unsupported DXF units: {units}")
     payload = json.dumps(
         build_export_metadata(pattern, units, derived, metadata),
         sort_keys=True,
         separators=(",", ":"),
     )
     lines = [
-        "0", "SECTION", "2", "HEADER", "9", "$INSUNITS", "70", "4",
+        "0", "SECTION", "2", "HEADER", "9", "$INSUNITS", "70", str(_DXF_UNITS[units.lower()]),
         "0", "ENDSEC", "0", "SECTION", "2", "ENTITIES",
     ]
 
-    def add_polyline(points, layer):
+    def add_polyline(points, layer, closed):
         if len(points) < 2:
             return
-        lines.extend(["0", "POLYLINE", "8", layer, "66", "1", "70", "1"])
+        lines.extend(["0", "POLYLINE", "8", layer, "66", "1", "70", "1" if closed else "0"])
         for x, y in points:
             lines.extend(["0", "VERTEX", "8", layer, "10", _fmt(x), "20", _fmt(y), "30", "0"])
         lines.extend(["0", "SEQEND"])
 
-    add_polyline(pattern.sampled_outline(curve_samples), "SEWING")
+    add_polyline(pattern.sampled_outline(curve_samples), "SEWING", True)
     if derived is not None:
         for edge in derived.cut_boundary:
-            add_polyline(edge.points, "CUT_" + _safe_layer(edge.id))
+            add_polyline(edge.points, "CUT_" + _safe_layer(edge.id), False)
         for notch in derived.notches:
             point = notch_point(pattern, notch)
             lines.extend(["0", "POINT", "8", "NOTCH", "10", _fmt(point[0]), "20", _fmt(point[1]), "30", "0"])
 
-    # Group code 999 is an R12-compatible comment and gives consumers a stable
-    # way to recover the semantic document metadata without interpreting layers.
-    lines.extend(["0", "ENDSEC", "0", "EOF", "999", "FREECAD_CLOTH_METADATA " + payload])
+    # Group code 999 is an R12-compatible comment. Keep it before ENDSEC/EOF
+    # so parsers that stop at EOF still retain the semantic document payload.
+    lines.extend(["999", "FREECAD_CLOTH_METADATA " + payload, "0", "ENDSEC", "0", "EOF"])
     return "\n".join(lines) + "\n"
 
 
