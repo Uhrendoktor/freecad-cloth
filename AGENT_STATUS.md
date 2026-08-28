@@ -1,119 +1,61 @@
 # Agent Work Registry
 
-Coordination registry for parallel work on `freecad-cloth`.
+Coordination registry for supervisor-led work on `freecad-cloth`.
 
 ## Rules
 
 1. Register before non-trivial implementation.
 2. One scope, one owner; coordinate before touching another active scope.
-3. Keep `status`, `progress`, `tests`, and `pr` current.
+3. Keep status, progress, tests and PR current.
 4. CI/review/repository state are the authority for completion.
 5. Mark completed or blocked work so no stale active entries remain.
 
 ## Active work
 
 ```yaml
-- id: agent-supervisor-next-20260828
+- id: supervisor-release-20260828
   agent: supervisor
-  task: Native Sketcher adapter + garment XPBD constraints/self-collision
-  status: implementation
-  files: [PatternSketch.py, PatternCommands.py, XPBD.py, tests/test_pattern_sketch.py, tests/test_xpbd.py, AGENT_STATUS.md]
-  scope: Incrementally expose PatternModel through native Sketcher and add explicit shear/bending plus deterministic particle self-collision while preserving solver-neutral APIs.
+  task: Post-merge validation and issue/PR reconciliation
+  status: validation
+  files: [AGENT_STATUS.md, .github/workflows/canonical-execution.yml]
+  scope: Validate current main after PR #94 and PR #97, close only completed issues, and leave no stale active work registry entries.
   started: 2026-08-28
-  last_update: 2026-08-28T16:00:00Z
-  progress: Sketcher adapter and command added; explicit shear/bending constraint factories and deterministic self-collision projection added; regression tests added. Awaiting canonical CI.
-  tests: Python 3.10/3.11/3.12 plus real FreeCAD smoke
-  pr: pending
-  blockers: none
-
-- id: agent-backend-audit-20260828
-  agent: supervisor
-  task: Audit optional Tissu and PositionBasedDynamics backends (#83)
-  status: research
-  files: [docs/SEWING_WORKFLOW_RESEARCH.md, AGENT_STATUS.md]
-  scope: Audit APIs, Python ABI/build requirements, supported platforms, licensing, determinism and mapping to ClothSimulationBackend. No mandatory dependency adoption.
-  started: 2026-08-28
-  last_update: 2026-08-28T15:43:00Z
-  progress: Initial audit recorded in #83 and research summary #80. Both remain optional pending adapter/build tests.
-  tests: research/build audit only
-  pr: null
-  blockers: none
-
-- id: agent-native-geometry-20260828
-  agent: supervisor
-  task: OCCT offset / MeshPart triangulation / native placement-export evaluations (#85/#86/#88)
-  status: queued
-  files: [PatternGeometry.py, PatternMesh.py, PatternExport.py, AGENT_STATUS.md]
-  scope: Evaluate native FreeCAD geometry, meshing, placement and export adapters without losing semantic IDs or headless compatibility.
-  started: 2026-08-28
-  last_update: 2026-08-28T16:00:00Z
-  progress: Issues #85/#86/#88 created and assigned. Implementation follows current physics/pattern branch after baseline CI.
-  tests: planned differential tests + FreeCAD smoke
-  pr: null
-  blockers: none
-
-- id: agent-gui-docs-20260828
-  agent: supervisor
-  task: Automated GUI documentation screenshots (#68)
-  status: queued
-  files: [tests/freecad_smoke.py, docs/, AGENT_STATUS.md]
-  scope: Deterministic screenshot capture as documentation tooling only.
-  started: 2026-08-28
-  last_update: 2026-08-28T16:00:00Z
-  progress: Issue #68 assigned; implementation follows functional GUI changes.
-  tests: planned FreeCAD GUI smoke/documentation workflow
-  pr: null
-  blockers: none
+  last_update: 2026-08-28T16:45:00Z
+  progress: GUI documentation PR #94 merged; native adapter/benchmark PR #97 merged. Waiting for green post-merge canonical CI before final issue reconciliation.
+  tests: canonical Python matrix, real FreeCAD smoke, GUI screenshots
+  pr: 94, 97 (merged)
+  blockers: post-merge CI
 ```
 
 ## Current issue map
 
-- #43 / #80: canonical research records
-- #68: GUI documentation screenshots
-- #71 / #82: garment-grade XPBD
-- #75: native-library architecture umbrella
-- #81: Sketcher-backed pattern editing
-- #83: optional solver audit
-- #85: OCCT seam allowance
-- #86: MeshPart/Netgen triangulation
-- #87: solver authority consolidation
-- #88: Placement and export adapters
+- #68: GUI documentation screenshots — implemented and merged with PR #94.
+- #71: garment-grade XPBD milestone — #82 completed; deterministic benchmark artifact now persisted by canonical CI.
+- #75: native-library architecture umbrella — #85/#88 completed; #86/#87 already completed.
+- #85: OCCT seam allowance adapter — implemented and smoke-tested in PR #97.
+- #88: Placement/export adapter evaluation — documented and smoke-tested in PR #97.
 
-## Completed milestones
+## Completed issues
 
-- id: agent-solver-authority-20260828
-  agent: subagent
-  task: Consolidate simulation solver authority behind ClothSimulationBackend (#87)
-  status: completed
-  files: [SimulationObjects.py, tests/test_backend_authority.py, AGENT_STATUS.md]
-  scope: Keep the document-facing simulation proxy dependent on ClothSimulationBackend, with the bundled XPBD solver selected through the backend registry; preserve semantic scene behavior and avoid active XPBD implementation files.
-  started: 2026-08-28
-  last_update: 2026-08-28T18:15:00+02:00
-  progress: Refactored SimulationProxy to construct and drive XPBDBackend through the backend registry; mesh output now consumes backend positions and reset/state reporting stays backend-owned. Canonical PR #91 and post-merge main validation passed.
-  tests: Canonical PR #91 run #168 passed Python 3.10/3.11/3.12 and real FreeCAD smoke; post-merge main run #172 passed all test and FreeCAD jobs.
-  pr: 91 (merged)
-  blockers: none
+- #43 / #80: historical research snapshots — closed as superseded by focused records.
+- #81: Sketcher-backed pattern editing — closed completed.
+- #82: XPBD shear/bending/self-collision quality gates — closed completed.
+- #83: optional Tissu/PositionBasedDynamics backend audit — closed completed; both remain optional.
+- #86: MeshPart/Netgen triangulation adapter — merged as PR #93 and closed completed.
+- #87: solver authority consolidation — merged as PR #91 and completed.
 
-- id: agent-meshpart-netgen-20260828
-  agent: subagent
-  task: Evaluate MeshPart/Netgen triangulation adapter (#86)
-  status: completed
-  files: [PatternMesh.py, PatternMeshFreeCAD.py, tests/test_mesh.py, tests/test_meshpart_adapter.py, tests/freecad_meshpart_smoke.py, .github/workflows/canonical-execution.yml, AGENT_STATUS.md]
-  scope: Compare FreeCAD MeshPart/Netgen triangulation with the semantic TriangleMesh contract, preserving pattern-edge boundary provenance and deterministic sewing constraint generation.
-  started: 2026-08-28
-  last_update: 2026-08-28T18:10:00+02:00
-  progress: Hardened the existing native MeshPart adapter rather than introducing a duplicate module; added canonical vertex/boundary ordering, stable pattern-segment provenance, headless regression coverage and real FreeCAD smoke coverage. The deterministic ear-clipping path remains the headless reference backend. Merged as PR #93 after canonical workflow run #170 passed.
-  tests: Canonical PR #93 run #170 passed Python 3.10/3.11/3.12 and real FreeCAD smoke. Issue #86 closed as completed.
-  pr: 93 (merged)
-  blockers: none
+## Completed implementation milestones
 
-- Workbench skeleton and canonical CI
-- Parametric pattern model and semantic construction metadata
-- Drafting UI and seam allowance/export contracts
-- Sewing assembly and seam pairing
-- Humanoid/body collision import and fitting-scene metadata
-- Deterministic drape quality gates and benchmark contract (#84)
-- Documentation/workflow refresh (#78)
+- Workbench skeleton and canonical CI.
+- Parametric pattern model and semantic construction metadata.
+- Native Sketcher pattern adapter.
+- Drafting UI, seam allowance and semantic export contracts.
+- Sewing assembly and seam pairing.
+- Parametric humanoid collision proxy plus imported FreeCAD body override.
+- Deterministic drape quality gates and reference XPBD constraints.
+- Native OCCT offset and native Placement audit.
+- GUI documentation screenshot workflow with persisted artifacts.
+- Deterministic reference drape benchmark artifacts in canonical CI.
 
 ## Supervisor policy
 
