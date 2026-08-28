@@ -32,19 +32,18 @@ Coordination registry for parallel work on `freecad-cloth`.
 - id: agent-sewing-assembly-20260828
   agent: subagent
   task: Sewing-piece assembly and seam pairing UI (#67)
-  status: active
+  status: review
   files:
+    - SewingAssembly.py
     - SewingObjects.py
-    - SewingCommands.py
-    - SewingGui.py
-    - tests/
+    - tests/test_sewing_assembly.py
     - AGENT_STATUS.md
   scope: Add a FreeCAD-facing seam-pairing/assembly layer on top of the existing seam graph without changing solver behavior or avatar collision files.
   started: 2026-08-28
-  last_update: 2026-08-28T15:18:00Z
-  progress: Existing sewing operation UI inspected; implementation will extend document objects and commands rather than alter SeamGraph.py.
-  tests: pending
-  pr: pending
+  last_update: 2026-08-28T15:20:00Z
+  progress: Added solver-independent SewingAssembly validation, deterministic pair metadata and transform persistence on SewingOperation objects. PR #72 is open for review.
+  tests: Headless tests added; local execution unavailable because github.com cannot be resolved in the execution environment; canonical CI pending.
+  pr: 72
   blockers: none
 ```
 
@@ -102,7 +101,7 @@ Coordination registry for parallel work on `freecad-cloth`.
   agent: subagent
   task: Robust seam graph and solver backend adapter (#46)
   status: completed
-  progress: SeamGraph.py and ClothBackend.py provide stable semantic seams, stitch-pair generation, transforms, XPBD adapter, reset/replay and backend registry. PR #50 merged.
+  progress: SeamGraph.py and ClothBackend.py provide stable semantic seams, stitch-pair generation, transforms, reset/replay and backend registry. PR #50 merged.
   tests: Canonical PR #50 run #102 passed all Python versions and FreeCAD smoke.
   pr: 50 (merged)
   blockers: none
