@@ -36,16 +36,16 @@ Coordination registry for parallel work on `freecad-cloth`.
   files:
     - PatternDerivedGeometry.py
     - PatternExport.py
-    - PatternModel.py
     - tests/test_derived_geometry.py
     - tests/test_pattern_export.py
-  scope: Extend the existing sewing-pattern model/derived geometry/export layer without touching avatar/simulation or existing GUI workbench registration; preserve current APIs while adding cut/sewing semantics, persisted construction metadata and deterministic SVG/DXF interchange.
+    - .github/workflows/canonical-execution.yml
+  scope: Extend the existing sewing-pattern model/derived geometry/export layer without touching avatar/simulation or existing workbench registration; preserve current APIs while adding cut/sewing semantics, persisted construction metadata and deterministic SVG/DXF interchange.
   started: 2026-08-28
-  last_update: 2026-08-28T15:10:00Z
-  progress: Registered before implementation; inspecting existing pattern geometry, marks and export contracts.
-  tests: pending
-  pr: null
-  blockers: none
+  last_update: 2026-08-28T15:15:00Z
+  progress: Implemented construction marks, distinct sewing/cut export semantics, deterministic SVG/DXF serialization and metadata parsing. Initial canonical runs exposed legacy SVG compatibility assertions; restored root data-units/data-edge-ids and legacy dimension formatting. A second verification PR was attempted but GitHub did not schedule a new run for the API-created duplicate PR.
+  tests: Canonical run #130 failed on legacy SVG root attributes; run #131 failed on legacy SVG dimension formatting; FreeCAD smoke passed in both. Corrected commit fa71e443 awaits a fresh CI execution path.
+  pr: 65 (open)
+  blockers: GitHub Actions pull_request synchronization is not scheduling after API-token commits; no direct workflow_dispatch capability is exposed.
 ```
 
 ## Completed / blocked history
