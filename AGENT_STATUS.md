@@ -13,25 +13,6 @@ Coordination registry for parallel work on `freecad-cloth`.
 ## Active work
 
 ```yaml
-- id: agent-supervisor-humanoid-collision-20260828
-  agent: supervisor
-  task: Replace sphere-only avatar proxy with imported humanoid collision mesh (#59)
-  status: active
-  files:
-    - AvatarCollision.py
-    - ClothSolver.py
-    - ClothBackend.py
-    - SimulationObjects.py
-    - tests/test_side_tasks.py
-    - tests/freecad_smoke.py
-  scope: Convert FreeCAD body/mesh surfaces into solver-neutral CollisionSurface data and feed deterministic triangle-surface collision into the CPU XPBD backend; retain sphere fallback and collision thickness metadata.
-  started: 2026-08-28
-  last_update: 2026-08-28T15:10:00Z
-  progress: Implemented FreeCAD tessellation import, collision metadata, backend plumbing, triangle contact projection, and regression/smoke coverage. CI verification and review are pending.
-  tests: pending on feature branch
-  pr: pending
-  blockers: none
-
 - id: agent-docs-quality-20260828
   agent: delegated-quality-task
   task: Docs / cleanup / quality-control pass (#63)
@@ -42,16 +23,36 @@ Coordination registry for parallel work on `freecad-cloth`.
     - AGENT_STATUS.md
   scope: Audit documentation, research/license claims, stale registry entries, public API documentation and test gaps without changing solver behavior.
   started: 2026-08-28
-  last_update: 2026-08-28T15:08:00Z
-  progress: Issue #63 created and scoped; no overlapping avatar implementation changes assigned.
+  last_update: 2026-08-28T15:12:00Z
+  progress: Issue #63 is scoped. Research documentation was refreshed in the avatar milestone; a focused independent quality pass remains queued.
   tests: n/a until task execution
   pr: null
-  blockers: Autonomous Codex delegation is currently unavailable because the workspace runner reported provider quota exhaustion; supervisor will retain coordination until a delegated executor is available.
+  blockers: Autonomous Codex delegation is currently unavailable because the workspace runner reported provider quota exhaustion; supervisor retains coordination until a delegated executor is available.
 ```
 
 ## Completed / blocked history
 
 ```yaml
+- id: agent-supervisor-humanoid-collision-20260828
+  agent: supervisor
+  task: Replace sphere-only avatar proxy with imported humanoid collision mesh (#59)
+  status: completed
+  files:
+    - AvatarCollision.py
+    - ClothSolver.py
+    - ClothBackend.py
+    - SimulationObjects.py
+    - tests/test_side_tasks.py
+    - tests/freecad_smoke.py
+    - docs/SEWING_WORKFLOW_RESEARCH.md
+  scope: Convert FreeCAD body/mesh surfaces into solver-neutral CollisionSurface data and feed deterministic triangle-surface collision into the CPU XPBD backend; retain sphere fallback and collision thickness metadata.
+  started: 2026-08-28
+  last_update: 2026-08-28T15:12:00Z
+  progress: PR #64 merged. Canonical PR run #129 and post-merge main run #132 passed Python 3.10/3.11/3.12 and real FreeCAD smoke. Research and planning were updated in issue #43 and the repository docs.
+  tests: Canonical PR #129 and main #132 green.
+  pr: 64 (merged)
+  blockers: none
+
 - id: agent-subagent-sewing-workbench-20260828
   agent: subagent
   task: Harden sewing workbench registration/load smoke coverage (#27)
