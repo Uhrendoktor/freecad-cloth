@@ -77,7 +77,7 @@ jobs:
 
   gui-screenshots:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 8
     permissions:
       contents: read
     steps:
@@ -98,7 +98,7 @@ jobs:
               XVFB_PID=$!
               trap "kill $XVFB_PID || true" EXIT
               sleep 2
-              freecad tests/freecad_screenshot.py
+              timeout 180s freecad tests/freecad_screenshot.py
               test -s docs/images/generated/cloth-pattern.png
               test -s docs/images/generated/cloth-simulation.png
             '
