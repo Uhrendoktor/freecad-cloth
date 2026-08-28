@@ -4,24 +4,25 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from PatternModel import PatternPiece, Seam
 from PatternGeometry import LineSegment, ParametricPattern, QuadraticBezier, rectangle
+from PatternSchema import PatternDocument, dumps, loads
 from SimulationBackend import ClothState, NullSolver
 
 
 def test_pattern_piece_validation():
-    piece = PatternPiece("front", [(0, 0), (10, 0), (10, 10)], 5)
+    piece = PatternPiece("front", [(0, 0), (10, 0), (10, 10)], 5, id="front")
     piece.validate()
 
 
 def test_invalid_piece():
     try:
-        PatternPiece("", [(0, 0), (1, 0), (0, 1)]).validate()
+        PatternPiece("", [(0, 0), (1, 0), (0, 1)], id="x").validate()
     except ValueError:
         return
     raise AssertionError("empty name should fail")
 
 
 def test_seam_validation():
-    Seam("front", 0, "back", 2).validate()
+    Seam("front", 0, "back", 2, id="shoulder").validate()
 
 
 def test_rectangle_is_closed_and_stable():
@@ -68,6 +69,27 @@ def test_invalid_geometry_is_rejected():
     except ValueError:
         return
     raise AssertionError("open boundary should fail")
+
+
+def test_pattern_document_round_trip_is_canonical():
+    document = PatternDocument(
+        "garment-1", "Test garment",
+        pieces=[{"id": "front", "name": "Front"}, {"id": "back", "name": "Back"}],
+        seams=[{"id": "side", "piece_a": "front", "piece_b": "back"}],
+        metadata={"units": "mm"},
+    )
+    encoded = dumps(document)
+    restored = loads(encoded)
+    assert dumps(restored) == encoded
+
+
+def test_pattern_document_rejects_malformed_input():
+    for text in ["[]", "{\"schema_version\": 99, \"pattern_id\": \"x\", \"name\": \"x\"}"]:
+        try:
+            loads(text)
+        except ValueError:
+            continue
+        raise AssertionError("malformed document should fail")
 
 
 def test_null_solver_is_deterministic():
