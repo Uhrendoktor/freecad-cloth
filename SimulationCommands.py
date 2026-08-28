@@ -1,4 +1,5 @@
-"""Initial commands for the simulation workbench."""
+"""Commands for the simulation workbench."""
+
 
 def create_simulation():
     import FreeCAD as App
@@ -10,10 +11,21 @@ def create_simulation():
     doc.recompute()
 
 
+class _CreateSimulationCommand:
+    def Activated(self):
+        create_simulation()
+
+    def GetResources(self):
+        return {
+            "MenuText": "Create Simulation",
+            "ToolTip": "Create a cloth simulation document object",
+        }
+
+
 COMMANDS = ["ClothSimulation_Create"]
 
 try:
     import FreeCADGui as Gui
-    Gui.addCommand("ClothSimulation_Create", create_simulation)
+    Gui.addCommand("ClothSimulation_Create", _CreateSimulationCommand())
 except ImportError:
     pass
