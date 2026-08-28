@@ -72,10 +72,10 @@ Coordination registry for parallel work on `freecad-cloth`.
   files: [CommandAdapter.py, SewingCommands.py, FittingCommands.py, tests/test_command_adapter.py, AGENT_STATUS.md]
   scope: Remove duplicated _FunctionCommand boilerplate from the sewing/fitting command modules without changing command behavior or introducing GUI imports into headless paths.
   started: 2026-08-28
-  last_update: 2026-08-28T18:38:00+02:00
-  progress: Registered focused implementation scope from issue #98; implementation pending.
+  last_update: 2026-08-28T18:40:00+02:00
+  progress: Shared adapter and regression tests implemented; PR #99 open. Awaiting canonical CI.
   tests: Python unit tests plus FreeCAD command-registration smoke if available
-  pr: pending
+  pr: 99
   blockers: none
 ```
 
