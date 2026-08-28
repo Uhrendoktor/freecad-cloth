@@ -64,6 +64,24 @@ Copy this template for a new task:
   tests: Existing canonical run #98 green; new geometry tests planned.
   pr: null
   blockers: none
+
+- id: agent-seam-backend-20260828
+  agent: subagent
+  task: Implement robust seam graph and solver backend adapter (#46)
+  status: active
+  files:
+    - SeamGraph.py
+    - ClothBackend.py
+    - tests/test_seam_graph.py
+    - tests/test_backend_adapter.py
+    - AGENT_STATUS.md
+  scope: FreeCAD-independent seam graph validation/assembly metadata and a stable simulation backend adapter around the existing ClothSystem; do not modify PatternGeometry.py, PatternModel.py, PatternGui.py, or supervisor-owned files.
+  started: 2026-08-28
+  last_update: 2026-08-28T16:44:00Z
+  progress: Scope registered; implementation not yet started.
+  tests: Planned focused headless seam/backend tests plus existing suite.
+  pr: null
+  blockers: none
 ```
 
 ## Completed / blocked history
