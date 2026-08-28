@@ -48,25 +48,16 @@ Copy this template for a new task:
 ## Active work
 
 ```yaml
-- id: agent-simulation-gui-20260828
-  agent: subagent
-  task: Build Cloth Simulation/Drape workbench GUI for issue #31
-  status: active
-  files:
-    - SimulationGui.py
-    - SimulationCommands.py
-    - SimulationObjects.py
-    - InitGui.py
-    - tests/test_simulation_gui_contract.py
-  scope: Simulation workbench task panel, controls, persisted pin/seam selection, and headless-safe GUI contracts; do not modify Pattern GUI or solver backend.
-  started: 2026-08-28
-  last_update: 2026-08-28T16:35:00+02:00
-  progress: Extending the existing simulation scene with persisted selection properties and task-panel controls.
-  tests: Planned static/headless contract tests and existing test suite.
-  pr: null
-  blockers: none
+[]
 ```
 
 ## Completed / blocked history
 
-Keep only a short recent history here. Detailed history belongs in commits and PRs.
+```yaml
+- id: agent-simulation-gui-20260828
+  status: completed
+  progress: Reviewed issue #31 and current main; simulation workbench GUI and persistent cloth/avatar/pin/seam controls were already integrated, so no duplicate implementation was merged.
+  tests: Existing GUI structure and simulation scene contracts inspected; no new repository changes retained.
+  pr: null
+  blockers: none
+```
