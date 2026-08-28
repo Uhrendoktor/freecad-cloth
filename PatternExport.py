@@ -3,7 +3,7 @@ import json
 from html import escape
 from math import cos, radians, sin
 
-from PatternDerivedGeometry import DerivedPattern, PatternMark, mark_point, notch_point
+from PatternDerivedGeometry import DerivedPattern, mark_point, notch_point
 from PatternGeometry import ParametricPattern
 
 
@@ -19,12 +19,7 @@ def _sampled_sewing(pattern, curve_samples):
 
 
 def to_svg(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm", derived: DerivedPattern | None = None) -> str:
-    """Serialize sewing and optional cut boundaries plus semantic marks to SVG.
-
-    Geometry is expressed in the requested units (normally mm); all metadata
-    uses stable IDs so a document can be regenerated without changing the
-    source pattern model.
-    """
+    """Serialize sewing/cut boundaries and semantic marks to deterministic SVG."""
     if not units.strip():
         raise ValueError("units must not be empty")
     sewing = _sampled_sewing(pattern, curve_samples)
@@ -33,10 +28,9 @@ def to_svg(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm
     cut_edges = derived.cut_boundary if derived is not None else ()
     xs = [p[0] for p in sewing]
     ys = [p[1] for p in sewing]
-    if cut_edges:
-        for edge in cut_edges:
-            xs.extend(p[0] for p in edge.points)
-            ys.extend(p[1] for p in edge.points)
+    for edge in cut_edges:
+        xs.extend(p[0] for p in edge.points)
+        ys.extend(p[1] for p in edge.points)
     min_x, max_x, min_y, max_y = min(xs), max(xs), min(ys), max(ys)
     width, height = max_x - min_x, max_y - min_y
     if width <= 0 or height <= 0:
@@ -45,9 +39,10 @@ def to_svg(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm
     def xy(point):
         return (point[0] - min_x, height - (point[1] - min_y))
 
-    def path(points):
+    def path(points, closed=True):
         coords = [xy(p) for p in points]
-        return "M " + " L ".join(f"{_fmt(x)},{_fmt(y)}" for x, y in coords) + " Z"
+        suffix = " Z" if closed else ""
+        return "M " + " L ".join(f"{_fmt(x)},{_fmt(y)}" for x, y in coords) + suffix
 
     edge_ids = " ".join(escape(s.id, quote=True) for s in pattern.segments)
     metadata = json.dumps({"version": 1, "units": units, "edge_ids": [s.id for s in pattern.segments]}, sort_keys=True, separators=(",", ":"))
@@ -59,7 +54,7 @@ def to_svg(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm
     if cut_edges:
         lines.append('  <g id="cut-boundary">')
         for edge in cut_edges:
-            lines.append(f'    <path id="cut-{escape(edge.id, quote=True)}" d="{path(edge.points)}" fill="none"/>')
+            lines.append(f'    <path id="cut-{escape(edge.id, quote=True)}" d="{path(edge.points, False)}" fill="none"/>')
         lines.append('  </g>')
     if derived is not None and (derived.notches or derived.marks):
         lines.append('  <g id="construction-marks">')
