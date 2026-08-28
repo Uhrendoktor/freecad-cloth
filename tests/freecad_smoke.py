@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import FreeCAD as App
 
 from PatternCommands import create_pattern_piece
-from SimulationObjects import create_simulation_scene, step_scene
+from SimulationObjects import create_simulation_scene, reset_scene, step_scene
 
 
 def main():
@@ -27,7 +27,10 @@ def main():
 
     scene = create_simulation_scene(doc)
     assert scene.ParticleCount == 80
-    assert doc.getObject("AvatarCollision") is not None
+    assert scene.ClothPieces == [doc.getObject("DrapePanelA"), doc.getObject("DrapePanelB")]
+    assert scene.AvatarProxy == doc.getObject("AvatarCollision")
+    assert list(scene.PinSelection) == ["0", "7", "40", "47"]
+    assert len(scene.SeamSelection) == 5
     before = doc.getObject("DrapePanelA").Mesh.BoundBox.ZMin
     step_scene(scene, 20)
     assert scene.SimulatedTime > 0
@@ -35,6 +38,15 @@ def main():
     assert doc.getObject("DrapePanelA").Mesh.CountFacets > 0
     after = doc.getObject("DrapePanelA").Mesh.BoundBox.ZMin
     assert before != after
+
+    scene.PinSelection = ["0", "not-an-index", "79"]
+    scene.SeamSelection = ["7-8", "bad-pair", "39-40"]
+    reset_scene(scene)
+    assert scene.Steps == 0
+    assert scene.SimulatedTime == 0.0
+    assert scene.FiniteState
+    assert scene.ClothPieces == [doc.getObject("DrapePanelA"), doc.getObject("DrapePanelB")]
+    assert scene.AvatarProxy == doc.getObject("AvatarCollision")
     print("FreeCAD document and drape smoke test passed")
 
 
