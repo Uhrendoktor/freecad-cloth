@@ -9,8 +9,19 @@ def create_pattern_piece():
 
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
     geometry = rectangle(100.0, 60.0)
-    outline = geometry.sampled_outline()
-    add_pattern_piece(doc, PatternPiece("PatternPiece", outline))
+    add_pattern_piece(doc, PatternPiece("PatternPiece", geometry.sampled_outline()))
+    doc.recompute()
+
+
+def create_pattern_mesh():
+    """Generate a solver-ready surface mesh for a demonstration pattern."""
+    import FreeCAD as App
+    from PatternGeometry import rectangle
+    from PatternMesh import triangulate
+    from PatternObjects import add_pattern_mesh
+
+    doc = App.ActiveDocument or App.newDocument("ClothPattern")
+    add_pattern_mesh(doc, triangulate(rectangle(100.0, 60.0)))
     doc.recompute()
 
 
@@ -37,11 +48,16 @@ class _FunctionCommand:
         }
 
 
-COMMANDS = ["ClothPattern_CreatePiece", "ClothPattern_AddSeam"]
+COMMANDS = [
+    "ClothPattern_CreatePiece",
+    "ClothPattern_CreateMesh",
+    "ClothPattern_AddSeam",
+]
 
 try:
     import FreeCADGui as Gui
     Gui.addCommand("ClothPattern_CreatePiece", _FunctionCommand(create_pattern_piece))
+    Gui.addCommand("ClothPattern_CreateMesh", _FunctionCommand(create_pattern_mesh))
     Gui.addCommand("ClothPattern_AddSeam", _FunctionCommand(add_seam))
 except ImportError:
     pass
