@@ -1,23 +1,174 @@
-"""Dependency-free SVG interchange for sewing pattern geometry."""
+"""Deterministic SVG and DXF interchange for sewing-pattern geometry.
+
+The pattern boundary is the source of truth. Exporters only serialize the
+current sewing boundary plus optional derived cut geometry and semantic
+metadata; they do not mutate the pattern model.
+"""
 from html import escape
-from PatternGeometry import ParametricPattern, LineSegment
+import json
+import re
+from typing import Any, Mapping
+
+from PatternGeometry import ParametricPattern, LineSegment, QuadraticBezier
 
 
-def to_svg(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm") -> str:
+def build_export_metadata(
+    pattern: ParametricPattern,
+    units: str = "mm",
+    derived: Any = None,
+    extra: Mapping[str, Any] | None = None,
+) -> dict:
+    """Build the stable metadata payload shared by SVG and DXF exports."""
     if not units:
         raise ValueError("units must not be empty")
-    points = pattern.sampled_outline(curve_samples)
+    metadata = {
+        "schema": "freecad-cloth.pattern-export.v1",
+        "units": units,
+        "edge_ids": [segment.id for segment in pattern.segments],
+        "notches": [],
+    }
+    if derived is not None:
+        metadata["notches"] = [
+            {
+                "id": notch.id,
+                "segment_id": notch.segment_id,
+                "position": float(notch.t),
+                "depth": float(notch.depth),
+            }
+            for notch in derived.notches
+        ]
+        metadata["has_cut_boundary"] = bool(derived.cut_boundary)
+    else:
+        metadata["has_cut_boundary"] = False
+    if extra:
+        metadata["extra"] = dict(extra)
+    return metadata
+
+
+def _fmt(value: float) -> str:
+    return f"{float(value):.6f}".rstrip("0").rstrip(".") or "0"
+
+
+def _bounds(paths):
+    points = [point for path in paths for point in path]
     if not points:
         raise ValueError("pattern has no outline")
-    xs = [p[0] for p in points]; ys = [p[1] for p in points]
-    min_x, max_x, min_y, max_y = min(xs), max(xs), min(ys), max(ys)
-    width = max_x - min_x; height = max_y - min_y
+    xs = [point[0] for point in points]
+    ys = [point[1] for point in points]
+    return min(xs), max(xs), min(ys), max(ys)
+
+
+def to_svg(
+    pattern: ParametricPattern,
+    curve_samples: int = 32,
+    units: str = "mm",
+    derived: Any = None,
+    metadata: Mapping[str, Any] | None = None,
+) -> str:
+    """Serialize sewing/cut boundaries and semantic metadata to deterministic SVG."""
+    if not units:
+        raise ValueError("units must not be empty")
+    sewing_points = pattern.sampled_outline(curve_samples)
+    if not sewing_points:
+        raise ValueError("pattern has no outline")
+    paths = [sewing_points]
+    cut_paths = []
+    if derived is not None:
+        cut_paths = [list(edge.points) for edge in derived.cut_boundary if edge.points]
+        paths.extend(cut_paths)
+    min_x, max_x, min_y, max_y = _bounds(paths)
+    width = max_x - min_x
+    height = max_y - min_y
     if width <= 0 or height <= 0:
         raise ValueError("pattern must have non-zero extent")
-    def fmt(p): return f"{p[0]-min_x:.6f},{height-(p[1]-min_y):.6f}"
-    d = "M " + " L ".join(fmt(p) for p in points) + " Z"
-    edge_ids = " ".join(escape(s.id) for s in pattern.segments)
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{width:g}{escape(units)}" '
-            f'height="{height:g}{escape(units)}" viewBox="0 0 {width:.6f} {height:.6f}" '
-            f'data-units="{escape(units)}" data-edge-ids="{edge_ids}">'
-            f'<path id="sewing-boundary" d="{d}" fill="none" stroke="black"/>\n</svg>')
+
+    def svg_path(points):
+        def fmt(point):
+            return f"{_fmt(point[0] - min_x)},{_fmt(max_y - point[1])}"
+        return "M " + " L ".join(fmt(point) for point in points) + " Z"
+
+    payload = build_export_metadata(pattern, units, derived, metadata)
+    metadata_json = escape(json.dumps(payload, sort_keys=True, separators=(",", ":")))
+    elements = [
+        f'<path id="sewing-boundary" d="{svg_path(sewing_points)}" fill="none" stroke="black"/>',
+    ]
+    if cut_paths:
+        for edge, points in zip(derived.cut_boundary, cut_paths):
+            elements.append(
+                f'<path id="cut-{escape(edge.id)}" data-edge-id="{escape(edge.id)}" '
+                f'd="{svg_path(points)}" fill="none" stroke="black"/>'
+            )
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{_fmt(width)}{escape(units)}" '
+        f'height="{_fmt(height)}{escape(units)}" viewBox="0 0 {_fmt(width)} {_fmt(height)}" '
+        f'data-units="{escape(units)}">'
+        f'<metadata id="freecad-cloth-pattern">{metadata_json}</metadata>\n'
+        + "\n".join(elements)
+        + "\n</svg>"
+    )
+
+
+def to_dxf(
+    pattern: ParametricPattern,
+    curve_samples: int = 32,
+    units: str = "mm",
+    derived: Any = None,
+    metadata: Mapping[str, Any] | None = None,
+) -> str:
+    """Serialize sewing/cut geometry as deterministic ASCII DXF (R12 style)."""
+    if not units:
+        raise ValueError("units must not be empty")
+    payload = json.dumps(
+        build_export_metadata(pattern, units, derived, metadata),
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    lines = [
+        "0", "SECTION", "2", "HEADER", "9", "$INSUNITS", "70", "4",
+        "0", "ENDSEC", "0", "SECTION", "2", "ENTITIES",
+    ]
+
+    def add_polyline(points, layer):
+        if len(points) < 2:
+            return
+        lines.extend(["0", "POLYLINE", "8", layer, "66", "1", "70", "1"])
+        for x, y in points:
+            lines.extend(["0", "VERTEX", "8", layer, "10", _fmt(x), "20", _fmt(y), "30", "0"])
+        lines.extend(["0", "SEQEND"])
+
+    add_polyline(pattern.sampled_outline(curve_samples), "SEWING")
+    if derived is not None:
+        for edge in derived.cut_boundary:
+            add_polyline(edge.points, "CUT_" + _safe_layer(edge.id))
+        for notch in derived.notches:
+            point = notch_point(pattern, notch)
+            lines.extend(["0", "POINT", "8", "NOTCH", "10", _fmt(point[0]), "20", _fmt(point[1]), "30", "0"])
+
+    # Group code 999 is an R12-compatible comment and gives consumers a stable
+    # way to recover the semantic document metadata without interpreting layers.
+    lines.extend(["0", "ENDSEC", "0", "EOF", "999", "FREECAD_CLOTH_METADATA " + payload])
+    return "\n".join(lines) + "\n"
+
+
+def notch_point(pattern, notch):
+    notch.validate()
+    segment = pattern.by_id().get(notch.segment_id)
+    if segment is None:
+        raise ValueError(f"notch references unknown segment: {notch.segment_id}")
+    return segment.point(notch.t)
+
+
+def extract_metadata(text: str) -> dict:
+    """Read the shared metadata payload from an SVG or DXF export."""
+    svg_match = re.search(r'<metadata id="freecad-cloth-pattern">(.*?)</metadata>', text, re.DOTALL)
+    if svg_match:
+        return json.loads(svg_match.group(1))
+    dxf_match = re.search(r"^999\nFREECAD_CLOTH_METADATA (.+)$", text, re.MULTILINE)
+    if dxf_match:
+        return json.loads(dxf_match.group(1))
+    raise ValueError("freecad-cloth export metadata not found")
+
+
+def _safe_layer(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_$-]", "_", str(value))
+    return cleaned[:200] or "EDGE"
