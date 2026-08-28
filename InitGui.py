@@ -1,55 +1,31 @@
 class ClothPatternWorkbench:
-    MenuText = "Cloth Pattern"
-    ToolTip = "Parametric sewing-pattern design"
-
+    MenuText = "Cloth Pattern"; ToolTip = "Parametric sewing-pattern design"
     def Initialize(self):
-        import PatternCommands
-        self.commands = PatternCommands.COMMANDS
-        self.appendToolbar("Cloth Pattern", self.commands)
-        self.appendMenu("Cloth Pattern", self.commands)
-
-    def Activated(self):
-        return None
-
-    def Deactivated(self):
-        return None
-
-    def ContextMenu(self, recipient):
-        if recipient in ("view", "tree"):
-            self.appendContextMenu("Cloth Pattern", self.commands)
-
-    def GetClassName(self):
-        return "Gui::PythonWorkbench"
-
-
+        import PatternCommands; self.commands=PatternCommands.COMMANDS; self.appendToolbar("Cloth Pattern",self.commands); self.appendMenu("Cloth Pattern",self.commands)
+    def Activated(self): return None
+    def Deactivated(self): return None
+    def ContextMenu(self,recipient):
+        if recipient in ("view","tree"): self.appendContextMenu("Cloth Pattern",self.commands)
+    def GetClassName(self): return "Gui::PythonWorkbench"
 class ClothSimulationWorkbench:
-    MenuText = "Cloth Simulation"
-    ToolTip = "3D cloth assembly and simulation"
-
+    MenuText = "Cloth Simulation"; ToolTip = "3D cloth assembly and simulation"
     def Initialize(self):
-        import SimulationCommands
-        self.commands = SimulationCommands.COMMANDS
-        self.appendToolbar("Cloth Simulation", self.commands)
-        self.appendMenu("Cloth Simulation", self.commands)
-
-    def Activated(self):
-        return None
-
-    def Deactivated(self):
-        return None
-
-    def ContextMenu(self, recipient):
-        if recipient in ("view", "tree"):
-            self.appendContextMenu("Cloth Simulation", self.commands)
-
-    def GetClassName(self):
-        return "Gui::PythonWorkbench"
-
-
+        import SimulationCommands; self.commands=SimulationCommands.COMMANDS; self.appendToolbar("Cloth Simulation",self.commands); self.appendMenu("Cloth Simulation",self.commands)
+    def Activated(self): return None
+    def Deactivated(self): return None
+    def ContextMenu(self,recipient):
+        if recipient in ("view","tree"): self.appendContextMenu("Cloth Simulation",self.commands)
+    def GetClassName(self): return "Gui::PythonWorkbench"
+class ClothSewingWorkbench:
+    MenuText = "Cloth Sewing"; ToolTip = "Sewing operations and seam validation"
+    def Initialize(self):
+        import SewingCommands; self.commands=SewingCommands.COMMANDS; self.appendToolbar("Cloth Sewing",self.commands); self.appendMenu("Cloth Sewing",self.commands)
+    def Activated(self): return None
+    def Deactivated(self): return None
+    def ContextMenu(self,recipient):
+        if recipient in ("view","tree"): self.appendContextMenu("Cloth Sewing",self.commands)
+    def GetClassName(self): return "Gui::PythonWorkbench"
 try:
     import FreeCADGui as Gui
-    Gui.addWorkbench(ClothPatternWorkbench())
-    Gui.addWorkbench(ClothSimulationWorkbench())
-except ImportError:
-    # Allows static imports/tests outside FreeCAD.
-    Gui = None
+    Gui.addWorkbench(ClothPatternWorkbench()); Gui.addWorkbench(ClothSimulationWorkbench()); Gui.addWorkbench(ClothSewingWorkbench())
+except ImportError: Gui=None
