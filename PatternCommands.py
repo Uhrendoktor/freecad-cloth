@@ -1,4 +1,4 @@
-"""Commands for the pattern workbench."""
+"""Commands for the Cloth Pattern workbench."""
 
 
 def create_pattern_piece():
@@ -11,6 +11,20 @@ def create_pattern_piece():
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
     geometry = rectangle(100.0, 60.0)
     piece = PatternPiece("PatternPiece", geometry.sampled_outline(), id="pattern-piece-1")
+    add_pattern_piece(doc, piece)
+    doc.recompute()
+
+
+def create_custom_pattern_piece():
+    """Create a second, larger parametric pattern piece for drafting."""
+    import FreeCAD as App
+    from PatternModel import PatternPiece
+    from PatternObjects import add_pattern_piece
+    from PatternGeometry import rectangle
+
+    doc = App.ActiveDocument or App.newDocument("ClothPattern")
+    geometry = rectangle(180.0, 120.0)
+    piece = PatternPiece("PatternPiece_Large", geometry.sampled_outline(), id="pattern-piece-large")
     add_pattern_piece(doc, piece)
     doc.recompute()
 
@@ -28,12 +42,18 @@ def create_pattern_mesh():
 
 
 def add_seam():
-    """Create a sample seam record with stable semantic identity."""
+    """Create a seam between the first two pattern pieces in the document."""
     import FreeCAD as App
     from PatternModel import Seam
     from PatternObjects import add_seam
+
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
-    add_seam(doc, Seam("PatternPiece", 0, "PatternPiece", 1, id="sample-seam"))
+    pieces = [obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"]
+    if len(pieces) < 2:
+        raise ValueError("create at least two pattern pieces before adding a seam")
+    piece_a, piece_b = pieces[:2]
+    seam = Seam(piece_a.PieceId, 0, piece_b.PieceId, 0, id=f"{piece_a.PieceId}-{piece_b.PieceId}")
+    add_seam(doc, seam)
     doc.recompute()
 
 
@@ -53,6 +73,7 @@ class _FunctionCommand:
 
 COMMANDS = [
     "ClothPattern_CreatePiece",
+    "ClothPattern_CreateCustomPiece",
     "ClothPattern_CreateMesh",
     "ClothPattern_AddSeam",
 ]
@@ -60,6 +81,7 @@ COMMANDS = [
 try:
     import FreeCADGui as Gui
     Gui.addCommand("ClothPattern_CreatePiece", _FunctionCommand(create_pattern_piece))
+    Gui.addCommand("ClothPattern_CreateCustomPiece", _FunctionCommand(create_custom_pattern_piece))
     Gui.addCommand("ClothPattern_CreateMesh", _FunctionCommand(create_pattern_mesh))
     Gui.addCommand("ClothPattern_AddSeam", _FunctionCommand(add_seam))
 except ImportError:
