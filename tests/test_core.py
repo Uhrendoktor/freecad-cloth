@@ -6,6 +6,8 @@ from PatternModel import PatternPiece, Seam
 from PatternGeometry import LineSegment, ParametricPattern, QuadraticBezier, rectangle
 from PatternSchema import PatternDocument, dumps, loads
 from SimulationBackend import ClothState, NullSolver
+import PatternCommands
+import SimulationCommands
 
 
 def test_pattern_piece_validation():
@@ -95,6 +97,21 @@ def test_pattern_document_rejects_malformed_input():
 def test_null_solver_is_deterministic():
     state = ClothState([(0.0, 0.0, 0.0)])
     assert NullSolver().step(state, 0.01) == state
+
+
+def test_workbench_command_scopes():
+    assert PatternCommands.COMMANDS == [
+        "ClothPattern_CreatePiece",
+        "ClothPattern_CreateCustomPiece",
+        "ClothPattern_CreateMesh",
+        "ClothPattern_AddSeam",
+    ]
+    assert SimulationCommands.COMMANDS == [
+        "ClothSimulation_Create",
+        "ClothSimulation_CreateDrape",
+        "ClothSimulation_Step",
+    ]
+    assert not set(PatternCommands.COMMANDS) & set(SimulationCommands.COMMANDS)
 
 
 def run():
