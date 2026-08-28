@@ -64,19 +64,6 @@ Coordination registry for parallel work on `freecad-cloth`.
   tests: planned FreeCAD GUI smoke/documentation workflow
   pr: null
   blockers: none
-
-- id: agent-solver-authority-20260828
-  agent: subagent
-  task: Consolidate simulation solver authority behind ClothSimulationBackend (#87)
-  status: implementation
-  files: [SimulationObjects.py, tests/test_backend_authority.py, AGENT_STATUS.md]
-  scope: Keep the document-facing simulation proxy dependent on ClothSimulationBackend, with the bundled XPBD solver selected through the backend registry; preserve semantic scene behavior and avoid active XPBD implementation files.
-  started: 2026-08-28
-  last_update: 2026-08-28T17:56:00+02:00
-  progress: Registered after confirming no overlap with active PatternSketch/XPBD, backend-audit, native-geometry, or GUI-doc scopes. Refactoring SimulationProxy to drive all solver state through the backend and adding headless authority regression coverage.
-  tests: planned Python 3.10/3.11/3.12 plus real FreeCAD smoke
-  pr: pending
-  blockers: none
 ```
 
 ## Current issue map
@@ -93,6 +80,19 @@ Coordination registry for parallel work on `freecad-cloth`.
 - #88: Placement and export adapters
 
 ## Completed milestones
+
+- id: agent-solver-authority-20260828
+  agent: subagent
+  task: Consolidate simulation solver authority behind ClothSimulationBackend (#87)
+  status: completed
+  files: [SimulationObjects.py, tests/test_backend_authority.py, AGENT_STATUS.md]
+  scope: Keep the document-facing simulation proxy dependent on ClothSimulationBackend, with the bundled XPBD solver selected through the backend registry; preserve semantic scene behavior and avoid active XPBD implementation files.
+  started: 2026-08-28
+  last_update: 2026-08-28T18:15:00+02:00
+  progress: Refactored SimulationProxy to construct and drive XPBDBackend through the backend registry; mesh output now consumes backend positions and reset/state reporting stays backend-owned. Canonical PR #91 and post-merge main validation passed.
+  tests: Canonical PR #91 run #168 passed Python 3.10/3.11/3.12 and real FreeCAD smoke; post-merge main run #172 passed all test and FreeCAD jobs.
+  pr: 91 (merged)
+  blockers: none
 
 - id: agent-meshpart-netgen-20260828
   agent: subagent
