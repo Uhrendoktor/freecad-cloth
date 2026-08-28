@@ -38,6 +38,7 @@ jobs:
           python tests/test_simulation_scene.py
           python tests/test_collisions.py
           python tests/test_freecad_objects.py
+          python tests/test_gui_structure.py
       - name: Python syntax check
         run: python -m compileall -q .
       - name: Package structure validation
@@ -45,6 +46,8 @@ jobs:
           test -f package.xml
           test -f Init.py
           test -f InitGui.py
+          test -f PatternGui.py
+          test -f SimulationGui.py
 
   freecad-smoke:
     runs-on: ubuntu-latest
