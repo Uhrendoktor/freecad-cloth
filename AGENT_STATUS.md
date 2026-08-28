@@ -48,16 +48,45 @@ Copy this template for a new task:
 ## Active work
 
 ```yaml
-[]
+- id: agent-supervisor-seam-allowance-20260828
+  agent: supervisor
+  task: Implement generic parametric seam-allowance outline geometry (#48)
+  status: active
+  files:
+    - PatternGeometry.py
+    - tests/test_pattern_geometry.py
+    - AGENT_STATUS.md
+    - TOOL_STATE.md
+  scope: FreeCAD-independent offset outline for ordered closed boundaries; preserve pattern source-of-truth and existing rectangle object behavior.
+  started: 2026-08-28
+  last_update: 2026-08-28T14:45:00Z
+  progress: Mainline drafting milestone is green; next slice is generic allowance geometry before export work.
+  tests: Existing canonical run #98 green; new geometry tests planned.
+  pr: null
+  blockers: none
 ```
 
 ## Completed / blocked history
 
 ```yaml
+- id: agent-pattern-drafting-canvas-20260828
+  status: completed
+  progress: Interactive drafting canvas and persisted semantic drafting metadata are integrated on main; PR #41 was superseded and closed after audit.
+  tests: Canonical main run #98 passed; FreeCAD smoke passed in the same run.
+  pr: 41 (closed as superseded)
+  blockers: none
+
 - id: agent-simulation-gui-20260828
   status: completed
   progress: Reviewed issue #31 and current main; simulation workbench GUI and persistent cloth/avatar/pin/seam controls were already integrated, so no duplicate implementation was merged.
   tests: Existing GUI structure and simulation scene contracts inspected; no new repository changes retained.
+  pr: null
+  blockers: none
+
+- id: agent-supervisor-ci-repair-20260828
+  status: completed
+  progress: Audited failed PR validation; stale capsule expectation was identified and corrected on the obsolete PR branch. Current main already contains the corrected 3.5 surface assertion and canonical run #98 is green.
+  tests: Canonical main run #98 passed.
   pr: null
   blockers: none
 ```
