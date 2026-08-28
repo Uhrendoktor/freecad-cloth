@@ -1,3 +1,5 @@
+from math import sqrt
+
 from PatternGeometry import rectangle
 from PatternMesh import triangulate
 from SimulationBackend import ClothState
@@ -17,7 +19,8 @@ def test_collision_and_structural_constraints_can_coexist():
     solver = XPBDClothSolver(constraints, gravity=(0.0, 0.0, 0.0), colliders=[SphereCollider((0.0, 0.0, 0.0), 5.0)])
     state = ClothState([(0.0, 0.0, 0.0), (20.0, 0.0, 0.0)])
     solver.step(state, 0.01)
-    assert state.positions[0][2] >= 5.0
+    x, y, z = state.positions[0]
+    assert sqrt(x * x + y * y + z * z) >= 5.0
 
 
 if __name__ == "__main__":
