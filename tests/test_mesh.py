@@ -34,7 +34,7 @@ def test_seam_generates_stitches():
     a = rectangle(100.0, 50.0)
     b = rectangle(100.0, 50.0)
     ma, mb = triangulate(a), triangulate(b)
-    constraints = build_sewing_constraints(a, ma, b, mb, Seam("front", 1, "back", 3), samples=5)
+    constraints = build_sewing_constraints(a, ma, b, mb, Seam("front", 1, "back", 3, id="side"), samples=5)
     assert len(constraints.stitches) >= 2
     constraints.validate()
 
