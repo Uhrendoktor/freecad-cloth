@@ -64,6 +64,19 @@ Coordination registry for parallel work on `freecad-cloth`.
   tests: planned FreeCAD GUI smoke/documentation workflow
   pr: null
   blockers: none
+
+- id: agent-sewing-command-adapter-20260828
+  agent: subagent
+  task: Extract shared FreeCAD command adapter for Sewing/Fitting workbenches (#98)
+  status: implementation
+  files: [CommandAdapter.py, SewingCommands.py, FittingCommands.py, tests/test_command_adapter.py, AGENT_STATUS.md]
+  scope: Remove duplicated _FunctionCommand boilerplate from the sewing/fitting command modules without changing command behavior or introducing GUI imports into headless paths.
+  started: 2026-08-28
+  last_update: 2026-08-28T18:38:00+02:00
+  progress: Registered focused implementation scope from issue #98; implementation pending.
+  tests: Python unit tests plus FreeCAD command-registration smoke if available
+  pr: pending
+  blockers: none
 ```
 
 ## Current issue map
@@ -78,6 +91,7 @@ Coordination registry for parallel work on `freecad-cloth`.
 - #86: MeshPart/Netgen triangulation
 - #87: solver authority consolidation
 - #88: Placement and export adapters
+- #98: sewing workbench integration and correctness
 
 ## Completed milestones
 
