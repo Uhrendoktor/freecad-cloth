@@ -44,12 +44,23 @@ jobs:
           test -f package.xml
           test -f Init.py
           test -f InitGui.py
-      - name: FreeCAD smoke test when available
-        shell: bash
+
+  freecad-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run real FreeCAD runtime in Debian trixie
         run: |
-          set -euo pipefail
-          if command -v freecadcmd >/dev/null 2>&1; then
-            freecadcmd -c 'import sys; sys.path.insert(0, "."); import InitGui; import PatternModel; import PatternMesh; import XPBD; import SimulationScene; print("FreeCAD workbench import smoke test passed")'
-          else
-            echo 'freecadcmd not installed; FreeCAD-specific smoke test skipped.'
-          fi
+          docker run --rm \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            debian:trixie-slim \
+            bash -euxo pipefail -c '
+              apt-get update -qq
+              apt-get install -y -qq freecad
+              freecadcmd --version
+              freecadcmd tests/freecad_smoke.py
+            '
