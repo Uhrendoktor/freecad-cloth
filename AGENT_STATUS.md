@@ -55,12 +55,13 @@ Copy this template for a new task:
   files:
     - SimulationGui.py
     - SimulationCommands.py
+    - SimulationObjects.py
     - InitGui.py
     - tests/test_simulation_gui_contract.py
   scope: Simulation workbench task panel, controls, persisted pin/seam selection, and headless-safe GUI contracts; do not modify Pattern GUI or solver backend.
   started: 2026-08-28
-  last_update: 2026-08-28T16:33:00+02:00
-  progress: Inspecting existing simulation commands/objects and defining GUI integration.
+  last_update: 2026-08-28T16:35:00+02:00
+  progress: Extending the existing simulation scene with persisted selection properties and task-panel controls.
   tests: Planned static/headless contract tests and existing test suite.
   pr: null
   blockers: none
