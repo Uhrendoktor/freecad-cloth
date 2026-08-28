@@ -14,6 +14,7 @@ def test_rectangle_mesh_area_and_topology():
     assert len(mesh.vertices) == 4
     assert len(mesh.triangles) == 2
     assert abs(mesh.area - 5000.0) < 1e-7
+    assert mesh.boundary_edge_segment_ids == ("bottom", "right", "top", "left")
     mesh.validate()
 
 
@@ -28,6 +29,18 @@ def test_concave_polygon_triangulates():
     mesh = triangulate(pattern)
     assert len(mesh.triangles) == 3
     assert abs(mesh.area - 1200.0) < 1e-7
+    assert mesh.boundary_edge_segment_ids == ("a", "b", "c", "d", "e")
+
+
+def test_reversed_rectangle_retains_segment_provenance():
+    pattern = ParametricPattern([
+        LineSegment("left", (0, 50), (0, 0)),
+        LineSegment("bottom", (0, 0), (100, 0)),
+        LineSegment("right", (100, 0), (100, 50)),
+        LineSegment("top", (100, 50), (0, 50)),
+    ])
+    mesh = triangulate(pattern)
+    assert mesh.boundary_edge_segment_ids == ("left", "bottom", "right", "top")
 
 
 def test_seam_generates_stitches():
