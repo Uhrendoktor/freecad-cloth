@@ -37,8 +37,10 @@ class SewingNetworkTests(unittest.TestCase):
             alignment="uniform",
         )
         self.assertEqual(len(seams), 2)
-        self.assertEqual([round(seam.start_b, 8) for seam in seams], [0.0, round(1 / 3, 8)])
-        self.assertEqual([round(seam.end_b, 8) for seam in seams], [round(1 / 3, 8), 1.0])
+        self.assertEqual([round(seam.start_b, 8) for seam in seams], [0.0, 0.0])
+        self.assertEqual([round(seam.end_b, 8) for seam in seams], [1.0, 1.0])
+        self.assertEqual([round(seam.start_a, 8) for seam in seams], [0.0, round(1 / 3, 8)])
+        self.assertEqual([round(seam.end_a, 8) for seam in seams], [round(1 / 3, 8), 1.0])
         self.assertTrue(all(seam.reversed_b for seam in seams))
         self.assertTrue(all(seam.alignment == "uniform" for seam in seams))
 
