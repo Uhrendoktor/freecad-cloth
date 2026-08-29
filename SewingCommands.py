@@ -30,13 +30,10 @@ def validate_seams():
 def show_sewing_2d():
     import FreeCADGui as Gui
     if Gui.activeDocument():Gui.activeDocument().activeView().viewTop();Gui.activeDocument().activeView().fitAll()
-class _FunctionCommand:
-    def __init__(self,function):self.function=function
-    def Activated(self):self.function()
-    def GetResources(self):return {"MenuText":self.function.__name__.replace("_"," ").title(),"ToolTip":self.function.__doc__ or "Cloth sewing command"}
 COMMANDS=["ClothSewing_CreateOperation","ClothSewing_EditOperation","ClothSewing_Validate","ClothSewing_Show2D"]
+_COMMAND_HANDLERS={"ClothSewing_CreateOperation":create_sewing_operation,"ClothSewing_EditOperation":edit_sewing_operation,"ClothSewing_Validate":validate_seams,"ClothSewing_Show2D":show_sewing_2d}
 try:
     import FreeCADGui as Gui
-    if hasattr(Gui,"addCommand"):
-        Gui.addCommand("ClothSewing_CreateOperation",_FunctionCommand(create_sewing_operation));Gui.addCommand("ClothSewing_EditOperation",_FunctionCommand(edit_sewing_operation));Gui.addCommand("ClothSewing_Validate",_FunctionCommand(validate_seams));Gui.addCommand("ClothSewing_Show2D",_FunctionCommand(show_sewing_2d))
+    from CommandAdapter import register_commands
+    register_commands(Gui,_COMMAND_HANDLERS)
 except (ImportError,AttributeError):pass
