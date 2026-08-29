@@ -13,7 +13,7 @@
 - **#143** P0 end-to-end workflow audit — supervisor gate.
 - **#155 / PR #160** P0 canonical native garment fixture and GUI/Xvfb workflow — active; must be reviewed and merged only after terminal green CI.
 - **#145 / #159 / #161** P0 simulation quality — active; #159 is claimed by Uhrendoktor in `agent/159-simulation-quality`.
-- **#147 / #163** P1 production 2D export — queued behind P0; current metadata work is a foundation, not completion.
+- **#147 / #163** P1 production 2D export — #163 is claimed by Uhrendoktor in `agent/export-validation-coordinator-20260829`; this slice defines the validation contract only and does not touch P0 implementation branches.
 - **#162** P1 pattern authoring parity audit — queued; research-driven audit of curved authoring, constraints, marks, offsets and semantic preservation.
 - **#148** P2 optional native solver benchmark — explicitly non-blocking.
 - **#165** Architecture: FreeCAD-native Sketcher pattern authoring + semantic Cloth sewing layer — architecture documented; implementation follow-up should be coordinated with the supervisor and must not duplicate the P0 audit.
@@ -40,6 +40,7 @@ Research confirms that CLO/Marvelous Designer make semantic sewing, particle-dis
 - Semantic SVG/DXF export metadata.
 - Canonical CI with real FreeCAD smoke and GUI/Xvfb coverage.
 - #165 architecture boundary documented in `docs/architecture/freecad-sketcher-cloth-boundary.md`.
+- #163 export validation contract documented in `docs/export-validation-contract.md`; executable validation remains outstanding.
 
 ## Release gates
 
