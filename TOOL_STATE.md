@@ -6,10 +6,11 @@ repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md
 supervisor_task: cloth-sewing-workbench-roadmap-replan
-last_completed_ci_run: 33268603287
+last_completed_ci_run: 33269282697
 last_completed_ci_conclusion: success
-current_mainline_commit: 3c9172f950f0f87a9c989f6146fba6f8b19a0dbb
-supervisor_branch: null
-parallel_task_issues: [143, 144, 145, 146, 147, 148]
-next_gate: execute P0 issues 143-145; audit/merge each; post-merge CI; then P1 issues 146-147
+current_mainline_commit: 0b0e117a25fbd1d95fe1c66f1ffb25790849543c
+supervisor_branch: supervisor/145-simulation-quality
+parallel_task_issues: [143, 145, 147, 148]
+completed_milestones: [144, 146, 152]
+next_gate: finish #143 end-to-end audit; then implement/audit #145; then #147; #148 remains non-blocking
 ```
