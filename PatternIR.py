@@ -345,7 +345,12 @@ def _order_sketch_boundary(boundaries: Sequence[BoundaryIR], piece_id: str) -> T
     current_edge = start_index
 
     while len(visited) < len(boundaries):
-        candidates = [index for index in adjacency[current_edge] if index not in visited]
+        candidates = [
+            index
+            for index in adjacency[current_edge]
+            if index not in visited
+            and current_vertex in edge_vertices[index]
+        ]
         if not candidates:
             raise ValueError(
                 f"Sketcher boundary is disconnected near {boundaries[current_edge].id}: "
