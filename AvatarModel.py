@@ -153,9 +153,11 @@ def _capsule(vertices, triangles, a, b, radius, segments=16):
     _ellipsoid(vertices, triangles, (cx, cy, cz), (radius, radius, length/2 + radius), 6, segments)
 
 
-def _radii(circumference, depth_ratio=0.39):
+def _radii(circumference, depth_ratio=0.39, skin_offset=0.0):
     c = float(circumference)
-    return max(1.0, c / (2 * pi) * 1.18), max(1.0, c * depth_ratio / pi)
+    offset = float(skin_offset)
+    return (max(1.0, c / (2 * pi) * 1.18) + offset,
+            max(1.0, c * depth_ratio / pi) + offset)
 
 
 def generate_mesh(params):
@@ -163,9 +165,9 @@ def generate_mesh(params):
     params.validate()
     m = params.measurements
     vertices, triangles = [], []
-    chest_w, chest_d = _radii(m["chest"])
-    waist_w, waist_d = _radii(m["waist"], .40)
-    hip_w, hip_d = _radii(m["hip"], .42)
+    chest_w, chest_d = _radii(m["chest"], skin_offset=params.skin_offset)
+    waist_w, waist_d = _radii(m["waist"], .40, params.skin_offset)
+    hip_w, hip_d = _radii(m["hip"], .42, params.skin_offset)
     pelvis_z = m["inseam"] + 120
     waist_z = pelvis_z + m["back_waist"]
     chest_z = waist_z + max(90, m["torso"] * .72)
@@ -176,15 +178,15 @@ def generate_mesh(params):
              _ring(vertices, waist_z, waist_w, waist_d),
              _ring(vertices, chest_z, chest_w, chest_d),
              _ring(vertices, shoulder_z, chest_w*.88, chest_d*.88),
-             _ring(vertices, neck_z, m["neck"]/(2*pi), m["neck"]/(2*pi)*.85)]
+             _ring(vertices, neck_z, m["neck"]/(2*pi) + params.skin_offset, m["neck"]/(2*pi)*.85 + params.skin_offset)]
     for a, b in zip(rings, rings[1:]):
         _connect(triangles, a, b)
-    _capsule(vertices, triangles, (0, 0, neck_z-30), (0, 0, neck_z+70), m["neck"]/(2*pi)*.82)
-    _ellipsoid(vertices, triangles, (0, 0, neck_z+155), (m["neck"]/(2*pi)*1.22, m["neck"]/(2*pi)*1.08, 105), 10, 24)
+    _capsule(vertices, triangles, (0, 0, neck_z-30), (0, 0, neck_z+70), m["neck"]/(2*pi)*.82 + params.skin_offset)
+    _ellipsoid(vertices, triangles, (0, 0, neck_z+155), (m["neck"]/(2*pi)*1.22 + params.skin_offset, m["neck"]/(2*pi)*1.08 + params.skin_offset, 105 + params.skin_offset), 10, 24)
 
     shoulder_half = m["shoulder"] / 2
-    arm_radius = m["upper_arm"] / (2*pi)
-    wrist_radius = m["wrist"] / (2*pi)
+    arm_radius = m["upper_arm"] / (2*pi) + params.skin_offset
+    wrist_radius = m["wrist"] / (2*pi) + params.skin_offset
     arm_z = shoulder_z - 15
     for side in (-1, 1):
         sx = side * shoulder_half
@@ -196,14 +198,14 @@ def generate_mesh(params):
 
     knee_z = max(300, m["ankle"] + m["inseam"]*.52)
     ankle_z = m["ankle"] / 2
-    thigh_radius = m["thigh"] / (2*pi)
-    calf_radius = m["calf"] / (2*pi)
+    thigh_radius = m["thigh"] / (2*pi) + params.skin_offset
+    calf_radius = m["calf"] / (2*pi) + params.skin_offset
     hip_offset = hip_w * .42
     for side in (-1, 1):
         x = side * hip_offset
         _capsule(vertices, triangles, (x, 0, pelvis_z-20), (x, 0, knee_z), thigh_radius)
         _capsule(vertices, triangles, (x, 0, knee_z), (x, 0, ankle_z+55), calf_radius)
-        _ellipsoid(vertices, triangles, (x, 35, ankle_z), (m["ankle"]/(2*pi)*1.6, m["ankle"]/(2*pi)*2, 45), 6, 16)
+        _ellipsoid(vertices, triangles, (x, 35, ankle_z), (m["ankle"]/(2*pi)*1.6 + params.skin_offset, m["ankle"]/(2*pi)*2 + params.skin_offset, 45 + params.skin_offset), 6, 16)
 
     landmarks = {
         "neck": (0, 0, neck_z), "chest": (0, 0, chest_z),
