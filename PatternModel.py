@@ -28,7 +28,12 @@ class PatternPiece:
 
 @dataclass(frozen=True)
 class Seam:
-    """A named connection between two pattern pieces."""
+    """The authoritative semantic sewing contract.
+
+    Geometry, FreeCAD document objects, and solver constraints are adapters of
+    this record.  ``alignment`` and ``stitch_group`` intentionally live here so
+    presentation and simulation cannot silently maintain competing seam state.
+    """
     piece_a: str
     edge_a: int
     piece_b: str
@@ -39,6 +44,9 @@ class Seam:
     start_b: float = 0.0
     end_b: float = 1.0
     reversed_b: bool = False
+    alignment: str = "endpoints"
+    stitch_group: str = ""
+    kind: str = "plain"
 
     def validate(self) -> None:
         if not self.id.strip():
@@ -52,3 +60,9 @@ class Seam:
                 raise ValueError("seam edge ranges must be normalized")
         if self.start_a >= self.end_a or self.start_b >= self.end_b:
             raise ValueError("seam ranges must have positive extent")
+        if self.alignment not in {"endpoints", "uniform"}:
+            raise ValueError("alignment must be 'endpoints' or 'uniform'")
+        if self.kind not in {"plain", "dart", "gather", "pleat", "hem", "fold", "closure"}:
+            raise ValueError("unsupported seam construction kind")
+        if self.stitch_group and not self.stitch_group.strip():
+            raise ValueError("stitch group must not be whitespace")

@@ -40,7 +40,6 @@ def _boundary_shape(points, allowance=0.0):
 
 
 class PatternPieceProxy:
-    """Recomputable native geometry for rectangular or custom pattern pieces."""
     Type = "ClothPatternPiece"
 
     def execute(self, obj):
@@ -62,7 +61,6 @@ class PatternPieceProxy:
 
 
 def add_pattern_piece(doc, piece: PatternPiece):
-    """Create a recomputable native Part feature for a pattern piece."""
     piece.validate()
     width = max(p[0] for p in piece.outline) - min(p[0] for p in piece.outline)
     height = max(p[1] for p in piece.outline) - min(p[1] for p in piece.outline)
@@ -83,6 +81,7 @@ def add_pattern_piece(doc, piece: PatternPiece):
 
 
 def add_seam(doc, seam: Seam):
+    """Persist a canonical seam and a derived native display representation."""
     seam.validate()
     piece_a = next((o for o in doc.Objects if getattr(o, "PieceId", "") == seam.piece_a), None)
     piece_b = next((o for o in doc.Objects if getattr(o, "PieceId", "") == seam.piece_b), None)
@@ -98,6 +97,11 @@ def add_seam(doc, seam: Seam):
     obj.addProperty("App::PropertyFloat", "StartB", "Seam").StartB = seam.start_b
     obj.addProperty("App::PropertyFloat", "EndB", "Seam").EndB = seam.end_b
     obj.addProperty("App::PropertyBool", "ReversedB", "Seam").ReversedB = seam.reversed_b
+    obj.addProperty("App::PropertyEnumeration", "Alignment", "Seam").Alignment = ["endpoints", "uniform"]
+    obj.Alignment = seam.alignment
+    obj.addProperty("App::PropertyString", "StitchGroup", "Seam").StitchGroup = seam.stitch_group or seam.id
+    obj.addProperty("App::PropertyEnumeration", "Kind", "Seam").Kind = ["plain", "dart", "gather", "pleat", "hem", "fold", "closure"]
+    obj.Kind = seam.kind
     if piece_a is not None and piece_b is not None:
         import FreeCAD as App
         import Part
@@ -109,6 +113,7 @@ def add_seam(doc, seam: Seam):
             pa1 = App.Vector(aa[0] + (ab[0] - aa[0]) * seam.end_a, aa[1] + (ab[1] - aa[1]) * seam.end_a, 0.4)
             pb0 = App.Vector(bb[0] + (bc[0] - bb[0]) * seam.start_b, bb[1] + (bc[1] - bb[1]) * seam.start_b, 0.4)
             pb1 = App.Vector(bb[0] + (bc[0] - bb[0]) * seam.end_b, bb[1] + (bc[1] - bb[1]) * seam.end_b, 0.4)
+            if seam.reversed_b: pb0, pb1 = pb1, pb0
             if getattr(piece_a, "Placement", None) is not None: pa0, pa1 = piece_a.Placement.multVec(pa0), piece_a.Placement.multVec(pa1)
             if getattr(piece_b, "Placement", None) is not None: pb0, pb1 = piece_b.Placement.multVec(pb0), piece_b.Placement.multVec(pb1)
             obj.Shape = Part.makeCompound([Part.makeLine(pa0, pa1), Part.makeLine(pb0, pb1)])
@@ -116,7 +121,6 @@ def add_seam(doc, seam: Seam):
 
 
 def add_pattern_mesh(doc, mesh, name="ClothMesh"):
-    """Create a native FreeCAD Mesh::Feature from a solver-neutral mesh."""
     import Mesh, FreeCAD as App
     native = Mesh.Mesh()
     for a, b, c in mesh.triangles:

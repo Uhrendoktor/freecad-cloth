@@ -1,10 +1,10 @@
 """FreeCAD-independent sewing graph and assembly metadata.
 
-The graph keeps pattern/seam identity separate from solver particle indices.
-This lets a FreeCAD document persist semantic seam metadata while simulation
-backends can rebuild their constraints from fresh meshes.
+``PatternModel.Seam`` is the authoritative semantic seam contract.  This graph
+is an index/adapter for groups, piece transforms, and solver correspondence;
+it does not own a second mutable copy of seam orientation or alignment.
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Dict, Iterable, Mapping, Sequence, Tuple
 
 from PatternModel import PatternPiece, Seam
@@ -13,7 +13,6 @@ from PatternModel import PatternPiece, Seam
 @dataclass(frozen=True)
 class Transform3D:
     """Rigid-free assembly transform represented by a 4x4 row-major matrix."""
-
     matrix: Tuple[float, ...] = (
         1.0, 0.0, 0.0, 0.0,
         0.0, 1.0, 0.0, 0.0,
@@ -24,7 +23,7 @@ class Transform3D:
     def __post_init__(self):
         if len(self.matrix) != 16:
             raise ValueError("assembly transform must contain 16 values")
-        if self.matrix[12:15] and abs(self.matrix[15]) < 1e-12:
+        if abs(self.matrix[15]) < 1e-12:
             raise ValueError("assembly transform has an invalid homogeneous scale")
 
     @classmethod
@@ -45,37 +44,33 @@ class Transform3D:
         w = m[12] * x + m[13] * y + m[14] * z + m[15]
         if abs(w) < 1e-12:
             raise ValueError("assembly transform produced invalid homogeneous scale")
-        return (
-            (m[0] * x + m[1] * y + m[2] * z + m[3]) / w,
-            (m[4] * x + m[5] * y + m[6] * z + m[7]) / w,
-            (m[8] * x + m[9] * y + m[10] * z + m[11]) / w,
-        )
+        return ((m[0] * x + m[1] * y + m[2] * z + m[3]) / w,
+                (m[4] * x + m[5] * y + m[6] * z + m[7]) / w,
+                (m[8] * x + m[9] * y + m[10] * z + m[11]) / w)
 
 
 @dataclass(frozen=True)
 class SeamPair:
-    """A stable semantic seam connection plus solver-independent grouping."""
-
+    """Compatibility view of a canonical :class:`PatternModel.Seam`."""
     seam: Seam
     stitch_group: str = ""
-    alignment: str = "endpoints"
+    alignment: str = ""
+
+    def __post_init__(self):
+        object.__setattr__(self, "stitch_group", self.seam.stitch_group or self.stitch_group or self.seam.id)
+        object.__setattr__(self, "alignment", self.seam.alignment if not self.alignment else self.alignment)
 
     def validate(self) -> None:
         self.seam.validate()
-        if not self.stitch_group.strip():
-            raise ValueError("stitch group must not be empty")
-        if self.alignment not in {"endpoints", "uniform"}:
-            raise ValueError("alignment must be 'endpoints' or 'uniform'")
+        if self.stitch_group != (self.seam.stitch_group or self.seam.id):
+            raise ValueError("pair stitch group disagrees with canonical seam metadata")
+        if self.alignment != self.seam.alignment:
+            raise ValueError("pair alignment disagrees with canonical seam metadata")
 
 
 @dataclass
 class SeamGraph:
-    """Validated seam graph for a set of pattern pieces.
-
-    ``assembly_transforms`` are presentation/simulation placement metadata;
-    they do not alter the 2D pattern pieces or seam references.
-    """
-
+    """Validated seam index for pattern pieces and assembly transforms."""
     pieces: Dict[str, PatternPiece] = field(default_factory=dict)
     seams: Dict[str, SeamPair] = field(default_factory=dict)
     assembly_transforms: Dict[str, Transform3D] = field(default_factory=dict)
@@ -87,8 +82,11 @@ class SeamGraph:
         self.pieces[piece.id] = piece
         self.assembly_transforms.setdefault(piece.id, Transform3D.identity())
 
-    def add_seam(self, seam: Seam, stitch_group: str = "", alignment: str = "endpoints") -> None:
-        pair = SeamPair(seam, stitch_group or seam.id, alignment)
+    def add_seam(self, seam: Seam, stitch_group: str = "", alignment: str = "") -> None:
+        if stitch_group or alignment:
+            seam = replace(seam, stitch_group=stitch_group or seam.stitch_group,
+                           alignment=alignment or seam.alignment)
+        pair = SeamPair(seam)
         pair.validate()
         if seam.id in self.seams:
             raise ValueError(f"duplicate seam id: {seam.id}")
@@ -111,17 +109,8 @@ class SeamGraph:
             if piece_id not in self.assembly_transforms:
                 raise ValueError(f"missing assembly transform for piece: {piece_id}")
 
-    def stitch_pairs(
-        self,
-        edge_vertices: Mapping[Tuple[str, int], Sequence[int]],
-        seam_ids: Iterable[str] = (),
-    ) -> Tuple[Tuple[int, int], ...]:
-        """Return deterministic particle-index stitch pairs for selected seams.
-
-        Edge sequences are expected in the same order as their pattern edge.
-        A reversed seam reverses only the second edge; normalized seam ranges
-        select the corresponding portions without mutating graph metadata.
-        """
+    def stitch_pairs(self, edge_vertices: Mapping[Tuple[str, int], Sequence[int]], seam_ids: Iterable[str] = ()) -> Tuple[Tuple[int, int], ...]:
+        """Return deterministic particle-index stitch pairs for selected seams."""
         selected = tuple(seam_ids) if seam_ids else tuple(self.seams)
         pairs = []
         for seam_id in selected:
@@ -139,22 +128,18 @@ class SeamGraph:
         return tuple(pairs)
 
     def to_metadata(self) -> dict:
-        """Return deterministic JSON-friendly document metadata."""
         self.validate()
         return {
             "pieces": tuple(sorted(self.pieces)),
-            "seams": tuple(
-                (sid, pair.stitch_group, pair.alignment,
-                 pair.seam.piece_a, pair.seam.edge_a,
-                 pair.seam.piece_b, pair.seam.edge_b,
-                 pair.seam.start_a, pair.seam.end_a,
-                 pair.seam.start_b, pair.seam.end_b, pair.seam.reversed_b)
-                for sid, pair in sorted(self.seams.items())
-            ),
-            "assembly_transforms": tuple(
-                (pid, self.assembly_transforms[pid].matrix)
-                for pid in sorted(self.assembly_transforms)
-            ),
+            "seams": tuple((sid, pair.stitch_group, pair.alignment,
+                            pair.seam.piece_a, pair.seam.edge_a,
+                            pair.seam.piece_b, pair.seam.edge_b,
+                            pair.seam.start_a, pair.seam.end_a,
+                            pair.seam.start_b, pair.seam.end_b,
+                            pair.seam.reversed_b, pair.seam.kind)
+                           for sid, pair in sorted(self.seams.items())),
+            "assembly_transforms": tuple((pid, self.assembly_transforms[pid].matrix)
+                                          for pid in sorted(self.assembly_transforms)),
         }
 
     def _validate_seam_reference(self, seam: Seam) -> None:
@@ -180,13 +165,12 @@ class SeamGraph:
 
 
 def _sample_indices(values: Sequence[int], start: float, end: float, count: int):
-    span = end - start
-    if count < 2 or span <= 0.0:
+    if count < 2 or end <= start:
         raise ValueError("seam range must contain at least two samples")
     last = len(values) - 1
     result = []
     for i in range(count):
-        t = start + span * i / (count - 1)
+        t = start + (end - start) * i / (count - 1)
         index = min(last, max(0, int(round(t * last))))
         if result and index == result[-1] and index < last:
             index += 1
