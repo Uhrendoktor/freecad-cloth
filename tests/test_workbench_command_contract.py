@@ -1,6 +1,6 @@
 """Headless/static contract checks for Cloth workbench registration.
 
-These checks intentionally do not require FreeCAD or Qt.  They verify that the
+These checks intentionally do not require FreeCAD or Qt. They verify that the
 three registered workbenches keep their command IDs in sync with the command
 modules they load lazily and that each workbench exposes one toolbar/menu group.
 """
@@ -21,16 +21,19 @@ _WORKBENCHES = {
         "menu": "Cloth Pattern",
         "imports": ("PatternCommands", "PatternMarks"),
         "command_expr": "PatternCommands.COMMANDS + PatternMarks.COMMANDS",
+        "prefixes": ("ClothPattern_",),
     },
     "ClothSimulationWorkbench": {
         "menu": "Cloth Simulation",
         "imports": ("SimulationCommands",),
         "command_expr": "SimulationCommands.COMMANDS",
+        "prefixes": ("ClothSimulation_",),
     },
     "ClothSewingWorkbench": {
         "menu": "Cloth Sewing",
         "imports": ("SewingCommands", "FittingCommands"),
         "command_expr": "SewingCommands.COMMANDS + FittingCommands.COMMANDS",
+        "prefixes": ("ClothSewing_", "ClothFitting_"),
     },
 }
 
@@ -83,7 +86,7 @@ def test_command_ids_exist_and_are_unique():
         seen.update(command_ids)
 
         for command_id in command_ids:
-            assert command_id.startswith(class_name.removesuffix("Workbench") + "_"), (
+            assert any(command_id.startswith(prefix) for prefix in contract["prefixes"]), (
                 f"{class_name} command {command_id!r} is not namespaced to its workbench"
             )
 
@@ -101,7 +104,7 @@ def test_initialize_is_lazy_and_declares_one_toolbar_and_menu_group(monkeypatch)
             cls.registered.append(workbench)
 
     monkeypatch.setitem(sys.modules, "FreeCADGui", FakeGui)
-    module = _load_init_gui()
+    _load_init_gui()
 
     assert [wb.MenuText for wb in FakeGui.registered] == [
         "Cloth Pattern",
