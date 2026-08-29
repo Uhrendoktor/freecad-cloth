@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from PatternGeometry import LineSegment, ParametricPattern, QuadraticBezier, rectangle
+from PatternGeometry import LineSegment as GeometryLineSegment, ParametricPattern, QuadraticBezier, rectangle
 from PatternIR import PatternIR
 from PatternModel import PatternPiece, Seam
 from SeamGraph import SeamGraph
@@ -34,8 +34,8 @@ def test_richer_curve_geometry_survives_in_the_ir():
     geometry = {
         "front": ParametricPattern([
             QuadraticBezier("curve", (0, 0), (5, 8), (10, 0)),
-            LineSegment("line-a", (10, 0), (0, 10)),
-            LineSegment("line-b", (0, 10), (0, 0)),
+            GeometryLineSegment("line-a", (10, 0), (0, 10)),
+            GeometryLineSegment("line-b", (0, 10), (0, 0)),
         ]),
         "back": rectangle(10, 10),
     }
@@ -53,7 +53,7 @@ class _Point:
         self.x, self.y, self.z = x, y, z
 
 
-class NativeLineSegment:
+class LineSegment:
     def __init__(self, start, end):
         self.StartPoint = _Point(*start)
         self.EndPoint = _Point(*end)
@@ -102,20 +102,20 @@ def _sketch_graph(curve, edge_id):
     graph.add_piece(PatternPiece("other", [(0, 0), (10, 0), (10, 10), (0, 10)], id="other"))
     graph.add_seam(Seam("piece", edge_id, "other", "other:edge:0", id="seam"))
     geometry = [
-        NativeLineSegment((0, 0), (10, 0)),
+        LineSegment((0, 0), (10, 0)),
         curve,
-        NativeLineSegment((10, 10), (0, 10)),
-        NativeLineSegment((0, 10), (0, 0)),
+        LineSegment((10, 10), (0, 10)),
+        LineSegment((0, 10), (0, 0)),
     ]
     return graph, _Sketch(geometry, ["piece:edge:0", edge_id, "piece:edge:2", "piece:edge:3"])
 
 
 def _other_sketch():
     return _Sketch([
-        NativeLineSegment((0, 0), (10, 0)),
-        NativeLineSegment((10, 0), (10, 10)),
-        NativeLineSegment((10, 10), (0, 10)),
-        NativeLineSegment((0, 10), (0, 0)),
+        LineSegment((0, 0), (10, 0)),
+        LineSegment((10, 0), (10, 10)),
+        LineSegment((10, 10), (0, 10)),
+        LineSegment((0, 10), (0, 0)),
     ], ["other:edge:0", "other:edge:1", "other:edge:2", "other:edge:3"])
 
 
@@ -139,8 +139,8 @@ def test_sketch_semantic_ids_survive_raw_integer_seam_resolution():
     graph.add_piece(PatternPiece("other", [(0, 0), (10, 0), (10, 10), (0, 10)], id="other"))
     graph.add_seam(Seam("piece", 1, "other", 0, id="seam"))
     sketch = _Sketch([
-        NativeLineSegment((0, 0), (10, 0)), curve,
-        NativeLineSegment((10, 10), (0, 10)), NativeLineSegment((0, 10), (0, 0))
+        LineSegment((0, 0), (10, 0)), curve,
+        LineSegment((10, 10), (0, 10)), LineSegment((0, 10), (0, 0))
     ], ["piece:edge:0", "piece:curve", "piece:edge:2", "piece:edge:3"])
     ir = PatternIR.from_sketches(graph, {"piece": sketch, "other": _other_sketch()})
     assert ir.seams[0].edge_a == "piece:curve"
