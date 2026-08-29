@@ -4,6 +4,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from PatternModel import PatternPiece
 from PatternSketch import create_sketch_for_piece
+from PatternDrafting import parse_points, serialize_points, add_point, remove_point, bounds
 
 
 def test_pattern_sketch_module_is_headless_safe():
@@ -22,3 +23,21 @@ def test_pattern_sketch_requires_freecad_when_called():
         assert "FreeCAD Sketcher" in str(exc)
     else:
         raise AssertionError("headless environment should not create a native Sketcher object")
+
+
+def test_polygon_drafting_round_trip_and_editing():
+    points = ((0.0, 0.0), (80.0, 0.0), (100.0, 40.0), (40.0, 70.0), (0.0, 50.0))
+    encoded = serialize_points(points)
+    assert parse_points(encoded) == points
+    edited = add_point(points, 90.0, 20.0, 2)
+    assert len(edited) == 6
+    edited = remove_point(edited, 2)
+    assert edited == points
+    assert bounds(points) == (0.0, 0.0, 100.0, 70.0)
+
+
+if __name__ == "__main__":
+    test_pattern_sketch_module_is_headless_safe()
+    test_pattern_sketch_requires_freecad_when_called()
+    test_polygon_drafting_round_trip_and_editing()
+    print("pattern sketch tests passed")
