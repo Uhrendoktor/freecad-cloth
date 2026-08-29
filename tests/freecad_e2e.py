@@ -2,7 +2,6 @@
 
 The scenario intentionally uses public workbench commands/task panels for seam
 creation, sewing-operation creation, workbench activation, and simulation UI.
-The document model helpers only construct deterministic fixture geometry.
 """
 import os
 import sys
@@ -18,12 +17,12 @@ try:
 except ImportError:
     from PySide2 import QtWidgets
 
-ROOT = Path(__file__).resolve().parents[1]
+# FreeCAD executes this file through a /tmp macro, so __file__ is not the repo.
+ROOT = Path.cwd()
+if not (ROOT / "InitGui.py").exists():
+    ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-# FreeCAD workbench modules are registered by InitGui.py. The documentation
-# screenshot scenario already uses this bootstrap; the isolated E2E process
-# must do the same before importing PatternGui/SewingGui/SimulationGui.
 init_gui = ROOT / "InitGui.py"
 exec(compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"), globals(), globals())
 OUT = Path(os.environ.get("CLOTH_E2E_DIR", "artifacts/freecad-e2e"))
@@ -48,9 +47,8 @@ def activate(name, toolbar, commands):
         raise AssertionError("workbench is not registered: %s" % name)
     Gui.activateWorkbench(name)
     process_events()
-    active = Gui.activeWorkbench().name()
-    if active != name:
-        raise AssertionError("expected active workbench %s, got %s" % (name, active))
+    if Gui.activeWorkbench().name() != name:
+        raise AssertionError("expected active workbench %s" % name)
     window = Gui.getMainWindow()
     visible = [] if window is None else [bar.windowTitle() for bar in window.findChildren(QtWidgets.QToolBar) if bar.isVisible()]
     if toolbar not in visible:
@@ -79,7 +77,6 @@ def close_panel():
 def make_piece(doc, name, points, piece_id):
     from PatternModel import PatternPiece
     from PatternObjects import add_pattern_piece
-
     piece = PatternPiece(name, list(points), id=piece_id, seam_allowance=10.0, grainline_angle=0.0)
     return add_pattern_piece(doc, piece)
 
@@ -95,7 +92,6 @@ def run():
     from PatternGui import PatternDraftingTaskPanel
     from SewingGui import SewingTaskPanel
     from SimulationGui import SimulationTaskPanel
-
     doc = App.newDocument("CanonicalClothE2E")
     path = None
     try:
@@ -103,7 +99,6 @@ def run():
         front = make_piece(doc, "Front", [(0, 0), (140, 0), (140, 90), (0, 90)], "front")
         back = make_piece(doc, "Back", [(0, 0), (140, 0), (140, 90), (0, 90)], "back")
         back.Placement.Base.x = 170
-
         import math
         curve = [(80 * math.cos(math.radians(a)), 80 * math.sin(math.radians(a))) for a in (0, 18, 36, 54, 72, 90)]
         sleeve_a = make_piece(doc, "SleeveA", [(0, 0)] + curve, "sleeve-a")
@@ -111,136 +106,87 @@ def run():
         sleeve_b.Placement.Base.x = 210
         doc.recompute()
 
-        activate("ClothPatternWorkbench", "Cloth Pattern", [
-            "ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D", "ClothPattern_AddSeam"])
+        activate("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D", "ClothPattern_AddSeam"])
         show_panel(PatternDraftingTaskPanel(front), "Pattern Design")
         close_panel()
-
         select_edges((front, 0), (back, 0))
         Gui.runCommand("ClothPattern_AddSeam", 0)
         process_events()
         seams = [obj for obj in doc.Objects if getattr(obj, "SeamId", "")]
-        assert len(seams) == 1, "public Pattern seam command did not create exactly one seam"
+        assert len(seams) == 1
         main_seam = seams[0]
         log("pattern-seam-created id=%s" % main_seam.SeamId)
 
-        activate("ClothSewingWorkbench", "Cloth Sewing", [
-            "ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing", "ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_Validate"])
+        activate("ClothSewingWorkbench", "Cloth Sewing", ["ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing", "ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_Validate"])
         Gui.Selection.clearSelection(); Gui.Selection.addSelection(main_seam); process_events()
-        Gui.runCommand("ClothSewing_CreateOperation", 0)
-        process_events()
+        Gui.runCommand("ClothSewing_CreateOperation", 0); process_events()
         operations = [obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingOperation"]
-        assert len(operations) == 1, "public Sewing operation command did not create one operation"
+        assert len(operations) == 1
         operation = operations[0]
         assert operation.Status == "Valid"
-        log("sewing-operation-created status=%s length=%.3f" % (operation.Status, float(operation.LengthA)))
-
         Gui.Selection.clearSelection(); Gui.Selection.addSelection(operation); process_events()
-        panel = SewingTaskPanel(operation)
-        show_panel(panel, "Sewing")
-        panel.stitches.setValue(12)
-        panel.alignment.setCurrentText("uniform")
-        assert panel.accept() is True
-        close_panel()
-        doc.recompute()
-        assert operation.StitchCount == 12
-        assert operation.Alignment == "uniform"
+        panel = SewingTaskPanel(operation); show_panel(panel, "Sewing")
+        panel.stitches.setValue(12); panel.alignment.setCurrentText("uniform")
+        assert panel.accept() is True; close_panel(); doc.recompute()
+        assert operation.StitchCount == 12 and operation.Alignment == "uniform"
 
-        select_edges((sleeve_a, 0), (sleeve_a, 1), (sleeve_a, 2),
-                     (sleeve_b, 0), (sleeve_b, 1), (sleeve_b, 2))
-        Gui.runCommand("ClothSewing_CreateMNSewing", 0)
-        process_events()
+        select_edges((sleeve_a, 0), (sleeve_a, 1), (sleeve_a, 2), (sleeve_b, 0), (sleeve_b, 1), (sleeve_b, 2))
+        Gui.runCommand("ClothSewing_CreateMNSewing", 0); process_events()
         networks = [obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork"]
-        assert len(networks) == 1, "public M:N Sewing command did not create one network"
+        assert len(networks) == 1
         network = networks[0]
-        assert len(network.Seams) == 3, "curved contour network should contain three seam segments"
+        assert len(network.Seams) == 3
         log("mn-network-created relationship=%s seams=%d" % (network.RelationshipId, len(network.Seams)))
 
         activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_CreateDrape", "ClothSimulation_Edit", "ClothSimulation_Step"])
-        Gui.runCommand("ClothSimulation_CreateDrape", 0)
-        process_events()
-        scene = doc.getObject("ClothSimulation")
-        assert scene is not None, "public Simulation command did not create a scene"
-        scene.ClothPieces = [front, back, sleeve_a, sleeve_b]
-        doc.recompute()
+        Gui.runCommand("ClothSimulation_CreateDrape", 0); process_events()
+        scene = doc.getObject("ClothSimulation"); assert scene is not None
+        scene.ClothPieces = [front, back, sleeve_a, sleeve_b]; doc.recompute()
         initial_signature = scene.Proxy.source_signature
-        initial_particles = int(scene.ParticleCount)
-        assert initial_particles > 0
-        log("simulation-scene-created particles=%d" % initial_particles)
-
+        assert int(scene.ParticleCount) > 0
         Gui.Selection.clearSelection(); Gui.Selection.addSelection(scene); process_events()
-        panel = SimulationTaskPanel(scene)
-        show_panel(panel, "Simulation")
-        panel.iterations.setValue(6)
-        close_panel()
+        panel = SimulationTaskPanel(scene); show_panel(panel, "Simulation")
+        panel.iterations.setValue(6); close_panel()
         from SimulationObjects import step_scene
-        step_scene(scene, 1)
-        doc.recompute()
-        assert int(scene.Steps) == 1
-        stepped_signature = scene.Proxy.source_signature
-        assert stepped_signature == initial_signature, "simulation source changed during a solver-only step"
+        step_scene(scene, 1); doc.recompute()
+        assert int(scene.Steps) == 1 and scene.Proxy.source_signature == initial_signature
         assert float(scene.SimulatedTime) > 0.0
         log("simulation-stepped time=%.6f particles=%d" % (float(scene.SimulatedTime), int(scene.ParticleCount)))
 
-        fd, path = tempfile.mkstemp(prefix="cloth-e2e-", suffix=".FCStd")
-        os.close(fd)
+        fd, path = tempfile.mkstemp(prefix="cloth-e2e-", suffix=".FCStd"); os.close(fd)
         doc.recompute(); doc.saveAs(path)
-        operation_name = operation.Name
-        network_name = network.Name
+        operation_name = operation.Name; network_name = network.Name
         App.closeDocument(doc.Name)
-        doc = App.openDocument(path)
-        doc.recompute()
-        front = doc.getObject("Front")
-        back = doc.getObject("Back")
-        operation = doc.getObject(operation_name)
-        network = doc.getObject(network_name)
-        scene = doc.getObject("ClothSimulation")
-        assert front is not None and back is not None and operation is not None and network is not None and scene is not None
+        doc = App.openDocument(path); doc.recompute()
+        front = doc.getObject("Front"); operation = doc.getObject(operation_name); network = doc.getObject(network_name); scene = doc.getObject("ClothSimulation")
+        assert front is not None and operation is not None and network is not None and scene is not None
         assert operation.Seam is not None and operation.PieceA is not None and operation.PieceB is not None
-        assert len(network.Seams) == 3
-        assert scene.ClothPieces
-        log("save-reload-ok operation=%s network=%s pieces=%d" % (operation.Name, network.Name, len(scene.ClothPieces)))
+        assert len(network.Seams) == 3 and scene.ClothPieces
+        log("save-reload-ok")
 
-        before_length = float(operation.LengthA)
-        before_signature = scene.Proxy.source_signature
-        front.Width = 160.0
-        doc.recompute()
-        after_length = float(operation.LengthA)
-        after_signature = scene.Proxy.source_signature
-        assert abs(after_length - before_length) > 1e-6, "upstream pattern edit did not change sewing geometry"
-        assert after_signature != before_signature, "upstream pattern edit did not invalidate simulation source"
-        assert operation.Status == "Length mismatch"
+        before_length = float(operation.LengthA); before_signature = scene.Proxy.source_signature
+        front.Width = 160.0; doc.recompute()
+        after_length = float(operation.LengthA); after_signature = scene.Proxy.source_signature
+        assert abs(after_length - before_length) > 1e-6
+        assert after_signature != before_signature and operation.Status == "Length mismatch"
         log("invalidation-ok old_length=%.3f new_length=%.3f" % (before_length, after_length))
 
         Gui.Selection.clearSelection(); Gui.Selection.addSelection(scene); process_events()
-        panel = SimulationTaskPanel(scene)
-        show_panel(panel, "Simulation after invalidation")
-        close_panel()
+        panel = SimulationTaskPanel(scene); show_panel(panel, "Simulation after invalidation"); close_panel()
         from SimulationObjects import reset_scene
-        reset_scene(scene)
-        step_scene(scene, 2)
-        doc.recompute()
-        assert int(scene.Steps) == 2
-        assert int(scene.ParticleCount) > 0
-        assert float(scene.SimulatedTime) > 0.0
+        reset_scene(scene); step_scene(scene, 2); doc.recompute()
+        assert int(scene.Steps) == 2 and int(scene.ParticleCount) > 0 and float(scene.SimulatedTime) > 0.0
         log("resimulation-ok steps=%d particles=%d" % (int(scene.Steps), int(scene.ParticleCount)))
         log("scenario-complete")
     except Exception:
-        log("scenario-error")
-        log(traceback.format_exc())
-        raise
+        log("scenario-error"); log(traceback.format_exc()); raise
     finally:
-        try:
-            Gui.Control.closeDialog()
-        except Exception:
-            pass
-        if doc is not None and doc.Name in App.listDocuments():
-            App.closeDocument(doc.Name)
+        try: Gui.Control.closeDialog()
+        except Exception: pass
+        if doc is not None and doc.Name in App.listDocuments(): App.closeDocument(doc.Name)
         if path:
-            try:
-                os.unlink(path)
-            except OSError:
-                pass
+            try: os.unlink(path)
+            except OSError: pass
 
 
 if __name__ == "__main__":
