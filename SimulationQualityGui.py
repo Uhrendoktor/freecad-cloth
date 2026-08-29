@@ -96,8 +96,22 @@ class SimulationQualityTaskPanel:
         self.steps.setValue(0); self._refresh("Simulation reset; quality and fabric values retained.")
 
     def _refresh(self, message=None):
-        if self.scene is None: self.status.setText(message or "Create or select a Cloth Simulation object."); return
-        self.status.setText(message or "State: %s | %.3f s | %d particles | %d steps | %s" % ("ready" if bool(getattr(self.scene, "FiniteState", True)) else "invalid/non-finite", float(getattr(self.scene, "SimulatedTime", 0.0)), int(getattr(self.scene, "ParticleCount", 0)), int(getattr(self.scene, "Steps", 0)), str(getattr(self.scene, "QualityPreset", "Balanced"))))
+        if self.scene is None:
+            self.status.setText(message or "Create or select a Cloth Simulation object.")
+            return
+        state = str(getattr(self.scene, "SimulationStatus", "Ready"))
+        detail = str(getattr(self.scene, "SimulationStatusMessage", ""))
+        if message:
+            self.status.setText(message)
+            return
+        text = "State: %s | %.3f s | %d particles | %d steps | %s" % (
+            state,
+            float(getattr(self.scene, "SimulatedTime", 0.0)),
+            int(getattr(self.scene, "ParticleCount", 0)),
+            int(getattr(self.scene, "Steps", 0)),
+            str(getattr(self.scene, "QualityPreset", "Balanced")),
+        )
+        self.status.setText(f"{text} | {detail}" if detail else text)
 
     def accept(self):
         if self.scene is not None: self._parameters_changed()
