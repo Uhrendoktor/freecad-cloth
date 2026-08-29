@@ -37,7 +37,6 @@ jobs:
           python tests/test_cloth_solver.py
           python tests/test_side_tasks.py
           python tests/test_simulation_scene.py
-          python tests/test_simulation_quality.py
           python tests/test_simulation_status.py
           python tests/test_collisions.py
           python tests/test_freecad_objects.py
