@@ -1,175 +1,168 @@
-"""Canonical native FreeCAD Pattern -> Sewing -> Simulation workflow scenario."""
+"""Canonical real-FreeCAD garment workflow acceptance fixture.
+
+This intentionally drives the registered workbench commands and native
+Sketcher objects rather than constructing a private PatternModel-only scene.
+"""
+import math
 import os
-import sys
-import tempfile
-import traceback
 from pathlib import Path
 
 import FreeCAD as App
 import FreeCADGui as Gui
-
-try:
-    from PySide import QtWidgets
-except ImportError:
-    from PySide2 import QtWidgets
-
-ROOT = Path.cwd()
-if not (ROOT / "InitGui.py").exists():
-    ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-init_gui = ROOT / "InitGui.py"
-exec(compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"), globals(), globals())
-OUT = Path(os.environ.get("CLOTH_E2E_DIR", "artifacts/freecad-e2e"))
-OUT.mkdir(parents=True, exist_ok=True)
-LOG = OUT / "workflow.log"
+import Part
+import Sketcher
 
 
-def log(message):
-    with LOG.open("a", encoding="utf-8") as handle:
-        handle.write(message + "\n")
-        handle.flush()
+def _pieces(doc):
+    return [o for o in doc.Objects if getattr(o, "PatternType", "") == "PatternPiece"]
 
 
-def process_events():
-    QtWidgets.QApplication.processEvents()
-    Gui.updateGui()
-    QtWidgets.QApplication.processEvents()
-
-
-def activate(name, toolbar, commands):
-    if name not in Gui.listWorkbenches():
-        raise AssertionError("workbench is not registered: %s" % name)
-    Gui.activateWorkbench(name)
-    process_events()
-    if Gui.activeWorkbench().name() != name:
-        raise AssertionError("expected active workbench %s" % name)
-    window = Gui.getMainWindow()
-    visible = [] if window is None else [bar.windowTitle() for bar in window.findChildren(QtWidgets.QToolBar) if bar.isVisible()]
-    if toolbar not in visible:
-        raise AssertionError("toolbar is not visible: %s" % toolbar)
-    missing = [command for command in commands if command not in Gui.listCommands()]
-    if missing:
-        raise AssertionError("commands missing from %s: %s" % (name, ",".join(missing)))
-    log("activated %s commands=%s" % (name, ",".join(commands)))
-
-
-def show_panel(panel, label):
-    Gui.Control.showDialog(panel)
-    process_events()
-    if not getattr(panel, "form", None) or not panel.form.isVisible():
-        raise AssertionError("task panel did not become visible: %s" % label)
-    log("task-panel visible=%s" % label)
-
-
-def close_panel():
-    try:
-        Gui.Control.closeDialog()
-    finally:
-        process_events()
-
-
-def make_piece(doc, name, points, piece_id):
-    from PatternModel import PatternPiece
-    from PatternObjects import add_pattern_piece
-    piece = PatternPiece(name, list(points), id=piece_id, seam_allowance=10.0, grainline_angle=0.0)
-    return add_pattern_piece(doc, piece)
-
-
-def select_edges(*entries):
+def _select(obj, *subelements):
     Gui.Selection.clearSelection()
-    for obj, edge in entries:
-        Gui.Selection.addSelection(obj, "Edge%d" % (int(edge) + 1))
-    process_events()
+    if subelements:
+        for name in subelements:
+            Gui.Selection.addSelection(obj, name)
+    else:
+        Gui.Selection.addSelection(obj)
 
 
-def run():
-    from PatternGui import PatternDraftingTaskPanel
-    from SewingGui import SewingTaskPanel
-    from SimulationGui import SimulationTaskPanel
-    doc = App.newDocument("CanonicalClothE2E")
-    path = None
-    try:
-        log("scenario-start")
-        front = make_piece(doc, "Front", [(0, 0), (140, 0), (140, 90), (0, 90)], "front")
-        back = make_piece(doc, "Back", [(0, 0), (140, 0), (140, 90), (0, 90)], "back")
-        back.Placement.Base.x = 170
-        import math
-        curve = [(80 * math.cos(math.radians(a)), 80 * math.sin(math.radians(a))) for a in (0, 18, 36, 54, 72, 90)]
-        sleeve_a = make_piece(doc, "SleeveA", [(0, 0)] + curve, "sleeve-a")
-        sleeve_b = make_piece(doc, "SleeveB", [(0, 0)] + curve, "sleeve-b")
-        sleeve_b.Placement.Base.x = 210
-        doc.recompute()
-        activate("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D", "ClothPattern_AddSeam"])
-        show_panel(PatternDraftingTaskPanel(front), "Pattern Design")
-        close_panel()
-        select_edges((front, 0), (back, 0))
-        Gui.runCommand("ClothPattern_AddSeam", 0); process_events()
-        seams = [obj for obj in doc.Objects if getattr(obj, "SeamId", "")]
-        assert len(seams) == 1
-        main_seam = seams[0]
-        activate("ClothSewingWorkbench", "Cloth Sewing", ["ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing", "ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_Validate"])
-        Gui.Selection.clearSelection(); Gui.Selection.addSelection(main_seam); process_events()
-        Gui.runCommand("ClothSewing_CreateOperation", 0); process_events()
-        operations = [obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingOperation"]
-        assert len(operations) == 1 and operations[0].Status == "Valid"
-        operation = operations[0]
-        Gui.Selection.clearSelection(); Gui.Selection.addSelection(operation); process_events()
-        panel = SewingTaskPanel(operation); show_panel(panel, "Sewing")
-        panel.stitches.setValue(12); panel.alignment.setCurrentText("uniform")
-        assert panel.accept() is True; close_panel(); doc.recompute()
-        assert operation.StitchCount == 12 and operation.Alignment == "uniform"
-        select_edges((sleeve_a, 0), (sleeve_a, 1), (sleeve_a, 2), (sleeve_b, 0), (sleeve_b, 1), (sleeve_b, 2))
-        Gui.runCommand("ClothSewing_CreateMNSewing", 0); process_events()
-        networks = [obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork"]
-        assert len(networks) == 1 and len(networks[0].Seams) == 3
-        network = networks[0]
-        activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_CreateDrape", "ClothSimulation_Edit", "ClothSimulation_Step"])
-        Gui.runCommand("ClothSimulation_CreateDrape", 0); process_events()
-        scene = doc.getObject("ClothSimulation"); assert scene is not None
-        scene.ClothPieces = [front, back, sleeve_a, sleeve_b]; doc.recompute()
-        initial_signature = scene.Proxy.source_signature
-        assert int(scene.ParticleCount) > 0
-        Gui.Selection.clearSelection(); Gui.Selection.addSelection(scene); process_events()
-        panel = SimulationTaskPanel(scene); show_panel(panel, "Simulation")
-        panel.iterations.setValue(6); close_panel()
-        from SimulationObjects import step_scene
-        step_scene(scene, 1); doc.recompute()
-        assert int(scene.Steps) == 1 and scene.Proxy.source_signature == initial_signature and float(scene.SimulatedTime) > 0.0
-        fd, path = tempfile.mkstemp(prefix="cloth-e2e-", suffix=".FCStd"); os.close(fd)
-        doc.recompute(); doc.saveAs(path)
-        operation_name = operation.Name; network_name = network.Name
-        App.closeDocument(doc.Name)
-        doc = App.openDocument(path); doc.recompute()
-        front = doc.getObject("Front"); operation = doc.getObject(operation_name); network = doc.getObject(network_name); scene = doc.getObject("ClothSimulation")
-        assert front is not None and operation is not None and network is not None and scene is not None
-        assert operation.Seam is not None and operation.PieceA is not None and operation.PieceB is not None
-        assert len(network.Seams) == 3 and scene.ClothPieces
-        before_length = float(operation.LengthA); before_signature = scene.Proxy.source_signature
-        front.Width = 160.0; doc.recompute()
-        after_length = float(operation.LengthA); after_signature = scene.Proxy.source_signature
-        assert abs(after_length - before_length) > 1e-6
-        assert after_signature != before_signature and operation.Status == "Length mismatch"
-        Gui.Selection.clearSelection(); Gui.Selection.addSelection(scene); process_events()
-        panel = SimulationTaskPanel(scene); show_panel(panel, "Simulation after invalidation"); close_panel()
-        from SimulationObjects import reset_scene
-        reset_scene(scene); step_scene(scene, 2); doc.recompute()
-        assert int(scene.Steps) == 2 and int(scene.ParticleCount) > 0 and float(scene.SimulatedTime) > 0.0
-        log("scenario-complete")
-    except Exception:
-        log("scenario-error"); log(traceback.format_exc()); raise
-    finally:
-        try: Gui.Control.closeDialog()
-        except Exception: pass
-        if doc is not None and doc.Name in App.listDocuments(): App.closeDocument(doc.Name)
-        if path:
-            try: os.unlink(path)
-            except OSError: pass
-        try:
-            window = Gui.getMainWindow()
-            if window is not None: window.close()
-        except Exception: pass
+def _run(command):
+    Gui.runCommand(command)
+    App.ActiveDocument.recompute()
+
+
+def _create_piece(command):
+    before = {getattr(o, "Name", "") for o in _pieces(App.ActiveDocument)}
+    _run(command)
+    created = [o for o in _pieces(App.ActiveDocument) if o.Name not in before]
+    if not created:
+        raise AssertionError(f"{command} did not create a PatternPiece")
+    return created[-1]
+
+
+def _create_sketch(piece):
+    _select(piece)
+    _run("ClothPattern_CreateSketch")
+    sketch = getattr(piece, "Sketch", None)
+    if sketch is None or getattr(sketch, "GeometryAuthority", "") != "Sketcher":
+        raise AssertionError("CreateSketch did not establish Sketcher authority")
+    return sketch
+
+
+def _make_curved(sketch):
+    """Replace the demo rectangle with a closed native arc/line boundary."""
+    sketch.clear()
+    geometry = [
+        Part.ArcOfCircle(Part.Circle(App.Vector(50, 0, 0), App.Vector(0, 0, 1), 50), math.pi, math.tau),
+        Part.LineSegment(App.Vector(100, 0, 0), App.Vector(100, 60, 0)),
+        Part.LineSegment(App.Vector(100, 60, 0), App.Vector(0, 60, 0)),
+        Part.LineSegment(App.Vector(0, 60, 0), App.Vector(0, 0, 0)),
+    ]
+    sketch.addGeometry(geometry, False)
+    sketch.addConstraint(Sketcher.Constraint("Distance", 1, 60.0))
+    sketch.SemanticEdgeIds = [
+        f"{sketch.PatternPieceId}:edge:0",
+        f"{sketch.PatternPieceId}:edge:1",
+        f"{sketch.PatternPieceId}:edge:2",
+        f"{sketch.PatternPieceId}:edge:3",
+    ]
+    sketch.GeometryAuthority = "Sketcher"
+    sketch.Document.recompute()
+
+
+def main():
+    doc = App.newDocument("ClothCanonicalGarment")
+    Gui.activeDocument().activeView().viewTop()
+
+    Gui.activateWorkbench("Cloth Pattern")
+    front = _create_piece("ClothPattern_CreatePiece")
+    middle = _create_piece("ClothPattern_CreateCustomPiece")
+    back = _create_piece("ClothPattern_CreatePiece")
+    front_sketch = _create_sketch(front)
+    middle_sketch = _create_sketch(middle)
+    back_sketch = _create_sketch(back)
+    _make_curved(front_sketch)
+    doc.recompute()
+
+    if len(_pieces(doc)) != 3:
+        raise AssertionError("canonical fixture must contain three PatternPieces")
+    if front.Height <= 60.0 or len(front.Shape.Edges) < 4:
+        raise AssertionError("curved Sketcher edit did not propagate to PatternPiece")
+
+    Gui.activateWorkbench("Cloth Sewing")
+    _select(front, "Edge1")
+    Gui.Selection.addSelection(middle, "Edge1")
+    _run("ClothPattern_AddSeam")
+    _select(middle, "Edge1")
+    Gui.Selection.addSelection(back, "Edge1")
+    _run("ClothPattern_AddSeam")
+    seams = [o for o in doc.Objects if getattr(o, "SeamId", "")]
+    if len(seams) < 2:
+        raise AssertionError("canonical fixture must contain two persisted seams")
+
+    Gui.activateWorkbench("Cloth Simulation")
+    _run("ClothSimulation_Create")
+    scene = next((o for o in doc.Objects if getattr(o, "Type", "") == "ClothSimulation"), None)
+    if scene is None:
+        raise AssertionError("simulation scene was not created")
+    scene.ClothPieces = _pieces(doc)
+    scene.QualityPreset = "Fast"
+    scene.Steps = 4
+    doc.recompute()
+    if scene.ParticleCount <= 0 or not scene.FiniteState:
+        raise AssertionError("simulation did not produce a finite particle state")
+    working_particles = int(scene.ParticleCount)
+    scene.QualityPreset = "Final"
+    scene.Steps = 1
+    doc.recompute()
+    final_particles = int(scene.ParticleCount)
+    if final_particles <= working_particles:
+        raise AssertionError("final quality did not increase deterministic mesh density")
+
+    artifact_dir = Path(os.environ.get("CLOTH_E2E_DIR", "artifacts/freecad-e2e"))
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    path = artifact_dir / "canonical-garment.FCStd"
+    doc.recompute()
+    doc.saveAs(str(path))
+    Gui.Selection.clearSelection()
+    App.closeDocument(doc.Name)
+    reopened = App.openDocument(str(path))
+    reopened.recompute()
+    reopened_pieces = _pieces(reopened)
+    reopened_seams = [o for o in reopened.Objects if getattr(o, "SeamId", "")]
+    if len(reopened_pieces) != 3 or len(reopened_seams) < 2:
+        raise AssertionError("save/reload lost pattern or seam objects")
+    if any(getattr(piece, "GeometryAuthority", "") != "Sketcher" for piece in reopened_pieces):
+        raise AssertionError("save/reload lost Sketcher geometry authority")
+
+    edited = reopened_pieces[0]
+    edited_sketch = edited.Sketch
+    before_height = float(edited.Height)
+    edited_sketch.setDatum(0, App.Units.Quantity("80 mm"))
+    reopened.recompute()
+    after_height = float(edited.Height)
+    if abs(after_height - before_height) < 1e-6:
+        raise AssertionError("native Sketcher dimensional edit did not invalidate/rebuild PatternPiece")
+
+    reopened_scene = next((o for o in reopened.Objects if getattr(o, "Type", "") == "ClothSimulation"), None)
+    if reopened_scene is None:
+        raise AssertionError("save/reload lost simulation scene")
+    reopened_scene.ClothPieces = reopened_pieces
+    reopened_scene.Steps = 1
+    reopened.recompute()
+    if reopened_scene.ParticleCount <= 0 or not reopened_scene.FiniteState:
+        raise AssertionError("re-simulation after upstream edit did not succeed")
+
+    with open(artifact_dir / "workflow.log", "w", encoding="utf-8") as handle:
+        handle.write("three PatternPieces: OK\n")
+        handle.write("native curved Sketcher boundary: OK\n")
+        handle.write("two persisted seams: OK\n")
+        handle.write(f"quality density {working_particles} -> {final_particles}: OK\n")
+        handle.write("save/reload: OK\n")
+        handle.write(f"Sketcher edit height {before_height} -> {after_height}: OK\n")
+        handle.write("re-simulation after edit: OK\n")
+    print("canonical garment workflow passed")
 
 
 if __name__ == "__main__":
-    run()
+    main()
