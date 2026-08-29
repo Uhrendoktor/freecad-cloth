@@ -3,9 +3,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from PatternGeometry import LineSegment, ParametricPattern, rectangle
+from PatternIR import PatternIR
 from PatternMesh import triangulate
-from PatternModel import Seam
+from PatternModel import PatternPiece, Seam
 from SewingConstraints import build_sewing_constraints
+from SeamGraph import SeamGraph
 
 
 def test_rectangle_mesh_area_and_topology():
@@ -50,6 +52,36 @@ def test_seam_generates_stitches():
     constraints = build_sewing_constraints(a, ma, b, mb, Seam("front", 1, "back", 3, id="side"), samples=5)
     assert len(constraints.stitches) >= 2
     constraints.validate()
+
+
+def test_pattern_ir_normalizes_raw_seam_indices_to_semantic_ids():
+    graph = SeamGraph()
+    graph.add_piece(PatternPiece("front", [(0, 0), (10, 0), (10, 10), (0, 10)], id="front"))
+    graph.add_piece(PatternPiece("back", [(0, 0), (10, 0), (10, 10), (0, 10)], id="back"))
+    graph.add_seam(Seam("front", 1, "back", 3, id="side"))
+    ir = PatternIR.from_graph(graph)
+    assert (ir.seams[0].edge_a, ir.seams[0].edge_b) == ("edge:1", "edge:3")
+    assert ir.boundary("front", "edge:1").kind == "line"
+
+
+def test_pattern_ir_keeps_curve_provenance_outside_solver_types():
+    graph = SeamGraph()
+    graph.add_piece(PatternPiece("front", [(0, 0), (10, 0), (0, 10)], id="front"))
+    graph.add_piece(PatternPiece("back", [(0, 0), (10, 0), (0, 10)], id="back"))
+    graph.add_seam(Seam("front", "curve", "back", "line", id="curve-seam"))
+    geometry = {
+        "front": ParametricPattern([
+            # A curve remains a curve in the IR; it is not flattened into
+            # a solver-specific or FreeCAD-specific object.
+            __import__("PatternGeometry").QuadraticBezier("curve", (0, 0), (5, 8), (10, 0)),
+            LineSegment("line-a", (10, 0), (0, 10)),
+            LineSegment("line-b", (0, 10), (0, 0)),
+        ]),
+        "back": rectangle(10, 10),
+    }
+    ir = PatternIR.from_graph(graph, geometry, curve_samples=9)
+    assert ir.boundary("front", "curve").kind == "curve"
+    assert len(ir.boundary("front", "curve").samples) == 9
 
 
 if __name__ == "__main__":
