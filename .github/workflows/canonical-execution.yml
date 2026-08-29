@@ -116,7 +116,7 @@ jobs:
               printf "%s\n" "exec(compile(open(\"tests/freecad_screenshot.py\", encoding=\"utf-8\").read(), \"tests/freecad_screenshot.py\", \"exec\"))" > /tmp/cloth_screenshot.FCMacro
               freecad /tmp/cloth_screenshot.FCMacro >/tmp/freecad-gui.log 2>&1 &
               FREECAD_PID=$!
-              for i in $(seq 1 120); do
+              for i in $(seq 1 30); do
                 if test -s docs/images/generated/cloth-pattern.png && test -s docs/images/generated/cloth-simulation.png; then
                   break
                 fi
@@ -129,7 +129,7 @@ jobs:
                 sleep 1
               done
               if ! test -s docs/images/generated/cloth-pattern.png || ! test -s docs/images/generated/cloth-simulation.png; then
-                echo "FreeCAD remained alive but did not generate both screenshots within 120 seconds"
+                echo "FreeCAD remained alive but did not generate both screenshots within 30 seconds"
                 cat /tmp/freecad-gui.log || true
                 exit 1
               fi
