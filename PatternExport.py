@@ -5,6 +5,7 @@ from math import cos, radians, sin
 from PatternDerivedGeometry import DerivedPattern, mark_point, notch_point
 from PatternGeometry import ParametricPattern
 
+
 def _fmt(value): return f"{float(value):.6f}"
 def _dim(value): return f"{float(value):g}"
 def _sampled_sewing(pattern, curve_samples):
@@ -12,10 +13,23 @@ def _sampled_sewing(pattern, curve_samples):
     if not points: raise ValueError("pattern has no outline")
     return points
 
-def _metadata(pattern, units):
-    return {"version":1,"units":units,"edge_ids":[s.id for s in pattern.segments]}
 
-def to_svg(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm", derived: DerivedPattern | None = None) -> str:
+def _metadata(pattern, units, piece_id="", seam_ids=(), derived=None):
+    data={"version":1,"units":units,"edge_ids":[s.id for s in pattern.segments]}
+    if piece_id:
+        data["piece_id"] = str(piece_id)
+    seam_ids = tuple(str(value) for value in seam_ids if str(value))
+    if seam_ids:
+        data["seam_ids"] = list(dict.fromkeys(seam_ids))
+    # Keep the v1 legacy payload byte-for-byte compatible unless the caller
+    # opts into the semantic export contract with a piece or seam identity.
+    if derived is not None and (piece_id or seam_ids):
+        data["notch_ids"] = [str(value.id) for value in derived.notches]
+        data["mark_ids"] = [str(value.id) for value in derived.marks]
+    return data
+
+
+def to_svg(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm", derived: DerivedPattern | None = None, piece_id: str = "", seam_ids=()) -> str:
     if not units.strip(): raise ValueError("units must not be empty")
     sewing=_sampled_sewing(pattern,curve_samples)
     if derived is not None and derived.sewing_boundary is not pattern: raise ValueError("derived pattern belongs to a different sewing boundary")
@@ -26,8 +40,8 @@ def to_svg(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm
     def xy(point): return (point[0]-min_x,height-(point[1]-min_y))
     def path(points,closed=True):
         coords=[xy(p) for p in points]; return "M "+" L ".join(f"{_fmt(x)},{_fmt(y)}" for x,y in coords)+(" Z" if closed else "")
-    edge_ids=" ".join(escape(s.id,quote=True) for s in pattern.segments); metadata=json.dumps(_metadata(pattern,units),sort_keys=True,separators=(",",":"))
-    lines=[f'<svg xmlns="http://www.w3.org/2000/svg" width="{_dim(width)}{escape(units)}" height="{_dim(height)}{escape(units)}" viewBox="0 0 {_fmt(width)} {_fmt(height)}" data-units="{escape(units,quote=True)}" data-edge-ids="{edge_ids}">',f'  <metadata>{escape(metadata)}</metadata>',f'  <g id="sewing-boundary" data-edge-ids="{edge_ids}"><path d="{path(sewing)}" fill="none"/></g>']
+    edge_ids=" ".join(escape(s.id,quote=True) for s in pattern.segments); metadata=json.dumps(_metadata(pattern,units,piece_id,seam_ids,derived),sort_keys=True,separators=(",",":"))
+    lines=[f'<svg xmlns="http://www.w3.org/2000/svg" width="{_dim(width)}{escape(units)}" height="{_dim(height)}{escape(units)}" viewBox="0 0 {_fmt(width)} {_fmt(height)}" data-units="{escape(units,quote=True)}" data-edge-ids="{edge_ids}" data-piece-id="{escape(str(piece_id),quote=True)}">',f'  <metadata>{escape(metadata)}</metadata>',f'  <g id="sewing-boundary" data-edge-ids="{edge_ids}"><path d="{path(sewing)}" fill="none"/></g>']
     if cut_edges:
         lines.append('  <g id="cut-boundary">')
         for edge in cut_edges: lines.append(f'    <path id="cut-{escape(edge.id,quote=True)}" d="{path(edge.points,False)}" fill="none"/>')
@@ -43,7 +57,8 @@ def to_svg(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm
         lines.append('  </g>')
     lines.append('</svg>'); return "\n".join(lines)+"\n"
 
-def to_dxf(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm", derived: DerivedPattern | None = None) -> str:
+
+def to_dxf(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm", derived: DerivedPattern | None = None, piece_id: str = "", seam_ids=()) -> str:
     if not units.strip(): raise ValueError("units must not be empty")
     sewing=_sampled_sewing(pattern,curve_samples)
     if derived is not None and derived.sewing_boundary is not pattern: raise ValueError("derived pattern belongs to a different sewing boundary")
@@ -61,9 +76,10 @@ def to_dxf(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm
             x,y=notch_point(pattern,notch); polyline([(x,y),(x,y+notch.depth)],"MARK",False)
         for mark in derived.marks:
             x,y=mark_point(pattern,mark); angle=radians(mark.angle); dx,dy=cos(angle)*mark.length/2,sin(angle)*mark.length/2; polyline([(x-dx,y-dy),(x+dx,y+dy)],"MARK",False)
-    metadata=json.dumps(_metadata(pattern,units),sort_keys=True,separators=(",",":")); lines=["0","SECTION","2","HEADER","9","$COMMENT","1",metadata,"0","ENDSEC","0","SECTION","2","ENTITIES"]
+    metadata=json.dumps(_metadata(pattern,units,piece_id,seam_ids,derived),sort_keys=True,separators=(",",":")); lines=["0","SECTION","2","HEADER","9","$COMMENT","1",metadata,"0","ENDSEC","0","SECTION","2","ENTITIES"]
     for entity in entities: lines.extend(entity)
     lines += ["0","ENDSEC","0","EOF",""]; return "\n".join(lines)
+
 
 def from_dxf_metadata(dxf: str) -> dict:
     marker="$COMMENT\n1\n"
