@@ -41,6 +41,7 @@ jobs:
           python tests/test_freecad_objects.py
           python tests/test_gui_structure.py
           python tests/test_sewing_workbench.py
+          python tests/test_sewing_show2d.py
           python tests/test_sewing_network.py
           python tests/test_sewing_network_gui.py
           python tests/test_avatar_fitting.py

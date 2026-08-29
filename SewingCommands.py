@@ -196,8 +196,12 @@ def show_sewing_2d():
     import FreeCADGui as Gui
     if not Gui.activeDocument():
         return
+    from SewingView import pattern_pieces_for_2d
+    document = Gui.activeDocument().Document
     Gui.Selection.clearSelection()
-    for obj in Gui.activeDocument().Document.Objects:
+    for obj in pattern_pieces_for_2d(document.Objects):
+        Gui.Selection.addSelection(obj)
+    for obj in document.Objects:
         if (getattr(obj, "SeamId", "") or
                 getattr(obj, "SewingType", "") in {"SewingOperation", "SewingNetwork"}):
             Gui.Selection.addSelection(obj)
