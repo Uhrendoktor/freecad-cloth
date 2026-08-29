@@ -5,6 +5,10 @@ import traceback
 
 import FreeCAD as App
 import FreeCADGui as Gui
+try:
+    from PySide import QtCore
+except ImportError:
+    from PySide2 import QtCore
 
 REPO_ROOT = "/workspace"
 if REPO_ROOT not in sys.path:
@@ -35,6 +39,7 @@ except Exception:
 
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 os.makedirs(OUT, exist_ok=True)
+EVENT_LOOP = QtCore.QEventLoop()
 
 
 def run_scenario():
@@ -99,7 +104,10 @@ def run_scenario():
         if main_window is not None:
             main_window.close()
             progress("main-window-closed")
+        EVENT_LOOP.quit()
 
 
-run_scenario()
+QtCore.QTimer.singleShot(0, run_scenario)
+progress("enter-event-loop")
+EVENT_LOOP.exec()
 progress("script-end")
