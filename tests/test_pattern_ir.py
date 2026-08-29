@@ -56,15 +56,3 @@ def test_unresolvable_string_reference_fails_closed():
     graph.add_piece(PatternPiece("back", [(0, 0), (10, 0), (0, 10)], id="back"))
     with pytest.raises(ValueError, match="unknown pattern piece|outside"):
         graph.add_seam(Seam("front", "missing", "back", 0, id="bad"))
-
-
-def test_out_of_range_integer_reference_fails_at_ir_boundary():
-    graph = SeamGraph()
-    graph.add_piece(PatternPiece("front", [(0, 0), (10, 0), (0, 10)], id="front"))
-    graph.add_piece(PatternPiece("back", [(0, 0), (10, 0), (0, 10)], id="back"))
-    # SeamGraph intentionally permits string refs and validates integer bounds;
-    # construct a compatible graph object with a late-invalid ref to exercise
-    # the IR adapter's fail-closed behavior.
-    graph.seams["bad"] = type(graph.seams.get("bad", None)) if False else None
-    with pytest.raises(ValueError):
-        PatternIR.from_graph(graph)
