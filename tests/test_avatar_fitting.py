@@ -1,7 +1,13 @@
 import json
 import unittest
 
-from AvatarFitting import BodyMeasurements, FittingScene, PiecePlacement
+from AvatarFitting import (
+    ArrangementPoint,
+    BodyMeasurements,
+    BoundingVolume,
+    FittingScene,
+    PiecePlacement,
+)
 
 
 class AvatarFittingTests(unittest.TestCase):
@@ -26,6 +32,34 @@ class AvatarFittingTests(unittest.TestCase):
     def test_piece_placement_round_trip(self):
         placement = PiecePlacement("front", (1.5, -2.0, 3.25), 90.0)
         self.assertEqual(PiecePlacement.from_string(placement.to_string()), placement)
+
+    def test_arrangement_point_round_trip_and_mirror(self):
+        point = ArrangementPoint("shoulder-left", 120, 80, 15, "left", 10, "shoulders")
+        self.assertEqual(ArrangementPoint.from_string(point.to_string()), point)
+        mirrored = point.mirrored()
+        self.assertEqual(mirrored.name, "shoulder-left.mirror")
+        self.assertEqual(mirrored.x, -120.0)
+        self.assertEqual(mirrored.wrap_direction, "right")
+        self.assertEqual(mirrored.rotation_z, -10.0)
+
+    def test_invalid_arrangement_point_and_volume_are_rejected(self):
+        with self.assertRaises(ValueError): ArrangementPoint("", wrap_direction="front").validate()
+        with self.assertRaises(ValueError): ArrangementPoint("p", wrap_direction="inside").validate()
+        with self.assertRaises(ValueError): BoundingVolume("body", size=(1, 0, 2)).validate()
+
+    def test_fitting_scene_round_trip_preserves_arrangement_metadata(self):
+        scene = FittingScene(
+            BodyMeasurements({"waist": 760}),
+            "Avatar",
+            (PiecePlacement("front", (1, 2, 3), 15),),
+            (ArrangementPoint("chest", 10, 20, 5, "front", 30, "torso"),),
+            (BoundingVolume("torso", (0, 0, 50), (400, 250, 800)),),
+            False,
+        )
+        restored = FittingScene.from_json(scene.to_json())
+        self.assertEqual(restored, scene)
+        self.assertFalse(restored.symmetry_enabled)
+        self.assertEqual(restored.arrangement_map()["chest"].position(), (10.0, 20.0, 5.0))
 
 
 if __name__ == "__main__": unittest.main()
