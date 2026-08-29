@@ -18,9 +18,11 @@ def create_simulation():
 
 def create_drape_scene():
     import FreeCAD as App
-    from SimulationObjects import create_drape_scene as _create
+    # Creation should be fast and side-effect-light. Simulation is started by
+    # Step/Run controls, not implicitly by the scene-creation command.
+    from SimulationObjects import create_simulation_scene
     doc = App.ActiveDocument or App.newDocument("ClothDrape")
-    return _create(doc)
+    return create_simulation_scene(doc)
 
 
 def edit_simulation():
