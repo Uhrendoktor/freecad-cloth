@@ -2,9 +2,9 @@
 
 ## Active Work
 
-- Agent A is implementing issue #108 on branch `agent-a/canonical-seam-contract`.
-- Supervisor integration milestone is complete; no other active implementation agent is recorded.
-- #98 remains open for the remaining canonical seam-contract, state-cleanup, and Sewing task-panel lifecycle work.
+- No active implementation agent; Agent A issue #108 implementation is complete on PR #112.
+- Supervisor integration milestone is complete.
+- #98 remains open for the remaining state-cleanup and Sewing task-panel lifecycle work.
 
 ## Coordination
 
@@ -12,6 +12,7 @@
 - PR #104 and #105 were audited and superseded; their reviewed implementation was integrated through PR #107.
 - PR #107 merged after green canonical CI; post-merge canonical run #239 is green.
 - Issues #102, #103, and #106 are completed and closed.
+- PR #112 contains Agent A's canonical seam-contract implementation for issue #108.
 - Canonical CI workflow: `.github/workflows/canonical-execution.yml`.
 
 ## Completed
@@ -23,3 +24,4 @@
 - Pattern→Sewing→Simulation cloth geometry/topology flow with humanoid collision proxy support.
 - Headless-safe shared FreeCAD command adapter.
 - Regression coverage and real FreeCAD smoke/GUI screenshot validation.
+- Canonical seam contract adapters and compatibility regression coverage (issue #108).
