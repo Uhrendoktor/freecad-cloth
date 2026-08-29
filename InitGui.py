@@ -61,6 +61,10 @@ class _ClothWorkbench(_WorkbenchBase):
         if recipient in ("view", "tree") and self.commands:
             self.appendContextMenu(self.MenuText, self.commands)
 
+    def GetClassName(self):
+        """Return FreeCAD's Python-workbench class identifier."""
+        return "Gui::PythonWorkbench"
+
 
 class ClothPatternWorkbench(_ClothWorkbench):
     MenuText = "Cloth Pattern"
