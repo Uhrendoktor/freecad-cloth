@@ -10,10 +10,11 @@ def create_simulation():
 
 def create_drape_scene():
     import FreeCAD as App
-    from SimulationObjects import step_scene
-    scene = create_simulation()
-    step_scene(scene, 30)
-    return scene
+    from SimulationObjects import create_simulation_scene
+    # Creation is intentionally side-effect-light. Simulation advances only
+    # through explicit Step/Run controls so command invocation is predictable.
+    doc = App.ActiveDocument or App.newDocument("ClothDrape")
+    return create_simulation_scene(doc)
 
 
 def _find_simulation(doc):
@@ -68,7 +69,7 @@ try:
     import FreeCADGui as Gui
     if hasattr(Gui, "addCommand"):
         Gui.addCommand("ClothSimulation_Create", _FunctionCommand(create_simulation, "Create Simulation", "Create a quality-aware cloth simulation object"))
-        Gui.addCommand("ClothSimulation_CreateDrape", _FunctionCommand(create_drape_scene, "Create Drape Scene", "Create a deterministic quality-aware cloth drape scene"))
+        Gui.addCommand("ClothSimulation_CreateDrape", _FunctionCommand(create_drape_scene, "Create Drape Scene", "Create a deterministic cloth drape scene without implicit solver steps"))
         Gui.addCommand("ClothSimulation_Edit", _FunctionCommand(edit_simulation, "Simulation Controls", "Open the cloth simulation quality task panel"))
         Gui.addCommand("ClothSimulation_Step", _FunctionCommand(lambda: simulate_selected(), "Step Simulation", "Advance the quality-aware CPU cloth simulation"))
 except (ImportError, AttributeError):
