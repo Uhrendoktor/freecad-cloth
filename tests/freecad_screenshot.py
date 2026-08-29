@@ -95,7 +95,8 @@ try:
     from PatternGui import PatternDraftingTaskPanel
     from SewingCommands import create_sewing_operation
     from SewingGui import SewingTaskPanel
-    from SimulationQualityRuntimeV2 import create_quality_simulation_scene
+    from SimulationObjects import create_simulation_scene
+    from SimulationQualityRuntimeV2 import QualitySimulationProxy, ensure_quality_properties
     from SimulationQualityGui import SimulationQualityTaskPanel
     progress("gui-modules-import-ok")
 except Exception:
@@ -140,8 +141,10 @@ def run_scenario():
         Gui.Control.closeDialog()
 
         quality_doc = App.newDocument("ClothSimulationDocumentation")
-        scene = create_quality_simulation_scene(quality_doc)
+        scene = create_simulation_scene(quality_doc)
         scene.ClothPieces = []
+        ensure_quality_properties(scene)
+        scene.Proxy = QualitySimulationProxy()
         quality_doc.recompute()
         scene.Steps = 1
         quality_doc.recompute()
