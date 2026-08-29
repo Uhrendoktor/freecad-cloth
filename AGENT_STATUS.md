@@ -20,6 +20,7 @@
 - **#165** Architecture: FreeCAD-native Sketcher pattern authoring + semantic Cloth sewing layer — architecture documented; implementation follow-up must not duplicate the P0 audit.
 - **Workbench registration contract** — DONE on `agent/workbench-registration-contract-20260829`; PR #195; canonical CI run 33277240039 is terminal-green across Python 3.10/3.11/3.12, real FreeCAD smoke, and GUI/Xvfb screenshots. Awaiting supervisor integration decision.
 - **Workbench packaging contract follow-up** — IN PROGRESS on `agent/workbench-packaging-contract-20260830` (2026-08-30); isolated to headless packaging/metadata regression coverage, not P0 audit/simulation logic.
+- **#145 / agent/issue-145-quality-status-20260830** — IN PROGRESS (2026-08-30); focused on persisted Simulation status/invalid-state lifecycle and regression coverage for the existing quality preset contract.
 - **#207 / PR #207** — DONE (2026-08-30); Sewing workbench Show 2D now includes authoritative PatternPiece geometry while retaining seam/network inspection selection. Canonical run 33278391442 is terminal-green across Python 3.10/3.11/3.12, real FreeCAD smoke, and GUI/Xvfb.
 
 ## Coordination protocol
