@@ -1,23 +1,54 @@
 """FreeCAD-independent sewing-piece pairing and assembly metadata.
 
-This module deliberately stores semantic seam pairing separately from solver
-particle indices.  FreeCAD GUI objects can use it to persist a reproducible
-piece arrangement while the existing SeamGraph remains the simulation source.
+``PatternModel.Seam`` is the semantic source of truth.  ``SewingPair`` is a
+user-facing adapter that references that canonical seam and stores only
+presentation-level pairing metadata.
 """
 from dataclasses import dataclass, field
-from typing import Dict, Tuple
+from typing import Dict
 
-from SeamGraph import SeamGraph, SeamPair, Transform3D
+from SeamGraph import SeamGraph, Transform3D
 from PatternModel import PatternPiece, Seam
 
 
-@dataclass(frozen=True)
 class SewingPair:
-    """A user-facing seam pairing with an explicit assembly orientation."""
-    seam_id: str
-    stitch_group: str
-    alignment: str = "endpoints"
-    reversed_b: bool = False
+    """Compatibility adapter for a canonical seam pairing.
+
+    New callers pass a :class:`PatternModel.Seam`.  The legacy constructor
+    accepting ``seam_id`` and ``reversed_b`` remains supported for callers that
+    construct the adapter before attaching it to a graph; validation resolves
+    the canonical seam from that graph.
+    """
+
+    def __init__(self, seam_or_id, stitch_group: str, alignment: str = "endpoints", reversed_b=None):
+        if isinstance(seam_or_id, Seam):
+            self._seam = seam_or_id
+            self._seam_id = seam_or_id.id
+            self._legacy_reversed = None
+        else:
+            self._seam = None
+            self._seam_id = str(seam_or_id)
+            self._legacy_reversed = reversed_b
+        self.stitch_group = stitch_group
+        self.alignment = alignment
+
+    @property
+    def seam_id(self):
+        return self._seam_id
+
+    @property
+    def reversed_b(self):
+        """Return canonical reversal when available; never fork seam state."""
+        if self._seam is not None:
+            return self._seam.reversed_b
+        return self._legacy_reversed
+
+    def bind(self, seam: Seam) -> None:
+        """Bind a legacy adapter to its canonical seam exactly once."""
+        if seam.id != self._seam_id:
+            raise ValueError("canonical seam id disagrees with sewing pair")
+        self._seam = seam
+        self._legacy_reversed = None
 
     def validate(self, graph: SeamGraph) -> None:
         if not self.seam_id.strip():
@@ -28,8 +59,12 @@ class SewingPair:
             raise ValueError("stitch group must not be empty")
         if self.alignment not in {"endpoints", "uniform"}:
             raise ValueError("alignment must be 'endpoints' or 'uniform'")
-        seam = graph.seams[self.seam_id].seam
-        if seam.reversed_b != self.reversed_b:
+        canonical = graph.seams[self.seam_id].seam
+        if self._seam is None:
+            self.bind(canonical)
+        elif self._seam is not canonical and self._seam != canonical:
+            raise ValueError("pair references a different seam object")
+        if self.reversed_b is not canonical.reversed_b:
             raise ValueError("pair orientation disagrees with seam metadata")
 
 
@@ -45,7 +80,7 @@ class SewingAssembly:
         if seam_id not in self.graph.seams:
             raise ValueError(f"unknown seam id: {seam_id}")
         seam = self.graph.seams[seam_id].seam
-        pair = SewingPair(seam_id, stitch_group or self.graph.seams[seam_id].stitch_group, alignment, seam.reversed_b)
+        pair = SewingPair(seam, stitch_group or self.graph.seams[seam_id].stitch_group, alignment)
         pair.validate(self.graph)
         self.pairs[seam_id] = pair
         return pair
