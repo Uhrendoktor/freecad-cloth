@@ -5,11 +5,11 @@ on:
     branches: [main]
   pull_request:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '17 * * * *'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}-${{ contains(github.event.head_commit.message, '[maintenance]') && 'maintenance' || 'normal' }}
-  cancel-in-progress: ${{ github.event_name != 'push' }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   PYTHONPATH: .
@@ -176,7 +176,7 @@ jobs:
           if-no-files-found: error
 
   maintenance:
-    if: ${{ github.event_name == 'schedule' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[maintenance]')) }}
+    if: ${{ github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -200,7 +200,6 @@ jobs:
           def gh(*args):
               return subprocess.check_output(['gh', 'api', *args], text=True)
 
-          # Keep the 10 newest completed runs; remove older completed runs.
           runs = []
           for page in range(1, 20):
               data = json.loads(gh(f'repos/{repo}/actions/runs?per_page=100&page={page}'))
@@ -220,7 +219,6 @@ jobs:
               subprocess.run(['gh', 'api', '--method', 'DELETE', f"repos/{repo}/actions/runs/{run['id']}"], check=True)
               deleted_runs += 1
 
-          # Delete branches for closed PRs older than 24h, unless the branch is an open PR head.
           default_branch = json.loads(gh(f'repos/{repo}'))['default_branch']
           open_prs = json.loads(gh(f'repos/{repo}/pulls?state=open&per_page=100'))
           open_heads = {(p.get('head') or {}).get('ref') for p in open_prs}
