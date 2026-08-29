@@ -18,8 +18,9 @@
 - **#162** P1 pattern authoring parity audit — queued; focus on curved native Sketcher geometry, constraints, marks, offsets and semantic preservation discovered by the P0 audit.
 - **#148** P2 optional native solver benchmark — explicitly non-blocking.
 - **#165** Architecture: FreeCAD-native Sketcher pattern authoring + semantic Cloth sewing layer — architecture documented; implementation follow-up must not duplicate the P0 audit.
-- **Workbench registration contract** — DONE on `agent/workbench-registration-contract-20260829`; PR #195; canonical CI run 33277240039 is terminal-green across Python 3.10/3.11/3.12, real FreeCAD smoke, and GUI/Xvfb screenshots. Awaiting supervisor integration decision.
-- **Workbench packaging contract follow-up** — IN PROGRESS on `agent/workbench-packaging-contract-20260830` (2026-08-30); isolated to headless packaging/metadata regression coverage, not P0 audit/simulation logic.
+- **Workbench registration contract** — DONE; PR #195 merged.
+- **Workbench packaging contract follow-up** — IN PROGRESS on `agent/workbench-packaging-contract-20260830`; isolated to headless packaging/metadata regression coverage, not P0 audit/simulation logic.
+- **Workbench architecture hardening** — IN PROGRESS on `agent/workbench-architecture-20260830` (2026-08-30); PR #212. The shared mutable workbench command state has been isolated per instance; architecture boundaries are documented. Canonical CI run 33278474429 is still in progress.
 
 ## Coordination protocol
 
@@ -76,4 +77,4 @@ Research conclusion: CLO couples semantic sewing, avatar arrangement, simulation
 
 ## Current state
 
-Roadmap v3 is active. **P0-A and P0-B are integrated; the project is not release-complete.** P0-C is the next supervisor gate, followed by authoring parity and production export validation. PR #185 is superseded by the integrated mainline implementation; PR #192 is merged.
+Roadmap v3 is active. **P0-A and P0-B are integrated; the project is not release-complete.** P0-C is the next supervisor gate, followed by authoring parity and production export validation. PR #185 is superseded by the integrated mainline implementation; PR #192 is merged. Workbench architecture hardening is awaiting terminal CI verification on PR #212.
