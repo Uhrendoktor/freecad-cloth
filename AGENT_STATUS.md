@@ -1,81 +1,47 @@
-# AGENT STATUS
+# Cloth Workbench Agent Status
 
-## Supervisor
+Last updated: 2026-08-30
 
-- Active milestone: **P0 vertical release gates** — native end-to-end workflow plus behavioral simulation-quality controls.
-- Mainline contains three registered FreeCAD workbenches: Cloth Pattern, Cloth Sewing, and Cloth Simulation.
-- M:N/free sewing and fitting arrangement work are merged.
-- Simulation-quality/fabric behavior validation **#161 is merged as PR #192**.
-- P0-A canonical native E2E validation has been **integrated directly into main** from PR #185's validated changes because #185 diverged from the updated mainline and was not mergeable without a rebase.
-- Production SVG/DXF semantic metadata exists, but export validation remains a release gate.
+## Supervisor state
 
-## Current task board
+The initial PR/issue backlog was audited before new implementation work. Obsolete stacked branches were closed; validated work was rebased onto current `main` instead of merging stale bases.
 
-- **#143** P0 end-to-end workflow audit — supervisor gate; canonical E2E is now in main.
-- **#155 / PR #185** P0 canonical native garment workflow — audited and integrated as equivalent mainline commits; original PR is superseded because its branch diverged from main after later validated merges.
-- **#145 / #159 / #161 / merged PR #192** P0 simulation quality — validated by real FreeCAD smoke plus GUI/Xvfb; keep behavioral property persistence/reload under the continuing P0-C audit.
-- **#147 / #163** P1 production 2D export — queued behind P0; metadata is foundation, not completion.
-- **#162** P1 pattern authoring parity audit — queued; focus on curved native Sketcher geometry, constraints, marks, offsets and semantic preservation discovered by the P0 audit.
-- **#148** P2 optional native solver benchmark — explicitly non-blocking.
-- **#165** Architecture: FreeCAD-native Sketcher pattern authoring + semantic Cloth sewing layer — architecture documented; implementation follow-up must not duplicate the P0 audit.
-- **Workbench registration contract** — DONE on `agent/workbench-registration-contract-20260829`; PR #195; canonical CI run 33277240039 is terminal-green across Python 3.10/3.11/3.12, real FreeCAD smoke, and GUI/Xvfb screenshots. Awaiting supervisor integration decision.
-- **Workbench packaging contract follow-up** — IN PROGRESS on `agent/workbench-packaging-contract-20260830` (2026-08-30); isolated to headless packaging/metadata regression coverage, not P0 audit/simulation logic.
-- **#207 / PR #207** — DONE (2026-08-30); Sewing workbench Show 2D now includes authoritative PatternPiece geometry while retaining seam/network inspection selection. Canonical run 33278391442 is terminal-green across Python 3.10/3.11/3.12, real FreeCAD smoke, and GUI/Xvfb.
+### Current architecture gates
 
-## Coordination protocol
+- **P0-A Pattern authoring:** native `Sketcher::SketchObject` is now the intended geometry authority for linked PatternPieces. `PatternIR` preserves curve kind and endpoint connectivity. Remaining work: native authoring toolbar/task flow, curved seam editing, seam allowance/marks as derived features, and real multi-piece GUI acceptance.
+- **P0-B Sewing:** semantic seam references are merged; Show 2D now focuses authoritative PatternPieces. Remaining work: curved/M:N sewing, seam editing UI, length validation, invalid-reference UX, and sewing dependency invalidation.
+- **P0-C Simulation:** native FreeCAD simulation scene and humanoid collision source exist. Remaining work: particle-distance quality presets, fabric/collision material presets, robust drape transfer from authored PatternPieces, and final deterministic simulation acceptance.
+- **P0-D Acceptance:** canonical FreeCAD/Xvfb smoke exists, but its garment fixture still uses direct PatternPiece construction. It must be upgraded to create/edit real Sketcher-backed pieces and prove save/reload plus edit→seam→mesh→simulation invalidation.
 
-- Use this file as the shared status board.
-- Before editing, mark the task IN PROGRESS with agent/branch and timestamp.
-- After verified completion, mark DONE with commit/PR and verification evidence.
-- If blocked, record exact blocker and next action.
-- Supervisor inspects PRs, CI, diffs, dependencies and integration before merge.
-- Never report completion while Actions, delegated agents, or required verification are non-terminal.
+## Active workstreams
 
-## Replan v3 decision
+| Workstream | Issue/PR | Status | Owner role |
+|---|---|---|---|
+| PatternIR curve/connectivity | #165/#174/#188, merged PR #206 | done | supervisor |
+| Semantic seam references | #169, merged PR #200 | done | supervisor |
+| Export validation | #163, merged PR #209 | done | supervisor |
+| Sketcher authority | #165/#170, PR #213 | CI/review | supervisor |
+| Sewing Show 2D focus | #207, merged before current main | done | supervisor |
+| Canonical GUI acceptance | #155 | queued P0 | supervisor |
+| Simulation quality/material controls | #145 | queued P0 | supervisor |
+| Architecture roadmap | #162/#165 | active planning | supervisor |
 
-The v2 vertical-slice roadmap remains valid but is now enforced as observable release gates:
+## Rules for new work
 
-`Pattern authoring -> 1:1 + free/M:N sewing -> avatar arrangement -> quality/material simulation -> inspect -> upstream edit -> invalidation -> save/reload -> deterministic re-simulation -> production 2D export.`
+1. Sketcher geometry is editable/source geometry; PatternPiece is the semantic garment object.
+2. PatternIR is the solver-neutral boundary and must preserve native curve identity and connectivity.
+3. Sewing references use semantic IDs/signatures, not raw insertion-order edge numbers.
+4. Simulation consumes derived geometry and must invalidate/rebuild deterministically after source edits.
+5. Native FreeCAD behavior is preferred over parallel custom CAD infrastructure.
+6. Every P0 feature requires headless tests plus real FreeCAD smoke/Xvfb coverage before merge.
+7. One canonical CI workflow is used; do not add push-triggered workflow variants.
 
-Research conclusion: CLO couples semantic sewing, avatar arrangement, simulation quality/material state, property-editor workflow, diagnostics and production output. FreeCAD Sketcher remains the native authoring/constraint authority; Part/OCCT remains the geometry authority; TechDraw is reused for SVG/DXF transport; a dedicated surface-cloth solver abstraction remains separate from structural FEM.
+## Next supervisor sequence
 
-## Completed
-
-- Three native FreeCAD workbenches and document objects.
-- Parametric pattern model with semantic marks and native Sketcher adapter.
-- Semantic 1:1, free and M:N sewing relationships and range editor.
-- Curved/arc-length sewing correspondence and diagnostics.
-- Avatar bounding volumes, arrangement points, symmetry, placement/reset.
-- Deterministic CPU cloth backend with stretch/shear/bending and self-collision.
-- Simulation-quality/fabric parameter contract and native quality task panel.
-- PR #192 native quality behavior, persistence and GUI validation merged.
-- P0-A canonical native E2E workflow integrated into main: public Pattern/Sewing/Simulation commands, 1:1 + M:N sewing, save/reload, upstream edit invalidation and explicit re-simulation.
-- Drape-scene command no longer performs implicit solver steps.
-- GUI quality-panel load now suppresses recompute storms while populating controls.
-- Canonical CI with real FreeCAD smoke and GUI/Xvfb coverage.
-- #165 architecture boundary documented in `docs/architecture/freecad-sketcher-cloth-boundary.md`.
-- #207 Sewing Show 2D now focuses authoritative PatternPiece geometry alongside seam/stitch overlays; verified by canonical run 33278391442.
-
-## Release gates
-
-1. **P0-A DONE:** canonical public Pattern -> Sewing -> Simulation -> save/reload -> invalidation -> explicit re-simulation path is integrated and must remain green on main.
-2. **P0-B DONE:** #159/#161 quality/material/collision behavior is covered by real FreeCAD smoke and GUI/Xvfb and merged as #192.
-3. **P0-C ACTIVE:** audit task-panel selection, cancellation, recompute, undo and persistence behavior across all three workbenches; verify native UI does not create recompute storms or implicit simulation.
-4. **P1-A:** #162 closes concrete Pattern authoring blockers discovered by P0-C.
-5. **P1-B:** #163/#147 validate production 2D output, units/scale and semantic round-trip.
-6. **P1-C:** package/install/example/tutorial/release documentation.
-7. **P2:** optional solver benchmark only after release gates are stable.
-
-## CI discipline
-
-- One canonical GitHub Actions workflow only.
-- Never treat an in-progress workflow as success.
-- Supervisor reviews diffs and tests, waits for every relevant run to become terminal, repairs failures, reruns, then verifies merged mainline.
-- Persistent state changes require save/reload tests.
-- Simulation changes require deterministic evidence.
-- UI changes require real FreeCAD/Xvfb coverage.
-- The original PR #160 GUI failure was inspected through its uploaded diagnostic artifact. The corrected P0-A and P0-B paths now pass real FreeCAD smoke and GUI/Xvfb validation.
-
-## Current state
-
-Roadmap v3 is active. **P0-A and P0-B are integrated; the project is not release-complete.** P0-C is the next supervisor gate, followed by authoring parity and production export validation. PR #185 is superseded by the integrated mainline implementation; PR #192 is merged.
+1. Merge the validated Sketcher-authority gate after terminal-green CI.
+2. Rework #155 into a real Sketcher-backed 3+ piece garment fixture with curved seam, save/reload, edit propagation, and deterministic re-simulation.
+3. Complete P0 sewing UI: semantic edge selection, M:N/curved sewing, reverse/alignment, length check, and invalid-reference task-panel states.
+4. Complete P0 simulation quality/material presets and authored-pattern drape transfer.
+5. Replace legacy drafting as the default Pattern UI with native Sketcher commands while retaining it only as a migration utility.
+6. Add production export/round-trip acceptance and package/install validation.
+7. Re-audit the full issue list and update this file before release.
