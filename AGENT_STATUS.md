@@ -20,7 +20,7 @@
 - **#165** Architecture: FreeCAD-native Sketcher pattern authoring + semantic Cloth sewing layer — architecture documented; implementation follow-up must not duplicate the P0 audit.
 - **Workbench registration contract** — DONE on `agent/workbench-registration-contract-20260829`; PR #195; canonical CI run 33277240039 is terminal-green across Python 3.10/3.11/3.12, real FreeCAD smoke, and GUI/Xvfb screenshots. Awaiting supervisor integration decision.
 - **Workbench packaging contract follow-up** — IN PROGRESS on `agent/workbench-packaging-contract-20260830` (2026-08-30); isolated to headless packaging/metadata regression coverage, not P0 audit/simulation logic.
-- **#203 Avatar mannequin** — IN PROGRESS on `agent/avatar-workbench-20260830` (2026-08-30); dedicated branch, focused on FreeCAD-native avatar/fitting integration and avoiding the supervisor's P0 audit branch.
+- **#203 Avatar mannequin** — DONE on `agent/avatar-workbench-20260830` (2026-08-30); PR #208; canonical CI run 33278342912 terminal-green across Python 3.10/3.11/3.12, real FreeCAD smoke, and GUI/Xvfb screenshots. Awaiting supervisor integration decision.
 
 ## Coordination protocol
 
@@ -54,6 +54,7 @@ Research conclusion: CLO couples semantic sewing, avatar arrangement, simulation
 - GUI quality-panel load now suppresses recompute storms while populating controls.
 - Canonical CI with real FreeCAD smoke and GUI/Xvfb coverage.
 - #165 architecture boundary documented in `docs/architecture/freecad-sketcher-cloth-boundary.md`.
+- #203 parametric anthropometric avatar model, FreeCAD human mannequin geometry, pose/offset controls, landmarks, and regression tests; validated by canonical CI run 33278342912.
 
 ## Release gates
 
@@ -68,7 +69,7 @@ Research conclusion: CLO couples semantic sewing, avatar arrangement, simulation
 ## CI discipline
 
 - One canonical GitHub Actions workflow only.
-- Never treat an in-progress workflow as success.
+- Never declare an in-progress CI run successful.
 - Supervisor reviews diffs and tests, waits for every relevant run to become terminal, repairs failures, reruns, then verifies merged mainline.
 - Persistent state changes require save/reload tests.
 - Simulation changes require deterministic evidence.
@@ -77,4 +78,4 @@ Research conclusion: CLO couples semantic sewing, avatar arrangement, simulation
 
 ## Current state
 
-Roadmap v3 is active. **P0-A and P0-B are integrated; the project is not release-complete.** P0-C is the next supervisor gate, followed by authoring parity and production export validation. PR #185 is superseded by the integrated mainline implementation; PR #192 is merged.
+Roadmap v3 is active. **P0-A and P0-B are integrated; the project is not release-complete.** P0-C is the next supervisor gate, followed by authoring parity and production export validation. PR #185 is superseded by the integrated mainline implementation; PR #192 is merged. Avatar PR #208 is verified and awaiting supervisor integration.
