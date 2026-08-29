@@ -1,15 +1,15 @@
 """Solver-neutral representation of a FreeCAD Cloth garment.
 
-The IR deliberately contains no FreeCAD or solver types.  Adapters may feed it
+The IR deliberately contains no FreeCAD or solver types. Adapters may feed it
 from the native document layer, while solvers consume only this module's stable
 piece/edge/seam contracts.
 """
 from dataclasses import dataclass, field
 from math import hypot
-from typing import Dict, Iterable, Mapping, Sequence, Tuple
+from typing import Mapping, Sequence, Tuple
 
 from PatternGeometry import LineSegment, ParametricPattern
-from PatternModel import PatternPiece, Seam
+from PatternModel import PatternPiece
 from SeamGraph import SeamGraph
 
 Point3 = Tuple[float, float, float]
@@ -17,19 +17,28 @@ Point3 = Tuple[float, float, float]
 
 @dataclass(frozen=True)
 class BoundaryIR:
-    """A resolved boundary curve with a stable semantic identifier."""
+    """Resolved boundary with stable identity and native curve kind.
+
+    ``samples`` are deterministic solver-friendly points. ``kind`` and
+    ``parameter_range`` preserve the native Sketcher curve class at the
+    adapter boundary so downstream code does not reduce curves to lines.
+    """
 
     id: str
     kind: str
     samples: Tuple[Point3, ...]
+    parameter_range: Tuple[float, float] = (0.0, 1.0)
 
     def validate(self) -> None:
         if not self.id.strip():
             raise ValueError("boundary id must not be empty")
-        if self.kind not in {"line", "curve"}:
+        if self.kind not in {"line", "arc", "bspline", "bezier", "curve"}:
             raise ValueError("unsupported boundary kind")
         if len(self.samples) < 2:
             raise ValueError("boundary needs at least two samples")
+        start, end = self.parameter_range
+        if not end > start:
+            raise ValueError("boundary parameter range must have positive extent")
 
     @property
     def length(self) -> float:
@@ -142,18 +151,15 @@ class PatternIR:
         """Resolve a sewing graph into immutable solver-facing data.
 
         Integer seam references are accepted only at this adapter boundary and
-        are immediately converted to semantic boundary IDs.  String refs must
-        already identify a boundary.  Thus downstream code never needs to
-        interpret fragile ``EdgeN`` topology numbers.
+        are immediately converted to semantic boundary IDs. String refs must
+        already identify a boundary.
         """
         graph.validate()
         geometries = geometries or {}
         materials = materials or {}
         pieces = []
         for piece in graph.pieces.values():
-            geometry = geometries.get(piece.id)
-            if geometry is None:
-                geometry = _line_geometry(piece)
+            geometry = geometries.get(piece.id) or _line_geometry(piece)
             boundaries = tuple(_boundary_ir(segment, curve_samples) for segment in geometry.segments)
             pieces.append(
                 PieceIR(
@@ -164,32 +170,74 @@ class PatternIR:
                     seam_allowance=float(piece.seam_allowance),
                 )
             )
-        piece_map = {piece.id: piece for piece in pieces}
-        seams = []
-        for pair in graph.seams.values():
-            seam = pair.seam
-            edge_a = _resolve_edge(seam.edge_a, piece_map[seam.piece_a])
-            edge_b = _resolve_edge(seam.edge_b, piece_map[seam.piece_b])
-            seams.append(
-                SeamIR(
-                    id=seam.id,
-                    piece_a=seam.piece_a,
-                    edge_a=edge_a,
-                    piece_b=seam.piece_b,
-                    edge_b=edge_b,
-                    start_a=seam.start_a,
-                    end_a=seam.end_a,
-                    start_b=seam.start_b,
-                    end_b=seam.end_b,
-                    reversed_b=seam.reversed_b,
-                    alignment=seam.alignment,
-                    stitch_group=seam.stitch_group or seam.id,
-                    kind=seam.kind,
+        return _with_seams(cls, graph, pieces)
+
+    @classmethod
+    def from_sketches(
+        cls,
+        graph: SeamGraph,
+        sketches: Mapping[str, object],
+        materials: Mapping[str, str] | None = None,
+        curve_samples: int = 32,
+    ) -> "PatternIR":
+        """Resolve native Sketcher geometry into the solver-neutral IR.
+
+        The method intentionally has no FreeCAD import. A
+        ``Sketcher::SketchObject`` supplies ``Geometry`` and optional
+        ``SemanticEdgeIds``; the conversion emits deterministic samples plus
+        curve kind/parameter metadata, while the native object stays outside
+        the solver layer.
+        """
+        if curve_samples < 2:
+            raise ValueError("curve_samples must be at least 2")
+        graph.validate()
+        materials = materials or {}
+        pieces = []
+        for piece in graph.pieces.values():
+            sketch = sketches.get(piece.id)
+            if sketch is None:
+                raise ValueError(f"missing Sketcher geometry for pattern piece: {piece.id}")
+            boundaries = _sketch_boundaries(sketch, piece.id, curve_samples)
+            pieces.append(
+                PieceIR(
+                    id=piece.id,
+                    name=piece.name,
+                    boundaries=boundaries,
+                    material=materials.get(piece.id, str(piece.metadata.get("material", ""))),
+                    seam_allowance=float(piece.seam_allowance),
                 )
             )
-        result = cls(tuple(pieces), tuple(seams))
-        result.validate()
-        return result
+        return _with_seams(cls, graph, pieces)
+
+
+def _with_seams(cls, graph: SeamGraph, pieces: Sequence[PieceIR]) -> PatternIR:
+    piece_tuple = tuple(pieces)
+    piece_map = {piece.id: piece for piece in piece_tuple}
+    seams = []
+    for pair in graph.seams.values():
+        seam = pair.seam
+        edge_a = _resolve_edge(seam.edge_a, piece_map[seam.piece_a])
+        edge_b = _resolve_edge(seam.edge_b, piece_map[seam.piece_b])
+        seams.append(
+            SeamIR(
+                id=seam.id,
+                piece_a=seam.piece_a,
+                edge_a=edge_a,
+                piece_b=seam.piece_b,
+                edge_b=edge_b,
+                start_a=seam.start_a,
+                end_a=seam.end_a,
+                start_b=seam.start_b,
+                end_b=seam.end_b,
+                reversed_b=seam.reversed_b,
+                alignment=seam.alignment,
+                stitch_group=seam.stitch_group or seam.id,
+                kind=seam.kind,
+            )
+        )
+    result = cls(piece_tuple, tuple(seams))
+    result.validate()
+    return result
 
 
 def _line_geometry(piece: PatternPiece) -> ParametricPattern:
@@ -207,6 +255,91 @@ def _boundary_ir(segment, curve_samples: int) -> BoundaryIR:
         return BoundaryIR(segment.id, "line", samples)
     samples = tuple(tuple((*point, 0.0)) for point in segment.polyline(curve_samples))
     return BoundaryIR(segment.id, "curve", samples)
+
+
+def _sketch_boundaries(sketch, piece_id: str, curve_samples: int) -> Tuple[BoundaryIR, ...]:
+    geometry = tuple(getattr(sketch, "Geometry", ()) or ())
+    if len(geometry) < 3:
+        raise ValueError(f"Sketcher pattern needs at least three boundary geometries: {piece_id}")
+
+    semantic_ids = tuple(getattr(sketch, "SemanticEdgeIds", ()) or ())
+    boundaries = []
+    for index, native in enumerate(geometry):
+        if _is_construction(sketch, index):
+            continue
+        edge_id = (
+            str(semantic_ids[index])
+            if index < len(semantic_ids) and str(semantic_ids[index]).strip()
+            else f"{piece_id}:edge:{index}"
+        )
+        boundaries.append(_native_boundary(native, edge_id, curve_samples))
+
+    if len(boundaries) < 3:
+        raise ValueError(f"Sketcher pattern needs at least three non-construction boundaries: {piece_id}")
+    for index, current in enumerate(boundaries):
+        following = boundaries[(index + 1) % len(boundaries)]
+        if _distance3(current.samples[-1], following.samples[0]) > 1e-7:
+            raise ValueError(f"Sketcher boundary is not closed between {current.id} and {following.id}")
+    return tuple(boundaries)
+
+
+def _is_construction(sketch, index: int) -> bool:
+    getter = getattr(sketch, "getConstruction", None)
+    if not callable(getter):
+        return False
+    try:
+        return bool(getter(index))
+    except (IndexError, TypeError):
+        return False
+
+
+def _native_boundary(native, edge_id: str, curve_samples: int) -> BoundaryIR:
+    type_name = type(native).__name__.lower()
+    if type_name == "linesegment":
+        start = _point3(getattr(native, "StartPoint"))
+        end = _point3(getattr(native, "EndPoint"))
+        return BoundaryIR(edge_id, "line", (start, end))
+
+    kind = {
+        "arcofcircle": "arc",
+        "bsplinecurve": "bspline",
+        "beziercurve": "bezier",
+    }.get(type_name)
+    if kind is None:
+        raise ValueError(f"unsupported Sketcher boundary geometry: {type(native).__name__}")
+
+    first = _native_parameter(native, "FirstParameter", 0.0)
+    last = _native_parameter(native, "LastParameter", 1.0)
+    if last <= first:
+        raise ValueError(f"invalid parameter range for Sketcher boundary: {edge_id}")
+    samples = tuple(
+        _point3(_native_value(native, first + (last - first) * i / (curve_samples - 1)))
+        for i in range(curve_samples)
+    )
+    return BoundaryIR(edge_id, kind, samples, (first, last))
+
+
+def _native_parameter(native, name: str, default: float) -> float:
+    value = getattr(native, name, default)
+    return float(value() if callable(value) else value)
+
+
+def _native_value(native, parameter: float):
+    value_at = getattr(native, "valueAt", None)
+    if callable(value_at):
+        return value_at(parameter)
+    value = getattr(native, "value", None)
+    if callable(value):
+        return value(parameter)
+    raise ValueError(f"Sketcher curve does not expose valueAt/value: {type(native).__name__}")
+
+
+def _point3(point) -> Point3:
+    return (float(point.x), float(point.y), float(getattr(point, "z", 0.0)))
+
+
+def _distance3(a: Point3, b: Point3) -> float:
+    return hypot(a[0] - b[0], a[1] - b[1]) + abs(a[2] - b[2])
 
 
 def _resolve_edge(reference, piece: PieceIR) -> str:
