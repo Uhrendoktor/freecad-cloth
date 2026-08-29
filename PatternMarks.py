@@ -23,6 +23,17 @@ def _selected_piece(doc):
     raise ValueError("create or select a pattern piece before adding a mark")
 
 
+def _has_selected_piece():
+    """Return whether the active FreeCAD selection contains a pattern piece."""
+    try:
+        import FreeCADGui as Gui
+        return any(getattr(obj, "PatternType", "") == "PatternPiece"
+                   for obj in Gui.Selection.getSelection())
+    except (ImportError, AttributeError):
+        # Keep command registration/imports safe outside a FreeCAD GUI process.
+        return True
+
+
 def add_mark(doc, mark_type, piece_id, segment_id="", position=0.5, depth=3.0,
              angle=0.0, length=40.0, text=""):
     """Create a persisted semantic mark object in *doc*.
@@ -89,6 +100,10 @@ class _FunctionCommand:
         obj = self.function()
         if hasattr(obj, "Document"):
             obj.Document.recompute()
+
+    def IsActive(self):
+        """Enable mark commands only when a pattern piece is selected."""
+        return _has_selected_piece()
 
     def GetResources(self):
         return {
