@@ -4,7 +4,7 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from PatternModel import Seam
-from SewingNetwork import SewingMember, build_mn_seams
+from SewingNetwork import SewingMember, build_mn_seams, network_invalid_reason
 
 
 def lengths(mapping):
@@ -66,6 +66,21 @@ class SewingNetworkTests(unittest.TestCase):
                 [SewingMember("B", 0)],
                 lengths({("A", 0): 10, ("A2", 1): 10, ("B", 0): 20}),
             )
+
+    def test_invalid_member_status_is_deterministic_and_user_visible(self):
+        seam = Seam("A", 0, "B", 0, id="rel-1-1-1")
+        seam.StitchGroup = "rel-1"
+        seam.Status = "Changed reference"
+        self.assertEqual(
+            network_invalid_reason([seam]),
+            "Invalid member seam(s): rel-1-1-1: Changed reference",
+        )
+
+    def test_all_valid_member_statuses_have_no_invalid_reason(self):
+        seam = Seam("A", 0, "B", 0, id="rel-1-1-1")
+        seam.StitchGroup = "rel-1"
+        seam.Status = "Valid"
+        self.assertEqual(network_invalid_reason([seam]), "")
 
 
 if __name__ == "__main__":
