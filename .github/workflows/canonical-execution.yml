@@ -114,9 +114,9 @@ jobs:
               OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               sleep 2
-              rm -f docs/images/generated/cloth-pattern.png docs/images/generated/cloth-simulation.png docs/images/generated/gui-progress.log
+              rm -f docs/images/generated/cloth-pattern-design.png docs/images/generated/cloth-sewing.png docs/images/generated/cloth-simulation.png docs/images/generated/gui-progress.log
               printf "%s\n" "exec(compile(open(\"tests/freecad_screenshot.py\", encoding=\"utf-8\").read(), \"tests/freecad_screenshot.py\", \"exec\"))" > /tmp/cloth_screenshot.FCMacro
-              timeout --signal=TERM --kill-after=5s 30s freecad /tmp/cloth_screenshot.FCMacro >/tmp/freecad-gui.log 2>&1 || {
+              timeout --signal=TERM --kill-after=5s 60s freecad /tmp/cloth_screenshot.FCMacro >/tmp/freecad-gui.log 2>&1 || {
                 status=$?
                 cat /tmp/freecad-gui.log || true
                 cat docs/images/generated/gui-progress.log || true
@@ -126,7 +126,8 @@ jobs:
                 exit "$status"
               }
               cat docs/images/generated/gui-progress.log || true
-              test -s docs/images/generated/cloth-pattern.png
+              test -s docs/images/generated/cloth-pattern-design.png
+              test -s docs/images/generated/cloth-sewing.png
               test -s docs/images/generated/cloth-simulation.png
             '
       - name: Upload GUI diagnostics
