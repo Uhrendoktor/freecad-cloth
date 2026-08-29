@@ -2,31 +2,34 @@
 
 ## Supervisor
 
-- Active milestone: #119 CLO-style workbench UI and end-to-end workflow.
-- Previous seam-contract milestones (#108-#111) are integrated and green.
-- #120 is the dedicated screenshot-workflow tracking issue.
-- Current UI subtasks: #121 Pattern Design, #122 Sewing, #124 Simulation, #125 2D↔3D architecture, #126 GUI/screenshot regression, #127 FreeCAD workbench packaging/UX.
+- Active milestone: release-candidate verification for the CLO-style sewing workbench suite.
+- Pattern, Sewing, and Simulation workbenches are integrated on `main`.
+- Parent UI audit #119 and GUI regression #126 are completed.
+- Pattern UI #121, sewing-edge regression #98, and workbench command-contract #137 are integrated.
 
-## Coordination
+## Architecture / data flow
 
-- #119 is the parent/epic acceptance gate; implementation work is delegated through its subtasks.
-- Keep subtasks narrowly scoped and require PRs with tests and clear linkage to the parent.
-- Do not allow duplicated semantic state between UI objects and PatternModel/Seam/SewingOperation.
-- Screenshot QA must show the actual FreeCAD workbench chrome: workbench selector, custom toolbars, Combo View/task panels, and representative 2D/3D content.
+- Pattern geometry and semantic sewing data are authoritative FreeCAD document objects plus FreeCAD-independent model layers.
+- Pattern -> Sewing -> Simulation is the end-to-end workflow; generated simulation meshes are disposable adapters, not a second source of truth.
+- Native FreeCAD Sketcher/Part/OCCT/MeshPart/Placement and document recompute/save/reopen mechanisms are reused at the boundary.
+- Sewing uses canonical semantic seam metadata, deterministic arc-length edge sampling, reversal/alignment, stitch groups, and placement-aware correspondence.
+- Simulation exposes fabric presets/properties, solver controls, collision thickness/deflection, avatar/collision selection, sewing pairs, pin selection, step/run/reset controls, and deterministic CPU cloth behavior.
 
-## Execution order
+## CLO-style research decisions
 
-1. #127: stabilize genuine FreeCAD workbench registration, commands, toolbars, resources, and activation.
-2. #121 + #122: Pattern Design and Sewing UI against the canonical seam/data contracts.
-3. #124: Simulation UI integrated with existing solver/avatar/material infrastructure.
-4. #125: harden authoritative 2D→sewing→3D/simulation data flow and save/reload behavior.
-5. #126: enforce full-window GUI screenshots and UI assertions for Pattern/Sewing/Simulation.
-6. Supervisor integrates PRs, runs canonical CI, inspects GUI artifacts, fixes cross-cutting regressions, and repeats until all gates pass.
+- 2D pattern authoring and 3D simulation are intentionally separated, matching CLO's workflow model.
+- Important CLO concepts mapped into FreeCAD include pattern properties, seam/sewing semantics, notches/grainlines, arrangement/fitting metadata, fabric physical properties, collision thickness, simulation presets, and persistent project data.
+- Optional external solver backends remain optional; the bundled deterministic CPU solver is the reference path so the workbench remains installable without proprietary or heavyweight dependencies.
+- Future roadmap items such as M:N/free sewing gestures, richer arrangement-point editing, particle-distance presets, and DXF/SVG/TechDraw export remain explicitly documented rather than blocking the current usable workbench.
 
-## Required supervisor gates
+## Verification gates
 
-- Every implementation PR has automated coverage appropriate to its scope.
-- Canonical CI is terminal-green before merge; no stopping while required CI is running.
-- Real FreeCAD GUI smoke demonstrates activation and usable workflows, not merely Python imports.
-- Screenshots visibly include the workbench toolbars and task panels.
-- #119 remains open until the complete Pattern → Sewing → Simulation workflow is usable and persistent.
+- Canonical GitHub Actions workflow only; no duplicate workflow files.
+- Python 3.10/3.11/3.12 core, geometry, benchmark, syntax, and package checks are required green.
+- Real FreeCAD runtime smoke must load the workbenches and exercise document operations.
+- GUI Xvfb scenario must exercise Pattern, Sewing, and Simulation workbench activation, toolbars, task panels, seam/simulation objects, and screenshot artifacts.
+- Final supervisor check includes repository diff/status, open PR/issue audit, save/reload coverage, and release documentation.
+
+## Final state
+
+All required implementation PRs have been reviewed and integrated or explicitly superseded. Closed PRs that were stale/redundant were not merged. CI evidence is retained in the canonical workflow artifacts.
