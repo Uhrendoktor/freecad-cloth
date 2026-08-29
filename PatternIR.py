@@ -330,8 +330,6 @@ def _order_sketch_boundary(boundaries: Sequence[BoundaryIR], piece_id: str) -> T
 
     start_index = min(range(len(boundaries)), key=lambda index: (boundaries[index].id, index))
     start_a, start_b = edge_vertices[start_index]
-    next_a = next(index for index in adjacency[start_index] if index != start_index)
-    next_b = next(index for index in adjacency[start_index] if index != start_index)
     next_a = _next_edge_at_vertex(start_a, start_index, adjacency, edge_vertices)
     next_b = _next_edge_at_vertex(start_b, start_index, adjacency, edge_vertices)
     start_vertex, current_vertex = (
@@ -348,6 +346,11 @@ def _order_sketch_boundary(boundaries: Sequence[BoundaryIR], piece_id: str) -> T
 
     while len(visited) < len(boundaries):
         candidates = [index for index in adjacency[current_edge] if index not in visited]
+        if not candidates:
+            raise ValueError(
+                f"Sketcher boundary is disconnected near {boundaries[current_edge].id}: "
+                "traversal cannot reach remaining edges"
+            )
         if len(candidates) != 1:
             raise ValueError(
                 f"Sketcher boundary is ambiguous while traversing from {boundaries[current_edge].id}"
