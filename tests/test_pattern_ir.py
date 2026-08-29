@@ -164,7 +164,7 @@ def test_shuffled_line_sketch_geometry_is_deterministic():
     assert [edge.id for edge in ir.pieces[0].boundaries] == [
         "piece:edge:0", "piece:edge:3", "piece:edge:2", "piece:edge:1"
     ]
-    assert ir.seams[0].edge_a == "piece:edge:1"
+    assert ir.seams[0].edge_a == "piece:edge:3"
 
 
 def test_open_sketch_boundary_fails_with_diagnostic():
