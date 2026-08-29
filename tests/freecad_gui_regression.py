@@ -30,6 +30,13 @@ def _flush():
     QtWidgets.QApplication.processEvents()
 
 
+def _register_workbenches():
+    """Load this checkout's InitGui module so the test is self-contained."""
+    namespace = {"__file__": os.path.join(ROOT, "InitGui.py"), "__name__": "__cloth_init_gui__"}
+    with open(namespace["__file__"], encoding="utf-8") as handle:
+        exec(compile(handle.read(), namespace["__file__"], "exec"), namespace, namespace)
+
+
 def _toolbar_for(workbench):
     main = Gui.getMainWindow()
     candidates = []
@@ -89,6 +96,7 @@ def _close_task():
 
 
 def run():
+    _register_workbenches()
     doc = App.newDocument("ClothGuiRegression")
     results = {}
     try:
@@ -110,7 +118,7 @@ def run():
         results["pattern"] = _capture("cloth-gui-pattern", "Cloth Pattern", panel)
         _close_task()
 
-        seam = add_seam()
+        add_seam()
         doc.recompute()
         operation = create_sewing_operation()
         Gui.activateWorkbench("Cloth Sewing")
