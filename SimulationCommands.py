@@ -4,6 +4,8 @@
 def create_simulation():
     import FreeCAD as App
     from SimulationQualityRuntimeV2 import create_quality_simulation_scene
+    from SimulationMeshQuality import install_quality_mesh_patch
+    install_quality_mesh_patch()
     doc = App.ActiveDocument or App.newDocument("ClothSimulation")
     return create_quality_simulation_scene(doc)
 

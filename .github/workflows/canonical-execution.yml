@@ -51,6 +51,7 @@ jobs:
           python tests/test_pattern_ir.py
           python tests/test_pattern_export_semantics.py
           python tests/test_sketch_authority.py
+          python tests/test_simulation_quality.py
       - name: Reference drape benchmark
         run: python tests/benchmark_drape.py
       - name: Upload reference drape benchmark
