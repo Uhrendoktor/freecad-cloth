@@ -1,11 +1,4 @@
-"""FreeCAD document objects for sewing operations.
-
-The FreeCAD object layer derives seam geometry from the semantic sewing
-outline stored on each PatternPiece.  When a native Shape exposes matching
-edges, those edges are sampled by arc length so curved/non-linear geometry is
-handled without changing the solver-facing seam contract.  Rectangle
-Width/Height remains a backwards-compatible fallback for older documents.
-"""
+"""FreeCAD document objects for sewing operations."""
 import ast
 from math import atan2, degrees, hypot
 
@@ -54,7 +47,6 @@ def _edge_polyline(piece, edge, sample_count=64):
                 return points
         except (AttributeError, TypeError, ValueError, RuntimeError):
             pass
-
     points = _outline_points(piece)
     if edge < 0 or edge >= len(points):
         raise ValueError(f"seam edge {edge} is outside the pattern boundary")
@@ -93,12 +85,24 @@ def _edge_length(piece, edge):
     return _polyline_length(points)
 
 
+def _seam_edge_index(piece, seam, prefix):
+    """Resolve the semantic edge id, falling back to legacy ordinal data."""
+    edge_id = str(getattr(seam, "EdgeAId" if prefix == "A" else "EdgeBId", "")).strip()
+    if edge_id:
+        from PatternObjects import _resolve_document_edge
+        signature = str(getattr(seam, "EdgeASignature" if prefix == "A" else "EdgeBSignature", ""))
+        record = _resolve_document_edge(piece, edge_id, signature)
+        return int(record["ordinal"])
+    return int(getattr(seam, "EdgeA" if prefix == "A" else "EdgeB"))
+
+
 def _seam_length(piece, seam, prefix):
     start = float(getattr(seam, "StartA" if prefix == "A" else "StartB"))
     end = float(getattr(seam, "EndA" if prefix == "A" else "EndB"))
     if not 0 <= start <= 1 or not 0 <= end <= 1 or start >= end:
         raise ValueError("seam parameters must be normalized with positive extent")
-    return _edge_length(piece, int(getattr(seam, "EdgeA" if prefix == "A" else "EdgeB"))) * (end - start)
+    edge = _seam_edge_index(piece, seam, prefix)
+    return _edge_length(piece, edge) * (end - start)
 
 
 def _edge_points(piece, edge, start=0.0, end=1.0, z=0.2):
@@ -113,6 +117,10 @@ def _edge_points(piece, edge, start=0.0, end=1.0, z=0.2):
     if placement is not None:
         return placement.multVec(local0), placement.multVec(local1)
     return local0, local1
+
+
+def _resolved_edge(piece, seam, prefix):
+    return _seam_edge_index(piece, seam, prefix)
 
 
 def _edge_samples(piece, edge, start, end, count, z=0.2):
@@ -134,8 +142,8 @@ def _edge_samples(piece, edge, start, end, count, z=0.2):
 def _alignment_placement(piece_a, piece_b, seam):
     """Return a Placement that moves B's seam onto A's seam endpoints."""
     import FreeCAD as App
-    a0, a1 = _edge_points(piece_a, seam.EdgeA, seam.StartA, seam.EndA)
-    b0, b1 = _edge_points(piece_b, seam.EdgeB, seam.StartB, seam.EndB)
+    a0, a1 = _edge_points(piece_a, _resolved_edge(piece_a, seam, "A"), seam.StartA, seam.EndA)
+    b0, b1 = _edge_points(piece_b, _resolved_edge(piece_b, seam, "B"), seam.StartB, seam.EndB)
     if bool(getattr(seam, "ReversedB", False)):
         b0, b1 = b1, b0
     avx, avy = a1.x - a0.x, a1.y - a0.y
@@ -152,27 +160,22 @@ def _alignment_placement(piece_a, piece_b, seam):
 
 
 def _seam_correspondence(piece_a, piece_b, seam, count, alignment="endpoints"):
-    """Build deterministic A/B stitch points from the same semantic seam.
-
-    ``endpoints`` pairs points by normalized position between the seam's two
-    endpoints.  ``uniform`` uses the same normalized fractions but samples
-    each native edge by arc length, which is important for curved edges.
-    """
+    """Build deterministic A/B stitch points from the same semantic seam."""
     if count < 2:
         raise ValueError("correspondence requires at least two samples")
     alignment = str(alignment or "endpoints")
     if alignment not in ("endpoints", "uniform"):
         raise ValueError(f"unsupported sewing alignment: {alignment}")
-
+    edge_a = _resolved_edge(piece_a, seam, "A")
+    edge_b = _resolved_edge(piece_b, seam, "B")
     if alignment == "endpoints":
-        a0, a1 = _edge_points(piece_a, seam.EdgeA, seam.StartA, seam.EndA)
-        b0, b1 = _edge_points(piece_b, seam.EdgeB, seam.StartB, seam.EndB)
+        a0, a1 = _edge_points(piece_a, edge_a, seam.StartA, seam.EndA)
+        b0, b1 = _edge_points(piece_b, edge_b, seam.StartB, seam.EndB)
         a_points = [a0 + (a1 - a0) * (i / float(count - 1)) for i in range(count)]
         b_points = [b0 + (b1 - b0) * (i / float(count - 1)) for i in range(count)]
     else:
-        a_points = _edge_samples(piece_a, seam.EdgeA, seam.StartA, seam.EndA, count)
-        b_points = _edge_samples(piece_b, seam.EdgeB, seam.StartB, seam.EndB, count)
-
+        a_points = _edge_samples(piece_a, edge_a, seam.StartA, seam.EndA, count)
+        b_points = _edge_samples(piece_b, edge_b, seam.StartB, seam.EndB, count)
     if bool(getattr(seam, "ReversedB", False)):
         b_points.reverse()
     return list(zip(a_points, b_points))
@@ -188,6 +191,14 @@ class SewingOperationProxy:
         piece_b = getattr(obj, "PieceB", None)
         if seam is None or piece_a is None or piece_b is None:
             obj.Status = "Incomplete"
+            obj.LengthA = obj.LengthB = obj.LengthDifference = 0.0
+            obj.StitchCount = 0
+            obj.StitchPoints = []
+            obj.Shape = Part.Shape()
+            return
+        seam_status = str(getattr(seam, "Status", "Valid"))
+        if seam_status != "Valid":
+            obj.Status = "Invalid seam: " + seam_status
             obj.LengthA = obj.LengthB = obj.LengthDifference = 0.0
             obj.StitchCount = 0
             obj.StitchPoints = []
@@ -210,8 +221,6 @@ class SewingOperationProxy:
         obj.StitchPoints = []
         for pa, pb in pairs:
             obj.StitchPoints.append(f"{pa.x:.6f},{pa.y:.6f},{pa.z:.6f}|{pb.x:.6f},{pb.y:.6f},{pb.z:.6f}")
-        a0, a1 = pairs[0][0], pairs[-1][0]
-        b0, b1 = pairs[0][1], pairs[-1][1]
         obj.Shape = Part.makeCompound([Part.makePolygon([p for p, _ in pairs]), Part.makePolygon([p for _, p in pairs])])
 
 
