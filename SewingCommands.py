@@ -43,6 +43,14 @@ def _selected_pattern_edges():
     return edges
 
 
+def _has_two_selected_pattern_edges():
+    try:
+        _selected_pattern_edges()
+        return True
+    except (ImportError, ValueError):
+        return False
+
+
 def create_seam_from_selection():
     """Create a persistent canonical seam from two selected pattern edges."""
     import FreeCAD as App
@@ -53,7 +61,12 @@ def create_seam_from_selection():
     if doc is None:
         raise ValueError("open a document before creating a seam")
     (piece_a, edge_a), (piece_b, edge_b) = _selected_pattern_edges()
-    prefix = "seam-%d" % (len(_seams(doc)) + 1)
+    existing_ids = {str(getattr(seam, "SeamId", "")) for seam in _seams(doc)}
+    index = len(existing_ids) + 1
+    prefix = "seam-%d" % index
+    while prefix in existing_ids:
+        index += 1
+        prefix = "seam-%d" % index
     seam_model = Seam(
         str(piece_a.PieceId), edge_a, str(piece_b.PieceId), edge_b, id=prefix
     )
@@ -221,7 +234,7 @@ try:
     import FreeCADGui as Gui
 
     _ACTIVATION = {
-        "ClothSewing_CreateSeam": lambda: _has_active_document(),
+        "ClothSewing_CreateSeam": lambda: _has_active_document() and _has_two_selected_pattern_edges(),
         "ClothSewing_CreateOperation": lambda: _has_active_document() and _has_selected_seam(),
         "ClothSewing_EditOperation": lambda: _has_active_document() and _has_selected_operation(),
         "ClothSewing_ReverseSeam": lambda: _has_active_document() and _has_selected_seam(),
