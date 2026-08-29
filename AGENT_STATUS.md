@@ -20,7 +20,7 @@
 - **#165** Architecture: FreeCAD-native Sketcher pattern authoring + semantic Cloth sewing layer — architecture documented; implementation follow-up must not duplicate the P0 audit.
 - **Workbench registration contract** — DONE on `agent/workbench-registration-contract-20260829`; PR #195; canonical CI run 33277240039 is terminal-green across Python 3.10/3.11/3.12, real FreeCAD smoke, and GUI/Xvfb screenshots. Awaiting supervisor integration decision.
 - **Workbench packaging contract follow-up** — IN PROGRESS on `agent/workbench-packaging-contract-20260830` (2026-08-30); isolated to headless packaging/metadata regression coverage, not P0 audit/simulation logic.
-- **#145 / agent/issue-145-quality-status-20260830** — IN PROGRESS (2026-08-30); focused on persisted Simulation status/invalid-state lifecycle and regression coverage for the existing quality preset contract.
+- **#145 / agent/issue-145-quality-status-20260830** — DONE (2026-08-30); PR #216, canonical CI run 33278729436 terminal-green across Python 3.10/3.11/3.12, real FreeCAD smoke, and GUI/Xvfb. Added persisted SimulationStatus lifecycle, input invalidation diagnostics, task-panel display, dependency-free regression coverage, and save/reload smoke.
 - **#207 / PR #207** — DONE (2026-08-30); Sewing workbench Show 2D now includes authoritative PatternPiece geometry while retaining seam/network inspection selection. Canonical run 33278391442 is terminal-green across Python 3.10/3.11/3.12, real FreeCAD smoke, and GUI/Xvfb.
 
 ## Coordination protocol
@@ -50,6 +50,7 @@ Research conclusion: CLO couples semantic sewing, avatar arrangement, simulation
 - Deterministic CPU cloth backend with stretch/shear/bending and self-collision.
 - Simulation-quality/fabric parameter contract and native quality task panel.
 - PR #192 native quality behavior, persistence and GUI validation merged.
+- #216 simulation status lifecycle: persisted Ready/Running/Complete/Invalid state, input invalidation messages, task-panel status display, and save/reload FreeCAD smoke.
 - P0-A canonical native E2E workflow integrated into main: public Pattern/Sewing/Simulation commands, 1:1 + M:N sewing, save/reload, upstream edit invalidation and explicit re-simulation.
 - Drape-scene command no longer performs implicit solver steps.
 - GUI quality-panel load now suppresses recompute storms while populating controls.
@@ -79,4 +80,4 @@ Research conclusion: CLO couples semantic sewing, avatar arrangement, simulation
 
 ## Current state
 
-Roadmap v3 is active. **P0-A and P0-B are integrated; the project is not release-complete.** P0-C is the next supervisor gate, followed by authoring parity and production export validation. PR #185 is superseded by the integrated mainline implementation; PR #192 is merged.
+Roadmap v3 is active. **P0-A and P0-B are integrated; the project is not release-complete.** P0-C is the next supervisor gate, followed by authoring parity and production export validation. PR #185 is superseded by the integrated mainline implementation; PR #192 is merged; PR #216 is validated and awaiting supervisor integration.
