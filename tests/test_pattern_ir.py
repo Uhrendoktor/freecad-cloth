@@ -132,6 +132,101 @@ def test_native_sketch_curve_kinds_are_preserved():
         assert boundary.samples[-1] == (10.0, 10.0, 0.0)
 
 
+def test_shuffled_sketch_geometry_resolves_by_endpoint_connectivity():
+    curve = ArcOfCircle((10, 0), (10, 10))
+    graph, _ = _sketch_graph(curve, "piece:curve")
+    shuffled = _Sketch([
+        LineSegment((10, 10), (0, 10)),
+        LineSegment((0, 0), (10, 0)),
+        curve,
+        LineSegment((0, 10), (0, 0)),
+    ], ["piece:edge:2", "piece:edge:0", "piece:curve", "piece:edge:3"])
+    ir = PatternIR.from_sketches(graph, {"piece": shuffled, "other": _other_sketch()})
+    assert [edge.id for edge in ir.pieces[0].boundaries] == [
+        "piece:curve", "piece:edge:2", "piece:edge:3", "piece:edge:0"
+    ]
+    assert ir.seams[0].edge_a == "piece:curve"
+    assert ir.boundary("piece", "piece:edge:2").samples[0] == (10.0, 10.0, 0.0)
+
+
+def test_shuffled_line_sketch_geometry_is_deterministic():
+    graph = SeamGraph()
+    graph.add_piece(PatternPiece("piece", [(0, 0), (10, 0), (10, 10), (0, 10)], id="piece"))
+    graph.add_piece(PatternPiece("other", [(0, 0), (10, 0), (10, 10), (0, 10)], id="other"))
+    sketch = _Sketch([
+        LineSegment((10, 10), (0, 10)),
+        LineSegment((0, 10), (0, 0)),
+        LineSegment((0, 0), (10, 0)),
+        LineSegment((10, 0), (10, 10)),
+    ], ["piece:edge:2", "piece:edge:3", "piece:edge:0", "piece:edge:1"])
+    graph.add_seam(Seam("piece", 1, "other", 0, id="seam"))
+    ir = PatternIR.from_sketches(graph, {"piece": sketch, "other": _other_sketch()})
+    assert [edge.id for edge in ir.pieces[0].boundaries] == [
+        "piece:edge:0", "piece:edge:1", "piece:edge:2", "piece:edge:3"
+    ]
+    assert ir.seams[0].edge_a == "piece:edge:1"
+
+
+def test_open_sketch_boundary_fails_with_diagnostic():
+    graph = SeamGraph()
+    graph.add_piece(PatternPiece("piece", [(0, 0), (10, 0), (10, 10)], id="piece"))
+    graph.add_piece(PatternPiece("other", [(0, 0), (10, 0), (10, 10), (0, 10)], id="other"))
+    sketch = _Sketch([
+        LineSegment((0, 0), (10, 0)),
+        LineSegment((10, 0), (10, 10)),
+        LineSegment((10, 10), (0, 10)),
+    ], ["piece:edge:0", "piece:edge:1", "piece:edge:2"])
+    try:
+        PatternIR.from_sketches(graph, {"piece": sketch, "other": _other_sketch()})
+    except ValueError as exc:
+        assert "open" in str(exc)
+        return
+    raise AssertionError("open Sketcher boundary was accepted")
+
+
+def test_ambiguous_sketch_boundary_fails_with_diagnostic():
+    graph = SeamGraph()
+    graph.add_piece(PatternPiece("piece", [(0, 0), (10, 0), (10, 10), (0, 10)], id="piece"))
+    graph.add_piece(PatternPiece("other", [(0, 0), (10, 0), (10, 10), (0, 10)], id="other"))
+    sketch = _Sketch([
+        LineSegment((0, 0), (10, 0)),
+        LineSegment((10, 0), (10, 10)),
+        LineSegment((10, 10), (0, 10)),
+        LineSegment((0, 10), (0, 0)),
+        LineSegment((0, 0), (10, 10)),
+    ], [
+        "piece:edge:0", "piece:edge:1", "piece:edge:2", "piece:edge:3", "piece:diagonal"
+    ])
+    try:
+        PatternIR.from_sketches(graph, {"piece": sketch, "other": _other_sketch()})
+    except ValueError as exc:
+        assert "ambiguous" in str(exc)
+        return
+    raise AssertionError("ambiguous Sketcher boundary was accepted")
+
+
+def test_disconnected_sketch_boundaries_fail_with_diagnostic():
+    graph = SeamGraph()
+    graph.add_piece(PatternPiece("piece", [(0, 0), (10, 0), (10, 10), (0, 10)], id="piece"))
+    graph.add_piece(PatternPiece("other", [(0, 0), (10, 0), (10, 10), (0, 10)], id="other"))
+    sketch = _Sketch([
+        LineSegment((0, 0), (1, 0)),
+        LineSegment((1, 0), (0.5, 1)),
+        LineSegment((0.5, 1), (0, 0)),
+        LineSegment((20, 0), (21, 0)),
+        LineSegment((21, 0), (20.5, 1)),
+        LineSegment((20.5, 1), (20, 0)),
+    ], [
+        "piece:a", "piece:b", "piece:c", "piece:d", "piece:e", "piece:f"
+    ])
+    try:
+        PatternIR.from_sketches(graph, {"piece": sketch, "other": _other_sketch()})
+    except ValueError as exc:
+        assert "open" not in str(exc) or "disconnected" in str(exc)
+        return
+    raise AssertionError("disconnected Sketcher boundaries were accepted")
+
+
 def test_sketch_semantic_ids_survive_raw_integer_seam_resolution():
     curve = ArcOfCircle((10, 0), (10, 10))
     graph = SeamGraph()
