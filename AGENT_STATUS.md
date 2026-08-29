@@ -16,7 +16,7 @@
 - **#147 / #163** P1 production 2D export — queued behind P0; current metadata work is a foundation, not completion.
 - **#162** P1 pattern authoring parity audit — queued; research-driven audit of curved authoring, constraints, marks, offsets and semantic preservation.
 - **#148** P2 optional native solver benchmark — explicitly non-blocking.
-- **#165** Architecture: FreeCAD-native Sketcher pattern authoring + semantic Cloth sewing layer — architecture documented; implementation follow-up should be coordinated with the supervisor and must not duplicate the P0 audit.
+- **#165** Architecture: FreeCAD-native Sketcher pattern authoring + semantic Cloth sewing layer — architecture documented; PR #169 integrates semantic seam references into the native sewing object layer.
 
 Issues #144 and #146 are completed. Do not close parent issues merely because a branch, PR, or unit test is green.
 
@@ -59,6 +59,16 @@ Research confirms that CLO/Marvelous Designer make semantic sewing, particle-dis
 - Persistent state changes require save/reload tests.
 - Simulation changes require deterministic evidence.
 - UI changes require real FreeCAD/Xvfb coverage.
+
+## Contribution coordination
+
+- Before editing, claim one issue/subtask in an issue comment and record the intended files or architectural boundary.
+- Use a unique `agent/<issue>-<scope>-<date>` branch; never reuse another agent's active branch.
+- If a task depends on an existing PR, use a stacked branch/PR. Do not edit the dependency branch unless its owner explicitly hands it off.
+- Keep implementation slices narrow enough to review independently; prefer native FreeCAD objects/properties and document links over parallel state stores.
+- Every persistent relationship must have a save/reload assertion. Every invalidation change must have an upstream-edit regression. GUI-facing changes require real FreeCAD/Xvfb coverage.
+- Before handoff, post the branch/PR, files changed, tests run, CI run IDs, and known follow-up blockers in the issue thread.
+- A green child PR does not close a parent architecture issue; update the task board only after the supervisor verifies integration on mainline.
 
 ## Current state
 
