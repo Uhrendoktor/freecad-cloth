@@ -37,7 +37,6 @@ except Exception:
 
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 os.makedirs(OUT, exist_ok=True)
-EVENT_LOOP = QtCore.QEventLoop()
 
 
 def run_scenario():
@@ -94,15 +93,10 @@ def run_scenario():
         if doc is not None and doc.Name in App.listDocuments():
             App.closeDocument(doc.Name)
             progress("document-closed")
-        main_window = Gui.getMainWindow()
-        if main_window is not None:
-            main_window.close()
-            progress("main-window-closed")
-        EVENT_LOOP.quit()
-        QtCore.QCoreApplication.quit()
 
 
-QtCore.QTimer.singleShot(0, run_scenario)
-progress("enter-event-loop")
-EVENT_LOOP.exec()
+# FreeCAD executes an FCMacro from its existing Qt application.  Run the
+# scenario directly; starting a nested QEventLoop is incompatible with the
+# PySide2 API shipped by FreeCAD 1.0 (which exposes exec_(), not exec()).
+run_scenario()
 progress("script-end")
