@@ -1,3 +1,4 @@
+# Temporary audit runner; removed after the fix commit lands.
 name: audit-fix-avatar-skin-offset
 on:
   push:
