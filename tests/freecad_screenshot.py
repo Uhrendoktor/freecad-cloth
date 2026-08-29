@@ -1,11 +1,23 @@
 """Deterministic GUI documentation scenario; run under Xvfb with FreeCAD."""
 import os
+import sys
+
 import FreeCAD as App
 import FreeCADGui as Gui
 try:
     from PySide import QtCore, QtWidgets
 except ImportError:
     from PySide2 import QtCore, QtWidgets
+
+# The GUI launcher executes this file through a temporary .FCMacro.  In that
+# mode Python's import path is based on the macro location (/tmp), not the
+# checked-out workbench directory.  The workflow deliberately runs from the
+# repository root, so make that location explicit before importing workbench
+# modules.  This also keeps the scenario runnable from a normal FreeCAD macro
+# invocation without relying on the caller to set PYTHONPATH.
+REPO_ROOT = os.getcwd()
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
 
 from PatternCommands import create_pattern_piece_from_parameters
 from SimulationObjects import create_drape_scene
