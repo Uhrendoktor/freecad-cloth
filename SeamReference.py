@@ -11,7 +11,7 @@ headless tests without importing the GUI runtime.
 from dataclasses import dataclass
 import hashlib
 import json
-from typing import Iterable, Mapping, Optional, Sequence, Tuple
+from typing import Iterable, Mapping, Sequence, Tuple
 
 Point = Tuple[float, float]
 
