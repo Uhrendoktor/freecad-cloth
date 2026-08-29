@@ -14,7 +14,7 @@ Open-source FreeCAD workbenches for parametric sewing-pattern design and 3D clot
 4. Generate simulation meshes and run the solver through the backend adapter in **Cloth Simulation**.
 5. Inspect fit, revise the pattern, and repeat.
 
-The **Cloth Pattern** workbench creates native, recomputable `Part::FeaturePython` pattern pieces. Width, height, seam allowance and grainline angle are exposed as FreeCAD properties; changing the dimensions regenerates the deterministic pattern boundary. Pattern pieces and seams carry stable semantic IDs and sewing metadata. A native Sketcher representation is available through the Cloth Pattern command while the semantic pattern model remains authoritative.
+The **Cloth Pattern** workbench creates native, recomputable `Part::FeaturePython` pattern pieces. Width, height, seam allowance and grainline angle are exposed as FreeCAD properties; changing the dimensions regenerates the deterministic pattern boundary. Pattern pieces and seams carry stable semantic IDs and sewing metadata. A native Sketcher representation is available through the Cloth Pattern command while the semantic pattern model remains authoritative. Context-sensitive mark commands (Notch, Grainline and Internal Mark) are enabled when a pattern piece is selected.
 
 The FreeCAD-independent geometry/model layers remain suitable for headless tests and downstream simulation. The pattern model is authoritative; simulation meshes are regenerated from it rather than becoming a second source of truth.
 
