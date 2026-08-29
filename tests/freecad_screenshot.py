@@ -26,8 +26,10 @@ def progress(message):
 
 progress("script-start")
 try:
-    import InitGui
-    progress("workbench-module-loaded")
+    # Do not execute InitGui.py here. FreeCAD loads workbenches during normal
+    # startup, while executing it manually from an FCMacro invokes the
+    # addWorkbench binding in a different initialization state. The screenshot
+    # scenario tests the actual pattern/simulation APIs directly.
     from PatternCommands import create_pattern_piece_from_parameters
     progress("pattern-import-ok")
     from SimulationObjects import create_drape_scene
@@ -57,9 +59,6 @@ def run_scenario():
 
         doc = App.newDocument("ClothDocumentation")
         progress("document-created")
-        # Exercise the pattern/simulation APIs directly. Workbench activation by
-        # name is intentionally avoided: when InitGui.py is executed manually
-        # from an FCMacro, FreeCAD 1.0 does not reliably expose those registrations.
         create_pattern_piece_from_parameters("Front", 140.0, 90.0, 10.0, 0.0)
         back = create_pattern_piece_from_parameters("Back", 140.0, 90.0, 10.0, 0.0)
         back.Placement.Base.x = 170.0
