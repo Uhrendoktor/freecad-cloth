@@ -11,6 +11,12 @@ def lengths(mapping):
     return lambda piece, edge: mapping[(piece, edge)]
 
 
+class _SeamStatus:
+    def __init__(self, seam_id, status):
+        self.SeamId = seam_id
+        self.Status = status
+
+
 class SewingNetworkTests(unittest.TestCase):
     def test_two_to_one_partitions_long_edge_deterministically(self):
         seams = build_mn_seams(
@@ -68,18 +74,14 @@ class SewingNetworkTests(unittest.TestCase):
             )
 
     def test_invalid_member_status_is_deterministic_and_user_visible(self):
-        seam = Seam("A", 0, "B", 0, id="rel-1-1-1")
-        seam.StitchGroup = "rel-1"
-        seam.Status = "Changed reference"
+        seam = _SeamStatus("rel-1-1-1", "Changed reference")
         self.assertEqual(
             network_invalid_reason([seam]),
             "Invalid member seam(s): rel-1-1-1: Changed reference",
         )
 
     def test_all_valid_member_statuses_have_no_invalid_reason(self):
-        seam = Seam("A", 0, "B", 0, id="rel-1-1-1")
-        seam.StitchGroup = "rel-1"
-        seam.Status = "Valid"
+        seam = _SeamStatus("rel-1-1-1", "Valid")
         self.assertEqual(network_invalid_reason([seam]), "")
 
 
