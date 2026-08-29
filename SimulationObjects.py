@@ -74,6 +74,70 @@ def _outline_points(piece):
     return [(0.0, 0.0), (width, 0.0), (width, height), (0.0, height)]
 
 
+def _placement_signature(piece):
+    placement = getattr(piece, "Placement", None)
+    if placement is None:
+        return ()
+    base = getattr(placement, "Base", None)
+    rotation = getattr(placement, "Rotation", None)
+    axis = getattr(rotation, "Axis", None) if rotation is not None else None
+    return (
+        float(getattr(base, "x", 0.0)),
+        float(getattr(base, "y", 0.0)),
+        float(getattr(base, "z", 0.0)),
+        float(getattr(rotation, "Angle", 0.0)) if rotation is not None else 0.0,
+        float(getattr(axis, "x", 0.0)) if axis is not None else 0.0,
+        float(getattr(axis, "y", 0.0)) if axis is not None else 0.0,
+        float(getattr(axis, "z", 1.0)) if axis is not None else 1.0,
+    )
+
+
+def _simulation_source_signature(obj, pieces):
+    """Return deterministic inputs that require rebuilding the cloth scene.
+
+    Pattern identity alone is insufficient: changing an outline, placement,
+    seam topology, stitch range, or collision source must invalidate the
+    solver scene so the FreeCAD document remains the source of truth.
+    """
+    piece_ids = {str(getattr(piece, "PieceId", "")) for piece in pieces}
+    piece_signature = tuple(
+        (
+            str(getattr(piece, "Name", "")),
+            str(getattr(piece, "PieceId", "")),
+            str(getattr(piece, "SewingOutline", "")),
+            str(getattr(piece, "DraftingBoundary", "")),
+            _placement_signature(piece),
+        )
+        for piece in pieces
+    )
+    seam_signature = tuple(sorted(
+        (
+            str(getattr(seam, "SeamId", "")),
+            str(getattr(seam, "PieceA", "")),
+            int(getattr(seam, "EdgeA", 0)),
+            float(getattr(seam, "StartA", 0.0)),
+            float(getattr(seam, "EndA", 1.0)),
+            str(getattr(seam, "PieceB", "")),
+            int(getattr(seam, "EdgeB", 0)),
+            float(getattr(seam, "StartB", 0.0)),
+            float(getattr(seam, "EndB", 1.0)),
+            bool(getattr(seam, "ReversedB", False)),
+        )
+        for seam in getattr(getattr(obj, "Document", None), "Objects", ())
+        if getattr(seam, "SeamId", "")
+        and (str(getattr(seam, "PieceA", "")) in piece_ids or str(getattr(seam, "PieceB", "")) in piece_ids)
+    ))
+    avatar = getattr(obj, "AvatarProxy", None)
+    source = getattr(avatar, "SourceObject", None) if avatar is not None else None
+    avatar_signature = (
+        str(getattr(avatar, "Name", "")),
+        str(getattr(source, "Name", "")),
+        float(getattr(avatar, "CollisionDeflection", 0.0)) if avatar is not None else 0.0,
+        float(getattr(avatar, "CollisionThickness", 0.0)) if avatar is not None else 0.0,
+    )
+    return piece_signature, seam_signature, avatar_signature, int(getattr(obj, "StitchSamples", 8))
+
+
 def _piece_mesh(piece, start_height):
     from PatternGeometry import LineSegment, ParametricPattern
     from PatternMesh import triangulate
@@ -157,7 +221,7 @@ class SimulationProxy:
 
     def execute(self, obj):
         pieces = [p for p in getattr(obj, "ClothPieces", ()) if getattr(p, "PatternType", "") == "PatternPiece"]
-        signature = tuple((getattr(p, "Name", ""), getattr(p, "PieceId", "")) for p in pieces)
+        signature = _simulation_source_signature(obj, pieces)
         if self.backend is None or signature != self.source_signature or int(obj.Steps) < self.last_steps:
             self._build(obj, signature)
         steps = int(obj.Steps)
@@ -223,7 +287,7 @@ class SimulationProxy:
             data = panel_data[piece]
             self.panel_indices[panel.Name] = tuple(range(data["offset"], data["offset"] + data["vertex_count"]))
             self.panel_triangles[panel.Name] = data["triangles"]
-        self.source_signature = signature or tuple((p.Name, p.PieceId) for p in pieces)
+        self.source_signature = signature or _simulation_source_signature(obj, pieces)
         self.last_steps = 0
         self.collision_surface = None
         avatar = getattr(obj, "AvatarProxy", None)
