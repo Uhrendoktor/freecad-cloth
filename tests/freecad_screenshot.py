@@ -41,28 +41,33 @@ def _dock_state():
             if dock.isVisible()]
 
 
-def activate_workbench(name, expected_commands):
+def activate_workbench(internal_name, toolbar_name, expected_commands):
     """Activate a real workbench and verify its toolbar/actions are visible."""
-    Gui.activateWorkbench(name)
+    available = Gui.listWorkbenches()
+    progress("workbenches=%s" % ",".join(sorted(available.keys())))
+    if internal_name not in available:
+        raise RuntimeError("FreeCAD workbench is not registered: %s" % internal_name)
+    Gui.activateWorkbench(internal_name)
     Gui.updateGui()
     main_window = Gui.getMainWindow()
     if main_window is None:
         raise RuntimeError("FreeCAD main window is unavailable")
     # FreeCAD may restore a toolbar as hidden from a previous session. Make the
-    # workbench toolbar explicit so CI captures the actual workbench UI.
+    # target workbench toolbar explicit so CI captures the actual workbench UI.
     for toolbar in main_window.findChildren(QtWidgets.QToolBar):
-        if toolbar.windowTitle() == name:
+        if toolbar.windowTitle() == toolbar_name:
             toolbar.show()
             toolbar.raise_()
     Gui.updateGui()
     toolbars = _toolbar_names()
-    missing = [command for command in expected_commands if not Gui.listCommands().count(command)]
-    progress("workbench=%s active=%s toolbars=%s missing_commands=%s docks=%s" % (
-        name, Gui.activeWorkbench().name(), ",".join(toolbars), ",".join(missing), ",".join(_dock_state())))
-    if Gui.activeWorkbench().name() != name:
-        raise RuntimeError("failed to activate workbench %s" % name)
-    if name not in toolbars:
-        raise RuntimeError("visible toolbar missing for workbench %s" % name)
+    missing = [command for command in expected_commands if command not in Gui.listCommands()]
+    active = Gui.activeWorkbench().name()
+    progress("workbench=%s active=%s toolbar=%s visible_toolbars=%s missing_commands=%s docks=%s" % (
+        internal_name, active, toolbar_name, ",".join(toolbars), ",".join(missing), ",".join(_dock_state())))
+    if active != internal_name:
+        raise RuntimeError("failed to activate workbench %s (active=%s)" % (internal_name, active))
+    if toolbar_name not in toolbars:
+        raise RuntimeError("visible toolbar missing for workbench %s" % toolbar_name)
     if missing:
         raise RuntimeError("expected GUI commands are not registered: %s" % ", ".join(missing))
 
@@ -106,7 +111,6 @@ except Exception:
 
 def run_scenario():
     doc = None
-    panels = []
     try:
         progress("scenario-start")
         main_window = Gui.getMainWindow()
@@ -125,11 +129,8 @@ def run_scenario():
         doc.recompute()
         progress("pattern-created pieces=2")
 
-        # Pattern Design: the drafting task panel is shown beside the real 3D
-        # pattern, making the screenshot useful for both UI and visual QA.
-        activate_workbench("Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D"])
+        activate_workbench("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D"])
         panel = PatternDraftingTaskPanel(front)
-        panels.append(panel)
         show_task(panel, "Pattern Design")
         Gui.activeDocument().activeView().viewTop()
         Gui.activeDocument().activeView().fitAll()
@@ -137,9 +138,6 @@ def run_scenario():
         Gui.Control.closeDialog()
         progress("pattern-task-closed")
 
-        # Sewing: create the persisted semantic seam, then open the actual
-        # sewing editor. The operation and stitch correspondence are visible in
-        # the viewport while the task panel exposes validation/stitch controls.
         seam = add_seam(doc, Seam(
             piece_a=str(front.PieceId), edge_a=1,
             piece_b=str(back.PieceId), edge_b=3,
@@ -150,11 +148,10 @@ def run_scenario():
         sewing = create_sewing_operation()
         doc.recompute()
         progress("sewing-created status=%s stitches=%s" % (sewing.Status, sewing.StitchCount))
-        activate_workbench("Cloth Sewing", ["ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_Validate"])
+        activate_workbench("ClothSewingWorkbench", "Cloth Sewing", ["ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_Validate"])
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(sewing)
         panel = SewingTaskPanel(sewing)
-        panels.append(panel)
         show_task(panel, "Sewing")
         Gui.activeDocument().activeView().viewTop()
         Gui.activeDocument().activeView().fitAll()
@@ -162,15 +159,12 @@ def run_scenario():
         Gui.Control.closeDialog()
         progress("sewing-task-closed")
 
-        # Simulation: use the real scene and controls, then leave the task
-        # panel visible while the rendered scene is captured.
         scene = create_simulation_scene(doc)
         step_scene(scene, 1)
         doc.recompute()
         progress("simulation-created particles=%s steps=%s" % (scene.ParticleCount, scene.Steps))
-        activate_workbench("Cloth Simulation", ["ClothSimulation_Edit"])
+        activate_workbench("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
         panel = SimulationTaskPanel(scene)
-        panels.append(panel)
         show_task(panel, "Simulation")
         Gui.activeDocument().activeView().viewAxonometric()
         Gui.activeDocument().activeView().fitAll()
