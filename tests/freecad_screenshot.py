@@ -52,8 +52,6 @@ def activate_workbench(internal_name, toolbar_name, expected_commands):
     main_window = Gui.getMainWindow()
     if main_window is None:
         raise RuntimeError("FreeCAD main window is unavailable")
-    # FreeCAD may restore a toolbar as hidden from a previous session. Make the
-    # target workbench toolbar explicit so CI captures the actual workbench UI.
     for toolbar in main_window.findChildren(QtWidgets.QToolBar):
         if toolbar.windowTitle() == toolbar_name:
             toolbar.show()
@@ -76,9 +74,9 @@ def show_task(panel, state_name):
     Gui.Control.showDialog(panel)
     Gui.updateGui()
     QtWidgets.QApplication.processEvents()
-    progress("task-panel=%s visible=%s docks=%s" % (
-        state_name, bool(getattr(panel, "form", None) and panel.form.isVisible()), ",".join(_dock_state())))
-    if not getattr(panel, "form", None) or not panel.form.isVisible():
+    visible = bool(getattr(panel, "form", None) and panel.form.isVisible())
+    progress("task-panel=%s visible=%s docks=%s" % (state_name, visible, ",".join(_dock_state())))
+    if not visible:
         raise RuntimeError("task panel did not become visible for %s" % state_name)
 
 
@@ -94,6 +92,11 @@ def save_view(filename, view="Current"):
 
 progress("script-start")
 try:
+    # FreeCAD does not auto-discover this repository's InitGui.py when started
+    # from the test checkout. Load it explicitly so the screenshots exercise
+    # the same workbenches users see after installing the workbench.
+    init_gui = os.path.join(REPO_ROOT, "InitGui.py")
+    exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
     from PatternCommands import create_pattern_piece_from_parameters
     from PatternModel import Seam
     from PatternObjects import add_seam
@@ -185,9 +188,6 @@ def run_scenario():
             progress("document-closed")
 
 
-# FreeCAD executes an FCMacro from its existing GUI application. Run the
-# scenario directly, then close the existing main window so the CLI process
-# terminates after the screenshots have been written.
 run_scenario()
 progress("script-end")
 main_window = Gui.getMainWindow()
