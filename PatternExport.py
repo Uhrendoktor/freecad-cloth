@@ -21,7 +21,9 @@ def _metadata(pattern, units, piece_id="", seam_ids=(), derived=None):
     seam_ids = tuple(str(value) for value in seam_ids if str(value))
     if seam_ids:
         data["seam_ids"] = list(dict.fromkeys(seam_ids))
-    if derived is not None:
+    # Keep the v1 legacy payload byte-for-byte compatible unless the caller
+    # opts into the semantic export contract with a piece or seam identity.
+    if derived is not None and (piece_id or seam_ids):
         data["notch_ids"] = [str(value.id) for value in derived.notches]
         data["mark_ids"] = [str(value.id) for value in derived.marks]
     return data
