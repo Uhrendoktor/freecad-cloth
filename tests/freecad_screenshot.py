@@ -4,10 +4,6 @@ import sys
 
 import FreeCAD as App
 import FreeCADGui as Gui
-try:
-    from PySide import QtCore, QtWidgets
-except ImportError:
-    from PySide2 import QtCore, QtWidgets
 
 REPO_ROOT = "/workspace"
 if REPO_ROOT not in sys.path:
@@ -55,14 +51,11 @@ def run_scenario():
     finally:
         if doc is not None and doc.Name in App.listDocuments():
             App.closeDocument(doc.Name)
-        # The script is executed before FreeCAD's normal Qt event loop.  Do
-        # not start a nested QApplication loop.  Queue quit so FreeCAD's own
-        # event loop runs the scenario and then exits normally.
-        app = QtWidgets.QApplication.instance()
-        if app is not None:
-            QtCore.QTimer.singleShot(0, app.quit)
+        main_window = Gui.getMainWindow()
+        if main_window is not None:
+            main_window.close()
 
 
-# FreeCAD owns the QApplication and its main event loop.  Queue the work so
-# that GUI objects and view rendering are handled by that existing loop.
-QtCore.QTimer.singleShot(0, run_scenario)
+# A .FCMacro is evaluated by the existing GUI application's main thread.
+# Keep the scenario synchronous; do not create a second Qt event loop.
+run_scenario()
