@@ -2,6 +2,7 @@
 import json
 from html import escape
 from math import cos, radians, sin
+from xml.etree import ElementTree
 from PatternDerivedGeometry import DerivedPattern, mark_point, notch_point
 from PatternGeometry import ParametricPattern
 
@@ -87,3 +88,38 @@ def from_dxf_metadata(dxf: str) -> dict:
     payload=dxf.split(marker,1)[1].split("\n0\nENDSEC",1)[0].strip(); data=json.loads(payload)
     if data.get("version") != 1 or not data.get("edge_ids"): raise ValueError("unsupported or incomplete cloth-pattern metadata")
     return data
+
+
+def from_svg_metadata(svg: str) -> dict:
+    """Read the semantic metadata embedded by :func:`to_svg`."""
+    try:
+        root=ElementTree.fromstring(svg)
+    except ElementTree.ParseError as exc:
+        raise ValueError("SVG is not well-formed XML") from exc
+    metadata=next((child for child in root if child.tag.rsplit("}",1)[-1] == "metadata"), None)
+    if metadata is None or not (metadata.text or "").strip():
+        raise ValueError("SVG does not contain cloth-pattern metadata")
+    try:
+        data=json.loads(metadata.text)
+    except json.JSONDecodeError as exc:
+        raise ValueError("SVG contains invalid cloth-pattern metadata") from exc
+    if data.get("version") != 1 or not data.get("edge_ids"):
+        raise ValueError("unsupported or incomplete cloth-pattern metadata")
+    return data
+
+
+def validate_export(pattern: ParametricPattern, exported: str, format: str, curve_samples: int = 32, units: str = "mm", derived: DerivedPattern | None = None, piece_id: str = "", seam_ids=()) -> dict:
+    """Validate an export against its authoritative pattern model.
+
+    The exporter is deterministic, so byte equality with a freshly generated
+    artifact is an intentional release-gate check: geometry, units, edge IDs,
+    piece/seam identity and construction-mark metadata cannot drift silently.
+    """
+    normalized_format=str(format).strip().lower()
+    if normalized_format not in {"svg", "dxf"}:
+        raise ValueError("format must be 'svg' or 'dxf'")
+    expected = to_svg(pattern, curve_samples, units, derived, piece_id, seam_ids) if normalized_format == "svg" else to_dxf(pattern, curve_samples, units, derived, piece_id, seam_ids)
+    if exported != expected:
+        raise ValueError("export does not match the deterministic authoritative pattern output")
+    metadata = from_svg_metadata(exported) if normalized_format == "svg" else from_dxf_metadata(exported)
+    return {"format": normalized_format, "valid": True, "metadata": metadata}
