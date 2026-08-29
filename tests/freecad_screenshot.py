@@ -96,7 +96,12 @@ def run_scenario():
 
 
 # FreeCAD executes an FCMacro from its existing GUI application.  Run the
-# scenario directly, then quit that application so the CLI process exits.
+# scenario directly, then close the existing main window.  Closing the main
+# window is the supported way to terminate a GUI FreeCAD macro invocation;
+# calling QCoreApplication.quit() before the event loop starts is ineffective.
 run_scenario()
 progress("script-end")
-QtCore.QCoreApplication.quit()
+main_window = Gui.getMainWindow()
+if main_window is not None:
+    main_window.close()
+    progress("main-window-closed")
