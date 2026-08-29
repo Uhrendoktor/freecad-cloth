@@ -95,8 +95,8 @@ try:
     from PatternGui import PatternDraftingTaskPanel
     from SewingCommands import create_sewing_operation
     from SewingGui import SewingTaskPanel
-    from SimulationObjects import create_simulation_scene, step_scene
-    from SimulationGui import SimulationTaskPanel
+    from SimulationQualityRuntimeV2 import create_quality_simulation_scene
+    from SimulationQualityGui import SimulationQualityTaskPanel
     progress("gui-modules-import-ok")
 except Exception:
     progress("import-error")
@@ -138,11 +138,14 @@ def run_scenario():
         save_view("cloth-sewing.png", "Current")
         Gui.Control.closeDialog()
 
-        scene = create_simulation_scene(doc)
-        step_scene(scene, 1); doc.recompute()
-        progress("simulation-created particles=%s steps=%s" % (scene.ParticleCount, scene.Steps))
+        scene = create_quality_simulation_scene(doc)
+        scene.ClothPieces = []
+        scene.Steps = 1
+        doc.recompute()
+        progress("simulation-quality-created preset=%s particles=%s steps=%s" % (
+            scene.QualityPreset, scene.ParticleCount, scene.Steps))
         activate_workbench("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
-        show_task(SimulationTaskPanel(scene), "Simulation")
+        show_task(SimulationQualityTaskPanel(scene), "Simulation Quality")
         Gui.activeDocument().activeView().viewAxonometric(); Gui.activeDocument().activeView().fitAll()
         save_view("cloth-simulation.png", "Current")
         progress("scenario-complete")
