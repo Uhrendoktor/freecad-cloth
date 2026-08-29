@@ -6,10 +6,10 @@ piece/edge/seam contracts.
 """
 from dataclasses import dataclass, field
 from math import hypot
-from typing import Dict, Iterable, Mapping, Sequence, Tuple
+from typing import Mapping, Tuple
 
 from PatternGeometry import LineSegment, ParametricPattern, QuadraticBezier
-from PatternModel import PatternPiece, Seam
+from PatternModel import PatternPiece
 from SeamGraph import SeamGraph
 
 Point3 = Tuple[float, float, float]
@@ -21,7 +21,7 @@ class BoundaryIR:
 
     ``samples`` is a derived representation for consumers that need points.
     ``control_points`` and ``curve_type`` preserve the source curve contract so
-    sampling never becomes the authoritative geometry.  Native adapters can
+    sampling never becomes the authoritative geometry. Native adapters can
     add richer curve types (arc, BSpline, Bezier, ...) without changing seam
     references or downstream solver APIs.
     """
@@ -162,12 +162,16 @@ class PatternIR:
         are immediately converted to semantic boundary IDs. String refs must
         already identify a boundary. Thus downstream code never needs to
         interpret fragile ``EdgeN`` topology numbers.
+
+        Piece and seam ordering is normalized by semantic ID so equivalent
+        graphs produce byte-for-byte-equivalent tuple ordering regardless of
+        dictionary insertion order.
         """
         graph.validate()
         geometries = geometries or {}
         materials = materials or {}
         pieces = []
-        for piece in graph.pieces.values():
+        for piece in sorted(graph.pieces.values(), key=lambda value: value.id):
             geometry = geometries.get(piece.id)
             if geometry is None:
                 geometry = _line_geometry(piece)
@@ -183,7 +187,7 @@ class PatternIR:
             )
         piece_map = {piece.id: piece for piece in pieces}
         seams = []
-        for pair in graph.seams.values():
+        for pair in sorted(graph.seams.values(), key=lambda value: value.seam.id):
             seam = pair.seam
             edge_a = _resolve_edge(seam.edge_a, piece_map[seam.piece_a])
             edge_b = _resolve_edge(seam.edge_b, piece_map[seam.piece_b])
