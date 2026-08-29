@@ -98,17 +98,23 @@ def add_seam(doc, seam: Seam):
     obj.addProperty("App::PropertyFloat", "StartB", "Seam").StartB = seam.start_b
     obj.addProperty("App::PropertyFloat", "EndB", "Seam").EndB = seam.end_b
     obj.addProperty("App::PropertyBool", "ReversedB", "Seam").ReversedB = seam.reversed_b
+    obj.addProperty("App::PropertyEnumeration", "Alignment", "Seam").Alignment = ["endpoints", "uniform"]
+    obj.Alignment = seam.alignment
+    obj.addProperty("App::PropertyString", "StitchGroup", "Seam").StitchGroup = seam.stitch_group or seam.id
+    obj.addProperty("App::PropertyEnumeration", "Kind", "Seam").Kind = ["plain", "dart", "gather", "pleat", "hem", "fold", "closure"]
+    obj.Kind = seam.kind
     if piece_a is not None and piece_b is not None:
         import FreeCAD as App
         import Part
         points_a, points_b = _parse_points(piece_a.SewingOutline), _parse_points(piece_b.SewingOutline)
-        if seam.edge_a < len(points_a) and seam.edge_b < len(points_b):
+        if isinstance(seam.edge_a, int) and isinstance(seam.edge_b, int) and seam.edge_a < len(points_a) and seam.edge_b < len(points_b):
             aa, ab = points_a[seam.edge_a], points_a[(seam.edge_a + 1) % len(points_a)]
             bb, bc = points_b[seam.edge_b], points_b[(seam.edge_b + 1) % len(points_b)]
             pa0 = App.Vector(aa[0] + (ab[0] - aa[0]) * seam.start_a, aa[1] + (ab[1] - aa[1]) * seam.start_a, 0.4)
             pa1 = App.Vector(aa[0] + (ab[0] - aa[0]) * seam.end_a, aa[1] + (ab[1] - aa[1]) * seam.end_a, 0.4)
             pb0 = App.Vector(bb[0] + (bc[0] - bb[0]) * seam.start_b, bb[1] + (bc[1] - bb[1]) * seam.start_b, 0.4)
             pb1 = App.Vector(bb[0] + (bc[0] - bb[0]) * seam.end_b, bb[1] + (bc[1] - bb[1]) * seam.end_b, 0.4)
+            if seam.reversed_b: pb0, pb1 = pb1, pb0
             if getattr(piece_a, "Placement", None) is not None: pa0, pa1 = piece_a.Placement.multVec(pa0), piece_a.Placement.multVec(pa1)
             if getattr(piece_b, "Placement", None) is not None: pb0, pb1 = piece_b.Placement.multVec(pb0), piece_b.Placement.multVec(pb1)
             obj.Shape = Part.makeCompound([Part.makeLine(pa0, pa1), Part.makeLine(pb0, pb1)])

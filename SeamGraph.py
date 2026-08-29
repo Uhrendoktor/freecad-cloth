@@ -4,7 +4,7 @@
 stores that object directly; ``SeamPair`` is only presentation metadata and a
 compatibility adapter, not a second seam representation.
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Dict, Iterable, Mapping, Sequence, Tuple
 
 from PatternModel import PatternPiece, Seam
@@ -24,7 +24,7 @@ class Transform3D:
     def __post_init__(self):
         if len(self.matrix) != 16:
             raise ValueError("assembly transform must contain 16 values")
-        if self.matrix[12:15] and abs(self.matrix[15]) < 1e-12:
+        if abs(self.matrix[15]) < 1e-12:
             raise ValueError("assembly transform has an invalid homogeneous scale")
 
     @classmethod
@@ -58,7 +58,11 @@ class SeamPair:
 
     seam: Seam
     stitch_group: str = ""
-    alignment: str = "endpoints"
+    alignment: str = ""
+
+    def __post_init__(self):
+        object.__setattr__(self, "stitch_group", self.seam.stitch_group or self.stitch_group or self.seam.id)
+        object.__setattr__(self, "alignment", self.seam.alignment if not self.alignment else self.alignment)
 
     @property
     def id(self):
@@ -87,10 +91,10 @@ class SeamPair:
 
     def validate(self) -> None:
         self.seam.validate()
-        if not self.stitch_group.strip():
-            raise ValueError("stitch group must not be empty")
-        if self.alignment not in {"endpoints", "uniform"}:
-            raise ValueError("alignment must be 'endpoints' or 'uniform'")
+        if self.stitch_group != (self.seam.stitch_group or self.seam.id):
+            raise ValueError("stitch group disagrees with canonical seam metadata")
+        if self.alignment != self.seam.alignment:
+            raise ValueError("alignment disagrees with canonical seam metadata")
 
 
 @dataclass
@@ -116,7 +120,13 @@ class SeamGraph:
             if to_seam is None:
                 raise TypeError("seam must be PatternModel.Seam or a canonical seam adapter")
             seam = to_seam()
-        pair = SeamPair(seam, stitch_group or seam.id, alignment)
+        if stitch_group or alignment != "endpoints":
+            seam = replace(
+                seam,
+                stitch_group=stitch_group or seam.stitch_group,
+                alignment=alignment or seam.alignment,
+            )
+        pair = SeamPair(seam, stitch_group=seam.stitch_group, alignment=seam.alignment)
         pair.validate()
         if seam.id in self.seams:
             raise ValueError(f"duplicate seam id: {seam.id}")
@@ -167,11 +177,21 @@ class SeamGraph:
         return {
             "pieces": tuple(sorted(self.pieces)),
             "seams": tuple(
-                (sid, pair.stitch_group, pair.alignment,
-                 pair.seam.piece_a, pair.seam.edge_a,
-                 pair.seam.piece_b, pair.seam.edge_b,
-                 pair.seam.start_a, pair.seam.end_a,
-                 pair.seam.start_b, pair.seam.end_b, pair.seam.reversed_b)
+                (
+                    sid,
+                    pair.stitch_group,
+                    pair.alignment,
+                    pair.seam.piece_a,
+                    pair.seam.edge_a,
+                    pair.seam.piece_b,
+                    pair.seam.edge_b,
+                    pair.seam.start_a,
+                    pair.seam.end_a,
+                    pair.seam.start_b,
+                    pair.seam.end_b,
+                    pair.seam.reversed_b,
+                    pair.seam.kind,
+                )
                 for sid, pair in sorted(self.seams.items())
             ),
             "assembly_transforms": tuple(
@@ -183,7 +203,9 @@ class SeamGraph:
     def _validate_seam_reference(self, seam: Seam) -> None:
         a = self._require_piece(seam.piece_a)
         b = self._require_piece(seam.piece_b)
-        if seam.edge_a >= len(a.outline) or seam.edge_b >= len(b.outline):
+        if isinstance(seam.edge_a, int) and seam.edge_a >= len(a.outline):
+            raise ValueError("seam edge index is outside the pattern boundary")
+        if isinstance(seam.edge_b, int) and seam.edge_b >= len(b.outline):
             raise ValueError("seam edge index is outside the pattern boundary")
 
     def _require_piece(self, piece_id: str) -> PatternPiece:

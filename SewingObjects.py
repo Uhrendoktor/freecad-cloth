@@ -201,6 +201,10 @@ class SewingOperationProxy:
         obj.Status = "Valid" if obj.LengthDifference <= max(0.0, float(obj.Tolerance)) else "Length mismatch"
         if hasattr(obj, "ReversedB"):
             obj.ReversedB = bool(getattr(seam, "ReversedB", False))
+        if hasattr(obj, "Alignment"):
+            obj.Alignment = str(getattr(seam, "Alignment", "endpoints"))
+        if hasattr(obj, "StitchGroup"):
+            obj.StitchGroup = str(getattr(seam, "StitchGroup", "") or getattr(seam, "SeamId", "") or getattr(seam, "Name", ""))
         pairs = _seam_correspondence(piece_a, piece_b, seam, obj.StitchCount, getattr(obj, "Alignment", "endpoints"))
         obj.AssemblyPlacementB = _alignment_placement(piece_a, piece_b, seam)
         obj.StitchPoints = []
@@ -220,7 +224,7 @@ def add_sewing_operation(doc, seam, piece_a, piece_b, name="SewingOperation"):
     obj.addProperty("App::PropertyLink", "PieceB", "Sewing").PieceB = piece_b
     obj.addProperty("App::PropertyString", "StitchGroup", "Sewing").StitchGroup = str(getattr(seam, "StitchGroup", "") or getattr(seam, "SeamId", "") or getattr(seam, "Name", ""))
     obj.addProperty("App::PropertyEnumeration", "Alignment", "Sewing").Alignment = ["endpoints", "uniform"]
-    obj.Alignment = "endpoints"
+    obj.Alignment = str(getattr(seam, "Alignment", "endpoints"))
     obj.addProperty("App::PropertyBool", "ReversedB", "Sewing").ReversedB = bool(getattr(seam, "ReversedB", False))
     obj.addProperty("App::PropertyPlacement", "AssemblyPlacementB", "Assembly").AssemblyPlacementB = piece_b.Placement
     obj.addProperty("App::PropertyLength", "Tolerance", "Validation").Tolerance = 0.5
@@ -233,6 +237,9 @@ def add_sewing_operation(doc, seam, piece_a, piece_b, name="SewingOperation"):
     obj.addProperty("App::PropertyStringList", "StitchPoints", "Stitching").StitchPoints = []
     obj.addProperty("App::PropertyString", "Status", "Validation").Status = "Incomplete"
     obj.setEditorMode("ReversedB", 1)
+    obj.setEditorMode("Alignment", 1)
+    obj.setEditorMode("StitchGroup", 1)
+    obj.setEditorMode("AssemblyPlacementB", 1)
     obj.Proxy = SewingOperationProxy()
     obj.Proxy.execute(obj)
     return obj

@@ -6,10 +6,10 @@ repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md
 supervisor_task: cloth-sewing-workbench-integration
-last_completed_pr: 107
-last_completed_ci_run: 33255260778
+last_completed_ci_run: 33256247591
 last_completed_ci_conclusion: success
-current_mainline_commit: 6d0e60686c97aeef68413a75381162a8317548f9
-integration_branch: agent/integration-main-20260829
-next_gate: remaining work in issue-98 (canonical seam contract, state cleanup, Sewing task-panel lifecycle and save/reload smoke)
+current_mainline_commit: d2c3bae2d0854b972aba0030922625deb4f14229
+supervisor_branch: agent/supervisor-final-seam-contract-20260829
+parallel_task_issues: [108, 109, 110, 111]
+next_gate: canonical CI on supervisor branch; audit/merge; post-merge CI; close issue-98
 ```
