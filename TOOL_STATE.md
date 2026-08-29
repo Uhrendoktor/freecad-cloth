@@ -5,11 +5,11 @@ schema: 1
 repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md
-supervisor_task: integrate-reviewed-sewing-pattern-milestones
-last_completed_pr: 101
-last_completed_ci_run: 33255059048
+supervisor_task: cloth-sewing-workbench-integration
+last_completed_pr: 107
+last_completed_ci_run: 33255260778
 last_completed_ci_conclusion: success
-current_mainline_commit: 7216bea2c7b7b3db9b54ea804771c574a57e5105
+current_mainline_commit: 6d0e60686c97aeef68413a75381162a8317548f9
 integration_branch: agent/integration-main-20260829
-next_gate: validate integrated pattern/sewing/simulation/command-adapter changes in canonical CI, then merge and reconcile issues/PRs
+next_gate: remaining work in issue-98 (canonical seam contract, state cleanup, Sewing task-panel lifecycle and save/reload smoke)
 ```
