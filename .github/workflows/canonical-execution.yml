@@ -88,12 +88,12 @@ jobs:
 
   gui-screenshots:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - name: Generate FreeCAD GUI screenshots under Xvfb
+      - name: Generate FreeCAD GUI screenshots and regression diagnostics under Xvfb
         run: |
           mkdir -p "$PWD/docs/images/generated"
           docker run --rm \
@@ -102,6 +102,7 @@ jobs:
             -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e QT_QPA_PLATFORM=xcb \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
+            -e CLOTH_GUI_REGRESSION_DIR=/workspace/docs/images/generated \
             -v "$PWD:/workspace" \
             -w /workspace \
             debian:trixie-slim \
@@ -114,7 +115,7 @@ jobs:
               OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               sleep 2
-              rm -f docs/images/generated/cloth-pattern.png docs/images/generated/cloth-simulation.png docs/images/generated/gui-progress.log
+              rm -f docs/images/generated/cloth-pattern.png docs/images/generated/cloth-simulation.png docs/images/generated/gui-progress.log docs/images/generated/cloth-gui-pattern.png docs/images/generated/cloth-gui-sewing.png docs/images/generated/cloth-gui-simulation.png docs/images/generated/gui-regression.json
               printf "%s\n" "exec(compile(open(\"tests/freecad_screenshot.py\", encoding=\"utf-8\").read(), \"tests/freecad_screenshot.py\", \"exec\"))" > /tmp/cloth_screenshot.FCMacro
               timeout --signal=TERM --kill-after=5s 30s freecad /tmp/cloth_screenshot.FCMacro >/tmp/freecad-gui.log 2>&1 || {
                 status=$?
@@ -128,6 +129,20 @@ jobs:
               cat docs/images/generated/gui-progress.log || true
               test -s docs/images/generated/cloth-pattern.png
               test -s docs/images/generated/cloth-simulation.png
+              printf "%s\n" "exec(compile(open(\"tests/freecad_gui_regression.py\", encoding=\"utf-8\").read(), \"tests/freecad_gui_regression.py\", \"exec\"))" > /tmp/cloth_gui_regression.FCMacro
+              timeout --signal=TERM --kill-after=5s 45s freecad /tmp/cloth_gui_regression.FCMacro >/tmp/freecad-gui-regression.log 2>&1 || {
+                status=$?
+                cat /tmp/freecad-gui-regression.log || true
+                cat docs/images/generated/gui-regression.json || true
+                cat /tmp/xvfb.log || true
+                cat /tmp/openbox.log || true
+                echo "FreeCAD GUI regression process failed or timed out (status $status)"
+                exit "$status"
+              }
+              test -s docs/images/generated/gui-regression.json
+              test -s docs/images/generated/cloth-gui-pattern.png
+              test -s docs/images/generated/cloth-gui-sewing.png
+              test -s docs/images/generated/cloth-gui-simulation.png
             '
       - name: Upload GUI diagnostics
         if: ${{ always() }}
@@ -136,7 +151,9 @@ jobs:
           name: cloth-gui-diagnostics
           path: |
             docs/images/generated/gui-progress.log
+            docs/images/generated/gui-regression.json
             /tmp/freecad-gui.log
+            /tmp/freecad-gui-regression.log
             /tmp/xvfb.log
             /tmp/openbox.log
           if-no-files-found: ignore
