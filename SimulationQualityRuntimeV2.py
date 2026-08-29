@@ -2,8 +2,14 @@
 from math import ceil
 
 from SimulationQuality import FabricMaterial, QUALITY_PRESETS, preset
+from SimulationStatus import INPUT_PROPERTIES, STATUS_NAMES, invalidation_message, status_after_execute, status_message
 
 QUALITY_NAMES = tuple(QUALITY_PRESETS)
+
+
+def _set_status(scene, status, detail=""):
+    scene.SimulationStatus = str(status)
+    scene.SimulationStatusMessage = str(detail)
 
 
 def ensure_quality_properties(scene):
@@ -19,6 +25,8 @@ def ensure_quality_properties(scene):
         ("FabricBend", "App::PropertyFloat", "Fabric", None, 0.01),
         ("FabricFriction", "App::PropertyFloat", "Fabric", None, 0.5),
         ("AvatarSkinOffset", "App::PropertyFloat", "Collision", None, 0.0),
+        ("SimulationStatus", "App::PropertyEnumeration", "Status", list(STATUS_NAMES), "Ready"),
+        ("SimulationStatusMessage", "App::PropertyString", "Status", None, ""),
     )
     for name, type_name, group, values, default in specs:
         if not hasattr(scene, name):
@@ -80,6 +88,10 @@ class QualitySimulationProxy:
     def __getattr__(self, name):
         return getattr(self._base, name)
 
+    def onChanged(self, obj, name):
+        if name in INPUT_PROPERTIES and hasattr(obj, "SimulationStatus"):
+            _set_status(obj, "Invalid", invalidation_message(name))
+
     @staticmethod
     def _signature(obj):
         from SimulationObjects import _simulation_source_signature
@@ -94,41 +106,55 @@ class QualitySimulationProxy:
 
     def execute(self, obj):
         ensure_quality_properties(obj)
-        signature = self._signature(obj)
-        pieces = [p for p in getattr(obj, "ClothPieces", ()) if getattr(p, "PatternType", "") == "PatternPiece"]
-        if self._base.backend is None or signature != self._base.source_signature or int(obj.Steps) < self._base.last_steps:
-            if pieces:
-                self._base._build_pattern_scene(obj, pieces, signature)
-            else:
-                self._build_demo(obj, signature)
-            self._apply_material(obj)
-            self._apply_collision(obj)
-        steps = int(obj.Steps)
-        if steps > self._base.last_steps:
-            material = _material(obj)
-            dt = float(obj.TimeStep) / int(obj.SolverSubsteps)
-            damping = 1.0 - 0.05 * material.friction
-            for _ in range(steps - self._base.last_steps):
-                for _ in range(int(obj.SolverSubsteps)):
-                    self._base.backend.step(
-                        dt, int(obj.SolverIterations),
-                        (float(obj.GravityX), float(obj.GravityY), float(obj.GravityZ)),
-                        (float(obj.CollisionX), float(obj.CollisionY), float(obj.CollisionZ), float(obj.CollisionRadius)),
-                        self._base.collision_surface,
-                    )
-                    system = getattr(self._base.backend, "system", None)
-                    for particle in getattr(system, "particles", ()):
-                        particle.x = particle.px + (particle.x - particle.px) * damping
-                        particle.y = particle.py + (particle.y - particle.py) * damping
-                        particle.z = particle.pz + (particle.z - particle.pz) * damping
-                self._base.last_steps += 1
-        positions = self._base.backend.positions()
-        from SimulationObjects import _write_mesh
-        for panel in getattr(obj, "DrapePanels", ()):
-            _write_mesh(panel, positions, self._base.panel_triangles.get(panel.Name, ()))
-        obj.SimulatedTime = self._base.backend.time
-        obj.ParticleCount = len(positions)
-        obj.FiniteState = self._base.backend.finite()
+        _set_status(obj, "Running", "Recomputing cloth simulation.")
+        try:
+            signature = self._signature(obj)
+            pieces = [p for p in getattr(obj, "ClothPieces", ()) if getattr(p, "PatternType", "") == "PatternPiece"]
+            if self._base.backend is None or signature != self._base.source_signature or int(obj.Steps) < self._base.last_steps:
+                if pieces:
+                    self._base._build_pattern_scene(obj, pieces, signature)
+                else:
+                    self._build_demo(obj, signature)
+                self._apply_material(obj)
+                self._apply_collision(obj)
+            steps = int(obj.Steps)
+            if steps > self._base.last_steps:
+                material = _material(obj)
+                dt = float(obj.TimeStep) / int(obj.SolverSubsteps)
+                damping = 1.0 - 0.05 * material.friction
+                for _ in range(steps - self._base.last_steps):
+                    for _ in range(int(obj.SolverSubsteps)):
+                        self._base.backend.step(
+                            dt, int(obj.SolverIterations),
+                            (float(obj.GravityX), float(obj.GravityY), float(obj.GravityZ)),
+                            (float(obj.CollisionX), float(obj.CollisionY), float(obj.CollisionZ), float(obj.CollisionRadius)),
+                            self._base.collision_surface,
+                        )
+                        system = getattr(self._base.backend, "system", None)
+                        for particle in getattr(system, "particles", ()):
+                            particle.x = particle.px + (particle.x - particle.px) * damping
+                            particle.y = particle.py + (particle.y - particle.py) * damping
+                            particle.z = particle.pz + (particle.z - particle.pz) * damping
+                    self._base.last_steps += 1
+            positions = self._base.backend.positions()
+            from SimulationObjects import _write_mesh
+            for panel in getattr(obj, "DrapePanels", ()):
+                _write_mesh(panel, positions, self._base.panel_triangles.get(panel.Name, ()))
+            obj.SimulatedTime = self._base.backend.time
+            obj.ParticleCount = len(positions)
+            obj.FiniteState = self._base.backend.finite()
+            status = status_after_execute(steps=steps, finite=bool(obj.FiniteState))
+            _set_status(obj, status, "" if status != "Invalid" else "Solver produced non-finite coordinates.")
+            obj.SimulationStatusMessage = status_message(
+                status,
+                steps=steps,
+                simulated_time=float(obj.SimulatedTime),
+                particles=int(obj.ParticleCount),
+                detail=obj.SimulationStatusMessage,
+            )
+        except Exception as exc:
+            _set_status(obj, "Invalid", str(exc))
+            raise
 
     def _build_demo(self, obj, signature):
         from ClothBackend import default_backend_registry
@@ -184,6 +210,8 @@ class QualitySimulationProxy:
 
     def reset(self, obj):
         self._base.reset(obj)
+        if hasattr(obj, "SimulationStatus"):
+            _set_status(obj, "Ready", "Simulation reset; quality and fabric values retained.")
 
 
 def create_quality_simulation_scene(doc):
