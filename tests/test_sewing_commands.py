@@ -10,16 +10,19 @@ from SewingCommands import _SewingCommand, _selected_pattern_edges
 def test_sewing_command_exposes_contextual_activation():
     state = {"active": False}
 
+    def do_sewing():
+        return 17
+
     def active():
         return state["active"]
 
-    command = _SewingCommand(lambda: 17, active, "sewing tooltip")
+    command = _SewingCommand(do_sewing, active, "sewing tooltip")
     assert command.IsActive() is False
     state["active"] = True
     assert command.IsActive() is True
     assert command.Activated() == 17
     assert command.GetResources() == {
-        "MenuText": "<Lambda>",
+        "MenuText": "Do Sewing",
         "ToolTip": "sewing tooltip",
     }
 
@@ -60,10 +63,3 @@ def test_selected_pattern_edges_rejects_incomplete_selection(monkeypatch):
         assert "exactly two edges" in str(exc)
     else:
         raise AssertionError("expected invalid selection to be rejected")
-
-
-if __name__ == "__main__":
-    for name, fn in globals().copy().items():
-        if name.startswith("test_"):
-            fn(type("MonkeyPatch", (), {"setitem": lambda self, mapping, key, value: mapping.__setitem__(key, value)})())
-    print("sewing command tests passed")
