@@ -28,7 +28,7 @@ progress("script-start")
 try:
     from PatternCommands import create_pattern_piece_from_parameters
     progress("pattern-import-ok")
-    from SimulationObjects import create_drape_scene
+    from SimulationObjects import create_simulation_scene, step_scene
     progress("simulation-import-ok")
 except Exception:
     progress("import-error")
@@ -68,9 +68,14 @@ def run_scenario():
         )
         progress("pattern-saved")
 
-        create_drape_scene(doc)
-        doc.recompute()
+        # create_drape_scene intentionally advances the full 30-step reference
+        # scenario.  The GUI smoke test only needs a rendered simulation scene,
+        # so construct it and advance one solver step to keep the CI smoke test
+        # bounded while still exercising the real simulation/rendering path.
+        scene = create_simulation_scene(doc)
         progress("simulation-created")
+        step_scene(scene, 1)
+        progress("simulation-stepped")
         Gui.activeDocument().activeView().viewAxonometric()
         Gui.activeDocument().activeView().fitAll()
         Gui.updateGui()
@@ -96,9 +101,8 @@ def run_scenario():
 
 
 # FreeCAD executes an FCMacro from its existing GUI application.  Run the
-# scenario directly, then close the existing main window.  Closing the main
-# window is the supported way to terminate a GUI FreeCAD macro invocation;
-# calling QCoreApplication.quit() before the event loop starts is ineffective.
+# scenario directly, then close the existing main window so the CLI process
+# terminates after the screenshots have been written.
 run_scenario()
 progress("script-end")
 main_window = Gui.getMainWindow()
