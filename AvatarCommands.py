@@ -1,5 +1,5 @@
-"""FreeCAD-facing parametric avatar commands for Cloth Sewing."""
-from AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS
+"""FreeCAD-facing parametric human mannequin commands."""
+from AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose
 
 
 def _avatar(doc):
@@ -13,54 +13,109 @@ def _set_prop(obj, kind, name, group, value):
 
 
 def _parameters(obj):
-    return AvatarParameters({
-        "height": obj.Height, "chest": obj.Chest, "waist": obj.Waist,
-        "hip": obj.Hip, "shoulder": obj.Shoulder,
-    }, float(obj.SkinOffset), str(obj.PosePreset))
+    values = {name: float(getattr(obj, name.title())) for name in DEFAULT_MEASUREMENTS}
+    return AvatarParameters(values, float(obj.SkinOffset), Pose(str(obj.PosePreset)))
+
+
+def _limb(base, end, radius):
+    import FreeCAD as App
+    import Part
+    a = App.Vector(*base)
+    b = App.Vector(*end)
+    direction = b.sub(a)
+    length = direction.Length
+    if length < 1e-6:
+        return Part.makeSphere(radius, a)
+    return Part.makeCylinder(radius, length, a, direction)
 
 
 def _rebuild(obj):
     import FreeCAD as App
     import Part
-
     p = _parameters(obj)
-    h = p.measurement("height")
+    m = p.measurements
+    h = m["height"]
     pi = 3.141592653589793
-    chest_r = p.measurement("chest") / (2.0 * pi) + p.skin_offset
-    waist_r = p.measurement("waist") / (2.0 * pi) + p.skin_offset
-    hip_r = p.measurement("hip") / (2.0 * pi) + p.skin_offset
-    shoulder = p.measurement("shoulder") / 2.0 + p.skin_offset
-    torso_h = h * 0.55
-    hip_h = h * 0.20
-    neck_h = h * 0.08
-    leg_h = h * 0.45
-    leg_r = max(28.0, h * 0.028) + p.skin_offset
-    arm_r = max(22.0, h * 0.024) + p.skin_offset
+    # Approximate elliptical circumferences by slightly wider-than-circular
+    # radii.  This is intentionally a replaceable generator behind the avatar
+    # API, not an anatomical solver.
+    chest_r = m["chest"] / (2*pi) * 1.18 + p.skin_offset
+    waist_r = m["waist"] / (2*pi) * 1.18 + p.skin_offset
+    hip_r = m["hip"] / (2*pi) * 1.18 + p.skin_offset
+    neck_r = m["neck"] / (2*pi) + p.skin_offset
+    pelvis_z = m["inseam"] + 120.0
+    waist_z = pelvis_z + m["back_waist"]
+    chest_z = waist_z + max(90.0, m["torso"] * 0.72)
+    shoulder_z = min(h - 180.0, chest_z + 150.0)
+    neck_z = shoulder_z + 100.0
 
-    torso = Part.makeCone(waist_r, chest_r, torso_h, App.Vector(0, 0, leg_h))
-    pelvis = Part.makeCone(hip_r, waist_r, hip_h, App.Vector(0, 0, leg_h - hip_h * 0.35))
-    neck = Part.makeCylinder(max(35.0, waist_r * 0.22), neck_h,
-                             App.Vector(0, 0, leg_h + torso_h))
-    head_r = max(65.0, h * 0.055) + p.skin_offset
-    head = Part.makeSphere(head_r, App.Vector(0, 0, leg_h + torso_h + neck_h + head_r * 0.8))
+    pelvis = Part.makeCone(hip_r, waist_r, max(100.0, waist_z-pelvis_z), App.Vector(0, 0, pelvis_z))
+    torso = Part.makeCone(waist_r, chest_r, max(100.0, chest_z-waist_z), App.Vector(0, 0, waist_z))
+    shoulder = Part.makeCone(chest_r, chest_r*0.88, 150.0, App.Vector(0, 0, chest_z))
+    neck = Part.makeCylinder(neck_r, 100.0, App.Vector(0, 0, shoulder_z))
+    head_r = max(70.0, h * 0.055) + p.skin_offset
+    head = Part.makeSphere(head_r, App.Vector(0, 0, neck_z + 70.0))
 
-    leg_x = max(45.0, hip_r * 0.42)
-    left_leg = Part.makeCylinder(leg_r, leg_h, App.Vector(-leg_x, 0, 0))
-    right_leg = Part.makeCylinder(leg_r, leg_h, App.Vector(leg_x, 0, 0))
-    arm_h = torso_h * 0.78
-    arm_z = leg_h + torso_h * 0.86
-    left_arm = Part.makeCylinder(arm_r, arm_h, App.Vector(-shoulder, 0, arm_z))
-    right_arm = Part.makeCylinder(arm_r, arm_h, App.Vector(shoulder, 0, arm_z))
-    if p.pose == "sewing":
-        left_arm.rotate(App.Vector(-shoulder, 0, arm_z), App.Vector(0, 1, 0), -12.0)
-        right_arm.rotate(App.Vector(shoulder, 0, arm_z), App.Vector(0, 1, 0), 12.0)
+    leg_radius = max(28.0, m["thigh"]/(2*pi)) + p.skin_offset
+    calf_radius = max(25.0, m["calf"]/(2*pi)) + p.skin_offset
+    knee_z = max(300.0, m["ankle"] + m["inseam"]*0.52)
+    ankle_z = m["ankle"] / 2.0
+    leg_x = max(55.0, hip_r*0.42)
+    feet = []
+    legs = []
+    for side in (-1.0, 1.0):
+        x = side * leg_x
+        legs.extend((_limb((x, 0, pelvis_z), (x, 0, knee_z), leg_radius),
+                     _limb((x, 0, knee_z), (x, 0, ankle_z+55), calf_radius)))
+        feet.append(Part.makeSphere(max(35.0, m["ankle"]/(2*pi)), App.Vector(x, 35.0, ankle_z)))
 
-    shape = torso
-    for part in (pelvis, neck, head, left_leg, right_leg, left_arm, right_arm):
+    shoulder_half = m["shoulder"] / 2.0
+    arm_radius = max(22.0, m["upper_arm"]/(2*pi)) + p.skin_offset
+    forearm_radius = max(20.0, m["elbow"]/(2*pi)*0.9) + p.skin_offset
+    wrist_radius = max(16.0, m["wrist"]/(2*pi)) + p.skin_offset
+    arm_z = shoulder_z - 15.0
+    arms = []
+    for side in (-1.0, 1.0):
+        sx = side * shoulder_half
+        abduct = 0.0 if p.pose.preset == "standing" else side * 45.0
+        ex = side * (shoulder_half + 125.0)
+        ez = arm_z - 35.0
+        wx = side * (shoulder_half + 245.0)
+        wz = arm_z - 55.0
+        if p.pose.preset == "sewing":
+            abduct = side * 65.0
+            ez = arm_z - 10.0
+            wz = arm_z + 20.0
+        arms.extend((_limb((sx, 0, arm_z), (ex, abduct, ez), arm_radius),
+                     _limb((ex, abduct, ez), (wx, abduct, wz), forearm_radius),
+                     Part.makeSphere(wrist_radius*1.25, App.Vector(wx, abduct, wz))))
+
+    # Rounded joints make the silhouette substantially more human than isolated
+    # cylinders while keeping the model inexpensive for repeated recomputes.
+    joints = []
+    for side in (-1.0, 1.0):
+        x = side * leg_x
+        joints.append(Part.makeSphere(leg_radius*1.05, App.Vector(x, 0, knee_z)))
+        joints.append(Part.makeSphere(arm_radius*1.1, App.Vector(side*shoulder_half, 0, arm_z)))
+
+    shape = pelvis.fuse(torso).fuse(shoulder).fuse(neck).fuse(head)
+    for part in legs + feet + arms + joints:
         shape = shape.fuse(part)
     obj.Shape = shape
-    obj.AvatarStatus = "Valid"
     obj.ParametersJSON = p.to_json()
+    obj.AvatarStatus = "Valid"
+    obj.Landmarks = [
+        "neck|0,0,%.3f" % neck_z,
+        "chest|0,0,%.3f" % chest_z,
+        "waist|0,0,%.3f" % waist_z,
+        "hip|0,0,%.3f" % pelvis_z,
+        "shoulder_left|%.3f,0,%.3f" % (-shoulder_half, arm_z),
+        "shoulder_right|%.3f,0,%.3f" % (shoulder_half, arm_z),
+        "knee_left|%.3f,0,%.3f" % (-leg_x, knee_z),
+        "knee_right|%.3f,0,%.3f" % (leg_x, knee_z),
+    ]
+    obj.Document.recompute()
+    return obj
 
 
 def create_avatar():
@@ -69,20 +124,18 @@ def create_avatar():
     obj = _avatar(doc)
     if obj is None:
         obj = doc.addObject("Part::Feature", "ClothAvatar")
-        obj.Label = "Cloth Avatar"
+        obj.Label = "Cloth Human Mannequin"
         _set_prop(obj, "App::PropertyString", "AvatarType", "Avatar", "ClothAvatar")
         _set_prop(obj, "App::PropertyString", "SchemaVersion", "Avatar", "1")
         for name, value in DEFAULT_MEASUREMENTS.items():
             _set_prop(obj, "App::PropertyLength", name.title(), "Measurements", value)
-        _set_prop(obj, "App::PropertyLength", "SkinOffset", "Display", 0.0)
-        _set_prop(obj, "App::PropertyEnumeration", "PosePreset", "Pose",
-                  ["standing", "sewing", "sitting"])
+        _set_prop(obj, "App::PropertyLength", "SkinOffset", "Collision", 3.0)
+        _set_prop(obj, "App::PropertyEnumeration", "PosePreset", "Pose", ["standing", "sewing", "sitting"])
         obj.PosePreset = "standing"
         _set_prop(obj, "App::PropertyString", "AvatarStatus", "Avatar", "Unbuilt")
         _set_prop(obj, "App::PropertyString", "ParametersJSON", "Avatar", "")
-    _rebuild(obj)
-    doc.recompute()
-    return obj
+        _set_prop(obj, "App::PropertyStringList", "Landmarks", "Measurements", [])
+    return _rebuild(obj)
 
 
 def rebuild_avatar():
@@ -93,22 +146,21 @@ def rebuild_avatar():
     obj = _avatar(doc)
     if obj is None:
         raise ValueError("create a Cloth Avatar first")
-    _rebuild(obj)
-    doc.recompute()
-    return obj
+    return _rebuild(obj)
 
 
-def set_avatar_measurements(height=None, chest=None, waist=None, hip=None, shoulder=None):
+def set_avatar_measurements(**changes):
     import FreeCAD as App
     doc = App.ActiveDocument
     if doc is None:
         raise ValueError("open a document before changing avatar measurements")
     obj = _avatar(doc) or create_avatar()
-    for name, value in (("Height", height), ("Chest", chest), ("Waist", waist),
-                        ("Hip", hip), ("Shoulder", shoulder)):
-        if value is not None:
-            setattr(obj, name, float(value))
-    return rebuild_avatar()
+    for name, value in changes.items():
+        property_name = str(name).title()
+        if property_name not in [k.title() for k in DEFAULT_MEASUREMENTS]:
+            raise ValueError("unknown avatar measurement: %s" % name)
+        setattr(obj, property_name, float(value))
+    return _rebuild(obj)
 
 
 def set_avatar_pose(pose):
@@ -117,10 +169,9 @@ def set_avatar_pose(pose):
     if doc is None:
         raise ValueError("open a document before changing avatar pose")
     obj = _avatar(doc) or create_avatar()
-    if pose not in ("standing", "sewing", "sitting"):
-        raise ValueError("unsupported avatar pose: %s" % pose)
-    obj.PosePreset = pose
-    return rebuild_avatar()
+    Pose(str(pose)).validate()
+    obj.PosePreset = str(pose)
+    return _rebuild(obj)
 
 
 def set_avatar_skin_offset(offset):
@@ -129,10 +180,16 @@ def set_avatar_skin_offset(offset):
     if doc is None:
         raise ValueError("open a document before changing avatar offset")
     obj = _avatar(doc) or create_avatar()
-    if float(offset) < 0:
-        raise ValueError("skin offset must not be negative")
     obj.SkinOffset = float(offset)
-    return rebuild_avatar()
+    return _rebuild(obj)
+
+
+def avatar_measurement(name):
+    import FreeCAD as App
+    doc = App.ActiveDocument
+    if doc is None or _avatar(doc) is None:
+        raise ValueError("create a Cloth Avatar first")
+    return _parameters(_avatar(doc)).measurement(str(name))
 
 
 COMMANDS = [
@@ -143,8 +200,7 @@ COMMANDS = [
 _HANDLERS = {
     "ClothFitting_CreateAvatar": create_avatar,
     "ClothFitting_RebuildAvatar": rebuild_avatar,
-    "ClothFitting_SetAvatarMeasurements": lambda: set_avatar_measurements(
-        height=1700, chest=900, waist=760, hip=960, shoulder=420),
+    "ClothFitting_SetAvatarMeasurements": lambda: set_avatar_measurements(height=1750, chest=980, waist=820, hip=1020),
     "ClothFitting_SetAvatarPose": lambda: set_avatar_pose("sewing"),
     "ClothFitting_SetAvatarSkinOffset": lambda: set_avatar_skin_offset(5.0),
 }
