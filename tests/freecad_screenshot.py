@@ -53,10 +53,14 @@ def run_scenario():
         print("generated", os.path.join(OUT, "cloth-pattern.png"), flush=True)
         print("generated", os.path.join(OUT, "cloth-simulation.png"), flush=True)
     finally:
-        if doc is not None:
-            doc.close()
+        if doc is not None and doc.Name in App.listDocuments():
+            App.closeDocument(doc.Name)
+        # The GUI application normally remains alive after a macro returns.
+        # Close its existing main window so the CI launcher can wait for a
+        # normal process exit instead of polling for files indefinitely.
+        main_window = Gui.getMainWindow()
+        if main_window is not None:
+            main_window.close()
 
 
-# A FreeCAD macro is already evaluated by the GUI application's main thread.
-# Run synchronously; the parent process stays alive while CI polls for output.
 run_scenario()
