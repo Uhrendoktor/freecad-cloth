@@ -1,13 +1,14 @@
 import unittest
 
-from AvatarModel import AvatarParameters
+from AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, generate_mesh
 
 
 class AvatarModelTests(unittest.TestCase):
     def test_defaults_and_round_trip(self):
         avatar = AvatarParameters({})
-        self.assertEqual(avatar.measurement("height"), 1700.0)
+        self.assertEqual(avatar.measurement("height"), DEFAULT_MEASUREMENTS["height"])
         self.assertEqual(AvatarParameters.from_json(avatar.to_json()), avatar)
+        self.assertGreater(len(avatar.measurements), 10)
 
     def test_measurement_change_round_trips(self):
         avatar = AvatarParameters({"chest": 1020.0, "waist": 840.0})
@@ -19,13 +20,32 @@ class AvatarModelTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             AvatarParameters({"height": 0})
         with self.assertRaises(ValueError):
-            AvatarParameters({"waist": 950, "chest": 900})
+            AvatarParameters({"chest": 500})
+        with self.assertRaises(ValueError):
+            AvatarParameters({"inseam": 1800})
 
     def test_pose_and_offset_validation(self):
         with self.assertRaises(ValueError):
             AvatarParameters({}, skin_offset=-1)
         with self.assertRaises(ValueError):
-            AvatarParameters({}, pose="walking")
+            AvatarParameters({}, pose=__import__("AvatarModel").Pose("walking"))
+
+    def test_geometry_is_deterministic_and_has_landmarks(self):
+        avatar = AvatarParameters({})
+        vertices_a, triangles_a, landmarks_a = generate_mesh(avatar)
+        vertices_b, triangles_b, landmarks_b = generate_mesh(avatar)
+        self.assertEqual(vertices_a, vertices_b)
+        self.assertEqual(triangles_a, triangles_b)
+        self.assertEqual(landmarks_a, landmarks_b)
+        self.assertGreater(len(vertices_a), 100)
+        self.assertGreater(len(triangles_a), 100)
+        names = {item.name for item in landmarks_a}
+        self.assertTrue({"neck", "chest", "waist", "hip", "shoulder_left", "shoulder_right"} <= names)
+
+    def test_chest_change_changes_derived_geometry(self):
+        base = AvatarParameters({})
+        larger = base.with_measurements(chest=1200)
+        self.assertNotEqual(generate_mesh(base)[0], generate_mesh(larger)[0])
 
 
 if __name__ == "__main__":
