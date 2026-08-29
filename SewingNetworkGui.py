@@ -1,4 +1,8 @@
-"""FreeCAD task panel for editing semantic sewing-network ranges."""
+"""FreeCAD task panel for editing semantic sewing-network ranges.
+
+The panel exposes the persisted M:N relationship directly and refuses to
+silently edit a network whose canonical seam references are invalid.
+"""
 
 
 def _modules():
@@ -9,6 +13,25 @@ def _modules():
     except ImportError:
         from PySide2 import QtCore, QtWidgets
     return App, Gui, QtCore, QtWidgets
+
+
+def network_reference_errors(network):
+    """Return ``(seam_id, status)`` for invalid canonical network members."""
+    errors = []
+    for seam in tuple(getattr(network, "Seams", ()) or ()):
+        status = str(getattr(seam, "Status", "Valid"))
+        if status != "Valid":
+            errors.append((str(getattr(seam, "SeamId", "")) or "<unnamed>", status))
+    return tuple(errors)
+
+
+def validate_network_for_edit(network):
+    """Raise a clear error when a persisted network contains invalid seams."""
+    errors = network_reference_errors(network)
+    if errors:
+        details = ", ".join("%s: %s" % item for item in errors)
+        raise ValueError("cannot edit sewing network with invalid seam references: " + details)
+    return True
 
 
 class SewingNetworkTaskPanel:
@@ -26,17 +49,45 @@ class SewingNetworkTaskPanel:
         )
         self.info.setWordWrap(True)
         layout.addWidget(self.info)
-        seams = tuple(getattr(network, "Seams", ()) or ())
-        self.table = QtWidgets.QTableWidget(len(seams), 8)
-        self.table.setHorizontalHeaderLabels(("A piece", "A edge", "A start", "A end", "B piece", "B edge", "B start", "B end"))
+
+        controls = QtWidgets.QFormLayout()
+        self.alignment = QtWidgets.QComboBox()
+        self.alignment.addItems(["endpoints", "uniform"])
+        alignments = {str(getattr(seam, "Alignment", "endpoints")) for seam in tuple(getattr(network, "Seams", ()) or ())}
+        current_alignment = sorted(alignments)[0] if alignments else "uniform"
+        index = self.alignment.findText(current_alignment)
+        self.alignment.setCurrentIndex(max(0, index))
+        controls.addRow("Alignment", self.alignment)
+
+        self.reversed_b = QtWidgets.QCheckBox("Reverse B correspondence")
+        seam_values = tuple(getattr(network, "Seams", ()) or ())
+        self.reversed_b.setChecked(bool(seam_values and all(bool(getattr(seam, "ReversedB", False)) for seam in seam_values)))
+        controls.addRow("Orientation", self.reversed_b)
+        layout.addLayout(controls)
+
+        errors = network_reference_errors(network)
+        self.warning = QtWidgets.QLabel()
+        self.warning.setWordWrap(True)
+        self.warning.setObjectName("ClothSewingNetworkReferenceWarning")
+        self.warning.setText(
+            "Invalid seam references: " + "; ".join("%s (%s)" % item for item in errors)
+            if errors else ""
+        )
+        layout.addWidget(self.warning)
+
+        columns = ("A piece", "A edge", "A start", "A end", "B piece", "B edge", "B start", "B end", "Direction", "Status")
+        self.table = QtWidgets.QTableWidget(len(seam_values), len(columns))
+        self.table.setHorizontalHeaderLabels(columns)
         self.table.setObjectName("ClothSewingNetworkRangeTable")
-        self._seams = seams
-        for row, seam in enumerate(seams):
+        self._seams = seam_values
+        for row, seam in enumerate(seam_values):
             values = (
                 str(getattr(seam, "PieceA", "")), str(getattr(seam, "EdgeA", "")),
                 float(getattr(seam, "StartA", 0.0)), float(getattr(seam, "EndA", 1.0)),
                 str(getattr(seam, "PieceB", "")), str(getattr(seam, "EdgeB", "")),
                 float(getattr(seam, "StartB", 0.0)), float(getattr(seam, "EndB", 1.0)),
+                "reversed" if bool(getattr(seam, "ReversedB", False)) else "forward",
+                str(getattr(seam, "Status", getattr(network, "Status", ""))),
             )
             for column, value in enumerate(values):
                 item = QtWidgets.QTableWidgetItem(str(value))
@@ -59,14 +110,25 @@ class SewingNetworkTaskPanel:
         return value
 
     def accept(self):
+        """Validate all edits, then apply the complete network atomically."""
+        validate_network_for_edit(self.network)
+        values = []
         for row, seam in enumerate(self._seams):
             start_a, end_a = self._range(row, 2), self._range(row, 3)
             start_b, end_b = self._range(row, 6), self._range(row, 7)
             if start_a >= end_a or start_b >= end_b:
                 raise ValueError("seam ranges must have positive extent")
+            values.append((seam, start_a, end_a, start_b, end_b))
+        alignment = str(self.alignment.currentText())
+        reversed_b = bool(self.reversed_b.isChecked())
+        for seam, start_a, end_a, start_b, end_b in values:
             seam.StartA, seam.EndA = start_a, end_a
             seam.StartB, seam.EndB = start_b, end_b
+            seam.Alignment = alignment
+            seam.ReversedB = reversed_b
         self.App.ActiveDocument.recompute()
+        if network_reference_errors(self.network):
+            raise ValueError("sewing network became invalid after edit")
         self._refresh_status()
         return True
 
@@ -75,9 +137,15 @@ class SewingNetworkTaskPanel:
         return True
 
     def _refresh_status(self):
+        errors = network_reference_errors(self.network)
         self.status.setText(
-            "%s | segments: %d | Δ %.3f mm"
-            % (str(getattr(self.network, "Status", "")), int(getattr(self.network, "SegmentCount", 0)), float(getattr(self.network, "LengthDifference", 0.0)))
+            "%s | segments: %d | Δ %.3f mm%s"
+            % (
+                str(getattr(self.network, "Status", "")),
+                int(getattr(self.network, "SegmentCount", 0)),
+                float(getattr(self.network, "LengthDifference", 0.0)),
+                " | invalid: " + ", ".join("%s (%s)" % item for item in errors) if errors else "",
+            )
         )
 
     def getStandardButtons(self):
