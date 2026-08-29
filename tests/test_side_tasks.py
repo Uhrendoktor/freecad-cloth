@@ -1,10 +1,12 @@
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from PatternGeometry import LineSegment, ParametricPattern, QuadraticBezier, rectangle
 from PatternExport import from_dxf_metadata, to_dxf, to_svg
 from PatternDerivedGeometry import Notch, PatternMark, add_marks, add_notches, derive_cut_boundary, notch_point
 from SewingSemantics import SeamConstraint, validate_seam_graph
+from SewingObjects import _edge_length, _edge_points
 from AvatarCollision import AvatarSpec, CollisionSurface, surface_from_triangles
 from ClothSolver import ClothSystem, Particle
 from fixtures.garment_fixtures import two_piece_rectangle, mirrored_pair, multi_piece
@@ -35,6 +37,39 @@ def test_pattern_offset_supports_curves_and_per_edge_widths():
 def test_invalid_pattern_mark_reference_is_rejected():
     try: add_marks(derive_cut_boundary(rectangle(10,10),1),[PatternMark('bad','Fold',segment_id='missing')]); assert False
     except ValueError: pass
+
+
+def test_closed_sewing_outline_edge_wraps_to_first_vertex():
+    piece = SimpleNamespace(Width=999.0, Height=999.0, SewingOutline=repr([(0, 0), (4, 0), (4, 3)]))
+    assert _edge_length(piece, 2) == 5.0
+
+
+def test_sewing_edge_points_apply_rotated_piece_placement_once():
+    class Vector:
+        def __init__(self, x, y, z=0.0): self.x, self.y, self.z = float(x), float(y), float(z)
+
+    class RotatedPlacement:
+        def multVec(self, value):
+            return Vector(-value.y + 10, value.x - 5, value.z + 2)
+
+    class FakeApp:
+        Vector = Vector
+
+    piece = SimpleNamespace(
+        Width=4.0,
+        Height=3.0,
+        SewingOutline=repr([(0, 0), (4, 0), (4, 3)]),
+        Placement=RotatedPlacement(),
+    )
+    old_freecad = sys.modules.get('FreeCAD')
+    sys.modules['FreeCAD'] = FakeApp()
+    try:
+        start, end = _edge_points(piece, 1, 0.0, 1.0, z=0.2)
+    finally:
+        if old_freecad is None: sys.modules.pop('FreeCAD', None)
+        else: sys.modules['FreeCAD'] = old_freecad
+    assert (start.x, start.y, start.z) == (10.0, -1.0, 2.2)
+    assert (end.x, end.y, end.z) == (7.0, -1.0, 2.2)
 
 if __name__=='__main__':
     for name,fn in globals().copy().items():
