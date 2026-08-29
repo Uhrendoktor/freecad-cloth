@@ -39,7 +39,7 @@ def edit_pattern_piece():
 
 
 def create_pattern_sketch():
-    """Create a native Sketcher representation of the selected pattern piece."""
+    """Create or reuse the native Sketcher representation for the selected piece."""
     import FreeCAD as App
     import FreeCADGui as Gui
     from PatternModel import PatternPiece
@@ -47,12 +47,22 @@ def create_pattern_sketch():
     obj = next((o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"), None)
     if obj is None:
         raise ValueError("select a pattern piece before creating its Sketcher representation")
+    existing = getattr(obj, "Sketch", None)
+    if existing is not None:
+        return existing
     try:
         points = [(float(p[0]), float(p[1])) for p in ast.literal_eval(str(obj.SewingOutline))]
     except (ValueError, SyntaxError, TypeError, IndexError):
         raise ValueError("selected pattern piece has no valid sewing outline")
     piece = PatternPiece(obj.Label, points, seam_allowance=float(getattr(obj, "SeamAllowance", 0.0)), grainline_angle=float(getattr(obj, "GrainlineAngle", 0.0)), id=str(obj.PieceId))
-    return create_sketch_for_piece(piece, App.ActiveDocument)
+    sketch = create_sketch_for_piece(piece, App.ActiveDocument)
+    obj.Sketch = sketch
+    obj.GeometryMode = "Sketch"
+    obj.GeometryAuthority = "Sketcher"
+    sketch.Visibility = True
+    obj.Visibility = False
+    App.ActiveDocument.recompute()
+    return sketch
 
 
 def create_pattern_piece_task():

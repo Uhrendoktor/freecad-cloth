@@ -20,6 +20,25 @@ def _is_rectangle(points, width, height):
     return len(points) == 4 and points == _rectangle_points(width, height)
 
 
+def _sketch_points(sketch):
+    """Return a closed line-sketch outline, or ``None`` for unsupported geometry."""
+    try:
+        import Part
+    except ImportError:
+        return None
+    geometry = getattr(sketch, "Geometry", None)
+    if not geometry or any(not isinstance(g, Part.LineSegment) for g in geometry):
+        return None
+    points = [(float(g.StartPoint.x), float(g.StartPoint.y)) for g in geometry]
+    if len(points) < 3:
+        return None
+    for index, current in enumerate(geometry):
+        following = geometry[(index + 1) % len(geometry)]
+        if abs(float(current.EndPoint.x) - float(following.StartPoint.x)) > 1e-7 or abs(float(current.EndPoint.y) - float(following.StartPoint.y)) > 1e-7:
+            return None
+    return points
+
+
 def _boundary_shape(points, allowance=0.0):
     import FreeCAD as App
     import Part
@@ -40,7 +59,7 @@ def _boundary_shape(points, allowance=0.0):
 
 
 class PatternPieceProxy:
-    """Recomputable native geometry for rectangular or custom pattern pieces."""
+    """Recomputable native geometry for rectangular, custom, or linked-sketch pieces."""
     Type = "ClothPatternPiece"
 
     def execute(self, obj):
@@ -48,7 +67,19 @@ class PatternPieceProxy:
         if width <= 0 or height <= 0: raise ValueError("pattern piece dimensions must be positive")
         if allowance < 0: raise ValueError("seam allowance cannot be negative")
         mode = str(getattr(obj, "GeometryMode", "Rectangle"))
-        if mode == "Custom":
+        sketch = getattr(obj, "Sketch", None)
+        points = None
+        if sketch is not None:
+            points = _sketch_points(sketch)
+            if points is not None:
+                mode = "Sketch"
+            elif mode == "Sketch":
+                raise ValueError("linked pattern sketch must be a closed line outline")
+        if mode == "Sketch":
+            obj.DraftingBoundary = repr(points)
+            obj.Width = max(x for x, _ in points) - min(x for x, _ in points)
+            obj.Height = max(y for _, y in points) - min(y for _, y in points)
+        elif mode == "Custom":
             points = _parse_points(getattr(obj, "DraftingBoundary", ""))
             if len(points) < 3: raise ValueError("custom pattern outline needs at least three points")
             obj.Width = max(x for x, _ in points) - min(x for x, _ in points)
@@ -73,11 +104,13 @@ def add_pattern_piece(doc, piece: PatternPiece):
     obj.addProperty("App::PropertyLength", "Height", "Parameters").Height = height
     obj.addProperty("App::PropertyLength", "SeamAllowance", "Cloth").SeamAllowance = piece.seam_allowance
     obj.addProperty("App::PropertyAngle", "GrainlineAngle", "Cloth").GrainlineAngle = piece.grainline_angle
-    obj.addProperty("App::PropertyEnumeration", "GeometryMode", "Cloth").GeometryMode = ["Rectangle", "Custom"]
+    obj.addProperty("App::PropertyEnumeration", "GeometryMode", "Cloth").GeometryMode = ["Rectangle", "Custom", "Sketch"]
     obj.GeometryMode = "Rectangle" if _is_rectangle(piece.outline, width, height) else "Custom"
     obj.addProperty("App::PropertyString", "DraftingBoundary", "Cloth").DraftingBoundary = repr(piece.outline)
     obj.addProperty("App::PropertyString", "SewingBoundary", "Cloth")
     obj.addProperty("App::PropertyString", "SewingOutline", "Cloth")
+    obj.addProperty("App::PropertyLink", "Sketch", "Cloth").Sketch = None
+    obj.addProperty("App::PropertyString", "GeometryAuthority", "Cloth").GeometryAuthority = "PatternParameters"
     obj.Proxy = PatternPieceProxy(); obj.Proxy.execute(obj)
     return obj
 

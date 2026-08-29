@@ -12,11 +12,11 @@
 
 - **#143** P0 end-to-end workflow audit — supervisor gate.
 - **#155 / PR #160** P0 canonical native garment fixture and GUI/Xvfb workflow — active; must be reviewed and merged only after terminal green CI.
-- **#145 / #159 / #161** P0 simulation quality — active; #159 is claimed by Uhrendoktor in `agent/159-simulation-quality`.
+- **#145 / #159 / #161** P0 simulation quality — active; stored parameters are insufficient until they change meshing/solver/collision behavior and invalidate cached state.
 - **#147 / #163** P1 production 2D export — queued behind P0; current metadata work is a foundation, not completion.
 - **#162** P1 pattern authoring parity audit — queued; research-driven audit of curved authoring, constraints, marks, offsets and semantic preservation.
 - **#148** P2 optional native solver benchmark — explicitly non-blocking.
-- **#165** Architecture: FreeCAD-native Sketcher pattern authoring + semantic Cloth sewing layer — architecture documented; implementation follow-up should be coordinated with the supervisor and must not duplicate the P0 audit.
+- **#165** Architecture: FreeCAD-native Sketcher pattern authoring + semantic Cloth sewing layer — implementation follow-up active on `agent/pattern-sketch-authority-20260829`; adds persistent PatternPiece → Sketcher ownership without duplicating the P0 audit.
 
 Issues #144 and #146 are completed. Do not close parent issues merely because a branch, PR, or unit test is green.
 
