@@ -5,10 +5,10 @@ on:
     branches: [main]
   pull_request:
   schedule:
-    - cron: '17 * * * *'
+    - cron: '*/5 * * * *'
 
 concurrency:
-  group: canonical-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -16,6 +16,7 @@ env:
 
 jobs:
   test:
+    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -72,6 +73,7 @@ jobs:
           test -f SewingObjects.py
 
   freecad-smoke:
+    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -94,6 +96,7 @@ jobs:
             '
 
   gui-screenshots:
+    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -173,7 +176,7 @@ jobs:
           if-no-files-found: error
 
   maintenance:
-    if: ${{ github.event_name == 'schedule' || github.ref == 'refs/heads/main' }}
+    if: ${{ github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -196,7 +199,6 @@ jobs:
           def gh(*args):
               return subprocess.check_output(['gh', 'api', *args], text=True)
 
-          # Keep the 10 newest completed runs; never touch in-progress runs.
           runs = []
           for page in range(1, 20):
               data = json.loads(gh(f'repos/{repo}/actions/runs?per_page=100&page={page}'))
@@ -216,7 +218,6 @@ jobs:
               subprocess.run(['gh', 'api', '--method', 'DELETE', f"repos/{repo}/actions/runs/{run['id']}"], check=True)
               deleted_runs += 1
 
-          # Delete only branches whose PR was merged >24h ago. Open-PR heads are protected.
           default_branch = json.loads(gh(f'repos/{repo}'))['default_branch']
           open_prs = json.loads(gh(f'repos/{repo}/pulls?state=open&per_page=100'))
           open_heads = {(p.get('head') or {}).get('ref') for p in open_prs}
