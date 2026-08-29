@@ -15,6 +15,7 @@ class PatternPieceTaskPanel:
         App, Gui, QtWidgets, _, _ = _gui_modules()
         self.App, self.Gui, self.obj = App, Gui, obj
         self.form = QtWidgets.QWidget()
+        self.form.setWindowTitle("Cloth Pattern — Pattern Piece")
         layout = QtWidgets.QFormLayout(self.form)
         self.name = QtWidgets.QLineEdit()
         self.mode = QtWidgets.QComboBox()
@@ -31,8 +32,17 @@ class PatternPieceTaskPanel:
             self.mode.setCurrentText(str(getattr(obj, "GeometryMode", "Rectangle")))
             self.width.setValue(float(obj.Width)); self.height.setValue(float(obj.Height))
             self.allowance.setValue(float(obj.SeamAllowance)); self.grain.setValue(float(obj.GrainlineAngle))
+            self._original = {
+                "Label": obj.Label,
+                "GeometryMode": str(getattr(obj, "GeometryMode", "Rectangle")),
+                "Width": float(obj.Width),
+                "Height": float(obj.Height),
+                "SeamAllowance": float(obj.SeamAllowance),
+                "GrainlineAngle": float(obj.GrainlineAngle),
+            }
         else:
             self.mode.setCurrentText("Rectangle")
+            self._original = None
         self._mode_changed(self.mode.currentText())
 
     def _mode_changed(self, mode):
@@ -40,7 +50,17 @@ class PatternPieceTaskPanel:
         self.width.setEnabled(not custom)
         self.height.setEnabled(not custom)
 
+    def _validate(self):
+        name = self.name.text().strip()
+        if not name:
+            raise ValueError("pattern piece name must not be empty")
+        if self.mode.currentText() == "Rectangle" and (self.width.value() <= 0 or self.height.value() <= 0):
+            raise ValueError("pattern piece dimensions must be positive")
+        if self.allowance.value() < 0:
+            raise ValueError("seam allowance cannot be negative")
+
     def _apply(self):
+        self._validate()
         mode = self.mode.currentText()
         if self.obj is None:
             from PatternCommands import create_pattern_piece_from_parameters
@@ -58,9 +78,17 @@ class PatternPieceTaskPanel:
         self.App.ActiveDocument.recompute()
         self.Gui.activeDocument().activeView().viewTop(); self.Gui.activeDocument().activeView().fitAll()
 
+    def _restore(self):
+        if self.obj is None or self._original is None:
+            return
+        for key, value in self._original.items():
+            setattr(self.obj, key, value)
+        self.App.ActiveDocument.recompute()
+
     def accept(self):
         self._apply(); return True
-    def reject(self): return True
+    def reject(self):
+        self._restore(); return True
     def getStandardButtons(self): return 0x00000400 | 0x00800000
 
 
@@ -74,10 +102,17 @@ class PatternDraftingTaskPanel:
             self.points = list(parse_points(obj.DraftingBoundary))
         except (ValueError, AttributeError):
             self.points = list(default_points(obj.Width, obj.Height))
+        self._original = {
+            "GeometryMode": str(getattr(obj, "GeometryMode", "Custom")),
+            "DraftingBoundary": str(getattr(obj, "DraftingBoundary", "")),
+            "Width": float(obj.Width),
+            "Height": float(obj.Height),
+        }
         self.move_point, self.add_point, self.remove_point = move_point, add_point, remove_point
         self.seam_allowance_preview = seam_allowance_preview
         self.selected = 0
         self.form = QtWidgets.QWidget()
+        self.form.setWindowTitle("Cloth Pattern — 2D Drafting")
         outer = QtWidgets.QVBoxLayout(self.form)
         self.canvas = QtWidgets.QGraphicsView()
         self.scene = QtWidgets.QGraphicsScene(self.canvas)
@@ -145,10 +180,17 @@ class PatternDraftingTaskPanel:
         self.points = list(self.add_point(self.points, point[0], point[1], self.selected + 1)); self.selected += 1; self._persist()
 
     def remove_selected_point(self):
+        if len(self.points) <= 3:
+            return
         self.points = list(self.remove_point(self.points, self.selected)); self.selected = min(self.selected, len(self.points) - 1); self._persist()
 
+    def _restore(self):
+        for key, value in self._original.items():
+            setattr(self.obj, key, value)
+        self.App.ActiveDocument.recompute()
+
     def accept(self): self._persist(); return True
-    def reject(self): return True
+    def reject(self): self._restore(); return True
     def getStandardButtons(self): return 0x00000400 | 0x00800000
 
 
