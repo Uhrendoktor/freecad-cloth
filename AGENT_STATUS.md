@@ -14,7 +14,8 @@
 - **#155 / PR #160** P0 canonical native garment fixture and GUI/Xvfb workflow — active; must be reviewed and merged only after terminal green CI.
 - **#145 / #159 / #161** P0 simulation quality — active; #159 is claimed by Uhrendoktor in `agent/159-simulation-quality`.
 - **#147 / #163** P1 production 2D export — queued behind P0; current metadata work is a foundation, not completion.
-- **#162** P1 pattern authoring parity audit — queued; research-driven audit of curved authoring, constraints, marks, offsets and semantic preservation.
+- **#162** P1 pattern authoring parity audit — audit PR #168 exists; implementation slices are tracked separately.
+- **#174** P1 PatternIR curve provenance — **claimed by Uhrendoktor on `agent/issue-174-patternir-curves-20260829`**; follow-up to PR #171, limited to solver-neutral preservation of exact curve provenance alongside derived samples.
 - **#148** P2 optional native solver benchmark — explicitly non-blocking.
 - **#165** Architecture: FreeCAD-native Sketcher pattern authoring + semantic Cloth sewing layer — architecture documented; implementation follow-up should be coordinated with the supervisor and must not duplicate the P0 audit.
 
@@ -46,7 +47,7 @@ Research confirms that CLO/Marvelous Designer make semantic sewing, particle-dis
 1. **P0-A:** PR #160 proves the real public Pattern -> Sewing -> Simulation -> save/reload -> invalidation workflow.
 2. **P0-B:** #161/#159 wire quality/material/collision properties into native simulation behavior and UI.
 3. **P0-C:** audit task-panel, selection, cancellation, recompute, undo and persistence behavior across all three workbenches.
-4. **P1-A:** #162 closes any concrete Pattern authoring blockers discovered by the audit.
+4. **P1-A:** #162 closes any concrete Pattern authoring blockers discovered by the audit; #174 is an implementation slice, not completion of the gate.
 5. **P1-B:** #163/#147 validate production 2D output, units/scale and semantic round-trip.
 6. **P1-C:** package/install/example/tutorial/release documentation.
 7. **P2:** optional solver benchmark only after release gates are stable.
