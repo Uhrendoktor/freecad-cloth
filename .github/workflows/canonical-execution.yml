@@ -9,7 +9,7 @@ on:
 
 concurrency:
   group: canonical-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   PYTHONPATH: .
@@ -87,7 +87,7 @@ jobs:
 
   gui-screenshots:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -97,6 +97,9 @@ jobs:
           mkdir -p "$PWD/docs/images/generated"
           docker run --rm \
             -e DISPLAY=:99 \
+            -e QT_X11_NO_MITSHM=1 \
+            -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e QT_QPA_PLATFORM=xcb \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -v "$PWD:/workspace" \
             -w /workspace \
@@ -110,23 +113,32 @@ jobs:
               OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               sleep 2
-              freecadcmd tests/freecad_screenshot.py >/tmp/freecad-gui.log 2>&1 &
-              FREECAD_PID=$!
-              for i in $(seq 1 60); do
-                if test -s docs/images/generated/cloth-pattern.png && test -s docs/images/generated/cloth-simulation.png; then
-                  break
-                fi
-                if ! kill -0 $FREECAD_PID 2>/dev/null; then
-                  cat /tmp/freecad-gui.log
-                  exit 1
-                fi
-                sleep 1
-              done
+              rm -f docs/images/generated/cloth-pattern.png docs/images/generated/cloth-simulation.png docs/images/generated/gui-progress.log
+              printf "%s\n" "exec(compile(open(\"tests/freecad_screenshot.py\", encoding=\"utf-8\").read(), \"tests/freecad_screenshot.py\", \"exec\"))" > /tmp/cloth_screenshot.FCMacro
+              timeout --signal=TERM --kill-after=5s 30s freecad /tmp/cloth_screenshot.FCMacro >/tmp/freecad-gui.log 2>&1 || {
+                status=$?
+                cat /tmp/freecad-gui.log || true
+                cat docs/images/generated/gui-progress.log || true
+                cat /tmp/xvfb.log || true
+                cat /tmp/openbox.log || true
+                echo "FreeCAD GUI screenshot process failed or timed out (status $status)"
+                exit "$status"
+              }
+              cat docs/images/generated/gui-progress.log || true
               test -s docs/images/generated/cloth-pattern.png
               test -s docs/images/generated/cloth-simulation.png
-              kill $FREECAD_PID 2>/dev/null || true
-              wait $FREECAD_PID 2>/dev/null || true
             '
+      - name: Upload GUI diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloth-gui-diagnostics
+          path: |
+            docs/images/generated/gui-progress.log
+            /tmp/freecad-gui.log
+            /tmp/xvfb.log
+            /tmp/openbox.log
+          if-no-files-found: ignore
       - name: Upload GUI screenshots
         uses: actions/upload-artifact@v4
         with:

@@ -78,10 +78,9 @@ def create_humanoid_avatar(doc, scale=1.0):
 
 def create_avatar_collision(doc, source_obj=None, thickness=2.0, deflection=1.0):
     """Create a solver-neutral collision proxy linked to an imported body mesh."""
-    import FreeCAD
+    from AvatarCollision import surface_from_freecad
     avatar=doc.addObject("App::FeaturePython","AvatarCollision");avatar.Label="Avatar Collision Proxy";avatar.addProperty("App::PropertyString","CollisionType","Simulation").CollisionType="SphereProxy";avatar.addProperty("App::PropertyLink","SourceObject","Simulation");avatar.addProperty("App::PropertyFloat","CollisionThickness","Simulation").CollisionThickness=float(thickness);avatar.addProperty("App::PropertyFloat","CollisionDeflection","Simulation").CollisionDeflection=float(deflection);avatar.addProperty("App::PropertyInteger","CollisionVertexCount","Simulation").CollisionVertexCount=0;avatar.addProperty("App::PropertyInteger","CollisionTriangleCount","Simulation").CollisionTriangleCount=0
     if source_obj is not None:
-        from AvatarCollision import surface_from_freecad
         surface=surface_from_freecad(source_obj,deflection,thickness);avatar.SourceObject=source_obj;avatar.CollisionType="MeshSurface";avatar.CollisionVertexCount=len(surface.vertices);avatar.CollisionTriangleCount=len(surface.triangles)
     else:
         shape=create_humanoid_avatar(doc)
