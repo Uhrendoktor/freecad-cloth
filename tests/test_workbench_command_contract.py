@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 _WORKBENCHES = {
     "ClothPatternWorkbench": {"menu": "Cloth Pattern", "imports": ("PatternCommands", "PatternMarks"), "prefixes": ("ClothPattern_",)},
     "ClothSimulationWorkbench": {"menu": "Cloth Simulation", "imports": ("SimulationCommands",), "prefixes": ("ClothSimulation_",)},
-    "ClothSewingWorkbench": {"menu": "Cloth Sewing", "imports": ("SewingCommands", "FittingCommands"), "prefixes": ("ClothSewing_", "ClothFitting_")},
+    "ClothSewingWorkbench": {"menu": "Cloth Sewing", "imports": ("SewingCommands", "SewingNetworkCommands", "FittingCommands"), "prefixes": ("ClothSewing_", "ClothFitting_")},
 }
 
 
