@@ -69,7 +69,7 @@ def run_scenario():
         Gui.updateGui()
         progress("pattern-view-ready")
         Gui.activeDocument().activeView().saveImage(
-            os.path.join(OUT, "cloth-pattern.png"), 1280, 720, "Current", 1
+            os.path.join(OUT, "cloth-pattern.png"), 1280, 720, "Current"
         )
         progress("pattern-saved")
 
@@ -81,7 +81,7 @@ def run_scenario():
         Gui.updateGui()
         progress("simulation-view-ready")
         Gui.activeDocument().activeView().saveImage(
-            os.path.join(OUT, "cloth-simulation.png"), 1280, 720, "Current", 1
+            os.path.join(OUT, "cloth-simulation.png"), 1280, 720, "Current"
         )
         progress("simulation-saved")
 
