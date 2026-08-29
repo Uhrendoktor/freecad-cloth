@@ -14,6 +14,10 @@ assert "Gui.addWorkbench(ClothPatternWorkbench())" in init_gui
 assert "Gui.addWorkbench(ClothSimulationWorkbench())" in init_gui
 assert "Gui.addWorkbench(ClothSewingWorkbench())" in init_gui
 assert 'MenuText = "Cloth Sewing"' in init_gui
+assert 'def GetResources(self):' in init_gui
+assert '"MenuText": self.MenuText' in init_gui
+assert '"ToolTip": self.ToolTip' in init_gui
+assert '"Icon": self.Icon' in init_gui
 assert "class PatternPieceTaskPanel" in pattern_gui
 assert "Gui.Control.showDialog(panel)" in pattern_gui
 assert "class SimulationTaskPanel" in sim_gui

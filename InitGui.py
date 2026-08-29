@@ -19,6 +19,14 @@ class _ClothWorkbench(_WorkbenchBase):
         self.appendToolbar(self.MenuText, self.commands)
         self.appendMenu(self.MenuText, self.commands)
 
+    def GetResources(self):
+        """Return the standard FreeCAD workbench metadata contract."""
+        return {
+            "MenuText": self.MenuText,
+            "ToolTip": self.ToolTip,
+            "Icon": self.Icon,
+        }
+
     def Activated(self):
         return None
 
