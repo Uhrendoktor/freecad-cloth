@@ -193,11 +193,13 @@ class PatternIR:
         graph.validate()
         materials = materials or {}
         pieces = []
+        edge_index_maps = {}
         for piece in graph.pieces.values():
             sketch = sketches.get(piece.id)
             if sketch is None:
                 raise ValueError(f"missing Sketcher geometry for pattern piece: {piece.id}")
-            boundaries = _sketch_boundaries(sketch, piece.id, curve_samples)
+            boundaries, edge_index_map = _sketch_boundaries(sketch, piece.id, curve_samples)
+            edge_index_maps[piece.id] = edge_index_map
             pieces.append(
                 PieceIR(
                     id=piece.id,
@@ -207,17 +209,23 @@ class PatternIR:
                     seam_allowance=float(piece.seam_allowance),
                 )
             )
-        return _with_seams(cls, graph, pieces)
+        return _with_seams(cls, graph, pieces, edge_index_maps)
 
 
-def _with_seams(cls, graph: SeamGraph, pieces: Sequence[PieceIR]) -> PatternIR:
+def _with_seams(
+    cls,
+    graph: SeamGraph,
+    pieces: Sequence[PieceIR],
+    edge_index_maps: Mapping[str, Mapping[int, str]] | None = None,
+) -> PatternIR:
     piece_tuple = tuple(pieces)
     piece_map = {piece.id: piece for piece in piece_tuple}
+    edge_index_maps = edge_index_maps or {}
     seams = []
     for pair in graph.seams.values():
         seam = pair.seam
-        edge_a = _resolve_edge(seam.edge_a, piece_map[seam.piece_a])
-        edge_b = _resolve_edge(seam.edge_b, piece_map[seam.piece_b])
+        edge_a = _resolve_edge(seam.edge_a, piece_map[seam.piece_a], edge_index_maps.get(seam.piece_a))
+        edge_b = _resolve_edge(seam.edge_b, piece_map[seam.piece_b], edge_index_maps.get(seam.piece_b))
         seams.append(
             SeamIR(
                 id=seam.id,
@@ -257,13 +265,14 @@ def _boundary_ir(segment, curve_samples: int) -> BoundaryIR:
     return BoundaryIR(segment.id, "curve", samples)
 
 
-def _sketch_boundaries(sketch, piece_id: str, curve_samples: int) -> Tuple[BoundaryIR, ...]:
+def _sketch_boundaries(sketch, piece_id: str, curve_samples: int):
     geometry = tuple(getattr(sketch, "Geometry", ()) or ())
     if len(geometry) < 3:
         raise ValueError(f"Sketcher pattern needs at least three boundary geometries: {piece_id}")
 
     semantic_ids = tuple(getattr(sketch, "SemanticEdgeIds", ()) or ())
     boundaries = []
+    edge_index_map = {}
     for index, native in enumerate(geometry):
         if _is_construction(sketch, index):
             continue
@@ -272,11 +281,12 @@ def _sketch_boundaries(sketch, piece_id: str, curve_samples: int) -> Tuple[Bound
             if index < len(semantic_ids) and str(semantic_ids[index]).strip()
             else f"{piece_id}:edge:{index}"
         )
+        edge_index_map[index] = edge_id
         boundaries.append(_native_boundary(native, edge_id, curve_samples))
 
     if len(boundaries) < 3:
         raise ValueError(f"Sketcher pattern needs at least three non-construction boundaries: {piece_id}")
-    return _order_sketch_boundary(boundaries, piece_id)
+    return _order_sketch_boundary(boundaries, piece_id), edge_index_map
 
 
 def _order_sketch_boundary(boundaries: Sequence[BoundaryIR], piece_id: str) -> Tuple[BoundaryIR, ...]:
@@ -468,10 +478,14 @@ def _distance3(a: Point3, b: Point3) -> float:
     return hypot(a[0] - b[0], a[1] - b[1]) + abs(a[2] - b[2])
 
 
-def _resolve_edge(reference, piece: PieceIR) -> str:
+def _resolve_edge(reference, piece: PieceIR, edge_index_map: Mapping[int, str] | None = None) -> str:
     if isinstance(reference, bool):
         raise ValueError("boolean edge references are invalid")
     if isinstance(reference, int):
+        if edge_index_map is not None:
+            if reference not in edge_index_map:
+                raise ValueError(f"edge index is outside Sketcher boundary: {piece.id}:{reference}")
+            return edge_index_map[reference]
         if reference < 0 or reference >= len(piece.boundaries):
             raise ValueError(f"edge index is outside piece boundary: {piece.id}:{reference}")
         return piece.boundaries[reference].id
