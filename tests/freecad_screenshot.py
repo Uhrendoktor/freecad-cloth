@@ -95,14 +95,29 @@ try:
     from PatternGui import PatternDraftingTaskPanel
     from SewingCommands import create_sewing_operation
     from SewingGui import SewingTaskPanel
-    from SimulationObjects import create_simulation_scene
-    from SimulationQualityRuntimeV2 import QualitySimulationProxy, ensure_quality_properties
+    from SimulationQualityRuntimeV2 import ensure_quality_properties
     from SimulationQualityGui import SimulationQualityTaskPanel
     progress("gui-modules-import-ok")
 except Exception:
     progress("import-error")
     progress(traceback.format_exc())
     raise
+
+
+def make_quality_fixture(doc):
+    scene = doc.addObject("App::FeaturePython", "SimulationQualityFixture")
+    scene.Label = "Simulation Quality"
+    for name, type_name, group, default in (
+        ("Steps", "App::PropertyInteger", "Simulation", 0),
+        ("SimulatedTime", "App::PropertyFloat", "Simulation", 0.0),
+        ("ParticleCount", "App::PropertyInteger", "Simulation", 0),
+        ("FiniteState", "App::PropertyBool", "Simulation", True),
+        ("CollisionRadius", "App::PropertyFloat", "Collision", 38.0),
+    ):
+        scene.addProperty(type_name, name, group)
+        setattr(scene, name, default)
+    ensure_quality_properties(scene)
+    return scene
 
 
 def run_scenario():
@@ -141,14 +156,9 @@ def run_scenario():
         Gui.Control.closeDialog()
 
         quality_doc = App.newDocument("ClothSimulationDocumentation")
-        scene = create_simulation_scene(quality_doc)
-        scene.ClothPieces = []
-        ensure_quality_properties(scene)
-        scene.Proxy = QualitySimulationProxy()
+        scene = make_quality_fixture(quality_doc)
         quality_doc.recompute()
-        scene.Steps = 1
-        quality_doc.recompute()
-        progress("simulation-quality-created preset=%s particles=%s steps=%s" % (
+        progress("simulation-quality-fixture preset=%s particles=%s steps=%s" % (
             scene.QualityPreset, scene.ParticleCount, scene.Steps))
         Gui.activeDocument().activeView().viewAxonometric(); Gui.activeDocument().activeView().fitAll()
         activate_workbench("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
