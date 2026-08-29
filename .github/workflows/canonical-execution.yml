@@ -8,7 +8,7 @@ on:
     - cron: '*/5 * * * *'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}-${{ contains(github.event.head_commit.message, '[maintenance]') && 'maintenance' || 'normal' }}
   cancel-in-progress: ${{ github.event_name != 'push' }}
 
 env:
