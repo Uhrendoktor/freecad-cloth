@@ -1,9 +1,9 @@
 """Focused regression checks for native Cloth workbench registration.
 
-The existing contract test checks the primary command groups.  This audit adds
+The existing contract test checks the primary command groups. This audit adds
 coverage for the M:N/free-sewing command group, which is explicitly registered
-by the Sewing workbench and therefore must not be omitted from the workbench
-contract.
+by the Sewing workbench and therefore must not be omitted from its registration
+expression.
 """
 from __future__ import annotations
 
@@ -21,15 +21,6 @@ def _class(tree, name):
     )
 
 
-def _initialize_imports(node):
-    return {
-        alias.name
-        for statement in ast.walk(node)
-        if isinstance(statement, ast.Import)
-        for alias in statement.names
-    }
-
-
 def _literal_commands(module_name):
     tree = ast.parse((ROOT / f"{module_name}.py").read_text(encoding="utf-8"))
     for node in tree.body:
@@ -43,6 +34,17 @@ def _literal_commands(module_name):
     raise AssertionError(f"{module_name}.COMMANDS is missing")
 
 
+def _register_expression(initialize):
+    for node in ast.walk(initialize):
+        if not isinstance(node, ast.Call):
+            continue
+        if not isinstance(node.func, ast.Attribute) or node.func.attr != "_register":
+            continue
+        assert len(node.args) == 1
+        return node.args[0]
+    raise AssertionError("workbench Initialize() must call _register once")
+
+
 def test_sewing_workbench_registers_free_sewing_command_group():
     tree = ast.parse((ROOT / "InitGui.py").read_text(encoding="utf-8"))
     sewing = _class(tree, "ClothSewingWorkbench")
@@ -51,16 +53,19 @@ def test_sewing_workbench_registers_free_sewing_command_group():
         if isinstance(node, ast.FunctionDef) and node.name == "Initialize"
     )
 
-    imports = _initialize_imports(initialize)
-    assert "SewingCommands" in imports
-    assert "SewingNetworkCommands" in imports
-    assert "FittingCommands" in imports
+    expression = _register_expression(initialize)
+    modules = {
+        node.value.id
+        for node in ast.walk(expression)
+        if isinstance(node, ast.Attribute)
+        and node.attr == "COMMANDS"
+        and isinstance(node.value, ast.Name)
+    }
+    assert modules == {"SewingCommands", "SewingNetworkCommands", "FittingCommands"}
 
-    # Every command advertised by the network module must be reachable from
-    # the native Sewing workbench rather than only being importable directly.
-    network_commands = _literal_commands("SewingNetworkCommands")
-    assert network_commands
-    assert network_commands <= _literal_commands("SewingNetworkCommands")
+    # Keep the assertion tied to the actual module contents so adding a new
+    # network command cannot silently leave it outside the native workbench.
+    assert _literal_commands("SewingNetworkCommands")
 
 
 def test_workbench_command_groups_do_not_overlap():
