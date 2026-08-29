@@ -1,11 +1,13 @@
 try:
     import FreeCADGui as Gui
+    from FreeCADGui import Workbench
 except ImportError:
     Gui = None
+    Workbench = object
 
 
 if Gui is not None:
-    class ClothPatternWorkbench(Gui.Workbench):
+    class ClothPatternWorkbench(Workbench):
         MenuText = "Cloth Pattern"
         ToolTip = "Parametric sewing-pattern design"
         def Initialize(self):
@@ -21,7 +23,7 @@ if Gui is not None:
         def GetClassName(self): return "Gui::PythonWorkbench"
 
 
-    class ClothSimulationWorkbench(Gui.Workbench):
+    class ClothSimulationWorkbench(Workbench):
         MenuText = "Cloth Simulation"
         ToolTip = "3D cloth assembly and simulation"
         def Initialize(self):
@@ -36,7 +38,7 @@ if Gui is not None:
         def GetClassName(self): return "Gui::PythonWorkbench"
 
 
-    class ClothSewingWorkbench(Gui.Workbench):
+    class ClothSewingWorkbench(Workbench):
         MenuText = "Cloth Sewing"
         ToolTip = "Sewing operations and avatar fitting"
         def Initialize(self):
@@ -52,9 +54,9 @@ if Gui is not None:
         def GetClassName(self): return "Gui::PythonWorkbench"
 
 
-    Gui.addWorkbench(ClothPatternWorkbench)
-    Gui.addWorkbench(ClothSimulationWorkbench)
-    Gui.addWorkbench(ClothSewingWorkbench)
+    Gui.addWorkbench(ClothPatternWorkbench())
+    Gui.addWorkbench(ClothSimulationWorkbench())
+    Gui.addWorkbench(ClothSewingWorkbench())
 else:
     class ClothPatternWorkbench:
         MenuText = "Cloth Pattern"
