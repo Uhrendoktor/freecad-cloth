@@ -182,6 +182,7 @@ jobs:
     permissions:
       contents: write
       actions: write
+      pull-requests: read
     steps:
       - name: GPT-Tools cleanup of old Actions runs and merged branches
         env:
