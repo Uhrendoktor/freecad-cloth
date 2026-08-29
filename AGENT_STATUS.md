@@ -20,7 +20,7 @@
 - **#165** Architecture: FreeCAD-native Sketcher pattern authoring + semantic Cloth sewing layer — architecture documented; implementation follow-up must not duplicate the P0 audit.
 - **Workbench registration contract** — DONE on `agent/workbench-registration-contract-20260829`; PR #195; canonical CI run 33277240039 is terminal-green across Python 3.10/3.11/3.12, real FreeCAD smoke, and GUI/Xvfb screenshots. Awaiting supervisor integration decision.
 - **Workbench packaging contract follow-up** — IN PROGRESS on `agent/workbench-packaging-contract-20260830` (2026-08-30); isolated to headless packaging/metadata regression coverage, not P0 audit/simulation logic.
-- **#207 / `agent/sewing-show2d-pattern-focus-20260830`** — IN PROGRESS (2026-08-30); isolated Sewing workbench Show 2D usability fix. Adds authoritative PatternPiece geometry to the 2D focus while retaining seam/network inspection selection. No P0 audit/simulation logic or workflow changes.
+- **#207 / PR #207** — DONE (2026-08-30); Sewing workbench Show 2D now includes authoritative PatternPiece geometry while retaining seam/network inspection selection. Canonical run 33278391442 is terminal-green across Python 3.10/3.11/3.12, real FreeCAD smoke, and GUI/Xvfb.
 
 ## Coordination protocol
 
@@ -54,6 +54,7 @@ Research conclusion: CLO couples semantic sewing, avatar arrangement, simulation
 - GUI quality-panel load now suppresses recompute storms while populating controls.
 - Canonical CI with real FreeCAD smoke and GUI/Xvfb coverage.
 - #165 architecture boundary documented in `docs/architecture/freecad-sketcher-cloth-boundary.md`.
+- #207 Sewing Show 2D now focuses authoritative PatternPiece geometry alongside seam/stitch overlays; verified by canonical run 33278391442.
 
 ## Release gates
 
