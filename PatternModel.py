@@ -1,8 +1,9 @@
 """Shared, FreeCAD-independent pattern data model."""
 from dataclasses import dataclass, field
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 Point = Tuple[float, float]
+EdgeRef = Union[int, str]
 
 
 @dataclass
@@ -28,11 +29,16 @@ class PatternPiece:
 
 @dataclass(frozen=True)
 class Seam:
-    """A named connection between two pattern pieces."""
+    """A named connection between two pattern pieces.
+
+    Edge references may be integer outline indices or stable semantic edge
+    identifiers supplied by an adapter.  Native mesh consumers should resolve
+    semantic identifiers to their concrete outline/mesh edge before sampling.
+    """
     piece_a: str
-    edge_a: int
+    edge_a: EdgeRef
     piece_b: str
-    edge_b: int
+    edge_b: EdgeRef
     id: str = ""
     start_a: float = 0.0
     end_a: float = 1.0
@@ -45,8 +51,13 @@ class Seam:
             raise ValueError("seam id must not be empty")
         if self.piece_a == self.piece_b and self.edge_a == self.edge_b:
             raise ValueError("a seam cannot connect an edge to itself")
-        if self.edge_a < 0 or self.edge_b < 0:
-            raise ValueError("edge indices must be non-negative")
+        for edge in (self.edge_a, self.edge_b):
+            if not isinstance(edge, (int, str)) or isinstance(edge, bool):
+                raise ValueError("seam edge references must be integer indices or stable identifiers")
+            if isinstance(edge, int) and edge < 0:
+                raise ValueError("edge indices must be non-negative")
+            if isinstance(edge, str) and not edge.strip():
+                raise ValueError("edge identifiers must not be empty")
         for value in (self.start_a, self.end_a, self.start_b, self.end_b):
             if not 0.0 <= value <= 1.0:
                 raise ValueError("seam edge ranges must be normalized")
