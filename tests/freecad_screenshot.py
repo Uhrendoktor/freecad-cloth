@@ -87,8 +87,6 @@ def save_view(filename, view):
 
 progress("script-start")
 try:
-    # InitGui.py is normally loaded by FreeCAD's module scanner. The CI macro
-    # runs from a checkout, so explicitly load the same registration code.
     init_gui = os.path.join(REPO_ROOT, "InitGui.py")
     exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
     from PatternCommands import create_pattern_piece_from_parameters
@@ -121,8 +119,7 @@ def run_scenario():
 
         activate_workbench("ClothPatternWorkbench", "Cloth Pattern", [
             "ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D"])
-        panel = PatternDraftingTaskPanel(front)
-        show_task(panel, "Pattern Design")
+        show_task(PatternDraftingTaskPanel(front), "Pattern Design")
         Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll()
         save_view("cloth-pattern-design.png", "Current")
         Gui.Control.closeDialog()
@@ -166,3 +163,5 @@ window = Gui.getMainWindow()
 if window is not None:
     window.close()
     progress("main-window-closed")
+QtWidgets.QApplication.quit()
+progress("application-quit-requested")
