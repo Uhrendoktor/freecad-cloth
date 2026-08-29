@@ -52,8 +52,7 @@ def test_sewing_edge_points_apply_rotated_piece_placement_once():
         def multVec(self, value):
             return Vector(-value.y + 10, value.x - 5, value.z + 2)
 
-    class FakeApp:
-        Vector = Vector
+    FakeApp = type("FakeApp", (), {"Vector": Vector})
 
     piece = SimpleNamespace(
         Width=4.0,
