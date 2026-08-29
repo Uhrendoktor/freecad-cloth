@@ -1,27 +1,28 @@
 # AGENT STATUS
 
-## Active Work
+## Supervisor
 
-- No active implementation agent; Agent A issue #108 implementation is complete on PR #112.
-- Supervisor integration milestone is complete.
-- #98 remains open for the remaining state-cleanup and Sewing task-panel lifecycle work.
+- Active milestone: final issue #98 sewing-workbench audit.
+- Agent A/B/C/D implementation scopes are integrated on main and their canonical CI gates are green through run #254.
+- Supervisor final branch: `agent/supervisor-final-seam-contract-20260829`.
 
 ## Coordination
 
-- PR #101 merged first as required and validated by canonical CI.
-- PR #104 and #105 were audited and superseded; their reviewed implementation was integrated through PR #107.
-- PR #107 merged after green canonical CI; post-merge canonical run #239 is green.
-- Issues #102, #103, and #106 are completed and closed.
-- PR #112 contains Agent A's canonical seam-contract implementation for issue #108.
-- Canonical CI workflow: `.github/workflows/canonical-execution.yml`.
+- #108 canonical seam contract: integrated and green.
+- #109 curved/native-edge correspondence and derived sewing state: integrated and green.
+- #110 Sewing task-panel lifecycle/save-reload smoke: integrated and green.
+- #111 Pattern -> Sewing -> Simulation invalidation/data-flow: integrated and green.
+- Only the supervisor branch may add the final cross-cutting semantic-contract refinement.
 
-## Completed
+## Current refinement
 
-- GUI screenshot/FreeCAD runtime CI repair.
-- Parametric polygon drafting with persistent semantic sewing outlines.
-- Selected-edge seam marking and native seam display geometry.
-- Semantic SewingOperation geometry, reversal/alignment/stitch correspondence.
-- Pattern→Sewing→Simulation cloth geometry/topology flow with humanoid collision proxy support.
-- Headless-safe shared FreeCAD command adapter.
-- Regression coverage and real FreeCAD smoke/GUI screenshot validation.
-- Canonical seam contract adapters and compatibility regression coverage (issue #108).
+- Move alignment, stitch group and construction kind into the authoritative `PatternModel.Seam` while preserving Agent A's stable `EdgeRef` support.
+- Persist those fields on native FreeCAD Seam objects.
+- Derive SewingOperation alignment/orientation/group from the linked seam and make them read-only.
+- Add regression coverage and CLO-style UI/workflow research documentation.
+
+## Required gate
+
+- Canonical CI must be green on the supervisor branch.
+- Audit the diff and merge only after terminal green status.
+- Verify post-merge canonical CI and then close issue #98 / clean merged branch state.

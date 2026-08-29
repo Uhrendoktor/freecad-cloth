@@ -4,20 +4,16 @@ from PatternModel import PatternPiece, Seam
 
 
 def _parse_points(value):
-    if not value:
-        return []
-    try:
-        return [(float(p[0]), float(p[1])) for p in ast.literal_eval(str(value))]
-    except (ValueError, SyntaxError, TypeError, IndexError):
-        raise ValueError("invalid pattern boundary")
+    if not value: return []
+    try: return [(float(p[0]), float(p[1])) for p in ast.literal_eval(str(value))]
+    except (ValueError, SyntaxError, TypeError, IndexError): raise ValueError("invalid pattern boundary")
 
 
 def _rectangle_points(width, height):
     return [(0.0, 0.0), (float(width), 0.0), (float(width), float(height)), (0.0, float(height))]
 
 
-def _is_rectangle(points, width, height):
-    return len(points) == 4 and points == _rectangle_points(width, height)
+def _is_rectangle(points, width, height): return len(points) == 4 and points == _rectangle_points(width, height)
 
 
 def _boundary_shape(points, allowance=0.0):
@@ -28,9 +24,7 @@ def _boundary_shape(points, allowance=0.0):
     if float(allowance) == 0.0:
         outline = values
     elif _is_rectangle(values, max(p[0] for p in values) - min(p[0] for p in values), max(p[1] for p in values) - min(p[1] for p in values)):
-        width = max(p[0] for p in values) - min(p[0] for p in values)
-        height = max(p[1] for p in values) - min(p[1] for p in values)
-        a = float(allowance)
+        width = max(p[0] for p in values) - min(p[0] for p in values); height = max(p[1] for p in values) - min(p[1] for p in values); a = float(allowance)
         outline = [(-a, -a), (width + a, -a), (width + a, height + a), (-a, height + a)]
     else:
         segments = [LineSegment(str(i), values[i], values[(i + 1) % len(values)]) for i in range(len(values))]
@@ -51,8 +45,7 @@ class PatternPieceProxy:
         if mode == "Custom":
             points = _parse_points(getattr(obj, "DraftingBoundary", ""))
             if len(points) < 3: raise ValueError("custom pattern outline needs at least three points")
-            obj.Width = max(x for x, _ in points) - min(x for x, _ in points)
-            obj.Height = max(y for _, y in points) - min(y for _, y in points)
+            obj.Width = max(x for x, _ in points) - min(x for x, _ in points); obj.Height = max(y for _, y in points) - min(y for _, y in points)
         else:
             points = _rectangle_points(width, height); obj.GeometryMode = "Rectangle"
         obj.DraftingBoundary = repr(points); obj.SewingOutline = repr(points)
@@ -62,10 +55,8 @@ class PatternPieceProxy:
 
 
 def add_pattern_piece(doc, piece: PatternPiece):
-    """Create a recomputable native Part feature for a pattern piece."""
     piece.validate()
-    width = max(p[0] for p in piece.outline) - min(p[0] for p in piece.outline)
-    height = max(p[1] for p in piece.outline) - min(p[1] for p in piece.outline)
+    width = max(p[0] for p in piece.outline) - min(p[0] for p in piece.outline); height = max(p[1] for p in piece.outline) - min(p[1] for p in piece.outline)
     obj = doc.addObject("Part::FeaturePython", piece.name); obj.Label = piece.name
     obj.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
     obj.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = piece.id
@@ -76,8 +67,7 @@ def add_pattern_piece(doc, piece: PatternPiece):
     obj.addProperty("App::PropertyEnumeration", "GeometryMode", "Cloth").GeometryMode = ["Rectangle", "Custom"]
     obj.GeometryMode = "Rectangle" if _is_rectangle(piece.outline, width, height) else "Custom"
     obj.addProperty("App::PropertyString", "DraftingBoundary", "Cloth").DraftingBoundary = repr(piece.outline)
-    obj.addProperty("App::PropertyString", "SewingBoundary", "Cloth")
-    obj.addProperty("App::PropertyString", "SewingOutline", "Cloth")
+    obj.addProperty("App::PropertyString", "SewingBoundary", "Cloth"); obj.addProperty("App::PropertyString", "SewingOutline", "Cloth")
     obj.Proxy = PatternPieceProxy(); obj.Proxy.execute(obj)
     return obj
 
@@ -98,17 +88,20 @@ def add_seam(doc, seam: Seam):
     obj.addProperty("App::PropertyFloat", "StartB", "Seam").StartB = seam.start_b
     obj.addProperty("App::PropertyFloat", "EndB", "Seam").EndB = seam.end_b
     obj.addProperty("App::PropertyBool", "ReversedB", "Seam").ReversedB = seam.reversed_b
+    obj.addProperty("App::PropertyEnumeration", "Alignment", "Seam").Alignment = ["endpoints", "uniform"]; obj.Alignment = seam.alignment
+    obj.addProperty("App::PropertyString", "StitchGroup", "Seam").StitchGroup = seam.stitch_group or seam.id
+    obj.addProperty("App::PropertyEnumeration", "Kind", "Seam").Kind = ["plain", "dart", "gather", "pleat", "hem", "fold", "closure"]; obj.Kind = seam.kind
     if piece_a is not None and piece_b is not None:
         import FreeCAD as App
         import Part
         points_a, points_b = _parse_points(piece_a.SewingOutline), _parse_points(piece_b.SewingOutline)
-        if seam.edge_a < len(points_a) and seam.edge_b < len(points_b):
-            aa, ab = points_a[seam.edge_a], points_a[(seam.edge_a + 1) % len(points_a)]
-            bb, bc = points_b[seam.edge_b], points_b[(seam.edge_b + 1) % len(points_b)]
+        if isinstance(seam.edge_a, int) and isinstance(seam.edge_b, int) and seam.edge_a < len(points_a) and seam.edge_b < len(points_b):
+            aa, ab = points_a[seam.edge_a], points_a[(seam.edge_a + 1) % len(points_a)]; bb, bc = points_b[seam.edge_b], points_b[(seam.edge_b + 1) % len(points_b)]
             pa0 = App.Vector(aa[0] + (ab[0] - aa[0]) * seam.start_a, aa[1] + (ab[1] - aa[1]) * seam.start_a, 0.4)
             pa1 = App.Vector(aa[0] + (ab[0] - aa[0]) * seam.end_a, aa[1] + (ab[1] - aa[1]) * seam.end_a, 0.4)
             pb0 = App.Vector(bb[0] + (bc[0] - bb[0]) * seam.start_b, bb[1] + (bc[1] - bb[1]) * seam.start_b, 0.4)
             pb1 = App.Vector(bb[0] + (bc[0] - bb[0]) * seam.end_b, bb[1] + (bc[1] - bb[1]) * seam.end_b, 0.4)
+            if seam.reversed_b: pb0, pb1 = pb1, pb0
             if getattr(piece_a, "Placement", None) is not None: pa0, pa1 = piece_a.Placement.multVec(pa0), piece_a.Placement.multVec(pa1)
             if getattr(piece_b, "Placement", None) is not None: pb0, pb1 = piece_b.Placement.multVec(pb0), piece_b.Placement.multVec(pb1)
             obj.Shape = Part.makeCompound([Part.makeLine(pa0, pa1), Part.makeLine(pb0, pb1)])
@@ -116,11 +109,9 @@ def add_seam(doc, seam: Seam):
 
 
 def add_pattern_mesh(doc, mesh, name="ClothMesh"):
-    """Create a native FreeCAD Mesh::Feature from a solver-neutral mesh."""
     import Mesh, FreeCAD as App
     native = Mesh.Mesh()
-    for a, b, c in mesh.triangles:
-        native.addFacet(App.Vector(mesh.vertices[a][0], mesh.vertices[a][1], 0.0), App.Vector(mesh.vertices[b][0], mesh.vertices[b][1], 0.0), App.Vector(mesh.vertices[c][0], mesh.vertices[c][1], 0.0))
+    for a, b, c in mesh.triangles: native.addFacet(App.Vector(mesh.vertices[a][0], mesh.vertices[a][1], 0.0), App.Vector(mesh.vertices[b][0], mesh.vertices[b][1], 0.0), App.Vector(mesh.vertices[c][0], mesh.vertices[c][1], 0.0))
     obj = doc.addObject("Mesh::Feature", name); obj.Label = name; obj.Mesh = native
     obj.addProperty("App::PropertyString", "ClothMeshType", "Cloth").ClothMeshType = "PatternSurface"
     obj.addProperty("App::PropertyInteger", "VertexCount", "Cloth").VertexCount = len(mesh.vertices)
