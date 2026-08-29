@@ -1,8 +1,8 @@
 """FreeCAD-independent sewing graph and assembly metadata.
 
-The graph keeps pattern/seam identity separate from solver particle indices.
-This lets a FreeCAD document persist semantic seam metadata while simulation
-backends can rebuild their constraints from fresh meshes.
+``PatternModel.Seam`` is the authoritative semantic seam contract.  The graph
+stores that object directly; ``SeamPair`` is only presentation metadata and a
+compatibility adapter, not a second seam representation.
 """
 from dataclasses import dataclass, field
 from typing import Dict, Iterable, Mapping, Sequence, Tuple
@@ -54,11 +54,36 @@ class Transform3D:
 
 @dataclass(frozen=True)
 class SeamPair:
-    """A stable semantic seam connection plus solver-independent grouping."""
+    """Canonical seam plus non-semantic stitch presentation metadata."""
 
     seam: Seam
     stitch_group: str = ""
     alignment: str = "endpoints"
+
+    @property
+    def id(self):
+        return self.seam.id
+
+    @property
+    def piece_a(self):
+        return self.seam.piece_a
+
+    @property
+    def edge_a(self):
+        return self.seam.edge_a
+
+    @property
+    def piece_b(self):
+        return self.seam.piece_b
+
+    @property
+    def edge_b(self):
+        return self.seam.edge_b
+
+    @property
+    def reversed_b(self):
+        """Read reversal from the canonical seam; never copy it into the pair."""
+        return self.seam.reversed_b
 
     def validate(self) -> None:
         self.seam.validate()
@@ -70,11 +95,7 @@ class SeamPair:
 
 @dataclass
 class SeamGraph:
-    """Validated seam graph for a set of pattern pieces.
-
-    ``assembly_transforms`` are presentation/simulation placement metadata;
-    they do not alter the 2D pattern pieces or seam references.
-    """
+    """Validated seam graph for a set of pattern pieces."""
 
     pieces: Dict[str, PatternPiece] = field(default_factory=dict)
     seams: Dict[str, SeamPair] = field(default_factory=dict)
@@ -88,6 +109,13 @@ class SeamGraph:
         self.assembly_transforms.setdefault(piece.id, Transform3D.identity())
 
     def add_seam(self, seam: Seam, stitch_group: str = "", alignment: str = "endpoints") -> None:
+        # Compatibility adapters such as SewingSemantics.SeamConstraint can
+        # hand us their canonical Seam without making the graph depend on them.
+        if not isinstance(seam, Seam):
+            to_seam = getattr(seam, "to_seam", None)
+            if to_seam is None:
+                raise TypeError("seam must be PatternModel.Seam or a canonical seam adapter")
+            seam = to_seam()
         pair = SeamPair(seam, stitch_group or seam.id, alignment)
         pair.validate()
         if seam.id in self.seams:
@@ -116,12 +144,7 @@ class SeamGraph:
         edge_vertices: Mapping[Tuple[str, int], Sequence[int]],
         seam_ids: Iterable[str] = (),
     ) -> Tuple[Tuple[int, int], ...]:
-        """Return deterministic particle-index stitch pairs for selected seams.
-
-        Edge sequences are expected in the same order as their pattern edge.
-        A reversed seam reverses only the second edge; normalized seam ranges
-        select the corresponding portions without mutating graph metadata.
-        """
+        """Return deterministic particle-index stitch pairs for selected seams."""
         selected = tuple(seam_ids) if seam_ids else tuple(self.seams)
         pairs = []
         for seam_id in selected:
