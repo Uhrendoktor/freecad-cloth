@@ -167,6 +167,19 @@ def _network_lengths(seams):
     return total_a, total_b
 
 
+def network_invalid_reason(seams):
+    """Return a deterministic user-facing reason when a member seam is invalid."""
+    invalid = []
+    for seam in seams:
+        status = str(getattr(seam, "Status", "Valid"))
+        if status != "Valid":
+            seam_id = str(getattr(seam, "SeamId", "")) or "<unnamed>"
+            invalid.append(f"{seam_id}: {status}")
+    if invalid:
+        return "Invalid member seam(s): " + "; ".join(invalid)
+    return ""
+
+
 class SewingNetworkProxy:
     """Recomputable validation summary for a persisted M:N relationship."""
 
@@ -174,6 +187,8 @@ class SewingNetworkProxy:
 
     def execute(self, obj):
         seams = tuple(getattr(obj, "Seams", ()) or ())
+        if hasattr(obj, "InvalidReason"):
+            obj.InvalidReason = ""
         if not seams:
             obj.Status = "Incomplete"
             obj.SegmentCount = 0
@@ -181,12 +196,41 @@ class SewingNetworkProxy:
             return
         ids = [str(getattr(seam, "SeamId", "")) for seam in seams]
         if any(not sid for sid in ids) or len(ids) != len(set(ids)):
-            raise ValueError("sewing network contains invalid or duplicate seams")
+            reason = "Sewing network contains invalid or duplicate seam ids"
+            obj.Status = "Invalid"
+            if hasattr(obj, "InvalidReason"):
+                obj.InvalidReason = reason
+            obj.SegmentCount = len(seams)
+            obj.LengthA = obj.LengthB = obj.LengthDifference = 0.0
+            return
         relationship_id = str(getattr(obj, "RelationshipId", "")).strip()
         groups = {str(getattr(seam, "StitchGroup", "")) for seam in seams}
         if not relationship_id or groups != {relationship_id}:
-            raise ValueError("sewing network seams must share the relationship id")
-        total_a, total_b = _network_lengths(seams)
+            reason = "Sewing network seams must share the relationship id"
+            obj.Status = "Invalid"
+            if hasattr(obj, "InvalidReason"):
+                obj.InvalidReason = reason
+            obj.SegmentCount = len(seams)
+            obj.LengthA = obj.LengthB = obj.LengthDifference = 0.0
+            return
+        reason = network_invalid_reason(seams)
+        if reason:
+            obj.Status = "Invalid"
+            if hasattr(obj, "InvalidReason"):
+                obj.InvalidReason = reason
+            obj.SegmentCount = len(seams)
+            obj.LengthA = obj.LengthB = obj.LengthDifference = 0.0
+            return
+        try:
+            total_a, total_b = _network_lengths(seams)
+        except (KeyError, TypeError, ValueError, RuntimeError) as exc:
+            reason = "Unable to resolve member geometry: " + str(exc)
+            obj.Status = "Invalid"
+            if hasattr(obj, "InvalidReason"):
+                obj.InvalidReason = reason
+            obj.SegmentCount = len(seams)
+            obj.LengthA = obj.LengthB = obj.LengthDifference = 0.0
+            return
         obj.SegmentCount = len(seams)
         obj.LengthA = total_a
         obj.LengthB = total_b
@@ -217,6 +261,8 @@ def add_sewing_network(doc, seams, relationship_id, name="SewingNetwork"):
     obj.addProperty("App::PropertyLength", "LengthB", "Validation").LengthB = 0.0
     obj.addProperty("App::PropertyLength", "LengthDifference", "Validation").LengthDifference = 0.0
     obj.addProperty("App::PropertyString", "Status", "Validation").Status = "Incomplete"
+    obj.addProperty("App::PropertyString", "InvalidReason", "Validation").InvalidReason = ""
+    obj.setEditorMode("InvalidReason", 1)
     obj.Proxy = SewingNetworkProxy()
     obj.Proxy.execute(obj)
     return obj
