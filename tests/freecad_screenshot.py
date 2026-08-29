@@ -22,6 +22,8 @@ def progress(message):
 
 progress("script-start")
 try:
+    import InitGui
+    progress("workbenches-loaded")
     from PatternCommands import create_pattern_piece_from_parameters
     progress("pattern-import-ok")
     from SimulationObjects import create_drape_scene
