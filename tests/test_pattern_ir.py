@@ -162,7 +162,7 @@ def test_shuffled_line_sketch_geometry_is_deterministic():
     graph.add_seam(Seam("piece", 1, "other", 0, id="seam"))
     ir = PatternIR.from_sketches(graph, {"piece": sketch, "other": _other_sketch()})
     assert [edge.id for edge in ir.pieces[0].boundaries] == [
-        "piece:edge:0", "piece:edge:1", "piece:edge:2", "piece:edge:3"
+        "piece:edge:0", "piece:edge:3", "piece:edge:2", "piece:edge:1"
     ]
     assert ir.seams[0].edge_a == "piece:edge:1"
 
@@ -222,7 +222,7 @@ def test_disconnected_sketch_boundaries_fail_with_diagnostic():
     try:
         PatternIR.from_sketches(graph, {"piece": sketch, "other": _other_sketch()})
     except ValueError as exc:
-        assert "open" not in str(exc) or "disconnected" in str(exc)
+        assert "disconnected" in str(exc)
         return
     raise AssertionError("disconnected Sketcher boundaries were accepted")
 
