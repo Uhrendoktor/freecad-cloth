@@ -1,8 +1,4 @@
-"""Canonical native FreeCAD Pattern -> Sewing -> Simulation workflow scenario.
-
-The scenario intentionally uses public workbench commands/task panels for seam
-creation, sewing-operation creation, workbench activation, and simulation UI.
-"""
+"""Canonical native FreeCAD Pattern -> Sewing -> Simulation workflow scenario."""
 import os
 import sys
 import tempfile
@@ -17,7 +13,6 @@ try:
 except ImportError:
     from PySide2 import QtWidgets
 
-# FreeCAD executes this file through a /tmp macro, so __file__ is not the repo.
 ROOT = Path.cwd()
 if not (ROOT / "InitGui.py").exists():
     ROOT = Path(__file__).resolve().parents[1]
@@ -110,20 +105,17 @@ def run():
         show_panel(PatternDraftingTaskPanel(front), "Pattern Design")
         close_panel()
         select_edges((front, 0), (back, 0))
-        Gui.runCommand("ClothPattern_AddSeam", 0)
-        process_events()
+        Gui.runCommand("ClothPattern_AddSeam", 0); process_events()
         seams = [obj for obj in doc.Objects if getattr(obj, "SeamId", "")]
         assert len(seams) == 1
         main_seam = seams[0]
-        log("pattern-seam-created id=%s" % main_seam.SeamId)
 
         activate("ClothSewingWorkbench", "Cloth Sewing", ["ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing", "ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_Validate"])
         Gui.Selection.clearSelection(); Gui.Selection.addSelection(main_seam); process_events()
         Gui.runCommand("ClothSewing_CreateOperation", 0); process_events()
         operations = [obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingOperation"]
-        assert len(operations) == 1
+        assert len(operations) == 1 and operations[0].Status == "Valid"
         operation = operations[0]
-        assert operation.Status == "Valid"
         Gui.Selection.clearSelection(); Gui.Selection.addSelection(operation); process_events()
         panel = SewingTaskPanel(operation); show_panel(panel, "Sewing")
         panel.stitches.setValue(12); panel.alignment.setCurrentText("uniform")
@@ -133,10 +125,8 @@ def run():
         select_edges((sleeve_a, 0), (sleeve_a, 1), (sleeve_a, 2), (sleeve_b, 0), (sleeve_b, 1), (sleeve_b, 2))
         Gui.runCommand("ClothSewing_CreateMNSewing", 0); process_events()
         networks = [obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork"]
-        assert len(networks) == 1
+        assert len(networks) == 1 and len(networks[0].Seams) == 3
         network = networks[0]
-        assert len(network.Seams) == 3
-        log("mn-network-created relationship=%s seams=%d" % (network.RelationshipId, len(network.Seams)))
 
         activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_CreateDrape", "ClothSimulation_Edit", "ClothSimulation_Step"])
         Gui.runCommand("ClothSimulation_CreateDrape", 0); process_events()
@@ -149,9 +139,7 @@ def run():
         panel.iterations.setValue(6); close_panel()
         from SimulationObjects import step_scene
         step_scene(scene, 1); doc.recompute()
-        assert int(scene.Steps) == 1 and scene.Proxy.source_signature == initial_signature
-        assert float(scene.SimulatedTime) > 0.0
-        log("simulation-stepped time=%.6f particles=%d" % (float(scene.SimulatedTime), int(scene.ParticleCount)))
+        assert int(scene.Steps) == 1 and scene.Proxy.source_signature == initial_signature and float(scene.SimulatedTime) > 0.0
 
         fd, path = tempfile.mkstemp(prefix="cloth-e2e-", suffix=".FCStd"); os.close(fd)
         doc.recompute(); doc.saveAs(path)
@@ -162,21 +150,18 @@ def run():
         assert front is not None and operation is not None and network is not None and scene is not None
         assert operation.Seam is not None and operation.PieceA is not None and operation.PieceB is not None
         assert len(network.Seams) == 3 and scene.ClothPieces
-        log("save-reload-ok")
 
         before_length = float(operation.LengthA); before_signature = scene.Proxy.source_signature
         front.Width = 160.0; doc.recompute()
         after_length = float(operation.LengthA); after_signature = scene.Proxy.source_signature
         assert abs(after_length - before_length) > 1e-6
         assert after_signature != before_signature and operation.Status == "Length mismatch"
-        log("invalidation-ok old_length=%.3f new_length=%.3f" % (before_length, after_length))
 
         Gui.Selection.clearSelection(); Gui.Selection.addSelection(scene); process_events()
         panel = SimulationTaskPanel(scene); show_panel(panel, "Simulation after invalidation"); close_panel()
         from SimulationObjects import reset_scene
         reset_scene(scene); step_scene(scene, 2); doc.recompute()
         assert int(scene.Steps) == 2 and int(scene.ParticleCount) > 0 and float(scene.SimulatedTime) > 0.0
-        log("resimulation-ok steps=%d particles=%d" % (int(scene.Steps), int(scene.ParticleCount)))
         log("scenario-complete")
     except Exception:
         log("scenario-error"); log(traceback.format_exc()); raise
@@ -187,6 +172,14 @@ def run():
         if path:
             try: os.unlink(path)
             except OSError: pass
+        # The canonical workflow launches FreeCAD as a GUI process; close the
+        # main window so the process terminates after the macro completes.
+        try:
+            window = Gui.getMainWindow()
+            if window is not None:
+                window.close()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
