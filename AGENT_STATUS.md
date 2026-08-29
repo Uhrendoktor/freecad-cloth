@@ -22,6 +22,7 @@ The initial PR/issue backlog was audited before new implementation work. Obsolet
 | Export validation | #163, merged PR #209 | done | supervisor |
 | Sketcher authority | #165/#170, PR #213 | CI/review | supervisor |
 | Sewing Show 2D focus | #207, merged before current main | done | supervisor |
+| Sewing curved/M:N UI + validation | #165 | active | subagent |
 | Canonical GUI acceptance | #155 | queued P0 | supervisor |
 | Simulation quality/material controls | #145 | queued P0 | supervisor |
 | Architecture roadmap | #162/#165 | active planning | supervisor |
