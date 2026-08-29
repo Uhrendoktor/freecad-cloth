@@ -52,9 +52,9 @@ if Gui is not None:
         def GetClassName(self): return "Gui::PythonWorkbench"
 
 
-    Gui.addWorkbench(ClothPatternWorkbench())
-    Gui.addWorkbench(ClothSimulationWorkbench())
-    Gui.addWorkbench(ClothSewingWorkbench())
+    Gui.addWorkbench(ClothPatternWorkbench)
+    Gui.addWorkbench(ClothSimulationWorkbench)
+    Gui.addWorkbench(ClothSewingWorkbench)
 else:
     class ClothPatternWorkbench:
         MenuText = "Cloth Pattern"
