@@ -33,6 +33,7 @@ jobs:
           python tests/test_core.py
           python tests/test_mesh.py
           python tests/test_meshpart_adapter.py
+          python tests/test_pattern_ir.py
           python tests/test_xpbd.py
           python tests/test_cloth_solver.py
           python tests/test_side_tasks.py
