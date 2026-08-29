@@ -68,7 +68,7 @@ def test_pattern_ir_keeps_curve_provenance_outside_solver_types():
     graph = SeamGraph()
     graph.add_piece(PatternPiece("front", [(0, 0), (10, 0), (0, 10)], id="front"))
     graph.add_piece(PatternPiece("back", [(0, 0), (10, 0), (0, 10)], id="back"))
-    graph.add_seam(Seam("front", "curve", "back", "line", id="curve-seam"))
+    graph.add_seam(Seam("front", "curve", "back", "bottom", id="curve-seam"))
     geometry = {
         "front": ParametricPattern([
             # A curve remains a curve in the IR; it is not flattened into
