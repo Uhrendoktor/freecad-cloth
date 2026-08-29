@@ -70,3 +70,22 @@ def test_unresolvable_string_reference_fails_closed():
     graph.add_piece(PatternPiece("back", [(0, 0), (10, 0), (0, 10)], id="back"))
     with pytest.raises(ValueError, match="unknown pattern piece|outside"):
         graph.add_seam(Seam("front", "missing", "back", 0, id="bad"))
+
+
+def test_piece_and_seam_order_is_deterministic():
+    first = SeamGraph()
+    first.add_piece(PatternPiece("z-back", [(0, 0), (10, 0), (10, 10)], id="z-back"))
+    first.add_piece(PatternPiece("a-front", [(0, 0), (10, 0), (10, 10)], id="a-front"))
+    first.add_seam(Seam("z-back", 0, "a-front", 0, id="z-seam"))
+    first.add_seam(Seam("a-front", 1, "z-back", 1, id="a-seam"))
+
+    second = SeamGraph()
+    second.add_piece(PatternPiece("a-front", [(0, 0), (10, 0), (10, 10)], id="a-front"))
+    second.add_piece(PatternPiece("z-back", [(0, 0), (10, 0), (10, 10)], id="z-back"))
+    second.add_seam(Seam("a-front", 1, "z-back", 1, id="a-seam"))
+    second.add_seam(Seam("z-back", 0, "a-front", 0, id="z-seam"))
+
+    first_ir = PatternIR.from_graph(first)
+    second_ir = PatternIR.from_graph(second)
+    assert first_ir.pieces == second_ir.pieces
+    assert first_ir.seams == second_ir.seams
