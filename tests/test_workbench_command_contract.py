@@ -1,8 +1,9 @@
 """Headless/static contract checks for Cloth workbench registration.
 
-These checks intentionally do not require FreeCAD or Qt. They verify that the
-three registered workbenches keep their command IDs in sync with the command
-modules they load lazily and that each workbench exposes one toolbar/menu group.
+The file is executable directly by the normal Python test job and intentionally
+does not require FreeCAD or Qt. It verifies that the three registered
+workbenches keep their command IDs in sync with the command modules they load
+lazily and that each workbench exposes one toolbar/menu group.
 """
 from __future__ import annotations
 
@@ -12,27 +13,22 @@ import importlib.util
 import sys
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[1]
 
 _WORKBENCHES = {
     "ClothPatternWorkbench": {
         "menu": "Cloth Pattern",
         "imports": ("PatternCommands", "PatternMarks"),
-        "command_expr": "PatternCommands.COMMANDS + PatternMarks.COMMANDS",
         "prefixes": ("ClothPattern_",),
     },
     "ClothSimulationWorkbench": {
         "menu": "Cloth Simulation",
         "imports": ("SimulationCommands",),
-        "command_expr": "SimulationCommands.COMMANDS",
         "prefixes": ("ClothSimulation_",),
     },
     "ClothSewingWorkbench": {
         "menu": "Cloth Sewing",
         "imports": ("SewingCommands", "FittingCommands"),
-        "command_expr": "SewingCommands.COMMANDS + FittingCommands.COMMANDS",
         "prefixes": ("ClothSewing_", "ClothFitting_"),
     },
 }
@@ -46,55 +42,51 @@ def _load_init_gui():
     return module
 
 
-def _initialize_command_modules():
+def _command_modules():
     modules = {}
     for name in {name for data in _WORKBENCHES.values() for name in data["imports"]}:
         modules[name] = importlib.import_module(name)
     return modules
 
 
-def _workbench_classes():
-    module = _load_init_gui()
-    return {name: getattr(module, name) for name in _WORKBENCHES}
+def _command_ids(class_name, modules):
+    contract = _WORKBENCHES[class_name]
+    command_ids = []
+    for name in contract["imports"]:
+        command_ids.extend(modules[name].COMMANDS)
+    return tuple(command_ids)
 
 
 def test_registered_workbenches_have_expected_names_and_icons():
-    classes = _workbench_classes()
-    assert set(classes) == set(_WORKBENCHES)
+    module = _load_init_gui()
     for class_name, contract in _WORKBENCHES.items():
-        workbench = classes[class_name]
+        workbench = getattr(module, class_name)
         assert workbench.MenuText == contract["menu"], f"wrong registration name for {class_name}"
         assert Path(workbench.Icon).is_file(), f"missing icon for {class_name}"
         assert workbench.GetClassName(None) == "Gui::PythonWorkbench"
 
 
 def test_command_ids_exist_and_are_unique():
-    modules = _initialize_command_modules()
+    modules = _command_modules()
     seen = set()
     for class_name, contract in _WORKBENCHES.items():
-        if class_name == "ClothPatternWorkbench":
-            command_ids = tuple(modules["PatternCommands"].COMMANDS) + tuple(modules["PatternMarks"].COMMANDS)
-        elif class_name == "ClothSimulationWorkbench":
-            command_ids = tuple(modules["SimulationCommands"].COMMANDS)
-        else:
-            command_ids = tuple(modules["SewingCommands"].COMMANDS) + tuple(modules["FittingCommands"].COMMANDS)
-
+        command_ids = _command_ids(class_name, modules)
         assert command_ids, f"{class_name} declares no commands"
         assert len(command_ids) == len(set(command_ids)), f"duplicate command ID in {class_name}"
         overlap = seen.intersection(command_ids)
         assert not overlap, f"command IDs shared across workbenches: {sorted(overlap)}"
         seen.update(command_ids)
-
         for command_id in command_ids:
             assert any(command_id.startswith(prefix) for prefix in contract["prefixes"]), (
                 f"{class_name} command {command_id!r} is not namespaced to its workbench"
             )
 
 
-def test_initialize_is_lazy_and_declares_one_toolbar_and_menu_group(monkeypatch):
+def test_initialize_is_lazy_and_declares_one_toolbar_and_menu_group():
     """Importing InitGui must not import command modules before activation."""
-    for name in {name for data in _WORKBENCHES.values() for name in data["imports"]}:
-        sys.modules.pop(name, None)
+    command_names = {name for data in _WORKBENCHES.values() for name in data["imports"]}
+    saved_commands = {name: sys.modules.pop(name, None) for name in command_names}
+    original_gui = sys.modules.get("FreeCADGui")
 
     class FakeGui:
         registered = []
@@ -103,16 +95,24 @@ def test_initialize_is_lazy_and_declares_one_toolbar_and_menu_group(monkeypatch)
         def addWorkbench(cls, workbench):
             cls.registered.append(workbench)
 
-    monkeypatch.setitem(sys.modules, "FreeCADGui", FakeGui)
-    _load_init_gui()
-
-    assert [wb.MenuText for wb in FakeGui.registered] == [
-        "Cloth Pattern",
-        "Cloth Simulation",
-        "Cloth Sewing",
-    ]
-    for name in {name for data in _WORKBENCHES.values() for name in data["imports"]}:
-        assert name not in sys.modules, f"{name} was imported eagerly by InitGui"
+    sys.modules["FreeCADGui"] = FakeGui
+    try:
+        _load_init_gui()
+        assert [wb.MenuText for wb in FakeGui.registered] == [
+            "Cloth Pattern",
+            "Cloth Simulation",
+            "Cloth Sewing",
+        ]
+        for name in command_names:
+            assert name not in sys.modules, f"{name} was imported eagerly by InitGui"
+    finally:
+        if original_gui is None:
+            sys.modules.pop("FreeCADGui", None)
+        else:
+            sys.modules["FreeCADGui"] = original_gui
+        for name, module in saved_commands.items():
+            if module is not None:
+                sys.modules[name] = module
 
     source = ast.parse((ROOT / "InitGui.py").read_text())
     classes = {node.name: node for node in source.body if isinstance(node, ast.ClassDef)}
@@ -137,7 +137,7 @@ def test_initialize_is_lazy_and_declares_one_toolbar_and_menu_group(monkeypatch)
 
 def test_declared_command_expression_matches_command_modules():
     """Keep each Initialize command aggregation synchronized with COMMANDS."""
-    modules = _initialize_command_modules()
+    modules = _command_modules()
     source = ast.parse((ROOT / "InitGui.py").read_text())
 
     for class_name, contract in _WORKBENCHES.items():
@@ -149,22 +149,17 @@ def test_declared_command_expression_matches_command_modules():
             and any(isinstance(target, ast.Attribute) and target.attr == "commands" for target in n.targets)
         )
         actual_expression = ast.unparse(assignment.value)
-        assert actual_expression == f"tuple({contract['command_expr']})", (
-            f"{class_name} command aggregation drifted: expected tuple({contract['command_expr']}), "
+        expected_parts = " + ".join(f"{name}.COMMANDS" for name in contract["imports"])
+        assert actual_expression == f"tuple({expected_parts})", (
+            f"{class_name} command aggregation drifted: expected tuple({expected_parts}), "
             f"got {actual_expression}"
         )
-
-        namespace = {name: modules[name] for name in contract["imports"]}
-        expected = eval(contract["command_expr"], {}, namespace)
-        assert expected, f"{class_name} command contract is empty"
+        assert _command_ids(class_name, modules), f"{class_name} command contract is empty"
 
 
-@pytest.fixture(autouse=True)
-def _restore_gui_module():
-    """Prevent the fake FreeCADGui module from leaking between tests."""
-    original = sys.modules.get("FreeCADGui")
-    yield
-    if original is None:
-        sys.modules.pop("FreeCADGui", None)
-    else:
-        sys.modules["FreeCADGui"] = original
+if __name__ == "__main__":
+    test_registered_workbenches_have_expected_names_and_icons()
+    test_command_ids_exist_and_are_unique()
+    test_initialize_is_lazy_and_declares_one_toolbar_and_menu_group()
+    test_declared_command_expression_matches_command_modules()
+    print("Workbench command contract checks passed")
