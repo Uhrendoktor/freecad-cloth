@@ -5,28 +5,35 @@
 - Active milestone: **P0 vertical release gates** — native end-to-end workflow plus behavioral simulation-quality controls.
 - Mainline contains three registered FreeCAD workbenches: Cloth Pattern, Cloth Sewing, and Cloth Simulation.
 - M:N/free sewing and fitting arrangement work are merged.
-- Simulation-quality/fabric parameter contract is merged, but native behavioral wiring is not yet release-complete.
-- Production SVG/DXF semantic metadata exists, but export validation is still a release gate.
+- Simulation-quality/fabric parameter contract is merged; native behavioral wiring is under P0 validation.
+- Production SVG/DXF semantic metadata exists, but export validation remains a release gate.
 
 ## Current task board
 
 - **#143** P0 end-to-end workflow audit — supervisor gate.
-- **#155 / closed PR #160 / open PR #185** P0 canonical native garment fixture and GUI/Xvfb workflow — active supervisor validation. PR #160 exposed real GUI failures; PR #185 contains the corrected E2E bootstrap and non-blocking Create Drape command fix. Merge only after a fresh terminal-green CI run for the corrected head.
-- **#145 / #159 / #161** P0 simulation quality — active; #159 is claimed by Uhrendoktor in `agent/159-simulation-quality`.
-- **#147 / #163** P1 production 2D export — queued behind P0; current metadata work is a foundation, not completion.
-- **#162** P1 pattern authoring parity audit — queued; research-driven audit of curved authoring, constraints, marks, offsets and semantic preservation.
+- **#155 / open PR #185** P0 canonical native garment fixture and GUI/Xvfb workflow — active supervisor validation; merge only after fresh terminal-green CI for the corrected head.
+- **#145 / #159 / #161** P0 simulation quality — active. **PR #192** is the current #161 validation vehicle; its canonical CI must be terminal-green before merge.
+- **#147 / #163** P1 production 2D export — queued behind P0; metadata is foundation, not completion.
+- **#162** P1 pattern authoring parity audit — queued; focus on curved native Sketcher geometry, constraints, marks, offsets and semantic preservation discovered by the P0 audit.
 - **#148** P2 optional native solver benchmark — explicitly non-blocking.
 - **#165** Architecture: FreeCAD-native Sketcher pattern authoring + semantic Cloth sewing layer — architecture documented; implementation follow-up must not duplicate the P0 audit.
 
-Issues #144 and #146 are completed. Do not close parent issues merely because a branch, PR, or unit test is green.
+## Coordination protocol
 
-## Replan v2 decision
+- Use this file as the shared status board.
+- Before editing, mark the task IN PROGRESS with agent/branch and timestamp.
+- After verified completion, mark DONE with commit/PR and verification evidence.
+- If blocked, record exact blocker and next action.
+- Supervisor inspects PRs, CI, diffs, dependencies and integration before merge.
+- Never report completion while Actions, delegated agents, or required verification are non-terminal.
 
-The roadmap is organized around a native FreeCAD **vertical release slice** rather than a feature list:
+## Replan v3 decision
+
+The v2 vertical-slice roadmap remains valid but is now enforced as observable release gates:
 
 `Pattern authoring -> 1:1 + free/M:N sewing -> avatar arrangement -> quality/material simulation -> inspect -> upstream edit -> invalidation -> save/reload -> deterministic re-simulation -> production 2D export.`
 
-Research confirms that CLO/Marvelous Designer make semantic sewing, particle-distance quality control, Property Editor-driven simulation/material settings, and reproducible avatar arrangement first-class workflow concepts. FreeCAD Sketcher/Part/TechDraw should be reused instead of duplicating constraint, geometry and drawing systems.
+CLO research confirms that semantic sewing, avatar arrangement, simulation quality/material state, property-editor workflow, diagnostics and production output are coupled workflow concepts. FreeCAD Sketcher remains the native authoring/constraint authority; Part/OCCT remains the geometry authority; TechDraw is reused for SVG/DXF transport; a dedicated surface-cloth solver abstraction remains separate from structural FEM.
 
 ## Completed
 
@@ -44,8 +51,8 @@ Research confirms that CLO/Marvelous Designer make semantic sewing, particle-dis
 
 ## Release gates
 
-1. **P0-A:** PR #185 proves the real public Pattern -> Sewing -> Simulation -> save/reload -> invalidation workflow on the corrected head.
-2. **P0-B:** #161/#159 wire quality/material/collision properties into native simulation behavior and UI.
+1. **P0-A:** #185 proves the real public Pattern -> Sewing -> Simulation -> save/reload -> invalidation workflow on the corrected head.
+2. **P0-B:** #159/#161 wire quality/material/collision properties into native simulation behavior and UI; #192 validates #161.
 3. **P0-C:** audit task-panel, selection, cancellation, recompute, undo and persistence behavior across all three workbenches.
 4. **P1-A:** #162 closes concrete Pattern authoring blockers discovered by the audit.
 5. **P1-B:** #163/#147 validate production 2D output, units/scale and semantic round-trip.
@@ -64,4 +71,4 @@ Research confirms that CLO/Marvelous Designer make semantic sewing, particle-dis
 
 ## Current state
 
-The roadmap replan is integrated. **The project is not release-complete.** P0-A remains the primary integration blocker, followed by P0-B/P0-C. PR #185 is the current validation vehicle; its CI has not yet been emitted by the GitHub connector after branch creation, so it must not be merged or declared green without an actual run. P1 export and pattern-authoring gates follow P0. 
+The roadmap is now v3. **The project is not release-complete.** P0-A and P0-B remain the primary integration blockers. PR #185 is the P0-A validation vehicle; PR #192 is the P0-B/#161 validation vehicle. Neither is merge-approved until its complete canonical CI is terminal-green. P1 export and pattern-authoring gates follow P0.
