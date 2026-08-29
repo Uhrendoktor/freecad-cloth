@@ -20,12 +20,7 @@ class _ClothWorkbench(_WorkbenchBase):
         self.appendMenu(self.MenuText, self.commands)
 
     def GetResources(self):
-        """Return the standard FreeCAD workbench metadata contract."""
-        return {
-            "MenuText": self.MenuText,
-            "ToolTip": self.ToolTip,
-            "Icon": self.Icon,
-        }
+        return {"MenuText": self.MenuText, "ToolTip": self.ToolTip, "Icon": self.Icon}
 
     def Activated(self):
         return None
@@ -77,7 +72,11 @@ class ClothSewingWorkbench(_ClothWorkbench):
         import SewingCommands
         import SewingNetworkCommands
         import FittingCommands
-        self._register(SewingCommands.COMMANDS + SewingNetworkCommands.COMMANDS + FittingCommands.COMMANDS)
+        import AvatarCommands
+        self._register(
+            SewingCommands.COMMANDS + SewingNetworkCommands.COMMANDS
+            + FittingCommands.COMMANDS + AvatarCommands.COMMANDS
+        )
 
 
 if Gui is not None:
