@@ -1,4 +1,4 @@
-"""Real FreeCAD smoke test for sewing task-panel lifecycle and persistence."""
+"""Real FreeCAD smoke test for sewing task-panel lifecycle and semantic persistence."""
 import os
 import sys
 import tempfile
@@ -26,6 +26,12 @@ def main():
         operation = add_sewing_operation(doc, seam, piece_a, piece_b)
         doc.recompute()
 
+        assert str(seam.EdgeAId) == f"{piece_a.PieceId}:edge:0"
+        assert str(seam.EdgeBId) == f"{piece_b.PieceId}:edge:0"
+        assert str(seam.EdgeASignature) and str(seam.EdgeBSignature)
+        assert str(seam.Status) == "Valid"
+        assert seam.PatternA is piece_a and seam.PatternB is piece_b
+
         panel = SewingTaskPanel(operation)
         buttons = panel.getStandardButtons()
         assert buttons != 0
@@ -36,7 +42,6 @@ def main():
             bool(seam.ReversedB),
         )
 
-        # Cancel restores document values, including canonical seam settings.
         panel.tolerance.setValue(3.0)
         panel.stitches.setValue(20)
         panel.alignment.setCurrentText("uniform")
@@ -50,7 +55,6 @@ def main():
         ) == original
         assert operation.StitchCount == original[1]
 
-        # Accept commits both operation settings and canonical seam settings.
         panel = SewingTaskPanel(operation)
         panel.tolerance.setValue(1.75)
         panel.stitches.setValue(16)
@@ -66,6 +70,18 @@ def main():
         assert bool(operation.ReversedB) is True
         assert operation.Status == "Valid"
         assert len(operation.StitchPoints) == 16
+
+        piece_a.Width = 120
+        doc.recompute()
+        assert str(seam.EdgeAId) == f"{piece_a.PieceId}:edge:0"
+        assert str(seam.Status) == "Changed reference"
+        assert str(seam.EdgeASignature) != ""
+        assert operation.Status != "Valid"
+
+        piece_a.Width = 100
+        doc.recompute()
+        assert str(seam.Status) == "Valid"
+        assert operation.Status == "Valid"
 
         fd, path = tempfile.mkstemp(suffix=".FCStd")
         os.close(fd)
@@ -86,11 +102,14 @@ def main():
             assert bool(restored.ReversedB) is True
             assert str(restored_seam.Alignment) == "uniform"
             assert bool(restored_seam.ReversedB) is True
+            assert str(restored_seam.EdgeAId).endswith(":edge:0")
+            assert str(restored_seam.EdgeBId).endswith(":edge:0")
+            assert str(restored_seam.Status) == "Valid"
             assert restored.Status == "Valid"
             assert len(restored.StitchPoints) == 16
             assert restored.Seam is not None
             assert restored.PieceA is not None and restored.PieceB is not None
-            print("FreeCAD sewing task-panel lifecycle, seam editing, and save/reload smoke test passed")
+            print("FreeCAD sewing semantic edge persistence and invalidation smoke test passed")
         finally:
             if App.ActiveDocument is not None:
                 App.closeDocument(App.ActiveDocument.Name)
