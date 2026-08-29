@@ -16,6 +16,7 @@
 - **#147 / #163** P1 production 2D export — queued behind P0; current metadata work is a foundation, not completion.
 - **#162** P1 pattern authoring parity audit — queued; research-driven audit of curved authoring, constraints, marks, offsets and semantic preservation.
 - **#148** P2 optional native solver benchmark — explicitly non-blocking.
+- **#165** Architecture: FreeCAD-native Sketcher pattern authoring + semantic Cloth sewing layer — architecture documented; implementation follow-up should be coordinated with the supervisor and must not duplicate the P0 audit.
 
 Issues #144 and #146 are completed. Do not close parent issues merely because a branch, PR, or unit test is green.
 
@@ -38,6 +39,7 @@ Research confirms that CLO/Marvelous Designer make semantic sewing, particle-dis
 - Simulation-quality/fabric contract.
 - Semantic SVG/DXF export metadata.
 - Canonical CI with real FreeCAD smoke and GUI/Xvfb coverage.
+- #165 architecture boundary documented in `docs/architecture/freecad-sketcher-cloth-boundary.md`.
 
 ## Release gates
 
