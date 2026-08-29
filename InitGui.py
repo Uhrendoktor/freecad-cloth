@@ -67,8 +67,9 @@ class ClothSewingWorkbench(_ClothWorkbench):
         if self.commands:
             return
         import SewingCommands
+        import SewingNetworkCommands
         import FittingCommands
-        self._register(SewingCommands.COMMANDS + FittingCommands.COMMANDS)
+        self._register(SewingCommands.COMMANDS + SewingNetworkCommands.COMMANDS + FittingCommands.COMMANDS)
 
 
 if Gui is not None:
