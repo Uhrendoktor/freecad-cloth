@@ -95,8 +95,8 @@ def run_scenario():
             progress("document-closed")
 
 
-# FreeCAD executes an FCMacro from its existing Qt application.  Run the
-# scenario directly; starting a nested QEventLoop is incompatible with the
-# PySide2 API shipped by FreeCAD 1.0 (which exposes exec_(), not exec()).
+# FreeCAD executes an FCMacro from its existing GUI application.  Run the
+# scenario directly, then quit that application so the CLI process exits.
 run_scenario()
 progress("script-end")
+QtCore.QCoreApplication.quit()
