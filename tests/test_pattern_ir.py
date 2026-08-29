@@ -44,10 +44,24 @@ def test_richer_curve_geometry_survives_in_the_ir():
     ir = PatternIR.from_graph(graph, geometry, curve_samples=9)
     boundary = ir.boundary("front", "curve")
     assert boundary.kind == "curve"
+    assert boundary.curve_type == "quadratic_bezier"
+    assert boundary.control_points == (
+        (0.0, 0.0, 0.0),
+        (5.0, 8.0, 0.0),
+        (10.0, 0.0, 0.0),
+    )
     assert len(boundary.samples) == 9
     assert boundary.samples[0] == (0.0, 0.0, 0.0)
     assert boundary.samples[-1] == (10.0, 0.0, 0.0)
     assert boundary.length > 10.0
+
+
+def test_line_geometry_retains_exact_endpoints_as_provenance():
+    ir = PatternIR.from_graph(_graph())
+    boundary = ir.boundary("front", "edge:0")
+    assert boundary.kind == "line"
+    assert boundary.curve_type == "line"
+    assert boundary.control_points == boundary.samples
 
 
 def test_unresolvable_string_reference_fails_closed():
