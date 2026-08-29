@@ -167,28 +167,3 @@ jobs:
           name: cloth-gui-screenshots
           path: docs/images/generated/*.png
           if-no-files-found: error
-
-  cleanup-merged-branches:
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    needs: [test, freecad-smoke, gui-screenshots]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write
-      pull-requests: read
-    steps:
-      - name: Delete recently merged PR source branches after green main validation
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          gh pr list --repo "$REPO" --state merged --base main --limit 20 --json headRefName --jq '.[].headRefName' |
-          while IFS= read -r branch; do
-            [ -z "$branch" ] && continue
-            [ "$branch" = "main" ] && continue
-            if gh api "repos/$REPO/git/ref/heads/$branch" >/dev/null 2>&1; then
-              gh api --method DELETE "repos/$REPO/git/refs/heads/$branch"
-              echo "deleted merged source branch: $branch"
-            fi
-          done
