@@ -17,7 +17,6 @@
 - **#162** P1 pattern authoring parity audit — queued; research-driven audit of curved authoring, constraints, marks, offsets and semantic preservation.
 - **#148** P2 optional native solver benchmark — explicitly non-blocking.
 - **#165** Architecture: FreeCAD-native Sketcher pattern authoring + semantic Cloth sewing layer — architecture documented; implementation follow-up must not duplicate the P0 audit.
-- **#174** P1 PatternIR curved Sketcher adapter — claimed by Uhrendoktor in `agent/issue-174-pattern-ir-curves-standalone-20260829`; preserves native line/arc/BSpline/Bezier curve kind at the solver-neutral boundary and adds real FreeCAD smoke coverage.
 
 Issues #144 and #146 are completed. Do not close parent issues merely because a branch, PR, or unit test is green.
 
