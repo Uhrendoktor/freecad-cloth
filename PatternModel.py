@@ -32,9 +32,9 @@ class Seam:
     """The authoritative semantic sewing contract.
 
     Edge references may be integer outline indices or stable semantic edge
-    identifiers supplied by an adapter. Alignment, stitch grouping, reversal
-    and construction kind live here so FreeCAD display and simulation cannot
-    silently maintain competing seam state.
+    identifiers supplied by an adapter. Alignment, stitch grouping, reversal,
+    and construction kind are part of this record so document and simulation
+    adapters cannot silently maintain competing seam state.
     """
     piece_a: str
     edge_a: EdgeRef
