@@ -42,6 +42,7 @@ jobs:
           python tests/test_gui_structure.py
           python tests/test_sewing_workbench.py
           python tests/test_sewing_network.py
+          python tests/test_sewing_network_gui.py
           python tests/test_avatar_fitting.py
           python tests/test_drape_quality.py
           python tests/test_pattern_sketch.py
@@ -63,6 +64,7 @@ jobs:
           test -f PatternGui.py
           test -f SimulationGui.py
           test -f SewingGui.py
+          test -f SewingNetworkGui.py
           test -f SewingObjects.py
 
   freecad-smoke:
