@@ -156,3 +156,5 @@ print(json.dumps(results, indent=2, sort_keys=True))
 main = Gui.getMainWindow()
 if main is not None:
     main.close()
+
+# Keep the GUI regression independently runnable from a checkout.
