@@ -17,12 +17,10 @@ OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 os.makedirs(OUT, exist_ok=True)
 DEBUG = os.path.join(OUT, "gui-progress.log")
 
-
 def progress(message):
     with open(DEBUG, "a", encoding="utf-8") as handle:
         handle.write(message + "\n")
         handle.flush()
-
 
 def toolbars():
     window = Gui.getMainWindow()
@@ -30,13 +28,11 @@ def toolbars():
         return []
     return [bar.windowTitle() for bar in window.findChildren(QtWidgets.QToolBar) if bar.isVisible()]
 
-
 def docks():
     window = Gui.getMainWindow()
     if window is None:
         return []
     return [dock.windowTitle() for dock in window.findChildren(QtWidgets.QDockWidget) if dock.isVisible()]
-
 
 def activate_workbench(internal_name, toolbar_name, expected_commands):
     available = Gui.listWorkbenches()
@@ -55,15 +51,13 @@ def activate_workbench(internal_name, toolbar_name, expected_commands):
     active = Gui.activeWorkbench().name()
     visible = toolbars()
     missing = [name for name in expected_commands if name not in Gui.listCommands()]
-    progress("workbench=%s active=%s toolbar=%s visible_toolbars=%s missing_commands=%s docks=%s" % (
-        internal_name, active, toolbar_name, ",".join(visible), ",".join(missing), ",".join(docks())))
+    progress("workbench=%s active=%s toolbar=%s visible_toolbars=%s missing_commands=%s docks=%s" % (internal_name, active, toolbar_name, ",".join(visible), ",".join(missing), ",".join(docks())))
     if active != internal_name:
         raise RuntimeError("failed to activate %s (active=%s)" % (internal_name, active))
     if toolbar_name not in visible:
         raise RuntimeError("toolbar is not visible: %s" % toolbar_name)
     if missing:
         raise RuntimeError("commands are not registered: %s" % ",".join(missing))
-
 
 def show_task(panel, state_name):
     Gui.Control.showDialog(panel)
@@ -74,7 +68,6 @@ def show_task(panel, state_name):
     if not visible:
         raise RuntimeError("task panel did not become visible: %s" % state_name)
 
-
 def save_view(filename, view):
     Gui.updateGui()
     QtWidgets.QApplication.processEvents()
@@ -83,7 +76,6 @@ def save_view(filename, view):
     if not os.path.exists(path) or os.path.getsize(path) == 0:
         raise RuntimeError("screenshot was not generated: %s" % path)
     progress("screenshot=" + path)
-
 
 progress("script-start")
 try:
@@ -103,7 +95,6 @@ except Exception:
     progress(traceback.format_exc())
     raise
 
-
 def run_scenario():
     doc = None
     quality_doc = None
@@ -117,36 +108,30 @@ def run_scenario():
         back = create_pattern_piece_from_parameters("Back", 140.0, 90.0, 10.0, 0.0)
         back.Placement.Base.x = 170.0
         doc.recompute()
-
-        activate_workbench("ClothPatternWorkbench", "Cloth Pattern", [
-            "ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D"])
+        activate_workbench("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D"])
         show_task(PatternDraftingTaskPanel(front), "Pattern Design")
         Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll()
         save_view("cloth-pattern-design.png", "Current")
         Gui.Control.closeDialog()
-
-        seam = add_seam(doc, Seam(str(front.PieceId), 1, str(back.PieceId), 3,
-                                 id="FrontBack", alignment="uniform", stitch_group="MainSeam"))
+        seam = add_seam(doc, Seam(str(front.PieceId), 1, str(back.PieceId), 3, id="FrontBack", alignment="uniform", stitch_group="MainSeam"))
         doc.recompute()
         Gui.Selection.clearSelection(); Gui.Selection.addSelection(seam)
         sewing = create_sewing_operation(); doc.recompute()
         progress("sewing-created status=%s stitches=%s" % (sewing.Status, sewing.StitchCount))
-        activate_workbench("ClothSewingWorkbench", "Cloth Sewing", [
-            "ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_Validate"])
+        activate_workbench("ClothSewingWorkbench", "Cloth Sewing", ["ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_Validate"])
         Gui.Selection.clearSelection(); Gui.Selection.addSelection(sewing)
         show_task(SewingTaskPanel(sewing), "Sewing")
         Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll()
         save_view("cloth-sewing.png", "Current")
         Gui.Control.closeDialog()
-
+        progress("simulation-quality-start")
         quality_doc = App.newDocument("ClothSimulationDocumentation")
         scene = create_quality_simulation_scene(quality_doc)
         scene.ClothPieces = []
-        quality_doc.recompute()
+        scene.ParticleDistance = 8.0
         scene.Steps = 1
         quality_doc.recompute()
-        progress("simulation-quality-created preset=%s particles=%s steps=%s" % (
-            scene.QualityPreset, scene.ParticleCount, scene.Steps))
+        progress("simulation-quality-created preset=%s particles=%s steps=%s" % (scene.QualityPreset, scene.ParticleCount, scene.Steps))
         Gui.activeDocument().activeView().viewAxonometric(); Gui.activeDocument().activeView().fitAll()
         activate_workbench("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
         show_task(SimulationQualityTaskPanel(scene), "Simulation Quality")
@@ -163,7 +148,6 @@ def run_scenario():
             App.closeDocument(quality_doc.Name); progress("quality-document-closed")
         if doc is not None and doc.Name in App.listDocuments():
             App.closeDocument(doc.Name); progress("document-closed")
-
 
 run_scenario()
 progress("script-end")
