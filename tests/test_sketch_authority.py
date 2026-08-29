@@ -13,14 +13,12 @@ class Point:
 
 
 class LineSegment:
-    __name__ = "LineSegment"
-    __module__ = "Part"
     def __init__(self, start, end):
         self.StartPoint = Point(*start)
         self.EndPoint = Point(*end)
 
 
-def test_pattern_ir_accepts_fake_sketcher_lines_in_topological_order():
+def test_pattern_ir_accepts_fake_sketcher_lines_in_shuffled_insertion_order():
     piece = PatternPiece("Front", [(0, 0), (100, 0), (100, 60), (0, 60)], id="front")
     graph = SeamGraph(); graph.add_piece(piece)
     class Sketch:
@@ -31,12 +29,14 @@ def test_pattern_ir_accepts_fake_sketcher_lines_in_topological_order():
             LineSegment((100, 0), (100, 60)),
         ]
     result = PatternIR.from_sketches(graph, {"front": Sketch()})
-    assert [b.samples[0][:2] for b in result.piece("front").boundaries] == [
-        (0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)
-    ]
-    assert all(boundary.kind == "line" for boundary in result.piece("front").boundaries)
+    boundaries = result.piece("front").boundaries
+    assert len(boundaries) == 4
+    assert boundaries[0].id == "front:edge:0"
+    assert all(boundary.kind == "line" for boundary in boundaries)
+    for current, following in zip(boundaries, boundaries[1:] + boundaries[:1]):
+        assert current.samples[-1] == following.samples[0]
 
 
 if __name__ == "__main__":
-    test_pattern_ir_accepts_fake_sketcher_lines_in_topological_order()
+    test_pattern_ir_accepts_fake_sketcher_lines_in_shuffled_insertion_order()
     print("sketch authority adapter tests passed")
