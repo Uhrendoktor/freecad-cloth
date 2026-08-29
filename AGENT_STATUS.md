@@ -14,7 +14,7 @@
 - **#155 / PR #160** P0 canonical native garment fixture and GUI/Xvfb workflow — active; must be reviewed and merged only after terminal green CI.
 - **#145 / #159 / #161** P0 simulation quality — active; #159 is claimed by Uhrendoktor in `agent/159-simulation-quality`.
 - **#147 / #163** P1 production 2D export — queued behind P0; current metadata work is a foundation, not completion.
-- **#162** P1 pattern authoring parity audit — queued; research-driven audit of curved authoring, constraints, marks, offsets and semantic preservation.
+- **#162** P1 pattern authoring parity audit — **claimed by Uhrendoktor on `agent/issue-162-pattern-audit-20260829`**; audit identifies native curve-authority and semantic-edge-reference blockers.
 - **#148** P2 optional native solver benchmark — explicitly non-blocking.
 - **#165** Architecture: FreeCAD-native Sketcher pattern authoring + semantic Cloth sewing layer — architecture documented; implementation follow-up should be coordinated with the supervisor and must not duplicate the P0 audit.
 
