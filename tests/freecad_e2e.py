@@ -21,6 +21,11 @@ except ImportError:
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+# FreeCAD workbench modules are registered by InitGui.py. The documentation
+# screenshot scenario already uses this bootstrap; the isolated E2E process
+# must do the same before importing PatternGui/SewingGui/SimulationGui.
+init_gui = ROOT / "InitGui.py"
+exec(compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"), globals(), globals())
 OUT = Path(os.environ.get("CLOTH_E2E_DIR", "artifacts/freecad-e2e"))
 OUT.mkdir(parents=True, exist_ok=True)
 LOG = OUT / "workflow.log"
@@ -95,14 +100,10 @@ def run():
     path = None
     try:
         log("scenario-start")
-        # Two parametric pieces provide the save/reload + upstream invalidation path.
         front = make_piece(doc, "Front", [(0, 0), (140, 0), (140, 90), (0, 90)], "front")
         back = make_piece(doc, "Back", [(0, 0), (140, 0), (140, 90), (0, 90)], "back")
         back.Placement.Base.x = 170
 
-        # Sleeve contours use deterministic sampled arc points. The M:N sewing
-        # network joins three consecutive boundary segments, exercising the
-        # curved-contour path without introducing a second source of geometry.
         import math
         curve = [(80 * math.cos(math.radians(a)), 80 * math.sin(math.radians(a))) for a in (0, 18, 36, 54, 72, 90)]
         sleeve_a = make_piece(doc, "SleeveA", [(0, 0)] + curve, "sleeve-a")
@@ -115,7 +116,6 @@ def run():
         show_panel(PatternDraftingTaskPanel(front), "Pattern Design")
         close_panel()
 
-        # Use the public Pattern workbench command to create the canonical front/back seam.
         select_edges((front, 0), (back, 0))
         Gui.runCommand("ClothPattern_AddSeam", 0)
         process_events()
@@ -124,7 +124,6 @@ def run():
         main_seam = seams[0]
         log("pattern-seam-created id=%s" % main_seam.SeamId)
 
-        # Public Sewing workbench command creates the operation from the canonical seam.
         activate("ClothSewingWorkbench", "Cloth Sewing", [
             "ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing", "ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_Validate"])
         Gui.Selection.clearSelection(); Gui.Selection.addSelection(main_seam); process_events()
@@ -136,7 +135,6 @@ def run():
         assert operation.Status == "Valid"
         log("sewing-operation-created status=%s length=%.3f" % (operation.Status, float(operation.LengthA)))
 
-        # Exercise the actual Sewing task panel and its persistent controls.
         Gui.Selection.clearSelection(); Gui.Selection.addSelection(operation); process_events()
         panel = SewingTaskPanel(operation)
         show_panel(panel, "Sewing")
@@ -148,7 +146,6 @@ def run():
         assert operation.StitchCount == 12
         assert operation.Alignment == "uniform"
 
-        # Public Sewing command creates the M:N network for the sampled curved contour.
         select_edges((sleeve_a, 0), (sleeve_a, 1), (sleeve_a, 2),
                      (sleeve_b, 0), (sleeve_b, 1), (sleeve_b, 2))
         Gui.runCommand("ClothSewing_CreateMNSewing", 0)
@@ -159,8 +156,6 @@ def run():
         assert len(network.Seams) == 3, "curved contour network should contain three seam segments"
         log("mn-network-created relationship=%s seams=%d" % (network.RelationshipId, len(network.Seams)))
 
-        # Create a native simulation scene through the public Simulation command,
-        # then select all four pattern pieces through its public task-panel UI.
         activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_CreateDrape", "ClothSimulation_Edit", "ClothSimulation_Step"])
         Gui.runCommand("ClothSimulation_CreateDrape", 0)
         process_events()
@@ -177,8 +172,6 @@ def run():
         panel = SimulationTaskPanel(scene)
         show_panel(panel, "Simulation")
         panel.iterations.setValue(6)
-        # Do not accept the panel here: its selection widgets intentionally
-        # edit ClothPieces, and the fixture must retain all four pieces.
         close_panel()
         from SimulationObjects import step_scene
         step_scene(scene, 1)
@@ -189,8 +182,6 @@ def run():
         assert float(scene.SimulatedTime) > 0.0
         log("simulation-stepped time=%.6f particles=%d" % (float(scene.SimulatedTime), int(scene.ParticleCount)))
 
-        # Persist the full native document, close it, reload it, and verify the
-        # sewing graph and simulation source are still connected.
         fd, path = tempfile.mkstemp(prefix="cloth-e2e-", suffix=".FCStd")
         os.close(fd)
         doc.recompute(); doc.saveAs(path)
@@ -210,8 +201,6 @@ def run():
         assert scene.ClothPieces
         log("save-reload-ok operation=%s network=%s pieces=%d" % (operation.Name, network.Name, len(scene.ClothPieces)))
 
-        # Change an upstream pattern parameter. Recompute must rebuild downstream
-        # seam-derived geometry and the simulation source signature.
         before_length = float(operation.LengthA)
         before_signature = scene.Proxy.source_signature
         front.Width = 160.0
@@ -223,7 +212,6 @@ def run():
         assert operation.Status == "Length mismatch"
         log("invalidation-ok old_length=%.3f new_length=%.3f" % (before_length, after_length))
 
-        # Re-simulate after the invalidation through the public Simulation task panel.
         Gui.Selection.clearSelection(); Gui.Selection.addSelection(scene); process_events()
         panel = SimulationTaskPanel(scene)
         show_panel(panel, "Simulation after invalidation")
