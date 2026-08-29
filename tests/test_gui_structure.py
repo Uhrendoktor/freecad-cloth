@@ -18,6 +18,10 @@ assert 'def GetResources(self):' in init_gui
 assert '"MenuText": self.MenuText' in init_gui
 assert '"ToolTip": self.ToolTip' in init_gui
 assert '"Icon": self.Icon' in init_gui
+assert "def __init__(self):" in init_gui
+assert "self.commands = []" in init_gui
+assert "if self.commands:" in init_gui
+assert "command not in registered" in init_gui
 assert "class PatternPieceTaskPanel" in pattern_gui
 assert "Gui.Control.showDialog(panel)" in pattern_gui
 assert "class SimulationTaskPanel" in sim_gui
