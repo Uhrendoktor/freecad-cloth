@@ -1,6 +1,6 @@
 """Solver-neutral representation of a FreeCAD Cloth garment.
 
-The IR deliberately contains no FreeCAD or solver types.  Adapters may feed it
+The IR deliberately contains no FreeCAD or solver types. Adapters may feed it
 from the native document layer, while solvers consume only this module's stable
 piece/edge/seam contracts.
 """
@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from math import hypot
 from typing import Dict, Iterable, Mapping, Sequence, Tuple
 
-from PatternGeometry import LineSegment, ParametricPattern
+from PatternGeometry import LineSegment, ParametricPattern, QuadraticBezier
 from PatternModel import PatternPiece, Seam
 from SeamGraph import SeamGraph
 
@@ -17,11 +17,20 @@ Point3 = Tuple[float, float, float]
 
 @dataclass(frozen=True)
 class BoundaryIR:
-    """A resolved boundary curve with a stable semantic identifier."""
+    """A resolved boundary with semantic identity and curve provenance.
+
+    ``samples`` is a derived representation for consumers that need points.
+    ``control_points`` and ``curve_type`` preserve the source curve contract so
+    sampling never becomes the authoritative geometry.  Native adapters can
+    add richer curve types (arc, BSpline, Bezier, ...) without changing seam
+    references or downstream solver APIs.
+    """
 
     id: str
     kind: str
     samples: Tuple[Point3, ...]
+    curve_type: str = "line"
+    control_points: Tuple[Point3, ...] = ()
 
     def validate(self) -> None:
         if not self.id.strip():
@@ -30,6 +39,14 @@ class BoundaryIR:
             raise ValueError("unsupported boundary kind")
         if len(self.samples) < 2:
             raise ValueError("boundary needs at least two samples")
+        if not self.curve_type.strip():
+            raise ValueError("curve type must not be empty")
+        if self.kind == "line" and self.curve_type != "line":
+            raise ValueError("line boundary must use line curve type")
+        if self.kind == "curve" and self.curve_type == "line":
+            raise ValueError("curve boundary needs a non-line curve type")
+        if self.control_points and len(self.control_points) < 2:
+            raise ValueError("curve control points need at least two points")
 
     @property
     def length(self) -> float:
@@ -142,8 +159,8 @@ class PatternIR:
         """Resolve a sewing graph into immutable solver-facing data.
 
         Integer seam references are accepted only at this adapter boundary and
-        are immediately converted to semantic boundary IDs.  String refs must
-        already identify a boundary.  Thus downstream code never needs to
+        are immediately converted to semantic boundary IDs. String refs must
+        already identify a boundary. Thus downstream code never needs to
         interpret fragile ``EdgeN`` topology numbers.
         """
         graph.validate()
@@ -201,12 +218,33 @@ def _line_geometry(piece: PatternPiece) -> ParametricPattern:
     return ParametricPattern(segments)
 
 
+def _point3(point) -> Point3:
+    return (float(point[0]), float(point[1]), 0.0)
+
+
 def _boundary_ir(segment, curve_samples: int) -> BoundaryIR:
     if isinstance(segment, LineSegment):
-        samples = (tuple((*segment.start, 0.0)), tuple((*segment.end, 0.0)))
-        return BoundaryIR(segment.id, "line", samples)
-    samples = tuple(tuple((*point, 0.0)) for point in segment.polyline(curve_samples))
-    return BoundaryIR(segment.id, "curve", samples)
+        return BoundaryIR(
+            segment.id,
+            "line",
+            (_point3(segment.start), _point3(segment.end)),
+            curve_type="line",
+            control_points=(_point3(segment.start), _point3(segment.end)),
+        )
+    if isinstance(segment, QuadraticBezier):
+        samples = tuple(_point3(point) for point in segment.polyline(curve_samples))
+        return BoundaryIR(
+            segment.id,
+            "curve",
+            samples,
+            curve_type="quadratic_bezier",
+            control_points=(
+                _point3(segment.start),
+                _point3(segment.control),
+                _point3(segment.end),
+            ),
+        )
+    raise ValueError(f"unsupported boundary segment type: {type(segment).__name__}")
 
 
 def _resolve_edge(reference, piece: PieceIR) -> str:
