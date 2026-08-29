@@ -19,6 +19,7 @@
 - **#148** P2 optional native solver benchmark — explicitly non-blocking.
 - **#165** Architecture: FreeCAD-native Sketcher pattern authoring + semantic Cloth sewing layer — architecture documented; implementation follow-up must not duplicate the P0 audit.
 - **Workbench registration contract** — DONE on `agent/workbench-registration-contract-20260829`; PR #195; canonical CI run 33277240039 is terminal-green across Python 3.10/3.11/3.12, real FreeCAD smoke, and GUI/Xvfb screenshots. Awaiting supervisor integration decision.
+- **Workbench packaging contract follow-up** — IN PROGRESS on `agent/workbench-packaging-contract-20260830` (2026-08-30); isolated to headless packaging/metadata regression coverage, not P0 audit/simulation logic.
 
 ## Coordination protocol
 
