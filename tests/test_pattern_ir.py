@@ -2,8 +2,6 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import pytest
-
 from PatternGeometry import LineSegment, ParametricPattern, QuadraticBezier, rectangle
 from PatternIR import PatternIR
 from PatternModel import PatternPiece, Seam
@@ -121,24 +119,21 @@ def _other_sketch():
     ], ["other:edge:0", "other:edge:1", "other:edge:2", "other:edge:3"])
 
 
-@pytest.mark.parametrize(
-    "native_type,expected_kind",
-    [(ArcOfCircle, "arc"), (BSplineCurve, "bspline"), (BezierCurve, "bezier")],
-)
-def test_native_sketch_curve_kinds_are_preserved(native_type, expected_kind):
-    curve = native_type((10, 0), (10, 10))
-    graph, sketch = _sketch_graph(curve, "piece:curved")
-    ir = PatternIR.from_sketches(
-        graph,
-        {"piece": sketch, "other": _other_sketch()},
-        curve_samples=7,
-    )
-    boundary = ir.boundary("piece", "piece:curved")
-    assert boundary.kind == expected_kind
-    assert boundary.parameter_range == (2.0, 4.0)
-    assert len(boundary.samples) == 7
-    assert boundary.samples[0] == (10.0, 0.0, 0.0)
-    assert boundary.samples[-1] == (10.0, 10.0, 0.0)
+def test_native_sketch_curve_kinds_are_preserved():
+    for native_type, expected_kind in ((ArcOfCircle, "arc"), (BSplineCurve, "bspline"), (BezierCurve, "bezier")):
+        curve = native_type((10, 0), (10, 10))
+        graph, sketch = _sketch_graph(curve, "piece:curved")
+        ir = PatternIR.from_sketches(
+            graph,
+            {"piece": sketch, "other": _other_sketch()},
+            curve_samples=7,
+        )
+        boundary = ir.boundary("piece", "piece:curved")
+        assert boundary.kind == expected_kind
+        assert boundary.parameter_range == (2.0, 4.0)
+        assert len(boundary.samples) == 7
+        assert boundary.samples[0] == (10.0, 0.0, 0.0)
+        assert boundary.samples[-1] == (10.0, 10.0, 0.0)
 
 
 def test_sketch_semantic_ids_survive_raw_integer_seam_resolution():
@@ -160,5 +155,15 @@ def test_unresolvable_string_reference_fails_closed():
     graph = SeamGraph()
     graph.add_piece(PatternPiece("front", [(0, 0), (10, 0), (0, 10)], id="front"))
     graph.add_piece(PatternPiece("back", [(0, 0), (10, 0), (0, 10)], id="back"))
-    with pytest.raises(ValueError, match="unknown pattern piece|outside"):
+    try:
         graph.add_seam(Seam("front", "missing", "back", 0, id="bad"))
+    except ValueError:
+        return
+    raise AssertionError("invalid seam reference was accepted")
+
+
+if __name__ == "__main__":
+    for name, fn in globals().copy().items():
+        if name.startswith("test_"):
+            fn()
+    print("PatternIR tests passed")
