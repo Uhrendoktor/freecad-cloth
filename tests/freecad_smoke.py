@@ -60,7 +60,7 @@ def main():
     other_sketch.addGeometry(Part.LineSegment(App.Vector(20, 10, 0), App.Vector(0, 10, 0)), False)
     other_sketch.addGeometry(Part.LineSegment(App.Vector(0, 10, 0), App.Vector(0, 0, 0)), False)
     doc.recompute()
-    ir = PatternIR.from_sketches({"pieces": graph}, {}) if False else PatternIR.from_sketches(
+    ir = PatternIR.from_sketches(
         graph,
         {"curved": curved_sketch, "other": other_sketch},
         curve_samples=9,
