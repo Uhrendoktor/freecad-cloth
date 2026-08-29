@@ -91,6 +91,7 @@ jobs:
               freecadcmd tests/freecad_smoke.py
               freecadcmd tests/freecad_meshpart_smoke.py
               freecadcmd tests/freecad_sewing_smoke.py
+              freecadcmd tests/freecad_simulation_status_smoke.py
             '
 
   gui-screenshots:
