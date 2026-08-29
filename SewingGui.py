@@ -85,7 +85,8 @@ class SewingTaskPanel:
     def getStandardButtons(self):
         """Return the native Qt OK/Cancel task-panel buttons."""
         _App, _Gui, QtWidgets = _gui_modules()
-        return int(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+        buttons = QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+        return int(getattr(buttons, "value", buttons))
 
 
 def show_sewing_task(obj):
