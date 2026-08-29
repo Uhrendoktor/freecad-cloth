@@ -174,7 +174,6 @@ jobs:
 
   maintenance:
     if: ${{ github.event_name == 'schedule' || github.ref == 'refs/heads/main' }}
-    needs: [test, freecad-smoke, gui-screenshots]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
