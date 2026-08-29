@@ -23,11 +23,6 @@ class SeamConstraint:
         reversed_b: bool = False,
         kind: str = "plain",
     ) -> None:
-        try:
-            edge_a = int(edge_a)
-            edge_b = int(edge_b)
-        except (TypeError, ValueError) as exc:
-            raise ValueError("legacy seam edge identifiers must be integer outline indices") from exc
         self._seam = Seam(
             piece_a=piece_a,
             edge_a=edge_a,
