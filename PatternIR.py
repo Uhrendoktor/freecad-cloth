@@ -4,7 +4,7 @@ The IR deliberately contains no FreeCAD or solver types. Adapters may feed it
 from the native document layer, while solvers consume only this module's stable
 piece/edge/seam contracts.
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from math import hypot
 from typing import Mapping, Sequence, Tuple
 
@@ -276,11 +276,129 @@ def _sketch_boundaries(sketch, piece_id: str, curve_samples: int) -> Tuple[Bound
 
     if len(boundaries) < 3:
         raise ValueError(f"Sketcher pattern needs at least three non-construction boundaries: {piece_id}")
-    for index, current in enumerate(boundaries):
-        following = boundaries[(index + 1) % len(boundaries)]
-        if _distance3(current.samples[-1], following.samples[0]) > 1e-7:
-            raise ValueError(f"Sketcher boundary is not closed between {current.id} and {following.id}")
-    return tuple(boundaries)
+    return _order_sketch_boundary(boundaries, piece_id)
+
+
+def _order_sketch_boundary(boundaries: Sequence[BoundaryIR], piece_id: str) -> Tuple[BoundaryIR, ...]:
+    """Resolve a closed Sketcher boundary from endpoint connectivity.
+
+    Sketcher geometry insertion order is not a topological contract. Every
+    endpoint must therefore belong to exactly two distinct boundary edges;
+    after that invariant is established, the cycle is traversed from the
+    lexicographically smallest semantic ID with a deterministic direction.
+    """
+    if len({boundary.id for boundary in boundaries}) != len(boundaries):
+        raise ValueError(f"Sketcher boundary has duplicate semantic IDs: {piece_id}")
+
+    vertices = []
+    edge_vertices = []
+    for edge_index, boundary in enumerate(boundaries):
+        start = boundary.samples[0]
+        end = boundary.samples[-1]
+        if _distance3(start, end) <= 1e-7:
+            raise ValueError(f"Sketcher boundary has a zero-length/self-loop edge: {boundary.id}")
+        start_vertex = _find_vertex(vertices, start)
+        end_vertex = _find_vertex(vertices, end)
+        if start_vertex is None:
+            start_vertex = len(vertices)
+            vertices.append([start, []])
+        if end_vertex is None:
+            end_vertex = len(vertices)
+            vertices.append([end, []])
+        vertices[start_vertex][1].append(edge_index)
+        vertices[end_vertex][1].append(edge_index)
+        edge_vertices.append((start_vertex, end_vertex))
+
+    for vertex_index, (_, incident) in enumerate(vertices):
+        unique_incident = sorted(set(incident))
+        if len(unique_incident) != 2:
+            if len(unique_incident) < 2:
+                raise ValueError(
+                    f"Sketcher boundary is open at endpoint {vertex_index}: "
+                    f"expected two connected edges, found {len(unique_incident)}"
+                )
+            raise ValueError(
+                f"Sketcher boundary is ambiguous at endpoint {vertex_index}: "
+                f"expected two connected edges, found {len(unique_incident)}"
+            )
+
+    adjacency = {index: set() for index in range(len(boundaries))}
+    for incident in (set(vertex[1]) for vertex in vertices):
+        first, second = tuple(incident)
+        adjacency[first].add(second)
+        adjacency[second].add(first)
+
+    start_index = min(range(len(boundaries)), key=lambda index: (boundaries[index].id, index))
+    start_a, start_b = edge_vertices[start_index]
+    next_a = next(index for index in adjacency[start_index] if index != start_index)
+    next_b = next(index for index in adjacency[start_index] if index != start_index)
+    next_a = _next_edge_at_vertex(start_a, start_index, adjacency, edge_vertices)
+    next_b = _next_edge_at_vertex(start_b, start_index, adjacency, edge_vertices)
+    start_vertex, current_vertex = (
+        (start_a, start_b)
+        if (boundaries[next_a].id, _point_sort_key(vertices[start_a][0]))
+        <= (boundaries[next_b].id, _point_sort_key(vertices[start_b][0]))
+        else (start_b, start_a)
+    )
+
+    ordered = []
+    visited = {start_index}
+    ordered.append(_orient_boundary(boundaries[start_index], edge_vertices[start_index], start_vertex))
+    current_edge = start_index
+
+    while len(visited) < len(boundaries):
+        candidates = [index for index in adjacency[current_edge] if index not in visited]
+        if len(candidates) != 1:
+            raise ValueError(
+                f"Sketcher boundary is ambiguous while traversing from {boundaries[current_edge].id}"
+            )
+        next_edge = candidates[0]
+        edge_start, edge_end = edge_vertices[next_edge]
+        if edge_start == current_vertex:
+            next_vertex = edge_end
+            oriented = boundaries[next_edge]
+        elif edge_end == current_vertex:
+            next_vertex = edge_start
+            oriented = replace(boundaries[next_edge], samples=tuple(reversed(boundaries[next_edge].samples)))
+        else:
+            raise ValueError(f"Sketcher boundary is disconnected near {boundaries[next_edge].id}")
+        ordered.append(oriented)
+        visited.add(next_edge)
+        current_edge = next_edge
+        current_vertex = next_vertex
+
+    if start_vertex != current_vertex:
+        raise ValueError(f"Sketcher boundary is open: traversal did not return to its start ({piece_id})")
+    return tuple(ordered)
+
+
+def _find_vertex(vertices, point):
+    for index, (representative, _) in enumerate(vertices):
+        if _distance3(representative, point) <= 1e-7:
+            return index
+    return None
+
+
+def _next_edge_at_vertex(vertex_index, current_edge, adjacency, edge_vertices):
+    candidates = [index for index in adjacency[current_edge] if index != current_edge]
+    for index in candidates:
+        start, end = edge_vertices[index]
+        if start == vertex_index or end == vertex_index:
+            return index
+    raise ValueError("Sketcher boundary connectivity is inconsistent")
+
+
+def _point_sort_key(point: Point3):
+    return tuple(round(value, 12) for value in point)
+
+
+def _orient_boundary(boundary, edge_vertices, start_vertex):
+    edge_start, edge_end = edge_vertices
+    if edge_start == start_vertex:
+        return boundary
+    if edge_end == start_vertex:
+        return replace(boundary, samples=tuple(reversed(boundary.samples)))
+    raise ValueError(f"Sketcher boundary orientation cannot start at {boundary.id}")
 
 
 def _is_construction(sketch, index: int) -> bool:
