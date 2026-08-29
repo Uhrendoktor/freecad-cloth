@@ -184,7 +184,7 @@ jobs:
       actions: write
       pull-requests: read
     steps:
-      - name: GPT-Tools cleanup of old Actions runs and merged branches
+      - name: GPT-Tools cleanup of old Actions runs and stale closed-PR branches
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -200,6 +200,7 @@ jobs:
           def gh(*args):
               return subprocess.check_output(['gh', 'api', *args], text=True)
 
+          # Keep the 10 newest completed runs; remove older completed runs.
           runs = []
           for page in range(1, 20):
               data = json.loads(gh(f'repos/{repo}/actions/runs?per_page=100&page={page}'))
@@ -219,27 +220,28 @@ jobs:
               subprocess.run(['gh', 'api', '--method', 'DELETE', f"repos/{repo}/actions/runs/{run['id']}"], check=True)
               deleted_runs += 1
 
+          # Delete branches for closed PRs older than 24h, unless the branch is an open PR head.
           default_branch = json.loads(gh(f'repos/{repo}'))['default_branch']
           open_prs = json.loads(gh(f'repos/{repo}/pulls?state=open&per_page=100'))
           open_heads = {(p.get('head') or {}).get('ref') for p in open_prs}
-          merged_prs = []
+          closed_prs = []
           for page in range(1, 20):
               page_prs = json.loads(gh(f'repos/{repo}/pulls?state=closed&per_page=100&page={page}'))
               if not page_prs:
                   break
-              merged_prs.extend(p for p in page_prs if p.get('merged_at'))
+              closed_prs.extend(page_prs)
               if len(page_prs) < 100:
                   break
           deleted_branches = 0
           seen = set()
-          for pr in merged_prs:
+          for pr in closed_prs:
               head = (pr.get('head') or {}).get('ref')
-              merged_at = pr.get('merged_at')
-              if not head or head in seen or head == default_branch or head in open_heads or not merged_at:
+              closed_at = pr.get('closed_at')
+              if not head or head in seen or head == default_branch or head in open_heads or not closed_at:
                   continue
               seen.add(head)
-              merged = datetime.fromisoformat(merged_at.replace('Z', '+00:00'))
-              if merged >= cutoff:
+              closed = datetime.fromisoformat(closed_at.replace('Z', '+00:00'))
+              if closed >= cutoff:
                   continue
               ref = f'repos/{repo}/git/ref/heads/{head}'
               if subprocess.run(['gh', 'api', ref], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
@@ -247,5 +249,5 @@ jobs:
               subprocess.run(['gh', 'api', '--method', 'DELETE', f'repos/{repo}/git/refs/heads/{head}'], check=True)
               deleted_branches += 1
 
-          print(json.dumps({'deleted_runs': deleted_runs, 'deleted_merged_branches': deleted_branches}, indent=2))
+          print(json.dumps({'deleted_runs': deleted_runs, 'deleted_closed_pr_branches': deleted_branches}, indent=2))
           PY
