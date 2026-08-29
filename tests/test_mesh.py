@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from PatternGeometry import LineSegment, ParametricPattern, rectangle
+from PatternGeometry import LineSegment, ParametricPattern, QuadraticBezier, rectangle
 from PatternIR import PatternIR
 from PatternMesh import triangulate
 from PatternModel import PatternPiece, Seam
@@ -73,7 +73,7 @@ def test_pattern_ir_keeps_curve_provenance_outside_solver_types():
         "front": ParametricPattern([
             # A curve remains a curve in the IR; it is not flattened into
             # a solver-specific or FreeCAD-specific object.
-            __import__("PatternGeometry").QuadraticBezier("curve", (0, 0), (5, 8), (10, 0)),
+            QuadraticBezier("curve", (0, 0), (5, 8), (10, 0)),
             LineSegment("line-a", (10, 0), (0, 10)),
             LineSegment("line-b", (0, 10), (0, 0)),
         ]),
