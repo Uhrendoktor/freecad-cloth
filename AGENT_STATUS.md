@@ -12,7 +12,7 @@
 
 - **#143** P0 end-to-end workflow audit — supervisor gate.
 - **#155 / PR #160** P0 canonical native garment fixture and GUI/Xvfb workflow — active; must be reviewed and merged only after terminal green CI.
-- **#145 / #159 / #161** P0 simulation quality — active; stored parameters are insufficient until they change meshing/solver/collision behavior and invalidate cached state.
+- **#145 / #159 / #161** P0 simulation quality — active; #159 is claimed by Uhrendoktor in `agent/159-simulation-quality`.
 - **#147 / #163** P1 production 2D export — queued behind P0; current metadata work is a foundation, not completion.
 - **#162** P1 pattern authoring parity audit — queued; research-driven audit of curved authoring, constraints, marks, offsets and semantic preservation.
 - **#148** P2 optional native solver benchmark — explicitly non-blocking.
