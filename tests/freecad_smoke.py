@@ -81,6 +81,7 @@ def main():
 
     quality_doc = App.newDocument("ClothQualitySmoke")
     quality_scene = create_quality_simulation_scene(quality_doc)
+    quality_scene.ClothPieces = []
     quality_doc.recompute()
     assert quality_scene.QualityPreset == "Balanced"
     assert quality_scene.ParticleDistance == 4.0
