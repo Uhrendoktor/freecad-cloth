@@ -1,13 +1,11 @@
 """Deterministic M:N and free-sewing relationships.
 
 A sewing network is represented as a set of ordinary canonical ``Seam``
-records sharing one relationship id.  Member ranges may cover arbitrary
+records sharing one relationship id. Member ranges may cover arbitrary
 sub-ranges of an edge, so the same machinery handles free sewing and 1:1,
-1:N, M:1, and M:N relationships.  The generated seam ranges are deterministic
-and preserve the canonical seam contract consumed by simulation.
+1:N, M:1, and M:N relationships.
 """
 from dataclasses import dataclass
-from math import hypot
 from typing import Iterable, List, Sequence, Tuple
 
 from PatternModel import Seam
@@ -31,11 +29,6 @@ class SewingMember:
             raise ValueError("sewing member range must be normalized with positive extent")
 
 
-def _polyline_length(points: Sequence[Sequence[float]]) -> float:
-    return sum(hypot(float(b[0]) - float(a[0]), float(b[1]) - float(a[1]))
-               for a, b in zip(points, points[1:]))
-
-
 def _member_length(member: SewingMember, edge_lengths) -> float:
     """Resolve a member's physical edge length from a mapping or callback."""
     if callable(edge_lengths):
@@ -48,7 +41,7 @@ def _member_length(member: SewingMember, edge_lengths) -> float:
     return length * (float(member.end) - float(member.start))
 
 
-def _breakpoints(members: Sequence[SewingMember], lengths: Sequence[float]) -> List[float]:
+def _breakpoints(lengths: Sequence[float]) -> List[float]:
     total = sum(lengths)
     if total <= 0.0:
         raise ValueError("sewing relationship has zero total length")
@@ -71,11 +64,11 @@ def build_mn_seams(
 ) -> Tuple[Seam, ...]:
     """Expand an M:N relationship into deterministic canonical seam segments.
 
-    Members are ordered as supplied.  Their physical lengths define cumulative
-    normalized ranges.  Overlapping ranges become canonical seams, so a member
-    can deterministically connect to multiple members without inventing a
-    second seam representation.  ``edge_lengths`` is either ``{(piece, edge):
-    length}`` or a callable returning a length in millimetres.
+    Members are ordered as supplied. Their physical lengths define cumulative
+    normalized ranges. Overlapping ranges become canonical seams, so one member
+    can deterministically connect to multiple members without a second seam
+    representation. ``edge_lengths`` is either ``{(piece, edge): length}`` or a
+    callable returning a length in millimetres.
     """
     relationship_id = str(relationship_id).strip()
     if not relationship_id:
@@ -93,8 +86,8 @@ def build_mn_seams(
 
     a_lengths = tuple(_member_length(m, edge_lengths) for m in a)
     b_lengths = tuple(_member_length(m, edge_lengths) for m in b)
-    a_breaks = _breakpoints(a, a_lengths)
-    b_breaks = _breakpoints(b, b_lengths)
+    a_breaks = _breakpoints(a_lengths)
+    b_breaks = _breakpoints(b_lengths)
 
     seams = []
     i = j = 0
@@ -104,17 +97,16 @@ def build_mn_seams(
         if hi > lo + 1e-12:
             a_span = a_breaks[i + 1] - a_breaks[i]
             b_span = b_breaks[j + 1] - b_breaks[j]
-            a_start = float(a.start) + (float(a.end) - float(a.start)) * (lo - a_breaks[i]) / a_span
-            a_end = float(a.start) + (float(a.end) - float(a.start)) * (hi - a_breaks[i]) / a_span
+            a_start = float(a[i].start) + (float(a[i].end) - float(a[i].start)) * (lo - a_breaks[i]) / a_span
+            a_end = float(a[i].start) + (float(a[i].end) - float(a[i].start)) * (hi - a_breaks[i]) / a_span
             b_start = float(b[j].start) + (float(b[j].end) - float(b[j].start)) * (lo - b_breaks[j]) / b_span
             b_end = float(b[j].start) + (float(b[j].end) - float(b[j].start)) * (hi - b_breaks[j]) / b_span
-            segment_id = f"{relationship_id}-{i + 1}-{j + 1}"
             seams.append(Seam(
                 piece_a=a[i].piece_id,
                 edge_a=a[i].edge,
                 piece_b=b[j].piece_id,
                 edge_b=b[j].edge,
-                id=segment_id,
+                id=f"{relationship_id}-{i + 1}-{j + 1}",
                 start_a=a_start,
                 end_a=a_end,
                 start_b=b_start,
@@ -152,6 +144,29 @@ def member_lengths_from_pattern(pieces, members: Iterable[SewingMember]):
     return result
 
 
+def _network_lengths(seams):
+    """Resolve physical lengths for persisted seam document objects."""
+    from SewingObjects import _seam_length
+
+    total_a = total_b = 0.0
+    pieces = {}
+    for seam in seams:
+        document = getattr(seam, "Document", None)
+        if document is not None:
+            pieces.update({
+                str(getattr(piece, "PieceId", "")): piece
+                for piece in getattr(document, "Objects", ())
+                if getattr(piece, "PatternType", "") == "PatternPiece"
+            })
+        piece_a = pieces.get(str(getattr(seam, "PieceA", "")))
+        piece_b = pieces.get(str(getattr(seam, "PieceB", "")))
+        if piece_a is None or piece_b is None:
+            raise ValueError("sewing network references missing pattern pieces")
+        total_a += _seam_length(piece_a, seam, "A")
+        total_b += _seam_length(piece_b, seam, "B")
+    return total_a, total_b
+
+
 class SewingNetworkProxy:
     """Recomputable validation summary for a persisted M:N relationship."""
 
@@ -167,13 +182,15 @@ class SewingNetworkProxy:
         ids = [str(getattr(seam, "SeamId", "")) for seam in seams]
         if any(not sid for sid in ids) or len(ids) != len(set(ids)):
             raise ValueError("sewing network contains invalid or duplicate seams")
+        relationship_id = str(getattr(obj, "RelationshipId", "")).strip()
         groups = {str(getattr(seam, "StitchGroup", "")) for seam in seams}
-        if len(groups) != 1 or not next(iter(groups)):
-            raise ValueError("sewing network seams must share one stitch group")
+        if not relationship_id or groups != {relationship_id}:
+            raise ValueError("sewing network seams must share the relationship id")
+        total_a, total_b = _network_lengths(seams)
         obj.SegmentCount = len(seams)
-        obj.LengthA = sum(float(getattr(seam, "LengthA", 0.0)) for seam in seams)
-        obj.LengthB = sum(float(getattr(seam, "LengthB", 0.0)) for seam in seams)
-        obj.LengthDifference = abs(obj.LengthA - obj.LengthB)
+        obj.LengthA = total_a
+        obj.LengthB = total_b
+        obj.LengthDifference = abs(total_a - total_b)
         tolerance = max(0.0, float(getattr(obj, "Tolerance", 0.5)))
         obj.Status = "Valid" if obj.LengthDifference <= tolerance else "Length mismatch"
 
@@ -181,12 +198,16 @@ class SewingNetworkProxy:
 def add_sewing_network(doc, seams, relationship_id, name="SewingNetwork"):
     """Persist an M:N relationship as one editable FreeCAD network object."""
     seams = tuple(seams)
-    if not seams:
-        raise ValueError("cannot create an empty sewing network")
+    relationship_id = str(relationship_id).strip()
+    if not seams or not relationship_id:
+        raise ValueError("a sewing network needs seams and a relationship id")
+    groups = {str(getattr(seam, "StitchGroup", "")) for seam in seams}
+    if groups != {relationship_id}:
+        raise ValueError("all seams must use the network relationship id")
     obj = doc.addObject("App::FeaturePython", name)
     obj.Label = relationship_id
     obj.addProperty("App::PropertyString", "SewingType", "Sewing").SewingType = "SewingNetwork"
-    obj.addProperty("App::PropertyString", "RelationshipId", "Sewing").RelationshipId = str(relationship_id)
+    obj.addProperty("App::PropertyString", "RelationshipId", "Sewing").RelationshipId = relationship_id
     obj.addProperty("App::PropertyLinkList", "Seams", "Sewing").Seams = list(seams)
     obj.addProperty("App::PropertyInteger", "SideACount", "Sewing").SideACount = len({(s.PieceA, s.EdgeA) for s in seams})
     obj.addProperty("App::PropertyInteger", "SideBCount", "Sewing").SideBCount = len({(s.PieceB, s.EdgeB) for s in seams})
