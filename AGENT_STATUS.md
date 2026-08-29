@@ -2,58 +2,62 @@
 
 ## Supervisor
 
-- Active milestone: P0 end-to-end release audit and simulation-quality completion.
-- Mainline contains three integrated FreeCAD workbenches: Cloth Pattern, Cloth Sewing, and Cloth Simulation.
-- M1 semantic sewing core (#144) and its UI completion (#152) are merged.
-- M3 avatar arrangement/fitting (#146) is merged and remains under end-to-end audit.
-- Simulation-quality parameter contract (#156) is merged; native workbench wiring is now #159.
+- Active milestone: **P0 vertical release gates** — native end-to-end workflow plus behavioral simulation-quality controls.
+- Mainline contains three registered FreeCAD workbenches: Cloth Pattern, Cloth Sewing, and Cloth Simulation.
+- M:N/free sewing and fitting arrangement work are merged.
+- Simulation-quality/fabric parameter contract is merged, but native behavioral wiring is not yet release-complete.
+- Production SVG/DXF semantic metadata exists, but export validation is still a release gate.
 
 ## Current task board
 
-- #143 P0 end-to-end release-blocking workflow audit — active supervisor gate.
-- #145 P0 simulation quality/material controls — parent gate; implementation split into #156 and #159.
-- #155 P0 canonical end-to-end garment fixture and FreeCAD GUI workflow test — active execution task under #143.
-- #156 P0 simulation quality/fabric parameter model — first slice merged; keep parent #145 open until native behavior is complete.
-- #159 P0 wire SimulationQuality into native Simulation object/task panel/meshing/solver lifecycle — next active implementation task.
-- #147 P1 production CAD export and semantic round-trip validation — queued behind P0.
-- #148 P2 optional native solver benchmark — explicitly non-blocking.
+- **#143** P0 end-to-end workflow audit — supervisor gate.
+- **#155 / PR #160** P0 canonical native garment fixture and GUI/Xvfb workflow — active; must be reviewed and merged only after terminal green CI.
+- **#145 / #159 / #161** P0 simulation quality — active; stored parameters are insufficient until they change meshing/solver/collision behavior and invalidate cached state.
+- **#147 / #163** P1 production 2D export — queued behind P0; current metadata work is a foundation, not completion.
+- **#162** P1 pattern authoring parity audit — queued; research-driven audit of curved authoring, constraints, marks, offsets and semantic preservation.
+- **#148** P2 optional native solver benchmark — explicitly non-blocking.
 
-Issues #144 and #146 are completed in mainline. New work must update this section before handoff; a branch, PR, or green CI run alone is never completion.
+Issues #144 and #146 are completed. Do not close parent issues merely because a branch, PR, or unit test is green.
 
-## Replan decision
+## Replan v2 decision
 
-The previous roadmap was too feature-list oriented. The release path is governed by the native FreeCAD workflow:
+The roadmap is now organized around a native FreeCAD **vertical release slice** rather than a feature list:
 
-`Pattern authoring -> Sewing (including M:N/free sewing) -> Avatar arrangement -> Simulation quality controls -> Save/reload -> deterministic re-simulation -> production 2D export.`
+`Pattern authoring -> 1:1 + free/M:N sewing -> avatar arrangement -> quality/material simulation -> inspect -> upstream edit -> invalidation -> save/reload -> deterministic re-simulation -> production 2D export.`
 
-Research treats CLO and Marvelous Designer as workflow references, especially free/M:N sewing, particle-distance quality tiers, arrangement points/bounding volumes, wrap direction, skin offset, reusable assets, and property-editor-driven simulation controls. Tissu/PositionBasedDynamics remain optional backend candidates until benchmarked.
+Research confirms that CLO/Marvelous Designer make semantic sewing, particle-distance quality control, Property Editor-driven simulation/material settings, and reproducible avatar arrangement first-class workflow concepts. FreeCAD Sketcher/Part/TechDraw should be reused instead of duplicating constraint, geometry and drawing systems.
 
-## Completed since replan
+## Completed
 
-- Roadmap and research documents replaced with release-oriented milestones.
-- M:N/free-sewing semantic graph merged and covered by regression tests.
-- Native Sewing UI exposes Free Sewing and a persistent M:N/free-sewing range editor.
-- Avatar arrangement points, bounding volumes, symmetry and deterministic placement/reset behavior are present in mainline.
-- A stable, validated Fast/Balanced/Final simulation-quality and fabric-parameter contract is now in mainline.
-- Canonical CI remains the sole workflow and covers real FreeCAD smoke and GUI/Xvfb.
+- Three native FreeCAD workbenches and document objects.
+- Parametric pattern model with semantic marks and native Sketcher adapter.
+- Semantic 1:1, free and M:N sewing relationships and range editor.
+- Curved/arc-length sewing correspondence and diagnostics.
+- Avatar bounding volumes, arrangement points, symmetry, placement/reset.
+- Deterministic CPU cloth backend with stretch/shear/bending and self-collision.
+- Simulation-quality/fabric contract.
+- Semantic SVG/DXF export metadata.
+- Canonical CI with real FreeCAD smoke and GUI/Xvfb coverage.
 
-## Remaining release gates
+## Release gates
 
-1. Finish #143 using #155: real multi-piece garment, curved seams, invalidation, save/reload and repeatable simulation.
-2. Complete #145 through #159: quality presets must materially change discretization/solver behavior; fabric/collision controls must persist and invalidate cached simulation state; GUI must expose the lifecycle.
-3. Complete #147: production-oriented 2D CAD export with semantic round-trip validation.
-4. Run #148 only after the release path is stable; external solver dependencies remain optional.
+1. **P0-A:** PR #160 proves the real public Pattern -> Sewing -> Simulation -> save/reload -> invalidation workflow.
+2. **P0-B:** #161/#159 wire quality/material/collision properties into native simulation behavior and UI.
+3. **P0-C:** audit task-panel, selection, cancellation, recompute, undo and persistence behavior across all three workbenches.
+4. **P1-A:** #162 closes any concrete Pattern authoring blockers discovered by the audit.
+5. **P1-B:** #163/#147 validate production 2D output, units/scale and semantic round-trip.
+6. **P1-C:** package/install/example/tutorial/release documentation.
+7. **P2:** optional solver benchmark only after release gates are stable.
 
-## Verification gates
+## CI discipline
 
-- Canonical GitHub Actions workflow only; no duplicate workflow files.
-- Python 3.10/3.11/3.12 core, geometry, benchmark, syntax, and package checks green.
-- Real FreeCAD runtime smoke must load the workbenches and exercise document operations.
-- GUI Xvfb scenario must exercise Pattern, Sewing, Simulation activation, task panels, seam creation/editing, simulation controls, and screenshot artifacts.
-- New persistent state requires save/reload tests.
-- Simulation changes require deterministic benchmark/regression evidence.
-- Supervisor inspects PR diffs/reviews, waits for every CI run to become terminal, repairs failures, verifies merged mainline, and only then closes implementation issues.
+- One canonical GitHub Actions workflow only.
+- Never treat an in-progress workflow as success.
+- Supervisor reviews diffs and tests, waits for every relevant run to become terminal, repairs failures, reruns, then verifies merged mainline.
+- Persistent state changes require save/reload tests.
+- Simulation changes require deterministic evidence.
+- UI changes require real FreeCAD/Xvfb coverage.
 
-## Final state
+## Current state
 
-The roadmap replan is integrated. The project is **not yet release-complete**: #143, #145, and #159 remain P0 gates, with #147 required before release. Do not declare completion until the full end-to-end and export gates are green.
+The replan is integrated. **The project is not release-complete.** The active blockers are #143/#155 and #145/#159/#161; P1 export and pattern-authoring gates follow them. Do not declare completion until the vertical workflow and export gates are green on merged mainline.
