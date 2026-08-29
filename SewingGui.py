@@ -52,6 +52,9 @@ class SewingTaskPanel:
         self._refresh()
 
     def _refresh(self):
+        """Refresh both editor widgets and derived validation labels."""
+        self.tolerance.setValue(float(self.obj.Tolerance))
+        self.stitches.setValue(max(2, int(self.obj.Stitches)))
         self.status.setText(str(self.obj.Status))
         self.lengths.setText(
             "%.2f / %.2f mm (Δ %.2f)"
@@ -66,11 +69,16 @@ class SewingTaskPanel:
         """Refresh values shown by the task panel after an external recompute."""
         self._refresh()
 
+    def _recompute(self):
+        document = getattr(self.App, "ActiveDocument", None)
+        if document is not None:
+            document.recompute()
+
     def accept(self):
         """Commit editor values, recompute the document, and finish the task."""
         self.obj.Tolerance = self.tolerance.value()
         self.obj.Stitches = self.stitches.value()
-        self.App.ActiveDocument.recompute()
+        self._recompute()
         self._refresh()
         return True
 
@@ -78,7 +86,7 @@ class SewingTaskPanel:
         """Restore the pre-edit state and recompute before closing the task."""
         self.obj.Tolerance = self._original["Tolerance"]
         self.obj.Stitches = self._original["Stitches"]
-        self.App.ActiveDocument.recompute()
+        self._recompute()
         self._refresh()
         return True
 
