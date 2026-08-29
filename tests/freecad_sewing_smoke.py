@@ -29,24 +29,43 @@ def main():
         panel = SewingTaskPanel(operation)
         buttons = panel.getStandardButtons()
         assert buttons != 0
-        original = (float(operation.Tolerance), int(operation.Stitches))
+        original = (
+            float(operation.Tolerance),
+            int(operation.Stitches),
+            str(seam.Alignment),
+            bool(seam.ReversedB),
+        )
 
-        # Cancel restores the document values and recomputes the operation.
+        # Cancel restores document values, including canonical seam settings.
         panel.tolerance.setValue(3.0)
         panel.stitches.setValue(20)
+        panel.alignment.setCurrentText("uniform")
+        panel.reversed_b.setChecked(True)
         panel.reject()
-        assert (float(operation.Tolerance), int(operation.Stitches)) == original
+        assert (
+            float(operation.Tolerance),
+            int(operation.Stitches),
+            str(seam.Alignment),
+            bool(seam.ReversedB),
+        ) == original
         assert operation.StitchCount == original[1]
 
-        # Accept commits the edited values and leaves the recomputed result.
+        # Accept commits both operation settings and canonical seam settings.
         panel = SewingTaskPanel(operation)
         panel.tolerance.setValue(1.75)
         panel.stitches.setValue(16)
+        panel.alignment.setCurrentText("uniform")
+        panel.reversed_b.setChecked(True)
         assert panel.accept() is True
         assert abs(float(operation.Tolerance) - 1.75) < 1e-9
         assert int(operation.Stitches) == 16
         assert int(operation.StitchCount) == 16
+        assert str(seam.Alignment) == "uniform"
+        assert bool(seam.ReversedB) is True
+        assert str(operation.Alignment) == "uniform"
+        assert bool(operation.ReversedB) is True
         assert operation.Status == "Valid"
+        assert len(operation.StitchPoints) == 16
 
         fd, path = tempfile.mkstemp(suffix=".FCStd")
         os.close(fd)
@@ -57,15 +76,21 @@ def main():
             reloaded = App.openDocument(path)
             reloaded.recompute()
             restored = reloaded.getObject(operation.Name)
+            restored_seam = reloaded.getObject(seam.Name)
             assert restored is not None
             assert restored.SewingType == "SewingOperation"
             assert abs(float(restored.Tolerance) - 1.75) < 1e-9
             assert int(restored.Stitches) == 16
             assert int(restored.StitchCount) == 16
+            assert str(restored.Alignment) == "uniform"
+            assert bool(restored.ReversedB) is True
+            assert str(restored_seam.Alignment) == "uniform"
+            assert bool(restored_seam.ReversedB) is True
             assert restored.Status == "Valid"
+            assert len(restored.StitchPoints) == 16
             assert restored.Seam is not None
             assert restored.PieceA is not None and restored.PieceB is not None
-            print("FreeCAD sewing task-panel lifecycle and save/reload smoke test passed")
+            print("FreeCAD sewing task-panel lifecycle, seam editing, and save/reload smoke test passed")
         finally:
             if App.ActiveDocument is not None:
                 App.closeDocument(App.ActiveDocument.Name)
