@@ -26,10 +26,6 @@ def progress(message):
 
 progress("script-start")
 try:
-    # Do not execute InitGui.py here. FreeCAD loads workbenches during normal
-    # startup, while executing it manually from an FCMacro invokes the
-    # addWorkbench binding in a different initialization state. The screenshot
-    # scenario tests the actual pattern/simulation APIs directly.
     from PatternCommands import create_pattern_piece_from_parameters
     progress("pattern-import-ok")
     from SimulationObjects import create_drape_scene
@@ -103,6 +99,7 @@ def run_scenario():
             main_window.close()
             progress("main-window-closed")
         EVENT_LOOP.quit()
+        QtCore.QCoreApplication.quit()
 
 
 QtCore.QTimer.singleShot(0, run_scenario)
