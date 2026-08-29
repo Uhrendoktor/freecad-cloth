@@ -2,8 +2,6 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import pytest
-
 from PatternModel import PatternPiece, Seam
 from PatternSync import PatternSourceSnapshot, SimulationLockedError, SynchronizationState
 from SeamGraph import SeamGraph, Transform3D
@@ -79,8 +77,12 @@ def test_simulation_lifecycle_locks_source_edits():
     state.begin(snapshot)
     assert state.simulation_active is True
     assert state.active_snapshot is snapshot
-    with pytest.raises(SimulationLockedError):
+    try:
         state.require_editable()
+    except SimulationLockedError:
+        pass
+    else:
+        raise AssertionError("active simulation must lock source edits")
     state.end()
     assert state.simulation_active is False
     assert state.active_snapshot is None
