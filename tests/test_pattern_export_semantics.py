@@ -1,7 +1,6 @@
 import sys
 from pathlib import Path
-
-import pytest
+from unittest import TestCase
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -83,14 +82,14 @@ def test_release_gate_validates_deterministic_svg_and_dxf_round_trip():
 def test_release_gate_rejects_geometry_or_semantic_drift():
     pattern = _curved_pattern()
     svg = to_svg(pattern, curve_samples=9, piece_id="bodice-front", seam_ids=("seam-neck",))
-    with pytest.raises(ValueError, match="deterministic authoritative pattern"):
+    with TestCase().assertRaisesRegex(ValueError, "deterministic authoritative pattern"):
         validate_export(pattern, svg.replace("100.000000,0.000000", "101.000000,0.000000", 1), "svg", curve_samples=9, piece_id="bodice-front", seam_ids=("seam-neck",))
 
     dxf = to_dxf(pattern, curve_samples=9, piece_id="bodice-front", seam_ids=("seam-neck",))
-    with pytest.raises(ValueError, match="deterministic authoritative pattern"):
+    with TestCase().assertRaisesRegex(ValueError, "deterministic authoritative pattern"):
         validate_export(pattern, dxf.replace("bodice-front", "bodice-back", 1), "dxf", curve_samples=9, piece_id="bodice-front", seam_ids=("seam-neck",))
 
 
 def test_release_gate_rejects_unknown_format():
-    with pytest.raises(ValueError, match="format must be 'svg' or 'dxf'"):
+    with TestCase().assertRaisesRegex(ValueError, "format must be 'svg' or 'dxf'"):
         validate_export(_curved_pattern(), "", "pdf")
