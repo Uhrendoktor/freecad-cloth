@@ -30,7 +30,7 @@ def test_richer_curve_geometry_survives_in_the_ir():
     graph = SeamGraph()
     graph.add_piece(PatternPiece("front", [(0, 0), (10, 0), (0, 10)], id="front"))
     graph.add_piece(PatternPiece("back", [(0, 0), (10, 0), (0, 10)], id="back"))
-    graph.add_seam(Seam("front", "curve", "back", "line", id="curve-seam"))
+    graph.add_seam(Seam("front", "curve", "back", "bottom", id="curve-seam"))
     geometry = {
         "front": ParametricPattern([
             QuadraticBezier("curve", (0, 0), (5, 8), (10, 0)),
