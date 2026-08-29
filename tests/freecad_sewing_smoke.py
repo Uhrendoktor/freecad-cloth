@@ -31,6 +31,19 @@ def main():
         assert buttons != 0
         original = (float(operation.Tolerance), int(operation.Stitches))
 
+        # update() must pull external document changes into the visible controls.
+        operation.Tolerance = 2.25
+        operation.Stitches = 12
+        doc.recompute()
+        panel.update()
+        assert abs(panel.tolerance.value() - 2.25) < 1e-9
+        assert panel.stitches.value() == 12
+        operation.Tolerance, operation.Stitches = original
+        doc.recompute()
+        panel.update()
+        assert abs(panel.tolerance.value() - original[0]) < 1e-9
+        assert panel.stitches.value() == original[1]
+
         # Cancel restores the document values and recomputes the operation.
         panel.tolerance.setValue(3.0)
         panel.stitches.setValue(20)
