@@ -91,7 +91,7 @@ jobs:
 
   gui-screenshots:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -105,6 +105,7 @@ jobs:
             -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e QT_QPA_PLATFORM=xcb \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
+            -e CLOTH_E2E_DIR=/workspace/artifacts/freecad-e2e \
             -v "$PWD:/workspace" \
             -w /workspace \
             debian:trixie-slim \
@@ -132,6 +133,20 @@ jobs:
               test -s docs/images/generated/cloth-pattern-design.png
               test -s docs/images/generated/cloth-sewing.png
               test -s docs/images/generated/cloth-simulation.png
+              mkdir -p artifacts/freecad-e2e
+              rm -f artifacts/freecad-e2e/workflow.log
+              printf "%s\n" "exec(compile(open(\"tests/freecad_e2e.py\", encoding=\"utf-8\").read(), \"tests/freecad_e2e.py\", \"exec\"))" > /tmp/cloth_e2e.FCMacro
+              timeout --signal=TERM --kill-after=5s 90s freecad /tmp/cloth_e2e.FCMacro >/tmp/freecad-e2e.log 2>&1 || {
+                status=$?
+                cat /tmp/freecad-e2e.log || true
+                cat artifacts/freecad-e2e/workflow.log || true
+                cat /tmp/xvfb.log || true
+                cat /tmp/openbox.log || true
+                echo "FreeCAD canonical E2E process failed or timed out (status $status)"
+                exit "$status"
+              }
+              cat artifacts/freecad-e2e/workflow.log
+              test -s artifacts/freecad-e2e/workflow.log
             '
       - name: Upload GUI diagnostics
         if: ${{ always() }}
@@ -140,7 +155,9 @@ jobs:
           name: cloth-gui-diagnostics
           path: |
             docs/images/generated/gui-progress.log
+            artifacts/freecad-e2e/workflow.log
             /tmp/freecad-gui.log
+            /tmp/freecad-e2e.log
             /tmp/xvfb.log
             /tmp/openbox.log
           if-no-files-found: ignore
