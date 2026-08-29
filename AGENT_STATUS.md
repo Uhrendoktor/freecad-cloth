@@ -13,4 +13,4 @@
 
 ## Completed
 
-- `agent/gui-screenshot-fix-20260829` — fixed FreeCAD GUI screenshot macro startup by removing unsupported `FreeCADGui.showMainWindow()` calls and shortened the screenshot wait loop to 30 seconds after CI exposed the actual runtime failure.
+- `agent/gui-screenshot-fix-20260829` — removed unsupported `FreeCADGui.showMainWindow()` calls from the screenshot scenario and shortened the GUI wait loop to 30 seconds after CI exposed the runtime failure.
