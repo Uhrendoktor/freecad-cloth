@@ -42,6 +42,12 @@ class AvatarModelTests(unittest.TestCase):
         names = {item.name for item in landmarks_a}
         self.assertTrue({"neck", "chest", "waist", "hip", "shoulder_left", "shoulder_right"} <= names)
 
+    def test_skin_offset_changes_collision_geometry_without_measurements(self):
+        base = AvatarParameters({}, skin_offset=0)
+        offset = AvatarParameters({}, skin_offset=12)
+        self.assertEqual(base.measurements, offset.measurements)
+        self.assertNotEqual(generate_mesh(base)[0], generate_mesh(offset)[0])
+
     def test_chest_change_changes_derived_geometry(self):
         base = AvatarParameters({})
         larger = base.with_measurements(chest=1200)
