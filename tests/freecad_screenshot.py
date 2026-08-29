@@ -106,6 +106,7 @@ except Exception:
 
 def run_scenario():
     doc = None
+    quality_doc = None
     try:
         progress("scenario-start")
         window = Gui.getMainWindow()
@@ -138,15 +139,17 @@ def run_scenario():
         save_view("cloth-sewing.png", "Current")
         Gui.Control.closeDialog()
 
-        scene = create_quality_simulation_scene(doc)
+        quality_doc = App.newDocument("ClothSimulationDocumentation")
+        scene = create_quality_simulation_scene(quality_doc)
         scene.ClothPieces = []
+        quality_doc.recompute()
         scene.Steps = 1
-        doc.recompute()
+        quality_doc.recompute()
         progress("simulation-quality-created preset=%s particles=%s steps=%s" % (
             scene.QualityPreset, scene.ParticleCount, scene.Steps))
+        Gui.activeDocument().activeView().viewAxonometric(); Gui.activeDocument().activeView().fitAll()
         activate_workbench("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
         show_task(SimulationQualityTaskPanel(scene), "Simulation Quality")
-        Gui.activeDocument().activeView().viewAxonometric(); Gui.activeDocument().activeView().fitAll()
         save_view("cloth-simulation.png", "Current")
         progress("scenario-complete")
     except Exception:
@@ -156,6 +159,8 @@ def run_scenario():
             Gui.Control.closeDialog()
         except Exception:
             pass
+        if quality_doc is not None and quality_doc.Name in App.listDocuments():
+            App.closeDocument(quality_doc.Name); progress("quality-document-closed")
         if doc is not None and doc.Name in App.listDocuments():
             App.closeDocument(doc.Name); progress("document-closed")
 
