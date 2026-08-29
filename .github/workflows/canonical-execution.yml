@@ -133,8 +133,8 @@ jobs:
               test -s docs/images/generated/cloth-pattern-design.png
               test -s docs/images/generated/cloth-sewing.png
               test -s docs/images/generated/cloth-simulation.png
-              rm -f artifacts/freecad-e2e/workflow.log
               mkdir -p artifacts/freecad-e2e
+              rm -f artifacts/freecad-e2e/workflow.log
               printf "%s\n" "exec(compile(open(\"tests/freecad_e2e.py\", encoding=\"utf-8\").read(), \"tests/freecad_e2e.py\", \"exec\"))" > /tmp/cloth_e2e.FCMacro
               timeout --signal=TERM --kill-after=5s 90s freecad /tmp/cloth_e2e.FCMacro >/tmp/freecad-e2e.log 2>&1 || {
                 status=$?
