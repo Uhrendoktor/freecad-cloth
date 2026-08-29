@@ -12,6 +12,24 @@ from SewingObjects import (
 from SimulationObjects import _sample_boundary
 
 
+def _install_fake_freecad():
+    class V:
+        def __init__(self, x, y, z=0): self.x, self.y, self.z = x, y, z
+        def __sub__(self, other): return V(self.x - other.x, self.y - other.y, self.z - other.z)
+        def __add__(self, other): return V(self.x + other.x, self.y + other.y, self.z + other.z)
+        def __mul__(self, value): return V(self.x * value, self.y * value, self.z * value)
+        __rmul__ = __mul__
+
+    class FakeApp:
+        Vector = V
+        class Rotation:
+            def __init__(self, *args): pass
+        class Placement:
+            def __init__(self, *args): pass
+
+    return FakeApp
+
+
 def test_rectangular_seam_lengths():
     p = SimpleNamespace(Width=100.0, Height=60.0)
     s = SimpleNamespace(EdgeA=0, StartA=0, EndA=1, EdgeB=1, StartB=0, EndB=.5)
@@ -33,12 +51,7 @@ def test_curved_native_edge_uses_arc_length_sampling():
             return [SimpleNamespace(x=0, y=0), SimpleNamespace(x=2, y=2), SimpleNamespace(x=4, y=0)]
 
     shape = SimpleNamespace(Edges=[Edge(), Edge(), Edge()])
-    p = SimpleNamespace(
-        Width=4.0,
-        Height=2.0,
-        SewingOutline=repr([(0, 0), (4, 0), (4, 2)]),
-        Shape=shape,
-    )
+    p = SimpleNamespace(Width=4.0, Height=2.0, SewingOutline=repr([(0, 0), (4, 0), (4, 2)]), Shape=shape)
     assert abs(_edge_length(p, 0) - (8.0 ** 0.5 * 2.0)) < 1e-9
 
 
@@ -52,8 +65,14 @@ def test_uniform_alignment_follows_curved_edge():
     a = SimpleNamespace(Width=4, Height=2, SewingOutline=repr([(0, 0), (4, 0), (4, 2)]), Shape=SimpleNamespace(Edges=[Edge(curved), Edge(straight), Edge(straight)]))
     b = SimpleNamespace(Width=4, Height=2, SewingOutline=repr([(0, 0), (4, 0), (4, 2)]), Shape=SimpleNamespace(Edges=[Edge(straight), Edge(straight), Edge(straight)]))
     seam = SimpleNamespace(EdgeA=0, StartA=0, EndA=1, EdgeB=0, StartB=0, EndB=1, ReversedB=False)
-    endpoint_pairs = _seam_correspondence(a, b, seam, 3, "endpoints")
-    uniform_pairs = _seam_correspondence(a, b, seam, 3, "uniform")
+    oldf = sys.modules.get("FreeCAD")
+    sys.modules["FreeCAD"] = _install_fake_freecad()()
+    try:
+        endpoint_pairs = _seam_correspondence(a, b, seam, 3, "endpoints")
+        uniform_pairs = _seam_correspondence(a, b, seam, 3, "uniform")
+    finally:
+        if oldf is None: sys.modules.pop("FreeCAD", None)
+        else: sys.modules["FreeCAD"] = oldf
     assert endpoint_pairs[1][0].y == 0
     assert uniform_pairs[1][0].y > 0
 
@@ -61,7 +80,13 @@ def test_uniform_alignment_follows_curved_edge():
 def test_reversed_correspondence_is_applied_once():
     p = SimpleNamespace(Width=100, Height=60, SewingOutline=repr([(0, 0), (100, 0), (100, 60), (0, 60)]))
     seam = SimpleNamespace(EdgeA=0, StartA=.2, EndA=.8, EdgeB=0, StartB=.2, EndB=.8, ReversedB=True)
-    pairs = _seam_correspondence(p, p, seam, 3, "endpoints")
+    oldf = sys.modules.get("FreeCAD")
+    sys.modules["FreeCAD"] = _install_fake_freecad()()
+    try:
+        pairs = _seam_correspondence(p, p, seam, 3, "endpoints")
+    finally:
+        if oldf is None: sys.modules.pop("FreeCAD", None)
+        else: sys.modules["FreeCAD"] = oldf
     assert pairs[0][1].x == 80
     assert pairs[-1][1].x == 20
 
