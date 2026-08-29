@@ -159,6 +159,85 @@ def test_unresolvable_string_reference_fails_closed():
     raise AssertionError("invalid seam reference was accepted")
 
 
+def test_shuffled_sketch_geometry_is_resolved_by_connectivity():
+    geometry = [
+        LineSegment((10, 10), (0, 10)),
+        ArcOfCircle((10, 10), (10, 0)),
+        LineSegment((0, 10), (0, 0)),
+        LineSegment((0, 0), (10, 0)),
+    ]
+    semantic_ids = ["piece:C", "piece:B", "piece:D", "piece:A"]
+    ir = PatternIR.from_sketches(
+        _sketch_graph(geometry[1], "piece:B")[0],
+        {"piece": _Sketch(geometry, semantic_ids), "other": _other_sketch()},
+        curve_samples=5,
+    )
+    piece = ir.piece("piece")
+    assert [edge.id for edge in piece.boundaries] == ["piece:A", "piece:B", "piece:C", "piece:D"]
+    assert piece.boundaries[0].samples[0] == (0.0, 0.0, 0.0)
+    assert piece.boundaries[0].samples[-1] == (10.0, 0.0, 0.0)
+    assert piece.boundaries[1].kind == "arc"
+    assert piece.boundaries[1].parameter_range == (2.0, 4.0)
+    assert piece.boundaries[1].samples[0] == (10.0, 0.0, 0.0)
+    assert piece.boundaries[1].samples[-1] == (10.0, 10.0, 0.0)
+    assert ir.seams[0].edge_a == "piece:B"
+
+
+def test_reversed_native_edge_is_oriented_by_connectivity_without_losing_curve_range():
+    geometry = [
+        LineSegment((0, 10), (0, 0)),
+        LineSegment((10, 10), (0, 10)),
+        ArcOfCircle((10, 10), (10, 0)),
+        LineSegment((10, 0), (0, 0)),
+    ]
+    semantic_ids = ["piece:D", "piece:C", "piece:B", "piece:A"]
+    ir = PatternIR.from_sketches(
+        _sketch_graph(geometry[2], "piece:B")[0],
+        {"piece": _Sketch(geometry, semantic_ids), "other": _other_sketch()},
+        curve_samples=5,
+    )
+    edge = ir.boundary("piece", "piece:B")
+    assert edge.samples[0] == (10.0, 0.0, 0.0)
+    assert edge.samples[-1] == (10.0, 10.0, 0.0)
+    assert edge.parameter_range == (2.0, 4.0)
+
+
+def test_open_sketch_boundary_reports_explicit_diagnostic():
+    sketch = _Sketch(
+        [
+            LineSegment((0, 0), (10, 0)),
+            LineSegment((10, 0), (10, 10)),
+            LineSegment((10, 10), (0, 10)),
+        ],
+        ["piece:A", "piece:B", "piece:C"],
+    )
+    try:
+        PatternIR.from_sketches(_graph(), {"piece": sketch, "other": _other_sketch()})
+    except ValueError as exc:
+        assert "open" in str(exc) or "disconnected" in str(exc)
+    else:
+        raise AssertionError("open Sketcher boundary was accepted")
+
+
+def test_ambiguous_sketch_boundary_reports_explicit_diagnostic():
+    sketch = _Sketch(
+        [
+            LineSegment((0, 0), (10, 0)),
+            LineSegment((10, 0), (10, 10)),
+            LineSegment((10, 0), (20, 0)),
+            LineSegment((10, 10), (0, 0)),
+            LineSegment((20, 0), (0, 0)),
+        ],
+        ["piece:A", "piece:B", "piece:C", "piece:D", "piece:E"],
+    )
+    try:
+        PatternIR.from_sketches(_graph(), {"piece": sketch, "other": _other_sketch()})
+    except ValueError as exc:
+        assert "ambiguous" in str(exc)
+    else:
+        raise AssertionError("ambiguous Sketcher boundary was accepted")
+
+
 if __name__ == "__main__":
     for name, fn in globals().copy().items():
         if name.startswith("test_"):
