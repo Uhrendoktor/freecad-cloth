@@ -1,4 +1,9 @@
-"""FreeCAD GUI registration for the Cloth workbenches."""
+"""FreeCAD GUI registration for the Cloth workbenches.
+
+The three workbenches deliberately share only registration mechanics. Pattern,
+Sewing, and Simulation remain separate UI entry points while their document
+objects form one dependency pipeline.
+"""
 from pathlib import Path
 
 _ICON_DIR = Path(__file__).resolve().parent / "resources" / "icons"
@@ -12,12 +17,31 @@ _WorkbenchBase = Gui.Workbench if Gui is not None else object
 
 
 class _ClothWorkbench(_WorkbenchBase):
-    commands = []
+    """Small common registration shell for the Cloth workbenches.
+
+    ``commands`` is instance-owned: FreeCAD can instantiate workbench classes
+    more than once during tests or reloads, and command state must never leak
+    from one workbench instance into another.
+    """
+
+    def __init__(self):
+        if Gui is not None:
+            super().__init__()
+        self.commands = []
 
     def _register(self, commands):
-        self.commands = list(commands)
-        self.appendToolbar(self.MenuText, self.commands)
-        self.appendMenu(self.MenuText, self.commands)
+        """Register an immutable command set exactly once per instance."""
+        if self.commands:
+            return
+        registered = []
+        for command in commands:
+            command = str(command)
+            if command and command not in registered:
+                registered.append(command)
+        self.commands = registered
+        if Gui is not None:
+            self.appendToolbar(self.MenuText, self.commands)
+            self.appendMenu(self.MenuText, self.commands)
 
     def GetResources(self):
         """Return the standard FreeCAD workbench metadata contract."""
@@ -36,9 +60,6 @@ class _ClothWorkbench(_WorkbenchBase):
     def ContextMenu(self, recipient):
         if recipient in ("view", "tree") and self.commands:
             self.appendContextMenu(self.MenuText, self.commands)
-
-    def GetClassName(self):
-        return "Gui::PythonWorkbench"
 
 
 class ClothPatternWorkbench(_ClothWorkbench):
