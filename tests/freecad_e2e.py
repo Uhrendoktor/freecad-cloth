@@ -99,6 +99,7 @@ def run():
     from PatternGui import PatternDraftingTaskPanel
     from SewingGui import SewingTaskPanel
     from SimulationQualityGui import SimulationQualityTaskPanel
+    from freecad_pattern_sketcher_acceptance import exercise_native_sketcher
     doc = App.newDocument("CanonicalClothE2E")
     path = None
     try:
@@ -121,6 +122,8 @@ def run():
         for sketch in (front_sketch, back_sketch, sleeve_a_sketch, sleeve_b_sketch):
             if getattr(sketch, "GeometryAuthority", "") != "Sketcher":
                 raise AssertionError("Sketcher authority was not persisted")
+        exercise_native_sketcher(doc, front, front_sketch)
+        log("native Sketcher constraints, curved geometry, expression: OK")
         show_panel(PatternDraftingTaskPanel(front), "Pattern Design")
         close_panel()
 
@@ -177,6 +180,10 @@ def run():
         assert getattr(front, "GeometryAuthority", "") == "Sketcher"
         assert operation.Seam is not None and operation.PieceA is not None and operation.PieceB is not None
         assert len(network.Seams) == 3 and scene.ClothPieces
+        reloaded_sketch = front.Sketch
+        assert reloaded_sketch.getExpression("Constraints.PatternWidth") == "42 mm"
+        assert any(c.Type == "Tangent" for c in reloaded_sketch.Constraints)
+        assert any(c.Type == "Symmetric" for c in reloaded_sketch.Constraints)
 
         before_length = float(operation.LengthA); before_signature = scene.Proxy.source_signature
         front.Width = 160.0; doc.recompute()
