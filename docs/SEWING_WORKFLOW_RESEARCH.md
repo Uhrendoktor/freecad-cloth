@@ -2,7 +2,7 @@
 
 ## CLO-style behavior analysis
 
-CLO separates garment production into a 2D pattern workflow and a 3D fitting/simulation workflow. Current CLO documentation confirms that the important user-facing model is not simply “draw a polygon and simulate”: users establish segment/free sewing lines, control sewing direction with directional notches, support 1:N and M:N sewing, arrange patterns around avatar bounding volumes/arrangement points, and trade simulation quality against speed with particle distance. Avatar skin offset and collision/friction settings are separate physical controls. citeturn0search0turn0search2turn0search4turn0search8turn0search11turn0search14turn0search15
+CLO separates garment production into a 2D pattern workflow and a 3D fitting/simulation workflow. Current CLO documentation confirms that the important user-facing model is not simply “draw a polygon and simulate”: users establish segment/free sewing lines, control sewing direction with directional notches, support 1:N and M:N sewing, arrange patterns around avatar bounding volumes/arrangement points, and trade simulation quality against speed with particle distance. Avatar skin offset and collision/friction settings are separate physical controls.
 
 ### Workbench responsibilities
 
@@ -68,7 +68,7 @@ Icons are for frequent actions; labels/tooltips remain explicit. Numeric control
 | Skin/collision offset | Target/Simulation collision thickness and skin offset properties |
 | Save/reload | Native document Links/Properties + FreeCAD recompute and E2E smoke |
 
-FreeCAD Sketcher already provides geometric/dimensional constraints, expressions and scripting APIs, so a second constraint kernel is not justified. The official documentation also recommends using native constraints and expressions for parametric CAD data. citeturn1search0turn1search3turn1search5
+FreeCAD Sketcher already provides geometric/dimensional constraints, expressions and scripting APIs, so a second constraint kernel is not justified. The official documentation also recommends using native constraints and expressions for parametric CAD data.
 
 ### Revised release priorities
 
@@ -134,8 +134,20 @@ The solver has explicit stretch, shear and reduced-distance bending families plu
 
 ## Sources
 
-- CLO Help Center: Segment Sewing, Free Sewing, M:N Free Sewing, Particle Distance, Avatar Properties, Arrangement Points, Hi/Low-Resolution Garment. citeturn0search0turn0search2turn0search4turn0search8turn0search11turn0search14turn0search15
-- FreeCAD Sketcher documentation and scripting examples. citeturn1search0turn1search3turn1search5
+- CLO Help Center: Segment Sewing, Free Sewing, M:N Free Sewing, 1:N Sewing, Check Sewing Length, Particle Distance, Avatar Properties, Arrangement Points, Hi/Low-Resolution Garment.
+  - https://support.clo3d.com/hc/en-us/articles/115012381248--3D-Tool-Segment-Sewing
+  - https://support.clo3d.com/hc/en-us/articles/360001754628--3D-Tool-Free-Sewing
+  - https://support.clo3d.com/hc/en-us/articles/360001754668--3D-Tool-M-N-Free-Sewing
+  - https://support.clo3d.com/hc/en-us/articles/360001771407--3D-Tool-1-N-Segment-Sewing
+  - https://support.clo3d.com/hc/en-us/articles/115000495467--2D-Tool-Check-Sewing-Length
+  - https://support.clo3d.com/hc/en-us/articles/115000414447-Particle-Distance-Setting
+  - https://support.clo3d.com/hc/en-us/articles/115002227327-Avatar-Properties
+  - https://support.clo3d.com/hc/en-us/articles/115000430768-Add-Arrangement-Point
+  - https://support.clo3d.com/hc/en-us/articles/115000430668-Hi-Low-Resolution-Garment
+- FreeCAD Sketcher documentation and scripting examples.
+  - https://github.com/FreeCAD/FreeCAD-documentation/blob/main/wiki/Sketcher_Workbench.md
+  - https://github.com/FreeCAD/FreeCAD-documentation/blob/main/wiki/Sketcher_scripting.md
+  - https://github.com/FreeCAD/FreeCAD-documentation/blob/main/wiki/Expressions.md
 - FreeCAD: https://github.com/FreeCAD/FreeCAD
 - Seamly2D: https://github.com/FashionFreedom/Seamly2D
 - FreeSewing: https://github.com/freesewing/freesewing
