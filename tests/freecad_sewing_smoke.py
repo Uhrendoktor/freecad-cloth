@@ -71,6 +71,20 @@ def main():
         assert operation.Status == "Valid"
         assert len(operation.StitchPoints) == 16
 
+        # Accepted task-panel edits must form one native FreeCAD undo step.
+        if hasattr(doc, "undo") and hasattr(doc, "redo"):
+            doc.undo()
+            assert abs(float(operation.Tolerance) - original[0]) < 1e-9
+            assert int(operation.Stitches) == original[1]
+            assert str(seam.Alignment) == original[2]
+            assert bool(seam.ReversedB) == original[3]
+            doc.redo()
+            assert abs(float(operation.Tolerance) - 1.75) < 1e-9
+            assert int(operation.Stitches) == 16
+            assert str(seam.Alignment) == "uniform"
+            assert bool(seam.ReversedB) is True
+            assert operation.Status == "Valid"
+
         piece_a.Width = 120
         doc.recompute()
         assert str(seam.EdgeAId) == f"{piece_a.PieceId}:edge:0"
@@ -109,7 +123,7 @@ def main():
             assert len(restored.StitchPoints) == 16
             assert restored.Seam is not None
             assert restored.PieceA is not None and restored.PieceB is not None
-            print("FreeCAD sewing semantic edge persistence and invalidation smoke test passed")
+            print("FreeCAD sewing task transaction, semantic persistence, and invalidation smoke test passed")
         finally:
             if App.ActiveDocument is not None:
                 App.closeDocument(App.ActiveDocument.Name)
