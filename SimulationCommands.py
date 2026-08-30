@@ -14,7 +14,7 @@ def create_drape_scene():
     import FreeCAD as App
     from SimulationObjects import create_simulation_scene
     # Creation is intentionally side-effect-light. Simulation advances only
-    # through explicit Step/Run controls so command invocation is predictable.
+    # through explicit Step/Run/Reset controls so command invocation is predictable.
     doc = App.ActiveDocument or App.newDocument("ClothDrape")
     return create_simulation_scene(doc)
 
@@ -22,6 +22,11 @@ def create_drape_scene():
 def _find_simulation(doc):
     return next((obj for obj in doc.Objects if getattr(obj, "TypeId", "") == "App::FeaturePython"
                  and getattr(obj, "Type", "") == "ClothSimulation"), None)
+
+
+def _find_drape_target(doc):
+    return next((obj for obj in doc.Objects if getattr(obj, "Name", "") == "DrapeTarget"
+                 or getattr(obj, "TargetType", None) is not None), None)
 
 
 def edit_simulation():
@@ -76,16 +81,29 @@ def reset_simulation():
 def simulation_status():
     """Return a deterministic, UI-friendly lifecycle/status summary."""
     try:
-        _doc, scene = _require_simulation()
+        doc, scene = _require_simulation()
     except RuntimeError as exc:
-        return {"state": "unavailable", "message": str(exc), "steps": 0, "particles": 0, "time": 0.0}
+        return {"state": "unavailable", "message": str(exc), "steps": 0, "particles": 0, "time": 0.0,
+                "target_state": "missing", "target_message": "No drape target selected", "target_stale": True,
+                "target_reason": "target missing"}
     finite = bool(getattr(scene, "FiniteState", True))
+    target = _find_drape_target(doc)
+    try:
+        from DrapeTarget import target_status
+        target_info = target_status(target)
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        target_info = {"state": "invalid", "message": "Cannot inspect drape target: %s" % exc, "stale": True,
+                       "reason": "target inspection failed"}
     return {
         "state": "ready" if finite else "invalid/non-finite",
         "message": "Cloth Simulation ready" if finite else "Cloth Simulation has invalid/non-finite state",
         "steps": int(getattr(scene, "Steps", 0)),
         "particles": int(getattr(scene, "ParticleCount", 0)),
         "time": float(getattr(scene, "SimulatedTime", 0.0)),
+        "target_state": target_info["state"],
+        "target_message": target_info["message"],
+        "target_stale": bool(target_info["stale"]),
+        "target_reason": target_info["reason"],
     }
 
 
