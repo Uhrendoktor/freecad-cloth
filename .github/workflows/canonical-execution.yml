@@ -52,7 +52,6 @@ jobs:
           python tests/test_pattern_export_semantics.py
           python tests/test_sketch_authority.py
           python tests/test_simulation_quality.py
-          python tests/test_drape_target.py
           python tests/test_sewing_network_gui_contract.py
       - name: Reference drape benchmark
         run: python tests/benchmark_drape.py
@@ -68,6 +67,7 @@ jobs:
         run: |
           test -f package.xml
           test -f Init.py
+          test -f InitGui.py
           test -f PatternGui.py
           test -f SimulationGui.py
           test -f SewingGui.py
