@@ -29,19 +29,50 @@ class _ClothWorkbench(_WorkbenchBase):
             super().__init__()
         self.commands = []
 
-    def _register(self, commands):
-        """Register an immutable command set exactly once per instance."""
-        if self.commands:
-            return
+    @staticmethod
+    def _normalize_commands(commands):
         registered = []
         for command in commands:
             command = str(command)
             if command and command not in registered:
                 registered.append(command)
+        return registered
+
+    def _register(self, commands):
+        """Register an immutable command set exactly once per instance."""
+        self._register_groups(((self.MenuText, commands),))
+
+    def _register_groups(self, groups, toolbar_name=None):
+        """Register deterministic menu groups exactly once.
+
+        A command may belong to only one group. The same normalized command
+        list is retained on ``self.commands`` for context-menu registration.
+        ``toolbar_name`` keeps a stable single toolbar while the menu exposes
+        the workflow groups as nested sections.
+        """
+        if self.commands:
+            return
+        normalized_groups = []
+        registered = []
+        for group_name, commands in groups:
+            group_name = str(group_name)
+            group_commands = self._normalize_commands(commands)
+            duplicates = [command for command in group_commands if command in registered]
+            if duplicates:
+                raise ValueError("commands registered in multiple workbench groups: %s" % ", ".join(duplicates))
+            if not group_name or not group_commands:
+                continue
+            normalized_groups.append((group_name, group_commands))
+            registered.extend(group_commands)
         self.commands = registered
         if Gui is not None:
-            self.appendToolbar(self.MenuText, self.commands)
-            self.appendMenu(self.MenuText, self.commands)
+            if toolbar_name:
+                self.appendToolbar(toolbar_name, registered)
+            else:
+                for group_name, group_commands in normalized_groups:
+                    self.appendToolbar(group_name, group_commands)
+            for group_name, group_commands in normalized_groups:
+                self.appendMenu([self.MenuText, group_name], group_commands)
 
     def GetResources(self):
         """Return the standard FreeCAD workbench metadata contract."""
@@ -92,6 +123,36 @@ class ClothSimulationWorkbench(_ClothWorkbench):
         self._register(SimulationCommands.COMMANDS + DrapeCommands.COMMANDS)
 
 
+SEWING_COMMAND_GROUPS = (
+    (
+        "Sewing Creation",
+        (
+            "ClothSewing_CreateSeam",
+            "ClothSewing_CreateMNSewing",
+            "ClothSewing_CreateNetwork",
+            "ClothSewing_FreeSewing",
+        ),
+    ),
+    (
+        "Sewing Editing",
+        (
+            "ClothSewing_CreateOperation",
+            "ClothSewing_EditOperation",
+            "ClothSewing_EditNetwork",
+            "ClothSewing_ReverseSeam",
+            "ClothSewing_ToggleAlignment",
+        ),
+    ),
+    (
+        "Validation & View",
+        (
+            "ClothSewing_Validate",
+            "ClothSewing_Show2D",
+        ),
+    ),
+)
+
+
 class ClothSewingWorkbench(_ClothWorkbench):
     MenuText = "Cloth Sewing"
     ToolTip = "Sewing operations and avatar fitting"
@@ -104,7 +165,13 @@ class ClothSewingWorkbench(_ClothWorkbench):
         import SewingNetworkCommands
         import FittingCommands
         import AvatarCommands
-        self._register(SewingCommands.COMMANDS + SewingNetworkCommands.COMMANDS + FittingCommands.COMMANDS + AvatarCommands.COMMANDS)
+        groups = list(SEWING_COMMAND_GROUPS)
+        groups.append(("Fitting & Avatar", FittingCommands.COMMANDS + AvatarCommands.COMMANDS))
+        expected = SewingCommands.COMMANDS + SewingNetworkCommands.COMMANDS
+        grouped = self._normalize_commands(command for _name, commands in groups for command in commands)
+        if set(grouped) != set(expected + FittingCommands.COMMANDS + AvatarCommands.COMMANDS):
+            raise ValueError("Sewing workbench command groups are out of sync with registered commands")
+        self._register_groups(groups, toolbar_name=self.MenuText)
 
 
 if Gui is not None:
