@@ -13,82 +13,70 @@ concurrency:
 jobs:
   ci:
     if: ${{ github.event_name != 'pull_request' || github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'workflow_dispatch' }}
-    runs-on: [self-hosted, linux, x64, docker]
-    timeout-minutes: 20
+    # The runner is deliberately pre-provisioned with FreeCAD and the GUI test
+    # dependencies. This avoids rebuilding/pulling a 700+ MB FreeCAD image for
+    # every run and makes use of the persistent self-hosted runner cache.
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 15
     permissions:
       contents: read
-      packages: write
+    env:
+      # Point this at a prebuilt FreeCAD/AppImage wrapper on the runner if the
+      # executable is not on PATH. FreeCAD 1.1.3 is the expected CI version.
+      FREECAD_BIN: freecad
+      CLOTH_TEST_JOBS: 4
+      DISPLAY: :99
+      QT_X11_NO_MITSHM: 1
+      QT_QPA_PLATFORM: xcb
+      LIBGL_ALWAYS_SOFTWARE: 1
     steps:
       - uses: actions/checkout@v4
-
-      - name: Login to GHCR
-        uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 1
 
-      - name: Build pinned FreeCAD CI image with GHCR cache
-        uses: docker/setup-buildx-action@v3
-        id: buildx
+      - name: Validate prebuilt self-hosted runner
+        run: |
+          set -euo pipefail
+          command -v python3
+          command -v xvfb-run
+          command -v openbox
+          command -v xargs
+          command -v "$FREECAD_BIN"
+          echo "FreeCAD executable: $(command -v "$FREECAD_BIN")"
+          "$FREECAD_BIN" --version || true
+          python3 --version
+          Xvfb -version 2>&1 | head -n 1 || true
 
-      - uses: docker/build-push-action@v7
-        with:
-          context: docker/freecad-ci
-          push: ${{ github.event_name != 'pull_request' }}
-          load: true
-          tags: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.3-r1
-          cache-from: type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache
-          cache-to: type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache,mode=max
-
-      - name: Run Python tests, FreeCAD smoke, and GUI screenshots
-        env:
-          IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.3-r1
+      - name: Run Python tests and FreeCAD smoke/GUI tests
         run: |
           set -euo pipefail
           mkdir -p docs/images/generated artifacts/freecad-e2e
-          docker run --rm --init \
-            --shm-size=1g \
-            -e DISPLAY=:99 \
-            -e QT_X11_NO_MITSHM=1 \
-            -e QT_QPA_PLATFORM=xcb \
-            -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
-            -e CLOTH_E2E_DIR=/workspace/artifacts/freecad-e2e \
-            -v "$PWD:/workspace" \
-            -w /workspace \
-            "$IMAGE" \
-            bash -euo pipefail -c '
-              rm -f docs/images/generated/*.png docs/images/generated/gui-progress.log
-              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 &
-              XVFB_PID=$!
-              openbox >/tmp/openbox.log 2>&1 &
-              OPENBOX_PID=$!
-              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              sleep 1
+          rm -f docs/images/generated/*.png docs/images/generated/gui-progress.log
 
-              for t in \
-                tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py \
-                tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py \
-                tests/test_simulation_scene.py tests/test_collisions.py tests/test_freecad_objects.py \
-                tests/test_gui_structure.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py \
-                tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_avatar_fitting.py \
-                tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py \
-                tests/test_pattern_export_semantics.py tests/test_sketch_authority.py \
-                tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py; do
-                python3 "$t"
-              done
-              python3 -m compileall -q .
+          # These tests are independent Python processes. Running them in
+          # parallel uses the persistent runner's CPU instead of paying the
+          # startup cost serially. Keep FreeCAD GUI/smoke tests below serial.
+          printf '%s\n' \
+            tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py \
+            tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py \
+            tests/test_simulation_scene.py tests/test_collisions.py tests/test_freecad_objects.py \
+            tests/test_gui_structure.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py \
+            tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_avatar_fitting.py \
+            tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py \
+            tests/test_pattern_export_semantics.py tests/test_sketch_authority.py \
+            tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py \
+            | xargs -P "${CLOTH_TEST_JOBS}" -n 1 python3
 
-              freecad tests/freecad_smoke.py
-              freecad tests/freecad_meshpart_smoke.py
-              freecad tests/freecad_sewing_smoke.py
-              timeout --signal=TERM --kill-after=5s 120s freecad tests/freecad_screenshot.py
+          python3 -m compileall -q .
 
-              test -s docs/images/generated/cloth-pattern-design.png
-              test -s docs/images/generated/cloth-sewing.png
-              test -s docs/images/generated/cloth-simulation.png
-            '
+          "$FREECAD_BIN" tests/freecad_smoke.py
+          "$FREECAD_BIN" tests/freecad_meshpart_smoke.py
+          "$FREECAD_BIN" tests/freecad_sewing_smoke.py
+          timeout --signal=TERM --kill-after=5s 120s "$FREECAD_BIN" tests/freecad_screenshot.py
+
+          test -s docs/images/generated/cloth-pattern-design.png
+          test -s docs/images/generated/cloth-sewing.png
+          test -s docs/images/generated/cloth-simulation.png
 
       - name: Upload GUI screenshots
         uses: actions/upload-artifact@v4
@@ -96,6 +84,7 @@ jobs:
           name: cloth-gui-screenshots
           path: docs/images/generated/*.png
           if-no-files-found: error
+          compression-level: 1
 
       - name: Upload GUI diagnostics
         if: ${{ failure() }}
@@ -106,3 +95,4 @@ jobs:
             docs/images/generated/gui-progress.log
             artifacts/freecad-e2e/workflow.log
           if-no-files-found: ignore
+          compression-level: 1
