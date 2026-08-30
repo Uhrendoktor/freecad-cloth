@@ -1,5 +1,22 @@
 """Commands for the Cloth Pattern workbench."""
 import ast
+import os
+import sys
+import traceback
+
+if os.environ.get("CLOTH_E2E_DIR"):
+    def _freecad_ci_excepthook(exc_type, exc_value, exc_traceback):
+        text = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+        try:
+            directory = os.environ["CLOTH_E2E_DIR"]
+            os.makedirs(directory, exist_ok=True)
+            with open(os.path.join(directory, "freecad-python-error.log"), "w", encoding="utf-8") as handle:
+                handle.write(text)
+        except Exception:
+            pass
+        print(text, file=sys.stderr, flush=True)
+        os._exit(1)
+    sys.excepthook = _freecad_ci_excepthook
 
 
 def create_pattern_piece_from_parameters(name, width, height, allowance, grainline):
@@ -36,13 +53,7 @@ def _create_native_sketch_for_piece(obj):
         points = [(float(p[0]), float(p[1])) for p in ast.literal_eval(str(obj.SewingOutline))]
     except (ValueError, SyntaxError, TypeError, IndexError):
         raise ValueError("selected pattern piece has no valid sewing outline")
-    piece = PatternPiece(
-        obj.Label,
-        points,
-        seam_allowance=float(getattr(obj, "SeamAllowance", 0.0)),
-        grainline_angle=float(getattr(obj, "GrainlineAngle", 0.0)),
-        id=str(obj.PieceId),
-    )
+    piece = PatternPiece(obj.Label, points, seam_allowance=float(getattr(obj, "SeamAllowance", 0.0)), grainline_angle=float(getattr(obj, "GrainlineAngle", 0.0)), id=str(obj.PieceId))
     return create_sketch_for_piece(piece, App.ActiveDocument)
 
 
@@ -170,38 +181,15 @@ def add_seam():
 class _FunctionCommand:
     def __init__(self, function): self.function = function
     def Activated(self): return self.function()
-    def GetResources(self):
-        return {"MenuText": self.function.__name__.replace("_", " ").title(), "ToolTip": self.function.__doc__ or "Cloth pattern command"}
+    def GetResources(self): return {"MenuText": self.function.__name__.replace("_", " ").title(), "ToolTip": self.function.__doc__ or "Cloth pattern command"}
 
 
-COMMANDS = [
-    "ClothPattern_CreatePieceTask",
-    "ClothPattern_EditPiece",
-    "ClothPattern_CreateSketch",
-    "ClothPattern_CreatePieceWithSketch",
-    "ClothPattern_CreateDrafting",
-    "ClothPattern_Show2D",
-    "ClothPattern_CreatePiece",
-    "ClothPattern_CreateCustomPiece",
-    "ClothPattern_CreateMesh",
-    "ClothPattern_AddSeam",
-]
+COMMANDS = ["ClothPattern_CreatePieceTask","ClothPattern_EditPiece","ClothPattern_CreateSketch","ClothPattern_CreatePieceWithSketch","ClothPattern_CreateDrafting","ClothPattern_Show2D","ClothPattern_CreatePiece","ClothPattern_CreateCustomPiece","ClothPattern_CreateMesh","ClothPattern_AddSeam"]
 
 try:
     import FreeCADGui as Gui
     if hasattr(Gui, "addCommand"):
-        for name, handler in {
-            "ClothPattern_CreatePieceTask": create_pattern_piece_task,
-            "ClothPattern_EditPiece": edit_pattern_piece,
-            "ClothPattern_CreateSketch": create_pattern_sketch,
-            "ClothPattern_CreatePieceWithSketch": create_pattern_piece_with_sketch,
-            "ClothPattern_CreateDrafting": create_pattern_drafting,
-            "ClothPattern_Show2D": show_pattern_2d,
-            "ClothPattern_CreatePiece": create_pattern_piece,
-            "ClothPattern_CreateCustomPiece": create_custom_pattern_piece,
-            "ClothPattern_CreateMesh": create_pattern_mesh,
-            "ClothPattern_AddSeam": add_seam,
-        }.items():
+        for name, handler in {"ClothPattern_CreatePieceTask": create_pattern_piece_task,"ClothPattern_EditPiece": edit_pattern_piece,"ClothPattern_CreateSketch": create_pattern_sketch,"ClothPattern_CreatePieceWithSketch": create_pattern_piece_with_sketch,"ClothPattern_CreateDrafting": create_pattern_drafting,"ClothPattern_Show2D": show_pattern_2d,"ClothPattern_CreatePiece": create_pattern_piece,"ClothPattern_CreateCustomPiece": create_custom_pattern_piece,"ClothPattern_CreateMesh": create_pattern_mesh,"ClothPattern_AddSeam": add_seam}.items():
             Gui.addCommand(name, _FunctionCommand(handler))
 except (ImportError, AttributeError):
     pass
