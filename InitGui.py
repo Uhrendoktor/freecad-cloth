@@ -162,7 +162,7 @@ SEWING_COMMAND_GROUPS = (
 )
 
 # Keep the Sewing toolbar deliberately small. FreeCAD's GUI builds command
-actions/widgets synchronously while switching workbenches; putting the full
+# actions/widgets synchronously while switching workbenches; putting the full
 # sewing/fitting command surface on the toolbar can stall that transition.
 # The complete command set is still exposed by the grouped menus/context menu.
 SEWING_TOOLBAR_COMMANDS = (
