@@ -68,14 +68,31 @@ def show_task(panel, state_name):
     if not visible:
         raise RuntimeError("task panel did not become visible: %s" % state_name)
 
-def save_view(filename, view):
+def save_window(filename, state_name):
+    """Capture the complete FreeCAD main-window client area, not the 3D viewport."""
     Gui.updateGui()
     QtWidgets.QApplication.processEvents()
+    window = Gui.getMainWindow()
+    if window is None:
+        raise RuntimeError("FreeCAD main window is unavailable")
+    window.show()
+    window.raise_()
+    window.activateWindow()
+    QtWidgets.QApplication.processEvents()
+    # Keep the Xvfb capture geometry deterministic while retaining FreeCAD's
+    # native menu bar, workbench toolbars, Combo View/task panels and viewport.
+    window.resize(1280, 720)
+    QtWidgets.QApplication.processEvents()
+    image = window.grab()
     path = os.path.join(OUT, filename)
-    Gui.activeDocument().activeView().saveImage(path, 1280, 720, view)
-    if not os.path.exists(path) or os.path.getsize(path) == 0:
-        raise RuntimeError("screenshot was not generated: %s" % path)
-    progress("screenshot=" + path)
+    if image.isNull():
+        raise RuntimeError("FreeCAD main-window grab returned an empty image")
+    if not image.save(path):
+        raise RuntimeError("failed to save full-window screenshot: %s" % path)
+    progress("screenshot=%s state=%s scope=main-window size=%sx%s toolbars=%s docks=%s" % (
+        path, state_name, image.width(), image.height(), ",".join(toolbars()), ",".join(docks())))
+    if image.width() < 1000 or image.height() < 600:
+        raise RuntimeError("full-window screenshot is unexpectedly small: %sx%s" % (image.width(), image.height()))
 
 progress("script-start")
 try:
@@ -102,7 +119,8 @@ def run_scenario():
         progress("scenario-start")
         window = Gui.getMainWindow()
         if window is not None:
-            window.show(); window.raise_(); window.activateWindow(); Gui.updateGui()
+            window.show(); window.raise_(); window.activateWindow(); window.resize(1280, 720); Gui.updateGui()
+            progress("main-window=%sx%s" % (window.width(), window.height()))
         doc = App.newDocument("ClothDocumentation")
         front = create_pattern_piece_from_parameters("Front", 140.0, 90.0, 10.0, 0.0)
         back = create_pattern_piece_from_parameters("Back", 140.0, 90.0, 10.0, 0.0)
@@ -111,7 +129,7 @@ def run_scenario():
         activate_workbench("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D"])
         show_task(PatternDraftingTaskPanel(front), "Pattern Design")
         Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll()
-        save_view("cloth-pattern-design.png", "Current")
+        save_window("cloth-pattern-design.png", "Pattern Design")
         Gui.Control.closeDialog()
         seam = add_seam(doc, Seam(str(front.PieceId), 1, str(back.PieceId), 3, id="FrontBack", alignment="uniform", stitch_group="MainSeam"))
         doc.recompute()
@@ -122,7 +140,7 @@ def run_scenario():
         Gui.Selection.clearSelection(); Gui.Selection.addSelection(sewing)
         show_task(SewingTaskPanel(sewing), "Sewing")
         Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll()
-        save_view("cloth-sewing.png", "Current")
+        save_window("cloth-sewing.png", "Sewing")
         Gui.Control.closeDialog()
         progress("simulation-quality-start")
         quality_doc = App.newDocument("ClothSimulationDocumentation")
@@ -135,7 +153,7 @@ def run_scenario():
         Gui.activeDocument().activeView().viewAxonometric(); Gui.activeDocument().activeView().fitAll()
         activate_workbench("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
         show_task(SimulationQualityTaskPanel(scene), "Simulation Quality")
-        save_view("cloth-simulation.png", "Current")
+        save_window("cloth-simulation.png", "Simulation Quality")
         progress("scenario-complete")
     except Exception:
         progress("scenario-error"); progress(traceback.format_exc()); raise
