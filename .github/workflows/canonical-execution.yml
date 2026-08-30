@@ -2,7 +2,7 @@ name: Canonical execution
 
 on:
   push:
-    branches: [main, ci/self-hosted-unified-cache-screenshots]
+    branches: [main]
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
