@@ -1,6 +1,14 @@
+import sys
+from pathlib import Path
+
 import pytest
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from PatternModel import PatternPiece
 from SimulationQuality import FabricMaterial, QUALITY_PRESETS, preset, solver_parameters
+from SimulationQualityRuntimeV2 import quality_discretization
+from SimulationMeshQuality import quality_piece_mesh
 
 
 def test_quality_presets_are_monotonic_and_distinct():
@@ -28,3 +36,16 @@ def test_material_validation_rejects_invalid_values(field, value):
 def test_unknown_quality_rejected():
     with pytest.raises(ValueError):
         preset("Ultra")
+
+
+def test_pattern_mesh_density_changes_with_particle_distance():
+    piece = PatternPiece("Test", [(0, 0), (100, 0), (100, 60), (0, 60)], id="test")
+    piece_obj = type("Piece", (), {
+        "SewingOutline": repr(piece.outline),
+        "DraftingBoundary": repr(piece.outline),
+        "PieceId": piece.id,
+        "Placement": None,
+    })()
+    coarse = quality_piece_mesh(piece_obj, 100.0, 20.0)
+    fine = quality_piece_mesh(piece_obj, 100.0, 5.0)
+    assert len(fine[0]) > len(coarse[0])
