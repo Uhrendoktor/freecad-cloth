@@ -42,15 +42,18 @@ def test_drape_target_contract_tracks_source_changes():
     class Rot:
         Angle = 0.0
         Axis = Vec(0, 0, 1)
-    class Placement:
+    class PlacementType:
         Base = Vec()
         Rotation = Rot()
-    class Shape:
+    class ShapeType:
         value = 1
         def isNull(self): return False
         def hashCode(self): return self.value
     class Target:
-        Name = "Target"; Label = "Target"; Placement = Placement(); Shape = Shape()
+        Name = "Target"
+        Label = "Target"
+        Placement = PlacementType()
+        Shape = ShapeType()
     DrapeTargetSpec("Mannequin", "ClothAvatar", 1.0, 2.0).validate()
     DrapeTargetSpec("FreeCAD Geometry", "Target", 1.0, 2.0).validate()
     target = Target(); baseline = source_signature(target, 1.0, 2.0)
