@@ -41,7 +41,9 @@ def _placement_signature(target):
     return (float(getattr(base,"x",0.0)),float(getattr(base,"y",0.0)),float(getattr(base,"z",0.0)),float(getattr(rotation,"Angle",0.0)) if rotation is not None else 0.0,float(getattr(axis,"x",0.0)) if axis is not None else 0.0,float(getattr(axis,"y",0.0)) if axis is not None else 0.0,float(getattr(axis,"z",1.0)) if axis is not None else 1.0)
 
 def source_signature(target,deflection=1.0,thickness=0.0)->Tuple:
-    return (str(getattr(target,"Name","")),str(getattr(target,"Label","")),_geometry_signature(target),_placement_signature(target),float(deflection),float(thickness))
+    """Legacy source signature retained for save/reload compatibility."""
+    placement=getattr(target,"Placement",None); base=getattr(placement,"Base",None) if placement is not None else None; rotation=getattr(placement,"Rotation",None) if placement is not None else None; axis=getattr(rotation,"Axis",None) if rotation is not None else None
+    return (str(getattr(target,"Name","")),str(getattr(target,"Label","")),_geometry_signature(target),float(getattr(base,"x",0.0)),float(getattr(base,"y",0.0)),float(getattr(base,"z",0.0)),float(getattr(rotation,"Angle",0.0)) if rotation is not None else 0.0,float(getattr(axis,"x",0.0)) if axis is not None else 0.0,float(getattr(axis,"y",0.0)) if axis is not None else 0.0,float(getattr(axis,"z",1.0)) if axis is not None else 1.0,float(deflection),float(thickness))
 
 def _object_signature(obj):
     if obj is None: return ("missing",)
@@ -83,11 +85,9 @@ def target_status(target):
     if str(getattr(target,"TargetType","FreeCAD Geometry")) not in DrapeTargetSpec.VALID_TYPES: return _status(target,"INVALID","Unsupported drape target type","unsupported target type")
     source=getattr(target,"SourceObject",None)
     if source is None: return _status(target,"INVALID","Drape target has no source object","source missing")
-    try:
-        current=dependency_signatures(target); digest=_dependency_digest(current); reasons=_changed_reasons(target,current)
+    try: current=dependency_signatures(target); digest=_dependency_digest(current); reasons=_changed_reasons(target,current)
     except (AttributeError,TypeError,ValueError,RuntimeError) as exc: return _status(target,"INVALID","Cannot inspect drape target: %s"%exc,"dependency inspection failed")
-    vertices=int(getattr(target,"CollisionVertexCount",0)); triangles=int(getattr(target,"CollisionTriangleCount",0))
-    persisted=getattr(target,"DependencySignature","")
+    vertices=int(getattr(target,"CollisionVertexCount",0)); triangles=int(getattr(target,"CollisionTriangleCount",0)); persisted=getattr(target,"DependencySignature","")
     if not persisted and getattr(target,"SourceSignature",""):
         legacy=repr(source_signature(source,float(getattr(target,"CollisionDeflection",1.0)),float(getattr(target,"CollisionThickness",0.0))))
         if legacy==str(getattr(target,"SourceSignature","")) and vertices>0 and triangles>0: return _status(target,"READY_FOR_SIMULATION","Drape target is current and ready for simulation")
