@@ -1,234 +1,67 @@
-"""FreeCAD task panel for editing semantic sewing-network ranges.
-
-The panel exposes the persisted M:N relationship directly and refuses to
-silently edit a network whose canonical seam references are invalid.
-"""
+"""Native FreeCAD task panel for inspecting the complete sewing graph."""
 
 
 def _modules():
-    import FreeCAD as App
     import FreeCADGui as Gui
     try:
-        from PySide import QtCore, QtWidgets
+        from PySide import QtWidgets
     except ImportError:
-        from PySide2 import QtCore, QtWidgets
-    return App, Gui, QtCore, QtWidgets
+        from PySide2 import QtWidgets
+    return Gui, QtWidgets
 
 
-def network_reference_errors(network):
-    """Return ``(seam_id, status)`` for invalid canonical network members."""
-    errors = []
-    for seam in tuple(getattr(network, "Seams", ()) or ()):
-        status = str(getattr(seam, "Status", "Valid"))
-        if status != "Valid":
-            errors.append((str(getattr(seam, "SeamId", "")) or "<unnamed>", status))
-    return tuple(errors)
-
-
-def validate_network_for_edit(network):
-    """Raise a clear error when a persisted network contains invalid seams."""
-    errors = network_reference_errors(network)
-    if errors:
-        details = ", ".join("%s: %s" % item for item in errors)
-        raise ValueError("cannot edit sewing network with invalid seam references: " + details)
-    return True
-
-
-class SewingNetworkTaskPanel:
-    """Native FreeCAD editor for canonical seam ranges in a sewing network."""
-
-    _TRANSACTION_NAME = "Edit Sewing Network"
-
-    def __init__(self, network):
-        App, Gui, QtCore, QtWidgets = _modules()
-        self.App, self.Gui, self.QtCore = App, Gui, QtCore
-        self.network = network
+class SewingGraphTaskPanel:
+    def __init__(self, document):
+        from SewingValidation import validate_sewing_graph
+        Gui, QtWidgets = _modules()
+        self.Gui = Gui
         self.form = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(self.form)
-        self.info = QtWidgets.QLabel(
-            "Relationship %s — edit normalized edge ranges (0..1). Ranges are local to each referenced edge."
-            % str(getattr(network, "RelationshipId", ""))
-        )
-        self.info.setWordWrap(True)
-        layout.addWidget(self.info)
-
-        controls = QtWidgets.QFormLayout()
-        self.alignment = QtWidgets.QComboBox()
-        self.alignment.addItems(["endpoints", "uniform"])
-        alignments = {str(getattr(seam, "Alignment", "endpoints")) for seam in tuple(getattr(network, "Seams", ()) or ())}
-        current_alignment = sorted(alignments)[0] if alignments else "uniform"
-        index = self.alignment.findText(current_alignment)
-        self.alignment.setCurrentIndex(max(0, index))
-        controls.addRow("Alignment", self.alignment)
-
-        self.reversed_b = QtWidgets.QCheckBox("Reverse B correspondence")
-        seam_values = tuple(getattr(network, "Seams", ()) or ())
-        self.reversed_b.setChecked(bool(seam_values and all(bool(getattr(seam, "ReversedB", False)) for seam in seam_values)))
-        controls.addRow("Orientation", self.reversed_b)
-        layout.addLayout(controls)
-
-        errors = network_reference_errors(network)
-        self.warning = QtWidgets.QLabel()
-        self.warning.setWordWrap(True)
-        self.warning.setObjectName("ClothSewingNetworkReferenceWarning")
-        self.warning.setText(
-            "Invalid seam references: " + "; ".join("%s (%s)" % item for item in errors)
-            if errors else ""
-        )
-        layout.addWidget(self.warning)
-
-        columns = ("A piece", "A edge", "A start", "A end", "B piece", "B edge", "B start", "B end", "Direction", "Status")
-        self.table = QtWidgets.QTableWidget(len(seam_values), len(columns))
+        self.report = validate_sewing_graph(document)
+        self.summary = QtWidgets.QLabel(self.report["message"])
+        self.summary.setWordWrap(True)
+        self.summary.setObjectName("ClothSewingGraphSummary")
+        layout.addWidget(self.summary)
+        columns = ("Seam / network", "A", "B", "Status", "Length Δ")
+        rows = list(self.report["seams"])
+        self.table = QtWidgets.QTableWidget(len(rows) + len(self.report["networks"]), len(columns))
         self.table.setHorizontalHeaderLabels(columns)
-        self.table.setObjectName("ClothSewingNetworkRangeTable")
-        self._seams = seam_values
-        for row, seam in enumerate(seam_values):
-            values = (
-                str(getattr(seam, "PieceA", "")), str(getattr(seam, "EdgeA", "")),
-                float(getattr(seam, "StartA", 0.0)), float(getattr(seam, "EndA", 1.0)),
-                str(getattr(seam, "PieceB", "")), str(getattr(seam, "EdgeB", "")),
-                float(getattr(seam, "StartB", 0.0)), float(getattr(seam, "EndB", 1.0)),
-                "reversed" if bool(getattr(seam, "ReversedB", False)) else "forward",
-                str(getattr(seam, "Status", getattr(network, "Status", ""))),
-            )
-            for column, value in enumerate(values):
-                item = QtWidgets.QTableWidgetItem(str(value))
-                if column not in (2, 3, 6, 7):
-                    item.setFlags(item.flags() & ~QtCore.Qt.ItemIsEditable)
-                self.table.setItem(row, column, item)
+        self.table.setObjectName("ClothSewingGraphTable")
+        row = 0
+        for item in rows:
+            values = (item["id"], item["piece_a"], item["piece_b"], item["status"], "%.3f mm" % item["difference"])
+            for col, value in enumerate(values):
+                self.table.setItem(row, col, QtWidgets.QTableWidgetItem(str(value)))
+            row += 1
+        for item in self.report["networks"]:
+            values = (item["id"], "network", "network", item["status"], "%.3f mm" % item["difference"])
+            for col, value in enumerate(values):
+                self.table.setItem(row, col, QtWidgets.QTableWidgetItem(str(value)))
+            row += 1
         layout.addWidget(self.table)
-        self.status = QtWidgets.QLabel()
-        self.status.setWordWrap(True)
-        layout.addWidget(self.status)
-
-        self._original = {
-            "ranges": tuple(
-                (
-                    float(getattr(seam, "StartA", 0.0)),
-                    float(getattr(seam, "EndA", 1.0)),
-                    float(getattr(seam, "StartB", 0.0)),
-                    float(getattr(seam, "EndB", 1.0)),
-                )
-                for seam in seam_values
-            ),
-            "alignment": tuple(str(getattr(seam, "Alignment", "endpoints")) for seam in seam_values),
-            "reversed_b": tuple(bool(getattr(seam, "ReversedB", False)) for seam in seam_values),
-        }
-        self._transaction_active = False
-        self._begin_transaction()
-        self._refresh_status()
-
-    def _begin_transaction(self):
-        """Start one FreeCAD undo transaction for the complete network edit."""
-        doc = self.App.ActiveDocument
-        opener = getattr(doc, "openTransaction", None) if doc is not None else None
-        if callable(opener):
-            opener(self._TRANSACTION_NAME)
-            self._transaction_active = True
-
-    def _commit_transaction(self):
-        if not self._transaction_active:
-            return
-        doc = self.App.ActiveDocument
-        committer = getattr(doc, "commitTransaction", None) if doc is not None else None
-        if callable(committer):
-            committer()
-        self._transaction_active = False
-
-    def _abort_transaction(self):
-        if not self._transaction_active:
-            return False
-        doc = self.App.ActiveDocument
-        aborter = getattr(doc, "abortTransaction", None) if doc is not None else None
-        if callable(aborter):
-            aborter()
-            self._transaction_active = False
-            return True
-        self._transaction_active = False
-        return False
-
-    def _restore_original(self):
-        for seam, ranges, alignment, reversed_b in zip(
-            self._seams,
-            self._original["ranges"],
-            self._original["alignment"],
-            self._original["reversed_b"],
-        ):
-            seam.StartA, seam.EndA, seam.StartB, seam.EndB = ranges
-            seam.Alignment = alignment
-            seam.ReversedB = reversed_b
-
-    def _range(self, row, column):
-        try:
-            value = float(self.table.item(row, column).text())
-        except (TypeError, ValueError):
-            raise ValueError("range values must be numeric")
-        if not 0.0 <= value <= 1.0:
-            raise ValueError("range values must be between 0 and 1")
-        return value
-
-    def accept(self):
-        """Validate all edits, then apply the complete network atomically."""
-        validate_network_for_edit(self.network)
-        values = []
-        for row, seam in enumerate(self._seams):
-            start_a, end_a = self._range(row, 2), self._range(row, 3)
-            start_b, end_b = self._range(row, 6), self._range(row, 7)
-            if start_a >= end_a or start_b >= end_b:
-                raise ValueError("seam ranges must have positive extent")
-            values.append((seam, start_a, end_a, start_b, end_b))
-        alignment = str(self.alignment.currentText())
-        reversed_b = bool(self.reversed_b.isChecked())
-        for seam, start_a, end_a, start_b, end_b in values:
-            seam.StartA, seam.EndA = start_a, end_a
-            seam.StartB, seam.EndB = start_b, end_b
-            seam.Alignment = alignment
-            seam.ReversedB = reversed_b
-        self.App.ActiveDocument.recompute()
-        if network_reference_errors(self.network):
-            self._restore_original()
-            self.App.ActiveDocument.recompute()
-            self._abort_transaction()
-            raise ValueError("sewing network became invalid after edit")
-        self._commit_transaction()
-        self._refresh_status()
-        return True
-
-    def reject(self):
-        """Cancel the task and discard the entire edit transaction when possible."""
-        if not self._abort_transaction():
-            self._restore_original()
-        self.App.ActiveDocument.recompute()
-        self._refresh_status()
-        return True
-
-    def _refresh_status(self):
-        errors = network_reference_errors(self.network)
-        self.warning.setText(
-            "Invalid seam references: " + "; ".join("%s (%s)" % item for item in errors)
-            if errors else ""
+        self.isolated = QtWidgets.QLabel(
+            "Unsewn pieces: " + (", ".join(self.report["isolated"]) if self.report["isolated"] else "none")
         )
-        self.status.setText(
-            "%s | segments: %d | Δ %.3f mm%s"
-            % (
-                str(getattr(self.network, "Status", "")),
-                int(getattr(self.network, "SegmentCount", 0)),
-                float(getattr(self.network, "LengthDifference", 0.0)),
-                " | invalid: " + ", ".join("%s (%s)" % item for item in errors) if errors else "",
-            )
-        )
+        self.isolated.setWordWrap(True)
+        layout.addWidget(self.isolated)
+        self.refresh = QtWidgets.QPushButton("Refresh validation")
+        self.refresh.clicked.connect(self.update)
+        layout.addWidget(self.refresh)
 
     def update(self):
-        """Refresh values shown by the task panel after an external recompute."""
-        self._refresh_status()
+        from SewingValidation import validate_sewing_graph
+        self.report = validate_sewing_graph(self.Gui.activeDocument().Document)
+        self.summary.setText(self.report["message"])
+        self.isolated.setText("Unsewn pieces: " + (", ".join(self.report["isolated"]) if self.report["isolated"] else "none"))
+        return self.report
 
     def getStandardButtons(self):
-        _App, _Gui, _QtCore, QtWidgets = _modules()
-        return QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+        _Gui, QtWidgets = _modules()
+        return QtWidgets.QDialogButtonBox.Close
 
 
-def show_sewing_network_task(network):
-    _App, Gui, _QtCore, _QtWidgets = _modules()
-    panel = SewingNetworkTaskPanel(network)
-    Gui.Control.showDialog(panel)
+def show_sewing_graph_task(document):
+    _Gui, _QtWidgets = _modules()
+    panel = SewingGraphTaskPanel(document)
+    _Gui.Control.showDialog(panel)
     return panel

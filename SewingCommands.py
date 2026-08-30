@@ -1,7 +1,6 @@
 """Commands for the Cloth Sewing workbench."""
 from pathlib import Path
 
-
 _ICON_DIR = Path(__file__).resolve().parent / "resources" / "icons"
 
 
@@ -94,13 +93,7 @@ def create_seam_from_selection():
 
 
 def create_mn_sewing_from_selection():
-    """Create a persistent 1:N, M:1, or M:N sewing network.
-
-    Select two or more edges belonging to exactly two pattern pieces. Edges
-    from the first piece form side A and edges from the second form side B.
-    Full edges are used by the GUI command; callers can use ``build_mn_seams``
-    directly with normalized sub-ranges for free sewing.
-    """
+    """Create a persistent 1:N, M:1, or M:N sewing network."""
     import FreeCAD as App
     from PatternObjects import add_seam
     from SewingNetwork import SewingMember, add_sewing_network, build_mn_seams
@@ -193,8 +186,21 @@ def validate_seams():
     for obj in ops + networks:
         obj.Proxy.execute(obj)
     doc.recompute()
-    return ([(o.Name, o.Status, float(o.LengthDifference)) for o in ops] +
-            [(o.Name, o.Status, float(o.LengthDifference)) for o in networks])
+    from SewingValidation import validate_sewing_graph
+    graph = validate_sewing_graph(doc)
+    return {"status": graph["status"], "message": graph["message"],
+            "operations": [(o.Name, o.Status, float(o.LengthDifference)) for o in ops],
+            "networks": [(o.Name, o.Status, float(o.LengthDifference)) for o in networks],
+            "isolated": graph["isolated"]}
+
+
+def inspect_sewing_graph():
+    import FreeCAD as App
+    doc = App.ActiveDocument
+    if doc is None:
+        raise ValueError("open a document before inspecting the sewing graph")
+    from SewingNetworkGui import show_sewing_graph_task
+    return show_sewing_graph_task(doc)
 
 
 def repair_selected_seam():
@@ -209,9 +215,9 @@ def repair_selected_seam():
     if length_a <= 0.0 or length_b <= 0.0:
         pieces = _pieces_by_id(doc)
         try:
-            from SewingObjects import _edge_length
-            length_a = _edge_length(pieces[str(seam.PieceA)], int(seam.EdgeA))
-            length_b = _edge_length(pieces[str(seam.PieceB)], int(seam.EdgeB))
+            from SewingObjects import _seam_length
+            length_a = _seam_length(pieces[str(seam.PieceA)], seam, "A")
+            length_b = _seam_length(pieces[str(seam.PieceB)], seam, "B")
         except Exception as exc:
             raise ValueError("cannot determine seam lengths for repair: %s" % exc)
     report = correspondence_report(seam, length_a, length_b, 0.05)
@@ -240,7 +246,7 @@ def show_sewing_2d():
 COMMANDS = [
     "ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing", "ClothSewing_CreateOperation",
     "ClothSewing_EditOperation", "ClothSewing_ReverseSeam", "ClothSewing_ToggleAlignment",
-    "ClothSewing_Validate", "ClothSewing_RepairSeam", "ClothSewing_Show2D",
+    "ClothSewing_Validate", "ClothSewing_RepairSeam", "ClothSewing_Show2D", "ClothSewing_InspectGraph",
 ]
 _COMMAND_HANDLERS = {
     "ClothSewing_CreateSeam": create_seam_from_selection,
@@ -252,17 +258,14 @@ _COMMAND_HANDLERS = {
     "ClothSewing_Validate": validate_seams,
     "ClothSewing_RepairSeam": repair_selected_seam,
     "ClothSewing_Show2D": show_sewing_2d,
+    "ClothSewing_InspectGraph": inspect_sewing_graph,
 }
 _MENU_TEXT = {
-    "ClothSewing_CreateSeam": "Create Seam",
-    "ClothSewing_CreateMNSewing": "Create M:N Sewing",
-    "ClothSewing_CreateOperation": "Create Sewing Operation",
-    "ClothSewing_EditOperation": "Edit Sewing Operation",
-    "ClothSewing_ReverseSeam": "Reverse Seam",
-    "ClothSewing_ToggleAlignment": "Toggle Seam Alignment",
-    "ClothSewing_Validate": "Validate Sewing",
-    "ClothSewing_RepairSeam": "Repair Seam",
-    "ClothSewing_Show2D": "Show Sewing 2D",
+    "ClothSewing_CreateSeam": "Create Seam", "ClothSewing_CreateMNSewing": "Create M:N Sewing",
+    "ClothSewing_CreateOperation": "Create Sewing Operation", "ClothSewing_EditOperation": "Edit Sewing Operation",
+    "ClothSewing_ReverseSeam": "Reverse Seam", "ClothSewing_ToggleAlignment": "Toggle Seam Alignment",
+    "ClothSewing_Validate": "Validate Sewing", "ClothSewing_RepairSeam": "Repair Seam",
+    "ClothSewing_Show2D": "Show Sewing 2D", "ClothSewing_InspectGraph": "Inspect Sewing Graph",
 }
 _TOOLTIPS = {
     "ClothSewing_CreateSeam": "Create a persistent seam from two selected pattern edges",
@@ -271,10 +274,12 @@ _TOOLTIPS = {
     "ClothSewing_EditOperation": "Edit seam alignment, orientation, tolerance, and stitch samples",
     "ClothSewing_ReverseSeam": "Reverse the B-side stitch correspondence",
     "ClothSewing_ToggleAlignment": "Toggle endpoint and uniform seam correspondence",
-    "ClothSewing_Validate": "Validate sewing operations and report seam length mismatches",
+    "ClothSewing_Validate": "Validate sewing operations and the complete garment sewing graph",
     "ClothSewing_RepairSeam": "Repair reversible or invalid-range seam correspondence without hiding length mismatch",
     "ClothSewing_Show2D": "Show pattern, seam, and stitch correspondence in top view",
+    "ClothSewing_InspectGraph": "Inspect pattern pieces, seam relationships, diagnostics, and unsewn pieces",
 }
+
 def _has_active_document():
     try:
         import FreeCAD as App
@@ -295,6 +300,7 @@ def _has_selected_operation():
         return any(getattr(o, "SewingType", "") == "SewingOperation" for o in Gui.Selection.getSelection())
     except ImportError:
         return False
+
 class _SewingCommand:
     def __init__(self, function, active, tooltip, menu_text=None, pixmap=None):
         self.function, self.active, self.tooltip = function, active, tooltip
@@ -304,9 +310,9 @@ class _SewingCommand:
     def IsActive(self): return bool(self.active())
     def GetResources(self):
         resources = {"MenuText": self.menu_text, "ToolTip": self.tooltip}
-        if self.pixmap:
-            resources["Pixmap"] = self.pixmap
+        if self.pixmap: resources["Pixmap"] = self.pixmap
         return resources
+
 try:
     import FreeCADGui as Gui
     _ACTIVATION = {
@@ -319,10 +325,11 @@ try:
         "ClothSewing_Validate": lambda: _has_active_document(),
         "ClothSewing_RepairSeam": lambda: _has_active_document() and _has_selected_seam(),
         "ClothSewing_Show2D": lambda: _has_active_document(),
+        "ClothSewing_InspectGraph": lambda: _has_active_document(),
     }
     for name, function in _COMMAND_HANDLERS.items():
         icon_path = _ICON_DIR / (name + ".svg")
-        if not icon_path.is_file() and name == "ClothSewing_RepairSeam":
+        if not icon_path.is_file():
             icon_path = _ICON_DIR / "ClothSewing_Validate.svg"
         Gui.addCommand(name, _SewingCommand(function, _ACTIVATION[name], _TOOLTIPS[name], _MENU_TEXT[name], str(icon_path)))
 except (ImportError, AttributeError):
