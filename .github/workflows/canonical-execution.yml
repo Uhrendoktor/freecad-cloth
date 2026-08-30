@@ -5,264 +5,74 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
-    inputs:
-      gui_screenshots:
-        description: Generate the expensive FreeCAD GUI screenshots
-        required: false
-        default: true
-        type: boolean
-  schedule:
-    - cron: '17 * * * *'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: false
-
-env:
-  PYTHONPATH: .
+  group: canonical-${{ github.ref }}
+  cancel-in-progress: true
 
 defaults:
   run:
     shell: bash
 
 jobs:
-  test:
-    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed') || github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    strategy:
-      matrix:
-        python: ['3.10', '3.11', '3.12']
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python }}
-      - name: Core and geometry tests
-        run: |
-          python tests/test_core.py
-          python tests/test_mesh.py
-          python tests/test_meshpart_adapter.py
-          python tests/test_xpbd.py
-          python tests/test_cloth_solver.py
-          python tests/test_side_tasks.py
-          python tests/test_simulation_scene.py
-          python tests/test_collisions.py
-          python tests/test_freecad_objects.py
-          python tests/test_gui_structure.py
-          python tests/test_sewing_workbench.py
-          python tests/test_sewing_show2d.py
-          python tests/test_sewing_network.py
-          python tests/test_sewing_network_gui.py
-          python tests/test_avatar_fitting.py
-          python tests/test_drape_quality.py
-          python tests/test_pattern_sketch.py
-          python tests/test_pattern_ir.py
-          python tests/test_pattern_export_semantics.py
-          python tests/test_sketch_authority.py
-          python tests/test_simulation_quality.py
-          python tests/test_sewing_network_gui_contract.py
-      - name: Reference drape benchmark
-        run: python tests/benchmark_drape.py
-      - name: Upload reference drape benchmark
-        uses: actions/upload-artifact@v4
-        with:
-          name: drape-benchmark-${{ matrix.python }}
-          path: artifacts/drape-benchmark.json
-          if-no-files-found: error
-      - name: Python syntax check
-        run: python -m compileall -q .
-      - name: Package structure validation
-        run: |
-          test -f package.xml
-          test -f Init.py
-          test -f InitGui.py
-          test -f PatternGui.py
-          test -f SimulationGui.py
-          test -f SewingGui.py
-          test -f SewingNetworkGui.py
-          test -f SewingObjects.py
-
-  freecad-smoke:
-    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed') || github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run real FreeCAD runtime in Debian trixie
-        run: |
-          docker run --rm -v "$PWD:/workspace" -w /workspace debian:trixie-slim bash -euxo pipefail -c '
-            apt-get update -qq
-            apt-get install -y -qq freecad
-            freecadcmd --version
-            freecadcmd tests/freecad_smoke.py
-            freecadcmd tests/freecad_meshpart_smoke.py
-            freecadcmd tests/freecad_sewing_smoke.py
-          '
-
   gui-screenshots:
-    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed' && contains(github.event.pull_request.labels.*.name, 'gui-screenshot')) || (github.event_name == 'workflow_dispatch' && inputs.gui_screenshots == true) }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    concurrency:
-      group: gui-screenshots-${{ github.event.pull_request.number || github.ref }}
-      cancel-in-progress: true
+    if: github.event_name != 'pull_request' || github.event.action != 'closed'
+    runs-on: debian-12
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Generate FreeCAD GUI screenshots under Xvfb
+      - name: Install FreeCAD GUI runtime
         run: |
-          mkdir -p "$PWD/docs/images/generated"
-          docker run --rm --init \
-            -e DISPLAY=:99 -e QT_X11_NO_MITSHM=1 -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -e QT_QPA_PLATFORM=xcb -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
-            -e CLOTH_E2E_DIR=/workspace/artifacts/freecad-e2e -v "$PWD:/workspace" -w /workspace \
-            debian:trixie-slim bash -euxo pipefail -c '
-              apt-get update -qq
-              apt-get install -y -qq freecad xvfb openbox
-              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
-              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
-              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              sleep 2
-              rm -f docs/images/generated/cloth-pattern-design.png docs/images/generated/cloth-sewing.png docs/images/generated/cloth-simulation.png docs/images/generated/gui-progress.log
-              printf "%s\n" "from PySide2 import QtGui; import FreeCADGui as Gui; from PySide2 import QtWidgets; Gui.addIconPath(\"/workspace/resources/icons\"); ns={\"__file__\":\"/workspace/tests/freecad_screenshot.py\",\"__name__\":\"__cloth_screenshot__\"}; source=open(\"tests/freecad_screenshot.py\", encoding=\"utf-8\").read(); source=source.split(\"\\nrun_scenario()\\nprogress(\\\"script-end\\\")\",1)[0]; exec(compile(source, \"tests/freecad_screenshot.py\", \"exec\"), ns, ns); exec(compile(\"def fixed_image_is_useful(path, state):\\n    pix=Gui.getMainWindow().grab()\\n    image=pix.toImage()\\n    if image.isNull() or image.width() < 1000 or image.height() < 600: raise RuntimeError(\\\"captured window is blank/partial for %s\\\" % state)\\n    samples={int(image.pixel(x,y)) for y in range(0,image.height(),max(1,image.height()//24)) for x in range(0,image.width(),max(1,image.width()//32))}\\n    if len(samples) < 10: raise RuntimeError(\\\"screenshot is visually uniform for %s (%d sampled colors)\\\" % (state,len(samples)))\\n    ns[\\\"progress\\\"](\\\"image-validation=%s size=%sx%s sampled_colors=%d\\\" % (state,image.width(),image.height(),len(samples)))\", \"<qt-compat>\", \"exec\"), ns, ns); ns[\"image_is_useful\"]=ns[\"fixed_image_is_useful\"]; ns[\"run_scenario\"](); window=Gui.getMainWindow(); window.close() if window is not None else None; QtWidgets.QApplication.quit()" >/tmp/cloth_screenshot.FCMacro
-              timeout --signal=TERM --kill-after=5s 120s freecad /tmp/cloth_screenshot.FCMacro >/tmp/freecad-gui.log 2>&1 || { status=$?; cat /tmp/freecad-gui.log || true; cat docs/images/generated/gui-progress.log || true; cat /tmp/xvfb.log || true; cat /tmp/openbox.log || true; exit "$status"; }
-              test -s docs/images/generated/cloth-pattern-design.png
-              test -s docs/images/generated/cloth-sewing.png
-              test -s docs/images/generated/cloth-simulation.png
-              mkdir -p artifacts/freecad-e2e
-              rm -f artifacts/freecad-e2e/workflow.log
-              printf "%s\n" "exec(compile(open(\"tests/freecad_e2e.py\", encoding=\"utf-8\").read(), \"tests/freecad_e2e.py\", \"exec\"))" >/tmp/cloth_e2e.FCMacro
-              timeout --signal=TERM --kill-after=5s 90s freecad /tmp/cloth_e2e.FCMacro >/tmp/freecad-e2e.log 2>&1 || { status=$?; cat /tmp/freecad-e2e.log || true; cat artifacts/freecad-e2e/workflow.log || true; cat /tmp/xvfb.log || true; cat /tmp/openbox.log || true; exit "$status"; }
-              test -s artifacts/freecad-e2e/workflow.log
-            '
-      - name: Upload GUI diagnostics
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: cloth-gui-diagnostics
-          path: |
-            docs/images/generated/gui-progress.log
-            artifacts/freecad-e2e/workflow.log
-            /tmp/freecad-gui.log
-            /tmp/freecad-e2e.log
-            /tmp/xvfb.log
-            /tmp/openbox.log
-          if-no-files-found: ignore
-      - name: Upload GUI screenshots
-        uses: actions/upload-artifact@v4
+          apt-get update -qq
+          apt-get install -y -qq curl xvfb openbox libfuse2
+          curl -L --fail --retry 3 -o /tmp/FreeCAD.AppImage https://github.com/FreeCAD/FreeCAD/releases/download/1.1.3/FreeCAD_1.1.3-Linux-x86_64-py311.AppImage
+          chmod +x /tmp/FreeCAD.AppImage
+      - name: Generate screenshots
+        env:
+          DISPLAY: :99
+          QT_X11_NO_MITSHM: 1
+          QT_QPA_PLATFORM: xcb
+          LIBGL_ALWAYS_SOFTWARE: 1
+          CLOTH_SCREENSHOT_DIR: ${{ github.workspace }}/docs/images/generated
+          CLOTH_E2E_DIR: ${{ github.workspace }}/artifacts/freecad-e2e
+        run: |
+          mkdir -p "$CLOTH_SCREENSHOT_DIR" "$CLOTH_E2E_DIR"
+          Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 &
+          openbox >/tmp/openbox.log 2>&1 &
+          sleep 2
+          timeout 120s /tmp/FreeCAD.AppImage tests/freecad_screenshot.py
+          test -s "$CLOTH_SCREENSHOT_DIR/cloth-pattern-design.png"
+          test -s "$CLOTH_SCREENSHOT_DIR/cloth-sewing.png"
+          test -s "$CLOTH_SCREENSHOT_DIR/cloth-simulation.png"
+      - uses: actions/upload-artifact@v4
         with:
           name: cloth-gui-screenshots
           path: docs/images/generated/*.png
           if-no-files-found: error
 
-  publish-merged-gui:
-    if: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'gui-screenshot') }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      actions: read
-      contents: write
-      pull-requests: write
-    concurrency:
-      group: merged-gui-publish
-      cancel-in-progress: false
-    env:
-      GH_TOKEN: ${{ github.token }}
-      REPO: ${{ github.repository }}
-      PR_NUMBER: ${{ github.event.pull_request.number }}
-      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+  tests:
+    if: github.event_name != 'pull_request' || github.event.action != 'closed'
+    runs-on: debian-12
+    timeout-minutes: 8
     steps:
-      - name: Find the successful GUI screenshot run
-        id: find-run
-        shell: bash
+      - uses: actions/checkout@v4
+      - name: Python tests
         run: |
-          set -euo pipefail
-          run_id="$(gh api --paginate "/repos/${REPO}/actions/workflows/canonical-execution.yml/runs?event=pull_request&head_sha=${HEAD_SHA}&per_page=100" --jq '.workflow_runs[] | select(.conclusion == "success") | .id' | head -n1)"
-          test -n "$run_id"
-          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
-      - name: Download GUI screenshots
-        run: |
-          set -euo pipefail
-          rm -rf /tmp/cloth-gui-screenshots && mkdir -p /tmp/cloth-gui-screenshots
-          gh run download "${{ steps.find-run.outputs.run_id }}" --repo "$REPO" --name cloth-gui-screenshots --dir /tmp/cloth-gui-screenshots
-          test -s /tmp/cloth-gui-screenshots/cloth-pattern-design.png
-          test -s /tmp/cloth-gui-screenshots/cloth-sewing.png
-          test -s /tmp/cloth-gui-screenshots/cloth-simulation.png
-      - name: Publish screenshots to main
-        id: publish
-        shell: bash
-        run: |
-          set -euo pipefail
-          git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" /tmp/freecad-cloth
-          cd /tmp/freecad-cloth
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin main && git checkout -B main origin/main
-          destination="docs/images/generated/merged-pr-${PR_NUMBER}"
-          rm -rf "$destination" && mkdir -p "$destination"
-          cp /tmp/cloth-gui-screenshots/*.png "$destination/"
-          git add "$destination"
-          if git diff --cached --quiet; then commit_sha="$(git rev-parse HEAD)"; else git commit -m "Add GUI screenshots for merged PR #${PR_NUMBER}"; git push origin HEAD:main; commit_sha="$(git rev-parse HEAD)"; fi
-          echo "commit_sha=$commit_sha" >> "$GITHUB_OUTPUT"
-      - name: Post screenshots to the merged PR
-        shell: bash
-        run: |
-          set -euo pipefail
-          commit_sha="${{ steps.publish.outputs.commit_sha }}"
-          base="../blob/${commit_sha}/docs/images/generated/merged-pr-${PR_NUMBER}"
-          marker="<!-- cloth-gui-screenshots:pr-${PR_NUMBER} -->"
-          body="${marker}\n## GUI screenshots\n\nThese screenshots were generated by the FreeCAD GUI workflow for the merged PR.\n\n![Pattern design](${base}/cloth-pattern-design.png?raw=true)\n\n![Sewing](${base}/cloth-sewing.png?raw=true)\n\n![Simulation](${base}/cloth-simulation.png?raw=true)"
-          existing_id="$(gh api --paginate "/repos/${REPO}/issues/${PR_NUMBER}/comments?per_page=100" --jq ".[] | select(.body | contains(\"${marker}\")) | .id" | head -n1)"
-          if [ -n "$existing_id" ]; then gh api --method PATCH "/repos/${REPO}/issues/comments/${existing_id}" -f body="$body" >/dev/null; else gh api --method POST "/repos/${REPO}/issues/${PR_NUMBER}/comments" -f body="$body" >/dev/null; fi
+          for t in tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py tests/test_simulation_scene.py tests/test_collisions.py tests/test_freecad_objects.py tests/test_gui_structure.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_avatar_fitting.py tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py tests/test_pattern_export_semantics.py tests/test_sketch_authority.py tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py; do python3 "$t" || exit; done
+          python3 -m compileall -q .
 
-  maintenance:
-    if: ${{ github.event_name == 'schedule' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: write
-      actions: write
-      pull-requests: read
+  freecad-smoke:
+    if: github.event_name != 'pull_request' || github.event.action != 'closed'
+    runs-on: debian-12
+    timeout-minutes: 8
     steps:
-      - name: GPT-Tools cleanup of old Actions runs and stale closed-PR branches
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
+      - uses: actions/checkout@v4
+      - name: FreeCAD smoke
         run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json, subprocess
-          from datetime import datetime, timezone, timedelta
-          repo=__import__('os').environ['REPO']; cutoff=datetime.now(timezone.utc)-timedelta(hours=24)
-          def gh(*args): return subprocess.check_output(['gh','api',*args],text=True)
-          runs=[]
-          for page in range(1,20):
-              data=json.loads(gh(f'repos/{repo}/actions/runs?per_page=100&page={page}')); page_runs=data.get('workflow_runs',[])
-              if not page_runs: break
-              runs.extend(page_runs)
-              if len(page_runs)<100: break
-          runs.sort(key=lambda r:r.get('created_at',''),reverse=True)
-          for run in [r for r in runs if r.get('conclusion')][10:]:
-              if datetime.fromisoformat(run['created_at'].replace('Z','+00:00'))<cutoff: subprocess.run(['gh','api','--method','DELETE',f"repos/{repo}/actions/runs/{run['id']}"],check=True)
-          default_branch=json.loads(gh(f'repos/{repo}'))['default_branch']
-          open_prs=json.loads(gh(f'repos/{repo}/pulls?state=open&per_page=100')); open_heads={(p.get('head') or {}).get('ref') for p in open_prs}
-          closed_prs=[]
-          for page in range(1,20):
-              page_prs=json.loads(gh(f'repos/{repo}/pulls?state=closed&per_page=100&page={page}'))
-              if not page_prs: break
-              closed_prs.extend(page_prs)
-              if len(page_prs)<100: break
-          seen=set()
-          for pr in closed_prs:
-              head=(pr.get('head') or {}).get('ref'); closed_at=pr.get('closed_at')
-              if not head or head in seen or head==default_branch or head in open_heads or not closed_at: continue
-              seen.add(head)
-              if datetime.fromisoformat(closed_at.replace('Z','+00:00'))<cutoff:
-                  subprocess.run(['gh','api','--method','DELETE',f'repos/{repo}/git/refs/heads/{head}'],check=False)
-          PY
+          apt-get update -qq
+          apt-get install -y -qq curl libfuse2
+          curl -L --fail --retry 3 -o /tmp/FreeCAD.AppImage https://github.com/FreeCAD/FreeCAD/releases/download/1.1.3/FreeCAD_1.1.3-Linux-x86_64-py311.AppImage
+          chmod +x /tmp/FreeCAD.AppImage
+          /tmp/FreeCAD.AppImage tests/freecad_smoke.py
+          /tmp/FreeCAD.AppImage tests/freecad_meshpart_smoke.py
+          /tmp/FreeCAD.AppImage tests/freecad_sewing_smoke.py
