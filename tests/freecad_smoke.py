@@ -3,7 +3,6 @@ import sys
 import os
 from pathlib import Path
 import tempfile
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 _BOOT_PROGRESS = Path(os.environ.get("CLOTH_E2E_DIR", "/tmp")) / "freecad-import-progress.log"
 def _boot_checkpoint(name):
@@ -24,14 +23,12 @@ from AvatarCommands import create_avatar, set_avatar_measurements, set_avatar_po
 from DrapeCommands import create_drape_target_from_selection
 from SewingGui import correspondence_report
 _boot_checkpoint("freecad_smoke: imported-all")
-
 _PROGRESS = Path(os.environ.get("CLOTH_SCREENSHOT_DIR", "/tmp")) / "gui-progress.log"
 def checkpoint(name):
     _PROGRESS.parent.mkdir(parents=True, exist_ok=True)
     with _PROGRESS.open("a", encoding="utf-8") as handle:
         handle.write(name + "\n")
         handle.flush()
-
 def main():
     checkpoint("FREECAD_SMOKE START")
     import FreeCADGui as Gui
@@ -48,7 +45,7 @@ def main():
     checkpoint("FREECAD_SMOKE CORRESPONDENCE")
     doc=App.newDocument("ClothSmoke");create_pattern_piece();obj=doc.getObject("PatternPiece");assert obj is not None;assert obj.PieceId=="pattern-piece-1";assert obj.SewingBoundary=="bottom,right,top,left";assert obj.Shape.isValid();initial=obj.Shape.BoundBox.XLength;obj.Width=120;doc.recompute();assert obj.Shape.isValid() and obj.Shape.BoundBox.XLength!=initial and obj.PieceId=="pattern-piece-1"
     checkpoint("FREECAD_SMOKE PATTERN")
-    obj.Placement=App.Placement(App.Vector(15,20,0),App.Rotation(App.Vector(0,0,1),15));doc.recompute();assert obj.Placement.Base==App.Vector(15,20,0);assert abs(obj.Placement.Rotation.Angle-15.0)<1e-9
+    obj.Placement=App.Placement(App.Vector(15,20,0),App.Rotation(App.Vector(0,0,1),15));doc.recompute();base=obj.Placement.Base;assert abs(base.x-15.0)<1e-9 and abs(base.y-20.0)<1e-9 and abs(base.z)<1e-9;assert abs(obj.Placement.Rotation.Angle-15.0)<1e-9
     Gui.Selection.clearSelection();Gui.Selection.addSelection(obj);sketch=create_pattern_sketch();assert obj.Sketch==sketch;assert obj.GeometryMode=="Sketch";assert obj.GeometryAuthority=="Sketcher";assert sketch.GeometryAuthority=="Sketcher";assert list(sketch.SemanticEdgeIds)==["pattern-piece-1:edge:%d"%i for i in range(4)];assert obj.Visibility is False and sketch.Visibility is True
     checkpoint("FREECAD_SMOKE SKETCH")
     old_length=obj.Shape.BoundBox.XLength
