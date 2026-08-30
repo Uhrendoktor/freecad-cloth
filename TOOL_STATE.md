@@ -12,6 +12,8 @@ completed_milestones: [144, 146, 152, 156]
 active_release_gates: [143, 155, 145, 159, 161]
 queued_release_gates: [162, 147, 163]
 non_blocking: [148]
+workflow_changes:
+  - post-merge GUI screenshot comments from the existing cloth-gui-screenshots artifact
 
 policy:
   - one canonical workflow only
