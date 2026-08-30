@@ -65,7 +65,23 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p docs/images/generated artifacts/freecad-e2e
-          docker run --rm --init \
+
+          # The self-hosted runner is itself containerized, so the Docker daemon
+          # does not necessarily see the runner's filesystem for bind mounts.
+          # docker cp transfers the small repository directly through the Docker
+          # API and works with both local and remote Docker daemons.
+          CID=""
+          cleanup() {
+            set +e
+            if [ -n "$CID" ]; then
+              docker cp "$CID:/workspace/docs/images/generated/." docs/images/generated/ 2>/dev/null || true
+              docker cp "$CID:/workspace/artifacts/freecad-e2e/." artifacts/freecad-e2e/ 2>/dev/null || true
+              docker rm -f "$CID" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup EXIT
+
+          CID="$(docker create \
             --entrypoint /bin/bash \
             --shm-size=1g \
             -e DISPLAY=:99 \
@@ -74,7 +90,6 @@ jobs:
             -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -e CLOTH_E2E_DIR=/workspace/artifacts/freecad-e2e \
-            -v "$PWD:/workspace" \
             -w /workspace \
             "$IMAGE" \
             -euo pipefail -c '
@@ -108,6 +123,10 @@ jobs:
               test -s docs/images/generated/cloth-sewing.png
               test -s docs/images/generated/cloth-simulation.png
             '
+          )"
+
+          docker cp "$PWD/." "$CID:/workspace/"
+          docker start -a "$CID"
 
       - name: Upload GUI screenshots
         uses: actions/upload-artifact@v4
