@@ -83,12 +83,12 @@ jobs:
                 echo "[container] $(date -Is) TEST START $t"; python3 "$t"; echo "[container] $(date -Is) TEST PASS $t"
               done
               python3 -m compileall -q .
-              for t in tests/freecad_smoke.py tests/freecad_meshpart_smoke.py tests/freecad_sewing_smoke.py; do
-                echo "[container] $(date -Is) FREECAD START $t"
-                timeout --signal=TERM --kill-after=5s 60s /opt/freecad/AppRun "$t"
-                echo "[container] $(date -Is) FREECAD PASS $t"
+              for macro in tests/freecad_ci_smoke.FCMacro tests/freecad_ci_meshpart.FCMacro tests/freecad_ci_sewing.FCMacro; do
+                echo "[container] $(date -Is) FREECAD START $macro"
+                timeout --signal=TERM --kill-after=5s 60s /opt/freecad/AppRun "$macro"
+                echo "[container] $(date -Is) FREECAD PASS $macro"
               done
-              timeout --signal=TERM --kill-after=5s 120s /opt/freecad/AppRun tests/freecad_screenshot.py
+              timeout --signal=TERM --kill-after=5s 120s /opt/freecad/AppRun tests/freecad_ci_screenshot.FCMacro
               test -s docs/images/generated/cloth-pattern-design.png
               test -s docs/images/generated/cloth-sewing.png
               test -s docs/images/generated/cloth-simulation.png
