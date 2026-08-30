@@ -29,7 +29,7 @@ No utility script, isolated model class, or green unit-test-only implementation 
 
 ## Architecture invariants
 
-1. **Pattern model is authoritative.** FreeCAD document objects persist semantic IDs, parameters and marks.
+1. **PatternPiece is the semantic container; linked Sketcher geometry is authoritative when `GeometryAuthority == "Sketcher"`.** Derived outlines never become authoritative implicitly.
 2. **Sketcher/Part/MeshPart are adapters.** Never make generated edge/face indices the semantic source of truth.
 3. **Sewing is semantic assembly.** Ranges, reversal, correspondence, construction kind and stitch groups persist independently of simulation topology.
 4. **Simulation topology is disposable.** Any change to pattern/seam/quality/material/collision inputs invalidates derived simulation state.
@@ -42,9 +42,10 @@ No utility script, isolated model class, or green unit-test-only implementation 
 
 **Must ship:**
 - Create/Edit Pattern Piece
+- native Sketcher authoring as the primary geometry editor
 - point/edge selection and editing
 - line, arc and curved-boundary authoring
-- dimensional/geometric constraints or a Sketcher-backed equivalent
+- dimensional/geometric constraints through Sketcher
 - seam allowance with robust offset behavior
 - notches, grainline and internal/construction marks
 - mirror/symmetry and transform/duplicate
@@ -118,7 +119,9 @@ After P0-A/P0-B, audit all three workbenches as a user would: toolbar/menu regis
 
 **Issue #162**
 
-Audit and then implement only the concrete authoring blockers: curved edges, real constraints, robust seam allowance/offsets, marks, symmetry, diagnostics and semantic preservation. Reuse Sketcher/Part/OCCT.
+The audit identified one immediate production blocker and several follow-on parity tasks. The immediate blocker is now addressed: native Sketcher editing is an explicit workbench command and closed-boundary validation has a persistent diagnostic/task-panel surface. Do not expand the custom drafting canvas as a second authoring system.
+
+Next implement only the remaining concrete authoring blockers: dedicated arc/Bezier/BSpline creation, robust offset self-intersection handling, richer marks/measurements, symmetry, transform/duplicate and semantic preservation. Reuse Sketcher/Part/OCCT.
 
 **Exit:** a non-rectangular curved garment piece can be authored and edited natively and still drives sewing/simulation correctly.
 
