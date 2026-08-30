@@ -56,7 +56,7 @@ def test_initialize_is_idempotent_and_preserves_registered_command_order():
         assert len(workbench.commands) == len(set(workbench.commands))
 
 
-def test_sowing_groups_cover_fitting_and_avatar_without_duplicates():
+def test_sewing_groups_cover_fitting_and_avatar_without_duplicates():
     # Keep this contract tied to the actual command declarations, rather than
     # duplicating the complete list in the test.
     wb = InitGui.ClothSewingWorkbench()
