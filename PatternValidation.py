@@ -25,41 +25,24 @@ def validate_piece(obj):
         from PatternModel import PatternPiece
         from PatternIR import PatternIR
         from SeamGraph import SeamGraph
-
         if str(getattr(obj, "GeometryAuthority", "")) != "Sketcher":
             raise ValueError("pattern piece has no native Sketcher geometry authority")
         sketch = getattr(obj, "Sketch", None)
         if sketch is None:
             raise ValueError("pattern piece has no linked Sketcher object")
-
-        piece = PatternPiece(
-            str(obj.Label),
-            [],
-            id=str(obj.PieceId),
-            seam_allowance=float(getattr(obj, "SeamAllowance", 0.0)),
-            grainline_angle=float(getattr(obj, "GrainlineAngle", 0.0)),
-        )
-        graph = SeamGraph()
-        graph.add_piece(piece)
+        piece = PatternPiece(str(obj.Label), [], id=str(obj.PieceId),
+                             seam_allowance=float(getattr(obj, "SeamAllowance", 0.0)),
+                             grainline_angle=float(getattr(obj, "GrainlineAngle", 0.0)))
+        graph = SeamGraph(); graph.add_piece(piece)
         ir = PatternIR.from_sketches(graph, {piece.id: sketch}, curve_samples=64)
         boundaries = ir.piece(piece.id).boundaries
         total = sum(boundary.length for boundary in boundaries)
-        result = {
-            "valid": True,
-            "status": "Valid",
-            "message": "Closed Sketcher boundary is valid (%d edges, %.2f mm perimeter)." % (len(boundaries), total),
-            "edge_count": len(boundaries),
-            "perimeter": total,
-        }
+        result = {"valid": True, "status": "Valid",
+                  "message": "Closed Sketcher boundary is valid (%d edges, %.2f mm perimeter)." % (len(boundaries), total),
+                  "edge_count": len(boundaries), "perimeter": total}
     except Exception as exc:
-        result = {
-            "valid": False,
-            "status": "Invalid",
-            "message": str(exc),
-            "edge_count": 0,
-            "perimeter": 0.0,
-        }
-
+        result = {"valid": False, "status": "Invalid", "message": str(exc),
+                  "edge_count": 0, "perimeter": 0.0}
     obj.ValidationStatus = result["status"]
     obj.ValidationMessage = result["message"]
     return result
@@ -69,7 +52,6 @@ def validate_selected_piece():
     """Validate the selected pattern piece in the active FreeCAD document."""
     import FreeCAD as App
     import FreeCADGui as Gui
-
     doc = App.ActiveDocument
     if doc is None:
         raise ValueError("create a pattern document before validating a piece")
@@ -80,6 +62,14 @@ def validate_selected_piece():
                     if getattr(candidate, "PatternType", "") == "PatternPiece"), None)
     if obj is None:
         raise ValueError("select or create a pattern piece before validating it")
-    result = validate_piece(obj)
-    doc.recompute()
+    result = validate_piece(obj); doc.recompute()
     return obj, result
+
+
+def show_pattern_validation_task(obj, result=None):
+    """Show the FreeCAD validation task panel for a pattern piece."""
+    from PatternValidationGui import PatternValidationTaskPanel
+    import FreeCADGui as Gui
+    panel = PatternValidationTaskPanel(obj, result)
+    Gui.Control.showDialog(panel)
+    return panel
