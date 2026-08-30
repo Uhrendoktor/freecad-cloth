@@ -1,6 +1,7 @@
 """Headless regression coverage for the Sewing workbench command layer."""
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from SewingCommands import _MENU_TEXT, _SewingCommand, _selected_pattern_edges, repair_selected_seam
 
@@ -90,39 +91,33 @@ def test_selected_pattern_edges_preserves_unique_mn_members_in_selection_order(m
     assert _selected_pattern_edges(allow_many=True) == [(first, 1), (first, 3), (second, 0), (second, 2)]
 
 
-def _repair_test_modules(monkeypatch, edge_length):
-    class Seam:
-        SeamId = "seam-1"
-        PieceA = "missing-a"
-        PieceB = "missing-b"
-        EdgeA = 0
-        EdgeB = 1
-        LengthA = 0.0
-        LengthB = 0.0
-
-    seam = Seam()
-    class Selection:
-        def getSelection(self): return [seam]
-
-    class Gui:
-        Selection = Selection()
-
-    class App:
-        class Document:
-            Objects = [seam]
-            def recompute(self): pass
-        ActiveDocument = Document()
-
-    sewing_gui = type("SewingGui", (), {
-        "correspondence_report": staticmethod(lambda *args: {"status": "ok"}),
-        "repair_correspondence_settings": staticmethod(lambda *args: "repaired"),
-    })
-    sewing_objects = type("SewingObjects", (), {"_edge_length": staticmethod(edge_length)})
-    monkeypatch.setitem(sys.modules, "FreeCADGui", Gui)
-    monkeypatch.setitem(sys.modules, "FreeCAD", App)
+def _repair_test_modules(monkeypatch, edge_length, pieces=()):
+    seam = SimpleNamespace(
+        SeamId="seam-1",
+        PieceA="piece-a",
+        PieceB="piece-b",
+        EdgeA=0,
+        EdgeB=1,
+        LengthA=0.0,
+        LengthB=0.0,
+    )
+    gui = SimpleNamespace(Selection=SimpleNamespace(getSelection=lambda: [seam]))
+    doc = SimpleNamespace(Objects=[seam, *pieces], recompute=lambda: None)
+    app = SimpleNamespace(ActiveDocument=doc)
+    sewing_gui = SimpleNamespace(
+        correspondence_report=lambda *args: {"status": "ok"},
+        repair_correspondence_settings=lambda *args: "repaired",
+    )
+    sewing_objects = SimpleNamespace(_edge_length=edge_length)
+    monkeypatch.setitem(sys.modules, "FreeCADGui", gui)
+    monkeypatch.setitem(sys.modules, "FreeCAD", app)
     monkeypatch.setitem(sys.modules, "SewingGui", sewing_gui)
     monkeypatch.setitem(sys.modules, "SewingObjects", sewing_objects)
-    return seam
+    return seam, doc
+
+
+def _pattern_piece(piece_id):
+    return SimpleNamespace(PatternType="PatternPiece", PieceId=piece_id)
 
 
 def test_repair_selected_seam_wraps_missing_piece_with_actionable_context(monkeypatch):
@@ -130,12 +125,11 @@ def test_repair_selected_seam_wraps_missing_piece_with_actionable_context(monkey
         raise AssertionError("edge lookup must not run when the piece is missing")
 
     _repair_test_modules(monkeypatch, edge_length)
-    import SewingCommands
     try:
-        SewingCommands.repair_selected_seam()
+        repair_selected_seam()
     except ValueError as exc:
         assert "cannot determine seam lengths for repair" in str(exc)
-        assert "missing-a" in str(exc)
+        assert "piece-a" in str(exc)
         assert isinstance(exc.__cause__, KeyError)
     else:
         raise AssertionError("expected missing pattern pieces to be reported")
@@ -145,11 +139,7 @@ def test_repair_selected_seam_wraps_invalid_edge_without_losing_cause(monkeypatc
     def edge_length(_piece, edge):
         raise ValueError(f"seam edge {edge} is outside the pattern boundary")
 
-    seam = _repair_test_modules(monkeypatch, edge_length)
-    class Piece:
-        PieceId = "missing-a"
-    seam_doc = sys.modules["FreeCAD"].ActiveDocument
-    seam_doc.Objects = [seam, Piece()]
+    _repair_test_modules(monkeypatch, edge_length, (_pattern_piece("piece-a"), _pattern_piece("piece-b")))
     try:
         repair_selected_seam()
     except ValueError as exc:
@@ -163,11 +153,7 @@ def test_repair_selected_seam_does_not_swallow_unexpected_runtime_error(monkeypa
     def edge_length(_piece, _edge):
         raise RuntimeError("unexpected solver/runtime failure")
 
-    seam = _repair_test_modules(monkeypatch, edge_length)
-    class Piece:
-        PieceId = "missing-a"
-    seam_doc = sys.modules["FreeCAD"].ActiveDocument
-    seam_doc.Objects = [seam, Piece()]
+    _repair_test_modules(monkeypatch, edge_length, (_pattern_piece("piece-a"), _pattern_piece("piece-b")))
     try:
         repair_selected_seam()
     except RuntimeError as exc:
@@ -180,11 +166,5 @@ def test_repair_selected_seam_successful_repair_keeps_public_result(monkeypatch)
     def edge_length(_piece, edge):
         return 10.0 + edge
 
-    seam = _repair_test_modules(monkeypatch, edge_length)
-    class PieceA:
-        PieceId = "missing-a"
-    class PieceB:
-        PieceId = "missing-b"
-    seam_doc = sys.modules["FreeCAD"].ActiveDocument
-    seam_doc.Objects = [seam, PieceA(), PieceB()]
+    _repair_test_modules(monkeypatch, edge_length, (_pattern_piece("piece-a"), _pattern_piece("piece-b")))
     assert repair_selected_seam() == "repaired"
