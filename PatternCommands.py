@@ -167,6 +167,19 @@ def add_seam():
     return obj
 
 
+def repair_pattern_topology():
+    """Open the explicit semantic-edge topology repair panel for invalid seams."""
+    import FreeCAD as App
+    from PatternTopologyRepair import invalid_seam_sides
+    doc = App.ActiveDocument
+    if doc is None:
+        raise ValueError("open a garment document before repairing pattern topology")
+    if not invalid_seam_sides(doc):
+        raise ValueError("no invalid Cloth seam references require repair")
+    from PatternTopologyRepairGui import show_topology_repair_task
+    return show_topology_repair_task(doc)
+
+
 class _FunctionCommand:
     def __init__(self, function): self.function = function
     def Activated(self): return self.function()
@@ -185,6 +198,7 @@ COMMANDS = [
     "ClothPattern_CreateCustomPiece",
     "ClothPattern_CreateMesh",
     "ClothPattern_AddSeam",
+    "ClothPattern_RepairTopology",
 ]
 
 try:
@@ -201,6 +215,7 @@ try:
             "ClothPattern_CreateCustomPiece": create_custom_pattern_piece,
             "ClothPattern_CreateMesh": create_pattern_mesh,
             "ClothPattern_AddSeam": add_seam,
+            "ClothPattern_RepairTopology": repair_pattern_topology,
         }.items():
             Gui.addCommand(name, _FunctionCommand(handler))
 except (ImportError, AttributeError):
