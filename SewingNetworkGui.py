@@ -37,6 +37,8 @@ def validate_network_for_edit(network):
 class SewingNetworkTaskPanel:
     """Native FreeCAD editor for canonical seam ranges in a sewing network."""
 
+    _TRANSACTION_NAME = "Edit Sewing Network"
+
     def __init__(self, network):
         App, Gui, QtCore, QtWidgets = _modules()
         self.App, self.Gui, self.QtCore = App, Gui, QtCore
@@ -98,7 +100,63 @@ class SewingNetworkTaskPanel:
         self.status = QtWidgets.QLabel()
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
+
+        self._original = {
+            "ranges": tuple(
+                (
+                    float(getattr(seam, "StartA", 0.0)),
+                    float(getattr(seam, "EndA", 1.0)),
+                    float(getattr(seam, "StartB", 0.0)),
+                    float(getattr(seam, "EndB", 1.0)),
+                )
+                for seam in seam_values
+            ),
+            "alignment": tuple(str(getattr(seam, "Alignment", "endpoints")) for seam in seam_values),
+            "reversed_b": tuple(bool(getattr(seam, "ReversedB", False)) for seam in seam_values),
+        }
+        self._transaction_active = False
+        self._begin_transaction()
         self._refresh_status()
+
+    def _begin_transaction(self):
+        """Start one FreeCAD undo transaction for the complete network edit."""
+        doc = self.App.ActiveDocument
+        opener = getattr(doc, "openTransaction", None) if doc is not None else None
+        if callable(opener):
+            opener(self._TRANSACTION_NAME)
+            self._transaction_active = True
+
+    def _commit_transaction(self):
+        if not self._transaction_active:
+            return
+        doc = self.App.ActiveDocument
+        committer = getattr(doc, "commitTransaction", None) if doc is not None else None
+        if callable(committer):
+            committer()
+        self._transaction_active = False
+
+    def _abort_transaction(self):
+        if not self._transaction_active:
+            return False
+        doc = self.App.ActiveDocument
+        aborter = getattr(doc, "abortTransaction", None) if doc is not None else None
+        if callable(aborter):
+            aborter()
+            self._transaction_active = False
+            return True
+        self._transaction_active = False
+        return False
+
+    def _restore_original(self):
+        for seam, ranges, alignment, reversed_b in zip(
+            self._seams,
+            self._original["ranges"],
+            self._original["alignment"],
+            self._original["reversed_b"],
+        ):
+            seam.StartA, seam.EndA, seam.StartB, seam.EndB = ranges
+            seam.Alignment = alignment
+            seam.ReversedB = reversed_b
 
     def _range(self, row, column):
         try:
@@ -128,16 +186,28 @@ class SewingNetworkTaskPanel:
             seam.ReversedB = reversed_b
         self.App.ActiveDocument.recompute()
         if network_reference_errors(self.network):
+            self._restore_original()
+            self.App.ActiveDocument.recompute()
+            self._abort_transaction()
             raise ValueError("sewing network became invalid after edit")
+        self._commit_transaction()
         self._refresh_status()
         return True
 
     def reject(self):
+        """Cancel the task and discard the entire edit transaction when possible."""
+        if not self._abort_transaction():
+            self._restore_original()
         self.App.ActiveDocument.recompute()
+        self._refresh_status()
         return True
 
     def _refresh_status(self):
         errors = network_reference_errors(self.network)
+        self.warning.setText(
+            "Invalid seam references: " + "; ".join("%s (%s)" % item for item in errors)
+            if errors else ""
+        )
         self.status.setText(
             "%s | segments: %d | Δ %.3f mm%s"
             % (
@@ -147,6 +217,10 @@ class SewingNetworkTaskPanel:
                 " | invalid: " + ", ".join("%s (%s)" % item for item in errors) if errors else "",
             )
         )
+
+    def update(self):
+        """Refresh values shown by the task panel after an external recompute."""
+        self._refresh_status()
 
     def getStandardButtons(self):
         _App, _Gui, _QtCore, QtWidgets = _modules()
