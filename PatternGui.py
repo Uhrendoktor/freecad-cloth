@@ -120,12 +120,24 @@ class PatternDraftingTaskPanel:
         outer.addWidget(self.canvas)
         self.scene.selectionChanged.connect(self._selection_changed)
         controls = QtWidgets.QHBoxLayout()
-        for text, dx, dy in (("←", -5, 0), ("→", 5, 0), ("↑", 0, 5), ("↓", 0, -5)):
+        buttons = (
+            ("Nudge left", "ClothPattern_NudgeLeft.svg", -5, 0),
+            ("Nudge right", "ClothPattern_NudgeRight.svg", 5, 0),
+            ("Nudge up", "ClothPattern_NudgeUp.svg", 0, 5),
+            ("Nudge down", "ClothPattern_NudgeDown.svg", 0, -5),
+        )
+        for text, icon_name, dx, dy in buttons:
             button = QtWidgets.QPushButton(text)
+            button.setIcon(QtGui.QIcon("ClothPattern/" + icon_name))
+            button.setToolTip(text)
             button.clicked.connect(lambda _=False, x=dx, y=dy: self.nudge(x, y)); controls.addWidget(button)
         add_button = QtWidgets.QPushButton("Add point")
+        add_button.setIcon(QtGui.QIcon("ClothPattern/ClothPattern_AddPoint.svg"))
+        add_button.setToolTip("Add point")
         add_button.clicked.connect(self.add_selected_point); controls.addWidget(add_button)
         remove_button = QtWidgets.QPushButton("Remove point")
+        remove_button.setIcon(QtGui.QIcon("ClothPattern/ClothPattern_RemovePoint.svg"))
+        remove_button.setToolTip("Remove point")
         remove_button.clicked.connect(self.remove_selected_point); controls.addWidget(remove_button)
         self.point_label = QtWidgets.QLabel("Point 0"); controls.addWidget(self.point_label)
         outer.addLayout(controls)
