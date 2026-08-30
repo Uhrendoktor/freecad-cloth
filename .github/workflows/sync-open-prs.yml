@@ -1,0 +1,44 @@
+name: Sync open PR branches with main
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+  pull-requests: read
+jobs:
+  sync:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+      - name: Sync branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          gh pr list --repo "$REPO" --state open --limit 100 --json number,headRefName --jq '.[] | [.number, .headRefName] | @tsv' > /tmp/open-prs.tsv
+          while IFS=$'\t' read -r number branch; do
+            test -n "$branch" || continue
+            git fetch origin "refs/heads/$branch:refs/remotes/origin/$branch"
+            git checkout -B "$branch" "origin/$branch"
+            if git merge --no-edit origin/main; then
+              git push origin "HEAD:$branch"
+              echo "synced PR #$number"
+            else
+              git merge --abort || true
+              echo "conflict on PR #$number"
+            fi
+          done < /tmp/open-prs.tsv
+          git checkout main
+          git pull --ff-only origin main
+          rm -f .github/workflows/sync-open-prs.yml
+          git add .github/workflows/sync-open-prs.yml
+          git commit -m "chore(ci): remove temporary PR sync workflow"
+          git push origin main
