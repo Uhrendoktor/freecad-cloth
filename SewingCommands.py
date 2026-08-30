@@ -1,4 +1,8 @@
 """Commands for the Cloth Sewing workbench."""
+from pathlib import Path
+
+
+_ICON_DIR = Path(__file__).resolve().parent / "resources" / "icons"
 
 
 def _seams(doc):
@@ -266,12 +270,17 @@ def _has_selected_operation():
     except ImportError:
         return False
 class _SewingCommand:
-    def __init__(self, function, active, tooltip, menu_text=None):
+    def __init__(self, function, active, tooltip, menu_text=None, pixmap=None):
         self.function, self.active, self.tooltip = function, active, tooltip
         self.menu_text = menu_text or function.__name__.replace("_", " ").title()
+        self.pixmap = pixmap
     def Activated(self): return self.function()
     def IsActive(self): return bool(self.active())
-    def GetResources(self): return {"MenuText": self.menu_text, "ToolTip": self.tooltip}
+    def GetResources(self):
+        resources = {"MenuText": self.menu_text, "ToolTip": self.tooltip}
+        if self.pixmap:
+            resources["Pixmap"] = self.pixmap
+        return resources
 try:
     import FreeCADGui as Gui
     _ACTIVATION = {
@@ -285,6 +294,6 @@ try:
         "ClothSewing_Show2D": lambda: _has_active_document(),
     }
     for name, function in _COMMAND_HANDLERS.items():
-        Gui.addCommand(name, _SewingCommand(function, _ACTIVATION[name], _TOOLTIPS[name], _MENU_TEXT[name]))
+        Gui.addCommand(name, _SewingCommand(function, _ACTIVATION[name], _TOOLTIPS[name], _MENU_TEXT[name], str(_ICON_DIR / (name + ".svg"))))
 except (ImportError, AttributeError):
     pass
