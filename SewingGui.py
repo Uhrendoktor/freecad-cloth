@@ -29,23 +29,12 @@ def correspondence_report(seam, length_a, length_b, tolerance=0.05):
     return analyze_correspondence(float(length_a),float(length_b),float(getattr(seam,"StartA",0.0)),float(getattr(seam,"EndA",1.0)),float(getattr(seam,"StartB",0.0)),float(getattr(seam,"EndB",1.0)),bool(getattr(seam,"ReversedB",False)),float(tolerance))
 
 def repair_correspondence_settings(seam, report):
-    """Apply only non-destructive semantic repairs to a seam.
-
-    Reversal is repaired by restoring forward correspondence. Invalid ranges
-    are reset to the complete referenced edges. Physical length mismatch is
-    deliberately not hidden: the caller must edit the pattern or seam ranges.
-    """
-    if seam is None or report is None:
-        raise ValueError("a seam correspondence report is required")
-    if report.status == "reversed":
-        seam.ReversedB = False
-        return "reversed correspondence repaired"
+    """Apply only non-destructive semantic repairs to a seam."""
+    if seam is None or report is None: raise ValueError("a seam correspondence report is required")
+    if report.status == "reversed": seam.ReversedB = False; return "reversed correspondence repaired"
     if report.status == "invalid_range":
-        seam.StartA, seam.EndA = 0.0, 1.0
-        seam.StartB, seam.EndB = 0.0, 1.0
-        return "invalid ranges reset to full seam edges"
-    if report.status == "length_mismatch":
-        raise ValueError("length mismatch requires editing the pattern or seam ranges; it was not hidden by changing tolerance")
+        seam.StartA, seam.EndA = 0.0, 1.0; seam.StartB, seam.EndB = 0.0, 1.0; return "invalid ranges reset to full seam edges"
+    if report.status == "length_mismatch": raise ValueError("length mismatch requires editing the pattern or seam ranges; it was not hidden by changing tolerance")
     return "seam correspondence is already valid"
 
 class SewingTaskPanel:
@@ -65,6 +54,7 @@ class SewingTaskPanel:
         self.repair_button=QtWidgets.QPushButton("Repair correspondence"); self.repair_button.setToolTip("Repair reversible/invalid-range correspondence without hiding physical length mismatch"); self.repair_button.clicked.connect(self.repair); layout.addRow("Repair",self.repair_button)
         self._original={"Tolerance":float(obj.Tolerance),"Stitches":int(obj.Stitches),"Alignment":str(getattr(self.seam,"Alignment","endpoints")) if self.seam else "endpoints","ReversedB":bool(getattr(self.seam,"ReversedB",False)) if self.seam else False,"StartA":float(getattr(self.seam,"StartA",0.0)) if self.seam else 0.0,"EndA":float(getattr(self.seam,"EndA",1.0)) if self.seam else 1.0,"StartB":float(getattr(self.seam,"StartB",0.0)) if self.seam else 0.0,"EndB":float(getattr(self.seam,"EndB",1.0)) if self.seam else 1.0}
         self._begin_transaction(); self._refresh()
+        self.form.show()
     def _range_spin(self,value):
         _App,_Gui,_QtCore,QtWidgets=_gui_modules(); box=QtWidgets.QDoubleSpinBox(); box.setRange(0.0,1.0); box.setDecimals(4); box.setSingleStep(0.01); box.setValue(max(0.0,min(1.0,value))); return box
     def _begin_transaction(self):
@@ -90,13 +80,9 @@ class SewingTaskPanel:
         if self.seam is None: return
         self.seam.Alignment=str(self.alignment.currentText()); self.seam.ReversedB=bool(self.reversed_b.isChecked()); self.seam.StartA=self.start_a.value(); self.seam.EndA=self.end_a.value(); self.seam.StartB=self.start_b.value(); self.seam.EndB=self.end_b.value()
     def repair(self):
-        validate_seam_for_accept(self.seam)
-        report=correspondence_report(self.seam,self.obj.LengthA,self.obj.LengthB,max(0.0,float(self.obj.Tolerance))/max(1.0,float(self.obj.LengthA)))
-        message=repair_correspondence_settings(self.seam, report)
-        self.App.ActiveDocument.recompute(); self._refresh(); return message
+        validate_seam_for_accept(self.seam); report=correspondence_report(self.seam,self.obj.LengthA,self.obj.LengthB,max(0.0,float(self.obj.Tolerance))/max(1.0,float(self.obj.LengthA))); message=repair_correspondence_settings(self.seam, report); self.App.ActiveDocument.recompute(); self._refresh(); return message
     def accept(self):
-        validate_seam_for_accept(self.seam); self._apply_seam_settings(); self.obj.Tolerance=self.tolerance.value(); self.obj.Stitches=self.stitches.value(); self.App.ActiveDocument.recompute(); validate_seam_for_accept(self.seam)
-        report=correspondence_report(self.seam,self.obj.LengthA,self.obj.LengthB,max(0.0,float(self.obj.Tolerance))/max(1.0,float(self.obj.LengthA)))
+        validate_seam_for_accept(self.seam); self._apply_seam_settings(); self.obj.Tolerance=self.tolerance.value(); self.obj.Stitches=self.stitches.value(); self.App.ActiveDocument.recompute(); validate_seam_for_accept(self.seam); report=correspondence_report(self.seam,self.obj.LengthA,self.obj.LengthB,max(0.0,float(self.obj.Tolerance))/max(1.0,float(self.obj.LengthA)))
         if report is None or not report.valid: raise ValueError("cannot accept seam correspondence: %s"%(report.message if report else "missing seam"))
         self._commit_transaction(); self._refresh(); return True
     def reject(self):
