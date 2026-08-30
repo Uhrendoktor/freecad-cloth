@@ -1,6 +1,8 @@
 """Static checks for the real FreeCAD GUI layer."""
 from pathlib import Path
 
+from InitGui import SEWING_COMMAND_GROUPS, ClothSewingWorkbench
+
 ROOT = Path(__file__).resolve().parents[1]
 init_gui = (ROOT / "InitGui.py").read_text()
 pattern_gui = (ROOT / "PatternGui.py").read_text()
@@ -36,5 +38,45 @@ assert "ClothSimulation_Edit" in sim_commands
 assert "ClothSewing_CreateOperation" in sewing_commands
 assert "ClothSewing_EditOperation" in sewing_commands
 assert "ClothSewing_Validate" in sewing_commands
+
+
+def test_sewing_command_groups_are_unique_and_complete():
+    groups = dict(SEWING_COMMAND_GROUPS)
+    assert tuple(groups) == ("Sewing Creation", "Sewing Editing", "Validation & View")
+    commands = [command for group in groups.values() for command in group]
+    assert len(commands) == len(set(commands))
+    assert set(commands) == {
+        "ClothSewing_CreateSeam",
+        "ClothSewing_CreateMNSewing",
+        "ClothSewing_CreateNetwork",
+        "ClothSewing_FreeSewing",
+        "ClothSewing_CreateOperation",
+        "ClothSewing_EditOperation",
+        "ClothSewing_EditNetwork",
+        "ClothSewing_ReverseSeam",
+        "ClothSewing_ToggleAlignment",
+        "ClothSewing_Validate",
+        "ClothSewing_Show2D",
+    }
+
+
+def test_workbench_group_registration_is_idempotent_and_keeps_flat_context_commands():
+    workbench = ClothSewingWorkbench()
+    calls = []
+    workbench.appendToolbar = lambda name, commands: calls.append(("toolbar", name, list(commands)))
+    workbench.appendMenu = lambda name, commands: calls.append(("menu", name, list(commands)))
+    workbench._register_groups(SEWING_COMMAND_GROUPS)
+    first_calls = list(calls)
+    workbench._register_groups(SEWING_COMMAND_GROUPS)
+    assert calls == first_calls
+    assert workbench.commands == [
+        command for _group, commands in SEWING_COMMAND_GROUPS for command in commands
+    ]
+    assert [kind for kind, _name, _commands in calls] == [
+        "toolbar", "menu", "toolbar", "menu", "toolbar", "menu"
+    ]
+    assert calls[1][1] == ["Cloth Sewing", "Sewing Creation"]
+    assert calls[3][1] == ["Cloth Sewing", "Sewing Editing"]
+    assert calls[5][1] == ["Cloth Sewing", "Validation & View"]
 
 print("GUI structure checks passed")
