@@ -30,14 +30,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with: {fetch-depth: 1}
+        with:
+          fetch-depth: 1
 
       - name: Restore cached FreeCAD runtime
         uses: actions/cache@v4
         with:
           path: ~/.cache/freecad-cloth/${{ env.FREECAD_VERSION }}
           key: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-${{ env.FREECAD_APPIMAGE_SHA256 }}
-          restore-keys: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-
+          restore-keys: |
+            freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-
 
       - name: Detect runner capabilities
         id: runner
@@ -51,7 +53,8 @@ jobs:
           elif command -v docker >/dev/null 2>&1; then
             echo mode=docker >> "$GITHUB_OUTPUT"
           else
-            echo "No usable native FreeCAD runtime and Docker is unavailable." >&2; exit 1
+            echo "No usable native FreeCAD runtime and Docker is unavailable." >&2
+            exit 1
           fi
           echo "missing=${missing[*]:-none}"
 
@@ -64,10 +67,12 @@ jobs:
         run: |
           set -euo pipefail
           if docker image inspect "$IMAGE" >/dev/null 2>&1; then
-            echo "Using runner-local cached image: $IMAGE"; exit 0
+            echo "Using runner-local cached image: $IMAGE"
+            exit 0
           fi
           if printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USER" --password-stdin >/dev/null 2>&1 && timeout 180s docker pull "$IMAGE"; then
-            echo "Pulled pinned image from GHCR"; exit 0
+            echo "Pulled pinned image from GHCR"
+            exit 0
           fi
           docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
           docker buildx build --progress=plain --load \
@@ -84,10 +89,6 @@ jobs:
           tests=(tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py tests/test_simulation_scene.py tests/test_collisions.py tests/test_freecad_objects.py tests/test_gui_structure.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_avatar_fitting.py tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py tests/test_pattern_export_semantics.py tests/test_sketch_authority.py tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py)
           printf '%s\n' "${tests[@]}" | xargs -P "$CLOTH_TEST_JOBS" -n 1 python3
           python3 -m compileall -q .
-          # The legacy FreeCAD smoke tests are intentionally not given a short
-          # per-process timeout: FreeCAD 1.1.x can spend several minutes in GUI
-          # startup/initialisation on the local runner. The job watchdog bounds
-          # the complete run instead, preserving the old behaviour.
           for t in tests/freecad_smoke.py tests/freecad_meshpart_smoke.py tests/freecad_sewing_smoke.py; do
             xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' bash -lc 'openbox >/tmp/freecad-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" "$1"' "$FREECAD_BIN" "$t"
           done
@@ -95,7 +96,8 @@ jobs:
 
       - name: Run Docker tests
         if: steps.runner.outputs.mode == 'docker'
-        env: {IMAGE: ${{ env.FREECAD_IMAGE }}}
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
           mkdir -p docs/images/generated artifacts/freecad-e2e
@@ -122,10 +124,10 @@ jobs:
               tests=(tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py tests/test_simulation_scene.py tests/test_collisions.py tests/test_freecad_objects.py tests/test_gui_structure.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_avatar_fitting.py tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py tests/test_pattern_export_semantics.py tests/test_sketch_authority.py tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py)
               for t in "${tests[@]}"; do python3 "$t"; done
               python3 -m compileall -q .
-              # Preserve the old runner behaviour: these GUI smoke processes
-              # run to completion; only the whole Docker job has a watchdog.
               for t in tests/freecad_smoke.py tests/freecad_meshpart_smoke.py tests/freecad_sewing_smoke.py; do
-                echo "FREECAD START $t"; freecad "$t"; echo "FREECAD PASS $t"
+                echo "FREECAD START $t"
+                freecad "$t"
+                echo "FREECAD PASS $t"
               done
               timeout --signal=TERM --kill-after=5s 120s freecad tests/freecad_screenshot.py
               test -s docs/images/generated/cloth-pattern-design.png
@@ -141,14 +143,18 @@ jobs:
             EXIT_CODE=$(docker inspect -f '{{.State.ExitCode}}' "$CID" 2>/dev/null || echo '?')
             echo "[host] $(date -Is) state=$STATE exit=$EXIT_CODE elapsed=$(( $(date +%s) - START_TS ))s"
             if [[ "$STATE" == running ]]; then
-              (( $(date +%s) - START_TS >= 1500 )) && { docker logs "$CID" || true; exit 124; }
+              if (( $(date +%s) - START_TS >= 1500 )); then
+                docker logs "$CID" || true
+                exit 124
+              fi
               sleep 10
             elif [[ "$STATE" == exited ]]; then
               docker logs "$CID" || true
               [[ "$EXIT_CODE" == 0 ]]
               break
             else
-              docker inspect "$CID" || true; exit 125
+              docker inspect "$CID" || true
+              exit 125
             fi
           done
 
