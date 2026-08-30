@@ -13,16 +13,11 @@ concurrency:
 jobs:
   ci:
     if: ${{ github.event_name != 'pull_request' || github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'workflow_dispatch' }}
-    # The runner is deliberately pre-provisioned with FreeCAD and the GUI test
-    # dependencies. This avoids rebuilding/pulling a 700+ MB FreeCAD image for
-    # every run and makes use of the persistent self-hosted runner cache.
     runs-on: [self-hosted, linux, x64]
     timeout-minutes: 15
     permissions:
       contents: read
     env:
-      # Point this at a prebuilt FreeCAD/AppImage wrapper on the runner if the
-      # executable is not on PATH. FreeCAD 1.1.3 is the expected CI version.
       FREECAD_BIN: freecad
       CLOTH_TEST_JOBS: 4
       DISPLAY: :99
@@ -36,16 +31,42 @@ jobs:
 
       - name: Validate prebuilt self-hosted runner
         run: |
+          set -u
+          echo "Runner: $(hostname)"
+          echo "OS: $(uname -a)"
+          echo "CPU threads: $(nproc)"
+          echo "PATH: $PATH"
+          for tool in python3 xvfb-run openbox xargs Xvfb docker; do
+            if command -v "$tool" >/dev/null 2>&1; then
+              echo "FOUND $tool: $(command -v "$tool")"
+            else
+              echo "MISSING $tool"
+            fi
+          done
+          if command -v "$FREECAD_BIN" >/dev/null 2>&1; then
+            echo "FOUND FreeCAD: $(command -v "$FREECAD_BIN")"
+            "$FREECAD_BIN" --version || true
+          else
+            echo "MISSING FreeCAD executable: $FREECAD_BIN"
+          fi
+          if command -v docker >/dev/null 2>&1; then
+            echo "Cached CI image candidates:"
+            docker image ls --format '{{.Repository}}:{{.Tag}} {{.Size}}' | grep 'freecad' || true
+          fi
+          # Keep this step non-failing so the next run can report the complete
+          # runner state instead of hiding which preinstalled dependency is absent.
+          exit 0
+
+      - name: Require FreeCAD test runtime
+        run: |
           set -euo pipefail
-          command -v python3
-          command -v xvfb-run
-          command -v openbox
-          command -v xargs
-          command -v "$FREECAD_BIN"
-          echo "FreeCAD executable: $(command -v "$FREECAD_BIN")"
-          "$FREECAD_BIN" --version || true
-          python3 --version
-          Xvfb -version 2>&1 | head -n 1 || true
+          for tool in python3 xvfb-run openbox xargs; do
+            command -v "$tool" >/dev/null || { echo "Missing required runner utility: $tool" >&2; exit 1; }
+          done
+          command -v "$FREECAD_BIN" >/dev/null || {
+            echo "Missing FREECAD_BIN=$FREECAD_BIN. Provision FreeCAD 1.1.3 on the runner or set FREECAD_BIN to its executable path." >&2
+            exit 1
+          }
 
       - name: Run Python tests and FreeCAD smoke/GUI tests
         run: |
@@ -53,9 +74,6 @@ jobs:
           mkdir -p docs/images/generated artifacts/freecad-e2e
           rm -f docs/images/generated/*.png docs/images/generated/gui-progress.log
 
-          # These tests are independent Python processes. Running them in
-          # parallel uses the persistent runner's CPU instead of paying the
-          # startup cost serially. Keep FreeCAD GUI/smoke tests below serial.
           printf '%s\n' \
             tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py \
             tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py \
@@ -68,7 +86,6 @@ jobs:
             | xargs -P "${CLOTH_TEST_JOBS}" -n 1 python3
 
           python3 -m compileall -q .
-
           "$FREECAD_BIN" tests/freecad_smoke.py
           "$FREECAD_BIN" tests/freecad_meshpart_smoke.py
           "$FREECAD_BIN" tests/freecad_sewing_smoke.py
