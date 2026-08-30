@@ -37,7 +37,13 @@ class SewingTaskPanel:
     Semantic seam settings are edited on the linked ``Seam`` object.  The
     sewing operation remains a derived document view, so the panel never
     creates a second source of truth for reversal/alignment.
+
+    The panel also owns a FreeCAD document transaction for the duration of the
+    task. This makes an accepted edit a single undoable operation and lets
+    Cancel/Reject discard document changes made while the panel is open.
     """
+
+    _TRANSACTION_NAME = "Edit Sewing Operation"
 
     def __init__(self, obj):
         App, Gui, QtCore, QtWidgets = _gui_modules()
@@ -46,6 +52,7 @@ class SewingTaskPanel:
         self.QtCore = QtCore
         self.obj = obj
         self.seam = getattr(obj, "Seam", None)
+        self._transaction_active = False
         self.form = QtWidgets.QWidget()
         layout = QtWidgets.QFormLayout(self.form)
 
@@ -94,7 +101,41 @@ class SewingTaskPanel:
             "Alignment": str(getattr(self.seam, "Alignment", "endpoints")) if self.seam else "endpoints",
             "ReversedB": bool(getattr(self.seam, "ReversedB", False)) if self.seam else False,
         }
+        self._begin_transaction()
         self._refresh()
+
+    def _begin_transaction(self):
+        """Start a document transaction when FreeCAD provides one.
+
+        The guard keeps the task panel usable with lightweight GUI/document
+        stubs used by headless tests and older FreeCAD builds.
+        """
+        doc = self.App.ActiveDocument
+        opener = getattr(doc, "openTransaction", None) if doc is not None else None
+        if callable(opener):
+            opener(self._TRANSACTION_NAME)
+            self._transaction_active = True
+
+    def _commit_transaction(self):
+        if not self._transaction_active:
+            return
+        doc = self.App.ActiveDocument
+        committer = getattr(doc, "commitTransaction", None) if doc is not None else None
+        if callable(committer):
+            committer()
+        self._transaction_active = False
+
+    def _abort_transaction(self):
+        if not self._transaction_active:
+            return False
+        doc = self.App.ActiveDocument
+        aborter = getattr(doc, "abortTransaction", None) if doc is not None else None
+        if callable(aborter):
+            aborter()
+            self._transaction_active = False
+            return True
+        self._transaction_active = False
+        return False
 
     def _refresh(self):
         self.status.setText(str(self.obj.Status))
@@ -127,16 +168,19 @@ class SewingTaskPanel:
         # A recompute may invalidate the seam after settings are applied; do
         # not report success or close the task in that case.
         validate_seam_for_accept(self.seam)
+        self._commit_transaction()
         self._refresh()
         return True
 
     def reject(self):
-        """Restore the pre-edit state and recompute before closing the task."""
-        if self.seam is not None:
-            self.seam.Alignment = self._original["Alignment"]
-            self.seam.ReversedB = self._original["ReversedB"]
-        self.obj.Tolerance = self._original["Tolerance"]
-        self.obj.Stitches = self._original["Stitches"]
+        """Cancel the task, rolling back its document transaction when possible."""
+        aborted = self._abort_transaction()
+        if not aborted:
+            if self.seam is not None:
+                self.seam.Alignment = self._original["Alignment"]
+                self.seam.ReversedB = self._original["ReversedB"]
+            self.obj.Tolerance = self._original["Tolerance"]
+            self.obj.Stitches = self._original["Stitches"]
         self.App.ActiveDocument.recompute()
         self._refresh()
         return True
