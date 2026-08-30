@@ -33,6 +33,7 @@ Current supervisor implementation branch: `agent/fix-python312-sewingcommands-20
 | Canonical garment E2E | #278 | queued after target authority |
 | Curved sewing repair acceptance | #275 | merged implementation; canonical verification pending |
 | Pattern authoring production minimum | #162 | active audit; avoid duplicate drafting kernel |
+| Architecture: Sketcher/Cloth boundary | #165 | **claimed — native Sketcher edge authority for Sewing references** |
 | Simulation quality/materials | #145 | active P0 integration |
 | Export/package/install | #163/#147 | release follow-up |
 
