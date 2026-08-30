@@ -17,6 +17,10 @@ from SewingGui import SewingTaskPanel
 
 
 def main():
+    # Exercise the public workbench activation path before document operations.
+    Gui.activateWorkbench("Cloth Sewing")
+    assert Gui.activeWorkbench() == "Cloth Sewing", "Cloth Sewing workbench did not activate"
+
     doc = App.newDocument("ClothSewingSmoke")
     try:
         piece_a = create_pattern_piece_from_parameters("PieceA", 100, 60, 0, 0)
@@ -123,7 +127,7 @@ def main():
             assert len(restored.StitchPoints) == 16
             assert restored.Seam is not None
             assert restored.PieceA is not None and restored.PieceB is not None
-            print("FreeCAD sewing task transaction, semantic persistence, and invalidation smoke test passed")
+            print("FreeCAD sewing task transaction, semantic persistence, invalidation, and workbench activation smoke test passed")
         finally:
             if App.ActiveDocument is not None:
                 App.closeDocument(App.ActiveDocument.Name)

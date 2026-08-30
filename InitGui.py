@@ -147,10 +147,30 @@ SEWING_COMMAND_GROUPS = (
         "Validation & View",
         (
             "ClothSewing_Validate",
+            "ClothSewing_RepairSeam",
             "ClothSewing_Show2D",
         ),
     ),
 )
+
+
+def _validate_sewing_command_groups(groups, expected):
+    """Fail closed before any toolbar/menu group is handed to FreeCAD."""
+    grouped = []
+    for _group_name, commands in groups:
+        grouped.extend(_ClothWorkbench._normalize_commands(commands))
+    expected = _ClothWorkbench._normalize_commands(expected)
+    if len(grouped) != len(set(grouped)):
+        raise ValueError("Sewing workbench command groups contain duplicates")
+    if set(grouped) != set(expected):
+        missing = sorted(set(expected) - set(grouped))
+        extra = sorted(set(grouped) - set(expected))
+        detail = []
+        if missing:
+            detail.append("missing: %s" % ", ".join(missing))
+        if extra:
+            detail.append("unexpected: %s" % ", ".join(extra))
+        raise ValueError("Sewing workbench command groups are out of sync (%s)" % "; ".join(detail))
 
 
 class ClothSewingWorkbench(_ClothWorkbench):
@@ -168,9 +188,8 @@ class ClothSewingWorkbench(_ClothWorkbench):
         groups = list(SEWING_COMMAND_GROUPS)
         groups.append(("Fitting & Avatar", FittingCommands.COMMANDS + AvatarCommands.COMMANDS))
         expected = SewingCommands.COMMANDS + SewingNetworkCommands.COMMANDS
-        grouped = self._normalize_commands(command for _name, commands in groups for command in commands)
-        if set(grouped) != set(expected + FittingCommands.COMMANDS + AvatarCommands.COMMANDS):
-            raise ValueError("Sewing workbench command groups are out of sync with registered commands")
+        expected += FittingCommands.COMMANDS + AvatarCommands.COMMANDS
+        _validate_sewing_command_groups(groups, expected)
         self._register_groups(groups, toolbar_name=self.MenuText)
 
 
