@@ -14,6 +14,7 @@ queued_release_gates: [162, 147, 163]
 non_blocking: [148]
 workflow_changes:
   - post-merge GUI screenshot comments from the existing cloth-gui-screenshots artifact
+  - GUI visual regression now captures Pattern, Sewing, Simulation-arranged, and Simulation-draped states under Xvfb with content/state validation
 
 policy:
   - one canonical workflow only
