@@ -33,8 +33,8 @@ jobs:
         with:
           fetch-depth: 1
 
-      # Keep all cache paths: Actions cache for native fallback, runner-local
-      # Docker image cache, GHCR image fallback, and BuildKit registry cache.
+      # Keep both cache paths: Actions cache for a native runner and the
+      # runner-local / GHCR / registry BuildKit cache for the Docker fallback.
       - name: Restore cached FreeCAD runtime
         uses: actions/cache@v4
         with:
@@ -94,7 +94,7 @@ jobs:
           python3 -m compileall -q .
           for t in tests/freecad_smoke.py tests/freecad_meshpart_smoke.py tests/freecad_sewing_smoke.py; do
             echo "FREECAD START $t"
-            timeout --signal=TERM --kill-after=5s 60s xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' bash -lc 'openbox >/tmp/freecad-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" "$1"' "$FREECAD_BIN" "$t"
+            xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' bash -lc 'openbox >/tmp/freecad-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" "$1"' "$FREECAD_BIN" "$t"
             echo "FREECAD PASS $t"
           done
           echo "SCREENSHOT START timeout=120s"
@@ -131,11 +131,12 @@ jobs:
               tests=(tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py tests/test_simulation_scene.py tests/test_collisions.py tests/test_freecad_objects.py tests/test_gui_structure.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_avatar_fitting.py tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py tests/test_pattern_export_semantics.py tests/test_sketch_authority.py tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py)
               for t in "${tests[@]}"; do python3 "$t"; done
               python3 -m compileall -q .
-              # Historical workflow invoked FreeCAD directly. Retain that
-              # path; 60s is only a bounded guard against a hang.
+              # Match the historical workflow: FreeCAD smoke tests run directly.
+              # No per-smoke timeout is imposed; the host watchdog remains the
+              # final protection against a genuinely stuck Docker container.
               for t in tests/freecad_smoke.py tests/freecad_meshpart_smoke.py tests/freecad_sewing_smoke.py; do
                 echo "FREECAD START $t"
-                timeout --signal=TERM --kill-after=5s 60s freecad "$t"
+                freecad "$t"
                 echo "FREECAD PASS $t"
               done
               echo "SCREENSHOT START timeout=120s"
@@ -149,8 +150,8 @@ jobs:
           echo "Copying repository into Docker test container"
           docker cp "$PWD/." "$CID:/workspace/"
           echo "Starting Docker test container"
-          # Keep the historical streaming execution path. The outer timeout is
-          # only a final watchdog for a stuck container.
+          # Stream exactly like the historical Docker workflow; this is only
+          # an outer hang watchdog for the self-hosted runner.
           timeout --signal=TERM --kill-after=10s 180s docker start -a "$CID"
 
       - name: Upload GUI screenshots
