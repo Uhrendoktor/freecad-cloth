@@ -88,9 +88,9 @@ jobs:
             python3 --version
           else
             "$FREECAD_BIN" --console <<'PY'
-import sys
-print("Embedded Python:", sys.version)
-PY
+            import sys
+            print("Embedded Python:", sys.version)
+            PY
           fi
 
       - name: Run Python and FreeCAD smoke tests
@@ -118,9 +118,9 @@ PY
               echo "PYTHON/FREECAD PASS $t"
             done
             timeout --signal=TERM --kill-after=5s 60s "$FREECAD_BIN" --console <<'PY'
-import compileall, sys
-sys.exit(0 if compileall.compile_dir('.', quiet=1) else 1)
-PY
+            import compileall, sys
+            sys.exit(0 if compileall.compile_dir('.', quiet=1) else 1)
+            PY
           fi
           for t in tests/freecad_smoke.py tests/freecad_meshpart_smoke.py tests/freecad_sewing_smoke.py; do
             echo "FREECAD START $t"
