@@ -43,3 +43,9 @@ The invariant is strict: target edit -> STALE with reason; recompute remains saf
 - Do not merge stale/non-mergeable branches; re-cut from current main and preserve proposals.
 - Public FreeCAD commands/task panels/document objects are the acceptance surface.
 - A milestone is not complete until canonical CI is green and merged-main verification is green.
+
+## Subagent slice — #322
+
+Claimed by `Uhrendoktor` on 2026-08-30. Branch: `agent/drapetarget-recompute-fix-20260830`.
+
+Implementation direction: repair the stale-target lifecycle directly in `SimulationObjects` rather than carrying forward the superseded runtime monkey-patch from #290/#292. Ordinary recompute now records persistent target status/reason, skips stale collision consumption, and marks simulation non-finite without advancing solver steps. Public Step/Run are explicitly gated on a current DrapeTarget; Reset remains available. Focused regression coverage covers placement invalidation, safe recompute, no stale collision consumption, and public command gating.
