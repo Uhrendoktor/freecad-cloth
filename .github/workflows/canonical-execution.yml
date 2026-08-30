@@ -124,12 +124,12 @@ jobs:
 
               for t in tests/freecad_smoke.py tests/freecad_meshpart_smoke.py tests/freecad_sewing_smoke.py; do
                 echo "[container] $(date -Is) FREECAD START $t"
-                timeout --signal=TERM --kill-after=5s 60s freecad "$t"
+                timeout --signal=TERM --kill-after=5s 60s /opt/freecad/usr/bin/freecad "$t"
                 echo "[container] $(date -Is) FREECAD PASS $t"
               done
 
               echo "[container] $(date -Is) SCREENSHOT START timeout=120s"
-              timeout --signal=TERM --kill-after=5s 120s freecad tests/freecad_screenshot.py
+              timeout --signal=TERM --kill-after=5s 120s /opt/freecad/usr/bin/freecad tests/freecad_screenshot.py
               echo "[container] $(date -Is) SCREENSHOT PASS"
 
               test -s docs/images/generated/cloth-pattern-design.png
@@ -147,9 +147,6 @@ jobs:
           echo "[host] $(date -Is) starting container"
           docker start "$CID" >/dev/null
 
-          # Keep the Actions log alive and expose the exact point of progress.
-          # The previous implementation used `docker start -a`, which could look
-          # completely hung when FreeCAD was busy without emitting stdout.
           START_TS=$(date +%s)
           LAST_LOG=""
           while :; do
