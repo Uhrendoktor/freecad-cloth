@@ -225,6 +225,16 @@ _COMMAND_HANDLERS = {
     "ClothSewing_Validate": validate_seams,
     "ClothSewing_Show2D": show_sewing_2d,
 }
+_MENU_TEXT = {
+    "ClothSewing_CreateSeam": "Create Seam",
+    "ClothSewing_CreateMNSewing": "Create M:N Sewing",
+    "ClothSewing_CreateOperation": "Create Sewing Operation",
+    "ClothSewing_EditOperation": "Edit Sewing Operation",
+    "ClothSewing_ReverseSeam": "Reverse Seam",
+    "ClothSewing_ToggleAlignment": "Toggle Seam Alignment",
+    "ClothSewing_Validate": "Validate Sewing",
+    "ClothSewing_Show2D": "Show Sewing 2D",
+}
 _TOOLTIPS = {
     "ClothSewing_CreateSeam": "Create a persistent seam from two selected pattern edges",
     "ClothSewing_CreateMNSewing": "Create a deterministic 1:N, M:1, or M:N sewing relationship from selected edges",
@@ -256,11 +266,12 @@ def _has_selected_operation():
     except ImportError:
         return False
 class _SewingCommand:
-    def __init__(self, function, active, tooltip):
+    def __init__(self, function, active, tooltip, menu_text=None):
         self.function, self.active, self.tooltip = function, active, tooltip
+        self.menu_text = menu_text or function.__name__.replace("_", " ").title()
     def Activated(self): return self.function()
     def IsActive(self): return bool(self.active())
-    def GetResources(self): return {"MenuText": self.function.__name__.replace("_", " ").title(), "ToolTip": self.tooltip}
+    def GetResources(self): return {"MenuText": self.menu_text, "ToolTip": self.tooltip}
 try:
     import FreeCADGui as Gui
     _ACTIVATION = {
@@ -274,6 +285,6 @@ try:
         "ClothSewing_Show2D": lambda: _has_active_document(),
     }
     for name, function in _COMMAND_HANDLERS.items():
-        Gui.addCommand(name, _SewingCommand(function, _ACTIVATION[name], _TOOLTIPS[name]))
+        Gui.addCommand(name, _SewingCommand(function, _ACTIVATION[name], _TOOLTIPS[name], _MENU_TEXT[name]))
 except (ImportError, AttributeError):
     pass
