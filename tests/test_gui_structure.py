@@ -38,6 +38,7 @@ assert "ClothSimulation_Edit" in sim_commands
 assert "ClothSewing_CreateOperation" in sewing_commands
 assert "ClothSewing_EditOperation" in sewing_commands
 assert "ClothSewing_Validate" in sewing_commands
+assert "ClothSewing_RepairSeam" in sewing_commands
 
 
 def test_sewing_command_groups_are_unique_and_complete():
@@ -56,6 +57,7 @@ def test_sewing_command_groups_are_unique_and_complete():
         "ClothSewing_ReverseSeam",
         "ClothSewing_ToggleAlignment",
         "ClothSewing_Validate",
+        "ClothSewing_RepairSeam",
         "ClothSewing_Show2D",
     }
 
