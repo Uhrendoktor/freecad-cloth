@@ -87,8 +87,7 @@ def run_simulation(steps=30):
 
 
 def reset_simulation():
-    doc, scene = _require_simulation()
-    _require_simulation_target_ready(doc)
+    _doc, scene = _require_simulation()
     from SimulationObjects import reset_scene
     reset_scene(scene)
     scene.Document.recompute()
@@ -165,6 +164,6 @@ try:
         Gui.addCommand("ClothSimulation_RefreshDrapeTarget", _FunctionCommand(refresh_drape_target, "Refresh Drape Target", "Rebuild the persistent DrapeTarget collision surface", _has_simulation))
         Gui.addCommand("ClothSimulation_Step", _FunctionCommand(lambda: simulate_selected(), "Step Simulation", "Advance simulation only when DrapeTarget is ready", _has_ready_simulation))
         Gui.addCommand("ClothSimulation_Run", _FunctionCommand(run_simulation, "Run Simulation", "Run simulation only when DrapeTarget is ready", _has_ready_simulation))
-        Gui.addCommand("ClothSimulation_Reset", _FunctionCommand(reset_simulation, "Reset Simulation", "Reset simulation state", _has_ready_simulation))
+        Gui.addCommand("ClothSimulation_Reset", _FunctionCommand(reset_simulation, "Reset Simulation", "Reset simulation state", _has_simulation))
 except (ImportError, AttributeError):
     pass
