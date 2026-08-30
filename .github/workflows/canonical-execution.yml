@@ -10,69 +10,99 @@ concurrency:
   group: canonical-${{ github.ref }}
   cancel-in-progress: true
 
-defaults:
-  run:
-    shell: bash
-
 jobs:
-  gui-screenshots:
-    if: github.event_name != 'pull_request' || github.event.action != 'closed'
-    runs-on: debian-12
-    timeout-minutes: 10
+  ci:
+    if: ${{ github.event_name != 'pull_request' || github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'workflow_dispatch' }}
+    runs-on: [self-hosted, linux, x64, docker]
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
-      - name: Install FreeCAD GUI runtime
-        run: |
-          apt-get update -qq
-          apt-get install -y -qq curl xvfb openbox libfuse2
-          curl -L --fail --retry 3 -o /tmp/FreeCAD.AppImage https://github.com/FreeCAD/FreeCAD/releases/download/1.1.3/FreeCAD_1.1.3-Linux-x86_64-py311.AppImage
-          chmod +x /tmp/FreeCAD.AppImage
-      - name: Generate screenshots
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build pinned FreeCAD CI image with GHCR cache
+        uses: docker/setup-buildx-action@v3
+        id: buildx
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: docker/freecad-ci
+          push: ${{ github.event_name != 'pull_request' }}
+          load: true
+          tags: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.3-r1
+          cache-from: type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache
+          cache-to: type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache,mode=max
+
+      - name: Run Python tests, FreeCAD smoke, and GUI screenshots
         env:
-          DISPLAY: :99
-          QT_X11_NO_MITSHM: 1
-          QT_QPA_PLATFORM: xcb
-          LIBGL_ALWAYS_SOFTWARE: 1
-          CLOTH_SCREENSHOT_DIR: ${{ github.workspace }}/docs/images/generated
-          CLOTH_E2E_DIR: ${{ github.workspace }}/artifacts/freecad-e2e
+          IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.3-r1
         run: |
-          mkdir -p "$CLOTH_SCREENSHOT_DIR" "$CLOTH_E2E_DIR"
-          Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 &
-          openbox >/tmp/openbox.log 2>&1 &
-          sleep 2
-          timeout 120s /tmp/FreeCAD.AppImage tests/freecad_screenshot.py
-          test -s "$CLOTH_SCREENSHOT_DIR/cloth-pattern-design.png"
-          test -s "$CLOTH_SCREENSHOT_DIR/cloth-sewing.png"
-          test -s "$CLOTH_SCREENSHOT_DIR/cloth-simulation.png"
-      - uses: actions/upload-artifact@v4
+          set -euo pipefail
+          mkdir -p docs/images/generated artifacts/freecad-e2e
+          docker run --rm --init \
+            --shm-size=1g \
+            -e DISPLAY=:99 \
+            -e QT_X11_NO_MITSHM=1 \
+            -e QT_QPA_PLATFORM=xcb \
+            -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
+            -e CLOTH_E2E_DIR=/workspace/artifacts/freecad-e2e \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            "$IMAGE" \
+            bash -euo pipefail -c '
+              rm -f docs/images/generated/*.png docs/images/generated/gui-progress.log
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 &
+              XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 &
+              OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              sleep 1
+
+              for t in \
+                tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py \
+                tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py \
+                tests/test_simulation_scene.py tests/test_collisions.py tests/test_freecad_objects.py \
+                tests/test_gui_structure.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py \
+                tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_avatar_fitting.py \
+                tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py \
+                tests/test_pattern_export_semantics.py tests/test_sketch_authority.py \
+                tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py; do
+                python3 "$t"
+              done
+              python3 -m compileall -q .
+
+              freecad tests/freecad_smoke.py
+              freecad tests/freecad_meshpart_smoke.py
+              freecad tests/freecad_sewing_smoke.py
+              timeout --signal=TERM --kill-after=5s 120s freecad tests/freecad_screenshot.py
+
+              test -s docs/images/generated/cloth-pattern-design.png
+              test -s docs/images/generated/cloth-sewing.png
+              test -s docs/images/generated/cloth-simulation.png
+            '
+
+      - name: Upload GUI screenshots
+        uses: actions/upload-artifact@v4
         with:
           name: cloth-gui-screenshots
           path: docs/images/generated/*.png
           if-no-files-found: error
 
-  tests:
-    if: github.event_name != 'pull_request' || github.event.action != 'closed'
-    runs-on: debian-12
-    timeout-minutes: 8
-    steps:
-      - uses: actions/checkout@v4
-      - name: Python tests
-        run: |
-          for t in tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py tests/test_simulation_scene.py tests/test_collisions.py tests/test_freecad_objects.py tests/test_gui_structure.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_avatar_fitting.py tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py tests/test_pattern_export_semantics.py tests/test_sketch_authority.py tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py; do python3 "$t" || exit; done
-          python3 -m compileall -q .
-
-  freecad-smoke:
-    if: github.event_name != 'pull_request' || github.event.action != 'closed'
-    runs-on: debian-12
-    timeout-minutes: 8
-    steps:
-      - uses: actions/checkout@v4
-      - name: FreeCAD smoke
-        run: |
-          apt-get update -qq
-          apt-get install -y -qq curl libfuse2
-          curl -L --fail --retry 3 -o /tmp/FreeCAD.AppImage https://github.com/FreeCAD/FreeCAD/releases/download/1.1.3/FreeCAD_1.1.3-Linux-x86_64-py311.AppImage
-          chmod +x /tmp/FreeCAD.AppImage
-          /tmp/FreeCAD.AppImage tests/freecad_smoke.py
-          /tmp/FreeCAD.AppImage tests/freecad_meshpart_smoke.py
-          /tmp/FreeCAD.AppImage tests/freecad_sewing_smoke.py
+      - name: Upload GUI diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloth-gui-diagnostics
+          path: |
+            docs/images/generated/gui-progress.log
+            artifacts/freecad-e2e/workflow.log
+          if-no-files-found: ignore
