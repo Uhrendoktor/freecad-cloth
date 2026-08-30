@@ -5,6 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from PatternModel import PatternPiece
 from PatternSketch import create_sketch_for_piece
 from PatternDrafting import parse_points, serialize_points, add_point, remove_point, bounds
+from PatternValidation import validate_piece
 
 
 def test_pattern_sketch_module_is_headless_safe():
@@ -93,9 +94,67 @@ def test_polygon_drafting_round_trip_and_editing():
     assert bounds(points) == (0.0, 0.0, 100.0, 70.0)
 
 
+class _Point:
+    def __init__(self, x, y, z=0.0):
+        self.x, self.y, self.z = x, y, z
+
+
+class _Line:
+    def __init__(self, start, end):
+        self.StartPoint = _Point(*start)
+        self.EndPoint = _Point(*end)
+
+
+class _Sketch:
+    def __init__(self, geometry):
+        self.Geometry = geometry
+
+
+class _PieceObject:
+    Label = "Front"
+    PieceId = "front"
+    GeometryAuthority = "Sketcher"
+    SeamAllowance = 8.0
+    GrainlineAngle = 0.0
+
+    def __init__(self, geometry):
+        self.Sketch = _Sketch(geometry)
+        self.PropertiesList = []
+
+    def addProperty(self, kind, name, group):
+        self.PropertiesList.append(name)
+        setattr(self, name, "Unknown" if kind.endswith("Enumeration") else "")
+        return self
+
+
+def test_closed_native_boundary_validation_persists_measurement():
+    piece = _PieceObject([
+        _Line((100, 60), (0, 60)), _Line((0, 0), (100, 0)),
+        _Line((0, 60), (0, 0)), _Line((100, 0), (100, 60)),
+    ])
+    result = validate_piece(piece)
+    assert result["valid"] is True
+    assert result["edge_count"] == 4
+    assert abs(result["perimeter"] - 320.0) < 1e-9
+    assert piece.ValidationStatus == "Valid"
+
+
+def test_open_native_boundary_validation_is_persistently_invalid():
+    piece = _PieceObject([
+        _Line((0, 0), (100, 0)), _Line((100, 0), (100, 60)),
+        _Line((100, 60), (0, 60)),
+    ])
+    result = validate_piece(piece)
+    assert result["valid"] is False
+    assert piece.ValidationStatus == "Invalid"
+    assert "open" in piece.ValidationMessage.lower()
+
+
 if __name__ == "__main__":
     test_pattern_sketch_module_is_headless_safe()
     test_pattern_sketch_requires_freecad_when_called()
     test_one_step_pattern_piece_command_is_registered_and_creates_native_sketch()
     test_polygon_drafting_round_trip_and_editing()
+    test_closed_native_boundary_validation_persists_measurement()
+    test_open_native_boundary_validation_is_persistently_invalid()
     print("pattern sketch tests passed")
