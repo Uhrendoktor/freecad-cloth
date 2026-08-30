@@ -2,7 +2,7 @@ name: Canonical execution
 
 on:
   push:
-    branches: [main, ci/self-hosted-native-freecad]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -25,7 +25,6 @@ jobs:
       QT_QPA_PLATFORM: xcb
       LIBGL_ALWAYS_SOFTWARE: 1
       FREECAD_VERSION: 1.1.3
-      FREECAD_CACHE_DIR: ${{ runner.temp }}/freecad-cloth-cache
       FREECAD_APPIMAGE_SHA256: 3a853eb69ee595f779f2255dbf80a765926981d8ff68903cefee4dfb03a8f5ef
     steps:
       - uses: actions/checkout@v4
@@ -53,16 +52,16 @@ jobs:
           fi
 
           # Prefer a runner-provided FreeCAD. Otherwise install the official
-          # FreeCAD 1.1.3 x86_64 AppImage once into the runner's persistent
-          # temp/cache area and extract it so later invocations do not require
-          # FUSE or repeat AppImage extraction.
+          # FreeCAD 1.1.3 x86_64 AppImage once into the persistent runner home
+          # and extract it so later invocations do not require FUSE or repeat
+          # AppImage extraction.
           if command -v "$FREECAD_BIN" >/dev/null 2>&1; then
             echo "Using pre-provisioned FreeCAD: $(command -v "$FREECAD_BIN")"
           else
-            root="$FREECAD_CACHE_DIR/$FREECAD_VERSION"
-            appimage="$root/FreeCAD_${FREECAD_VERSION}-Linux-x86_64-py311.AppImage"
-            appdir="$root/squashfs-root"
-            mkdir -p "$root"
+            cache_root="$HOME/.cache/freecad-cloth/$FREECAD_VERSION"
+            appimage="$cache_root/FreeCAD_${FREECAD_VERSION}-Linux-x86_64-py311.AppImage"
+            appdir="$cache_root/squashfs-root"
+            mkdir -p "$cache_root"
 
             if [[ ! -x "$appdir/AppRun" ]]; then
               if [[ ! -f "$appimage" ]]; then
@@ -72,7 +71,7 @@ jobs:
               fi
               echo "$FREECAD_APPIMAGE_SHA256  $appimage" | sha256sum -c -
               rm -rf "$appdir"
-              tmp_extract="$root/.squashfs-root.tmp"
+              tmp_extract="$cache_root/.squashfs-root.tmp"
               rm -rf "$tmp_extract"
               mkdir -p "$tmp_extract"
               (cd "$tmp_extract" && "$appimage" --appimage-extract >/dev/null)
