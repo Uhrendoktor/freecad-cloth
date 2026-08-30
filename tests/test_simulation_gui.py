@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from SimulationGui import SimulationTaskPanel
+from SimulationGui import SIMULATION_UI_LABELS, SimulationTaskPanel
 
 
 def test_simulation_task_panel_is_headless_importable():
@@ -17,6 +17,14 @@ def test_material_presets_have_positive_physical_parameters():
         assert stretch > 0
         assert bend > 0
         assert density > 0
+
+
+def test_simulation_task_panel_uses_consistent_action_labels():
+    assert SIMULATION_UI_LABELS == {
+        "collision_target": "Collision object",
+        "simulation_steps": "Steps",
+        "run_action": "Run 30 steps",
+    }
 
 
 def test_task_panel_exposes_freecad_lifecycle_methods_without_gui_import():
