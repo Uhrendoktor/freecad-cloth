@@ -136,16 +136,16 @@ jobs:
               tests=(tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py tests/test_simulation_scene.py tests/test_collisions.py tests/test_freecad_objects.py tests/test_gui_structure.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_avatar_fitting.py tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py tests/test_pattern_export_semantics.py tests/test_sketch_authority.py tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py)
               for t in "${tests[@]}"; do python3 "$t"; done
               python3 -m compileall -q .
-              # Match the historical workflow: FreeCAD smoke tests run directly.
-              # No per-smoke timeout is imposed; the host watchdog remains the
-              # final protection against a genuinely stuck Docker container.
+              # The linuxserver image exposes `freecad` as an xterm launcher.
+              # Invoke the bundled AppRun directly so the GUI process is the
+              # test process and can terminate cleanly on the self-hosted runner.
               for t in tests/freecad_smoke.py tests/freecad_meshpart_smoke.py tests/freecad_sewing_smoke.py; do
                 echo "FREECAD START $t"
-                freecad "$t"
+                /opt/freecad/AppRun "$t"
                 echo "FREECAD PASS $t"
               done
               echo "SCREENSHOT START timeout=120s"
-              timeout --signal=TERM --kill-after=5s 120s freecad tests/freecad_screenshot.py
+              timeout --signal=TERM --kill-after=5s 120s /opt/freecad/AppRun tests/freecad_screenshot.py
               echo "SCREENSHOT PASS"
               test -s docs/images/generated/cloth-pattern-design.png
               test -s docs/images/generated/cloth-sewing.png
