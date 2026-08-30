@@ -16,7 +16,7 @@ class SewingGuiContractTests(unittest.TestCase):
 
     def test_missing_seam_is_rejected_with_context(self):
         self.assertEqual(seam_reference_status(None), "Missing seam")
-        with self.assertRaisesRegex(ValueError, r"s.*<unnamed>.*Missing seam"):
+        with self.assertRaisesRegex(ValueError, r"invalid seam reference <unnamed>: Missing seam"):
             validate_seam_for_accept(None)
 
     def test_changed_reference_is_rejected_with_identity(self):
