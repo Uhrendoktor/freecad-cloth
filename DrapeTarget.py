@@ -141,3 +141,5 @@ def assign_drape_target(target, source, target_type: Optional[str] = None):
     if hasattr(target, "CollisionTriangleCount"):
         target.CollisionTriangleCount = len(surface.triangles)
     return target
+
+# Supervisor audit marker: target state remains solver-neutral until simulation migration.
