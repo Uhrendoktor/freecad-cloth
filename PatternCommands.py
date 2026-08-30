@@ -55,7 +55,6 @@ def create_pattern_piece_with_sketch():
 
 def edit_pattern_piece():
     """Open the garment-piece properties task panel for the selected piece."""
-    import FreeCADGui as Gui
     obj = _selected_piece()
     if obj is None:
         raise ValueError("select a pattern piece before editing it")
@@ -88,9 +87,8 @@ def validate_pattern_piece():
     obj = _selected_piece()
     if obj is None:
         raise ValueError("select a pattern piece before validating it")
-    from PatternValidation import validate_piece
+    from PatternValidation import validate_piece, show_pattern_validation_task
     result = validate_piece(obj)
-    from PatternGui import show_pattern_validation_task
     show_pattern_validation_task(obj, result)
     return result
 
