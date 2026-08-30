@@ -4,42 +4,58 @@ Last updated: 2026-08-30
 
 ## Supervisor state
 
-The supervisor has completed the required PR/issue audit for the current integration slice. Merged: #314 Sewing command-group recovery, #319 Sewing GUI activation-stall recovery, #311 transactional M:N regression coverage, and #317 actionable seam-repair diagnostics. Stale/duplicate branches were closed with reasons and their useful proposals retained in the issue/roadmap backlog.
+The supervisor audited all currently open issues and PRs before accepting new implementation work. Merged historical slices remain #314, #319, #311 and #317. Duplicate/stale DrapeTarget PR #339 and superseded CI-harness PR #343 were closed with explicit reasons. Their useful proposals are retained in the backlog.
 
-The project is now in the P0-1 DrapeTarget lifecycle slice. Current supervisor branch: `agent/drapetarget-authority-current-20260830`.
+Current supervisor planning branch: `agent/supervisor-roadmap-20260830`.
 
 ## Replanned release sequence
 
-1. **P0-0 Sewing GUI integration:** merged; canonical FreeCAD/Xvfb verification remains required.
-2. **P0-1 DrapeTarget authority (#276/#289/#284/#322):** persistent lifecycle, target-neutral public commands, explicit Refresh, stale preflight, safe recompute, save/reload.
-3. **P0-2 Canonical garment E2E (#278/#155/#143):** native Pattern -> Sewing -> fitting/arrangement -> DrapeTarget -> Simulation -> save/reload -> upstream edit/invalidation -> refresh -> deterministic re-simulation.
-4. **P0-3 Simulation behavior (#145/#159/#161):** quality/material/collision controls materially affect derived topology/backend state and persist.
-5. **P0-4 Release UX/persistence:** task panels, selection, undo/recompute, save/reload, error/cancel behavior, and no scripting-only acceptance paths.
-6. **P1 Pattern/export/package (#162/#165/#297/#298/#147/#163).**
+1. **P0-A CI/public-workbench gate:** canonical job scheduling is now deterministic; the current blocker is a real FreeCAD/Xvfb simulation-fixture failure tracked in #347. Do not weaken the assertion or skip GUI coverage.
+2. **P0-B DrapeTarget authority (#322/#346):** persistent target-neutral lifecycle, safe recompute, explicit Refresh, public Step/Run preflight, save/reload.
+3. **P0-C Canonical garment E2E (#278/#155/#143):** native Pattern -> Sewing -> arrangement -> DrapeTarget -> Simulation -> save/reload -> invalidation -> refresh -> deterministic re-simulation.
+4. **P0-D Simulation quality (#145/#159/#161):** particle distance/mesh density, fabric physics, solver controls and collision settings must materially affect derived state and persist.
+5. **P0-E Release UX/persistence (#267):** consistent task-panel hierarchy, native FreeCAD selection/undo/recompute/save/reload, explicit diagnostics.
+6. **P1 Pattern architecture/production (#162/#165/#297/#298/#147/#163):** native Sketcher authority, stable semantic topology, explicit repair, curved manufacturability, export/TechDraw.
 7. **P2 optional solver benchmark (#148)** only after P0/P1 are green.
 
 ## Research decisions
 
-CLO/Marvelous Designer behavior makes semantic sewing, visible correspondence/reversal/repair, arrangement state, target-aware collision and particle-distance quality controls release semantics. FreeCAD Sketcher/Part/TechDraw should remain the geometry/constraint/export kernels; Cloth owns garment meaning and lifecycle. The native Sketcher authority proposal from closed #321 is retained for P1 rather than merged as a stale branch.
+CLO 2026 confirms that release-relevant garment semantics include persistent pattern properties, a Property Editor across patterns/sewing/fabric/avatar/simulation, persistent 3D arrangement, Smart Arrangement, particle-distance/quality controls, CPU/GPU simulation modes, Segment/Free/1:N/M:N sewing, directional/reversal behavior and explicit seam validation/repair workflows. FreeCAD's native Sketcher already provides the needed geometric/dimensional constraints and expressions; the Cloth workbench should not duplicate that solver.
 
-## P0-1 current finding
+The detailed UI/command matrix and dependency graph are documented in `docs/ROADMAP_2026.md` on the supervisor planning branch.
 
-The bounded DrapeTarget re-cut in #320 adds explicit `VALID/STALE/INVALID/REFRESHING/READY_FOR_SIMULATION` lifecycle state, public Refresh, target-neutral attachment and Simulation preflight/task-panel recovery. Supervisor review then found a remaining correctness blocker: current `SimulationObjects._collision_for_scene()` raises during ordinary document recompute when a target becomes stale. This is tracked in #322 and must be repaired before #320 is accepted.
+## Current CI finding
 
-The invariant is strict: target edit -> STALE with reason; recompute remains safe; no stale collision surface is consumed; Step/Run are blocked; Refresh rebuilds collision state; Reset remains available.
+Canonical Actions is scheduling the required jobs. Python and real-FreeCAD smoke are progressing; the GUI gate reaches Pattern and Sewing and then fails on the Simulation fixture because its arranged garment panels have fewer than the required useful facets. This is tracked as #347.
+
+The release invariant is strict: fix the fixture or underlying mesh lifecycle; never remove the assertion, skip Simulation, or replace the public-workbench workflow with a utility-only test.
+
+## DrapeTarget invariant
+
+Target edit -> persistent STALE with reason -> ordinary document recompute remains safe -> stale collision is never consumed -> Step/Run are blocked -> Refresh rebuilds collision -> READY_FOR_SIMULATION -> simulation may advance. Reset remains available while stale.
 
 ## Architecture gates
 
 - **Pattern:** native Sketcher geometry authority; stable semantic edge references.
-- **Sewing:** persistent semantic seam/network references, curved correspondence, M:N and repair UX.
-- **Fitting:** persistent mannequin/arrangement state.
+- **Sewing:** persistent semantic seam/network references, curved correspondence, M:N/free sewing, direction/reversal and explicit repair.
+- **Fitting/Arrangement:** persistent 3D arrangement state and configurable human target.
 - **DrapeTarget:** target-neutral persistent collision authority with explicit lifecycle.
-- **Simulation:** disposable derived topology/solver state; stale target cannot be simulated.
+- **Simulation:** quality-controlled derived mesh/solver state; stale target cannot simulate.
+
+## Active supervised work
+
+- **#347:** repair Simulation GUI fixture/mesh-density failure under real FreeCAD/Xvfb.
+- **#346:** DrapeTarget recompute-safety candidate; audit after #347 and canonical green checks. Its workflow diff currently contains a test-harness workaround and must not be merged as-is.
+- **#345/#332:** workbench registration contract coverage; audit after canonical GUI gate is green.
+- **#340:** native Sketcher acceptance; audit for real FreeCAD/Xvfb compatibility.
+- **#336:** explicit Pattern semantic-topology repair UI.
+- **#330/#335/#338:** focused UX/command-label slices; preserve scope and avoid unrelated architecture changes.
+- **#258:** Sewing grouped-menu implementation remains in progress and must retain the stable toolbar contract.
 
 ## Coordination rules
 
-- Update this file at slice start/handoff.
+- Update this file at every slice start/handoff.
 - One canonical GitHub Actions workflow only.
-- Do not merge stale/non-mergeable branches; re-cut from current main and preserve proposals.
+- Re-cut stale branches from current main; do not merge parallel implementations of the same contract.
 - Public FreeCAD commands/task panels/document objects are the acceptance surface.
-- A milestone is not complete until canonical CI is green and merged-main verification is green.
+- A milestone is complete only after canonical CI is green and merged-main verification is green.
