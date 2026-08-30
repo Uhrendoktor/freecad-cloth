@@ -6,6 +6,15 @@ endpoint connectivity for downstream sewing and simulation adapters.
 """
 
 
+def _enum_values(value):
+    if isinstance(value, str):
+        return (value,)
+    try:
+        return tuple(value or ())
+    except TypeError:
+        return ()
+
+
 def _piece_object(document, piece_id):
     return next((obj for obj in document.Objects if getattr(obj, "PieceId", "") == str(piece_id)), None)
 
@@ -18,9 +27,9 @@ def _ensure_piece_properties(obj):
     if "GeometryAuthority" not in obj.PropertiesList:
         obj.addProperty("App::PropertyEnumeration", "GeometryAuthority", "Cloth")
         obj.GeometryAuthority = ["PatternParameters", "Sketcher"]
-    elif "Sketcher" not in tuple(getattr(obj, "GeometryAuthority", ()) or ()):
+    elif "Sketcher" not in _enum_values(getattr(obj, "GeometryAuthority", None)):
         obj.GeometryAuthority = ["PatternParameters", "Sketcher"]
-    if "GeometryMode" in obj.PropertiesList and "Sketch" not in tuple(getattr(obj, "GeometryMode", ()) or ()):
+    if "GeometryMode" in obj.PropertiesList and "Sketch" not in _enum_values(getattr(obj, "GeometryMode", None)):
         obj.GeometryMode = ["Rectangle", "Custom", "Sketch"]
     if "ValidationStatus" not in obj.PropertiesList:
         obj.addProperty("App::PropertyEnumeration", "ValidationStatus", "Validation")
