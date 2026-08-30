@@ -7,6 +7,11 @@ objects form one dependency pipeline.
 from pathlib import Path
 
 _ICON_DIR = Path(__file__).resolve().parent / "resources" / "icons"
+if not _ICON_DIR.is_dir():
+    # Some headless regression runners execute InitGui.py with ``exec`` while
+    # retaining the caller's __file__.  Keep the resource lookup useful there
+    # without changing the normal installed-workbench path.
+    _ICON_DIR = Path.cwd() / "resources" / "icons"
 
 try:
     import FreeCADGui as Gui
@@ -157,7 +162,7 @@ SEWING_COMMAND_GROUPS = (
 )
 
 # Keep the Sewing toolbar deliberately small. FreeCAD's GUI builds command
-# actions/widgets synchronously while switching workbenches; putting the full
+actions/widgets synchronously while switching workbenches; putting the full
 # sewing/fitting command surface on the toolbar can stall that transition.
 # The complete command set is still exposed by the grouped menus/context menu.
 SEWING_TOOLBAR_COMMANDS = (
@@ -206,8 +211,14 @@ class ClothSewingWorkbench(_ClothWorkbench):
         self._register_groups(groups, toolbar_name=self.MenuText, toolbar_commands=SEWING_TOOLBAR_COMMANDS)
 
 
+def _register_workbench(workbench):
+    """Register a workbench only when FreeCAD does not already know its name."""
+    if workbench.__class__.__name__ not in Gui.listWorkbenches():
+        Gui.addWorkbench(workbench)
+
+
 if Gui is not None:
     Gui.addIconPath(str(_ICON_DIR))
-    Gui.addWorkbench(ClothPatternWorkbench())
-    Gui.addWorkbench(ClothSimulationWorkbench())
-    Gui.addWorkbench(ClothSewingWorkbench())
+    _register_workbench(ClothPatternWorkbench())
+    _register_workbench(ClothSimulationWorkbench())
+    _register_workbench(ClothSewingWorkbench())
