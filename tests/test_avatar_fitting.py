@@ -1,13 +1,8 @@
 import json
 import unittest
 
-from AvatarFitting import (
-    ArrangementPoint,
-    BodyMeasurements,
-    BoundingVolume,
-    FittingScene,
-    PiecePlacement,
-)
+from AvatarFitting import ArrangementPoint, BodyMeasurements, BoundingVolume, FittingScene, PiecePlacement
+from AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose, generate_mesh
 
 
 class AvatarFittingTests(unittest.TestCase):
@@ -48,18 +43,36 @@ class AvatarFittingTests(unittest.TestCase):
         with self.assertRaises(ValueError): BoundingVolume("body", size=(1, 0, 2)).validate()
 
     def test_fitting_scene_round_trip_preserves_arrangement_metadata(self):
-        scene = FittingScene(
-            BodyMeasurements({"waist": 760}),
-            "Avatar",
-            (PiecePlacement("front", (1, 2, 3), 15),),
-            (ArrangementPoint("chest", 10, 20, 5, "front", 30, "torso"),),
-            (BoundingVolume("torso", (0, 0, 50), (400, 250, 800)),),
-            False,
-        )
+        scene = FittingScene(BodyMeasurements({"waist": 760}), "Avatar", (PiecePlacement("front", (1, 2, 3), 15),), (ArrangementPoint("chest", 10, 20, 5, "front", 30, "torso"),), (BoundingVolume("torso", (0, 0, 50), (400, 250, 800)),), False)
         restored = FittingScene.from_json(scene.to_json())
         self.assertEqual(restored, scene)
         self.assertFalse(restored.symmetry_enabled)
         self.assertEqual(restored.arrangement_map()["chest"].position(), (10.0, 20.0, 5.0))
+
+    def test_mannequin_is_deterministic_and_landmarked(self):
+        params = AvatarParameters()
+        first = generate_mesh(params)
+        second = generate_mesh(params)
+        self.assertEqual(first, second)
+        self.assertGreater(len(first[0]), 100)
+        self.assertGreater(len(first[1]), 100)
+        self.assertGreaterEqual({p.name for p in first[2]}, {"neck", "chest", "waist", "hip", "shoulder_left", "shoulder_right"})
+
+    def test_mannequin_measurement_change_is_parametric(self):
+        params = AvatarParameters()
+        wider = params.with_measurements(chest=params.measurement("chest") + 100)
+        self.assertEqual(params.measurement("chest"), DEFAULT_MEASUREMENTS["chest"])
+        self.assertNotEqual(generate_mesh(params)[0], generate_mesh(wider)[0])
+
+    def test_mannequin_skin_offset_and_pose_persist(self):
+        base = AvatarParameters(skin_offset=0)
+        padded = AvatarParameters(skin_offset=8)
+        self.assertNotEqual(generate_mesh(base)[0], generate_mesh(padded)[0])
+        params = AvatarParameters(pose=Pose("sewing"))
+        self.assertEqual(AvatarParameters.from_json(params.to_json()), params)
+
+    def test_invalid_mannequin_measurements_are_rejected(self):
+        with self.assertRaises(ValueError): AvatarParameters().with_measurements(underbust=1200, chest=1000)
 
 
 if __name__ == "__main__": unittest.main()
