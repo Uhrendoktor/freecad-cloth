@@ -1,7 +1,7 @@
 """Static checks for the real FreeCAD GUI layer."""
 from pathlib import Path
 
-from InitGui import SEWING_COMMAND_GROUPS, ClothSewingWorkbench
+from InitGui import SEWING_COMMAND_GROUPS, ClothPatternWorkbench, ClothSimulationWorkbench, ClothSewingWorkbench
 
 ROOT = Path(__file__).resolve().parents[1]
 init_gui = (ROOT / "InitGui.py").read_text()
@@ -55,9 +55,17 @@ def test_sewing_command_groups_are_unique_and_complete():
         "ClothSewing_EditNetwork",
         "ClothSewing_ReverseSeam",
         "ClothSewing_ToggleAlignment",
+        "ClothSewing_RepairSeam",
         "ClothSewing_Validate",
         "ClothSewing_Show2D",
     }
+
+
+def test_workbench_icons_exist_and_are_absolute_paths():
+    for workbench in (ClothPatternWorkbench, ClothSimulationWorkbench, ClothSewingWorkbench):
+        icon = Path(workbench.Icon)
+        assert icon.is_absolute()
+        assert icon.is_file(), icon
 
 
 def test_workbench_group_registration_is_idempotent_and_keeps_flat_context_commands():
