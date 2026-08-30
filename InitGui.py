@@ -38,6 +38,37 @@ class _ClothWorkbench(_WorkbenchBase):
                 registered.append(command)
         return registered
 
+    @staticmethod
+    def _available_gui_commands():
+        """Return FreeCAD's command registry when running with a real GUI."""
+        if Gui is None:
+            return set()
+        lister = getattr(Gui, "listCommands", None)
+        if not callable(lister):
+            raise RuntimeError("FreeCADGui.listCommands() is required for workbench registration")
+        return set(lister())
+
+    def _validate_groups(self, groups):
+        """Validate group membership before mutating FreeCAD menus/toolbars."""
+        normalized = []
+        seen = set()
+        for group_name, commands in groups:
+            group_name = str(group_name)
+            group_commands = self._normalize_commands(commands)
+            duplicates = [command for command in group_commands if command in seen]
+            if duplicates:
+                raise ValueError("commands registered in multiple workbench groups: %s" % ", ".join(duplicates))
+            if not group_name or not group_commands:
+                continue
+            normalized.append((group_name, group_commands))
+            seen.update(group_commands)
+        if Gui is not None:
+            available = self._available_gui_commands()
+            missing = [command for _group, commands in normalized for command in commands if command not in available]
+            if missing:
+                raise RuntimeError("Sewing workbench commands are not registered before grouping: %s" % ", ".join(missing))
+        return normalized
+
     def _register(self, commands):
         """Register an immutable command set exactly once per instance."""
         self._register_groups(((self.MenuText, commands),))
@@ -52,18 +83,8 @@ class _ClothWorkbench(_WorkbenchBase):
         """
         if self.commands:
             return
-        normalized_groups = []
-        registered = []
-        for group_name, commands in groups:
-            group_name = str(group_name)
-            group_commands = self._normalize_commands(commands)
-            duplicates = [command for command in group_commands if command in registered]
-            if duplicates:
-                raise ValueError("commands registered in multiple workbench groups: %s" % ", ".join(duplicates))
-            if not group_name or not group_commands:
-                continue
-            normalized_groups.append((group_name, group_commands))
-            registered.extend(group_commands)
+        normalized_groups = self._validate_groups(groups)
+        registered = [command for _group, commands in normalized_groups for command in commands]
         self.commands = registered
         if Gui is not None:
             if toolbar_name:
@@ -147,6 +168,7 @@ SEWING_COMMAND_GROUPS = (
         "Validation & View",
         (
             "ClothSewing_Validate",
+            "ClothSewing_RepairSeam",
             "ClothSewing_Show2D",
         ),
     ),
@@ -167,14 +189,27 @@ class ClothSewingWorkbench(_ClothWorkbench):
         import AvatarCommands
         groups = list(SEWING_COMMAND_GROUPS)
         groups.append(("Fitting & Avatar", FittingCommands.COMMANDS + AvatarCommands.COMMANDS))
-        expected = SewingCommands.COMMANDS + SewingNetworkCommands.COMMANDS
+        expected = self._normalize_commands(SewingCommands.COMMANDS + SewingNetworkCommands.COMMANDS + FittingCommands.COMMANDS + AvatarCommands.COMMANDS)
         grouped = self._normalize_commands(command for _name, commands in groups for command in commands)
-        if set(grouped) != set(expected + FittingCommands.COMMANDS + AvatarCommands.COMMANDS):
-            raise ValueError("Sewing workbench command groups are out of sync with registered commands")
+        if set(grouped) != set(expected):
+            missing = sorted(set(expected) - set(grouped))
+            unexpected = sorted(set(grouped) - set(expected))
+            details = []
+            if missing:
+                details.append("missing=" + ",".join(missing))
+            if unexpected:
+                details.append("unexpected=" + ",".join(unexpected))
+            raise ValueError("Sewing workbench command groups are out of sync: %s" % "; ".join(details))
         self._register_groups(groups, toolbar_name=self.MenuText)
 
 
 if Gui is not None:
+    if not _ICON_DIR.is_dir():
+        raise RuntimeError("Cloth workbench icon directory is missing: %s" % _ICON_DIR)
+    required_icons = ("ClothPattern.svg", "ClothSimulation.svg", "ClothSewing.svg")
+    missing_icons = [name for name in required_icons if not (_ICON_DIR / name).is_file()]
+    if missing_icons:
+        raise RuntimeError("Cloth workbench icons are missing: %s" % ", ".join(missing_icons))
     Gui.addIconPath(str(_ICON_DIR))
     Gui.addWorkbench(ClothPatternWorkbench())
     Gui.addWorkbench(ClothSimulationWorkbench())
