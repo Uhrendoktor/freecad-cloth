@@ -7,6 +7,29 @@ def test_sewing_network_gui_contract_is_headless_importable():
     assert hasattr(SewingNetworkGui, "SewingNetworkTaskPanel")
     assert hasattr(SewingNetworkGui, "show_sewing_network_task")
 
+def test_network_task_panel_uses_transactional_editor_contract():
+    from SewingNetworkGui import SewingNetworkTaskPanel
+    assert SewingNetworkTaskPanel._TRANSACTION_NAME == "Edit Sewing Network"
+    assert hasattr(SewingNetworkTaskPanel, "_begin_transaction")
+    assert hasattr(SewingNetworkTaskPanel, "_commit_transaction")
+    assert hasattr(SewingNetworkTaskPanel, "_abort_transaction")
+    assert hasattr(SewingNetworkTaskPanel, "_restore_original")
+
+def test_network_task_panel_restores_all_persisted_member_settings():
+    from SewingNetworkGui import SewingNetworkTaskPanel
+    class Seam:
+        def __init__(self):
+            self.StartA = 0.2; self.EndA = 0.8; self.StartB = 0.1; self.EndB = 0.9
+            self.Alignment = "uniform"; self.ReversedB = True
+    seam = Seam()
+    panel = SewingNetworkTaskPanel.__new__(SewingNetworkTaskPanel)
+    panel._seams = (seam,)
+    panel._original = {"ranges": ((0.0, 1.0, 0.0, 1.0),), "alignment": ("endpoints",), "reversed_b": (False,)}
+    panel._restore_original()
+    assert (seam.StartA, seam.EndA, seam.StartB, seam.EndB) == (0.0, 1.0, 0.0, 1.0)
+    assert seam.Alignment == "endpoints"
+    assert seam.ReversedB is False
+
 def test_sewing_network_commands_expose_free_sewing_and_editor():
     import SewingNetworkCommands
     assert "ClothSewing_FreeSewing" in SewingNetworkCommands.COMMANDS
@@ -58,4 +81,4 @@ def test_curved_correspondence_rejects_invalid_range():
     assert report.status=="invalid_range" and not report.valid
 
 if __name__ == "__main__":
-    test_sewing_network_gui_contract_is_headless_importable(); test_sewing_network_commands_expose_free_sewing_and_editor(); test_valid_network_has_no_reference_errors(); test_invalid_reference_is_reported_with_seam_identity(); test_missing_reference_is_reported_without_silent_edit(); test_curved_correspondence_reports_reversal_and_mismatch(); test_curved_correspondence_rejects_invalid_range(); print("sewing network GUI contract tests passed")
+    test_sewing_network_gui_contract_is_headless_importable(); test_network_task_panel_uses_transactional_editor_contract(); test_network_task_panel_restores_all_persisted_member_settings(); test_sewing_network_commands_expose_free_sewing_and_editor(); test_valid_network_has_no_reference_errors(); test_invalid_reference_is_reported_with_seam_identity(); test_missing_reference_is_reported_without_silent_edit(); test_curved_correspondence_reports_reversal_and_mismatch(); test_curved_correspondence_rejects_invalid_range(); print("sewing network GUI contract tests passed")
