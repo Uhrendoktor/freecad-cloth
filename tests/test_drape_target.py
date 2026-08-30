@@ -1,6 +1,6 @@
 """Regression tests for the target-neutral draping contract."""
 
-import pytest
+import unittest
 
 from DrapeTarget import DrapeTargetSpec, source_signature
 
@@ -40,37 +40,41 @@ class _Target:
     Shape = _Shape(1)
 
 
-def test_target_spec_accepts_mannequin_and_geometry():
-    DrapeTargetSpec("Mannequin", "HumanoidAvatar", 1.0, 2.0).validate()
-    DrapeTargetSpec("FreeCAD Geometry", "Chair", 0.5, 1.5).validate()
+class DrapeTargetTests(unittest.TestCase):
+    def test_target_spec_accepts_mannequin_and_geometry(self):
+        DrapeTargetSpec("Mannequin", "HumanoidAvatar", 1.0, 2.0).validate()
+        DrapeTargetSpec("FreeCAD Geometry", "Chair", 0.5, 1.5).validate()
+
+    def test_target_spec_rejects_invalid_settings(self):
+        invalid = [
+            DrapeTargetSpec("Unknown", "Chair"),
+            DrapeTargetSpec("FreeCAD Geometry", "", 1.0, 0.0),
+            DrapeTargetSpec("FreeCAD Geometry", "Chair", 0.0, 0.0),
+            DrapeTargetSpec("FreeCAD Geometry", "Chair", 1.0, -1.0),
+        ]
+        for spec in invalid:
+            with self.subTest(spec=spec):
+                with self.assertRaises(ValueError):
+                    spec.validate()
+
+    def test_source_signature_changes_for_geometry_placement_and_collision_settings(self):
+        target = _Target()
+        baseline = source_signature(target, 1.0, 2.0)
+
+        target.Shape.value = 2
+        self.assertNotEqual(source_signature(target, 1.0, 2.0), baseline)
+
+        target.Placement = _Placement(x=10.0, y=-5.0, angle=15.0)
+        self.assertNotEqual(source_signature(target, 1.0, 2.0), baseline)
+
+        moved = source_signature(target, 1.0, 2.0)
+        self.assertNotEqual(source_signature(target, 0.5, 2.0), moved)
+        self.assertNotEqual(source_signature(target, 0.5, 4.0), source_signature(target, 0.5, 2.0))
+
+    def test_source_signature_is_stable_for_unchanged_target(self):
+        target = _Target()
+        self.assertEqual(source_signature(target, 1.0, 2.0), source_signature(target, 1.0, 2.0))
 
 
-def test_target_spec_rejects_invalid_settings():
-    with pytest.raises(ValueError):
-        DrapeTargetSpec("Unknown", "Chair").validate()
-    with pytest.raises(ValueError):
-        DrapeTargetSpec("FreeCAD Geometry", "", 1.0, 0.0).validate()
-    with pytest.raises(ValueError):
-        DrapeTargetSpec("FreeCAD Geometry", "Chair", 0.0, 0.0).validate()
-    with pytest.raises(ValueError):
-        DrapeTargetSpec("FreeCAD Geometry", "Chair", 1.0, -1.0).validate()
-
-
-def test_source_signature_changes_for_geometry_placement_and_collision_settings():
-    target = _Target()
-    baseline = source_signature(target, 1.0, 2.0)
-
-    target.Shape.value = 2
-    assert source_signature(target, 1.0, 2.0) != baseline
-
-    target.Placement = _Placement(x=10.0, y=-5.0, angle=15.0)
-    assert source_signature(target, 1.0, 2.0) != baseline
-
-    moved = source_signature(target, 1.0, 2.0)
-    assert source_signature(target, 0.5, 2.0) != moved
-    assert source_signature(target, 0.5, 4.0) != source_signature(target, 0.5, 2.0)
-
-
-def test_source_signature_is_stable_for_unchanged_target():
-    target = _Target()
-    assert source_signature(target, 1.0, 2.0) == source_signature(target, 1.0, 2.0)
+if __name__ == "__main__":
+    unittest.main()
