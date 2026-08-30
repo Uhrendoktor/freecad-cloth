@@ -1,4 +1,4 @@
-"""Native FreeCAD task panel for simulation quality and fabric controls."""
+"""Native FreeCAD task panel for simulation quality, fabric and target controls."""
 
 def _qt():
     import FreeCAD as App
@@ -34,6 +34,10 @@ class SimulationQualityTaskPanel:
         collision = QtWidgets.QGroupBox("Collision"); cform = QtWidgets.QFormLayout(collision)
         self.skin_offset = self._double(0.0, 100.0, 0.0, 2); self.collision_radius = self._double(0.0, 10000.0, 38.0, 2)
         cform.addRow("Avatar skin offset (mm)", self.skin_offset); cform.addRow("Fallback sphere radius (mm)", self.collision_radius); root.addWidget(collision)
+        target = QtWidgets.QGroupBox("Drape target"); tform = QtWidgets.QVBoxLayout(target)
+        self.target_status = QtWidgets.QLabel(); self.target_status.setWordWrap(True)
+        self.refresh_target_button = QtWidgets.QPushButton("Refresh Drape Target")
+        tform.addWidget(self.target_status); tform.addWidget(self.refresh_target_button); root.addWidget(target)
         solver = QtWidgets.QGroupBox("Run"); sform = QtWidgets.QFormLayout(solver)
         self.steps = self._spin(0, 1000000, 0); sform.addRow("Simulation steps", self.steps); root.addWidget(solver)
         buttons = QtWidgets.QHBoxLayout(); self.step_button = QtWidgets.QPushButton("Step"); self.run_button = QtWidgets.QPushButton("Run 30"); self.reset_button = QtWidgets.QPushButton("Reset")
@@ -41,7 +45,7 @@ class SimulationQualityTaskPanel:
         self.status = QtWidgets.QLabel(); self.status.setWordWrap(True); root.addWidget(self.status); root.addStretch(1)
         self.quality.currentTextChanged.connect(self._preset_changed)
         for widget in (self.particle_distance, self.iterations, self.substeps, self.density, self.thickness, self.stretch, self.shear, self.bend, self.friction, self.skin_offset, self.collision_radius): widget.valueChanged.connect(self._parameters_changed)
-        self.step_button.clicked.connect(lambda: self.step(1)); self.run_button.clicked.connect(lambda: self.step(30)); self.reset_button.clicked.connect(self.reset)
+        self.step_button.clicked.connect(lambda: self.step(1)); self.run_button.clicked.connect(lambda: self.step(30)); self.reset_button.clicked.connect(self.reset); self.refresh_target_button.clicked.connect(self.refresh_target)
         self._load()
 
     @staticmethod
@@ -60,7 +64,7 @@ class SimulationQualityTaskPanel:
 
     def _load(self):
         if self.scene is None:
-            self.status.setText("Create or select a Cloth Simulation object."); return
+            self.status.setText("Create or select a Cloth Simulation object."); self._refresh_target_state(); return
         from SimulationQualityRuntimeV2 import ensure_quality_properties
         ensure_quality_properties(self.scene)
         widgets = [self.quality, self.particle_distance, self.iterations, self.substeps, self.density, self.thickness, self.stretch, self.shear, self.bend, self.friction, self.skin_offset, self.collision_radius, self.steps]
@@ -86,8 +90,23 @@ class SimulationQualityTaskPanel:
         self.scene.ParticleDistance = self.particle_distance.value(); self.scene.SolverIterations = self.iterations.value(); self.scene.SolverSubsteps = self.substeps.value(); self.scene.FabricDensity = self.density.value(); self.scene.FabricThickness = self.thickness.value(); self.scene.FabricStretch = self.stretch.value(); self.scene.FabricShear = self.shear.value(); self.scene.FabricBend = self.bend.value(); self.scene.FabricFriction = self.friction.value(); self.scene.AvatarSkinOffset = self.skin_offset.value(); self.scene.CollisionRadius = self.collision_radius.value(); self.scene.Document.recompute(); self._refresh()
 
     def step(self, count):
-        scene = self._ensure_scene(); self._parameters_changed(); scene.Steps = int(scene.Steps) + int(count); scene.Document.recompute(); self.steps.setValue(int(scene.Steps)); self._refresh()
+        scene = self._ensure_scene(); self._parameters_changed()
+        from DrapeTarget import target_status
+        info = target_status(getattr(scene, "DrapeTarget", None))
+        if info["lifecycle_state"] != "READY_FOR_SIMULATION":
+            self._refresh("Simulation blocked: %s" % info["message"]); return False
+        scene.Steps = int(scene.Steps) + int(count); scene.Document.recompute(); self.steps.setValue(int(scene.Steps)); self._refresh()
         if self.Gui.activeDocument(): self.Gui.activeDocument().activeView().fitAll()
+        return True
+
+    def refresh_target(self):
+        if self.scene is None: return False
+        try:
+            from DrapeTarget import refresh_drape_target
+            refresh_drape_target(getattr(self.scene, "DrapeTarget", None)); self.scene.Document.recompute()
+        except (AttributeError, TypeError, ValueError) as exc:
+            self._refresh("Drape target refresh failed: %s" % exc); return False
+        self._refresh("Drape target refreshed."); return True
 
     def reset(self):
         if self.scene is not None:
@@ -95,7 +114,21 @@ class SimulationQualityTaskPanel:
             reset_scene(self.scene)
         self.steps.setValue(0); self._refresh("Simulation reset; quality and fabric values retained.")
 
+    def _refresh_target_state(self):
+        if self.scene is None:
+            self.target_status.setText("Target: unavailable"); self.step_button.setEnabled(False); self.run_button.setEnabled(False); self.refresh_target_button.setEnabled(False); return
+        try:
+            from DrapeTarget import target_status
+            info = target_status(getattr(self.scene, "DrapeTarget", None))
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            info = {"state": "invalid", "message": str(exc), "stale": True}
+        self.target_status.setText("Target: %s — %s" % (info["state"], info["message"]))
+        ready = info.get("lifecycle_state") == "READY_FOR_SIMULATION"
+        self.step_button.setEnabled(ready); self.run_button.setEnabled(ready)
+        self.refresh_target_button.setEnabled(info.get("state") in ("stale", "unbuilt", "ready"))
+
     def _refresh(self, message=None):
+        self._refresh_target_state()
         if self.scene is None: self.status.setText(message or "Create or select a Cloth Simulation object."); return
         self.status.setText(message or "State: %s | %.3f s | %d particles | %d steps | %s" % ("ready" if bool(getattr(self.scene, "FiniteState", True)) else "invalid/non-finite", float(getattr(self.scene, "SimulatedTime", 0.0)), int(getattr(self.scene, "ParticleCount", 0)), int(getattr(self.scene, "Steps", 0)), str(getattr(self.scene, "QualityPreset", "Balanced"))))
 
