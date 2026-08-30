@@ -121,3 +121,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# Keep this acceptance helper independently runnable from the canonical FreeCAD smoke lane.
