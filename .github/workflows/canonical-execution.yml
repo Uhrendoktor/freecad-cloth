@@ -5,129 +5,192 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      gui_screenshots:
+        description: Generate the expensive FreeCAD GUI screenshots
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    - cron: '17 * * * *'
 
 concurrency:
-  group: canonical-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHONPATH: .
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
-  ci:
-    if: ${{ github.event_name != 'pull_request' || github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'workflow_dispatch' }}
-    runs-on: [self-hosted, linux, x64, docker]
+  test:
+    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed') || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
-      packages: write
+    strategy:
+      matrix:
+        python: ['3.10', '3.11', '3.12']
     steps:
       - uses: actions/checkout@v4
-      - name: Ensure pinned FreeCAD CI image is available
-        id: freecad-image
-        env:
-          IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.3-r1
-          GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Core and geometry tests
         run: |
           set -euo pipefail
-          echo "[image] runner=$(hostname) docker=$(docker version --format '{{.Server.Version}}')"
-          if docker image inspect "$IMAGE" >/dev/null 2>&1; then
-            echo "[image] using runner-local image: $IMAGE"
-            docker image inspect "$IMAGE" --format='[image] id={{.Id}} created={{.Created}} size={{.Size}}'
-            echo "source=local" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "[image] image not cached; pulling from GHCR (120s timeout)"
-          echo "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USER" --password-stdin >/dev/null
-          if timeout 120s docker pull "$IMAGE"; then
-            docker image inspect "$IMAGE" --format='[image] pulled id={{.Id}} created={{.Created}} size={{.Size}}'
-            echo "source=ghcr" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "[image] GHCR pull failed; building pinned image"
-          docker build --progress=plain --tag "$IMAGE" docker/freecad-ci
-          echo "source=build" >> "$GITHUB_OUTPUT"
-      - name: Publish bootstrapped FreeCAD CI image
-        if: ${{ steps.freecad-image.outputs.source == 'build' && github.event_name != 'pull_request' }}
-        env:
-          IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.3-r1
-        run: docker push "$IMAGE"
-      - name: Run Python tests, FreeCAD smoke, and GUI screenshots
-        env:
-          IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.3-r1
+          for test in \
+            tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py \
+            tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py \
+            tests/test_simulation_scene.py tests/test_collisions.py tests/test_freecad_objects.py \
+            tests/test_gui_structure.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py \
+            tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_avatar_fitting.py \
+            tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py \
+            tests/test_pattern_export_semantics.py tests/test_sketch_authority.py \
+            tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py; do
+            echo "[python] START $test"
+            python "$test"
+            echo "[python] PASS  $test"
+          done
+      - name: Reference drape benchmark
+        run: python tests/benchmark_drape.py
+      - name: Upload reference drape benchmark
+        uses: actions/upload-artifact@v4
+        with:
+          name: drape-benchmark-${{ matrix.python }}
+          path: artifacts/drape-benchmark.json
+          if-no-files-found: error
+      - name: Python syntax check
+        run: python -m compileall -q .
+      - name: Package structure validation
+        run: |
+          set -euo pipefail
+          for path in package.xml Init.py InitGui.py PatternGui.py SimulationGui.py SewingGui.py SewingNetworkGui.py SewingObjects.py; do
+            test -f "$path"
+            echo "[package] PASS $path"
+          done
+
+  freecad-smoke:
+    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed') || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run real FreeCAD runtime in Debian trixie
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/freecad-smoke
+          docker run --rm -v "$PWD:/workspace" -w /workspace debian:trixie-slim bash -euxo pipefail -c '
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -qq
+            apt-get install -y -qq freecad
+            freecadcmd --version
+
+            run_freecad() {
+              script="$1"
+              log="artifacts/freecad-smoke/$(basename "$script").log"
+              echo "[freecad] START $script"
+              set +e
+              freecadcmd "$script" 2>&1 | tee "$log"
+              status=${PIPESTATUS[0]}
+              set -e
+              if grep -Eq "Exception while processing file|Traceback \(most recent call last\)" "$log"; then
+                echo "::error::FreeCAD reported a Python/script exception while running $script"
+                echo "[freecad] FAIL $script: exception text detected even though FreeCAD returned $status"
+                status=1
+              fi
+              if [ "$status" -ne 0 ]; then
+                echo "[freecad] FAIL $script exit=$status"
+                tail -n 80 "$log" || true
+                return "$status"
+              fi
+              echo "[freecad] PASS $script"
+            }
+
+            run_freecad tests/freecad_smoke.py
+            run_freecad tests/freecad_meshpart_smoke.py
+            run_freecad tests/freecad_sewing_smoke.py
+          '
+      - name: Upload FreeCAD smoke diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: freecad-smoke-diagnostics
+          path: artifacts/freecad-smoke/*.log
+          if-no-files-found: ignore
+
+  gui-screenshots:
+    if: ${{ (github.event_name == 'pull_request' && github.event.action != 'closed' && contains(github.event.pull_request.labels.*.name, 'gui-screenshot')) || (github.event_name == 'workflow_dispatch' && inputs.gui_screenshots == true) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: gui-screenshots-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate FreeCAD GUI screenshots under Xvfb
         run: |
           set -euo pipefail
           mkdir -p docs/images/generated artifacts/freecad-e2e
-          CID=""
-          cleanup() {
-            set +e
-            if [ -n "$CID" ]; then
-              docker cp "$CID:/workspace/docs/images/generated/." docs/images/generated/ 2>/dev/null || true
-              docker cp "$CID:/workspace/artifacts/freecad-e2e/." artifacts/freecad-e2e/ 2>/dev/null || true
-              docker logs "$CID" > artifacts/freecad-e2e/docker-console.log 2>&1 || true
-              docker inspect "$CID" > artifacts/freecad-e2e/docker-inspect.json 2>/dev/null || true
-              docker rm -f "$CID" >/dev/null 2>&1 || true
-            fi
-          }
-          trap cleanup EXIT
-          CID="$(docker create --entrypoint /bin/bash --shm-size=1g \
-            -e DISPLAY=:99 -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated -e CLOTH_E2E_DIR=/workspace/artifacts/freecad-e2e \
-            -e PYTHONPATH=/workspace -w /workspace "$IMAGE" -euo pipefail -c '
-              set -euo pipefail
-              export PYTHONPATH=/workspace
-              rm -f docs/images/generated/*.png docs/images/generated/gui-progress.log
+          docker run --rm --init \
+            -e DISPLAY=:99 \
+            -e QT_X11_NO_MITSHM=1 \
+            -e QT_QPA_PLATFORM=xcb \
+            -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
+            -e CLOTH_E2E_DIR=/workspace/artifacts/freecad-e2e \
+            -v "$PWD:/workspace" -w /workspace \
+            debian:trixie-slim bash -euxo pipefail -c '
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update -qq
+              apt-get install -y -qq freecad xvfb openbox
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              sleep 1
-              for t in tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py tests/test_simulation_scene.py tests/test_collisions.py tests/test_freecad_objects.py tests/test_gui_structure.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_avatar_fitting.py tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py tests/test_pattern_export_semantics.py tests/test_sketch_authority.py tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py; do
-                echo "[container] $(date -Is) TEST START $t"; python3 "$t"; echo "[container] $(date -Is) TEST PASS $t"
-              done
-              python3 -m compileall -q .
-              for macro in tests/freecad_ci_smoke.FCMacro tests/freecad_ci_meshpart.FCMacro tests/freecad_ci_sewing.FCMacro; do
-                echo "[container] $(date -Is) FREECAD START $macro"
-                timeout --signal=TERM --kill-after=5s 60s /opt/freecad/AppRun "$macro"
-                echo "[container] $(date -Is) FREECAD PASS $macro"
-              done
-              timeout --signal=TERM --kill-after=5s 120s /opt/freecad/AppRun tests/freecad_ci_screenshot.FCMacro
+              sleep 2
+              rm -f docs/images/generated/cloth-pattern-design.png docs/images/generated/cloth-sewing.png docs/images/generated/cloth-simulation.png docs/images/generated/gui-progress.log
+              echo "[gui] START FreeCAD screenshot macro"
+              set +e
+              timeout --signal=TERM --kill-after=5s 120s freecad tests/freecad_ci_screenshot.FCMacro 2>&1 | tee /tmp/freecad-gui.log
+              status=${PIPESTATUS[0]}
+              set -e
+              cat /tmp/freecad-gui.log
+              cat docs/images/generated/gui-progress.log 2>/dev/null || true
+              if grep -Eq "Exception while processing file|Traceback \(most recent call last\)" /tmp/freecad-gui.log; then
+                echo "::error::FreeCAD GUI reported a Python/script exception"
+                status=1
+              fi
+              if [ "$status" -ne 0 ]; then
+                echo "[gui] FAIL screenshot macro exit=$status"
+                cat /tmp/xvfb.log || true
+                cat /tmp/openbox.log || true
+                exit "$status"
+              fi
               test -s docs/images/generated/cloth-pattern-design.png
               test -s docs/images/generated/cloth-sewing.png
               test -s docs/images/generated/cloth-simulation.png
-              echo "[container] ALL TESTS PASS"
+              echo "[gui] PASS screenshot macro"
             '
-          )"
-          docker cp "$PWD/." "$CID:/workspace/"
-          docker start "$CID" >/dev/null
-          START_TS=$(date +%s); LAST_LOG=""
-          while :; do
-            NOW=$(date +%s); ELAPSED=$((NOW-START_TS)); STATE=$(docker inspect -f '{{.State.Status}}' "$CID" 2>/dev/null || echo missing); EXIT_CODE=$(docker inspect -f '{{.State.ExitCode}}' "$CID" 2>/dev/null || echo '?')
-            echo "[host] heartbeat elapsed=${ELAPSED}s state=${STATE} exit=${EXIT_CODE}"
-            if [ "$STATE" = running ]; then
-              PROGRESS=$(docker exec "$CID" bash -lc 'tail -n 12 /workspace/docs/images/generated/gui-progress.log 2>/dev/null || true' 2>/dev/null || true)
-              if [ -n "$PROGRESS" ] && [ "$PROGRESS" != "$LAST_LOG" ]; then echo "$PROGRESS"; LAST_LOG="$PROGRESS"; fi
-              docker exec "$CID" bash -lc 'ps -eo pid,etime,pcpu,pmem,stat,cmd --sort=-pcpu | head -n 12' 2>/dev/null | sed 's/^/[host] /' || true
-              if [ "$ELAPSED" -ge 900 ]; then docker logs "$CID" || true; exit 124; fi
-              sleep 10; continue
-            fi
-            if [ "$STATE" = exited ]; then docker logs "$CID" || true; [ "$EXIT_CODE" = 0 ] || exit "$EXIT_CODE"; break; fi
-            docker inspect "$CID" || true; exit 125
-          done
+      - name: Upload GUI diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloth-gui-diagnostics
+          path: |
+            docs/images/generated/gui-progress.log
+            artifacts/freecad-e2e/workflow.log
+          if-no-files-found: ignore
       - name: Upload GUI screenshots
         uses: actions/upload-artifact@v4
         with:
           name: cloth-gui-screenshots
           path: docs/images/generated/*.png
           if-no-files-found: error
-      - name: Upload GUI diagnostics
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: cloth-gui-diagnostics
-          path: |
-            docs/images/generated/gui-progress.log
-            docs/images/generated/gui-screenshot-manifest.txt
-            artifacts/freecad-e2e/workflow.log
-            artifacts/freecad-e2e/docker-console.log
-            artifacts/freecad-e2e/docker-inspect.json
-            artifacts/freecad-e2e/freecad-import-progress.log
-            artifacts/freecad-e2e/freecad-python-error.log
-          if-no-files-found: ignore
