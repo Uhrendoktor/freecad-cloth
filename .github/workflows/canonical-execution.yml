@@ -48,7 +48,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          for tool in python3 Xvfb xvfb-run openbox curl xargs timeout sha256sum; do
+          for tool in Xvfb xvfb-run openbox curl xargs timeout sha256sum; do
             command -v "$tool" >/dev/null || {
               echo "Missing runner utility: $tool" >&2
               exit 1
@@ -58,36 +58,45 @@ jobs:
           if command -v "$FREECAD_BIN" >/dev/null 2>&1; then
             echo "Using runner-provided FreeCAD: $(command -v "$FREECAD_BIN")"
             echo "FREECAD_SOURCE=runner" >> "$GITHUB_ENV"
-            exit 0
-          fi
+          else
+            cache_root="$FREECAD_CACHE_ROOT/$FREECAD_VERSION"
+            appimage="$cache_root/FreeCAD_${FREECAD_VERSION}-Linux-x86_64-py311.AppImage"
+            appdir="$cache_root/squashfs-root"
+            mkdir -p "$cache_root"
 
-          cache_root="$FREECAD_CACHE_ROOT/$FREECAD_VERSION"
-          appimage="$cache_root/FreeCAD_${FREECAD_VERSION}-Linux-x86_64-py311.AppImage"
-          appdir="$cache_root/squashfs-root"
-          mkdir -p "$cache_root"
-
-          if [[ ! -x "$appdir/AppRun" ]]; then
-            if [[ ! -f "$appimage" ]]; then
-              echo "Downloading pinned FreeCAD $FREECAD_VERSION AppImage"
-              curl --fail --location --retry 3 --retry-delay 2 \
-                -o "$appimage" \
-                "https://github.com/FreeCAD/FreeCAD/releases/download/${FREECAD_VERSION}/FreeCAD_${FREECAD_VERSION}-Linux-x86_64-py311.AppImage"
+            if [[ ! -x "$appdir/AppRun" ]]; then
+              if [[ ! -f "$appimage" ]]; then
+                echo "Downloading pinned FreeCAD $FREECAD_VERSION AppImage"
+                curl --fail --location --retry 3 --retry-delay 2 \
+                  -o "$appimage" \
+                  "https://github.com/FreeCAD/FreeCAD/releases/download/${FREECAD_VERSION}/FreeCAD_${FREECAD_VERSION}-Linux-x86_64-py311.AppImage"
+              fi
+              echo "$FREECAD_APPIMAGE_SHA256  $appimage" | sha256sum -c -
+              rm -rf "$appdir" "$cache_root/.squashfs-root.tmp"
+              mkdir -p "$cache_root/.squashfs-root.tmp"
+              (cd "$cache_root/.squashfs-root.tmp" && "$appimage" --appimage-extract >/dev/null)
+              mv "$cache_root/.squashfs-root.tmp/squashfs-root" "$appdir"
+              rm -rf "$cache_root/.squashfs-root.tmp"
             fi
-            echo "$FREECAD_APPIMAGE_SHA256  $appimage" | sha256sum -c -
-            rm -rf "$appdir" "$cache_root/.squashfs-root.tmp"
-            mkdir -p "$cache_root/.squashfs-root.tmp"
-            (cd "$cache_root/.squashfs-root.tmp" && "$appimage" --appimage-extract >/dev/null)
-            mv "$cache_root/.squashfs-root.tmp/squashfs-root" "$appdir"
-            rm -rf "$cache_root/.squashfs-root.tmp"
+
+            echo "FREECAD_BIN=$appdir/AppRun" >> "$GITHUB_ENV"
+            echo "FREECAD_SOURCE=actions-cache" >> "$GITHUB_ENV"
           fi
 
-          echo "FREECAD_BIN=$appdir/AppRun" >> "$GITHUB_ENV"
-          echo "FREECAD_SOURCE=actions-cache" >> "$GITHUB_ENV"
+          if command -v python3 >/dev/null 2>&1; then
+            echo "PYTHON_TEST_MODE=system" >> "$GITHUB_ENV"
+          else
+            # The target runner is intentionally FreeCAD-centric and does not
+            # require a separate system Python. FreeCAD itself embeds Python,
+            # and can execute the same .py test scripts. GUI tests are run under
+            # Xvfb so FreeCADGui remains available as it was in the old image.
+            echo "PYTHON_TEST_MODE=freecad" >> "$GITHUB_ENV"
+          fi
 
       - name: Validate self-hosted runtime
         run: |
           set -euo pipefail
-          for tool in python3 Xvfb xvfb-run openbox xargs timeout; do
+          for tool in Xvfb xvfb-run openbox xargs timeout; do
             command -v "$tool" >/dev/null || exit 1
           done
           command -v "$FREECAD_BIN" >/dev/null || {
@@ -96,9 +105,17 @@ jobs:
           }
           echo "Runner: $(hostname)"
           echo "FreeCAD source: $FREECAD_SOURCE"
+          echo "Python test mode: $PYTHON_TEST_MODE"
           echo "FreeCAD: $(command -v "$FREECAD_BIN")"
           "$FREECAD_BIN" --version || true
-          python3 --version
+          if [[ "$PYTHON_TEST_MODE" == "system" ]]; then
+            python3 --version
+          else
+            "$FREECAD_BIN" --console <<'PY'
+import sys
+print("Embedded Python:", sys.version)
+PY
+          fi
 
       - name: Run Python and FreeCAD smoke tests
         run: |
@@ -106,18 +123,38 @@ jobs:
           mkdir -p docs/images/generated artifacts/freecad-e2e
           rm -f docs/images/generated/*.png docs/images/generated/gui-progress.log docs/images/generated/gui-screenshot-manifest.txt
 
-          printf '%s\n' \
-            tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py \
-            tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py \
-            tests/test_simulation_scene.py tests/test_collisions.py tests/test_freecad_objects.py \
-            tests/test_gui_structure.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py \
-            tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_avatar_fitting.py \
-            tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py \
-            tests/test_pattern_export_semantics.py tests/test_sketch_authority.py \
-            tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py \
-            | xargs -P "${CLOTH_TEST_JOBS}" -n 1 python3
+          tests=(
+            tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py
+            tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py
+            tests/test_simulation_scene.py tests/test_collisions.py tests/test_freecad_objects.py
+            tests/test_gui_structure.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py
+            tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_avatar_fitting.py
+            tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py
+            tests/test_pattern_export_semantics.py tests/test_sketch_authority.py
+            tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py
+          )
 
-          python3 -m compileall -q .
+          if [[ "$PYTHON_TEST_MODE" == "system" ]]; then
+            printf '%s\n' "${tests[@]}" | xargs -P "${CLOTH_TEST_JOBS}" -n 1 python3
+            python3 -m compileall -q .
+          else
+            # The self-hosted target does not provide python3. Use the embedded
+            # FreeCAD interpreter instead, preserving the old test semantics and
+            # keeping FreeCADGui available for GUI-layer Python checks.
+            for t in "${tests[@]}"; do
+              echo "PYTHON/FREECAD START $t"
+              timeout --signal=TERM --kill-after=5s 60s \
+                xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' \
+                bash -lc 'openbox >/tmp/freecad-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" "$1"' \
+                "$FREECAD_BIN" "$t"
+              echo "PYTHON/FREECAD PASS $t"
+            done
+            timeout --signal=TERM --kill-after=5s 60s \
+              "$FREECAD_BIN" --console <<'PY'
+import compileall, sys
+sys.exit(0 if compileall.compile_dir('.', quiet=1) else 1)
+PY
+          fi
 
           # FreeCAD GUI smoke stages retain the old serial ordering. Each
           # invocation gets an isolated Xvfb display so the self-hosted runner
