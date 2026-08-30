@@ -212,8 +212,8 @@ def repair_selected_seam():
             from SewingObjects import _edge_length
             length_a = _edge_length(pieces[str(seam.PieceA)], int(seam.EdgeA))
             length_b = _edge_length(pieces[str(seam.PieceB)], int(seam.EdgeB))
-        except Exception as exc:
-            raise ValueError("cannot determine seam lengths for repair: %s" % exc)
+        except (KeyError, ValueError, TypeError, IndexError) as exc:
+            raise ValueError("cannot determine seam lengths for repair: %s" % exc) from exc
     report = correspondence_report(seam, length_a, length_b, 0.05)
     message = repair_correspondence_settings(seam, report)
     doc.recompute()
