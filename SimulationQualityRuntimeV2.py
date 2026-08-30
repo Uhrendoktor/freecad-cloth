@@ -80,6 +80,27 @@ class QualitySimulationProxy:
     def __getattr__(self, name):
         return getattr(self._base, name)
 
+    def onChanged(self, obj, prop):
+        """Keep the simulation scene dirty when its semantic inputs change.
+
+        FreeCAD link-list edits do not always schedule a FeaturePython execute
+        when a proxy was installed after the initial object creation. Marking
+        the object touched here makes changing pattern pieces, target, quality,
+        or fabric controls reliably rebuild the drape scene on the next normal
+        document recompute.
+        """
+        if prop in {
+            "ClothPieces", "DrapeTarget", "AvatarProxy", "QualityPreset",
+            "ParticleDistance", "SolverIterations", "SolverSubsteps",
+            "FabricDensity", "FabricThickness", "FabricStretch", "FabricShear",
+            "FabricBend", "FabricFriction", "AvatarSkinOffset", "StitchSamples",
+            "StartHeight", "Steps", "TimeStep",
+        }:
+            try:
+                obj.touch()
+            except (AttributeError, RuntimeError):
+                pass
+
     @staticmethod
     def _signature(obj):
         from SimulationObjects import _simulation_source_signature
