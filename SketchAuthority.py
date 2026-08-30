@@ -25,9 +25,13 @@ def _piece_model(obj):
 def _resolve_sketch_ir(obj):
     from PatternIR import PatternIR
     from SeamGraph import SeamGraph
+    from SketcherPatternContract import ensure_semantic_edge_ids
     piece = _piece_model(obj)
     graph = SeamGraph()
     graph.add_piece(piece)
+    # Keep semantic IDs aligned with native Geometry. Appended geometry gets a
+    # fresh ID; deleted geometry is rejected rather than silently retargeted.
+    ensure_semantic_edge_ids(obj.Sketch, piece.id)
     return PatternIR.from_sketches(graph, {piece.id: obj.Sketch}, curve_samples=64).piece(piece.id)
 
 
@@ -54,7 +58,6 @@ class SketchAuthorityProxy:
         # Keep the legacy line-sampled boundary as a derived compatibility
         # representation. Native curve identity remains in PatternIR and in
         # the Sketcher object itself.
-        import ast
         obj.DraftingBoundary = repr(points)
         obj.SewingOutline = repr(points)
         obj.SewingBoundary = ",".join(boundary.id for boundary in piece_ir.boundaries)
