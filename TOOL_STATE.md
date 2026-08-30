@@ -14,7 +14,10 @@ queued_release_gates: [162, 147, 163]
 non_blocking: [148]
 workflow_changes:
   - post-merge GUI screenshot comments from the existing cloth-gui-screenshots artifact
-  - GUI visual regression now captures Pattern, Sewing, Simulation-arranged, and Simulation-draped states under Xvfb with content/state validation
+  - GUI visual regression captures Pattern, Sewing, Simulation-arranged, and Simulation-draped states under Xvfb with content/state validation
+  - GUI screenshot capture is opt-in via PR label gui-screenshot or workflow_dispatch gui_screenshots=true
+  - GUI screenshot runs use concurrency cancellation so superseded captures do not consume a full runner
+  - normal push/PR validation no longer starts the GUI screenshot job
 
 policy:
   - one canonical workflow only
