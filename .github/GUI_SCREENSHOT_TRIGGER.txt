@@ -1,0 +1,1 @@
+Temporary trigger marker: GUI screenshots are enabled by default in canonical-execution.yml for verification. Remove this file after the screenshot capability has been verified.
