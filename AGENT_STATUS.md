@@ -43,3 +43,9 @@ The invariant is strict: target edit -> STALE with reason; recompute remains saf
 - Do not merge stale/non-mergeable branches; re-cut from current main and preserve proposals.
 - Public FreeCAD commands/task panels/document objects are the acceptance surface.
 - A milestone is not complete until canonical CI is green and merged-main verification is green.
+
+## Subagent slice
+
+- **Issue:** #267 — Sewing task-panel UX consistency slice.
+- **Branch:** `agent/sewing-ux-actions-20260830`.
+- **Scope:** improve Sewing task-panel action hierarchy/terminology without touching DrapeTarget, Simulation, or the supervisor branch.
