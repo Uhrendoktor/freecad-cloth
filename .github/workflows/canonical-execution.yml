@@ -93,11 +93,15 @@ jobs:
           IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
-          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
-            -v "$PWD:/workspace" -e PYTHONPATH=/workspace -w /workspace \
+          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g \
+            --entrypoint /bin/bash -e PYTHONPATH=/workspace -w /workspace \
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e PIXELFLUX_WAYLAND=false -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
-            --entrypoint /bin/bash "$IMAGE" -euo pipefail -c 'python3 "${{ matrix.test }}"'
+            "$IMAGE" -euo pipefail -c 'python3 "${{ matrix.test }}"')"
+          cleanup() { docker rm -f "$CID" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          docker cp "$PWD/." "$CID:/workspace/"
+          docker start -a "$CID"
 
   freecad-smoke:
     name: FreeCAD ${{ matrix.test }}
@@ -186,8 +190,6 @@ jobs:
           )"
           docker cp "$PWD/." "$CID:/workspace/"
           echo "Starting FreeCAD smoke container"
-          # Exit 124 was caused by the old outer GNU timeout, not by FreeCAD.
-          # Each smoke test now gets its own job-level 15 minute watchdog.
           docker start -a "$CID"
       - name: Upload FreeCAD smoke diagnostics
         if: always()
@@ -254,19 +256,22 @@ jobs:
           IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
-          mkdir -p docs/images/generated
-          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
-            -v "$PWD:/workspace" -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g \
+            --entrypoint /bin/bash -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PIXELFLUX_WAYLAND=false -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated -e PYTHONPATH=/workspace -w /workspace \
-            --entrypoint /bin/bash "$IMAGE" -euo pipefail -c '
+            "$IMAGE" -euo pipefail -c '
               mkdir -p "$XDG_RUNTIME_DIR"
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               sleep 1
               timeout --signal=TERM --kill-after=5s 120s /opt/freecad/AppRun tests/freecad_screenshot.py
-            '
+            ')"
+          cleanup() { docker rm -f "$CID" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          docker cp "$PWD/." "$CID:/workspace/"
+          docker start -a "$CID"
       - name: Upload GUI screenshots
         if: always()
         uses: actions/upload-artifact@v4
