@@ -28,6 +28,7 @@ Current supervisor implementation branch: `agent/fix-python312-sewingcommands-20
 | Workstream | Issue | Status |
 |---|---:|---|
 | Python 3.12 canonical CI regression | #293/#294 | **in progress — headless SewingCommands import contract** |
+| Sewing repair diagnostics | #301 | **claimed — dedicated branch `agent/sewing-repair-diagnostics-20260830`; focused implementation + regression tests** |
 | DrapeTarget authority | #276 | queued behind CI recovery |
 | Canonical garment E2E | #278 | queued after target authority |
 | Curved sewing repair acceptance | #275 | merged implementation; canonical verification pending |
