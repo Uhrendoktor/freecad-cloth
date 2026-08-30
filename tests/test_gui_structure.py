@@ -56,8 +56,28 @@ def test_sewing_command_groups_are_unique_and_complete():
         "ClothSewing_ReverseSeam",
         "ClothSewing_ToggleAlignment",
         "ClothSewing_Validate",
+        "ClothSewing_RepairSeam",
         "ClothSewing_Show2D",
     }
+
+
+def test_sewing_command_group_validator_rejects_missing_or_duplicate_commands():
+    expected = ["one", "two", "three"]
+    from InitGui import _validate_sewing_command_groups
+
+    _validate_sewing_command_groups((("A", ("one",)), ("B", ("two", "three"))), expected)
+    try:
+        _validate_sewing_command_groups((("A", ("one",)), ("B", ("two",))), expected)
+    except ValueError as exc:
+        assert "missing: three" in str(exc)
+    else:
+        raise AssertionError("missing command group entry was not rejected")
+    try:
+        _validate_sewing_command_groups((("A", ("one", "two")), ("B", ("two", "three"))), expected)
+    except ValueError as exc:
+        assert "duplicates" in str(exc)
+    else:
+        raise AssertionError("duplicate command group entry was not rejected")
 
 
 def test_workbench_group_registration_is_idempotent_and_keeps_flat_context_commands():
@@ -80,5 +100,14 @@ def test_workbench_group_registration_is_idempotent_and_keeps_flat_context_comma
     assert calls[1][1] == ["Cloth Sewing", "Sewing Creation"]
     assert calls[2][1] == ["Cloth Sewing", "Sewing Editing"]
     assert calls[3][1] == ["Cloth Sewing", "Validation & View"]
+
+
+def test_workbench_icons_are_present_and_valid_svg_resources():
+    for name in ("ClothPattern.svg", "ClothSimulation.svg", "ClothSewing.svg"):
+        path = ROOT / "resources" / "icons" / name
+        assert path.is_file(), path
+        content = path.read_text(encoding="utf-8").lstrip()
+        assert content.startswith("<svg "), path
+        assert "xmlns=\"http://www.w3.org/2000/svg\"" in content
 
 print("GUI structure checks passed")
