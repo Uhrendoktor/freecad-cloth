@@ -28,6 +28,11 @@ The bounded DrapeTarget re-cut in #320 adds explicit `VALID/STALE/INVALID/REFRES
 
 The invariant is strict: target edit -> STALE with reason; recompute remains safe; no stale collision surface is consumed; Step/Run are blocked; Refresh rebuilds collision state; Reset remains available.
 
+## Agent slice
+
+- **#297 Pattern semantic-edge topology repair:** claimed by `Uhrendoktor` on `agent/pattern-topology-repair-20260830`.
+- Goal: explicit UI repair/remap after intentional Sketcher topology changes; preserve unaffected semantic IDs; never ordinal-retarget silently; persist the repaired mapping and invalidate downstream state deterministically.
+
 ## Architecture gates
 
 - **Pattern:** native Sketcher geometry authority; stable semantic edge references.
