@@ -28,6 +28,14 @@ The bounded DrapeTarget re-cut in #320 adds explicit `VALID/STALE/INVALID/REFRES
 
 The invariant is strict: target edit -> STALE with reason; recompute remains safe; no stale collision surface is consumed; Step/Run are blocked; Refresh rebuilds collision state; Reset remains available.
 
+## Active supervised subagent
+
+- **#322 — stale DrapeTarget must not crash document recompute:** claimed 2026-08-30 by `Uhrendoktor`.
+- Branch: `agent/drapetarget-stale-recompute-current-20260830` (re-cut from current `main`).
+- Implementation: DrapeTarget installs a guarded SimulationProxy preflight when a persistent target is created/assigned/refreshed; stale targets update persistent status/reason, clear collision state, mark simulation non-finite, and return without consuming stale geometry.
+- Regression test added for stale placement edit and safe `SimulationProxy.execute()` behavior.
+- Canonical workflow was not modified.
+
 ## Architecture gates
 
 - **Pattern:** native Sketcher geometry authority; stable semantic edge references.

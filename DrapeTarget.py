@@ -94,12 +94,48 @@ def target_status(target):
     return {"state": "ready", "message": "Drape target collision surface is current", "stale": False, "reason": ""}
 
 
+def _install_simulation_guard():
+    """Make stale-target document recomputes safe without consuming stale data.
+
+    The persistent DrapeTarget remains authoritative; this guard only prevents
+    the existing SimulationProxy from turning a stale document state into a
+    recompute exception. Refresh/reassignment removes the stale condition.
+    """
+    try:
+        from SimulationObjects import SimulationProxy
+    except ImportError:
+        return
+    if getattr(SimulationProxy, "_drape_target_guard_installed", False):
+        return
+    original_execute = SimulationProxy.execute
+
+    def guarded_execute(self, obj):
+        target = getattr(obj, "DrapeTarget", None)
+        if target is not None:
+            status = target_status(target)
+            if status["stale"]:
+                try:
+                    target.TargetStatus = status["state"]
+                    target.InvalidationReason = status["reason"]
+                except (AttributeError, TypeError):
+                    pass
+                self.collision_surface = None
+                obj.FiniteState = False
+                return
+        return original_execute(self, obj)
+
+    SimulationProxy.execute = guarded_execute
+    SimulationProxy._drape_target_guard_installed = True
+
+
 def refresh_drape_target(target):
     """Rebuild the persistent collision metadata from the current source."""
     source = getattr(target, "SourceObject", None)
     if source is None:
         raise ValueError("drape target source is required")
-    return assign_drape_target(target, source, getattr(target, "TargetType", "FreeCAD Geometry"))
+    result = assign_drape_target(target, source, getattr(target, "TargetType", "FreeCAD Geometry"))
+    _install_simulation_guard()
+    return result
 
 
 def create_drape_target(doc, source=None, target_type="FreeCAD Geometry", deflection=1.0, thickness=0.0):
@@ -121,17 +157,19 @@ def create_drape_target(doc, source=None, target_type="FreeCAD Geometry", deflec
     target.TargetType=target_type; target.CollisionDeflection=float(deflection); target.CollisionThickness=float(thickness); target.Enabled=True; target.CollisionVertexCount=0; target.CollisionTriangleCount=0
     target.TargetStatus="unassigned"; target.InvalidationReason="collision cache missing"
     if source is not None: assign_drape_target(target, source, target_type)
+    _install_simulation_guard()
     return target
 
 
 def assign_drape_target(target, source, target_type: Optional[str]=None):
     if source is None: raise ValueError("drape target source is required")
     kind=str(target_type or getattr(target,"TargetType","FreeCAD Geometry"))
-    if kind not in DrapeTargetSpec.VALID_TYPES: raise ValueError("unsupported drape target type")
+    if kind not in DrapeTargetSpec.VALID_TYPES: raise ValueError("unsupported target type")
     deflection=float(getattr(target,"CollisionDeflection",1.0)); thickness=float(getattr(target,"CollisionThickness",0.0))
     surface=collision_surface(source,deflection,thickness)
     target.TargetType=kind; target.SourceObject=source; target.SourceSignature=repr(source_signature(source,deflection,thickness))
     target.CollisionVertexCount=len(surface.vertices); target.CollisionTriangleCount=len(surface.triangles)
     status=target_status(target)
     target.TargetStatus=status["state"]; target.InvalidationReason=status["reason"]
+    _install_simulation_guard()
     return target
