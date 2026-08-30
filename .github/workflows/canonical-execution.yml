@@ -9,7 +9,7 @@ on:
       gui_screenshots:
         description: Generate the expensive FreeCAD GUI screenshots
         required: false
-        default: false
+        default: true
         type: boolean
   schedule:
     - cron: '17 * * * *'
@@ -105,10 +105,7 @@ jobs:
           '
 
   gui-screenshots:
-    # GUI capture is intentionally opt-in: normal pushes/PRs do not spend a
-    # full FreeCAD+Xvfb runner. Add the gui-screenshot label to a PR, or use
-    # workflow_dispatch with gui_screenshots=true, when visual evidence is needed.
-    if: ${{ (github.event_name == 'pull_request' && github.event.action != 'closed' && contains(github.event.pull_request.labels.*.name, 'gui-screenshot')) || (github.event_name == 'workflow_dispatch' && inputs.gui_screenshots == true) }}
+    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed' && contains(github.event.pull_request.labels.*.name, 'gui-screenshot')) || (github.event_name == 'workflow_dispatch' && inputs.gui_screenshots == true) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -267,6 +264,5 @@ jobs:
               if not head or head in seen or head==default_branch or head in open_heads or not closed_at: continue
               seen.add(head)
               if datetime.fromisoformat(closed_at.replace('Z','+00:00'))<cutoff:
-                  ref=f'repos/{repo}/git/ref/heads/{head}'
-                  if subprocess.run(['gh','api',ref],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0: subprocess.run(['gh','api','--method','DELETE',f'repos/{repo}/git/refs/heads/{head}'],check=True)
+                  subprocess.run(['gh','api','--method','DELETE',f'repos/{repo}/git/refs/heads/{head}'],check=False)
           PY
