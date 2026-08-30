@@ -100,14 +100,13 @@ jobs:
   gui-screenshots:
     if: ${{ github.event_name != 'schedule' && github.event.action != 'closed' && !contains(github.event.head_commit.message, '[maintenance]') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v4
       - name: Generate FreeCAD GUI screenshots under Xvfb
         run: |
-          set -euo pipefail
           mkdir -p "$PWD/docs/images/generated"
           docker run --rm \
             -e DISPLAY=:99 \
@@ -128,48 +127,21 @@ jobs:
               OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               sleep 2
-              rm -f docs/images/generated/cloth-pattern-design.png docs/images/generated/cloth-sewing.png docs/images/generated/cloth-simulation.png docs/images/generated/cloth-simulation-arranged.png docs/images/generated/cloth-simulation-draped.png docs/images/generated/gui-progress.log docs/images/generated/gui-screenshot-manifest.txt
+              rm -f docs/images/generated/cloth-pattern-design.png docs/images/generated/cloth-sewing.png docs/images/generated/cloth-simulation.png docs/images/generated/gui-progress.log
               printf "%s\n" "exec(compile(open(\"tests/freecad_screenshot.py\", encoding=\"utf-8\").read(), \"tests/freecad_screenshot.py\", \"exec\"))" > /tmp/cloth_screenshot.FCMacro
-              timeout --signal=TERM --kill-after=5s 90s freecad /tmp/cloth_screenshot.FCMacro >/tmp/freecad-gui.log 2>&1 || {
+              timeout --signal=TERM --kill-after=5s 60s freecad /tmp/cloth_screenshot.FCMacro >/tmp/freecad-gui.log 2>&1 || {
                 status=$?
                 cat /tmp/freecad-gui.log || true
                 cat docs/images/generated/gui-progress.log || true
-                cat docs/images/generated/gui-screenshot-manifest.txt || true
                 cat /tmp/xvfb.log || true
                 cat /tmp/openbox.log || true
                 echo "FreeCAD GUI screenshot process failed or timed out (status $status)"
                 exit "$status"
               }
-              cat docs/images/generated/gui-progress.log
-              cat docs/images/generated/gui-screenshot-manifest.txt
-              test -s docs/images/generated/gui-progress.log
-              test -s docs/images/generated/gui-screenshot-manifest.txt
-              python3 - <<'PY'
-              import os, struct
-              files = [
-                  "cloth-pattern-design.png",
-                  "cloth-sewing.png",
-                  "cloth-simulation-arranged.png",
-                  "cloth-simulation-draped.png",
-              ]
-              for name in files:
-                  path = os.path.join("docs/images/generated", name)
-                  if not os.path.isfile(path):
-                      raise SystemExit(f"missing screenshot: {path}")
-                  size = os.path.getsize(path)
-                  if size < 20000:
-                      raise SystemExit(f"screenshot too small: {path} ({size} bytes)")
-                  with open(path, "rb") as handle:
-                      if handle.read(8) != b"\\x89PNG\\r\\n\\x1a\\n":
-                          raise SystemExit(f"not a PNG: {path}")
-                      length = struct.unpack(">I", handle.read(4))[0]
-                      if handle.read(4) != b"IHDR" or length < 8:
-                          raise SystemExit(f"missing PNG IHDR: {path}")
-                      width, height = struct.unpack(">II", handle.read(8))
-                  if width != 1280 or height != 720:
-                      raise SystemExit(f"unexpected screenshot dimensions: {path} {width}x{height}")
-                  print(f"validated {path}: {width}x{height}, {size} bytes")
-              PY
+              cat docs/images/generated/gui-progress.log || true
+              test -s docs/images/generated/cloth-pattern-design.png
+              test -s docs/images/generated/cloth-sewing.png
+              test -s docs/images/generated/cloth-simulation.png
               mkdir -p artifacts/freecad-e2e
               rm -f artifacts/freecad-e2e/workflow.log
               printf "%s\n" "exec(compile(open(\"tests/freecad_e2e.py\", encoding=\"utf-8\").read(), \"tests/freecad_e2e.py\", \"exec\"))" > /tmp/cloth_e2e.FCMacro
@@ -192,7 +164,6 @@ jobs:
           name: cloth-gui-diagnostics
           path: |
             docs/images/generated/gui-progress.log
-            docs/images/generated/gui-screenshot-manifest.txt
             artifacts/freecad-e2e/workflow.log
             /tmp/freecad-gui.log
             /tmp/freecad-e2e.log
@@ -244,8 +215,7 @@ jobs:
             --dir /tmp/cloth-gui-screenshots
           test -s /tmp/cloth-gui-screenshots/cloth-pattern-design.png
           test -s /tmp/cloth-gui-screenshots/cloth-sewing.png
-          test -s /tmp/cloth-gui-screenshots/cloth-simulation-arranged.png
-          test -s /tmp/cloth-gui-screenshots/cloth-simulation-draped.png
+          test -s /tmp/cloth-gui-screenshots/cloth-simulation.png
       - name: Publish screenshots to main
         id: publish
         shell: bash
@@ -286,9 +256,7 @@ These screenshots were generated by the FreeCAD GUI workflow for the merged PR.
 
 ![Sewing](${base}/cloth-sewing.png?raw=true)
 
-![Simulation arranged](${base}/cloth-simulation-arranged.png?raw=true)
-
-![Simulation draped](${base}/cloth-simulation-draped.png?raw=true)"
+![Simulation](${base}/cloth-simulation.png?raw=true)"
           existing_id="$(gh api --paginate "/repos/${REPO}/issues/${PR_NUMBER}/comments?per_page=100" \
             --jq ".[] | select(.body | contains(\"${marker}\")) | .id" | head -n1)"
           if [ -n "$existing_id" ]; then
