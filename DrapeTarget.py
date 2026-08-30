@@ -39,11 +39,33 @@ def collision_surface(target, deflection: float = 1.0, thickness: float = 0.0) -
     return surface_from_freecad(target, float(deflection), float(thickness))
 
 
+def _geometry_signature(target):
+    """Return a compact signature for the current source geometry."""
+    shape = getattr(target, "Shape", None)
+    if shape is not None:
+        try:
+            if not shape.isNull():
+                return ("Shape", int(shape.hashCode()))
+        except (AttributeError, TypeError, ValueError):
+            pass
+    mesh = getattr(target, "Mesh", None)
+    if mesh is not None:
+        topology = getattr(mesh, "Topology", None)
+        if topology is not None:
+            try:
+                vertices, triangles = topology
+                return ("Mesh", len(vertices), len(triangles))
+            except (TypeError, ValueError):
+                pass
+    return ("Unknown",)
+
+
 def source_signature(target, deflection: float = 1.0, thickness: float = 0.0) -> Tuple:
     """Return deterministic target inputs used to invalidate derived scenes.
 
-    Placement is included when available. The actual shape/mesh conversion
-    remains lazy; callers can cheaply compare this signature before rebuilding.
+    Placement and source geometry are included, so moving or recomputing the
+    linked object changes the signature before a derived collision surface is
+    rebuilt. Tessellation and thickness are also part of the cache boundary.
     """
     placement = getattr(target, "Placement", None)
     base = getattr(placement, "Base", None) if placement is not None else None
@@ -52,6 +74,7 @@ def source_signature(target, deflection: float = 1.0, thickness: float = 0.0) ->
     return (
         str(getattr(target, "Name", "")),
         str(getattr(target, "Label", "")),
+        _geometry_signature(target),
         float(getattr(base, "x", 0.0)),
         float(getattr(base, "y", 0.0)),
         float(getattr(base, "z", 0.0)),
