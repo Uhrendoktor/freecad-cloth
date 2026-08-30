@@ -88,7 +88,8 @@ class ClothSimulationWorkbench(_ClothWorkbench):
         if self.commands:
             return
         import SimulationCommands
-        self._register(SimulationCommands.COMMANDS)
+        import DrapeCommands
+        self._register(SimulationCommands.COMMANDS + DrapeCommands.COMMANDS)
 
 
 class ClothSewingWorkbench(_ClothWorkbench):

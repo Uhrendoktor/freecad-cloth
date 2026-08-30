@@ -9,6 +9,7 @@ from PatternCommands import create_pattern_piece, create_pattern_sketch
 from PatternOCCT import native_offset_wire
 from SimulationObjects import create_simulation_scene,reset_scene,set_avatar_collision_source,step_scene
 from AvatarCommands import create_avatar, set_avatar_measurements, set_avatar_pose, set_avatar_skin_offset
+from DrapeCommands import create_drape_target_from_selection
 
 def main():
     import FreeCADGui as Gui
@@ -25,7 +26,9 @@ def main():
     assert obj.Shape.isValid() and obj.Shape.BoundBox.XLength!=old_length and abs(float(obj.Width)-140.0)<1e-9 and abs(float(obj.Height)-60.0)<1e-9
     wire=Part.makePolygon([App.Vector(0,0,0),App.Vector(100,0,0),App.Vector(100,60,0),App.Vector(0,60,0),App.Vector(0,0,0)]);offset=native_offset_wire(wire,10.0);assert offset.isValid();assert abs(offset.BoundBox.XLength-120.0)<1e-6;assert abs(offset.BoundBox.YLength-80.0)<1e-6
     scene=create_simulation_scene(doc);avatar_proxy=doc.getObject("AvatarCollision");humanoid=doc.getObject("HumanoidAvatar");assert scene.ParticleCount==80;assert scene.ClothPieces==[doc.getObject("DrapePanelA"),doc.getObject("DrapePanelB")];assert scene.AvatarProxy==avatar_proxy;assert avatar_proxy.SourceObject==humanoid;assert avatar_proxy.CollisionType=="MeshSurface";assert avatar_proxy.CollisionTriangleCount>0;assert humanoid.AvatarType=="ParametricHumanoid";assert list(scene.PinSelection)==["0","7","40","47"];assert len(scene.SeamSelection)==5;before=doc.getObject("DrapePanelA").Mesh.BoundBox.ZMin;step_scene(scene,20);assert scene.SimulatedTime>0 and scene.FiniteState;assert doc.getObject("DrapePanelA").Mesh.CountFacets>0;after=doc.getObject("DrapePanelA").Mesh.BoundBox.ZMin;assert before!=after
-    body=doc.addObject("Part::Feature","HumanoidBody");body.Label="Fixture Humanoid Body";body.Shape=Part.makeBox(80,80,160,App.Vector(-40,-40,-80));doc.recompute();avatar=set_avatar_collision_source(scene,body,thickness=2.0,deflection=2.0);assert avatar.CollisionType=="MeshSurface";assert avatar.SourceObject==body;assert avatar.CollisionVertexCount>=8 and avatar.CollisionTriangleCount>=12;reset_scene(scene);step_scene(scene,2);assert scene.FiniteState and scene.SimulatedTime>0
+    body=doc.addObject("Part::Feature","HumanoidBody");body.Label="Fixture Humanoid Body";body.Shape=Part.makeBox(80,80,160,App.Vector(-40,-40,-80));doc.recompute();avatar=set_avatar_collision_source(scene,body,thickness=2.0,deflection=2.0);assert avatar.CollisionType=="MeshSurface";assert avatar.SourceObject==body;assert avatar.CollisionVertexCount>=8 and avatar.CollisionTriangleCount>=12
+    Gui.Selection.clearSelection();Gui.Selection.addSelection(body);target=create_drape_target_from_selection(deflection=2.0,thickness=2.0);assert target.TargetType=="FreeCAD Geometry";assert target.SourceObject==body;assert target.CollisionTriangleCount>=12;assert target.SourceSignature
+    reset_scene(scene);step_scene(scene,2);assert scene.FiniteState and scene.SimulatedTime>0
     scene.PinSelection=["0","not-an-index","79"];scene.SeamSelection=["7-8","bad-pair","39-40"];reset_scene(scene);assert scene.Steps==0 and scene.SimulatedTime==0.0 and scene.FiniteState;assert scene.ClothPieces==[doc.getObject("DrapePanelA"),doc.getObject("DrapePanelB")];assert scene.AvatarProxy==doc.getObject("AvatarCollision")
     App.closeDocument(doc.Name)
 
@@ -40,6 +43,6 @@ def main():
     avatar_doc.recompute()
     with tempfile.TemporaryDirectory() as directory:
         path=str(Path(directory)/"avatar.FCStd"); avatar_doc.saveAs(path); App.closeDocument(avatar_doc.Name); reopened=App.openDocument(path); restored=reopened.getObject("ClothAvatar"); assert restored is not None and restored.AvatarStatus=="Valid"; assert restored.PosePreset=="sewing"; assert abs(float(restored.Chest)-1100.0)<1e-9; assert abs(float(restored.SkinOffset)-6.0)<1e-9; App.closeDocument(reopened.Name)
-    print("FreeCAD workbench, native Sketcher authority, OCCT adapter, placement, humanoid drape, and parametric avatar smoke test passed")
+    print("FreeCAD workbench, native Sketcher authority, OCCT adapter, placement, humanoid drape, parametric avatar, and DrapeTarget smoke test passed")
 if __name__=="__main__":
     main()
