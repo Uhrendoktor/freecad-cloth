@@ -208,16 +208,42 @@ def _seam_pairs(doc, panel_data, seam_samples=8):
 
 
 def _collision_for_scene(obj):
-    """Resolve collision strictly from the persistent DrapeTarget."""
+    """Resolve collision strictly from the persistent DrapeTarget.
+
+    Stale/unbuilt target state is recoverable during ordinary document recompute:
+    do not raise and never consume stale collision geometry. The simulation
+    proxy marks itself non-finite until the public Refresh operation rebuilds the
+    target.
+    """
     target = getattr(obj, "DrapeTarget", None)
-    if target is not None:
-        from DrapeTarget import collision_surface, target_status
+    if target is None:
+        return None
+    from DrapeTarget import collision_surface, target_status
+    status = target_status(target)
+    if hasattr(target, "TargetStatus"):
+        target.TargetStatus = status["state"]
+    if hasattr(target, "InvalidationReason"):
+        target.InvalidationReason = status["reason"]
+    if status["state"] in ("stale", "unbuilt", "unassigned", "invalid", "missing"):
+        return None
+    source = getattr(target, "SourceObject", None)
+    return collision_surface(source, float(getattr(target, "CollisionDeflection", 1.0)), float(getattr(target, "CollisionThickness", 0.0)))
+
+
+def _target_status_for_simulation(obj):
+    target = getattr(obj, "DrapeTarget", None)
+    if target is None:
+        return None
+    try:
+        from DrapeTarget import target_status
         status = target_status(target)
-        if status["state"] in ("stale", "unbuilt", "unassigned", "invalid", "missing"):
-            raise RuntimeError(status["message"])
-        source = getattr(target, "SourceObject", None)
-        return collision_surface(source, float(getattr(target, "CollisionDeflection", 1.0)), float(getattr(target, "CollisionThickness", 0.0)))
-    return None
+        if hasattr(target, "TargetStatus"):
+            target.TargetStatus = status["state"]
+        if hasattr(target, "InvalidationReason"):
+            target.InvalidationReason = status["reason"]
+        return status
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        return {"state": "invalid", "message": "Cannot inspect drape target: %s" % exc, "stale": True, "reason": "target inspection failed"}
 
 
 class SimulationProxy:
@@ -237,7 +263,9 @@ class SimulationProxy:
         if self.backend is None or signature != self.source_signature or int(obj.Steps) < self.last_steps:
             self._build(obj, signature)
         steps = int(obj.Steps)
-        if steps > self.last_steps:
+        target_status = _target_status_for_simulation(obj)
+        blocked = target_status is not None and target_status.get("stale", False)
+        if steps > self.last_steps and not blocked:
             for _ in range(steps - self.last_steps):
                 self.backend.step(
                     float(obj.TimeStep), int(obj.Iterations),
@@ -251,7 +279,7 @@ class SimulationProxy:
             _write_mesh(panel, positions, self.panel_triangles.get(panel.Name, ()))
         obj.SimulatedTime = self.backend.time
         obj.ParticleCount = len(positions)
-        obj.FiniteState = self.backend.finite()
+        obj.FiniteState = False if blocked else self.backend.finite()
 
     def _build(self, obj, signature=None):
         pieces = [p for p in getattr(obj, "ClothPieces", ()) if getattr(p, "PatternType", "") == "PatternPiece"]
