@@ -33,19 +33,21 @@ class PatternSketchCommandTests(unittest.TestCase):
         class PatternObject:
             PatternType = "PatternPiece"
 
-            def __init__(self):
-                self.Label = "PatternPiece"
-                self.PieceId = "pattern-piece-1"
-                self.SewingOutline = str([(0, 0), (100, 0), (100, 60), (0, 60)])
-                self.SeamAllowance = 0.0
-                self.GrainlineAngle = 0.0
+            def __init__(self, piece):
+                self.Label = piece.name
+                self.PieceId = piece.id
+                self.SewingOutline = str(piece.outline)
+                self.SeamAllowance = piece.seam_allowance
+                self.GrainlineAngle = piece.grainline_angle
 
-        pattern_obj = PatternObject()
-        doc.Objects.append(pattern_obj)
+        def add_pattern_piece(document, piece):
+            obj = PatternObject(piece)
+            document.Objects.append(obj)
+            return obj
 
         freecad = types.SimpleNamespace(ActiveDocument=doc)
         pattern_model = types.SimpleNamespace(PatternPiece=Piece)
-        pattern_objects = types.SimpleNamespace(add_pattern_piece=lambda document, piece: pattern_obj)
+        pattern_objects = types.SimpleNamespace(add_pattern_piece=add_pattern_piece)
         pattern_geometry = types.SimpleNamespace(rectangle=lambda width, height: Geometry())
         pattern_sketch = types.SimpleNamespace(
             create_sketch_for_piece=lambda piece, document: calls.append((piece.id, document)) or "Sketch"
@@ -73,7 +75,7 @@ class PatternSketchCommandTests(unittest.TestCase):
                 else:
                     sys.modules[name] = previous_module
 
-        self.assertEqual(piece, pattern_obj)
+        self.assertEqual(piece.PieceId, "pattern-piece-1")
         self.assertEqual(sketch, "Sketch")
         self.assertEqual(calls, [("pattern-piece-1", doc)])
         self.assertEqual(doc.recompute_calls, 1)
