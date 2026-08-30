@@ -1,5 +1,9 @@
 """Commands for the Cloth Pattern workbench."""
 import ast
+from pathlib import Path
+
+
+_ICON_DIR = Path(__file__).resolve().parent / "resources" / "icons"
 
 
 def create_pattern_piece_from_parameters(name, width, height, allowance, grainline):
@@ -167,11 +171,57 @@ def add_seam():
     return obj
 
 
-class _FunctionCommand:
-    def __init__(self, function): self.function = function
-    def Activated(self): return self.function()
+_MENU_TEXT = {
+    "ClothPattern_CreatePieceTask": "Create Pattern Piece",
+    "ClothPattern_EditPiece": "Edit Pattern Piece",
+    "ClothPattern_CreateSketch": "Create Sketcher Geometry",
+    "ClothPattern_CreatePieceWithSketch": "Create Pattern Piece with Sketch",
+    "ClothPattern_CreateDrafting": "Open Pattern Drafting",
+    "ClothPattern_Show2D": "Show Pattern 2D",
+    "ClothPattern_CreatePiece": "Create Pattern Piece (Default)",
+    "ClothPattern_CreateCustomPiece": "Create Pattern Piece (Large)",
+    "ClothPattern_CreateMesh": "Create Pattern Mesh",
+    "ClothPattern_AddSeam": "Add Seam",
+}
+
+
+def _has_active_document():
+    try:
+        import FreeCAD as App
+        return App.ActiveDocument is not None
+    except ImportError:
+        return False
+
+
+def _selected_pattern_piece():
+    try:
+        import FreeCADGui as Gui
+        return next((o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"), None)
+    except ImportError:
+        return None
+
+
+def _has_two_seam_edges():
+    try:
+        return len(_selected_seam_edges(__import__("FreeCAD").ActiveDocument)) >= 2
+    except (ImportError, AttributeError, TypeError):
+        return False
+
+
+class _PatternCommand:
+    def __init__(self, function, active, menu_text=None):
+        self.function = function
+        self.active = active
+        self.menu_text = menu_text or function.__name__.replace("_", " ").title()
+
+    def Activated(self):
+        return self.function()
+
+    def IsActive(self):
+        return bool(self.active())
+
     def GetResources(self):
-        return {"MenuText": self.function.__name__.replace("_", " ").title(), "ToolTip": self.function.__doc__ or "Cloth pattern command"}
+        return {"MenuText": self.menu_text, "ToolTip": self.function.__doc__ or "Cloth pattern command"}
 
 
 COMMANDS = [
@@ -187,21 +237,36 @@ COMMANDS = [
     "ClothPattern_AddSeam",
 ]
 
+_HANDLERS = {
+    "ClothPattern_CreatePieceTask": create_pattern_piece_task,
+    "ClothPattern_EditPiece": edit_pattern_piece,
+    "ClothPattern_CreateSketch": create_pattern_sketch,
+    "ClothPattern_CreatePieceWithSketch": create_pattern_piece_with_sketch,
+    "ClothPattern_CreateDrafting": create_pattern_drafting,
+    "ClothPattern_Show2D": show_pattern_2d,
+    "ClothPattern_CreatePiece": create_pattern_piece,
+    "ClothPattern_CreateCustomPiece": create_custom_pattern_piece,
+    "ClothPattern_CreateMesh": create_pattern_mesh,
+    "ClothPattern_AddSeam": add_seam,
+}
+
+_ACTIVATION = {
+    "ClothPattern_CreatePieceTask": lambda: _has_active_document(),
+    "ClothPattern_EditPiece": lambda: _has_active_document() and _selected_pattern_piece() is not None,
+    "ClothPattern_CreateSketch": lambda: _has_active_document() and _selected_pattern_piece() is not None,
+    "ClothPattern_CreatePieceWithSketch": lambda: _has_active_document(),
+    "ClothPattern_CreateDrafting": lambda: _has_active_document() and _selected_pattern_piece() is not None,
+    "ClothPattern_Show2D": lambda: _has_active_document(),
+    "ClothPattern_CreatePiece": lambda: _has_active_document(),
+    "ClothPattern_CreateCustomPiece": lambda: _has_active_document(),
+    "ClothPattern_CreateMesh": lambda: _has_active_document() and _selected_pattern_piece() is not None,
+    "ClothPattern_AddSeam": lambda: _has_active_document() and _has_two_seam_edges(),
+}
+
 try:
     import FreeCADGui as Gui
     if hasattr(Gui, "addCommand"):
-        for name, handler in {
-            "ClothPattern_CreatePieceTask": create_pattern_piece_task,
-            "ClothPattern_EditPiece": edit_pattern_piece,
-            "ClothPattern_CreateSketch": create_pattern_sketch,
-            "ClothPattern_CreatePieceWithSketch": create_pattern_piece_with_sketch,
-            "ClothPattern_CreateDrafting": create_pattern_drafting,
-            "ClothPattern_Show2D": show_pattern_2d,
-            "ClothPattern_CreatePiece": create_pattern_piece,
-            "ClothPattern_CreateCustomPiece": create_custom_pattern_piece,
-            "ClothPattern_CreateMesh": create_pattern_mesh,
-            "ClothPattern_AddSeam": add_seam,
-        }.items():
-            Gui.addCommand(name, _FunctionCommand(handler))
+        for name, handler in _HANDLERS.items():
+            Gui.addCommand(name, _PatternCommand(handler, _ACTIVATION[name], _MENU_TEXT[name]))
 except (ImportError, AttributeError):
     pass
