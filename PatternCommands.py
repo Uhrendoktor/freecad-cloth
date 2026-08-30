@@ -27,6 +27,34 @@ def create_pattern_piece():
     return create_pattern_piece_from_parameters("PatternPiece", 100.0, 60.0, 0.0, 0.0)
 
 
+def _create_native_sketch_for_piece(obj):
+    """Create/link the native Sketcher representation for a PatternPiece."""
+    import FreeCAD as App
+    from PatternModel import PatternPiece
+    from PatternSketch import create_sketch_for_piece
+    try:
+        points = [(float(p[0]), float(p[1])) for p in ast.literal_eval(str(obj.SewingOutline))]
+    except (ValueError, SyntaxError, TypeError, IndexError):
+        raise ValueError("selected pattern piece has no valid sewing outline")
+    piece = PatternPiece(
+        obj.Label,
+        points,
+        seam_allowance=float(getattr(obj, "SeamAllowance", 0.0)),
+        grainline_angle=float(getattr(obj, "GrainlineAngle", 0.0)),
+        id=str(obj.PieceId),
+    )
+    return create_sketch_for_piece(piece, App.ActiveDocument)
+
+
+def create_pattern_piece_with_sketch():
+    """Create a pattern piece and immediately attach its native Sketcher geometry."""
+    import FreeCAD as App
+    obj = create_pattern_piece()
+    _create_native_sketch_for_piece(obj)
+    App.ActiveDocument.recompute()
+    return obj
+
+
 def edit_pattern_piece():
     """Open the Pattern Piece task panel for the selected piece."""
     import FreeCADGui as Gui
@@ -40,19 +68,11 @@ def edit_pattern_piece():
 
 def create_pattern_sketch():
     """Create a native Sketcher representation of the selected pattern piece."""
-    import FreeCAD as App
     import FreeCADGui as Gui
-    from PatternModel import PatternPiece
-    from PatternSketch import create_sketch_for_piece
     obj = next((o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"), None)
     if obj is None:
         raise ValueError("select a pattern piece before creating its Sketcher representation")
-    try:
-        points = [(float(p[0]), float(p[1])) for p in ast.literal_eval(str(obj.SewingOutline))]
-    except (ValueError, SyntaxError, TypeError, IndexError):
-        raise ValueError("selected pattern piece has no valid sewing outline")
-    piece = PatternPiece(obj.Label, points, seam_allowance=float(getattr(obj, "SeamAllowance", 0.0)), grainline_angle=float(getattr(obj, "GrainlineAngle", 0.0)), id=str(obj.PieceId))
-    return create_sketch_for_piece(piece, App.ActiveDocument)
+    return _create_native_sketch_for_piece(obj)
 
 
 def create_pattern_piece_task():
@@ -158,6 +178,7 @@ COMMANDS = [
     "ClothPattern_CreatePieceTask",
     "ClothPattern_EditPiece",
     "ClothPattern_CreateSketch",
+    "ClothPattern_CreatePieceWithSketch",
     "ClothPattern_CreateDrafting",
     "ClothPattern_Show2D",
     "ClothPattern_CreatePiece",
@@ -173,6 +194,7 @@ try:
             "ClothPattern_CreatePieceTask": create_pattern_piece_task,
             "ClothPattern_EditPiece": edit_pattern_piece,
             "ClothPattern_CreateSketch": create_pattern_sketch,
+            "ClothPattern_CreatePieceWithSketch": create_pattern_piece_with_sketch,
             "ClothPattern_CreateDrafting": create_pattern_drafting,
             "ClothPattern_Show2D": show_pattern_2d,
             "ClothPattern_CreatePiece": create_pattern_piece,
