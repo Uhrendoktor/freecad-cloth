@@ -1,0 +1,87 @@
+name: GUI screenshot capability
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/gui-screenshot-capability.yml'
+      - 'tests/**'
+      - 'PatternGui.py'
+      - 'SimulationGui.py'
+      - 'SewingGui.py'
+      - 'SewingNetworkGui.py'
+      - 'SewingObjects.py'
+      - 'Init.py'
+      - 'InitGui.py'
+      - 'resources/**'
+  workflow_dispatch:
+
+concurrency:
+  group: gui-screenshot-capability
+  cancel-in-progress: true
+
+jobs:
+  gui-screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install FreeCAD and X11 dependencies
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq software-properties-common xvfb openbox
+          sudo add-apt-repository ppa:freecad-maintainers/freecad-stable -y
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq freecad
+          freecadcmd --version
+
+      - name: Generate FreeCAD GUI screenshots under Xvfb
+        run: |
+          set -euxo pipefail
+          mkdir -p "$PWD/docs/images/generated"
+          export DISPLAY=:99
+          export QT_X11_NO_MITSHM=1
+          export LIBGL_ALWAYS_SOFTWARE=1
+          export QT_QPA_PLATFORM=xcb
+          export CLOTH_SCREENSHOT_DIR="$PWD/docs/images/generated"
+          export CLOTH_E2E_DIR="$PWD/artifacts/freecad-e2e"
+          Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+          openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+          trap 'kill "$OPENBOX_PID" "$XVFB_PID" 2>/dev/null || true' EXIT
+          sleep 2
+          rm -f docs/images/generated/cloth-pattern-design.png docs/images/generated/cloth-sewing.png docs/images/generated/cloth-simulation.png docs/images/generated/gui-progress.log
+          printf '%s\n' 'exec(compile(open("tests/freecad_screenshot.py", encoding="utf-8").read(), "tests/freecad_screenshot.py", "exec"))' >/tmp/cloth_screenshot.FCMacro
+          timeout --signal=TERM --kill-after=5s 120s freecad /tmp/cloth_screenshot.FCMacro >/tmp/freecad-gui.log 2>&1 || {
+            status=$?
+            cat /tmp/freecad-gui.log || true
+            cat docs/images/generated/gui-progress.log || true
+            cat /tmp/xvfb.log || true
+            cat /tmp/openbox.log || true
+            exit "$status"
+          }
+          test -s docs/images/generated/cloth-pattern-design.png
+          test -s docs/images/generated/cloth-sewing.png
+          test -s docs/images/generated/cloth-simulation.png
+
+      - name: Upload GUI diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloth-gui-diagnostics
+          path: |
+            docs/images/generated/gui-progress.log
+            /tmp/freecad-gui.log
+            /tmp/xvfb.log
+            /tmp/openbox.log
+          if-no-files-found: ignore
+
+      - name: Upload GUI screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloth-gui-screenshots
+          path: docs/images/generated/*.png
+          if-no-files-found: error
