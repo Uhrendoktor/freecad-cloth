@@ -212,3 +212,5 @@ def create_quality_simulation_scene(doc):
     scene.Proxy = QualitySimulationProxy()
     scene.Document.recompute()
     return scene
+
+# CI retrigger marker: keep this file as the canonical quality-simulation boundary.
