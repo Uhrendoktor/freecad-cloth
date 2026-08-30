@@ -4,6 +4,13 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      gui_screenshots:
+        description: Generate the expensive FreeCAD GUI screenshots
+        required: false
+        default: false
+        type: boolean
   schedule:
     - cron: '17 * * * *'
 
@@ -14,9 +21,13 @@ concurrency:
 env:
   PYTHONPATH: .
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   test:
-    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed') }}
+    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed') || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -75,7 +86,7 @@ jobs:
           test -f SewingObjects.py
 
   freecad-smoke:
-    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed') }}
+    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed') || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -94,11 +105,17 @@ jobs:
           '
 
   gui-screenshots:
-    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed') }}
+    # GUI capture is intentionally opt-in: normal pushes/PRs do not spend a
+    # full FreeCAD+Xvfb runner. Add the gui-screenshot label to a PR, or use
+    # workflow_dispatch with gui_screenshots=true, when visual evidence is needed.
+    if: ${{ (github.event_name == 'pull_request' && github.event.action != 'closed' && contains(github.event.pull_request.labels.*.name, 'gui-screenshot')) || (github.event_name == 'workflow_dispatch' && inputs.gui_screenshots == true) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
+    concurrency:
+      group: gui-screenshots-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
       - name: Generate FreeCAD GUI screenshots under Xvfb
@@ -148,7 +165,7 @@ jobs:
           if-no-files-found: error
 
   publish-merged-gui:
-    if: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true }}
+    if: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'gui-screenshot') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
