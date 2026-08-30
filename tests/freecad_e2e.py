@@ -99,6 +99,7 @@ def run():
     from PatternGui import PatternDraftingTaskPanel
     from SewingGui import SewingTaskPanel
     from SimulationQualityGui import SimulationQualityTaskPanel
+    from DrapeTarget import create_drape_target, target_status
     doc = App.newDocument("CanonicalClothE2E")
     path = None
     try:
@@ -130,7 +131,7 @@ def run():
         assert len(seams) == 1
         main_seam = seams[0]
 
-        activate("ClothSewingWorkbench", "Cloth Sewing", ["ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing", "ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_Validate"])
+        activate("ClothSewingWorkbench", "Cloth Sewing", ["ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing", "ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_Validate", "ClothSewing_RepairSeam"])
         Gui.Selection.clearSelection(); Gui.Selection.addSelection(main_seam); process_events()
         Gui.runCommand("ClothSewing_CreateOperation", 0); process_events()
         operations = [obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingOperation"]
@@ -141,6 +142,10 @@ def run():
         panel.stitches.setValue(12); panel.alignment.setCurrentText("uniform")
         assert panel.accept() is True; close_panel(); doc.recompute()
         assert operation.StitchCount == 12 and operation.Alignment == "uniform"
+        main_seam.ReversedB = True; doc.recompute()
+        Gui.Selection.clearSelection(); Gui.Selection.addSelection(main_seam); process_events()
+        Gui.runCommand("ClothSewing_RepairSeam", 0); process_events()
+        assert main_seam.ReversedB is False
         select_edges((sleeve_a, 0), (sleeve_a, 1), (sleeve_a, 2), (sleeve_b, 0), (sleeve_b, 1), (sleeve_b, 2))
         Gui.runCommand("ClothSewing_CreateMNSewing", 0); process_events()
         networks = [obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork"]
@@ -167,6 +172,18 @@ def run():
         assert final_particles > working_particles
         assert scene.Proxy.source_signature == initial_signature
 
+        target = create_drape_target(doc, source=back, target_type="FreeCAD Geometry", deflection=1.0, thickness=2.0)
+        doc.recompute()
+        assert target_status(target)["state"] == "ready"
+        target.Placement = back.Placement
+        back.Placement.Base.x += 5.0
+        doc.recompute()
+        assert target_status(target)["state"] == "stale"
+        from DrapeTarget import refresh_drape_target
+        refresh_drape_target(target)
+        doc.recompute()
+        assert target_status(target)["state"] == "ready"
+
         fd, path = tempfile.mkstemp(prefix="cloth-e2e-", suffix=".FCStd"); os.close(fd)
         doc.recompute(); doc.saveAs(path)
         operation_name = operation.Name; network_name = network.Name
@@ -192,6 +209,8 @@ def run():
         log("three PatternPieces plus sleeves: OK")
         log("native Sketcher authority: OK")
         log("persisted seam and M:N sewing network: OK")
+        log("curved seam repair command: OK")
+        log("DrapeTarget stale/refresh lifecycle: OK")
         log("quality density %s -> %s: OK" % (working_particles, final_particles))
         log("save/reload and upstream edit invalidation: OK")
         log("re-simulation after invalidation: OK")
