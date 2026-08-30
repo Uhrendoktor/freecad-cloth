@@ -26,6 +26,7 @@ The initial PR/issue backlog was audited before new implementation work. Obsolet
 | Canonical GUI acceptance | #155 | queued P0 | supervisor |
 | Simulation quality/material controls | #145 | queued P0 |
 | Architecture roadmap | #162/#165 | active planning | supervisor |
+| Drape target abstraction | #228, PR #230 | implementation slice | agent/issue-228-drape-target-20260830 |
 
 ## Rules for new work
 
