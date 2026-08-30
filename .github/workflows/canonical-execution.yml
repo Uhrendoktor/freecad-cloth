@@ -2,7 +2,7 @@ name: Canonical execution
 
 on:
   push:
-    branches: [main, ci/self-hosted-native-freecad]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -31,21 +31,21 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Bootstrap self-hosted FreeCAD runtime
+      # Self-hosted runners are persistent. Prefer a runner-provided FreeCAD;
+      # otherwise cache an official AppImage in the runner home. System GUI
+      # utilities are intentionally NOT installed in CI: provision them once
+      # on the runner so normal runs stay fast and deterministic.
+      - name: Prepare self-hosted FreeCAD runtime
         run: |
           set -euo pipefail
-          missing=()
+
           for tool in python3 xvfb-run openbox curl xargs; do
-            command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
-          done
-          if ((${#missing[@]})); then
-            sudo -n true || {
-              echo "Runner needs passwordless sudo for one-time bootstrap: ${missing[*]}" >&2
+            command -v "$tool" >/dev/null || {
+              echo "Missing runner utility: $tool" >&2
+              echo "Provision python3, xvfb, openbox and curl on the self-hosted runner." >&2
               exit 1
             }
-            sudo apt-get update -qq
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 xvfb openbox curl
-          fi
+          done
 
           if command -v "$FREECAD_BIN" >/dev/null 2>&1; then
             echo "Using pre-provisioned FreeCAD: $(command -v "$FREECAD_BIN")"
@@ -54,6 +54,7 @@ jobs:
             appimage="$cache_root/FreeCAD_${FREECAD_VERSION}-Linux-x86_64-py311.AppImage"
             appdir="$cache_root/squashfs-root"
             mkdir -p "$cache_root"
+
             if [[ ! -x "$appdir/AppRun" ]]; then
               if [[ ! -f "$appimage" ]]; then
                 curl --fail --location --retry 3 --retry-delay 2 \
@@ -76,7 +77,7 @@ jobs:
         run: |
           set -euo pipefail
           for tool in python3 xvfb-run openbox xargs; do
-            command -v "$tool" >/dev/null || { echo "Missing required runner utility: $tool" >&2; exit 1; }
+            command -v "$tool" >/dev/null || exit 1
           done
           command -v "$FREECAD_BIN" >/dev/null || { echo "Missing FreeCAD: $FREECAD_BIN" >&2; exit 1; }
           echo "Runner: $(hostname)"
@@ -90,6 +91,9 @@ jobs:
           set -euo pipefail
           mkdir -p docs/images/generated artifacts/freecad-e2e
           rm -f docs/images/generated/*.png docs/images/generated/gui-progress.log
+
+          # Independent Python tests run in parallel on the 24-thread runner.
+          # FreeCAD GUI/smoke tests stay serial because they share GUI state.
           printf '%s\n' \
             tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py \
             tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py \
@@ -100,11 +104,13 @@ jobs:
             tests/test_pattern_export_semantics.py tests/test_sketch_authority.py \
             tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py \
             | xargs -P "${CLOTH_TEST_JOBS}" -n 1 python3
+
           python3 -m compileall -q .
           "$FREECAD_BIN" tests/freecad_smoke.py
           "$FREECAD_BIN" tests/freecad_meshpart_smoke.py
           "$FREECAD_BIN" tests/freecad_sewing_smoke.py
           timeout --signal=TERM --kill-after=5s 120s "$FREECAD_BIN" tests/freecad_screenshot.py
+
           test -s docs/images/generated/cloth-pattern-design.png
           test -s docs/images/generated/cloth-sewing.png
           test -s docs/images/generated/cloth-simulation.png
