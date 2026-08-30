@@ -4,17 +4,17 @@ Last updated: 2026-08-30
 
 ## Supervisor state
 
-The initial PR/issue backlog and all open implementation PRs were audited before new work. PR #217 (task-panel transaction) and the rebased replacement #239 (Sewing selection validation) were merged after terminal-green canonical CI. PR #238 (curved-seam correspondence validation) was then merged after terminal-green canonical CI. Stale avatar/status/drape PRs (#208, #216, #234, #237) were closed as superseded rather than carrying conflicting architecture forward.
+The initial PR/issue backlog and all open implementation PRs were audited before new work. PR #217 (task-panel transaction), rebased replacement #239 (Sewing selection validation), PR #238 (curved-seam correspondence validation), PR #249 (persistent parametric mannequin), and PR #251 (first-class DrapeTarget) are merged only after terminal-green canonical CI. Stale avatar/status/drape branches (#208, #216, #234, #237) were closed as superseded.
 
-The roadmap has been reworked around the actual end-to-end product: native Sketcher pattern authoring, semantic sewing, first-class human/general drape targets, and a production-oriented simulation workbench. See `docs/ROADMAP_2026_REPLAN.md`.
+The roadmap was reworked around the end-to-end product: native Sketcher pattern authoring, semantic sewing, first-class human/general drape targets, and a production-oriented simulation workbench. See `docs/ROADMAP_2026_REPLAN.md`.
 
 ### Architecture gates
 
 - **P0-A Pattern:** native `Sketcher::SketchObject` is the geometry authority for linked PatternPieces; PatternIR preserves curve kind and endpoint connectivity.
-- **P0-B Sewing:** semantic seam references, Show 2D, M:N SewingNetwork, task-panel invalid-reference rejection, and the reusable curved correspondence validator are merged.
-- **P0-C Simulation:** quality/material properties and deterministic particle-distance mesh generation are implemented; simulation lifecycle/status remains a follow-up integration task.
-- **P0-D Acceptance:** canonical FreeCAD/Xvfb covers the registered Pattern/Sewing/Simulation workflow, native Sketcher authority, persisted seams/M:N network, quality-density change, save/reload, upstream edit invalidation and re-simulation.
-- **P0-C Human fitting / P0-D Drape targets:** re-planned; implementation must establish a common target-neutral collision API before adding more mannequin-specific behavior.
+- **P0-B Sewing:** semantic seam references, Show 2D, M:N SewingNetwork, task-panel invalid-reference rejection, and reusable curved correspondence validation are merged. GUI repair integration remains next.
+- **P0-C Human fitting:** persistent anthropometric mannequin with deterministic derived geometry, landmarks, pose, skin offset and collision proxy is merged and covered by canonical FreeCAD/Xvfb.
+- **P0-D Drape target:** persistent target-neutral DrapeTarget for mannequin and arbitrary FreeCAD Shape/Mesh is merged; source geometry, Placement, tessellation and collision settings participate in deterministic signatures. Simulation UI uses the existing CollisionSurface adapter.
+- **P0-E Simulation:** quality/material properties and deterministic particle-distance mesh generation are implemented; lifecycle/status, target-aware diagnostics and production simulation UX remain follow-up integration tasks.
 
 ## Active workstreams
 
@@ -26,10 +26,10 @@ The roadmap has been reworked around the actual end-to-end product: native Sketc
 | Native Sketcher authority | #165/#170, merged #215 | done |
 | Workbench lifecycle/boundaries | #212, merged #218 | done |
 | Sewing invalid-reference task acceptance | #226, merged | done |
-| Curved seam correspondence validator | #238, merged | done; GUI integration next |
+| Curved seam correspondence validator | #238 | done; GUI integration in #247 |
 | Simulation quality/material density | #145/#229 | active P0 integration |
-| Parametric avatar/mannequin | #203 | active P0 reimplementation |
-| General DrapeTarget | #228 | active P0 reimplementation |
+| Parametric avatar/mannequin | #203/#249 | done baseline; richer pose/measurement UI follow-up |
+| General DrapeTarget | #228/#251 | done baseline; solver migration/diagnostics follow-up |
 | Canonical GUI acceptance | #155/#143/#229 | active P0 follow-up |
 | Pattern authoring parity | #162 | active P1 |
 
@@ -38,11 +38,11 @@ The roadmap has been reworked around the actual end-to-end product: native Sketc
 1. Workbench registration/internal IDs: **passed**.
 2. Native Sketcher authority and save/reload: **passed in canonical E2E**.
 3. Persisted semantic seams and M:N SewingNetwork: **passed in canonical E2E**.
-4. Curved seam correspondence validator: **merged and terminal-green; GUI integration pending**.
+4. Curved seam correspondence validator: **merged and terminal-green; GUI repair integration pending**.
 5. Particle-distance quality changes deterministic derived mesh density: **passed**.
 6. Upstream edit invalidation and re-simulation: **passed in canonical E2E**.
-7. Human mannequin as a first-class fitting target: **not yet release-complete**.
-8. Arbitrary FreeCAD geometry as a first-class drape target: **not yet release-complete**.
+7. Parametric mannequin creation, measurement change, pose, skin offset, collision proxy and save/reload: **passed in canonical FreeCAD/Xvfb**.
+8. DrapeTarget creation for mannequin and arbitrary FreeCAD geometry, deterministic source signature and Simulation UI registration: **passed in canonical FreeCAD/Xvfb**.
 9. Production export/package/install acceptance: **not yet release-complete**.
 
 ## Rules
@@ -59,11 +59,10 @@ The roadmap has been reworked around the actual end-to-end product: native Sketc
 
 ## Next supervisor sequence
 
-1. Reimplement the parametric mannequin as a persistent FreeCAD document object with authoritative anthropometric properties, landmarks, pose and a collision-surface provider.
-2. Generalize collision/drape target handling so mannequin and arbitrary Part/PartDesign/Mesh objects use the same solver-neutral interface.
-3. Integrate curved correspondence into the Sewing task panel with actionable repair states, reverse/alignment controls and M:N editing.
-4. Replace legacy drafting as the default Pattern UI with native Sketcher commands while retaining migration support.
-5. Add explicit seam-allowance/notch/grainline/internal-mark derived features and production size/grading semantics.
-6. Finish canonical create -> sew -> arrange -> drape -> edit -> invalidate -> rebuild -> save/reload acceptance.
-7. Finish TechDraw/DXF/SVG round-trip and package/install validation.
-8. Benchmark optional native solvers only after all P0/P1 gates are green.
+1. Integrate curved correspondence into the Sewing task panel with actionable repair states, reverse/alignment controls and M:N editing (#247).
+2. Add simulation lifecycle/status and target-aware invalidation so DrapeTarget is authoritative rather than only bridged through AvatarCollision.
+3. Replace legacy drafting as the default Pattern UI with native Sketcher commands while retaining migration support.
+4. Add explicit seam-allowance/notch/grainline/internal-mark derived features and production size/grading semantics.
+5. Finish canonical create -> sew -> arrange -> drape -> edit -> invalidate -> rebuild -> save/reload acceptance.
+6. Finish TechDraw/DXF/SVG round-trip and package/install validation.
+7. Benchmark optional native solvers only after all P0/P1 gates are green.
