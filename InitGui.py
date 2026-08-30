@@ -147,6 +147,7 @@ SEWING_COMMAND_GROUPS = (
         "Validation & View",
         (
             "ClothSewing_Validate",
+            "ClothSewing_RepairSeam",
             "ClothSewing_Show2D",
         ),
     ),
