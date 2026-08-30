@@ -17,6 +17,7 @@ jobs:
     timeout-minutes: 25
     permissions:
       contents: read
+      packages: write
     env:
       FREECAD_BIN: freecad
       CLOTH_TEST_JOBS: 8
@@ -25,12 +26,16 @@ jobs:
       QT_X11_NO_MITSHM: 1
       QT_QPA_PLATFORM: xcb
       LIBGL_ALWAYS_SOFTWARE: 1
+      FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.3-r1
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
+      # Keep the host-side AppImage cache attempt.  The native path uses it when
+      # the runner is provisioned with the required GUI utilities.  On the
+      # existing Docker runner we deliberately fall back to the pinned CI image.
       - name: Restore cached FreeCAD runtime
         uses: actions/cache@v4
         with:
@@ -39,61 +44,90 @@ jobs:
           restore-keys: |
             freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-
 
-      - name: Prepare self-hosted FreeCAD runtime
+      - name: Detect runner capabilities
+        id: runner
+        shell: bash
         run: |
-          set -euo pipefail
+          set -u
+          missing=()
           for tool in Xvfb xvfb-run openbox curl xargs timeout sha256sum; do
-            command -v "$tool" >/dev/null || { echo "Missing runner utility: $tool" >&2; exit 1; }
+            command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
           done
           if command -v "$FREECAD_BIN" >/dev/null 2>&1; then
-            echo "Using runner-provided FreeCAD: $(command -v "$FREECAD_BIN")"
-            echo "FREECAD_SOURCE=runner" >> "$GITHUB_ENV"
+            freecad=runner
           else
-            cache_root="$HOME/.cache/freecad-cloth/$FREECAD_VERSION"
-            appimage="$cache_root/FreeCAD_${FREECAD_VERSION}-Linux-x86_64-py311.AppImage"
-            appdir="$cache_root/squashfs-root"
-            mkdir -p "$cache_root"
-            if [[ ! -x "$appdir/AppRun" ]]; then
-              if [[ ! -f "$appimage" ]]; then
-                echo "Downloading pinned FreeCAD $FREECAD_VERSION AppImage"
-                curl --fail --location --retry 3 --retry-delay 2 -o "$appimage" "https://github.com/FreeCAD/FreeCAD/releases/download/${FREECAD_VERSION}/FreeCAD_${FREECAD_VERSION}-Linux-x86_64-py311.AppImage"
-              fi
-              echo "$FREECAD_APPIMAGE_SHA256  $appimage" | sha256sum -c -
-              rm -rf "$appdir" "$cache_root/.squashfs-root.tmp"
-              mkdir -p "$cache_root/.squashfs-root.tmp"
-              (cd "$cache_root/.squashfs-root.tmp" && "$appimage" --appimage-extract >/dev/null)
-              mv "$cache_root/.squashfs-root.tmp/squashfs-root" "$appdir"
-              rm -rf "$cache_root/.squashfs-root.tmp"
-            fi
-            echo "FREECAD_BIN=$appdir/AppRun" >> "$GITHUB_ENV"
-            echo "FREECAD_SOURCE=actions-cache" >> "$GITHUB_ENV"
+            freecad=missing
           fi
-          if command -v python3 >/dev/null 2>&1; then
-            echo "PYTHON_TEST_MODE=system" >> "$GITHUB_ENV"
+          if command -v docker >/dev/null 2>&1; then
+            docker=available
           else
-            echo "PYTHON_TEST_MODE=freecad" >> "$GITHUB_ENV"
+            docker=missing
+          fi
+          printf 'missing=%s\n' "${missing[*]:-none}"
+          printf 'freecad=%s docker=%s\n' "$freecad" "$docker"
+          if [[ "$freecad" == runner && ${#missing[@]} -eq 0 ]]; then
+            echo 'mode=native' >> "$GITHUB_OUTPUT"
+          elif [[ "$docker" == available ]]; then
+            echo 'mode=docker' >> "$GITHUB_OUTPUT"
+          else
+            echo 'No usable native FreeCAD runtime and Docker is unavailable.' >&2
+            exit 1
           fi
 
-      - name: Validate self-hosted runtime
+      - name: Prepare native FreeCAD runtime
+        if: steps.runner.outputs.mode == 'native'
         run: |
           set -euo pipefail
-          for tool in Xvfb xvfb-run openbox xargs timeout; do command -v "$tool" >/dev/null || exit 1; done
-          command -v "$FREECAD_BIN" >/dev/null || { echo "Missing FreeCAD: $FREECAD_BIN" >&2; exit 1; }
-          echo "Runner: $(hostname)"
-          echo "FreeCAD source: $FREECAD_SOURCE"
-          echo "Python test mode: $PYTHON_TEST_MODE"
-          echo "FreeCAD: $(command -v "$FREECAD_BIN")"
+          echo "FREECAD_SOURCE=runner" >> "$GITHUB_ENV"
+          echo "PYTHON_TEST_MODE=system" >> "$GITHUB_ENV"
+          echo "Using runner-provided FreeCAD: $(command -v "$FREECAD_BIN")"
           "$FREECAD_BIN" --version || true
-          if [[ "$PYTHON_TEST_MODE" == "system" ]]; then
-            python3 --version
-          else
-            "$FREECAD_BIN" --console <<'PY'
-            import sys
-            print("Embedded Python:", sys.version)
-            PY
+          python3 --version
+
+      - name: Prepare pinned FreeCAD CI image
+        if: steps.runner.outputs.mode == 'docker'
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "[docker] runner=$(hostname) docker=$(docker version --format '{{.Server.Version}}')"
+          if docker image inspect "$IMAGE" >/dev/null 2>&1; then
+            echo "[docker] using runner-local cached image: $IMAGE"
+            exit 0
           fi
 
-      - name: Run Python and FreeCAD smoke tests
+          echo "[docker] image not cached; trying GHCR"
+          if printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USER" --password-stdin >/dev/null 2>&1 && timeout 180s docker pull "$IMAGE"; then
+            echo "[docker] pulled pinned image from GHCR"
+            exit 0
+          fi
+
+          echo "[docker] GHCR pull unavailable; building pinned image with registry cache"
+          docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
+          docker buildx build \
+            --progress=plain \
+            --load \
+            --tag "$IMAGE" \
+            --cache-from "type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache" \
+            --cache-to "type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache,mode=max" \
+            docker/freecad-ci
+          if [[ "$GITHUB_EVENT_NAME" != pull_request ]]; then
+            docker push "$IMAGE"
+          fi
+
+      - name: Validate native runtime
+        if: steps.runner.outputs.mode == 'native'
+        run: |
+          set -euo pipefail
+          for tool in Xvfb xvfb-run openbox xargs timeout; do command -v "$tool" >/dev/null; done
+          command -v "$FREECAD_BIN" >/dev/null
+          echo "Runner: $(hostname)"
+          echo "FreeCAD: $(command -v "$FREECAD_BIN")"
+
+      - name: Run native Python, FreeCAD smoke, and GUI tests
+        if: steps.runner.outputs.mode == 'native'
         run: |
           set -euo pipefail
           mkdir -p docs/images/generated artifacts/freecad-e2e
@@ -108,28 +142,61 @@ jobs:
             tests/test_pattern_export_semantics.py tests/test_sketch_authority.py
             tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py
           )
-          if [[ "$PYTHON_TEST_MODE" == "system" ]]; then
-            printf '%s\n' "${tests[@]}" | xargs -P "${CLOTH_TEST_JOBS}" -n 1 python3
-            python3 -m compileall -q .
-          else
-            for t in "${tests[@]}"; do
-              echo "PYTHON/FREECAD START $t"
-              timeout --signal=TERM --kill-after=5s 60s xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' bash -lc 'openbox >/tmp/freecad-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" "$1"' "$FREECAD_BIN" "$t"
-              echo "PYTHON/FREECAD PASS $t"
-            done
-            timeout --signal=TERM --kill-after=5s 60s "$FREECAD_BIN" --console <<'PY'
-            import compileall, sys
-            sys.exit(0 if compileall.compile_dir('.', quiet=1) else 1)
-            PY
-          fi
+          printf '%s\n' "${tests[@]}" | xargs -P "${CLOTH_TEST_JOBS}" -n 1 python3
+          python3 -m compileall -q .
           for t in tests/freecad_smoke.py tests/freecad_meshpart_smoke.py tests/freecad_sewing_smoke.py; do
-            echo "FREECAD START $t"
             timeout --signal=TERM --kill-after=5s 60s xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' bash -lc 'openbox >/tmp/freecad-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" "$1"' "$FREECAD_BIN" "$t"
-            echo "FREECAD PASS $t"
           done
 
-      - name: Run GUI screenshots
-        if: ${{ always() }}
+      - name: Run Docker Python, FreeCAD smoke, and GUI tests
+        if: steps.runner.outputs.mode == 'docker'
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
+        run: |
+          set -euo pipefail
+          mkdir -p docs/images/generated artifacts/freecad-e2e
+          rm -f docs/images/generated/*.png docs/images/generated/gui-progress.log
+          docker run --rm --init \
+            --shm-size=1g \
+            -e DISPLAY=:99 \
+            -e QT_X11_NO_MITSHM=1 \
+            -e QT_QPA_PLATFORM=xcb \
+            -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
+            -e CLOTH_E2E_DIR=/workspace/artifacts/freecad-e2e \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            "$IMAGE" \
+            bash -euo pipefail -c '
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 &
+              XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 &
+              OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              sleep 1
+              for t in \
+                tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py \
+                tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py \
+                tests/test_simulation_scene.py tests/test_collisions.py tests/test_freecad_objects.py \
+                tests/test_gui_structure.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py \
+                tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_avatar_fitting.py \
+                tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py \
+                tests/test_pattern_export_semantics.py tests/test_sketch_authority.py \
+                tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py; do
+                python3 "$t"
+              done
+              python3 -m compileall -q .
+              for t in tests/freecad_smoke.py tests/freecad_meshpart_smoke.py tests/freecad_sewing_smoke.py; do
+                timeout --signal=TERM --kill-after=5s 60s freecad "$t"
+              done
+              timeout --signal=TERM --kill-after=5s 120s freecad tests/freecad_screenshot.py
+              test -s docs/images/generated/cloth-pattern-design.png
+              test -s docs/images/generated/cloth-sewing.png
+              test -s docs/images/generated/cloth-simulation.png
+            '
+
+      - name: Run GUI screenshots on native runner
+        if: ${{ always() && steps.runner.outputs.mode == 'native' }}
         env:
           CLOTH_REPO_ROOT: ${{ github.workspace }}
           CLOTH_SCREENSHOT_DIR: ${{ github.workspace }}/docs/images/generated
