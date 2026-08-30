@@ -39,4 +39,7 @@ def main():
     with tempfile.TemporaryDirectory() as directory:
         path=str(Path(directory)/"avatar.FCStd"); avatar_doc.saveAs(path); App.closeDocument(avatar_doc.Name); reopened=App.openDocument(path); restored=reopened.getObject("ClothAvatar"); assert restored is not None and restored.AvatarStatus=="Valid"; assert restored.PosePreset=="sewing"; assert abs(float(restored.Chest)-1100.0)<1e-9; assert abs(float(restored.SkinOffset)-6.0)<1e-9; App.closeDocument(reopened.Name)
     print("FreeCAD workbench, Sketcher, sewing correspondence, drape target, humanoid drape, and parametric avatar smoke test passed")
-if __name__=="__main__": main()
+if __name__=="__main__":
+    main()
+    import FreeCADGui as Gui
+    Gui.exit()
