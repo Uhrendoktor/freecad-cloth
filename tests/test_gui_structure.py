@@ -6,9 +6,11 @@ from InitGui import SEWING_COMMAND_GROUPS, ClothSewingWorkbench
 ROOT = Path(__file__).resolve().parents[1]
 init_gui = (ROOT / "InitGui.py").read_text()
 pattern_gui = (ROOT / "PatternGui.py").read_text()
+pattern_commands = (ROOT / "PatternCommands.py").read_text()
+validation_gui = (ROOT / "PatternValidationGui.py").read_text()
 sim_gui = (ROOT / "SimulationGui.py").read_text()
 sewing_gui = (ROOT / "SewingGui.py").read_text()
-commands = (ROOT / "PatternCommands.py").read_text()
+commands = pattern_commands
 sim_commands = (ROOT / "SimulationCommands.py").read_text()
 sewing_commands = (ROOT / "SewingCommands.py").read_text()
 
@@ -27,11 +29,11 @@ assert "command not in registered" in init_gui
 assert 'return "Gui::PythonWorkbench"' in init_gui
 assert "class PatternPieceTaskPanel" in pattern_gui
 assert "Gui.Control.showDialog(panel)" in pattern_gui
-assert "class SimulationTaskPanel" in sim_gui
-assert "Gui.Control.showDialog(panel)" in sim_gui
-assert "class SewingTaskPanel" in sewing_gui
-assert "Gui.Control.showDialog(panel)" in sewing_gui
-assert "ClothPattern_CreatePieceTask" in commands
+assert "class PatternValidationTaskPanel" in validation_gui
+assert "Gui.Control.showDialog(panel)" in validation_gui
+assert "ClothPattern_EditSketch" in commands
+assert "ClothPattern_ValidatePiece" in commands
+assert "ClothPattern_CreateSketch" in commands
 assert "ClothPattern_EditPiece" in commands
 assert "ClothPattern_Show2D" in commands
 assert "ClothSimulation_Edit" in sim_commands
