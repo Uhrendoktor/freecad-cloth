@@ -4,45 +4,53 @@ Last updated: 2026-08-30
 
 ## Supervisor state
 
-P0 supervision is focused on making the public FreeCAD Pattern -> Sewing -> Simulation workflow authoritative end-to-end. Before each implementation slice, open PRs and active issues are re-audited and subagent proposals are incorporated. The canonical CI workflow is reused; no duplicate workflow is permitted.
+The supervisor has completed the required audit pass over all open PRs and open issues before starting the next implementation slice. The stale PR set (#292, #296, #299, #300, #303, #304, #306) was reviewed; each proposal was retained in the roadmap/issues and the diverged branch was closed rather than merged. No additional GitHub Actions workflow is permitted.
 
-Current supervisor implementation branch: `agent/fix-python312-sewingcommands-20260830`.
+Current supervisor implementation branch: `agent/supervisor-sewing-gui-registration-20260830`.
 
-### Current plan
+## Replanned release sequence
 
-1. Fix the canonical Python test blocker without removing Python 3.12 from the support matrix.
-2. Verify the headless Sewing command import contract across Python 3.10/3.11/3.12 and run the complete Python suite.
-3. Hand off through a PR for canonical FreeCAD/Xvfb verification.
-4. Continue DrapeTarget authority work (#276) only after canonical CI is green.
+The roadmap remains a vertical-slice release plan, but the immediate order is now:
+
+1. **P0-0 Sewing GUI registration recovery (#308):** make command groups complete, deterministic and idempotent; make workbench icon resolution robust; prove all public Sewing commands exist during real FreeCAD activation.
+2. **P0-1 DrapeTarget authority (#276/#289/#284):** make target-neutral collision state authoritative and recompute-safe, including explicit stale status and refresh lifecycle.
+3. **P0-2 canonical garment E2E (#278/#155/#143):** prove Pattern -> Sewing -> fitting/arrangement -> Simulation -> save/reload -> upstream edit/invalidation -> rebuild/re-simulate through public workbench UI.
+4. **P0-3 simulation behavior (#145/#159/#161):** verify quality/material/collision controls materially affect generated topology/backend parameters and persist through save/reload.
+5. **P0-4 release UX/persistence audit:** remove remaining scripting-only paths and verify toolbar/menu/task-panel/selection/undo/recompute behavior.
+6. **P1 authoring/export/package:** implement only concrete Pattern parity blockers from #162, then production 2D export (#147/#163), examples and packaging.
+7. **P2 optional solver benchmark (#148):** only after P0/P1 are green.
+
+## Research decisions
+
+Recent CLO/Marvelous Designer research confirms that the release-critical interaction model is:
+
+- semantic sewing with Segment, Free, 1:N and M:N relationships;
+- visible directional correspondence, length mismatch feedback and reversal/repair;
+- arrangement points/bounding volumes and persistent placement controls before draping;
+- particle distance as a behavior-changing quality control rather than a cosmetic preference;
+- native property/task-panel editing as a first-class workflow surface.
+
+FreeCAD research confirms that Sketcher already supplies the needed geometric/dimensional constraint solver, external geometry and expressions; Part/OCCT provides curve/offset geometry; TechDraw/Draft provide native SVG/DXF production paths. Cloth should remain the semantic layer rather than duplicating these kernels.
+
+## Current implementation slice
+
+`InitGui.py` now derives Sewing registration completeness from the actual command constants and rejects missing/extra groups with a diagnostic. The Sewing group explicitly contains `Repair Seam`, and workbench icons resolve to repository-local absolute paths while the normal FreeCAD icon path remains registered.
+
+The static GUI contract now checks all public Sewing command groups and all three workbench icons. The real FreeCAD/Xvfb screenshot scenario now asserts the complete Sewing command set at workbench activation, so a registration mismatch fails before later screenshots can be mistaken for acceptance.
 
 ## Architecture gates
 
-- **P0-A Pattern:** native `Sketcher::SketchObject` is geometry authority; PatternIR is solver-neutral.
-- **P0-B Sewing:** semantic references, curved correspondence, M:N sewing and repair UX are implemented; canonical verification remains required.
-- **P0-C Human fitting:** persistent anthropometric mannequin and collision provider are implemented and previously smoke-tested.
-- **P0-D Drape target:** persistent target-neutral DrapeTarget is implemented for mannequin and arbitrary FreeCAD Shape/Mesh. **Next work: make Simulation consume it directly.**
-- **P0-E Simulation:** deterministic mesh/solver and lifecycle/status controls exist. **Current blocker remains target-authoritative collision rebuild after CI recovery.**
-
-## Active workstreams
-
-| Workstream | Issue | Status |
-|---|---:|---|
-| Python 3.12 canonical CI regression | #293/#294 | **in progress — headless SewingCommands import contract** |
-| DrapeTarget authority | #276 | queued behind CI recovery |
-| Canonical garment E2E | #278 | queued after target authority |
-| Curved sewing repair acceptance | #275 | merged implementation; canonical verification pending |
-| Pattern authoring production minimum | #162 | active audit; avoid duplicate drafting kernel |
-| Simulation quality/materials | #145 | active P0 integration |
-| Export/package/install | #163/#147 | release follow-up |
-
-## CI regression finding
-
-The failing `test_sewing_repair.py` assertion is not Python-version-specific: the same `AttributeError` was reached under Python 3.10 and 3.12 in canonical run `33309390274`. `SewingCommands._ACTIVATION` was defined inside the optional `import FreeCADGui` registration block, so headless CPython imports omitted a public module-level contract that the regression test intentionally checks. The fix keeps `_ACTIVATION` available independently of GUI registration while retaining optional FreeCADGui command installation.
+- **P0-A Pattern:** native Sketcher geometry remains the editable geometry authority; Cloth owns semantic pattern metadata.
+- **P0-B Sewing:** semantic references, curved correspondence, M:N sewing and repair UX are the persistent sewing authority.
+- **P0-C Human fitting:** persistent anthropometric mannequin and arrangement model are FreeCAD document state.
+- **P0-D Drape target:** target-neutral mannequin/FreeCAD geometry collision input is authoritative and persistent.
+- **P0-E Simulation:** deterministic mesh/solver is disposable derived state; lifecycle controls expose stale/ready/running/error states.
 
 ## Coordination rules
 
 - Update this file at start/handoff of each implementation slice.
-- Do not create another GitHub Actions workflow.
-- Do not silently retarget semantic references after topology changes.
-- Public FreeCAD commands/task panels/document objects are the acceptance surface; utility-only tests are insufficient.
-- Keep compatibility shims only where they do not remain authoritative.
+- Never create another workflow; reuse `canonical-execution.yml`.
+- Never silently retarget semantic references after topology changes.
+- Public FreeCAD workbench commands/task panels/document objects are the acceptance surface; utility-only tests are insufficient.
+- Do not merge a branch merely because its feature is useful if it is stale or non-mergeable; re-cut from current main and preserve the proposal in the issue/roadmap.
+- A milestone is not complete until canonical CI is green and merged-main verification is green.
