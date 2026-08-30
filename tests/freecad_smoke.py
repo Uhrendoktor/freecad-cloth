@@ -11,6 +11,7 @@ from SimulationObjects import create_simulation_scene,reset_scene,set_avatar_col
 from AvatarCommands import create_avatar, set_avatar_measurements, set_avatar_pose, set_avatar_skin_offset
 from DrapeCommands import create_drape_target_from_selection
 from SewingGui import correspondence_report
+from PatternNativeCommands import create_native_pattern_piece
 
 def main():
     import FreeCADGui as Gui
@@ -18,8 +19,7 @@ def main():
     workbenches=(InitGui.ClothPatternWorkbench(),InitGui.ClothSimulationWorkbench(),InitGui.ClothSewingWorkbench())
     assert all(w.GetClassName()=="Gui::PythonWorkbench" for w in workbenches)
     assert [w.MenuText for w in workbenches]==["Cloth Pattern","Cloth Simulation","Cloth Sewing"]
-    class CorrespondenceFixture:
-        StartA=0.0; EndA=1.0; StartB=0.0; EndB=1.0; ReversedB=True
+    class CorrespondenceFixture: StartA=0.0; EndA=1.0; StartB=0.0; EndB=1.0; ReversedB=True
     assert correspondence_report(CorrespondenceFixture(),120,121,0.05).status=="reversed"
     doc=App.newDocument("ClothSmoke");create_pattern_piece();obj=doc.getObject("PatternPiece");assert obj is not None;assert obj.PieceId=="pattern-piece-1";assert obj.SewingBoundary=="bottom,right,top,left";assert obj.Shape.isValid();initial=obj.Shape.BoundBox.XLength;obj.Width=120;doc.recompute();assert obj.Shape.isValid() and obj.Shape.BoundBox.XLength!=initial and obj.PieceId=="pattern-piece-1"
     obj.Placement=App.Placement(App.Vector(15,20,0),App.Rotation(App.Vector(0,0,1),15));doc.recompute();assert obj.Placement.Base==App.Vector(15,20,0);assert abs(obj.Placement.Rotation.Angle-15.0)<1e-9
@@ -38,5 +38,6 @@ def main():
     avatar_doc=App.newDocument("AvatarSmoke"); mannequin=create_avatar(); assert mannequin.AvatarStatus=="Valid" and mannequin.Shape.isValid() and mannequin.Shape.Volume>0; original=mannequin.Shape.Volume; set_avatar_measurements(chest=1100); assert mannequin.Shape.Volume!=original; set_avatar_pose("sewing"); set_avatar_skin_offset(6.0); assert mannequin.PosePreset=="sewing" and abs(float(mannequin.SkinOffset)-6.0)<1e-9 and mannequin.CollisionProxy is not None; avatar_doc.recompute()
     with tempfile.TemporaryDirectory() as directory:
         path=str(Path(directory)/"avatar.FCStd"); avatar_doc.saveAs(path); App.closeDocument(avatar_doc.Name); reopened=App.openDocument(path); restored=reopened.getObject("ClothAvatar"); assert restored is not None and restored.AvatarStatus=="Valid"; assert restored.PosePreset=="sewing"; assert abs(float(restored.Chest)-1100.0)<1e-9; assert abs(float(restored.SkinOffset)-6.0)<1e-9; App.closeDocument(reopened.Name)
-    print("FreeCAD workbench, Sketcher, sewing correspondence, drape target, humanoid drape, and parametric avatar smoke test passed")
+    native_doc=App.newDocument("NativePatternSmoke"); piece, native_sketch=create_native_pattern_piece("NativeFront",140,90,8,0); assert piece.GeometryAuthority=="Sketcher" and native_sketch.GeometryAuthority=="Sketcher" and piece.Sketch==native_sketch and native_sketch.Visibility is True; App.closeDocument(native_doc.Name)
+    print("FreeCAD workbench, native Sketcher, one-step pattern creation, sewing correspondence, drape target, humanoid drape, and avatar smoke test passed")
 if __name__=="__main__": main()
