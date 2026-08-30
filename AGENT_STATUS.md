@@ -28,6 +28,11 @@ The bounded DrapeTarget re-cut in #320 adds explicit `VALID/STALE/INVALID/REFRES
 
 The invariant is strict: target edit -> STALE with reason; recompute remains safe; no stale collision surface is consumed; Step/Run are blocked; Refresh rebuilds collision state; Reset remains available.
 
+## Active agent slices
+
+- **Pattern UX / command contract (#267):** supervised-subagent, branch `agent/pattern-command-ux-20260830`, claimed 2026-08-30. Focused slice: replace derived Pattern command labels with stable user-facing labels and contextual activation states, with headless regression coverage. Avoids Simulation/Sewing files and the supervisor branch.
+- **Sewing menu grouping (#258):** supervised-subagent, branch `agent/sewing-menu-groups-20260830`, claimed 2026-08-30T14:22+02:00.
+
 ## Architecture gates
 
 - **Pattern:** native Sketcher geometry authority; stable semantic edge references.
