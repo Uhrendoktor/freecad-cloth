@@ -23,6 +23,7 @@ Initial PR/issue backlog was audited before new implementation. Stale stacked br
 | Native Sketcher authority | #165/#170, merged #215 | done |
 | Workbench lifecycle/boundaries | #212, merged #218 | done |
 | Sewing invalid-reference task acceptance | #226, merged | done |
+| Sewing M:N task-panel integration | #241 | active |
 | Simulation quality/material density | #145/#229, merged gate | active P0 follow-up |
 | Parametric avatar/mannequin | #203/#208 | active P0 |
 | Canonical GUI acceptance | #155/#143/#229 | active P0 follow-up |
