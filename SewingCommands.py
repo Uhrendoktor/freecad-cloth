@@ -25,8 +25,7 @@ def _selected_pattern_edges(allow_many=False):
             edge=edge_number-1; key=(id(obj),edge)
             if key in seen: continue
             seen.add(key); edges.append((obj,edge))
-    if (not allow_many and len(edges)!=2) or (allow_many and len(edges)<2):
-        raise ValueError("select %s edges on pattern pieces" % ("at least two" if allow_many else "exactly two"))
+    if (not allow_many and len(edges)!=2) or (allow_many and len(edges)<2): raise ValueError("select %s edges on pattern pieces" % ("at least two" if allow_many else "exactly two"))
     if len({id(obj) for obj,_edge in edges}) != 2: raise ValueError("a sewing relationship must connect two different pattern pieces")
     return edges
 
@@ -43,8 +42,7 @@ def create_seam_from_selection():
     from PatternObjects import add_seam
     doc=App.ActiveDocument
     if doc is None: raise ValueError("open a document before creating a seam")
-    (piece_a,edge_a),(piece_b,edge_b)=_selected_pattern_edges()
-    existing_ids={str(getattr(seam,"SeamId","")) for seam in _seams(doc)}; index=len(existing_ids)+1; prefix="seam-%d"%index
+    (piece_a,edge_a),(piece_b,edge_b)=_selected_pattern_edges(); existing_ids={str(getattr(seam,"SeamId","")) for seam in _seams(doc)}; index=len(existing_ids)+1; prefix="seam-%d"%index
     while prefix in existing_ids: index+=1; prefix="seam-%d"%index
     seam=add_seam(doc,Seam(str(piece_a.PieceId),edge_a,str(piece_b.PieceId),edge_b,id=prefix)); doc.recompute(); return seam
 
@@ -61,8 +59,7 @@ def create_mn_sewing_from_selection():
         if pid not in piece_ids: piece_ids.append(pid)
     if len(piece_ids)!=2: raise ValueError("select edges from exactly two pattern pieces")
     side_a=tuple(SewingMember(piece_ids[0],edge) for piece,edge in selected if str(piece.PieceId)==piece_ids[0]); side_b=tuple(SewingMember(piece_ids[1],edge) for piece,edge in selected if str(piece.PieceId)==piece_ids[1])
-    lengths={(m.piece_id,m.edge):_edge_length(pieces[m.piece_id],m.edge) for m in side_a+side_b}
-    existing_ids={str(getattr(o,"RelationshipId","")) for o in doc.Objects if getattr(o,"SewingType","")=="SewingNetwork"}; index=len(existing_ids)+1; relationship_id="sewing-%d"%index
+    lengths={(m.piece_id,m.edge):_edge_length(pieces[m.piece_id],m.edge) for m in side_a+side_b}; existing_ids={str(getattr(o,"RelationshipId","")) for o in doc.Objects if getattr(o,"SewingType","")=="SewingNetwork"}; index=len(existing_ids)+1; relationship_id="sewing-%d"%index
     while relationship_id in existing_ids: index+=1; relationship_id="sewing-%d"%index
     models=build_mn_seams(relationship_id,side_a,side_b,lengths); seam_objects=[add_seam(doc,m) for m in models]; network=add_sewing_network(doc,seam_objects,relationship_id,"SewingNetwork%d"%index); doc.recompute(); return network
 
@@ -130,10 +127,12 @@ def show_sewing_2d():
     import FreeCADGui as Gui
     if not Gui.activeDocument(): return
     from SewingView import pattern_pieces_for_2d
+    from SewingOverlay import install_seam_view_providers
     document=Gui.activeDocument().Document; Gui.Selection.clearSelection()
     for obj in pattern_pieces_for_2d(document.Objects): Gui.Selection.addSelection(obj)
     for obj in document.Objects:
         if getattr(obj,"SeamId","") or getattr(obj,"SewingType","") in {"SewingOperation","SewingNetwork"}: Gui.Selection.addSelection(obj)
+    install_seam_view_providers(document)
     view=Gui.activeDocument().activeView(); view.viewTop(); view.fitAll()
 
 COMMANDS=["ClothSewing_CreateSeam","ClothSewing_CreateMNSewing","ClothSewing_CreateOperation","ClothSewing_EditOperation","ClothSewing_ReverseSeam","ClothSewing_ToggleAlignment","ClothSewing_Validate","ClothSewing_RepairSeam","ClothSewing_Show2D","ClothSewing_InspectGraph"]
@@ -155,7 +154,6 @@ def _has_selected_operation():
         import FreeCADGui as Gui
         return any(getattr(o,"SewingType","")=="SewingOperation" for o in Gui.Selection.getSelection())
     except ImportError: return False
-# Keep command activation available to headless CPython tests.
 _ACTIVATION={"ClothSewing_CreateSeam":lambda:_has_active_document() and _has_two_selected_pattern_edges(),"ClothSewing_CreateMNSewing":lambda:_has_active_document() and _has_mn_selection(),"ClothSewing_CreateOperation":lambda:_has_active_document() and _has_selected_seam(),"ClothSewing_EditOperation":lambda:_has_active_document() and _has_selected_operation(),"ClothSewing_ReverseSeam":lambda:_has_active_document() and _has_selected_seam(),"ClothSewing_ToggleAlignment":lambda:_has_active_document() and _has_selected_seam(),"ClothSewing_Validate":lambda:_has_active_document(),"ClothSewing_RepairSeam":lambda:_has_active_document() and _has_selected_seam(),"ClothSewing_Show2D":lambda:_has_active_document(),"ClothSewing_InspectGraph":lambda:_has_active_document()}
 class _SewingCommand:
     def __init__(self,function,active,tooltip,menu_text=None,pixmap=None): self.function,self.active,self.tooltip=function,active,tooltip; self.menu_text=menu_text or function.__name__.replace("_"," ").title(); self.pixmap=pixmap
