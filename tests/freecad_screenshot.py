@@ -140,11 +140,9 @@ def add_line_feature(doc, name, segments, width=4.0):
 
 
 def add_pattern_markers(doc, front, back):
-    """Create deterministic visual marker fixtures around real pattern geometry."""
     import FreeCAD as FC
     front_x = float(front.Placement.Base.x)
     back_x = float(back.Placement.Base.x)
-    y = 45.0
     markers = []
     for name, x in (("Front notch marker", front_x + 70.0), ("Back notch marker", back_x + 70.0)):
         markers.append(add_line_feature(doc, name, [
@@ -156,14 +154,11 @@ def add_pattern_markers(doc, front, back):
         (FC.Vector(front_x + 70, 78, 0.8), FC.Vector(front_x + 66, 70, 0.8)),
         (FC.Vector(front_x + 70, 78, 0.8), FC.Vector(front_x + 74, 70, 0.8)),
     ]))
-    for marker in markers:
-        marker.ViewObject.LineColor = (0.85, 0.15, 0.15)
     progress("pattern-markers=notches+grainline count=%s" % len(markers))
     return markers
 
 
 def add_sewing_arrows(doc, front, back):
-    """Create deterministic in-plane direction arrows over the real seam visualization."""
     import FreeCAD as FC
     y = 45.0
     arrows = []
@@ -179,7 +174,6 @@ def add_sewing_arrows(doc, front, back):
 
 
 def image_is_useful(path, state_name):
-    """Reject empty, tiny, or visually uniform captures rather than accepting -s alone."""
     if not os.path.isfile(path):
         raise RuntimeError("screenshot does not exist: %s" % path)
     file_size = os.path.getsize(path)
@@ -198,16 +192,12 @@ def image_is_useful(path, state_name):
 
 
 def save_window(filename, state_name, proof):
-    """Capture the complete FreeCAD main window after all required state is visible."""
     Gui.updateGui()
     QtWidgets.QApplication.processEvents()
     window = Gui.getMainWindow()
     if window is None:
         raise RuntimeError("FreeCAD main window is unavailable")
-    window.show()
-    window.raise_()
-    window.activateWindow()
-    window.resize(1280, 720)
+    window.show(); window.raise_(); window.activateWindow(); window.resize(1280, 720)
     QtWidgets.QApplication.processEvents()
     image = window.grab()
     path = os.path.join(OUT, filename)
@@ -215,8 +205,7 @@ def save_window(filename, state_name, proof):
         raise RuntimeError("FreeCAD main-window grab returned an empty image")
     if not image.save(path):
         raise RuntimeError("failed to save full-window screenshot: %s" % path)
-    progress("screenshot=%s state=%s scope=main-window size=%sx%s toolbars=%s docks=%s" % (
-        path, state_name, image.width(), image.height(), ",".join(toolbars()), ",".join(docks())))
+    progress("screenshot=%s state=%s scope=main-window size=%sx%s toolbars=%s docks=%s" % (path, state_name, image.width(), image.height(), ",".join(toolbars()), ",".join(docks())))
     image_is_useful(path, state_name)
     with open(MANIFEST, "a", encoding="utf-8") as handle:
         handle.write("%s\t%s\t%s\n" % (filename, state_name, proof))
@@ -253,14 +242,12 @@ def run_scenario():
             window.show(); window.raise_(); window.activateWindow(); window.resize(1280, 720); Gui.updateGui()
             progress("main-window=%sx%s" % (window.width(), window.height()))
 
-        # Pattern workbench: real pieces with native seam allowance, dimensions in the task panel,
-        # and deterministic notch/grainline fixtures over the actual geometry.
         doc = App.newDocument("ClothVisualRegression")
         front = create_pattern_piece_from_parameters("Front", 140.0, 90.0, 10.0, 0.0)
         back = create_pattern_piece_from_parameters("Back", 140.0, 90.0, 10.0, 0.0)
         front.Placement.Base.x = -160.0
         back.Placement.Base.x = 20.0
-        markers = add_pattern_markers(doc, front, back)
+        add_pattern_markers(doc, front, back)
         doc.recompute()
         if front.Shape.isNull() or back.Shape.isNull():
             raise RuntimeError("pattern fixture produced empty geometry")
@@ -275,8 +262,6 @@ def run_scenario():
         save_window("cloth-pattern-design.png", "Pattern Workbench", "two 140x90 mm pieces; native 10 mm seam allowance; task-panel dimensions/allowance; notch and grainline markers")
         Gui.Control.closeDialog()
 
-        # Sewing workbench: use the real semantic seam and sewing operation; add only deterministic
-        # arrow fixtures so direction is visible at this regression boundary.
         seam = add_seam(doc, Seam(str(front.PieceId), 1, str(back.PieceId), 3, id="FrontBack", alignment="uniform", stitch_group="MainSeam"))
         doc.recompute()
         if str(seam.Status) != "Valid" or seam.Shape.isNull():
@@ -284,11 +269,20 @@ def run_scenario():
         Gui.Selection.clearSelection(); Gui.Selection.addSelection(seam)
         sewing = create_sewing_operation()
         doc.recompute()
-        arrows = add_sewing_arrows(doc, front, back)
+        add_sewing_arrows(doc, front, back)
         if str(sewing.Status) != "Valid" or sewing.Shape.isNull() or int(sewing.StitchCount) < 2:
             raise RuntimeError("sewing operation did not produce valid seam diagnostics")
         progress("sewing-created status=%s stitches=%s length_a=%.2f length_b=%.2f difference=%.2f" % (sewing.Status, sewing.StitchCount, sewing.LengthA, sewing.LengthB, sewing.LengthDifference))
-        activate_workbench("ClothSewingWorkbench", "Cloth Sewing", ["ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_Validate"])
+        activate_workbench(
+            "ClothSewingWorkbench",
+            "Cloth Sewing",
+            [
+                "ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing", "ClothSewing_CreateNetwork",
+                "ClothSewing_FreeSewing", "ClothSewing_CreateOperation", "ClothSewing_EditOperation",
+                "ClothSewing_EditNetwork", "ClothSewing_ReverseSeam", "ClothSewing_ToggleAlignment",
+                "ClothSewing_RepairSeam", "ClothSewing_Validate", "ClothSewing_Show2D",
+            ],
+        )
         Gui.Selection.clearSelection(); Gui.Selection.addSelection(sewing)
         sewing_panel = SewingTaskPanel(sewing)
         show_task(sewing_panel, "Sewing Workbench")
@@ -296,17 +290,16 @@ def run_scenario():
         if str(sewing.Status) != "Valid" or abs(float(sewing.LengthDifference)) > 0.5:
             raise RuntimeError("sewing diagnostics are not valid")
         set_top_camera()
-        save_window("cloth-sewing.png", "Sewing Workbench", "real seam/sewing geometry; uniform correspondence diagnostics; stitch count and length comparison; deterministic direction arrows")
+        save_window("cloth-sewing.png", "Sewing Workbench", "complete public Sewing command registration; real seam/sewing geometry; correspondence diagnostics; deterministic direction arrows")
         Gui.Control.closeDialog()
 
-        # Simulation workbench: separate deterministic document so all links remain in one FreeCAD document.
         progress("simulation-scenario-start")
         sim_doc = App.newDocument("ClothSimulationVisualRegression")
         sim_front = create_pattern_piece_from_parameters("SimFront", 140.0, 90.0, 10.0, 0.0)
         sim_back = create_pattern_piece_from_parameters("SimBack", 140.0, 90.0, 10.0, 0.0)
         sim_front.Placement.Base.x = -150.0
         sim_back.Placement.Base.x = 10.0
-        sim_seam = add_seam(sim_doc, Seam(str(sim_front.PieceId), 1, str(sim_back.PieceId), 3, id="SimFrontBack", alignment="uniform", stitch_group="MainSeam"))
+        add_seam(sim_doc, Seam(str(sim_front.PieceId), 1, str(sim_back.PieceId), 3, id="SimFrontBack", alignment="uniform", stitch_group="MainSeam"))
         scene = create_quality_simulation_scene(sim_doc)
         scene.ClothPieces = [sim_front, sim_back]
         scene.QualityPreset = "Fast"
@@ -322,7 +315,6 @@ def run_scenario():
         scene.StartHeight = 135.0
         sim_front.Visibility = False
         sim_back.Visibility = False
-        sim_seam.Visibility = False
         sim_doc.recompute()
         if scene.DrapeTarget is None or scene.AvatarProxy is None:
             raise RuntimeError("simulation fixture has no avatar/DrapeTarget")
@@ -336,7 +328,6 @@ def run_scenario():
         set_axon_camera()
         save_window("cloth-simulation-arranged.png", "Simulation Workbench arranged", "humanoid avatar plus two deterministic arranged garment panels at StartHeight; simulation controls and ready state")
 
-        # Advance through the real task-panel control path, logging each deterministic batch.
         for batch in (6, 6, 6, 6):
             sim_panel.step(batch)
             sim_doc.recompute()
