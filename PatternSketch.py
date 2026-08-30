@@ -18,6 +18,16 @@ def _ensure_piece_properties(obj):
     if "GeometryAuthority" not in obj.PropertiesList:
         obj.addProperty("App::PropertyEnumeration", "GeometryAuthority", "Cloth")
         obj.GeometryAuthority = ["PatternParameters", "Sketcher"]
+    elif "Sketcher" not in tuple(getattr(obj, "GeometryAuthority", ()) or ()):
+        obj.GeometryAuthority = ["PatternParameters", "Sketcher"]
+    if "GeometryMode" in obj.PropertiesList and "Sketch" not in tuple(getattr(obj, "GeometryMode", ()) or ()):
+        obj.GeometryMode = ["Rectangle", "Custom", "Sketch"]
+    if "ValidationStatus" not in obj.PropertiesList:
+        obj.addProperty("App::PropertyEnumeration", "ValidationStatus", "Validation")
+        obj.ValidationStatus = ["Unknown", "Valid", "Invalid"]
+        obj.ValidationStatus = "Unknown"
+    if "ValidationMessage" not in obj.PropertiesList:
+        obj.addProperty("App::PropertyString", "ValidationMessage", "Validation")
 
 
 def _add_geometry(sketch, points):
@@ -84,6 +94,15 @@ def _attach(sketch, piece, document):
         attach(obj, sketch)
         obj.Visibility = False
         sketch.Visibility = True
+    return sketch
+
+
+def edit_sketch(sketch):
+    """Enter FreeCAD's native Sketcher editor for a pattern sketch."""
+    import FreeCADGui as Gui
+    if sketch is None or getattr(sketch, "TypeId", "") != "Sketcher::SketchObject":
+        raise ValueError("a native Sketcher pattern sketch is required")
+    Gui.activeDocument().setEdit(sketch.Name)
     return sketch
 
 
