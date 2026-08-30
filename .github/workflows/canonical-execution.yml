@@ -178,7 +178,7 @@ jobs:
           if printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USER" --password-stdin >/dev/null 2>&1 && timeout 60s docker pull "$IMAGE"; then exit 0; fi
           docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
           docker buildx build --progress=plain --load --tag "$IMAGE" --cache-from type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache --cache-to type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache,mode=max docker/freecad-ci
-      - name: Run smoke headlessly without FreeCAD GUI event loop
+      - name: Run smoke without entering the FreeCAD GUI event loop
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
           TEST: ${{ matrix.test }}
@@ -186,7 +186,7 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts/freecad-e2e docs/images/generated
           CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash \
-            -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PIXELFLUX_WAYLAND=false \
+            -e DISPLAY=:99 -e TEST="$TEST" -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PIXELFLUX_WAYLAND=false \
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated -e CLOTH_E2E_DIR=/workspace/artifacts/freecad-e2e \
             -e PYTHONPATH=/workspace -w /workspace "$IMAGE" -euo pipefail -c '
