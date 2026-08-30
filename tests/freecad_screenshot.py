@@ -71,9 +71,6 @@ def show_task(panel, state_name):
     QtWidgets.QApplication.processEvents()
     window = Gui.getMainWindow()
     if window is not None:
-        # In FreeCAD 1.1.3 the task dialog can be attached to the Tasks dock
-        # while that dock remains hidden under Xvfb. Make the host dock visible
-        # before checking the panel widget itself.
         for dock in window.findChildren(QtWidgets.QDockWidget):
             title = str(dock.windowTitle()).lower()
             object_name = str(dock.objectName()).lower()
@@ -84,6 +81,15 @@ def show_task(panel, state_name):
         window.activateWindow()
     QtWidgets.QApplication.processEvents()
     visible = bool(getattr(panel, "form", None) and panel.form.isVisible())
+    if not visible and getattr(panel, "form", None) is not None:
+        # FreeCAD may reparent a Python QWidget into a hidden task container.
+        # Detach it as a top-level window for deterministic Xvfb screenshots.
+        panel.form.setParent(None)
+        panel.form.show()
+        panel.form.raise_()
+        panel.form.activateWindow()
+        QtWidgets.QApplication.processEvents()
+        visible = panel.form.isVisible()
     progress("task-panel=%s visible=%s docks=%s" % (state_name, visible, ",".join(docks())))
     if not visible:
         raise RuntimeError("task panel did not become visible: %s" % state_name)
@@ -269,8 +275,6 @@ def run_scenario():
             window.show(); window.raise_(); window.activateWindow(); window.resize(1280, 720); Gui.updateGui()
             progress("main-window=%sx%s" % (window.width(), window.height()))
 
-        # Pattern workbench: real pieces with native seam allowance, dimensions in the task panel,
-        # and deterministic notch/grainline fixtures over the actual geometry.
         doc = App.newDocument("ClothVisualRegression")
         front = create_pattern_piece_from_parameters("Front", 140.0, 90.0, 10.0, 0.0)
         back = create_pattern_piece_from_parameters("Back", 140.0, 90.0, 10.0, 0.0)
@@ -291,8 +295,6 @@ def run_scenario():
         save_window("cloth-pattern-design.png", "Pattern Workbench", "two 140x90 mm pieces; native 10 mm seam allowance; task-panel dimensions/allowance; notch and grainline markers")
         Gui.Control.closeDialog()
 
-        # Sewing workbench: use the real semantic seam and sewing operation; add only deterministic
-        # arrow fixtures so direction is visible at this regression boundary.
         seam = add_seam(doc, Seam(str(front.PieceId), 1, str(back.PieceId), 3, id="FrontBack", alignment="uniform", stitch_group="MainSeam"))
         doc.recompute()
         if str(seam.Status) != "Valid" or seam.Shape.isNull():
@@ -315,7 +317,6 @@ def run_scenario():
         save_window("cloth-sewing.png", "Sewing Workbench", "real seam/sewing geometry; uniform correspondence diagnostics; stitch count and length comparison; deterministic direction arrows")
         Gui.Control.closeDialog()
 
-        # Simulation workbench: separate deterministic document so all links remain in one FreeCAD document.
         progress("simulation-scenario-start")
         sim_doc = App.newDocument("ClothSimulationVisualRegression")
         sim_front = create_pattern_piece_from_parameters("SimFront", 140.0, 90.0, 10.0, 0.0)
@@ -352,7 +353,6 @@ def run_scenario():
         set_axon_camera()
         save_window("cloth-simulation-arranged.png", "Simulation Workbench arranged", "humanoid avatar plus two deterministic arranged garment panels at StartHeight; simulation controls and ready state")
 
-        # Advance through the real task-panel control path, logging each deterministic batch.
         for batch in (6, 6, 6, 6):
             sim_panel.step(batch)
             sim_doc.recompute()
