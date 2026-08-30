@@ -1,53 +1,55 @@
 # Packaging proposal
 
-This branch proposes adopting `pyproject.toml` as the repository's packaging and
-Python-tool configuration entry point without changing how FreeCAD discovers
-the workbench today.
+This proposal recommends a package-oriented Python structure while preserving FreeCAD's external-workbench discovery contract.
 
-## Compatibility assessment
-
-FreeCAD external Python workbenches are currently discovered from the user's
-`Mod` directory. The existing repository deliberately keeps the classic
-`Init.py`/`InitGui.py` entry points for compatibility. A `pyproject.toml` file is
-passive metadata from FreeCAD's point of view, so adding it does not change
-startup or workbench discovery.
-
-FreeCAD's documented **namespaced workbench** layout is the better long-term
-match for pip/standard-Python packaging. It moves runtime code under a
-`freecad/<workbench>/` namespace and keeps FreeCAD initialization entry points
-inside that namespace. That migration should be a separate, deliberately
-tested compatibility change rather than being hidden inside this packaging
-proposal.
-
-## Why this proposal is intentionally conservative
-
-- `pyproject.toml` uses standard PEP 621 metadata and setuptools as the build
-  backend.
-- No FreeCAD dependency is declared for pip resolution: FreeCAD is an
-  application/runtime dependency, not a normal PyPI dependency.
-- The current classic Mod layout is not claimed to be pip-installable yet.
-- `requires-python = ">=3.8"` preserves the Python baseline documented for
-  FreeCAD 1.0. A newer minimum should be adopted only when the workbench's
-  supported FreeCAD runtime matrix is intentionally raised.
-- `py-modules = []` prevents setuptools from accidentally treating the current
-  collection of top-level FreeCAD scripts as an installable package.
-
-## Recommended next step
-
-If this proposal is accepted, migrate the runtime into a namespaced layout in a
-separate PR, for example:
+## Proposed architecture
 
 ```text
-freecad/
-└── cloth/
-    ├── __init__.py
-    ├── init_gui.py
-    └── ...runtime modules...
+freecad-cloth/
+├── Init.py
+├── InitGui.py
+├── package.xml
+├── pyproject.toml
+├── freecad_cloth/
+│   ├── __init__.py
+│   ├── common/
+│   │   ├── __init__.py
+│   │   ├── geometry.py
+│   │   ├── units.py
+│   │   └── utils.py
+│   ├── sewing/
+│   │   ├── __init__.py
+│   │   ├── workbench.py
+│   │   └── ...
+│   ├── pattern/
+│   │   ├── __init__.py
+│   │   ├── workbench.py
+│   │   └── ...
+│   └── cloth/
+│       ├── __init__.py
+│       ├── workbench.py
+│       └── ...
+└── tests/
 ```
 
-The migration should preserve the existing `Mod`-directory installation path,
-exercise the Addon Manager/package metadata and a real FreeCAD smoke test, and
-only then enable setuptools package discovery for an actual wheel installation.
+The exact three workbench names should follow the existing product/UI names in the repository. Each workbench gets its own Python module/package, while genuinely shared functionality belongs in `freecad_cloth.common` rather than being duplicated.
 
-This keeps packaging modernization independent from the sewing, avatar, and
-simulation implementation work currently in progress.
+## FreeCAD compatibility
+
+The root `Init.py` and `InitGui.py` remain the FreeCAD entry points. They should become thin adapters that import the appropriate workbench classes from `freecad_cloth`. The package itself does not replace FreeCAD's workbench discovery mechanism.
+
+This is deliberately an incremental migration: introduce the namespace alongside the existing entry points, move implementation modules in small changes, and verify Addon Manager/`package.xml` installation and a real FreeCAD smoke test before changing the loader or claiming wheel/pip installation support.
+
+## pyproject.toml direction
+
+`pyproject.toml` should use PEP 621 metadata with setuptools as the build backend and package discovery for `freecad_cloth*`. FreeCAD should not be declared as a PyPI runtime dependency because it is supplied by the host application. The Python requirement should remain aligned with the supported FreeCAD baseline.
+
+The earlier `py-modules = []` proposal was intentionally conservative, but it should be considered an interim packaging guard only. Once the namespace exists, normal package discovery is the cleaner long-term configuration.
+
+## Design rules
+
+- Keep FreeCAD-specific imports at the GUI/workbench boundary where practical.
+- Keep reusable, host-independent algorithms in `common` so they can be unit-tested without launching FreeCAD.
+- Do not create a generic `utils.py` dumping ground; split common functionality by responsibility as it grows.
+- Avoid putting workbench-specific code in `common` merely to share it between two modules.
+- Preserve the `Mod` installation layout for FreeCAD/Add-on Manager compatibility.
