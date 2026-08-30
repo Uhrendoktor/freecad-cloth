@@ -15,7 +15,7 @@ The project is now in the P0-1 DrapeTarget lifecycle slice. Current supervisor b
 3. **P0-2 Canonical garment E2E (#278/#155/#143):** native Pattern -> Sewing -> fitting/arrangement -> DrapeTarget -> Simulation -> save/reload -> upstream edit/invalidation -> refresh -> deterministic re-simulation.
 4. **P0-3 Simulation behavior (#145/#159/#161):** quality/material/collision controls materially affect derived topology/backend state and persist.
 5. **P0-4 Release UX/persistence:** task panels, selection, undo/recompute, save/reload, error/cancel behavior, and no scripting-only acceptance paths.
-6. **P1 Pattern/export/package (#162/#165/#297/#298/#147/#163).**
+6. **P1 Pattern/export/package (#162/#165/#297/#298/#147/#163).
 7. **P2 optional solver benchmark (#148)** only after P0/P1 are green.
 
 ## Research decisions
@@ -27,6 +27,13 @@ CLO/Marvelous Designer behavior makes semantic sewing, visible correspondence/re
 The bounded DrapeTarget re-cut in #320 adds explicit `VALID/STALE/INVALID/REFRESHING/READY_FOR_SIMULATION` lifecycle state, public Refresh, target-neutral attachment and Simulation preflight/task-panel recovery. Supervisor review then found a remaining correctness blocker: current `SimulationObjects._collision_for_scene()` raises during ordinary document recompute when a target becomes stale. This is tracked in #322 and must be repaired before #320 is accepted.
 
 The invariant is strict: target edit -> STALE with reason; recompute remains safe; no stale collision surface is consumed; Step/Run are blocked; Refresh rebuilds collision state; Reset remains available.
+
+## Active agent slice
+
+- **#322 stale DrapeTarget recompute safety:** claimed on `agent/drapetarget-stale-recompute-final-20260830`.
+- Implementation changes keep stale/unbuilt/invalid targets out of collision resolution during ordinary recompute and block Step/Run until the target reports `ready`.
+- Regression coverage exercises stale placement detection, recompute-safe collision resolution, solver-step blocking, and GUI command preflight.
+- Do not reuse the older `agent/drapetarget-stale-recompute-20260830` branch; it was based on an earlier integration point.
 
 ## Architecture gates
 

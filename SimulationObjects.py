@@ -208,16 +208,36 @@ def _seam_pairs(doc, panel_data, seam_samples=8):
 
 
 def _collision_for_scene(obj):
-    """Resolve collision strictly from the persistent DrapeTarget."""
+    """Resolve collision from the persistent DrapeTarget without crashing recompute.
+
+    Stale/unbuilt/invalid targets are recoverable lifecycle states. During an
+    ordinary FreeCAD recompute, return no collision surface and let the public
+    Step/Run preflight block advancement until Refresh has rebuilt the target.
+    """
     target = getattr(obj, "DrapeTarget", None)
     if target is not None:
         from DrapeTarget import collision_surface, target_status
         status = target_status(target)
+        if hasattr(target, "TargetStatus"):
+            target.TargetStatus = status["state"]
+        if hasattr(target, "InvalidationReason"):
+            target.InvalidationReason = status["reason"]
         if status["state"] in ("stale", "unbuilt", "unassigned", "invalid", "missing"):
-            raise RuntimeError(status["message"])
+            return None
         source = getattr(target, "SourceObject", None)
         return collision_surface(source, float(getattr(target, "CollisionDeflection", 1.0)), float(getattr(target, "CollisionThickness", 0.0)))
     return None
+
+
+def _target_status_for_simulation(obj):
+    target = getattr(obj, "DrapeTarget", None)
+    if target is None:
+        return None
+    try:
+        from DrapeTarget import target_status
+        return target_status(target)
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        return {"state": "invalid", "message": "Cannot inspect drape target: %s" % exc, "stale": True, "reason": "target inspection failed"}
 
 
 class SimulationProxy:
@@ -237,7 +257,9 @@ class SimulationProxy:
         if self.backend is None or signature != self.source_signature or int(obj.Steps) < self.last_steps:
             self._build(obj, signature)
         steps = int(obj.Steps)
-        if steps > self.last_steps:
+        target_info = _target_status_for_simulation(obj)
+        blocked = target_info is not None and target_info.get("state") in ("stale", "unbuilt", "unassigned", "invalid", "missing")
+        if steps > self.last_steps and not blocked:
             for _ in range(steps - self.last_steps):
                 self.backend.step(
                     float(obj.TimeStep), int(obj.Iterations),
