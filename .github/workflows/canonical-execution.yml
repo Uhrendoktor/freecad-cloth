@@ -18,7 +18,7 @@ env:
 
 jobs:
   test:
-    if: ${{ github.event_name == 'pull_request' && github.event.action != 'closed' && !contains(github.event.head_commit.message, '[maintenance]') }}
+    if: ${{ github.event_name != 'schedule' && github.event.action != 'closed' && !contains(github.event.head_commit.message, '[maintenance]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -77,7 +77,7 @@ jobs:
           test -f SewingObjects.py
 
   freecad-smoke:
-    if: ${{ github.event_name == 'pull_request' && github.event.action != 'closed' && !contains(github.event.head_commit.message, '[maintenance]') }}
+    if: ${{ github.event_name != 'schedule' && github.event.action != 'closed' && !contains(github.event.head_commit.message, '[maintenance]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -100,7 +100,7 @@ jobs:
             '
 
   gui-screenshots:
-    if: ${{ github.event_name == 'pull_request' && github.event.action != 'closed' && !contains(github.event.head_commit.message, '[maintenance]') }}
+    if: ${{ github.event_name != 'schedule' && github.event.action != 'closed' && !contains(github.event.head_commit.message, '[maintenance]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
