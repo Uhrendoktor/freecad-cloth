@@ -24,17 +24,26 @@ def _selected_pattern_edges(allow_many=False):
     """Return selected pattern-piece edge references in selection order."""
     import FreeCADGui as Gui
     edges = []
+    seen = set()
     for selection in Gui.Selection.getSelectionEx():
         obj = selection.Object
         if getattr(obj, "PatternType", "") != "PatternPiece":
             continue
         for sub_name in selection.SubElementNames:
-            if str(sub_name).startswith("Edge"):
-                try:
-                    edge = int(str(sub_name)[4:]) - 1
-                except ValueError:
-                    continue
-                edges.append((obj, edge))
+            if not str(sub_name).startswith("Edge"):
+                continue
+            try:
+                edge_number = int(str(sub_name)[4:])
+            except ValueError:
+                continue
+            if edge_number <= 0:
+                continue
+            edge = edge_number - 1
+            key = (id(obj), edge)
+            if key in seen:
+                continue
+            seen.add(key)
+            edges.append((obj, edge))
     if (not allow_many and len(edges) != 2) or (allow_many and len(edges) < 2):
         count = "at least two" if allow_many else "exactly two"
         raise ValueError("select %s edges on pattern pieces" % count)
@@ -64,7 +73,6 @@ def create_seam_from_selection():
     import FreeCAD as App
     from PatternModel import Seam
     from PatternObjects import add_seam
-
     doc = App.ActiveDocument
     if doc is None:
         raise ValueError("open a document before creating a seam")
@@ -84,7 +92,7 @@ def create_seam_from_selection():
 def create_mn_sewing_from_selection():
     """Create a persistent 1:N, M:1, or M:N sewing network.
 
-    Select two or more edges belonging to exactly two pattern pieces.  Edges
+    Select two or more edges belonging to exactly two pattern pieces. Edges
     from the first piece form side A and edges from the second form side B.
     Full edges are used by the GUI command; callers can use ``build_mn_seams``
     directly with normalized sub-ranges for free sewing.
@@ -92,7 +100,6 @@ def create_mn_sewing_from_selection():
     import FreeCAD as App
     from PatternObjects import add_seam
     from SewingNetwork import SewingMember, add_sewing_network, build_mn_seams
-
     doc = App.ActiveDocument
     if doc is None:
         raise ValueError("open a document before creating sewing")
@@ -105,7 +112,6 @@ def create_mn_sewing_from_selection():
             piece_ids.append(pid)
     if len(piece_ids) != 2:
         raise ValueError("select edges from exactly two pattern pieces")
-
     first_piece = piece_ids[0]
     side_a = tuple(SewingMember(first_piece, edge) for piece, edge in selected if str(piece.PieceId) == first_piece)
     side_b = tuple(SewingMember(piece_ids[1], edge) for piece, edge in selected if str(piece.PieceId) == piece_ids[1])
@@ -113,14 +119,12 @@ def create_mn_sewing_from_selection():
     from SewingObjects import _edge_length
     for member in side_a + side_b:
         lengths[(member.piece_id, member.edge)] = _edge_length(pieces[member.piece_id], member.edge)
-
     existing_ids = {str(getattr(obj, "RelationshipId", "")) for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork"}
     index = len(existing_ids) + 1
     relationship_id = "sewing-%d" % index
     while relationship_id in existing_ids:
         index += 1
         relationship_id = "sewing-%d" % index
-
     models = build_mn_seams(relationship_id, side_a, side_b, lengths)
     seam_objects = [add_seam(doc, model) for model in models]
     network = add_sewing_network(doc, seam_objects, relationship_id, "SewingNetwork%d" % index)
@@ -154,7 +158,6 @@ def edit_sewing_operation():
 
 
 def reverse_selected_seam():
-    """Toggle B-side seam orientation on the canonical seam."""
     import FreeCAD as App
     doc = App.ActiveDocument
     if doc is None:
@@ -166,7 +169,6 @@ def reverse_selected_seam():
 
 
 def toggle_selected_alignment():
-    """Toggle canonical seam correspondence between endpoint and uniform alignment."""
     import FreeCAD as App
     doc = App.ActiveDocument
     if doc is None:
@@ -192,7 +194,6 @@ def validate_seams():
 
 
 def show_sewing_2d():
-    """Focus the top view on pattern pieces, seams, and stitch correspondence."""
     import FreeCADGui as Gui
     if not Gui.activeDocument():
         return
@@ -202,8 +203,7 @@ def show_sewing_2d():
     for obj in pattern_pieces_for_2d(document.Objects):
         Gui.Selection.addSelection(obj)
     for obj in document.Objects:
-        if (getattr(obj, "SeamId", "") or
-                getattr(obj, "SewingType", "") in {"SewingOperation", "SewingNetwork"}):
+        if (getattr(obj, "SeamId", "") or getattr(obj, "SewingType", "") in {"SewingOperation", "SewingNetwork"}):
             Gui.Selection.addSelection(obj)
     view = Gui.activeDocument().activeView()
     view.viewTop()
@@ -211,16 +211,10 @@ def show_sewing_2d():
 
 
 COMMANDS = [
-    "ClothSewing_CreateSeam",
-    "ClothSewing_CreateMNSewing",
-    "ClothSewing_CreateOperation",
-    "ClothSewing_EditOperation",
-    "ClothSewing_ReverseSeam",
-    "ClothSewing_ToggleAlignment",
-    "ClothSewing_Validate",
-    "ClothSewing_Show2D",
+    "ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing", "ClothSewing_CreateOperation",
+    "ClothSewing_EditOperation", "ClothSewing_ReverseSeam", "ClothSewing_ToggleAlignment",
+    "ClothSewing_Validate", "ClothSewing_Show2D",
 ]
-
 _COMMAND_HANDLERS = {
     "ClothSewing_CreateSeam": create_seam_from_selection,
     "ClothSewing_CreateMNSewing": create_mn_sewing_from_selection,
@@ -231,7 +225,6 @@ _COMMAND_HANDLERS = {
     "ClothSewing_Validate": validate_seams,
     "ClothSewing_Show2D": show_sewing_2d,
 }
-
 _TOOLTIPS = {
     "ClothSewing_CreateSeam": "Create a persistent seam from two selected pattern edges",
     "ClothSewing_CreateMNSewing": "Create a deterministic 1:N, M:1, or M:N sewing relationship from selected edges",
@@ -242,15 +235,12 @@ _TOOLTIPS = {
     "ClothSewing_Validate": "Validate sewing operations and report seam length mismatches",
     "ClothSewing_Show2D": "Show pattern, seam, and stitch correspondence in top view",
 }
-
-
 def _has_active_document():
     try:
         import FreeCAD as App
         return App.ActiveDocument is not None
     except ImportError:
         return False
-
 
 def _has_selected_seam():
     try:
@@ -259,27 +249,18 @@ def _has_selected_seam():
     except ImportError:
         return False
 
-
 def _has_selected_operation():
     try:
         import FreeCADGui as Gui
         return any(getattr(o, "SewingType", "") == "SewingOperation" for o in Gui.Selection.getSelection())
     except ImportError:
         return False
-
-
 class _SewingCommand:
-    """FreeCAD command adapter with context-sensitive enablement."""
     def __init__(self, function, active, tooltip):
         self.function, self.active, self.tooltip = function, active, tooltip
-    def Activated(self):
-        return self.function()
-    def IsActive(self):
-        return bool(self.active())
-    def GetResources(self):
-        return {"MenuText": self.function.__name__.replace("_", " ").title(), "ToolTip": self.tooltip}
-
-
+    def Activated(self): return self.function()
+    def IsActive(self): return bool(self.active())
+    def GetResources(self): return {"MenuText": self.function.__name__.replace("_", " ").title(), "ToolTip": self.tooltip}
 try:
     import FreeCADGui as Gui
     _ACTIVATION = {
