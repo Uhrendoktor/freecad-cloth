@@ -125,7 +125,42 @@ def test_declared_command_expression_matches_command_modules():
         assert _command_ids(class_name, modules)
 
 
+def test_pattern_commands_have_stable_public_labels():
+    commands = importlib.import_module("PatternCommands")
+    assert commands._MENU_TEXT == {
+        "ClothPattern_CreatePieceTask": "Create Pattern Piece",
+        "ClothPattern_EditPiece": "Edit Pattern Piece",
+        "ClothPattern_CreateSketch": "Create Sketcher Geometry",
+        "ClothPattern_CreatePieceWithSketch": "Create Pattern Piece with Sketch",
+        "ClothPattern_CreateDrafting": "Open Pattern Drafting",
+        "ClothPattern_Show2D": "Show Pattern 2D",
+        "ClothPattern_CreatePiece": "Create Pattern Piece (Default)",
+        "ClothPattern_CreateCustomPiece": "Create Pattern Piece (Large)",
+        "ClothPattern_CreateMesh": "Create Pattern Mesh",
+        "ClothPattern_AddSeam": "Add Seam",
+    }
+
+
+def test_pattern_selection_activation_is_contextual(monkeypatch):
+    commands = importlib.import_module("PatternCommands")
+
+    class Selection:
+        def getSelection(self):
+            return [type("Piece", (), {"PatternType": "PatternPiece"})()]
+
+    gui = type("Gui", (), {"Selection": Selection()})
+    monkeypatch.setitem(sys.modules, "FreeCADGui", gui)
+    assert commands._selected_pattern_piece() is not None
+
+
 if __name__ == "__main__":
-    for fn in (test_registered_workbenches_have_expected_names_and_icons, test_command_ids_exist_and_are_unique, test_initialize_is_lazy_and_declares_one_toolbar_and_menu_group, test_declared_command_expression_matches_command_modules):
+    for fn in (
+        test_registered_workbenches_have_expected_names_and_icons,
+        test_command_ids_exist_and_are_unique,
+        test_initialize_is_lazy_and_declares_one_toolbar_and_menu_group,
+        test_declared_command_expression_matches_command_modules,
+        test_pattern_commands_have_stable_public_labels,
+        test_pattern_selection_activation_is_contextual,
+    ):
         fn()
     print("Workbench command contract checks passed")
