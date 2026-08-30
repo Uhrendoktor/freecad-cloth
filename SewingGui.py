@@ -15,6 +15,22 @@ def _gui_modules():
     return App, Gui, QtCore, QtWidgets
 
 
+def seam_reference_status(seam):
+    """Return a stable status for the seam reference backing a task panel."""
+    if seam is None:
+        return "Missing seam"
+    return str(getattr(seam, "Status", "Valid")) or "Valid"
+
+
+def validate_seam_for_accept(seam):
+    """Raise a clear error instead of accepting a stale or invalid seam."""
+    status = seam_reference_status(seam)
+    if status != "Valid":
+        seam_id = str(getattr(seam, "SeamId", "")) or "<unnamed>"
+        raise ValueError("cannot accept sewing operation with invalid seam reference %s: %s" % (seam_id, status))
+    return True
+
+
 class SewingTaskPanel:
     """Task-panel editor following FreeCAD's accept/reject contract.
 
@@ -102,11 +118,15 @@ class SewingTaskPanel:
         self.seam.ReversedB = bool(self.reversed_b.isChecked())
 
     def accept(self):
-        """Commit editor values, recompute the document, and finish the task."""
+        """Commit editor values only when the semantic seam is still valid."""
+        validate_seam_for_accept(self.seam)
         self._apply_seam_settings()
         self.obj.Tolerance = self.tolerance.value()
         self.obj.Stitches = self.stitches.value()
         self.App.ActiveDocument.recompute()
+        # A recompute may invalidate the seam after settings are applied; do
+        # not report success or close the task in that case.
+        validate_seam_for_accept(self.seam)
         self._refresh()
         return True
 
