@@ -28,6 +28,13 @@ The bounded DrapeTarget re-cut in #320 adds explicit `VALID/STALE/INVALID/REFRES
 
 The invariant is strict: target edit -> STALE with reason; recompute remains safe; no stale collision surface is consumed; Step/Run are blocked; Refresh rebuilds collision state; Reset remains available.
 
+## Subagent state
+
+- **#267 UX/UI consistency:** claimed on `agent/ux-sewing-workbench-20260830-v2`.
+- Focused implementation completed for the Simulation task panel: terminology now uses `Collision object` and `Steps`; the primary action is `Run 30 steps` with the default-button hierarchy; Step/Reset remain secondary/non-default actions with explicit tooltips.
+- Regression coverage added in `tests/test_simulation_gui.py`.
+- No SewingCommands.py, SewingGui.py, SewingNetworkGui.py, or supervisor workbench-audit files were modified.
+
 ## Architecture gates
 
 - **Pattern:** native Sketcher geometry authority; stable semantic edge references.
