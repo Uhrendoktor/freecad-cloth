@@ -5,6 +5,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from PatternModel import PatternPiece
 from PatternSketch import create_sketch_for_piece
 from PatternDrafting import parse_points, serialize_points, add_point, remove_point, bounds
+from PatternTopologyRepair import build_repair_plan, current_edge_candidates, seam_reference_status
+from SeamReference import capture_edge_reference
 
 
 def test_pattern_sketch_module_is_headless_safe():
@@ -93,9 +95,29 @@ def test_polygon_drafting_round_trip_and_editing():
     assert bounds(points) == (0.0, 0.0, 100.0, 70.0)
 
 
+def test_topology_repair_detects_change_and_requires_explicit_target():
+    front = type("Piece", (), {"PieceId": "front", "SewingOutline": repr(((0, 0), (10, 0), (10, 10), (0, 10)))})()
+    back = type("Piece", (), {"PieceId": "back", "SewingOutline": repr(((0, 0), (10, 0), (10, 10), (0, 10)))})()
+    front_records = current_edge_candidates(type("Seam", (), {"PatternA": front, "PatternB": back})(), "A")
+    back_records = current_edge_candidates(type("Seam", (), {"PatternA": front, "PatternB": back})(), "B")
+    front_ref = capture_edge_reference("front", front_records[0]["id"], front_records[0]["points"])
+    back_ref = capture_edge_reference("back", back_records[0]["id"], back_records[0]["points"])
+    seam = type("Seam", (), {
+        "SeamId": "front-seam", "PatternA": front, "PatternB": back,
+        "EdgeAId": front_ref.edge_id, "EdgeASignature": front_ref.signature,
+        "EdgeBId": back_ref.edge_id, "EdgeBSignature": back_ref.signature,
+    })()
+    front.SewingOutline = repr(((0, 0), (12, 0), (10, 10), (0, 10)))
+    assert seam_reference_status(seam, "A") == (False, "changed")
+    target = current_edge_candidates(seam, "A")[2]["id"]
+    plan = build_repair_plan([(seam, "A", target)])
+    assert plan[0][2]["id"] == target
+
+
 if __name__ == "__main__":
     test_pattern_sketch_module_is_headless_safe()
     test_pattern_sketch_requires_freecad_when_called()
     test_one_step_pattern_piece_command_is_registered_and_creates_native_sketch()
     test_polygon_drafting_round_trip_and_editing()
+    test_topology_repair_detects_change_and_requires_explicit_target()
     print("pattern sketch tests passed")
