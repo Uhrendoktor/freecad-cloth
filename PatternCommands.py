@@ -38,21 +38,42 @@ def edit_pattern_piece():
     show_pattern_piece_task(obj)
 
 
-def create_pattern_sketch():
-    """Create a native Sketcher representation of the selected pattern piece."""
-    import FreeCAD as App
-    import FreeCADGui as Gui
+def _pattern_piece_model(obj):
+    """Build the semantic model needed by the native Sketcher adapter."""
     from PatternModel import PatternPiece
-    from PatternSketch import create_sketch_for_piece
-    obj = next((o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"), None)
-    if obj is None:
-        raise ValueError("select a pattern piece before creating its Sketcher representation")
     try:
         points = [(float(p[0]), float(p[1])) for p in ast.literal_eval(str(obj.SewingOutline))]
     except (ValueError, SyntaxError, TypeError, IndexError):
         raise ValueError("selected pattern piece has no valid sewing outline")
-    piece = PatternPiece(obj.Label, points, seam_allowance=float(getattr(obj, "SeamAllowance", 0.0)), grainline_angle=float(getattr(obj, "GrainlineAngle", 0.0)), id=str(obj.PieceId))
-    return create_sketch_for_piece(piece, App.ActiveDocument)
+    return PatternPiece(
+        obj.Label,
+        points,
+        seam_allowance=float(getattr(obj, "SeamAllowance", 0.0)),
+        grainline_angle=float(getattr(obj, "GrainlineAngle", 0.0)),
+        id=str(obj.PieceId),
+    )
+
+
+def _create_pattern_sketch_for_object(obj):
+    import FreeCAD as App
+    from PatternSketch import create_sketch_for_piece
+    return create_sketch_for_piece(_pattern_piece_model(obj), App.ActiveDocument)
+
+
+def create_pattern_sketch():
+    """Create a native Sketcher representation of the selected pattern piece."""
+    import FreeCADGui as Gui
+    obj = next((o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"), None)
+    if obj is None:
+        raise ValueError("select a pattern piece before creating its Sketcher representation")
+    return _create_pattern_sketch_for_object(obj)
+
+
+def create_pattern_piece_sketch():
+    """Create a new pattern piece and immediately make Sketcher its geometry authority."""
+    piece = create_pattern_piece_from_parameters("PatternPiece", 100.0, 60.0, 0.0, 0.0)
+    sketch = _create_pattern_sketch_for_object(piece)
+    return piece, sketch
 
 
 def create_pattern_piece_task():
@@ -158,6 +179,7 @@ COMMANDS = [
     "ClothPattern_CreatePieceTask",
     "ClothPattern_EditPiece",
     "ClothPattern_CreateSketch",
+    "ClothPattern_CreatePieceSketch",
     "ClothPattern_CreateDrafting",
     "ClothPattern_Show2D",
     "ClothPattern_CreatePiece",
@@ -173,6 +195,7 @@ try:
             "ClothPattern_CreatePieceTask": create_pattern_piece_task,
             "ClothPattern_EditPiece": edit_pattern_piece,
             "ClothPattern_CreateSketch": create_pattern_sketch,
+            "ClothPattern_CreatePieceSketch": create_pattern_piece_sketch,
             "ClothPattern_CreateDrafting": create_pattern_drafting,
             "ClothPattern_Show2D": show_pattern_2d,
             "ClothPattern_CreatePiece": create_pattern_piece,
