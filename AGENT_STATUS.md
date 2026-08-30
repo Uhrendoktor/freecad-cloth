@@ -6,14 +6,14 @@ Last updated: 2026-08-30
 
 P0 supervision is focused on making the public FreeCAD Pattern -> Sewing -> Simulation workflow authoritative end-to-end. Before each implementation slice, open PRs and active issues are re-audited and subagent proposals are incorporated. The canonical CI workflow is reused; no duplicate workflow is permitted.
 
-Current supervisor implementation branch: `agent/fix-python312-sewingcommands-20260830`.
+Current supervisor implementation branch: `agent/fix-sewing-gui-registration-20260830`.
 
 ### Current plan
 
-1. Fix the canonical Python test blocker without removing Python 3.12 from the support matrix.
-2. Verify the headless Sewing command import contract across Python 3.10/3.11/3.12 and run the complete Python suite.
+1. Repair Sewing workbench GUI command grouping and real-FreeCAD activation.
+2. Verify the headless GUI registration contract and the canonical FreeCAD/Xvfb screenshot path.
 3. Hand off through a PR for canonical FreeCAD/Xvfb verification.
-4. Continue DrapeTarget authority work (#276) only after canonical CI is green.
+4. Continue DrapeTarget authority work only after canonical CI is green.
 
 ## Architecture gates
 
@@ -27,17 +27,20 @@ Current supervisor implementation branch: `agent/fix-python312-sewingcommands-20
 
 | Workstream | Issue | Status |
 |---|---:|---|
-| Python 3.12 canonical CI regression | #293/#294 | **in progress — headless SewingCommands import contract** |
-| DrapeTarget authority | #276 | queued behind CI recovery |
+| Sewing GUI registration / Xvfb activation | #308 | **in progress — deterministic command grouping and icon validation** |
+| Canonical Actions control plane | #293/#306 | in progress / acceptance gate |
+| DrapeTarget authority | #276/#304 | queued behind CI recovery |
 | Canonical garment E2E | #278 | queued after target authority |
-| Curved sewing repair acceptance | #275 | merged implementation; canonical verification pending |
-| Pattern authoring production minimum | #162 | active audit; avoid duplicate drafting kernel |
+| Curved sewing repair acceptance | #275/#301 | implementation present; canonical verification pending |
+| Pattern authoring production minimum | #162/#300 | active audit; avoid duplicate drafting kernel |
 | Simulation quality/materials | #145 | active P0 integration |
 | Export/package/install | #163/#147 | release follow-up |
 
-## CI regression finding
+## Sewing GUI registration finding
 
-The failing `test_sewing_repair.py` assertion is not Python-version-specific: the same `AttributeError` was reached under Python 3.10 and 3.12 in canonical run `33309390274`. `SewingCommands._ACTIVATION` was defined inside the optional `import FreeCADGui` registration block, so headless CPython imports omitted a public module-level contract that the regression test intentionally checks. The fix keeps `_ACTIVATION` available independently of GUI registration while retaining optional FreeCADGui command installation.
+The Sewing workbench declared `ClothSewing_RepairSeam` in `SewingCommands.COMMANDS` but did not include it in `SEWING_COMMAND_GROUPS`, while `Initialize()` required the two sets to be identical. The resulting `ValueError` occurred during real FreeCAD workbench initialization. The repair places `ClothSewing_RepairSeam` in the existing `Validation & View` group, validates the command registry before mutating menus/toolbars, and retains per-instance idempotence.
+
+The three workbench icons are already present under `resources/icons`; `InitGui` now fails closed if that directory or any required workbench icon is absent before registering the workbenches, and registers the icon path before `addWorkbench()`.
 
 ## Coordination rules
 
