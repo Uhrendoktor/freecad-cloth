@@ -1,0 +1,7 @@
+import os, runpy, traceback
+try:
+    runpy.run_path(os.path.join(os.path.dirname(__file__), "freecad_meshpart_smoke.py"), run_name="__main__")
+except BaseException:
+    traceback.print_exc()
+    os._exit(1)
+os._exit(0)
