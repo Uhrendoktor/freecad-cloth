@@ -307,19 +307,23 @@ class _SewingCommand:
         if self.pixmap:
             resources["Pixmap"] = self.pixmap
         return resources
+
+# Keep the activation contract available to headless Python tests and imports.
+# The GUI registration below remains optional when FreeCADGui is unavailable.
+_ACTIVATION = {
+    "ClothSewing_CreateSeam": lambda: _has_active_document() and _has_two_selected_pattern_edges(),
+    "ClothSewing_CreateMNSewing": lambda: _has_active_document() and _has_mn_selection(),
+    "ClothSewing_CreateOperation": lambda: _has_active_document() and _has_selected_seam(),
+    "ClothSewing_EditOperation": lambda: _has_active_document() and _has_selected_operation(),
+    "ClothSewing_ReverseSeam": lambda: _has_active_document() and _has_selected_seam(),
+    "ClothSewing_ToggleAlignment": lambda: _has_active_document() and _has_selected_seam(),
+    "ClothSewing_Validate": lambda: _has_active_document(),
+    "ClothSewing_RepairSeam": lambda: _has_active_document() and _has_selected_seam(),
+    "ClothSewing_Show2D": lambda: _has_active_document(),
+}
+
 try:
     import FreeCADGui as Gui
-    _ACTIVATION = {
-        "ClothSewing_CreateSeam": lambda: _has_active_document() and _has_two_selected_pattern_edges(),
-        "ClothSewing_CreateMNSewing": lambda: _has_active_document() and _has_mn_selection(),
-        "ClothSewing_CreateOperation": lambda: _has_active_document() and _has_selected_seam(),
-        "ClothSewing_EditOperation": lambda: _has_active_document() and _has_selected_operation(),
-        "ClothSewing_ReverseSeam": lambda: _has_active_document() and _has_selected_seam(),
-        "ClothSewing_ToggleAlignment": lambda: _has_active_document() and _has_selected_seam(),
-        "ClothSewing_Validate": lambda: _has_active_document(),
-        "ClothSewing_RepairSeam": lambda: _has_active_document() and _has_selected_seam(),
-        "ClothSewing_Show2D": lambda: _has_active_document(),
-    }
     for name, function in _COMMAND_HANDLERS.items():
         icon_path = _ICON_DIR / (name + ".svg")
         if not icon_path.is_file() and name == "ClothSewing_RepairSeam":
