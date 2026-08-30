@@ -4,41 +4,31 @@ Last updated: 2026-08-30
 
 ## Supervisor state
 
-P0 supervision is focused on making the public FreeCAD Pattern -> Sewing -> Simulation workflow authoritative end-to-end. Before each implementation slice, open PRs and active issues are re-audited and subagent proposals are incorporated. The canonical CI workflow is reused; no duplicate workflow is permitted.
+The project is being driven as three native FreeCAD workbenches: Cloth Pattern, Cloth Sewing, and Cloth Simulation. The authoritative acceptance path is public FreeCAD document objects, commands and task panels; utility-only scripts are not completion evidence.
 
-Current supervisor implementation branch: `agent/drapetarget-authority-20260830`.
+## Current execution
 
-### Current plan
+- **CI control plane:** supervisor branch `agent/ci-control-plane-repair-20260830`, PR #294. The previous canonical run failed before scheduling any jobs. This branch reduces the workflow to the required Python, real FreeCAD and Xvfb acceptance jobs and makes pull-request event types explicit.
+- **DrapeTarget:** PR #292 remains open and must not merge until canonical FreeCAD/Xvfb verifies stale-target recompute safety.
+- **Sewing:** #275 remains the functional gate for curved correspondence, reversal/alignment diagnostics and transactional M:N editing.
+- **End-to-end:** #278/#155 remain the release fixture gates.
+- **Pattern:** #162 is the production-minimum audit; native Sketcher remains authoritative.
+- **Avatar/drape:** #203 and #228 remain integrated through the target-neutral collision contract.
 
-1. Make `DrapeTarget` the authoritative simulation collision input; retain `AvatarProxy` only as compatibility/migration state.
-2. Ensure target changes rebuild the collision surface deterministically and expose the rebuild reason.
-3. Add/extend focused regression coverage, then hand off through a PR for canonical FreeCAD/Xvfb verification.
-4. In parallel, keep #275 and #278 scoped to public-workbench acceptance rather than utility-only tests.
-5. After P0 simulation authority is green, close the remaining Pattern/Sewing release gates and only then pursue packaging/export and optional solver benchmarking.
+## Replanned order
 
-## Architecture gates
-
-- **P0-A Pattern:** native `Sketcher::SketchObject` is geometry authority; PatternIR is solver-neutral.
-- **P0-B Sewing:** semantic references, curved correspondence, M:N sewing and repair UX are implemented; canonical verification remains required.
-- **P0-C Human fitting:** persistent anthropometric mannequin and collision provider are implemented and previously smoke-tested.
-- **P0-D Drape target:** persistent target-neutral DrapeTarget is implemented for mannequin and arbitrary FreeCAD Shape/Mesh. **Current work: make Simulation consume it directly.**
-- **P0-E Simulation:** deterministic mesh/solver and lifecycle/status controls exist. **Current blocker: target-authoritative collision rebuild.**
-
-## Active workstreams
-
-| Workstream | Issue | Status |
-|---|---:|---|
-| DrapeTarget authority | #276 | **in progress — supervisor** |
-| Canonical garment E2E | #278 | queued after target authority |
-| Curved sewing repair acceptance | #275 | merged implementation; canonical verification pending |
-| Pattern authoring production minimum | #162 | active audit; avoid duplicate drafting kernel |
-| Simulation quality/materials | #145 | active P0 integration |
-| Export/package/install | #163/#147 | release follow-up |
+1. Restore and verify canonical Actions scheduling.
+2. Verify/merge stale DrapeTarget lifecycle repair.
+3. Verify curved/M:N sewing through the public task panel.
+4. Audit/fix Pattern production minimum.
+5. Integrate one public Pattern -> Sewing -> Arrange -> Drape -> Simulate -> Save/Reload -> Invalidate -> Refresh -> Simulate fixture.
+6. Finish simulation quality/material controls and workbench UX.
+7. Export/package/docs; optional solver backend benchmark last.
 
 ## Coordination rules
 
-- Update this file at start/handoff of each implementation slice.
-- Do not create another GitHub Actions workflow.
+- Exactly one GitHub Actions workflow: `.github/workflows/canonical-execution.yml`.
+- Update this file at implementation start/handoff.
 - Do not silently retarget semantic references after topology changes.
-- Public FreeCAD commands/task panels/document objects are the acceptance surface; utility-only tests are insufficient.
-- Keep compatibility shims only where they do not remain authoritative.
+- Compatibility layers may exist during migration but cannot become a second source of truth.
+- Do not claim release readiness while canonical FreeCAD/Xvfb acceptance is unavailable or running.
