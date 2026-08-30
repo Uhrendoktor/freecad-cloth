@@ -18,7 +18,7 @@ Current supervisor implementation branch: `agent/drapetarget-authority-20260830`
 
 ## Architecture gates
 
-- **P0-A Pattern:** native `Sketcher::SketchObject` is geometry authority; PatternIR is solver-neutral.
+- **P0-A Pattern:** native `Sketcher::SketchObject` is geometry authority; PatternIR is solver-neutral. **Production slice hardened 2026-08-30:** one-way authority contract, versioned semantic IDs, fail-closed topology deletion, and save/reload regression coverage.
 - **P0-B Sewing:** semantic references, curved correspondence, M:N sewing and repair UX are implemented; canonical verification remains required.
 - **P0-C Human fitting:** persistent anthropometric mannequin and collision provider are implemented and previously smoke-tested.
 - **P0-D Drape target:** persistent target-neutral DrapeTarget is implemented for mannequin and arbitrary FreeCAD Shape/Mesh. **Current work: make Simulation consume it directly.**
@@ -31,7 +31,7 @@ Current supervisor implementation branch: `agent/drapetarget-authority-20260830`
 | DrapeTarget authority | #276 | **in progress — supervisor** |
 | Canonical garment E2E | #278 | queued after target authority |
 | Curved sewing repair acceptance | #275 | merged implementation; canonical verification pending |
-| Pattern authoring production minimum | #162 | active audit; avoid duplicate drafting kernel |
+| Pattern authoring production minimum | #162 | active audit; Sketcher authority slice hardened; remaining UX/parity follow-ups scoped in architecture doc |
 | Simulation quality/materials | #145 | active P0 integration |
 | Export/package/install | #163/#147 | release follow-up |
 
