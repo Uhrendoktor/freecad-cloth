@@ -13,8 +13,6 @@ def create_simulation():
 def create_drape_scene():
     import FreeCAD as App
     from SimulationObjects import create_simulation_scene
-    # Creation is intentionally side-effect-light. Simulation advances only
-    # through explicit Step/Run/Reset controls so command invocation is predictable.
     doc = App.ActiveDocument or App.newDocument("ClothDrape")
     return create_simulation_scene(doc)
 
@@ -52,9 +50,18 @@ def _require_simulation():
     return doc, scene
 
 
+def _require_ready_target(doc, scene):
+    target = _find_drape_target(doc)
+    from DrapeTarget import target_status
+    status = target_status(target)
+    if status["stale"]:
+        raise RuntimeError(status["message"])
+
+
 def simulate_selected(steps=None):
     """Advance the selected native simulation through its document proxy."""
     doc, scene = _require_simulation()
+    _require_ready_target(doc, scene)
     count = int(steps if steps is not None else 1)
     if count < 1:
         raise ValueError("steps must be positive")
@@ -129,6 +136,18 @@ def _has_simulation():
         return False
 
 
+def _has_ready_simulation():
+    try:
+        import FreeCAD as App
+        from DrapeTarget import target_status
+        doc = App.ActiveDocument
+        scene = _find_simulation(doc) if doc else None
+        target = _find_drape_target(doc) if doc else None
+        return bool(scene is not None and not target_status(target)["stale"])
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return False
+
+
 COMMANDS = [
     "ClothSimulation_Create",
     "ClothSimulation_CreateDrape",
@@ -144,8 +163,8 @@ try:
         Gui.addCommand("ClothSimulation_Create", _FunctionCommand(create_simulation, "Create Simulation", "Create a quality-aware cloth simulation object"))
         Gui.addCommand("ClothSimulation_CreateDrape", _FunctionCommand(create_drape_scene, "Create Drape Scene", "Create a deterministic cloth drape scene without implicit solver steps"))
         Gui.addCommand("ClothSimulation_Edit", _FunctionCommand(edit_simulation, "Simulation Controls", "Open the cloth simulation quality task panel"))
-        Gui.addCommand("ClothSimulation_Step", _FunctionCommand(lambda: simulate_selected(), "Step Simulation", "Advance the quality-aware CPU cloth simulation", _has_simulation))
-        Gui.addCommand("ClothSimulation_Run", _FunctionCommand(run_simulation, "Run Simulation", "Run 30 steps of the quality-aware CPU cloth simulation", _has_simulation))
+        Gui.addCommand("ClothSimulation_Step", _FunctionCommand(lambda: simulate_selected(), "Step Simulation", "Advance the quality-aware CPU cloth simulation", _has_ready_simulation))
+        Gui.addCommand("ClothSimulation_Run", _FunctionCommand(run_simulation, "Run Simulation", "Run 30 steps of the quality-aware CPU cloth simulation", _has_ready_simulation))
         Gui.addCommand("ClothSimulation_Reset", _FunctionCommand(reset_simulation, "Reset Simulation", "Reset simulation state while retaining authored settings", _has_simulation))
 except (ImportError, AttributeError):
     pass
