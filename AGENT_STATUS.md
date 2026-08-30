@@ -23,6 +23,10 @@ Out of integration scope:
 - Seam-repair broad exception handling is tracked in issue #301.
 - The complete public-workbench journey is the explicit release gate in #278; current canonical `tests/freecad_e2e.py` does not yet cover validation, avatar arrangement, DrapeTarget refresh, or the full stale-target loop.
 
+### Verification state
+
+PR #303 triggered canonical workflow run #690, but the run concluded `failure` with zero scheduled jobs, so it provides no product-test evidence. This is consistent with the existing canonical Actions control-plane blocker tracked by #293; do not treat the failed control-plane run as a product regression or as successful acceptance.
+
 ## Architecture gates
 
 - **P0-A Pattern:** native `Sketcher::SketchObject` is geometry authority; PatternIR is solver-neutral.
@@ -35,7 +39,7 @@ Out of integration scope:
 
 | Workstream | Issue | Status |
 |---|---:|---|
-| Integration audit | #278 / PR #303 | **in progress — canonical CI pending** |
+| Integration audit | #278 / PR #303 | **in progress — canonical CI control-plane blocked** |
 | DrapeTarget authority | #276 | implementation landed; integration repair submitted in #303 |
 | Canonical garment E2E | #278 | **release blocker — journey coverage incomplete** |
 | Curved sewing repair acceptance | #275 | merged implementation; canonical verification pending |
