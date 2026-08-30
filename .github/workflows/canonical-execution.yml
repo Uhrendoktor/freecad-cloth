@@ -90,9 +90,11 @@ jobs:
             -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -e CLOTH_E2E_DIR=/workspace/artifacts/freecad-e2e \
+            -e PYTHONPATH=/workspace \
             -w /workspace \
             "$IMAGE" \
             -euo pipefail -c '
+              export PYTHONPATH=/workspace
               rm -f docs/images/generated/*.png docs/images/generated/gui-progress.log
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 &
               XVFB_PID=$!
