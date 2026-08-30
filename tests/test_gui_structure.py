@@ -56,6 +56,7 @@ def test_sewing_command_groups_are_unique_and_complete():
         "ClothSewing_ReverseSeam",
         "ClothSewing_ToggleAlignment",
         "ClothSewing_Validate",
+        "ClothSewing_RepairSeam",
         "ClothSewing_Show2D",
     }
 
