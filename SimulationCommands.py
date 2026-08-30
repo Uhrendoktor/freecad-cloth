@@ -29,6 +29,17 @@ def _find_drape_target(doc):
                  or getattr(obj, "TargetType", None) is not None), None)
 
 
+def _target_gate(doc):
+    target = _find_drape_target(doc)
+    if target is None:
+        return None
+    from DrapeTarget import sync_target_status
+    status = sync_target_status(target)
+    if status["stale"]:
+        raise RuntimeError(status["message"])
+    return status
+
+
 def edit_simulation():
     """Open the native simulation quality controls task panel."""
     import FreeCAD as App
@@ -55,6 +66,7 @@ def _require_simulation():
 def simulate_selected(steps=None):
     """Advance the selected native simulation through its document proxy."""
     doc, scene = _require_simulation()
+    _target_gate(doc)
     count = int(steps if steps is not None else 1)
     if count < 1:
         raise ValueError("steps must be positive")
@@ -89,14 +101,14 @@ def simulation_status():
     finite = bool(getattr(scene, "FiniteState", True))
     target = _find_drape_target(doc)
     try:
-        from DrapeTarget import target_status
-        target_info = target_status(target)
+        from DrapeTarget import sync_target_status
+        target_info = sync_target_status(target)
     except (ImportError, AttributeError, TypeError, ValueError) as exc:
         target_info = {"state": "invalid", "message": "Cannot inspect drape target: %s" % exc, "stale": True,
                        "reason": "target inspection failed"}
     return {
-        "state": "ready" if finite else "invalid/non-finite",
-        "message": "Cloth Simulation ready" if finite else "Cloth Simulation has invalid/non-finite state",
+        "state": "ready" if finite and not target_info["stale"] else "invalid/non-finite",
+        "message": "Cloth Simulation ready" if finite and not target_info["stale"] else target_info["message"],
         "steps": int(getattr(scene, "Steps", 0)),
         "particles": int(getattr(scene, "ParticleCount", 0)),
         "time": float(getattr(scene, "SimulatedTime", 0.0)),
