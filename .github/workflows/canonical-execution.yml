@@ -14,59 +14,86 @@ jobs:
   ci:
     if: ${{ github.event_name != 'pull_request' || github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'workflow_dispatch' }}
     runs-on: [self-hosted, linux, x64]
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: read
     env:
       FREECAD_BIN: freecad
-      CLOTH_TEST_JOBS: 4
+      CLOTH_TEST_JOBS: 8
       DISPLAY: :99
       QT_X11_NO_MITSHM: 1
       QT_QPA_PLATFORM: xcb
       LIBGL_ALWAYS_SOFTWARE: 1
+      FREECAD_VERSION: 1.1.3
+      FREECAD_CACHE_DIR: ${{ runner.temp }}/freecad-cloth-cache
+      FREECAD_APPIMAGE_SHA256: 3a853eb69ee595f779f2255dbf80a765926981d8ff68903cefee4dfb03a8f5ef
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Validate prebuilt self-hosted runner
+      # Self-hosted runners are persistent, so this is a one-time bootstrap:
+      # after the first successful run, the apt packages and extracted FreeCAD
+      # stay on the runner. A pre-provisioned FreeCAD executable still wins.
+      - name: Bootstrap self-hosted FreeCAD runtime
         run: |
-          set -u
-          echo "Runner: $(hostname)"
-          echo "OS: $(uname -a)"
-          echo "CPU threads: $(nproc)"
-          echo "PATH: $PATH"
-          for tool in python3 xvfb-run openbox xargs Xvfb docker; do
-            if command -v "$tool" >/dev/null 2>&1; then
-              echo "FOUND $tool: $(command -v "$tool")"
-            else
-              echo "MISSING $tool"
-            fi
-          done
-          if command -v "$FREECAD_BIN" >/dev/null 2>&1; then
-            echo "FOUND FreeCAD: $(command -v "$FREECAD_BIN")"
-            "$FREECAD_BIN" --version || true
-          else
-            echo "MISSING FreeCAD executable: $FREECAD_BIN"
-          fi
-          if command -v docker >/dev/null 2>&1; then
-            echo "Cached CI image candidates:"
-            docker image ls --format '{{.Repository}}:{{.Tag}} {{.Size}}' | grep 'freecad' || true
-          fi
-          # Keep this step non-failing so the next run can report the complete
-          # runner state instead of hiding which preinstalled dependency is absent.
-          exit 0
+          set -euo pipefail
 
-      - name: Require FreeCAD test runtime
+          missing=()
+          for tool in python3 xvfb-run openbox curl xargs; do
+            command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
+          done
+          if ((${#missing[@]})); then
+            sudo -n true || {
+              echo "Runner needs passwordless sudo for one-time bootstrap: ${missing[*]}" >&2
+              exit 1
+            }
+            sudo apt-get update -qq
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 xvfb openbox curl
+          fi
+
+          # Prefer a runner-provided FreeCAD. Otherwise install the official
+          # FreeCAD 1.1.3 x86_64 AppImage once into the runner's persistent
+          # temp/cache area and extract it so later invocations do not require
+          # FUSE or repeat AppImage extraction.
+          if command -v "$FREECAD_BIN" >/dev/null 2>&1; then
+            echo "Using pre-provisioned FreeCAD: $(command -v "$FREECAD_BIN")"
+          else
+            root="$FREECAD_CACHE_DIR/$FREECAD_VERSION"
+            appimage="$root/FreeCAD_${FREECAD_VERSION}-Linux-x86_64-py311.AppImage"
+            appdir="$root/squashfs-root"
+            mkdir -p "$root"
+
+            if [[ ! -x "$appdir/AppRun" ]]; then
+              if [[ ! -f "$appimage" ]]; then
+                curl --fail --location --retry 3 --retry-delay 2 \
+                  -o "$appimage" \
+                  "https://github.com/FreeCAD/FreeCAD/releases/download/${FREECAD_VERSION}/FreeCAD_${FREECAD_VERSION}-Linux-x86_64-py311.AppImage"
+              fi
+              echo "$FREECAD_APPIMAGE_SHA256  $appimage" | sha256sum -c -
+              rm -rf "$appdir"
+              tmp_extract="$root/.squashfs-root.tmp"
+              rm -rf "$tmp_extract"
+              mkdir -p "$tmp_extract"
+              (cd "$tmp_extract" && "$appimage" --appimage-extract >/dev/null)
+              mv "$tmp_extract/squashfs-root" "$appdir"
+              rm -rf "$tmp_extract"
+            fi
+            echo "FREECAD_BIN=$appdir/AppRun" >> "$GITHUB_ENV"
+          fi
+
+      - name: Validate self-hosted runtime
         run: |
           set -euo pipefail
           for tool in python3 xvfb-run openbox xargs; do
             command -v "$tool" >/dev/null || { echo "Missing required runner utility: $tool" >&2; exit 1; }
           done
-          command -v "$FREECAD_BIN" >/dev/null || {
-            echo "Missing FREECAD_BIN=$FREECAD_BIN. Provision FreeCAD 1.1.3 on the runner or set FREECAD_BIN to its executable path." >&2
-            exit 1
-          }
+          command -v "$FREECAD_BIN" >/dev/null || { echo "Missing FreeCAD: $FREECAD_BIN" >&2; exit 1; }
+          echo "Runner: $(hostname)"
+          echo "CPU threads: $(nproc)"
+          echo "FreeCAD: $(command -v "$FREECAD_BIN")"
+          "$FREECAD_BIN" --version || true
+          python3 --version
 
       - name: Run Python tests and FreeCAD smoke/GUI tests
         run: |
@@ -74,6 +101,9 @@ jobs:
           mkdir -p docs/images/generated artifacts/freecad-e2e
           rm -f docs/images/generated/*.png docs/images/generated/gui-progress.log
 
+          # These tests are independent Python processes. The 24-thread
+          # self-hosted runner can execute several at once; FreeCAD GUI/smoke
+          # tests remain serial because they use shared GUI/runtime state.
           printf '%s\n' \
             tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py \
             tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py \
