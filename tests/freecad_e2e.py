@@ -74,7 +74,7 @@ def main():
     doc = App.newDocument("ClothCanonicalGarment")
     Gui.activeDocument().activeView().viewTop()
 
-    Gui.activateWorkbench("Cloth Pattern")
+    Gui.activateWorkbench("ClothPatternWorkbench")
     front = _create_piece("ClothPattern_CreatePiece")
     middle = _create_piece("ClothPattern_CreateCustomPiece")
     back = _create_piece("ClothPattern_CreatePiece")
@@ -89,7 +89,7 @@ def main():
     if front.Height <= 60.0 or len(front.Shape.Edges) < 4:
         raise AssertionError("curved Sketcher edit did not propagate to PatternPiece")
 
-    Gui.activateWorkbench("Cloth Sewing")
+    Gui.activateWorkbench("ClothSewingWorkbench")
     _select(front, "Edge1")
     Gui.Selection.addSelection(middle, "Edge1")
     _run("ClothPattern_AddSeam")
@@ -100,7 +100,7 @@ def main():
     if len(seams) < 2:
         raise AssertionError("canonical fixture must contain two persisted seams")
 
-    Gui.activateWorkbench("Cloth Simulation")
+    Gui.activateWorkbench("ClothSimulationWorkbench")
     _run("ClothSimulation_Create")
     scene = next((o for o in doc.Objects if getattr(o, "Type", "") == "ClothSimulation"), None)
     if scene is None:

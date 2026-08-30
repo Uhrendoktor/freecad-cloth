@@ -5,7 +5,6 @@ from math import ceil, hypot
 def quality_piece_mesh(piece, start_height, particle_distance):
     from PatternGeometry import LineSegment, ParametricPattern
     from PatternMesh import triangulate
-    import FreeCAD as App
 
     raw = getattr(piece, "SewingOutline", "") or getattr(piece, "DraftingBoundary", "")
     import ast
@@ -25,12 +24,14 @@ def quality_piece_mesh(piece, start_height, particle_distance):
     segments = [LineSegment(f"{piece.PieceId}:edge:{i}", dense[i], dense[(i + 1) % len(dense)]) for i in range(len(dense))]
     mesh = triangulate(ParametricPattern(segments))
     placement = getattr(piece, "Placement", None)
-    vertices = []
-    for x, y in mesh.vertices:
-        point = App.Vector(x, y, float(start_height))
-        if placement is not None:
-            point = placement.multVec(point)
-        vertices.append((float(point.x), float(point.y), float(point.z)))
+    if placement is None:
+        vertices = [(float(x), float(y), float(start_height)) for x, y in mesh.vertices]
+    else:
+        import FreeCAD as App
+        vertices = []
+        for x, y in mesh.vertices:
+            point = placement.multVec(App.Vector(x, y, float(start_height)))
+            vertices.append((float(point.x), float(point.y), float(point.z)))
     return vertices, mesh.triangles, tuple(mesh.boundary_vertex_indices)
 
 
