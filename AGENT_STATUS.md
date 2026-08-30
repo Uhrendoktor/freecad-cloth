@@ -28,7 +28,7 @@ Current supervisor implementation branch: `agent/fix-python312-sewingcommands-20
 | Workstream | Issue | Status |
 |---|---:|---|
 | Python 3.12 canonical CI regression | #293/#294 | **in progress — headless SewingCommands import contract** |
-| Sewing GUI registration recovery | #308 | **in progress — PR #314; implementation complete, canonical check suite currently failed before jobs were created** |
+| Sewing GUI registration recovery | #308 | **PR #319 — remaining GUI activation stall isolated to full Sewing toolbar construction; lightweight toolbar fix submitted** |
 | DrapeTarget authority | #276 | queued behind CI recovery |
 | Canonical garment E2E | #278 | queued after target authority |
 | Curved sewing repair acceptance | #275 | merged implementation; canonical verification pending |
@@ -39,6 +39,10 @@ Current supervisor implementation branch: `agent/fix-python312-sewingcommands-20
 ## CI regression finding
 
 The failing `test_sewing_repair.py` assertion is not Python-version-specific: the same `AttributeError` was reached under Python 3.10 and 3.12 in canonical run `33309390274`. `SewingCommands._ACTIVATION` was defined inside the optional `import FreeCADGui` registration block, so headless CPython imports omitted a public module-level contract that the regression test intentionally checks. The fix keeps `_ACTIVATION` available independently of GUI registration while retaining optional FreeCADGui command installation.
+
+## GUI activation finding
+
+Canonical GUI diagnostics from run `33310444360` reached `sewing-created status=Valid stitches=8` and then stopped during `Gui.activateWorkbench("ClothSewingWorkbench")`. The same workbench activation passes in the headless `freecad-smoke` job. This isolates the remaining failure to GUI-side Sewing workbench initialization, specifically synchronous construction of its large combined sewing/network/fitting toolbar. PR #319 keeps the full command registry and grouped menus/context menu but limits the initial Sewing toolbar to three stable commands.
 
 ## Coordination rules
 
