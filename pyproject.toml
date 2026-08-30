@@ -8,7 +8,6 @@ version = "0.1.0"
 description = "FreeCAD workbenches for parametric sewing-pattern design and cloth simulation"
 readme = "README.md"
 requires-python = ">=3.8"
-license = { text = "GPL-3.0-or-later" }
 authors = [
   { name = "FreeCAD Cloth contributors" },
 ]
@@ -18,7 +17,6 @@ classifiers = [
   "Environment :: Plugins",
   "Intended Audience :: Science/Research",
   "Intended Audience :: Developers",
-  "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.8",
