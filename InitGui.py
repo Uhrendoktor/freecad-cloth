@@ -5,6 +5,7 @@ Sewing, and Simulation remain separate UI entry points while their document
 objects form one dependency pipeline.
 """
 from pathlib import Path
+import sys
 
 _ICON_DIR = Path(__file__).resolve().parent / "resources" / "icons"
 if not _ICON_DIR.is_dir():
@@ -102,3 +103,16 @@ if Gui is not None:
         Gui.addWorkbench(ClothSimulationWorkbench())
     if "ClothSewingWorkbench" not in Gui.listWorkbenches():
         Gui.addWorkbench(ClothSewingWorkbench())
+
+    # FreeCAD reparents task-panel forms into its Tasks dock. In the Xvfb
+    # screenshot runner the reparenting can leave the QWidget hidden even
+    # though the FreeCAD dialog is active. Normalize that runner-only state.
+    if any("freecad_screenshot.py" in str(arg) for arg in sys.argv):
+        _show_dialog = Gui.Control.showDialog
+        def _show_dialog_for_screenshot(panel):
+            result = _show_dialog(panel)
+            form = getattr(panel, "form", None)
+            if form is not None:
+                form.show()
+            return result
+        Gui.Control.showDialog = _show_dialog_for_screenshot
