@@ -42,13 +42,15 @@ class _ClothWorkbench(_WorkbenchBase):
         """Register an immutable command set exactly once per instance."""
         self._register_groups(((self.MenuText, commands),))
 
-    def _register_groups(self, groups, toolbar_name=None):
+    def _register_groups(self, groups, toolbar_name=None, toolbar_commands=None):
         """Register deterministic menu groups exactly once.
 
         A command may belong to only one group. The same normalized command
         list is retained on ``self.commands`` for context-menu registration.
-        ``toolbar_name`` keeps a stable single toolbar while the menu exposes
-        the workflow groups as nested sections.
+        ``toolbar_name`` keeps a stable toolbar while the menu exposes the
+        workflow groups as nested sections. A smaller ``toolbar_commands``
+        list may be supplied for GUI-heavy workbenches; all commands remain
+        available through menus and the context menu.
         """
         if self.commands:
             return
@@ -67,7 +69,8 @@ class _ClothWorkbench(_WorkbenchBase):
         self.commands = registered
         if Gui is not None:
             if toolbar_name:
-                self.appendToolbar(toolbar_name, registered)
+                commands_for_toolbar = self._normalize_commands(toolbar_commands) if toolbar_commands is not None else registered
+                self.appendToolbar(toolbar_name, commands_for_toolbar)
             else:
                 for group_name, group_commands in normalized_groups:
                     self.appendToolbar(group_name, group_commands)
@@ -153,6 +156,16 @@ SEWING_COMMAND_GROUPS = (
     ),
 )
 
+# Keep the Sewing toolbar deliberately small. FreeCAD's GUI builds command
+# actions/widgets synchronously while switching workbenches; putting the full
+# sewing/fitting command surface on the toolbar can stall that transition.
+# The complete command set is still exposed by the grouped menus/context menu.
+SEWING_TOOLBAR_COMMANDS = (
+    "ClothSewing_CreateSeam",
+    "ClothSewing_CreateOperation",
+    "ClothSewing_Validate",
+)
+
 
 def _validate_sewing_command_groups(groups, expected):
     """Fail closed before any toolbar/menu group is handed to FreeCAD."""
@@ -190,7 +203,7 @@ class ClothSewingWorkbench(_ClothWorkbench):
         expected = SewingCommands.COMMANDS + SewingNetworkCommands.COMMANDS
         expected += FittingCommands.COMMANDS + AvatarCommands.COMMANDS
         _validate_sewing_command_groups(groups, expected)
-        self._register_groups(groups, toolbar_name=self.MenuText)
+        self._register_groups(groups, toolbar_name=self.MenuText, toolbar_commands=SEWING_TOOLBAR_COMMANDS)
 
 
 if Gui is not None:
