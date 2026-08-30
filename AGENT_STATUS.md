@@ -28,6 +28,13 @@ The bounded DrapeTarget re-cut in #320 adds explicit `VALID/STALE/INVALID/REFRES
 
 The invariant is strict: target edit -> STALE with reason; recompute remains safe; no stale collision surface is consumed; Step/Run are blocked; Refresh rebuilds collision state; Reset remains available.
 
+## Active supervised subagent slice
+
+- **#298 Pattern: canonical GUI acceptance for native Sketcher constraints and expressions** — claimed 2026-08-30.
+- Branch: `agent/pattern-sketcher-acceptance-20260830`.
+- Added `tests/freecad_pattern_sketcher_acceptance.py` covering public Pattern command activation, native Sketcher curved geometry, Coincident/Horizontal/Vertical/Tangent/Equal/PointOnObject/Symmetric constraints, named dimensional expression, semantic edge IDs, and save/reload persistence.
+- Verification is pending canonical FreeCAD/Xvfb execution on the branch.
+
 ## Architecture gates
 
 - **Pattern:** native Sketcher geometry authority; stable semantic edge references.
