@@ -119,7 +119,7 @@ jobs:
             docker rm -f "$CID" >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
-          CID="$(docker create --entrypoint /bin/bash --shm-size=1g \
+          CID="$(docker create --init --entrypoint /bin/bash --shm-size=1g \
             -e DISPLAY=:99 -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated -e CLOTH_E2E_DIR=/workspace/artifacts/freecad-e2e \
             -e PYTHONPATH=/workspace -w /workspace "$IMAGE" \
