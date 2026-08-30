@@ -31,6 +31,10 @@ assert "class SimulationTaskPanel" in sim_gui
 assert "Gui.Control.showDialog(panel)" in sim_gui
 assert "class SewingTaskPanel" in sewing_gui
 assert "Gui.Control.showDialog(panel)" in sewing_gui
+assert 'QPushButton("Repair Seam Correspondence")' in sewing_gui
+assert 'setProperty("actionRole", "secondary")' in sewing_gui
+assert 'setAutoDefault(False)' in sewing_gui
+assert 'setAccessibleName("Repair seam correspondence")' in sewing_gui
 assert "ClothPattern_CreatePieceTask" in commands
 assert "ClothPattern_EditPiece" in commands
 assert "ClothPattern_Show2D" in commands
@@ -109,5 +113,13 @@ def test_workbench_icons_are_present_and_valid_svg_resources():
         content = path.read_text(encoding="utf-8").lstrip()
         assert content.startswith("<svg "), path
         assert "xmlns=\"http://www.w3.org/2000/svg\"" in content
+
+
+def test_sewing_recovery_action_is_explicit_secondary_not_default():
+    assert 'QPushButton("Repair Seam Correspondence")' in sewing_gui
+    assert 'setAccessibleName("Repair seam correspondence")' in sewing_gui
+    assert 'setProperty("actionRole", "secondary")' in sewing_gui
+    assert 'setAutoDefault(False)' in sewing_gui
+    assert 'setDefault(False)' in sewing_gui
 
 print("GUI structure checks passed")
