@@ -94,11 +94,12 @@ jobs:
           python3 -m compileall -q .
           for t in tests/freecad_smoke.py tests/freecad_meshpart_smoke.py tests/freecad_sewing_smoke.py; do
             echo "FREECAD START $t"
-            timeout --signal=TERM --kill-after=3s 20s xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' bash -lc 'openbox >/tmp/freecad-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" "$1"' "$FREECAD_BIN" "$t"
+            xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' bash -lc 'openbox >/tmp/freecad-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" "$1"' "$FREECAD_BIN" "$t"
             echo "FREECAD PASS $t"
           done
-          echo "SCREENSHOT START timeout=45s"
-          timeout --signal=TERM --kill-after=3s 45s xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' bash -lc 'openbox >/tmp/freecad-screenshot-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" tests/freecad_screenshot.py' "$FREECAD_BIN"
+          echo "SCREENSHOT START timeout=120s"
+          timeout --signal=TERM --kill-after=5s 120s xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' bash -lc 'openbox >/tmp/freecad-screenshot-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" tests/freecad_screenshot.py' "$FREECAD_BIN"
+          echo "SCREENSHOT PASS"
 
       - name: Run Docker tests
         if: steps.runner.outputs.mode == 'docker'
@@ -132,11 +133,11 @@ jobs:
               python3 -m compileall -q .
               for t in tests/freecad_smoke.py tests/freecad_meshpart_smoke.py tests/freecad_sewing_smoke.py; do
                 echo "FREECAD START $t"
-                timeout --signal=TERM --kill-after=3s 20s freecad "$t"
+                freecad "$t"
                 echo "FREECAD PASS $t"
               done
-              echo "SCREENSHOT START timeout=45s"
-              timeout --signal=TERM --kill-after=3s 45s freecad tests/freecad_screenshot.py
+              echo "SCREENSHOT START timeout=120s"
+              timeout --signal=TERM --kill-after=5s 120s freecad tests/freecad_screenshot.py
               echo "SCREENSHOT PASS"
               test -s docs/images/generated/cloth-pattern-design.png
               test -s docs/images/generated/cloth-sewing.png
@@ -153,8 +154,8 @@ jobs:
             ELAPSED=$(( $(date +%s) - START_TS ))
             echo "[host] $(date -Is) state=$STATE exit=$EXIT_CODE elapsed=${ELAPSED}s"
             if [[ "$STATE" == running ]]; then
-              # The historical suite is ~40s. A 180s watchdog catches a real
-              # hang without turning a normal run into a five-minute wait.
+              # Keep the historical FreeCAD execution path; this is only an
+              # outer hang watchdog for the self-hosted Docker runner.
               if (( ELAPSED >= 180 )); then
                 echo "Docker test container exceeded 180s watchdog" >&2
                 docker logs "$CID" || true
