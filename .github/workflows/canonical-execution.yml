@@ -2,7 +2,7 @@ name: Canonical execution
 
 on:
   push:
-    branches: [main]
+    branches: [main, ci/self-hosted-native-freecad]
   pull_request:
   workflow_dispatch:
 
