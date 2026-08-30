@@ -49,8 +49,17 @@ def test_repair_does_not_hide_physical_length_mismatch():
         raise AssertionError("length mismatch was silently hidden")
 
 
+def test_repair_command_is_registered_with_context_activation():
+    import SewingCommands
+    assert "ClothSewing_RepairSeam" in SewingCommands.COMMANDS
+    assert "ClothSewing_RepairSeam" in SewingCommands._COMMAND_HANDLERS
+    assert "ClothSewing_RepairSeam" in SewingCommands._ACTIVATION
+    assert "Repair Seam" == SewingCommands._MENU_TEXT["ClothSewing_RepairSeam"]
+
+
 if __name__ == "__main__":
     test_repair_reversed_correspondence_only_changes_orientation()
     test_repair_invalid_range_restores_full_ranges()
     test_repair_does_not_hide_physical_length_mismatch()
+    test_repair_command_is_registered_with_context_activation()
     print("sewing repair tests passed")
