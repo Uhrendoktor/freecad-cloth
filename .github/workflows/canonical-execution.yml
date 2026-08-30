@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   ci:
-    runs-on: [self-hosted, linux, x64]
+    runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 25
     permissions:
       contents: read
