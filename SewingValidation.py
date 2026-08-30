@@ -29,9 +29,9 @@ def validate_sewing_graph(doc,tolerance=0.5):
             if a in piece_map and b in piece_map and str(getattr(member,"Status","Valid"))=="Valid": connected.update((a,b))
         if status!="Valid": invalid.append({"id":item["id"],"status":status,"message":str(getattr(network,"InvalidReason",""))})
     isolated=sorted(pid for pid in piece_map if pid not in connected); mismatch=[item for item in diagnostics if item["status"]=="Length mismatch"]
-    if invalid: status="Invalid"; message="Invalid sewing graph: "+"; ".join("%s (%s)"%(x["id"],x["status"]) for x in invalid)
-    elif mismatch: status="Length mismatch"; message="Length mismatch in: "+", ".join(x["id"] for x in mismatch)
-    elif isolated: status="Incomplete"; message="Unsewn pattern pieces: "+", ".join(isolated)
-    elif not pieces: status="Incomplete"; message="No pattern pieces in the document"
-    else: status="Valid"; message="Complete sewing graph"
-    return {"status":status,"message":message,"piece_count":len(pieces),"seam_count":len(seams),"network_count":len(networks),"isolated":tuple(isolated),"seams":tuple(diagnostics),"networks":tuple(network_diagnostics),"tolerance":float(tolerance)}
+    if invalid: graph_status="Invalid"; message="Invalid sewing graph: "+"; ".join("%s (%s)"%(x["id"],x["status"]) for x in invalid)
+    elif mismatch: graph_status="Length mismatch"; message="Length mismatch in: "+", ".join(x["id"] for x in mismatch)
+    elif isolated: graph_status="Incomplete"; message="Unsewn pattern pieces: "+", ".join(isolated)
+    elif not pieces: graph_status="Incomplete"; message="No pattern pieces in the document"
+    else: graph_status="Valid"; message="Complete sewing graph"
+    return {"status":graph_status,"message":message,"piece_count":len(pieces),"seam_count":len(seams),"network_count":len(networks),"isolated":tuple(isolated),"seams":tuple(diagnostics),"networks":tuple(network_diagnostics),"tolerance":float(tolerance)}
