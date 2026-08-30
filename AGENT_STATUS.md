@@ -10,8 +10,8 @@ Initial open PRs/issues were audited before new implementation. Stale stacked br
 
 - **P0-A Pattern authoring:** native `Sketcher::SketchObject` is authoritative for linked PatternPieces. PatternIR preserves native curve kind and endpoint connectivity. The native Sketcher authority gate is merged and verified by real FreeCAD/Xvfb.
 - **P0-B Sewing:** semantic seam references and authoritative PatternPiece Show 2D are merged. Remaining work: curved/M:N sewing UX, seam editing/length validation, invalid-reference UX, and dependency invalidation.
-- **P0-C Simulation:** quality/material property model and avatar collision path exist. Current work is making particle-distance quality affect authored-pattern mesh density deterministically and finishing the parametric avatar/fitting path.
-- **P0-D Acceptance:** canonical FreeCAD/Xvfb smoke exists. Next gate upgrades it from direct PatternPiece construction to three native Sketcher-backed pieces, curved seam, save/reload, upstream edit invalidation, quality-density change, and deterministic re-simulation.
+- **P0-C Simulation:** quality/material property model and avatar collision path exist. Particle-distance mesh-density work is implemented; its canonical regression is currently being repaired after CI found a FreeCAD-independent test importing the FreeCAD runtime.
+- **P0-D Acceptance:** canonical FreeCAD/Xvfb smoke already proves all three registered workbench toolbars/task panels. The garment acceptance fixture now targets internal workbench IDs and is the next real integration gate.
 
 ## Active workstreams
 
@@ -22,10 +22,19 @@ Initial open PRs/issues were audited before new implementation. Stale stacked br
 | Production export validation | #163/#147, merged #209 | done |
 | Native Sketcher authority | #165/#170, merged #215 | done |
 | Workbench lifecycle/boundaries | #212, merged #218 | done |
-| Simulation quality/material density | #145 | active P0 |
+| Simulation quality/material density | #145/#224 | active P0; CI repair in progress |
 | Parametric avatar/mannequin | #203/#208 | active P0 |
 | Canonical GUI acceptance | #155/#143 | active P0 |
 | Pattern authoring parity | #162 | active P1 after P0 |
+
+## CI audit findings
+
+PR #224's first canonical run failed for two concrete reasons:
+
+1. `tests/test_simulation_quality.py` imported `FreeCAD` indirectly from `SimulationMeshQuality.py`, although the test is intentionally part of the plain-Python matrix. The mesh helper is being made FreeCAD-independent unless a real placement transformation is supplied.
+2. The GUI screenshot phase passed, including registration of `ClothPatternWorkbench`, `ClothSewingWorkbench`, and `ClothSimulationWorkbench`, but the canonical E2E fixture called display labels (`Cloth Pattern`, etc.) rather than the registered internal IDs. The fixture is now corrected to use the internal IDs.
+
+No solver behavior was weakened to make CI pass. The real-FreeCAD smoke remained green in the failed run.
 
 ## Rules
 
@@ -39,9 +48,9 @@ Initial open PRs/issues were audited before new implementation. Stale stacked br
 
 ## Next supervisor sequence
 
-1. Merge/review the simulation particle-distance mesh-density gate and add GUI persistence coverage.
-2. Rebase/integrate the parametric human mannequin into the Simulation/Avatar document model; preserve a stable collision service API.
-3. Replace `tests/freecad_e2e.py` with the real Sketcher-backed 3-piece garment acceptance fixture and verify save/reload/edit→seam→mesh→simulation invalidation.
+1. Get the repaired #224 CI terminal-green; audit the complete run rather than trusting individual green jobs.
+2. Merge the quality-density gate only after real FreeCAD E2E proves three Sketcher-backed pieces, seams, quality change, save/reload, upstream edit, and re-simulation.
+3. Rebase/integrate the parametric human mannequin into the Simulation/Avatar document model; preserve a stable collision service API.
 4. Complete Sewing UI for curved/M:N correspondences, reverse/alignment, length checking, and invalid-reference repair.
 5. Replace legacy drafting as the default Pattern UI with native Sketcher commands; retain it only as migration support.
 6. Finish production round-trip/export acceptance and release packaging.
