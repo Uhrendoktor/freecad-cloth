@@ -1,4 +1,5 @@
 """Headless FreeCAD runtime smoke/regression test."""
+import os
 import sys
 from pathlib import Path
 import tempfile
@@ -38,8 +39,8 @@ def main():
     avatar_doc=App.newDocument("AvatarSmoke"); mannequin=create_avatar(); assert mannequin.AvatarStatus=="Valid" and mannequin.Shape.isValid() and mannequin.Shape.Volume>0; original=mannequin.Shape.Volume; set_avatar_measurements(chest=1100); assert mannequin.Shape.Volume!=original; set_avatar_pose("sewing"); set_avatar_skin_offset(6.0); assert mannequin.PosePreset=="sewing" and abs(float(mannequin.SkinOffset)-6.0)<1e-9 and mannequin.CollisionProxy is not None; avatar_doc.recompute()
     with tempfile.TemporaryDirectory() as directory:
         path=str(Path(directory)/"avatar.FCStd"); avatar_doc.saveAs(path); App.closeDocument(avatar_doc.Name); reopened=App.openDocument(path); restored=reopened.getObject("ClothAvatar"); assert restored is not None and restored.AvatarStatus=="Valid"; assert restored.PosePreset=="sewing"; assert abs(float(restored.Chest)-1100.0)<1e-9; assert abs(float(restored.SkinOffset)-6.0)<1e-9; App.closeDocument(reopened.Name)
-    print("FreeCAD workbench, Sketcher, sewing correspondence, drape target, humanoid drape, and parametric avatar smoke test passed")
+    print("FreeCAD workbench, Sketcher, sewing correspondence, drape target, humanoid drape, and parametric avatar smoke test passed", flush=True)
 if __name__=="__main__":
     main()
-    import FreeCADGui as Gui
-    Gui.exit()
+    sys.stdout.flush()
+    os._exit(0)
