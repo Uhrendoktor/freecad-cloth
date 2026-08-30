@@ -5,6 +5,12 @@ safe in headless test environments.  The task panel edits the persistent
 simulation object rather than keeping a second copy of simulation state.
 """
 
+SIMULATION_UI_LABELS = {
+    "collision_target": "Collision object",
+    "simulation_steps": "Steps",
+    "run_action": "Run 30 steps",
+}
+
 
 def _modules():
     import FreeCAD as App
@@ -40,7 +46,7 @@ class SimulationTaskPanel:
         self.avatar = QtWidgets.QComboBox()
         self._populate_selection_lists()
         selection_layout.addRow("Cloth pieces", self.cloth)
-        selection_layout.addRow("Avatar / collision", self.avatar)
+        selection_layout.addRow(SIMULATION_UI_LABELS["collision_target"], self.avatar)
         root.addWidget(selection)
 
         material = QtWidgets.QGroupBox("Fabric")
@@ -70,7 +76,7 @@ class SimulationTaskPanel:
         solver_layout.addRow("Gravity X", self.gravity_x)
         solver_layout.addRow("Gravity Y", self.gravity_y)
         solver_layout.addRow("Gravity Z", self.gravity_z)
-        solver_layout.addRow("Simulation steps", self.steps)
+        solver_layout.addRow(SIMULATION_UI_LABELS["simulation_steps"], self.steps)
         root.addWidget(solver)
 
         collision = QtWidgets.QGroupBox("Collision")
@@ -95,8 +101,16 @@ class SimulationTaskPanel:
 
         controls = QtWidgets.QHBoxLayout()
         self.step_button = QtWidgets.QPushButton("Step")
-        self.run_button = QtWidgets.QPushButton("Run 30")
+        self.run_button = QtWidgets.QPushButton(SIMULATION_UI_LABELS["run_action"])
         self.reset_button = QtWidgets.QPushButton("Reset")
+        self.step_button.setToolTip("Advance the simulation by one step")
+        self.run_button.setToolTip("Run 30 simulation steps")
+        self.reset_button.setToolTip("Reset simulation state while retaining authored settings")
+        # Keep Run visually primary in native Qt button ordering without
+        # replacing FreeCAD's standard task-panel controls.
+        self.run_button.setDefault(True)
+        self.run_button.setAutoDefault(True)
+        self.reset_button.setAutoDefault(False)
         controls.addWidget(self.step_button)
         controls.addWidget(self.run_button)
         controls.addWidget(self.reset_button)
