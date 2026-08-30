@@ -22,10 +22,22 @@ class _Placement:
         self.Rotation = _Rotation(angle)
 
 
+class _Shape:
+    def __init__(self, value):
+        self.value = value
+
+    def isNull(self):
+        return False
+
+    def hashCode(self):
+        return self.value
+
+
 class _Target:
     Name = "Chair"
     Label = "Chair target"
     Placement = _Placement()
+    Shape = _Shape(1)
 
 
 def test_target_spec_accepts_mannequin_and_geometry():
@@ -44,9 +56,12 @@ def test_target_spec_rejects_invalid_settings():
         DrapeTargetSpec("FreeCAD Geometry", "Chair", 1.0, -1.0).validate()
 
 
-def test_source_signature_changes_for_placement_and_collision_settings():
+def test_source_signature_changes_for_geometry_placement_and_collision_settings():
     target = _Target()
     baseline = source_signature(target, 1.0, 2.0)
+
+    target.Shape.value = 2
+    assert source_signature(target, 1.0, 2.0) != baseline
 
     target.Placement = _Placement(x=10.0, y=-5.0, angle=15.0)
     assert source_signature(target, 1.0, 2.0) != baseline
