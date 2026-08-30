@@ -1,7 +1,7 @@
 """Static checks for the real FreeCAD GUI layer."""
 from pathlib import Path
 
-from InitGui import SEWING_COMMAND_GROUPS, ClothSewingWorkbench
+from InitGui import SEWING_COMMAND_GROUPS, SEWING_TOOLBAR_COMMANDS, ClothSewingWorkbench
 
 ROOT = Path(__file__).resolve().parents[1]
 init_gui = (ROOT / "InitGui.py").read_text()
@@ -100,6 +100,28 @@ def test_workbench_group_registration_is_idempotent_and_keeps_flat_context_comma
     assert calls[1][1] == ["Cloth Sewing", "Sewing Creation"]
     assert calls[2][1] == ["Cloth Sewing", "Sewing Editing"]
     assert calls[3][1] == ["Cloth Sewing", "Validation & View"]
+
+
+def test_sewing_workbench_initialize_registers_fitting_group_and_preserves_toolbar_contract():
+    import AvatarCommands
+    import FittingCommands
+
+    workbench = ClothSewingWorkbench()
+    calls = []
+    workbench.appendToolbar = lambda name, commands: calls.append(("toolbar", name, list(commands)))
+    workbench.appendMenu = lambda name, commands: calls.append(("menu", name, list(commands)))
+
+    workbench.Initialize()
+
+    assert calls[0] == ("toolbar", "Cloth Sewing", list(SEWING_TOOLBAR_COMMANDS))
+    fitting = next(commands for kind, name, commands in calls if kind == "menu" and name == ["Cloth Sewing", "Fitting & Avatar"])
+    assert fitting == list(FittingCommands.COMMANDS + AvatarCommands.COMMANDS)
+    assert workbench.commands == [
+        command
+        for group in SEWING_COMMAND_GROUPS
+        for command in group[1]
+    ] + list(FittingCommands.COMMANDS + AvatarCommands.COMMANDS)
+    assert len(workbench.commands) == len(set(workbench.commands))
 
 
 def test_workbench_icons_are_present_and_valid_svg_resources():
