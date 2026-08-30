@@ -43,18 +43,8 @@ jobs:
       - name: Core and geometry tests
         run: |
           set -euo pipefail
-          for test in \
-            tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py \
-            tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py \
-            tests/test_simulation_scene.py tests/test_collisions.py tests/test_freecad_objects.py \
-            tests/test_gui_structure.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py \
-            tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_avatar_fitting.py \
-            tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py \
-            tests/test_pattern_export_semantics.py tests/test_sketch_authority.py \
-            tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py; do
-            echo "[python] START $test"
-            python "$test"
-            echo "[python] PASS  $test"
+          for test in tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py tests/test_simulation_scene.py tests/test_collisions.py tests/test_freecad_objects.py tests/test_gui_structure.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_avatar_fitting.py tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py tests/test_pattern_export_semantics.py tests/test_sketch_authority.py tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py; do
+            echo "[python] START $test"; python "$test"; echo "[python] PASS $test"
           done
       - name: Reference drape benchmark
         run: python tests/benchmark_drape.py
@@ -69,10 +59,7 @@ jobs:
       - name: Package structure validation
         run: |
           set -euo pipefail
-          for path in package.xml Init.py InitGui.py PatternGui.py SimulationGui.py SewingGui.py SewingNetworkGui.py SewingObjects.py; do
-            test -f "$path"
-            echo "[package] PASS $path"
-          done
+          for path in package.xml Init.py InitGui.py PatternGui.py SimulationGui.py SewingGui.py SewingNetworkGui.py SewingObjects.py; do test -f "$path"; done
 
   freecad-smoke:
     if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed') || github.event_name == 'workflow_dispatch' }}
@@ -82,40 +69,40 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - name: Run real FreeCAD runtime in Debian trixie
+      - name: Run real FreeCAD GUI runtime under Xvfb
         run: |
           set -euo pipefail
           mkdir -p artifacts/freecad-smoke
-          docker run --rm -v "$PWD:/workspace" -w /workspace debian:trixie-slim bash -euxo pipefail -c '
-            export DEBIAN_FRONTEND=noninteractive
-            apt-get update -qq
-            apt-get install -y -qq freecad
-            freecadcmd --version
-
-            run_freecad() {
-              script="$1"
-              log="artifacts/freecad-smoke/$(basename "$script").log"
-              echo "[freecad] START $script"
-              set +e
-              freecadcmd "$script" 2>&1 | tee "$log"
-              status=${PIPESTATUS[0]}
-              set -e
-              if grep -Eq "Exception while processing file|Traceback \(most recent call last\)" "$log"; then
-                echo "::error::FreeCAD reported a Python/script exception while running $script"
-                echo "[freecad] FAIL $script: exception text detected even though FreeCAD returned $status"
-                status=1
-              fi
-              if [ "$status" -ne 0 ]; then
-                echo "[freecad] FAIL $script exit=$status"
-                tail -n 80 "$log" || true
-                return "$status"
-              fi
-              echo "[freecad] PASS $script"
-            }
-
-            run_freecad tests/freecad_smoke.py
-            run_freecad tests/freecad_meshpart_smoke.py
-            run_freecad tests/freecad_sewing_smoke.py
+          docker run --rm --init \
+            -e DISPLAY=:99 -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_E2E_DIR=/workspace/artifacts/freecad-smoke -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
+            -v "$PWD:/workspace" -w /workspace debian:trixie-slim bash -euxo pipefail -c '
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update -qq
+              apt-get install -y -qq freecad xvfb openbox
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              sleep 2
+              run_freecad() {
+                macro="$1"
+                log="artifacts/freecad-smoke/$(basename "$macro").log"
+                echo "[freecad] START $macro"
+                set +e
+                timeout --signal=TERM --kill-after=5s 90s freecad "$macro" 2>&1 | tee "$log"
+                status=${PIPESTATUS[0]}
+                set -e
+                if grep -Eq "Exception while processing file|Traceback \(most recent call last\)" "$log"; then
+                  echo "::error::FreeCAD reported a Python/script exception while running $macro"
+                  status=1
+                fi
+                if [ "$status" -ne 0 ]; then tail -n 100 "$log" || true; return "$status"; fi
+                echo "[freecad] PASS $macro"
+              }
+              python3 -m compileall -q .
+              run_freecad tests/freecad_ci_smoke.FCMacro
+              run_freecad tests/freecad_ci_meshpart.FCMacro
+              run_freecad tests/freecad_ci_sewing.FCMacro
           '
       - name: Upload FreeCAD smoke diagnostics
         if: ${{ always() }}
@@ -141,14 +128,9 @@ jobs:
           set -euo pipefail
           mkdir -p docs/images/generated artifacts/freecad-e2e
           docker run --rm --init \
-            -e DISPLAY=:99 \
-            -e QT_X11_NO_MITSHM=1 \
-            -e QT_QPA_PLATFORM=xcb \
-            -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
-            -e CLOTH_E2E_DIR=/workspace/artifacts/freecad-e2e \
-            -v "$PWD:/workspace" -w /workspace \
-            debian:trixie-slim bash -euxo pipefail -c '
+            -e DISPLAY=:99 -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated -e CLOTH_E2E_DIR=/workspace/artifacts/freecad-e2e \
+            -v "$PWD:/workspace" -w /workspace debian:trixie-slim bash -euxo pipefail -c '
               export DEBIAN_FRONTEND=noninteractive
               apt-get update -qq
               apt-get install -y -qq freecad xvfb openbox
@@ -157,27 +139,12 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               sleep 2
               rm -f docs/images/generated/cloth-pattern-design.png docs/images/generated/cloth-sewing.png docs/images/generated/cloth-simulation.png docs/images/generated/gui-progress.log
-              echo "[gui] START FreeCAD screenshot macro"
-              set +e
               timeout --signal=TERM --kill-after=5s 120s freecad tests/freecad_ci_screenshot.FCMacro 2>&1 | tee /tmp/freecad-gui.log
-              status=${PIPESTATUS[0]}
-              set -e
-              cat /tmp/freecad-gui.log
               cat docs/images/generated/gui-progress.log 2>/dev/null || true
-              if grep -Eq "Exception while processing file|Traceback \(most recent call last\)" /tmp/freecad-gui.log; then
-                echo "::error::FreeCAD GUI reported a Python/script exception"
-                status=1
-              fi
-              if [ "$status" -ne 0 ]; then
-                echo "[gui] FAIL screenshot macro exit=$status"
-                cat /tmp/xvfb.log || true
-                cat /tmp/openbox.log || true
-                exit "$status"
-              fi
+              if grep -Eq "Exception while processing file|Traceback \(most recent call\)" /tmp/freecad-gui.log; then exit 1; fi
               test -s docs/images/generated/cloth-pattern-design.png
               test -s docs/images/generated/cloth-sewing.png
               test -s docs/images/generated/cloth-simulation.png
-              echo "[gui] PASS screenshot macro"
             '
       - name: Upload GUI diagnostics
         if: ${{ always() }}
