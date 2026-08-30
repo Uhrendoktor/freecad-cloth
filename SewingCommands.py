@@ -94,13 +94,7 @@ def create_seam_from_selection():
 
 
 def create_mn_sewing_from_selection():
-    """Create a persistent 1:N, M:1, or M:N sewing network.
-
-    Select two or more edges belonging to exactly two pattern pieces. Edges
-    from the first piece form side A and edges from the second form side B.
-    Full edges are used by the GUI command; callers can use ``build_mn_seams``
-    directly with normalized sub-ranges for free sewing.
-    """
+    """Create a persistent 1:N, M:1, or M:N sewing network."""
     import FreeCAD as App
     from PatternObjects import add_seam
     from SewingNetwork import SewingMember, add_sewing_network, build_mn_seams
@@ -212,8 +206,8 @@ def repair_selected_seam():
             from SewingObjects import _edge_length
             length_a = _edge_length(pieces[str(seam.PieceA)], int(seam.EdgeA))
             length_b = _edge_length(pieces[str(seam.PieceB)], int(seam.EdgeB))
-        except Exception as exc:
-            raise ValueError("cannot determine seam lengths for repair: %s" % exc)
+        except (KeyError, ValueError, TypeError, IndexError) as exc:
+            raise ValueError("cannot determine seam lengths for repair: %s" % exc) from exc
     report = correspondence_report(seam, length_a, length_b, 0.05)
     message = repair_correspondence_settings(seam, report)
     doc.recompute()
@@ -308,8 +302,6 @@ class _SewingCommand:
             resources["Pixmap"] = self.pixmap
         return resources
 
-# Keep the activation contract available to headless Python tests and imports.
-# The GUI registration below remains optional when FreeCADGui is unavailable.
 _ACTIVATION = {
     "ClothSewing_CreateSeam": lambda: _has_active_document() and _has_two_selected_pattern_edges(),
     "ClothSewing_CreateMNSewing": lambda: _has_active_document() and _has_mn_selection(),

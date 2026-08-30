@@ -1,8 +1,9 @@
 """Headless regression coverage for the Sewing workbench command layer."""
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from SewingCommands import _MENU_TEXT, _SewingCommand, _selected_pattern_edges
+from SewingCommands import _MENU_TEXT, _SewingCommand, _selected_pattern_edges, repair_selected_seam
 
 
 def test_sewing_command_exposes_contextual_activation():
@@ -31,6 +32,7 @@ def test_all_registered_sewing_commands_have_stable_user_facing_labels():
         "ClothSewing_ReverseSeam": "Reverse Seam",
         "ClothSewing_ToggleAlignment": "Toggle Seam Alignment",
         "ClothSewing_Validate": "Validate Sewing",
+        "ClothSewing_RepairSeam": "Repair Seam",
         "ClothSewing_Show2D": "Show Sewing 2D",
     }
     assert _MENU_TEXT == expected
@@ -88,3 +90,82 @@ def test_selected_pattern_edges_preserves_unique_mn_members_in_selection_order(m
     gui = type("Gui", (), {"Selection": Selection()})
     monkeypatch.setitem(sys.modules, "FreeCADGui", gui)
     assert _selected_pattern_edges(allow_many=True) == [(first, 1), (first, 3), (second, 0), (second, 2)]
+
+
+def _repair_test_modules(monkeypatch, edge_length, pieces=()):
+    seam = SimpleNamespace(
+        SeamId="seam-1",
+        PieceA="piece-a",
+        PieceB="piece-b",
+        EdgeA=0,
+        EdgeB=1,
+        LengthA=0.0,
+        LengthB=0.0,
+    )
+    gui = SimpleNamespace(Selection=SimpleNamespace(getSelection=lambda: [seam]))
+    doc = SimpleNamespace(Objects=[seam, *pieces], recompute=lambda: None)
+    app = SimpleNamespace(ActiveDocument=doc)
+    sewing_gui = SimpleNamespace(
+        correspondence_report=lambda *args: {"status": "ok"},
+        repair_correspondence_settings=lambda *args: "repaired",
+    )
+    sewing_objects = SimpleNamespace(_edge_length=edge_length)
+    monkeypatch.setitem(sys.modules, "FreeCADGui", gui)
+    monkeypatch.setitem(sys.modules, "FreeCAD", app)
+    monkeypatch.setitem(sys.modules, "SewingGui", sewing_gui)
+    monkeypatch.setitem(sys.modules, "SewingObjects", sewing_objects)
+    return seam, doc
+
+
+def _pattern_piece(piece_id):
+    return SimpleNamespace(PatternType="PatternPiece", PieceId=piece_id)
+
+
+def test_repair_selected_seam_wraps_missing_piece_with_actionable_context(monkeypatch):
+    def edge_length(_piece, _edge):
+        raise AssertionError("edge lookup must not run when the piece is missing")
+
+    _repair_test_modules(monkeypatch, edge_length)
+    try:
+        repair_selected_seam()
+    except ValueError as exc:
+        assert "cannot determine seam lengths for repair" in str(exc)
+        assert "piece-a" in str(exc)
+        assert isinstance(exc.__cause__, KeyError)
+    else:
+        raise AssertionError("expected missing pattern pieces to be reported")
+
+
+def test_repair_selected_seam_wraps_invalid_edge_without_losing_cause(monkeypatch):
+    def edge_length(_piece, edge):
+        raise ValueError(f"seam edge {edge} is outside the pattern boundary")
+
+    _repair_test_modules(monkeypatch, edge_length, (_pattern_piece("piece-a"), _pattern_piece("piece-b")))
+    try:
+        repair_selected_seam()
+    except ValueError as exc:
+        assert "outside the pattern boundary" in str(exc)
+        assert isinstance(exc.__cause__, ValueError)
+    else:
+        raise AssertionError("expected invalid seam edge to be reported")
+
+
+def test_repair_selected_seam_does_not_swallow_unexpected_runtime_error(monkeypatch):
+    def edge_length(_piece, _edge):
+        raise RuntimeError("unexpected solver/runtime failure")
+
+    _repair_test_modules(monkeypatch, edge_length, (_pattern_piece("piece-a"), _pattern_piece("piece-b")))
+    try:
+        repair_selected_seam()
+    except RuntimeError as exc:
+        assert str(exc) == "unexpected solver/runtime failure"
+    else:
+        raise AssertionError("unexpected runtime errors must not be swallowed")
+
+
+def test_repair_selected_seam_successful_repair_keeps_public_result(monkeypatch):
+    def edge_length(_piece, edge):
+        return 10.0 + edge
+
+    _repair_test_modules(monkeypatch, edge_length, (_pattern_piece("piece-a"), _pattern_piece("piece-b")))
+    assert repair_selected_seam() == "repaired"
