@@ -42,11 +42,13 @@ class _ClothWorkbench(_WorkbenchBase):
         """Register an immutable command set exactly once per instance."""
         self._register_groups(((self.MenuText, commands),))
 
-    def _register_groups(self, groups):
-        """Register deterministic toolbar/menu groups exactly once.
+    def _register_groups(self, groups, toolbar_name=None):
+        """Register deterministic menu groups exactly once.
 
         A command may belong to only one group. The same normalized command
         list is retained on ``self.commands`` for context-menu registration.
+        ``toolbar_name`` keeps a stable single toolbar while the menu exposes
+        the workflow groups as nested sections.
         """
         if self.commands:
             return
@@ -64,8 +66,12 @@ class _ClothWorkbench(_WorkbenchBase):
             registered.extend(group_commands)
         self.commands = registered
         if Gui is not None:
+            if toolbar_name:
+                self.appendToolbar(toolbar_name, registered)
+            else:
+                for group_name, group_commands in normalized_groups:
+                    self.appendToolbar(group_name, group_commands)
             for group_name, group_commands in normalized_groups:
-                self.appendToolbar(group_name, group_commands)
                 self.appendMenu([self.MenuText, group_name], group_commands)
 
     def GetResources(self):
@@ -165,7 +171,7 @@ class ClothSewingWorkbench(_ClothWorkbench):
         grouped = self._normalize_commands(command for _name, commands in groups for command in commands)
         if set(grouped) != set(expected + FittingCommands.COMMANDS + AvatarCommands.COMMANDS):
             raise ValueError("Sewing workbench command groups are out of sync with registered commands")
-        self._register_groups(groups)
+        self._register_groups(groups, toolbar_name=self.MenuText)
 
 
 if Gui is not None:
