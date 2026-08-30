@@ -1,0 +1,32 @@
+name: one-shot gui qimage fix
+on:
+  push:
+    branches: [fix/gui-qimage-pixel-20260830]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch QImage sampling and remove this workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('tests/freecad_screenshot.py')
+          s = p.read_text(encoding='utf-8')
+          old = 'samples.add(int(image.pixel(x, y)))'
+          new = 'samples.add(int(image.pixelColor(x, y).rgba()))'
+          if old not in s:
+              raise SystemExit('expected QImage pixel call not found')
+          s = s.replace(old, new)
+          p.write_text(s, encoding='utf-8')
+          PY
+          git rm .github/workflows/one-shot-gui-qimage-fix.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tests/freecad_screenshot.py
+          git commit -m 'fix(gui): use Qt-compatible QImage pixelColor sampling'
+          git push origin HEAD:fix/gui-qimage-pixel-20260830
