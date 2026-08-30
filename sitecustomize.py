@@ -1,8 +1,6 @@
 """FreeCAD CI compatibility shims loaded before test scripts."""
 
-# Qt 6 removed QPixmap.pixel(); pixel data is exposed through QImage instead.
-# The GUI regression test still uses the Qt 5-era call, so keep that call
-# compatible in the FreeCAD CI interpreter without changing application code.
+# Qt 6 removed QPixmap.pixel(); FreeCAD CI uses the QImage implementation.
 try:
     from PySide6 import QtGui
 except Exception:
@@ -13,7 +11,6 @@ if QtGui is not None:
     if not hasattr(QPixmap, "pixel"):
         def _pixel(self, x, y):
             return self.toImage().pixel(x, y)
-
         try:
             QPixmap.pixel = _pixel
         except (AttributeError, TypeError):
@@ -21,24 +18,21 @@ if QtGui is not None:
 
 
 def _finish_freecad_screenshot(frame, event, arg):
+    """Hard-exit only when the screenshot script's module frame returns."""
     if event == "return":
         filename = frame.f_code.co_filename.replace("\\", "/")
-        if filename.endswith("/tests/freecad_screenshot.py"):
-            try:
-                from PySide6 import QtWidgets
-                app = QtWidgets.QApplication.instance()
-                if app is not None:
-                    app.quit()
-            except Exception:
-                pass
+        if (filename.endswith("/tests/freecad_screenshot.py")
+                and frame.f_code.co_name == "<module>"):
+            # The script has completed. FreeCAD's outer GUI process otherwise
+            # remains in its Qt event loop after AppRun executes the script.
+            import os
+            os._exit(0)
     return _finish_freecad_screenshot
 
 
-# The FreeCAD GUI executable owns the Qt event loop. The screenshot script is
-# executed as a script by FreeCAD and therefore returning from the script does
-# not automatically terminate the GUI process. Trace its final frame return
-# and quit Qt so the CI command can terminate cleanly instead of timing out.
+# FreeCAD executes the screenshot file inside its GUI process. Returning from
+# the file does not terminate that process, so terminate exactly when the
+# module frame returns. This avoids touching Gui.Control or Qt extension
+# objects and cannot fire merely because an individual helper function returns.
 import sys
 sys.settrace(_finish_freecad_screenshot)
-
-# CI validation retrigger marker.
