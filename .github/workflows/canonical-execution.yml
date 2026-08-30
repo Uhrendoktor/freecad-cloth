@@ -34,7 +34,8 @@ jobs:
           key: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-${{ env.FREECAD_APPIMAGE_SHA256 }}
           restore-keys: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-
       - name: Prepare FreeCAD image
-        env: { IMAGE: ${{ env.FREECAD_IMAGE }} }
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
           if docker image inspect "$IMAGE" >/dev/null 2>&1; then exit 0; fi
@@ -42,7 +43,8 @@ jobs:
           docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
           docker buildx build --progress=plain --load --tag "$IMAGE" --cache-from type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache --cache-to type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache,mode=max docker/freecad-ci
       - name: Run core tests
-        env: { IMAGE: ${{ env.FREECAD_IMAGE }} }
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
           CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e PYTHONPATH=/workspace -w /workspace "$IMAGE" -euo pipefail -c '
@@ -65,7 +67,8 @@ jobs:
           key: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-${{ env.FREECAD_APPIMAGE_SHA256 }}
           restore-keys: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-
       - name: Prepare FreeCAD image
-        env: { IMAGE: ${{ env.FREECAD_IMAGE }} }
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
           if docker image inspect "$IMAGE" >/dev/null 2>&1; then exit 0; fi
@@ -73,7 +76,8 @@ jobs:
           docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
           docker buildx build --progress=plain --load --tag "$IMAGE" --cache-from type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache --cache-to type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache,mode=max docker/freecad-ci
       - name: Run pattern and sewing tests
-        env: { IMAGE: ${{ env.FREECAD_IMAGE }} }
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
           CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e PYTHONPATH=/workspace -w /workspace "$IMAGE" -euo pipefail -c '
@@ -96,7 +100,8 @@ jobs:
           key: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-${{ env.FREECAD_APPIMAGE_SHA256 }}
           restore-keys: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-
       - name: Prepare FreeCAD image
-        env: { IMAGE: ${{ env.FREECAD_IMAGE }} }
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
           if docker image inspect "$IMAGE" >/dev/null 2>&1; then exit 0; fi
@@ -104,7 +109,8 @@ jobs:
           docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
           docker buildx build --progress=plain --load --tag "$IMAGE" --cache-from type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache --cache-to type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache,mode=max docker/freecad-ci
       - name: Run simulation tests
-        env: { IMAGE: ${{ env.FREECAD_IMAGE }} }
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
           CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e PYTHONPATH=/workspace -w /workspace "$IMAGE" -euo pipefail -c '
@@ -140,7 +146,8 @@ jobs:
           key: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-${{ env.FREECAD_APPIMAGE_SHA256 }}
           restore-keys: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-
       - name: Prepare FreeCAD image
-        env: { IMAGE: ${{ env.FREECAD_IMAGE }} }
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
           if docker image inspect "$IMAGE" >/dev/null 2>&1; then exit 0; fi
@@ -197,7 +204,8 @@ jobs:
           key: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-${{ env.FREECAD_APPIMAGE_SHA256 }}
           restore-keys: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-
       - name: Prepare FreeCAD image
-        env: { IMAGE: ${{ env.FREECAD_IMAGE }} }
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
           if docker image inspect "$IMAGE" >/dev/null 2>&1; then exit 0; fi
@@ -205,7 +213,8 @@ jobs:
           docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
           docker buildx build --progress=plain --load --tag "$IMAGE" --cache-from type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache --cache-to type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache,mode=max docker/freecad-ci
       - name: Run GUI screenshot
-        env: { IMAGE: ${{ env.FREECAD_IMAGE }} }
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
           mkdir -p docs/images/generated
