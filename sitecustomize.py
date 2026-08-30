@@ -40,3 +40,5 @@ def _finish_freecad_screenshot(frame, event, arg):
 # and quit Qt so the CI command can terminate cleanly instead of timing out.
 import sys
 sys.settrace(_finish_freecad_screenshot)
+
+# CI validation retrigger marker.
