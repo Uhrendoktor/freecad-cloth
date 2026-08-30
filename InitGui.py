@@ -17,12 +17,7 @@ _WorkbenchBase = Gui.Workbench if Gui is not None else object
 
 
 class _ClothWorkbench(_WorkbenchBase):
-    """Small common registration shell for the Cloth workbenches.
-
-    ``commands`` is instance-owned: FreeCAD can instantiate workbench classes
-    more than once during tests or reloads, and command state must never leak
-    from one workbench instance into another.
-    """
+    """Small common registration shell for the Cloth workbenches."""
 
     def __init__(self):
         if Gui is not None:
@@ -39,17 +34,10 @@ class _ClothWorkbench(_WorkbenchBase):
         return registered
 
     def _register(self, commands):
-        """Register an immutable command set exactly once per instance."""
         self._register_groups(((self.MenuText, commands),))
 
     def _register_groups(self, groups, toolbar_name=None):
-        """Register deterministic menu groups exactly once.
-
-        A command may belong to only one group. The same normalized command
-        list is retained on ``self.commands`` for context-menu registration.
-        ``toolbar_name`` keeps a stable single toolbar while the menu exposes
-        the workflow groups as nested sections.
-        """
+        """Register deterministic menu groups exactly once per instance."""
         if self.commands:
             return
         normalized_groups = []
@@ -75,12 +63,7 @@ class _ClothWorkbench(_WorkbenchBase):
                 self.appendMenu([self.MenuText, group_name], group_commands)
 
     def GetResources(self):
-        """Return the standard FreeCAD workbench metadata contract."""
-        return {
-            "MenuText": self.MenuText,
-            "ToolTip": self.ToolTip,
-            "Icon": self.Icon,
-        }
+        return {"MenuText": self.MenuText, "ToolTip": self.ToolTip, "Icon": self.Icon}
 
     def Activated(self):
         return None
@@ -93,14 +76,13 @@ class _ClothWorkbench(_WorkbenchBase):
             self.appendContextMenu(self.MenuText, self.commands)
 
     def GetClassName(self):
-        """Return FreeCAD's Python-workbench class identifier."""
         return "Gui::PythonWorkbench"
 
 
 class ClothPatternWorkbench(_ClothWorkbench):
     MenuText = "Cloth Pattern"
     ToolTip = "Parametric sewing-pattern design"
-    Icon = "ClothPattern.svg"
+    Icon = str(_ICON_DIR / "ClothPattern.svg")
 
     def Initialize(self):
         if self.commands:
@@ -113,7 +95,7 @@ class ClothPatternWorkbench(_ClothWorkbench):
 class ClothSimulationWorkbench(_ClothWorkbench):
     MenuText = "Cloth Simulation"
     ToolTip = "3D cloth assembly and simulation"
-    Icon = "ClothSimulation.svg"
+    Icon = str(_ICON_DIR / "ClothSimulation.svg")
 
     def Initialize(self):
         if self.commands:
@@ -141,6 +123,7 @@ SEWING_COMMAND_GROUPS = (
             "ClothSewing_EditNetwork",
             "ClothSewing_ReverseSeam",
             "ClothSewing_ToggleAlignment",
+            "ClothSewing_RepairSeam",
         ),
     ),
     (
@@ -156,7 +139,7 @@ SEWING_COMMAND_GROUPS = (
 class ClothSewingWorkbench(_ClothWorkbench):
     MenuText = "Cloth Sewing"
     ToolTip = "Sewing operations and avatar fitting"
-    Icon = "ClothSewing.svg"
+    Icon = str(_ICON_DIR / "ClothSewing.svg")
 
     def Initialize(self):
         if self.commands:
@@ -167,10 +150,21 @@ class ClothSewingWorkbench(_ClothWorkbench):
         import AvatarCommands
         groups = list(SEWING_COMMAND_GROUPS)
         groups.append(("Fitting & Avatar", FittingCommands.COMMANDS + AvatarCommands.COMMANDS))
-        expected = SewingCommands.COMMANDS + SewingNetworkCommands.COMMANDS
+
+        expected = self._normalize_commands(
+            SewingCommands.COMMANDS
+            + SewingNetworkCommands.COMMANDS
+            + FittingCommands.COMMANDS
+            + AvatarCommands.COMMANDS
+        )
         grouped = self._normalize_commands(command for _name, commands in groups for command in commands)
-        if set(grouped) != set(expected + FittingCommands.COMMANDS + AvatarCommands.COMMANDS):
-            raise ValueError("Sewing workbench command groups are out of sync with registered commands")
+        if grouped != expected:
+            missing = [command for command in expected if command not in grouped]
+            extra = [command for command in grouped if command not in expected]
+            raise ValueError(
+                "Sewing workbench command groups are out of sync: missing=%s extra=%s"
+                % (", ".join(missing), ", ".join(extra))
+            )
         self._register_groups(groups, toolbar_name=self.MenuText)
 
 
