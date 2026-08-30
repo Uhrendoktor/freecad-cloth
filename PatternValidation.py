@@ -4,6 +4,7 @@ Validation is deliberately read-only with respect to geometry. The Sketcher
 object remains the source of truth; this module only reports whether the
 current authored boundary can be converted to the solver-neutral PatternIR.
 """
+import ast
 
 
 def _ensure_properties(obj):
@@ -12,6 +13,18 @@ def _ensure_properties(obj):
         obj.ValidationStatus = ["Unknown", "Valid", "Invalid"]
     if "ValidationMessage" not in obj.PropertiesList:
         obj.addProperty("App::PropertyString", "ValidationMessage", "Validation")
+
+
+def _seed_outline(sketch):
+    """Provide only the minimum semantic model shell needed by PatternIR."""
+    points = []
+    for geometry in tuple(getattr(sketch, "Geometry", ()) or ()):
+        if hasattr(geometry, "StartPoint"):
+            point = geometry.StartPoint
+            points.append((float(point.x), float(point.y)))
+    if len(points) < 3:
+        raise ValueError("Sketcher pattern needs at least three boundary geometries")
+    return points
 
 
 def validate_piece(obj):
@@ -30,7 +43,8 @@ def validate_piece(obj):
         sketch = getattr(obj, "Sketch", None)
         if sketch is None:
             raise ValueError("pattern piece has no linked Sketcher object")
-        piece = PatternPiece(str(obj.Label), [], id=str(obj.PieceId),
+        outline = _seed_outline(sketch)
+        piece = PatternPiece(str(obj.Label), outline, id=str(obj.PieceId),
                              seam_allowance=float(getattr(obj, "SeamAllowance", 0.0)),
                              grainline_angle=float(getattr(obj, "GrainlineAngle", 0.0)))
         graph = SeamGraph(); graph.add_piece(piece)
