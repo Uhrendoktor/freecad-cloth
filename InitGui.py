@@ -9,7 +9,7 @@ from pathlib import Path
 _ICON_DIR = Path(__file__).resolve().parent / "resources" / "icons"
 if not _ICON_DIR.is_dir():
     # Some headless regression runners execute InitGui.py with ``exec`` while
-    # retaining the caller's __file__.  Keep the resource lookup useful there
+    # retaining the caller's __file__. Keep the resource lookup useful there
     # without changing the normal installed-workbench path.
     _ICON_DIR = Path.cwd() / "resources" / "icons"
 
