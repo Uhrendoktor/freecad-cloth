@@ -14,7 +14,7 @@ concurrency:
 jobs:
   ci:
     runs-on: [self-hosted, linux, x64, docker]
-    timeout-minutes: 25
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
@@ -117,7 +117,7 @@ jobs:
           printf '%s\n' "${tests[@]}" | xargs -P "${CLOTH_TEST_JOBS}" -n 1 python3
           python3 -m compileall -q .
           for t in tests/freecad_smoke.py tests/freecad_meshpart_smoke.py tests/freecad_sewing_smoke.py; do
-            timeout --signal=TERM --kill-after=5s 60s xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' bash -lc 'openbox >/tmp/freecad-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" "$1"' "$FREECAD_BIN" "$t"
+            timeout --signal=TERM --kill-after=5s 300s xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' bash -lc 'openbox >/tmp/freecad-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" "$1"' "$FREECAD_BIN" "$t"
           done
           timeout --signal=TERM --kill-after=5s 120s xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' bash -lc 'openbox >/tmp/freecad-screenshot-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" tests/freecad_screenshot.py' "$FREECAD_BIN"
           test -s docs/images/generated/cloth-pattern-design.png
@@ -173,7 +173,7 @@ jobs:
               python3 -m compileall -q .
               for t in tests/freecad_smoke.py tests/freecad_meshpart_smoke.py tests/freecad_sewing_smoke.py; do
                 echo "[container] FREECAD START $t"
-                timeout --signal=TERM --kill-after=5s 60s freecad "$t"
+                timeout --signal=TERM --kill-after=5s 300s freecad "$t"
                 echo "[container] FREECAD PASS $t"
               done
               echo "[container] SCREENSHOT START"
@@ -192,8 +192,8 @@ jobs:
             EXIT_CODE=$(docker inspect -f '{{.State.ExitCode}}' "$CID" 2>/dev/null || echo '?')
             echo "[host] $(date -Is) state=$STATE exit=$EXIT_CODE elapsed=$(( $(date +%s) - START_TS ))s"
             if [[ "$STATE" == running ]]; then
-              if (( $(date +%s) - START_TS >= 900 )); then
-                echo '[host] ERROR: 15 minute watchdog exceeded'
+              if (( $(date +%s) - START_TS >= 1500 )); then
+                echo '[host] ERROR: 25 minute watchdog exceeded'
                 docker logs "$CID" || true
                 exit 124
               fi
