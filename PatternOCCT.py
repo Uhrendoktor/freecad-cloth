@@ -5,14 +5,25 @@ layer remains independent of FreeCAD.
 """
 
 
+def _make_offset_wire(wire, distance, join_type=0):
+    """Offset an existing FreeCAD wire across supported Part APIs."""
+    if distance < 0:
+        raise ValueError("offset distance must be non-negative")
+    if not hasattr(wire, "makeOffset2D"):
+        raise RuntimeError("installed FreeCAD Part API does not expose Wire.makeOffset2D")
+    try:
+        return wire.makeOffset2D(float(distance), int(join_type), False, False, True)
+    except TypeError:
+        # Older FreeCAD releases expose fewer positional parameters.
+        return wire.makeOffset2D(float(distance), int(join_type))
+
+
 def offset_outline(outline, distance, join_type=0):
     """Return an OCCT-generated offset wire/shape for a 2D outline.
 
     The caller owns semantic edge IDs; OCCT-generated edges are therefore
     treated as derived geometry and never used as stable sewing identifiers.
     """
-    if distance < 0:
-        raise ValueError("offset distance must be non-negative")
     try:
         import FreeCAD as App
         import Part
@@ -23,13 +34,12 @@ def offset_outline(outline, distance, join_type=0):
     points = [App.Vector(float(x), float(y), 0.0) for x, y in outline]
     points.append(points[0])
     wire = Part.makePolygon(points)
-    if not hasattr(wire, "makeOffset2D"):
-        raise RuntimeError("installed FreeCAD Part API does not expose Wire.makeOffset2D")
-    try:
-        return wire.makeOffset2D(float(distance), int(join_type), False, False, True)
-    except TypeError:
-        # Older FreeCAD releases expose fewer positional parameters.
-        return wire.makeOffset2D(float(distance), int(join_type))
+    return _make_offset_wire(wire, distance, join_type)
+
+
+def native_offset_wire(wire, distance, join_type=0):
+    """Compatibility API for callers that already own a FreeCAD wire."""
+    return _make_offset_wire(wire, distance, join_type)
 
 
 def compare_native_offset(piece, distance):
