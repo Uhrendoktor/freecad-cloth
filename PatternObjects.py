@@ -46,8 +46,59 @@ def _boundary_shape(points, allowance=0.0):
     return Part.Face(wire)
 
 
+def _native_geometry_points(geometry, samples=16):
+    """Sample one native Sketcher geometry into a deterministic XY polyline."""
+    def xy(point):
+        return (float(point.x), float(point.y))
+
+    start = getattr(geometry, "StartPoint", None)
+    end = getattr(geometry, "EndPoint", None)
+    value_at = getattr(geometry, "valueAt", None)
+    parameter_range = getattr(geometry, "ParameterRange", None)
+    if callable(value_at) and parameter_range is not None:
+        try:
+            first, last = float(parameter_range[0]), float(parameter_range[1])
+            if last > first:
+                return [xy(value_at(first + (last - first) * i / (samples - 1))) for i in range(samples)]
+        except (AttributeError, TypeError, ValueError, IndexError, RuntimeError):
+            pass
+    if start is not None and end is not None:
+        return [xy(start), xy(end)]
+    raise ValueError("Sketcher boundary geometry has no resolvable endpoints")
+
+
+def _sketch_edge_records(piece):
+    """Expose non-construction Sketcher geometry through persistent semantic ids."""
+    sketch = getattr(piece, "Sketch", None)
+    if sketch is None:
+        return []
+    geometry = tuple(getattr(sketch, "Geometry", ()) or ())
+    semantic_ids = tuple(getattr(sketch, "SemanticEdgeIds", ()) or ())
+    records = []
+    for index, native in enumerate(geometry):
+        try:
+            if callable(getattr(sketch, "getConstruction", None)) and sketch.getConstruction(index):
+                continue
+        except (IndexError, TypeError, RuntimeError):
+            continue
+        edge_id = str(semantic_ids[index]).strip() if index < len(semantic_ids) else ""
+        if not edge_id:
+            edge_id = semantic_edge_id(str(piece.PieceId), index)
+        points = _native_geometry_points(native)
+        records.append({"piece_id": str(piece.PieceId), "id": edge_id, "points": tuple(points), "ordinal": index})
+    return records
+
+
 def _edge_records(piece):
-    """Expose pattern edges through persistent semantic ids."""
+    """Expose pattern edges through persistent semantic ids.
+
+    When a PatternPiece has an attached native Sketcher object, that sketch is
+    the source of truth. The legacy ``SewingOutline`` fallback is retained for
+    old documents that predate the Sketcher authority contract.
+    """
+    sketch_records = _sketch_edge_records(piece)
+    if sketch_records:
+        return sketch_records
     points = _parse_points(getattr(piece, "SewingOutline", ""))
     if len(points) < 2:
         return []
@@ -82,6 +133,32 @@ def _resolve_document_edge(piece, edge_id, signature):
     reference = capture_edge_reference(piece.PieceId, edge_id, ((0.0, 0.0), (1.0, 0.0)))
     reference = type(reference)(reference.piece_id, reference.edge_id, signature)
     return resolve_edge_reference(reference, _edge_records(piece))
+
+
+def _point_on_polyline(points, parameter):
+    """Interpolate a normalized parameter over a sampled edge by arc length."""
+    values = list(points)
+    if len(values) < 2:
+        raise ValueError("edge needs at least two points")
+    t = min(1.0, max(0.0, float(parameter)))
+    if t <= 0.0:
+        return values[0]
+    if t >= 1.0:
+        return values[-1]
+    import math
+    lengths = [math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(values, values[1:])]
+    total = sum(lengths)
+    if total <= 1e-15:
+        return values[0]
+    target = total * t
+    distance = 0.0
+    for index, length in enumerate(lengths):
+        if distance + length >= target:
+            local = (target - distance) / length if length else 0.0
+            a, b = values[index], values[index + 1]
+            return (a[0] + (b[0] - a[0]) * local, a[1] + (b[1] - a[1]) * local)
+        distance += length
+    return values[-1]
 
 
 class PatternPieceProxy:
@@ -152,13 +229,13 @@ class SeamProxy:
             return
         obj.Status = "Valid"
         import FreeCAD as App
-        aa, ab = a["points"]
-        bb, bc = b["points"]
-        pa0 = App.Vector(aa[0] + (ab[0] - aa[0]) * obj.StartA, aa[1] + (ab[1] - aa[1]) * obj.StartA, 0.4)
-        pa1 = App.Vector(aa[0] + (ab[0] - aa[0]) * obj.EndA, aa[1] + (ab[1] - aa[1]) * obj.EndA, 0.4)
-        pb0 = App.Vector(bb[0] + (bc[0] - bb[0]) * obj.StartB, bb[1] + (bc[1] - bb[1]) * obj.StartB, 0.4)
-        pb1 = App.Vector(bb[0] + (bc[0] - bb[0]) * obj.EndB, bb[1] + (bc[1] - bb[1]) * obj.EndB, 0.4)
+        pa0 = _point_on_polyline(a["points"], obj.StartA)
+        pa1 = _point_on_polyline(a["points"], obj.EndA)
+        pb0 = _point_on_polyline(b["points"], obj.StartB)
+        pb1 = _point_on_polyline(b["points"], obj.EndB)
         if obj.ReversedB: pb0, pb1 = pb1, pb0
+        pa0, pa1 = App.Vector(pa0[0], pa0[1], 0.4), App.Vector(pa1[0], pa1[1], 0.4)
+        pb0, pb1 = App.Vector(pb0[0], pb0[1], 0.4), App.Vector(pb1[0], pb1[1], 0.4)
         if getattr(piece_a, "Placement", None) is not None: pa0, pa1 = piece_a.Placement.multVec(pa0), piece_a.Placement.multVec(pa1)
         if getattr(piece_b, "Placement", None) is not None: pb0, pb1 = piece_b.Placement.multVec(pb0), piece_b.Placement.multVec(pb1)
         obj.Shape = Part.makeCompound([Part.makeLine(pa0, pa1), Part.makeLine(pb0, pb1)])
