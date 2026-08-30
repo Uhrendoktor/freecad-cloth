@@ -191,7 +191,7 @@ def image_is_useful(path, state_name):
     samples = set()
     for y in range(0, image.height(), max(1, image.height() // 24)):
         for x in range(0, image.width(), max(1, image.width() // 32)):
-            samples.add(int(image.pixel(x, y)))
+            samples.add(int(image.pixelColor(x, y).rgba()))
     if len(samples) < 80:
         raise RuntimeError("screenshot is visually uniform for %s (%d sampled colors)" % (state_name, len(samples)))
     progress("image-validation=%s path=%s bytes=%d size=%sx%s sampled_colors=%d" % (state_name, path, file_size, image.width(), image.height(), len(samples)))
