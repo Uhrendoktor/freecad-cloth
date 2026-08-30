@@ -33,9 +33,6 @@ jobs:
         with:
           fetch-depth: 1
 
-      # Keep the host-side AppImage cache attempt.  The native path uses it when
-      # the runner is provisioned with the required GUI utilities.  On the
-      # existing Docker runner we deliberately fall back to the pinned CI image.
       - name: Restore cached FreeCAD runtime
         uses: actions/cache@v4
         with:
@@ -53,16 +50,8 @@ jobs:
           for tool in Xvfb xvfb-run openbox curl xargs timeout sha256sum; do
             command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
           done
-          if command -v "$FREECAD_BIN" >/dev/null 2>&1; then
-            freecad=runner
-          else
-            freecad=missing
-          fi
-          if command -v docker >/dev/null 2>&1; then
-            docker=available
-          else
-            docker=missing
-          fi
+          if command -v "$FREECAD_BIN" >/dev/null 2>&1; then freecad=runner; else freecad=missing; fi
+          if command -v docker >/dev/null 2>&1; then docker=available; else docker=missing; fi
           printf 'missing=%s\n' "${missing[*]:-none}"
           printf 'freecad=%s docker=%s\n' "$freecad" "$docker"
           if [[ "$freecad" == runner && ${#missing[@]} -eq 0 ]]; then
@@ -80,7 +69,6 @@ jobs:
           set -euo pipefail
           echo "FREECAD_SOURCE=runner" >> "$GITHUB_ENV"
           echo "PYTHON_TEST_MODE=system" >> "$GITHUB_ENV"
-          echo "Using runner-provided FreeCAD: $(command -v "$FREECAD_BIN")"
           "$FREECAD_BIN" --version || true
           python3 --version
 
@@ -97,25 +85,19 @@ jobs:
             echo "[docker] using runner-local cached image: $IMAGE"
             exit 0
           fi
-
           echo "[docker] image not cached; trying GHCR"
           if printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USER" --password-stdin >/dev/null 2>&1 && timeout 180s docker pull "$IMAGE"; then
             echo "[docker] pulled pinned image from GHCR"
             exit 0
           fi
-
-          echo "[docker] GHCR pull unavailable; building pinned image with registry cache"
+          echo "[docker] GHCR pull unavailable; building with registry cache"
           docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
-          docker buildx build \
-            --progress=plain \
-            --load \
+          docker buildx build --progress=plain --load \
             --tag "$IMAGE" \
             --cache-from "type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache" \
             --cache-to "type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache,mode=max" \
             docker/freecad-ci
-          if [[ "$GITHUB_EVENT_NAME" != pull_request ]]; then
-            docker push "$IMAGE"
-          fi
+          if [[ "$GITHUB_EVENT_NAME" != pull_request ]]; then docker push "$IMAGE"; fi
 
       - name: Validate native runtime
         if: steps.runner.outputs.mode == 'native'
@@ -123,8 +105,7 @@ jobs:
           set -euo pipefail
           for tool in Xvfb xvfb-run openbox xargs timeout; do command -v "$tool" >/dev/null; done
           command -v "$FREECAD_BIN" >/dev/null
-          echo "Runner: $(hostname)"
-          echo "FreeCAD: $(command -v "$FREECAD_BIN")"
+          "$FREECAD_BIN" --version || true
 
       - name: Run native Python, FreeCAD smoke, and GUI tests
         if: steps.runner.outputs.mode == 'native'
@@ -132,16 +113,7 @@ jobs:
           set -euo pipefail
           mkdir -p docs/images/generated artifacts/freecad-e2e
           rm -f docs/images/generated/*.png docs/images/generated/gui-progress.log docs/images/generated/gui-screenshot-manifest.txt
-          tests=(
-            tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py
-            tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py
-            tests/test_simulation_scene.py tests/test_collisions.py tests/test_freecad_objects.py
-            tests/test_gui_structure.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py
-            tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_avatar_fitting.py
-            tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py
-            tests/test_pattern_export_semantics.py tests/test_sketch_authority.py
-            tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py
-          )
+          tests=(tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py tests/test_simulation_scene.py tests/test_collisions.py tests/test_freecad_objects.py tests/test_gui_structure.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_avatar_fitting.py tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py tests/test_pattern_export_semantics.py tests/test_sketch_authority.py tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py)
           printf '%s\n' "${tests[@]}" | xargs -P "${CLOTH_TEST_JOBS}" -n 1 python3
           python3 -m compileall -q .
           for t in tests/freecad_smoke.py tests/freecad_meshpart_smoke.py tests/freecad_sewing_smoke.py; do
@@ -156,18 +128,12 @@ jobs:
           set -euo pipefail
           mkdir -p docs/images/generated artifacts/freecad-e2e
           rm -f docs/images/generated/*.png docs/images/generated/gui-progress.log
-          docker run --rm --init \
+          docker run --rm --init --entrypoint /bin/bash \
             --shm-size=1g \
-            -e DISPLAY=:99 \
-            -e QT_X11_NO_MITSHM=1 \
-            -e QT_QPA_PLATFORM=xcb \
-            -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
-            -e CLOTH_E2E_DIR=/workspace/artifacts/freecad-e2e \
-            -v "$PWD:/workspace" \
-            -w /workspace \
-            "$IMAGE" \
-            bash -euo pipefail -c '
+            -e DISPLAY=:99 -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated -e CLOTH_E2E_DIR=/workspace/artifacts/freecad-e2e \
+            -v "$PWD:/workspace" -w /workspace "$IMAGE" \
+            -euo pipefail -c '
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 &
               XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 &
@@ -183,11 +149,15 @@ jobs:
                 tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py \
                 tests/test_pattern_export_semantics.py tests/test_sketch_authority.py \
                 tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py; do
+                echo "TEST START $t"
                 python3 "$t"
+                echo "TEST PASS $t"
               done
               python3 -m compileall -q .
               for t in tests/freecad_smoke.py tests/freecad_meshpart_smoke.py tests/freecad_sewing_smoke.py; do
+                echo "FREECAD START $t"
                 timeout --signal=TERM --kill-after=5s 60s freecad "$t"
+                echo "FREECAD PASS $t"
               done
               timeout --signal=TERM --kill-after=5s 120s freecad tests/freecad_screenshot.py
               test -s docs/images/generated/cloth-pattern-design.png
