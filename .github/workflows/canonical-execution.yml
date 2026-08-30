@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 concurrency:
@@ -12,201 +13,170 @@ concurrency:
 
 jobs:
   ci:
-    if: ${{ github.event_name != 'pull_request' || github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'workflow_dispatch' }}
     runs-on: [self-hosted, linux, x64, docker]
-    timeout-minutes: 20
+    timeout-minutes: 10
     permissions:
       contents: read
       packages: write
+    env:
+      FREECAD_BIN: freecad
+      CLOTH_TEST_JOBS: 8
+      FREECAD_VERSION: 1.1.3
+      FREECAD_APPIMAGE_SHA256: 3a853eb69ee595f779f2255dbf80a765926981d8ff68903cefee4dfb03a8f5ef
+      QT_X11_NO_MITSHM: 1
+      QT_QPA_PLATFORM: xcb
+      LIBGL_ALWAYS_SOFTWARE: 1
+      PIXELFLUX_WAYLAND: false
+      XDG_RUNTIME_DIR: /tmp/runtime-cloth
+      FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.3-r1
+
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-      - name: Ensure pinned FreeCAD CI image is available
-        id: freecad-image
+      # Keep both cache paths: Actions cache for a native runner and the
+      # runner-local / GHCR / registry BuildKit cache for the Docker fallback.
+      - name: Restore cached FreeCAD runtime
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/freecad-cloth/${{ env.FREECAD_VERSION }}
+          key: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-${{ env.FREECAD_APPIMAGE_SHA256 }}
+          restore-keys: |
+            freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-
+
+      - name: Detect runner capabilities
+        id: runner
+        shell: bash
+        run: |
+          set -u
+          missing=()
+          for tool in Xvfb xvfb-run openbox xargs timeout; do command -v "$tool" >/dev/null 2>&1 || missing+=("$tool"); done
+          if command -v "$FREECAD_BIN" >/dev/null 2>&1 && ((${#missing[@]} == 0)); then
+            echo mode=native >> "$GITHUB_OUTPUT"
+          elif command -v docker >/dev/null 2>&1; then
+            echo mode=docker >> "$GITHUB_OUTPUT"
+          else
+            echo "No usable native FreeCAD runtime and Docker is unavailable." >&2
+            exit 1
+          fi
+          echo "missing=${missing[*]:-none}"
+
+      - name: Prepare pinned FreeCAD CI image
+        if: steps.runner.outputs.mode == 'docker'
         env:
-          IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.3-r1
+          IMAGE: ${{ env.FREECAD_IMAGE }}
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          echo "[image] runner=$(hostname) docker=$(docker version --format '{{.Server.Version}}')"
           if docker image inspect "$IMAGE" >/dev/null 2>&1; then
-            echo "[image] using runner-local image: $IMAGE"
-            docker image inspect "$IMAGE" --format='[image] id={{.Id}} created={{.Created}} size={{.Size}}'
-            echo "source=local" >> "$GITHUB_OUTPUT"
+            echo "Using runner-local cached image: $IMAGE"
             exit 0
           fi
-          echo "[image] image not cached; pulling from GHCR (120s timeout)"
-          echo "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USER" --password-stdin >/dev/null
-          if timeout 120s docker pull "$IMAGE"; then
-            docker image inspect "$IMAGE" --format='[image] pulled id={{.Id}} created={{.Created}} size={{.Size}}'
-            echo "source=ghcr" >> "$GITHUB_OUTPUT"
+          if printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USER" --password-stdin >/dev/null 2>&1 && timeout 60s docker pull "$IMAGE"; then
+            echo "Pulled pinned image from GHCR"
             exit 0
           fi
-          echo "[image] GHCR pull failed; building pinned image"
-          docker build --progress=plain --tag "$IMAGE" docker/freecad-ci
-          echo "source=build" >> "$GITHUB_OUTPUT"
+          echo "GHCR image unavailable; building with registry cache fallback"
+          docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
+          docker buildx build --progress=plain --load \
+            --tag "$IMAGE" \
+            --cache-from type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache \
+            --cache-to type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache,mode=max \
+            docker/freecad-ci
 
-      - name: Publish bootstrapped FreeCAD CI image
-        if: ${{ steps.freecad-image.outputs.source == 'build' && github.event_name != 'pull_request' }}
-        env:
-          IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.3-r1
+      - name: Run native tests
+        if: steps.runner.outputs.mode == 'native'
         run: |
           set -euo pipefail
-          echo "[image] publishing bootstrapped image"
-          docker push "$IMAGE"
+          mkdir -p docs/images/generated "$XDG_RUNTIME_DIR"
+          tests=(tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py tests/test_simulation_scene.py tests/test_collisions.py tests/test_freecad_objects.py tests/test_gui_structure.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_avatar_fitting.py tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py tests/test_pattern_export_semantics.py tests/test_sketch_authority.py tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py)
+          printf '%s\n' "${tests[@]}" | xargs -P "$CLOTH_TEST_JOBS" -n 1 python3
+          python3 -m compileall -q .
+          for t in tests/freecad_smoke.py tests/freecad_meshpart_smoke.py tests/freecad_sewing_smoke.py; do
+            echo "FREECAD START $t"
+            xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' bash -lc 'openbox >/tmp/freecad-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" "$1"' "$FREECAD_BIN" "$t"
+            echo "FREECAD PASS $t"
+          done
+          echo "SCREENSHOT START timeout=120s"
+          timeout --signal=TERM --kill-after=5s 120s xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' bash -lc 'openbox >/tmp/freecad-screenshot-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" tests/freecad_screenshot.py' "$FREECAD_BIN"
+          echo "SCREENSHOT PASS"
 
-      - name: Run Python tests, FreeCAD smoke, and GUI screenshots
+      - name: Run Docker tests
+        if: steps.runner.outputs.mode == 'docker'
         env:
-          IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.3-r1
+          IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
           mkdir -p docs/images/generated artifacts/freecad-e2e
-          echo "[host] $(date -Is) starting test container"
-          echo "[host] image=$IMAGE"
-          docker image inspect "$IMAGE" --format='[host] image-id={{.Id}} size={{.Size}} created={{.Created}}'
-
           CID=""
           cleanup() {
             set +e
-            echo "[host] $(date -Is) cleanup cid=$CID"
-            if [ -n "$CID" ]; then
-              docker cp "$CID:/workspace/docs/images/generated/." docs/images/generated/ 2>/dev/null || true
-              docker cp "$CID:/workspace/artifacts/freecad-e2e/." artifacts/freecad-e2e/ 2>/dev/null || true
-              docker logs "$CID" > artifacts/freecad-e2e/docker-console.log 2>&1 || true
-              docker inspect "$CID" > artifacts/freecad-e2e/docker-inspect.json 2>/dev/null || true
-              docker rm -f "$CID" >/dev/null 2>&1 || true
-            fi
+            [[ -z "$CID" ]] && return
+            docker cp "$CID:/workspace/docs/images/generated/." docs/images/generated/ 2>/dev/null || true
+            docker cp "$CID:/workspace/artifacts/freecad-e2e/." artifacts/freecad-e2e/ 2>/dev/null || true
+            docker logs "$CID" > artifacts/freecad-e2e/docker-console.log 2>&1 || true
+            docker inspect "$CID" > artifacts/freecad-e2e/docker-inspect.json 2>/dev/null || true
+            docker rm -f "$CID" >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
-
-          CID="$(docker create \
-            --entrypoint /bin/bash \
-            --shm-size=1g \
-            -e DISPLAY=:99 \
-            -e QT_X11_NO_MITSHM=1 \
-            -e QT_QPA_PLATFORM=xcb \
-            -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
-            -e CLOTH_E2E_DIR=/workspace/artifacts/freecad-e2e \
-            -e PYTHONPATH=/workspace \
-            -w /workspace \
-            "$IMAGE" \
+          CID="$(docker create --init --security-opt seccomp=unconfined --entrypoint /bin/bash --shm-size=1g \
+            -e DISPLAY=:99 -e XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" -e PIXELFLUX_WAYLAND=false \
+            -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated -e CLOTH_E2E_DIR=/workspace/artifacts/freecad-e2e \
+            -e PYTHONPATH=/workspace -w /workspace "$IMAGE" \
             -euo pipefail -c '
-              echo "[container] $(date -Is) entrypoint starting"
-              export PYTHONPATH=/workspace
-              rm -f docs/images/generated/*.png docs/images/generated/gui-progress.log
-              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 &
-              XVFB_PID=$!
-              openbox >/tmp/openbox.log 2>&1 &
-              OPENBOX_PID=$!
+              set -e
+              mkdir -p "$XDG_RUNTIME_DIR"
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               sleep 1
-              echo "[container] $(date -Is) Xvfb/openbox ready"
-
-              for t in \
-                tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py \
-                tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py \
-                tests/test_simulation_scene.py tests/test_collisions.py tests/test_freecad_objects.py \
-                tests/test_gui_structure.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py \
-                tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_avatar_fitting.py \
-                tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py \
-                tests/test_pattern_export_semantics.py tests/test_sketch_authority.py \
-                tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py; do
-                echo "[container] $(date -Is) TEST START $t"
-                python3 "$t"
-                echo "[container] $(date -Is) TEST PASS $t"
-              done
-
-              echo "[container] $(date -Is) compileall START"
+              tests=(tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py tests/test_simulation_scene.py tests/test_collisions.py tests/test_freecad_objects.py tests/test_gui_structure.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_avatar_fitting.py tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py tests/test_pattern_export_semantics.py tests/test_sketch_authority.py tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py)
+              for t in "${tests[@]}"; do python3 "$t"; done
               python3 -m compileall -q .
-              echo "[container] $(date -Is) compileall PASS"
-
+              # Match the historical workflow: FreeCAD smoke tests run directly.
+              # No per-smoke timeout is imposed; the host watchdog remains the
+              # final protection against a genuinely stuck Docker container.
               for t in tests/freecad_smoke.py tests/freecad_meshpart_smoke.py tests/freecad_sewing_smoke.py; do
-                echo "[container] $(date -Is) FREECAD START $t"
-                timeout --signal=TERM --kill-after=5s 60s freecad "$t"
-                echo "[container] $(date -Is) FREECAD PASS $t"
+                echo "FREECAD START $t"
+                freecad "$t"
+                echo "FREECAD PASS $t"
               done
-
-              echo "[container] $(date -Is) SCREENSHOT START timeout=120s"
+              echo "SCREENSHOT START timeout=120s"
               timeout --signal=TERM --kill-after=5s 120s freecad tests/freecad_screenshot.py
-              echo "[container] $(date -Is) SCREENSHOT PASS"
-
+              echo "SCREENSHOT PASS"
               test -s docs/images/generated/cloth-pattern-design.png
               test -s docs/images/generated/cloth-sewing.png
               test -s docs/images/generated/cloth-simulation.png
-              echo "[container] $(date -Is) ALL TESTS PASS"
             '
           )"
-          echo "[host] $(date -Is) created container cid=$CID"
-          echo "[host] copying repository into container"
-          COPY_START=$(date +%s)
+          echo "Copying repository into Docker test container"
           docker cp "$PWD/." "$CID:/workspace/"
-          echo "[host] $(date -Is) repository copy finished in $(( $(date +%s) - COPY_START ))s"
-
-          echo "[host] $(date -Is) starting container"
-          docker start "$CID" >/dev/null
-
-          # Keep the Actions log alive and expose the exact point of progress.
-          # The previous implementation used `docker start -a`, which could look
-          # completely hung when FreeCAD was busy without emitting stdout.
-          START_TS=$(date +%s)
-          LAST_LOG=""
-          while :; do
-            NOW=$(date +%s)
-            ELAPSED=$((NOW - START_TS))
-            STATE=$(docker inspect -f '{{.State.Status}}' "$CID" 2>/dev/null || echo missing)
-            EXIT_CODE=$(docker inspect -f '{{.State.ExitCode}}' "$CID" 2>/dev/null || echo '?')
-            echo "[host] $(date -Is) heartbeat elapsed=${ELAPSED}s state=${STATE} exit=${EXIT_CODE}"
-
-            if [ "$STATE" = "running" ]; then
-              PROGRESS=$(docker exec "$CID" bash -lc 'tail -n 12 /workspace/docs/images/generated/gui-progress.log 2>/dev/null || true' 2>/dev/null || true)
-              if [ -n "$PROGRESS" ] && [ "$PROGRESS" != "$LAST_LOG" ]; then
-                echo "[host] --- gui-progress.log ---"
-                echo "$PROGRESS"
-                echo "[host] --- end gui-progress.log ---"
-                LAST_LOG="$PROGRESS"
-              fi
-              docker exec "$CID" bash -lc 'ps -eo pid,etime,pcpu,pmem,stat,cmd --sort=-pcpu | head -n 12' 2>/dev/null | sed 's/^/[host] /' || true
-              if [ "$ELAPSED" -ge 900 ]; then
-                echo "[host] ERROR: container exceeded 15 minute watchdog"
-                docker logs "$CID" || true
-                exit 124
-              fi
-              sleep 10
-              continue
-            fi
-
-            if [ "$STATE" = "exited" ]; then
-              echo "[host] $(date -Is) container exited code=$EXIT_CODE"
-              docker logs "$CID" || true
-              if [ "$EXIT_CODE" != "0" ]; then
-                exit "$EXIT_CODE"
-              fi
-              break
-            fi
-
-            echo "[host] ERROR: unexpected container state=$STATE"
-            docker inspect "$CID" || true
-            exit 125
-          done
+          echo "Starting Docker test container"
+          # Stream exactly like the historical Docker workflow; this is only
+          # an outer hang watchdog for the self-hosted runner.
+          timeout --signal=TERM --kill-after=10s 180s docker start -a "$CID"
 
       - name: Upload GUI screenshots
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: cloth-gui-screenshots
           path: docs/images/generated/*.png
           if-no-files-found: error
+          compression-level: 1
 
       - name: Upload GUI diagnostics
-        if: ${{ failure() }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: cloth-gui-diagnostics
           path: |
             docs/images/generated/gui-progress.log
             docs/images/generated/gui-screenshot-manifest.txt
-            artifacts/freecad-e2e/workflow.log
             artifacts/freecad-e2e/docker-console.log
             artifacts/freecad-e2e/docker-inspect.json
           if-no-files-found: ignore
+          compression-level: 1

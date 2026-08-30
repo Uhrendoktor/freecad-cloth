@@ -127,7 +127,7 @@ def main():
             assert len(restored.StitchPoints) == 16
             assert restored.Seam is not None
             assert restored.PieceA is not None and restored.PieceB is not None
-            print("FreeCAD sewing task transaction, semantic persistence, invalidation, and workbench activation smoke test passed")
+            print("FreeCAD sewing task transaction, semantic persistence, invalidation, and workbench activation smoke test passed", flush=True)
         finally:
             if App.ActiveDocument is not None:
                 App.closeDocument(App.ActiveDocument.Name)
@@ -142,4 +142,5 @@ def main():
 
 if __name__ == "__main__":
     main()
-    Gui.exit()
+    sys.stdout.flush()
+    os._exit(0)
