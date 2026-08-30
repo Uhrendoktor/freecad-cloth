@@ -131,8 +131,8 @@ jobs:
               tests=(tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py tests/test_simulation_scene.py tests/test_collisions.py tests/test_freecad_objects.py tests/test_gui_structure.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_avatar_fitting.py tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py tests/test_pattern_export_semantics.py tests/test_sketch_authority.py tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py)
               for t in "${tests[@]}"; do python3 "$t"; done
               python3 -m compileall -q .
-              # Historical workflow ran these directly. Keep that execution
-              # path; the timeout is only a bounded hang guard on the runner.
+              # Historical workflow invoked FreeCAD directly. Retain that
+              # path; 60s is only a bounded guard against a hang.
               for t in tests/freecad_smoke.py tests/freecad_meshpart_smoke.py tests/freecad_sewing_smoke.py; do
                 echo "FREECAD START $t"
                 timeout --signal=TERM --kill-after=5s 60s freecad "$t"
@@ -148,30 +148,10 @@ jobs:
           )"
           echo "Copying repository into Docker test container"
           docker cp "$PWD/." "$CID:/workspace/"
-          docker start "$CID" >/dev/null
-          START_TS=$(date +%s)
-          while :; do
-            STATE=$(docker inspect -f '{{.State.Status}}' "$CID" 2>/dev/null || echo missing)
-            EXIT_CODE=$(docker inspect -f '{{.State.ExitCode}}' "$CID" 2>/dev/null || echo '?')
-            ELAPSED=$(( $(date +%s) - START_TS ))
-            echo "[host] $(date -Is) state=$STATE exit=$EXIT_CODE elapsed=${ELAPSED}s"
-            if [[ "$STATE" == running ]]; then
-              # Outer watchdog only: normal runs should finish well before this.
-              if (( ELAPSED >= 180 )); then
-                echo "Docker test container exceeded 180s watchdog" >&2
-                docker logs "$CID" || true
-                exit 124
-              fi
-              sleep 5
-            elif [[ "$STATE" == exited ]]; then
-              docker logs "$CID" || true
-              [[ "$EXIT_CODE" == 0 ]]
-              break
-            else
-              docker inspect "$CID" || true
-              exit 125
-            fi
-          done
+          echo "Starting Docker test container"
+          # Keep the historical streaming execution path. The outer timeout is
+          # only a final watchdog for a stuck container.
+          timeout --signal=TERM --kill-after=10s 180s docker start -a "$CID"
 
       - name: Upload GUI screenshots
         if: ${{ always() }}
