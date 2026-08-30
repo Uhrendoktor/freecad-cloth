@@ -6,27 +6,27 @@ def _seams(doc): return [o for o in doc.Objects if getattr(o, "SeamId", "")]
 def _selected_seam(doc):
     import FreeCADGui as Gui
     for obj in Gui.Selection.getSelection():
-        if getattr(obj, "SeamId", ""): return obj
-    seams = _seams(doc)
+        if getattr(obj,"SeamId",""): return obj
+    seams=_seams(doc)
     if seams: return seams[0]
     raise ValueError("create or select a seam before creating a sewing operation")
-def _pieces_by_id(doc): return {getattr(o, "PieceId", ""): o for o in doc.Objects if getattr(o, "PatternType", "") == "PatternPiece"}
+def _pieces_by_id(doc): return {getattr(o,"PieceId",""):o for o in doc.Objects if getattr(o,"PatternType","")=="PatternPiece"}
 def _selected_pattern_edges(allow_many=False):
     import FreeCADGui as Gui
     edges=[]; seen=set()
     for selection in Gui.Selection.getSelectionEx():
         obj=selection.Object
-        if getattr(obj,"PatternType","") != "PatternPiece": continue
+        if getattr(obj,"PatternType","")!="PatternPiece": continue
         for sub_name in selection.SubElementNames:
             if not str(sub_name).startswith("Edge"): continue
             try: edge_number=int(str(sub_name)[4:])
             except ValueError: continue
-            if edge_number <= 0: continue
+            if edge_number<=0: continue
             edge=edge_number-1; key=(id(obj),edge)
             if key in seen: continue
             seen.add(key); edges.append((obj,edge))
-    if (not allow_many and len(edges)!=2) or (allow_many and len(edges)<2): raise ValueError("select %s edges on pattern pieces" % ("at least two" if allow_many else "exactly two"))
-    if len({id(obj) for obj,_edge in edges}) != 2: raise ValueError("a sewing relationship must connect two different pattern pieces")
+    if (not allow_many and len(edges)!=2) or (allow_many and len(edges)<2): raise ValueError("select %s edges on pattern pieces"%("at least two" if allow_many else "exactly two"))
+    if len({id(obj) for obj,_edge in edges})!=2: raise ValueError("a sewing relationship must connect two different pattern pieces")
     return edges
 
 def _has_two_selected_pattern_edges():
@@ -105,7 +105,7 @@ def inspect_sewing_graph():
     import FreeCAD as App
     doc=App.ActiveDocument
     if doc is None: raise ValueError("open a document before inspecting the sewing graph")
-    from SewingNetworkGui import show_sewing_graph_task
+    from SewingGraphGui import show_sewing_graph_task
     return show_sewing_graph_task(doc)
 
 def repair_selected_seam():
@@ -132,8 +132,7 @@ def show_sewing_2d():
     for obj in pattern_pieces_for_2d(document.Objects): Gui.Selection.addSelection(obj)
     for obj in document.Objects:
         if getattr(obj,"SeamId","") or getattr(obj,"SewingType","") in {"SewingOperation","SewingNetwork"}: Gui.Selection.addSelection(obj)
-    install_seam_view_providers(document)
-    view=Gui.activeDocument().activeView(); view.viewTop(); view.fitAll()
+    install_seam_view_providers(document); view=Gui.activeDocument().activeView(); view.viewTop(); view.fitAll()
 
 COMMANDS=["ClothSewing_CreateSeam","ClothSewing_CreateMNSewing","ClothSewing_CreateOperation","ClothSewing_EditOperation","ClothSewing_ReverseSeam","ClothSewing_ToggleAlignment","ClothSewing_Validate","ClothSewing_RepairSeam","ClothSewing_Show2D","ClothSewing_InspectGraph"]
 _COMMAND_HANDLERS={"ClothSewing_CreateSeam":create_seam_from_selection,"ClothSewing_CreateMNSewing":create_mn_sewing_from_selection,"ClothSewing_CreateOperation":create_sewing_operation,"ClothSewing_EditOperation":edit_sewing_operation,"ClothSewing_ReverseSeam":reverse_selected_seam,"ClothSewing_ToggleAlignment":toggle_selected_alignment,"ClothSewing_Validate":validate_seams,"ClothSewing_RepairSeam":repair_selected_seam,"ClothSewing_Show2D":show_sewing_2d,"ClothSewing_InspectGraph":inspect_sewing_graph}
