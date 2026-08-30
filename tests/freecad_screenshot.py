@@ -66,30 +66,20 @@ def activate_workbench(internal_name, toolbar_name, expected_commands):
 
 
 def show_task(panel, state_name):
-    Gui.Control.showDialog(panel)
+    # Gui.Control.showDialog() is unreliable when FreeCAD is driven directly
+    # by AppRun under Xvfb. Keep the real task-panel widget, but host it inside
+    # the FreeCAD main window so the regression capture sees the actual controls.
+    window = Gui.getMainWindow()
+    if window is None or getattr(panel, "form", None) is None:
+        raise RuntimeError("FreeCAD main window or task panel form is unavailable")
+    panel.form.setParent(window)
+    panel.form.setGeometry(8, 55, 360, 560)
+    panel.form.show()
+    panel.form.raise_()
+    panel.form.activateWindow()
     Gui.updateGui()
     QtWidgets.QApplication.processEvents()
-    window = Gui.getMainWindow()
-    if window is not None:
-        for dock in window.findChildren(QtWidgets.QDockWidget):
-            title = str(dock.windowTitle()).lower()
-            object_name = str(dock.objectName()).lower()
-            if "task" in title or "task" in object_name:
-                dock.show()
-                dock.raise_()
-        window.raise_()
-        window.activateWindow()
-    QtWidgets.QApplication.processEvents()
-    visible = bool(getattr(panel, "form", None) and panel.form.isVisible())
-    if not visible and getattr(panel, "form", None) is not None:
-        # FreeCAD may reparent a Python QWidget into a hidden task container.
-        # Detach it as a top-level window for deterministic Xvfb screenshots.
-        panel.form.setParent(None)
-        panel.form.show()
-        panel.form.raise_()
-        panel.form.activateWindow()
-        QtWidgets.QApplication.processEvents()
-        visible = panel.form.isVisible()
+    visible = panel.form.isVisible()
     progress("task-panel=%s visible=%s docks=%s" % (state_name, visible, ",".join(docks())))
     if not visible:
         raise RuntimeError("task panel did not become visible: %s" % state_name)
@@ -293,7 +283,7 @@ def run_scenario():
         Gui.Selection.clearSelection(); Gui.Selection.addSelection(front)
         set_top_camera()
         save_window("cloth-pattern-design.png", "Pattern Workbench", "two 140x90 mm pieces; native 10 mm seam allowance; task-panel dimensions/allowance; notch and grainline markers")
-        Gui.Control.closeDialog()
+        panel.form.hide()
 
         seam = add_seam(doc, Seam(str(front.PieceId), 1, str(back.PieceId), 3, id="FrontBack", alignment="uniform", stitch_group="MainSeam"))
         doc.recompute()
@@ -315,7 +305,7 @@ def run_scenario():
             raise RuntimeError("sewing diagnostics are not valid")
         set_top_camera()
         save_window("cloth-sewing.png", "Sewing Workbench", "real seam/sewing geometry; uniform correspondence diagnostics; stitch count and length comparison; deterministic direction arrows")
-        Gui.Control.closeDialog()
+        sewing_panel.form.hide()
 
         progress("simulation-scenario-start")
         sim_doc = App.newDocument("ClothSimulationVisualRegression")
