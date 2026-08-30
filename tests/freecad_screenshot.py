@@ -224,8 +224,12 @@ def save_window(filename, state_name, proof):
 
 progress("script-start")
 try:
-    init_gui = os.path.join(REPO_ROOT, "InitGui.py")
-    exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
+    # FreeCAD's GUI startup already imports InitGui.py and registers the Cloth
+    # workbenches.  Re-executing that module here registers the same workbench
+    # classes a second time, producing "already exists" and missing-icon noise.
+    # Importing it is idempotent and also works when this script is launched in
+    # a context where FreeCAD has not imported the module yet.
+    import InitGui
     from PatternCommands import create_pattern_piece_from_parameters
     from PatternModel import Seam
     from PatternObjects import add_seam
