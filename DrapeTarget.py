@@ -2,7 +2,7 @@
 
 The solver consumes a :class:`CollisionSurface`; this module owns the small
 FreeCAD-facing distinction between a human mannequin and arbitrary CAD/Mesh
-geometry.  The pure data model deliberately has no FreeCAD dependency so it
+geometry. The pure data model deliberately has no FreeCAD dependency so it
 can be regression-tested without a FreeCAD installation.
 """
 from dataclasses import dataclass
@@ -42,7 +42,7 @@ def collision_surface(target, deflection: float = 1.0, thickness: float = 0.0) -
 def source_signature(target, deflection: float = 1.0, thickness: float = 0.0) -> Tuple:
     """Return deterministic target inputs used to invalidate derived scenes.
 
-    Placement is included when available.  The actual shape/mesh conversion
+    Placement is included when available. The actual shape/mesh conversion
     remains lazy; callers can cheaply compare this signature before rebuilding.
     """
     placement = getattr(target, "Placement", None)
@@ -69,8 +69,8 @@ def create_drape_target(doc, source=None, target_type: str = "FreeCAD Geometry",
     """Create a persistent FreeCAD DrapeTarget linked to ``source``.
 
     ``source`` may be omitted only for a mannequin target; in that case the
-    caller is expected to assign a mannequin object before recompute.  The
-    target object intentionally stores a Link rather than copying geometry.
+    caller is expected to assign a mannequin object before recompute. The
+    target object stores a Link rather than copying geometry.
     """
     if target_type not in DrapeTargetSpec.VALID_TYPES:
         raise ValueError("unsupported drape target type")
@@ -86,16 +86,17 @@ def create_drape_target(doc, source=None, target_type: str = "FreeCAD Geometry",
     target.addProperty("App::PropertyFloat", "CollisionDeflection", "Collision")
     target.addProperty("App::PropertyFloat", "CollisionThickness", "Collision")
     target.addProperty("App::PropertyBool", "Enabled", "Draping")
+    target.addProperty("App::PropertyInteger", "CollisionVertexCount", "State")
+    target.addProperty("App::PropertyInteger", "CollisionTriangleCount", "State")
     target.addProperty("App::PropertyString", "SourceSignature", "State")
     target.TargetType = target_type
     target.CollisionDeflection = float(deflection)
     target.CollisionThickness = float(thickness)
     target.Enabled = True
+    target.CollisionVertexCount = 0
+    target.CollisionTriangleCount = 0
     if source is not None:
-        target.SourceObject = source
-        target.SourceSignature = repr(source_signature(source, deflection, thickness))
-        surface = collision_surface(source, deflection, thickness)
-        target.CollisionVertexCount = len(surface.vertices) if hasattr(target, "CollisionVertexCount") else 0
+        assign_drape_target(target, source, target_type)
     return target
 
 
