@@ -2,99 +2,113 @@
 
 ## CLO-style behavior analysis
 
-CLO separates garment work into a 2D pattern workflow and a 3D fitting/simulation workflow. Its production model includes segment/free sewing, sewing direction, notches, arrangement points and bounding volumes, avatar measurement, particle distance, folds, topstitching, buttons/buttonholes and material/simulation properties. The important architectural lesson is that pattern geometry and sewing semantics are edited independently from the generated 3D simulation mesh. CLO's arrangement points place patterns relative to avatar bounding volumes, while particle distance trades simulation speed against garment quality. citeturn0search3turn0search5turn3search3turn3search8turn3search5turn3search14
+CLO separates garment production into a 2D pattern workflow and a 3D fitting/simulation workflow. Current CLO documentation confirms that the important user-facing model is not simply “draw a polygon and simulate”: users establish segment/free sewing lines, control sewing direction with directional notches, support 1:N and M:N sewing, arrange patterns around avatar bounding volumes/arrangement points, and trade simulation quality against speed with particle distance. Avatar skin offset and collision/friction settings are separate physical controls. citeturn0search0turn0search2turn0search4turn0search8turn0search11turn0search14turn0search15
 
-### Workbench responsibilities and UI
+### Workbench responsibilities
 
-**Cloth Pattern** is the 2D authoring workbench:
-- New/Edit Pattern Piece
-- Draft Pattern (sketch-like polygon editor)
-- Native Sketcher mirror
-- 2D view
-- Seam Allowance
-- Add Seam
-- Add Notch / Grainline / Internal Mark
-- Create Mesh
+**Cloth Pattern — authoritative 2D authoring**
+- Create/Edit Pattern Piece
+- Native Sketcher editing and constraints
+- Pattern dimensions/expressions
+- Seam allowance
+- Notch, grainline, internal mark, fold/dart metadata
+- Mirror/transform/validation
+- Preview/mesh-density preparation
+- 2D inspection and production/export preparation
 
-**Cloth Sewing** is the semantic assembly workbench:
-- Create/Edit Sewing Operation
-- Validate Seams
-- Show 2D
-- Create Fitting Scene
-- Set Body Measurements
-- Assign Avatar
-- Add Pattern Pieces
-- Create Simulation
+**Cloth Sewing — semantic assembly and fitting setup**
+- Segment Sewing
+- Free Sewing
+- 1:N and M:N sewing
+- Direction/reversal/alignment diagnostics
+- Length mismatch/easing diagnostics
+- Transactional seam editor
+- 2D/3D paired seam visualization
+- Arrangement points / reproducible placement
+- Avatar/drape-target selection
+- Create/refresh simulation scene
 
-**Cloth Simulation** is the 3D workbench:
+**Cloth Simulation — 3D physical workflow**
 - Generate/refresh simulation mesh
-- Simulate / reset / step
-- Pin selection
-- Seam/stitch constraints
-- Avatar collision proxy
-- Material and particle-distance controls
-- Drape/fit diagnostics
+- Particle-distance / quality presets
+- Fabric density, thickness, stretch, shear, bend and friction
+- Collision target, skin offset/thickness and tessellation
+- Pinning and seam/stitch constraints
+- Step / Run / Reset
+- Explicit stale/invalid status and rebuild actions
+- Fit/drape diagnostics
 
-Interaction is deliberately one-way at the data boundaries: Pattern -> Sewing -> Simulation. A simulation mesh is disposable and must be regenerated from the pattern/seam model. FreeCAD `App::Property*`, `App.Placement`, Part/OCCT, MeshPart, Sketcher and document recompute/save mechanisms are used instead of custom persistence or a second geometry kernel.
+### UI action hierarchy
 
-### Canonical seam contract
+Use native FreeCAD task panels and standard property editors as the primary interaction surface. The custom action hierarchy should be:
 
-`PatternModel.Seam` is authoritative for piece references, edge references, normalized seam ranges, reversal, alignment, stitch group and construction kind. FreeCAD seam objects and SewingOperation objects are document adapters. A SewingOperation derives length diagnostics and stitch correspondence from the linked seam; it does not own a second editable copy of alignment or reversal.
+**Pattern:** New Piece → Edit Sketch → Draft/Marks → Seam Allowance → Validate → Mesh.
+
+**Sewing:** Segment/Free/M:N Sewing → Edit/Repair → Validate → Arrange → Drape Target → Create Simulation.
+
+**Simulation:** Refresh Mesh/Target → Run (primary) → Step (secondary/debug) → Reset (separate state action). Status and stale reasons remain visible above lifecycle controls.
+
+Icons are for frequent actions; labels/tooltips remain explicit. Numeric controls use FreeCAD units and expose the physical meaning of values. This follows the project UX issue #267 rather than adding decorative icons.
 
 ### CLO-to-FreeCAD mapping
 
-| CLO behavior | Workbench implementation / next step |
+| CLO behavior | FreeCAD Cloth design |
 | --- | --- |
-| 2D pattern drafting | Cloth Pattern drafting panel + native Sketcher adapter |
-| Seam allowance | Pattern property + derived Part/OCCT outline |
-| Segment/free sewing | Canonical `Seam`; M:N selection remains a roadmap item |
-| Sewing direction/reversal | Canonical seam `reversed_b`, one-time reversal during correspondence |
-| Notches | Persisted semantic PatternMark objects |
-| Grainline/internal marks | Persisted semantic PatternMark objects |
-| Arrangement points | FittingScene + deterministic `App.Placement`; richer avatar points are next |
-| Avatar measurements | BodyMeasurements/FittingScene |
-| Collision/bounding volumes | Solver-neutral avatar collision proxy + humanoid fallback |
-| Particle distance | Solver mesh density/performance control; UI exposure is next |
-| Fold/pleat | Seam `kind` metadata + future 3D fold adapter |
-| Topstitch/buttons | Pattern semantic marks/material adapters; not simulation-critical |
-| Save/reload | Native FreeCAD document objects and smoke coverage |
+| 2D pattern drafting | Native `Sketcher::SketchObject` owned/referenced by PatternPiece |
+| Parametric dimensions | Sketcher constraints + FreeCAD Expressions/Property system |
+| Seam allowance | Pattern semantic property + OCCT/Part derived geometry |
+| Segment/free sewing | Persistent Cloth seam objects and Sewing task panel |
+| Sewing direction | Explicit reversal/alignment and correspondence metadata |
+| M:N sewing | SewingGroup/operation model with transactional editing |
+| Directional notches | Semantic marks plus seam correspondence diagnostics |
+| Arrangement points | Persistent fitting arrangement objects and `App.Placement`; future avatar-bound points |
+| Avatar measurements | Parametric FreeCAD mannequin properties/landmarks |
+| Arbitrary collision target | Persistent target-neutral `DrapeTarget` linking any supported Shape/Mesh |
+| Particle distance | Simulation mesh density/quality property and presets |
+| Skin/collision offset | Target/Simulation collision thickness and skin offset properties |
+| Save/reload | Native document Links/Properties + FreeCAD recompute and E2E smoke |
 
-### Prioritized next capabilities
+FreeCAD Sketcher already provides geometric/dimensional constraints, expressions and scripting APIs, so a second constraint kernel is not justified. The official documentation also recommends using native constraints and expressions for parametric CAD data. citeturn1search0turn1search3turn1search5
 
-1. M:N and free-sewing gestures.
-2. Notch-aware seam alignment and diagnostics.
-3. Rich avatar arrangement points and wrap direction.
-4. Particle-distance presets and simulation quality controls.
-5. Fold/pleat and topstitch visualization.
-6. Print/CAD export (DXF/SVG/TechDraw) while preserving semantic IDs.
+### Revised release priorities
 
-## Existing open-source references
+1. **Target-authoritative simulation lifecycle:** stale target is safe during recompute, visible in status, and blocks Step/Run until Refresh.
+2. **Canonical public-workbench E2E:** native Pattern → Sewing → Simulation, save/reload, upstream edit, invalidation, refresh and successful re-simulation.
+3. **Curved/M:N sewing UX:** complete repairable correspondence and transactional editing in the task panel.
+4. **Pattern production minimum:** stable semantic references, native Sketcher authority, marks, seam allowances, validation and export-safe IDs.
+5. **Fitting UX:** avatar arrangement points, target selection and reproducible 3D placements.
+6. **Simulation quality:** particle-distance presets, fabric/collision controls and diagnostics.
+7. **Export/package/release documentation.**
+8. **Optional solver benchmarks only after release gates are green.**
+
+### Existing open-source references
 
 | Project | Useful capability | Integration assessment |
 | --- | --- | --- |
 | Seamly2D | Measurement-driven reusable parametric patterns | Strong workflow reference; GPLv3+ prevents treating it as a core embedded dependency. |
 | FreeSewing | MIT parametric pattern library and reusable blocks | Good interoperability/reference target; Node/JavaScript runtime is not a core FreeCAD dependency. |
-| Tissu | Apache-2.0 C++ XPBD SDK; distance/bending/pin/stitch, mesh/self collision, spatial hash, Python API | Attractive optional backend; native toolchain/ABI breadth makes it unsuitable as a mandatory dependency. |
+| Tissu | Apache-2.0 C++ XPBD SDK; distance/bending/pin/stitch, mesh/self collision | Attractive optional backend; native toolchain/ABI breadth makes it unsuitable as a mandatory dependency. |
 | PositionBasedDynamics | MIT PBD/XPBD library, collision and deformable constraints | Strong optional backend/reference; compiled Python bindings require ABI packaging work. |
 | XPBD-Cloth | Stretch/shear/bend/self-collision reference | Useful algorithm benchmark. |
 | Blender Cloth | Deformable cloth/pinning/collision/substeps | Useful external interoperability/reference target. |
 | ARCSim | Adaptive cloth/thin-shell simulation | Valuable algorithm reference, not a core dependency. |
 
-## Current architecture
+### Current architecture
 
 The bundled deterministic CPU XPBD backend remains the reference implementation. `PatternModel` is authoritative; Sketcher, native OCCT geometry and MeshPart are adapters at the FreeCAD boundary. Stable semantic edge IDs are not inferred from generated OCCT/MeshPart ordering.
 
 The solver has explicit stretch, shear and reduced-distance bending families plus deterministic particle self-collision. Future native backends remain optional behind the backend adapter.
 
-## Native FreeCAD replacement strategy
+### Native FreeCAD replacement strategy
 
-- OCCT `makeOffset2D` is an optional document-boundary adapter.
-- MeshPart triangulation is an adapter; semantic boundary provenance stays independent from generated face ordering.
-- Sketcher mirrors the PatternPiece outline but does not become the semantic source of truth.
-- `App.Placement` stores reproducible fitting arrangement.
-- TechDraw/Draft and richer CAD export remain planned.
+- Sketcher owns parametric geometry and constraint solving.
+- FreeCAD Expressions bind garment measurements and dimensions without another expression engine.
+- OCCT/Part supplies offsets, intersections and derived geometry.
+- MeshPart/FreeCAD Mesh supplies triangulation/visualization adapters.
+- `App::PropertyLink`, Groups and `App.Placement` persist semantic relationships and fitting arrangement.
+- TechDraw/Draft remain the preferred future production-output path.
 
-## Planned milestones
+### Planned milestones
 
 - [x] FreeCAD workbench skeleton and canonical CI.
 - [x] Parametric pattern document model and semantic marks.
@@ -109,16 +123,19 @@ The solver has explicit stretch, shear and reduced-distance bending families plu
 - [x] Curved/native-edge arc-length sewing correspondence.
 - [x] Sewing task-panel lifecycle and save/reload smoke coverage.
 - [x] Pattern -> Sewing -> Simulation invalidation and integration audit.
-- [ ] M:N/free sewing editor.
-- [ ] Particle-distance/material UI presets.
+- [ ] Safe stale-DrapeTarget lifecycle and canonical target-authority E2E.
+- [ ] Public curved/M:N sewing repair acceptance.
+- [ ] Canonical multi-piece garment release fixture.
+- [ ] Particle-distance/material/collision quality presets.
 - [ ] Avatar arrangement-point editor.
 - [ ] OCCT offset parity and export regression suite.
-- [ ] Optional Tissu/PositionBasedDynamics benchmark.
 - [ ] Packaging, examples and release-quality documentation.
+- [ ] Optional Tissu/PositionBasedDynamics benchmark.
 
 ## Sources
 
-- CLO Help Center: 2D/sewing, Notch, Particle Distance, Avatar Measurement, Arrangement Points, Fold and Topstitch documentation. https://support.clo3d.com/
+- CLO Help Center: Segment Sewing, Free Sewing, M:N Free Sewing, Particle Distance, Avatar Properties, Arrangement Points, Hi/Low-Resolution Garment. citeturn0search0turn0search2turn0search4turn0search8turn0search11turn0search14turn0search15
+- FreeCAD Sketcher documentation and scripting examples. citeturn1search0turn1search3turn1search5
 - FreeCAD: https://github.com/FreeCAD/FreeCAD
 - Seamly2D: https://github.com/FashionFreedom/Seamly2D
 - FreeSewing: https://github.com/freesewing/freesewing
