@@ -119,6 +119,10 @@ jobs:
           for t in tests/freecad_smoke.py tests/freecad_meshpart_smoke.py tests/freecad_sewing_smoke.py; do
             timeout --signal=TERM --kill-after=5s 60s xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' bash -lc 'openbox >/tmp/freecad-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" "$1"' "$FREECAD_BIN" "$t"
           done
+          timeout --signal=TERM --kill-after=5s 120s xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' bash -lc 'openbox >/tmp/freecad-screenshot-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" tests/freecad_screenshot.py' "$FREECAD_BIN"
+          test -s docs/images/generated/cloth-pattern-design.png
+          test -s docs/images/generated/cloth-sewing.png
+          test -s docs/images/generated/cloth-simulation.png
 
       - name: Run Docker Python, FreeCAD smoke, and GUI tests
         if: steps.runner.outputs.mode == 'docker'
@@ -127,13 +131,26 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p docs/images/generated artifacts/freecad-e2e
-          rm -f docs/images/generated/*.png docs/images/generated/gui-progress.log
-          docker run --rm --init --entrypoint /bin/bash \
+          CID=""
+          cleanup() {
+            set +e
+            if [[ -n "$CID" ]]; then
+              docker cp "$CID:/workspace/docs/images/generated/." docs/images/generated/ 2>/dev/null || true
+              docker cp "$CID:/workspace/artifacts/freecad-e2e/." artifacts/freecad-e2e/ 2>/dev/null || true
+              docker logs "$CID" > artifacts/freecad-e2e/docker-console.log 2>&1 || true
+              docker inspect "$CID" > artifacts/freecad-e2e/docker-inspect.json 2>/dev/null || true
+              docker rm -f "$CID" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup EXIT
+          CID="$(docker create --entrypoint /bin/bash \
             --shm-size=1g \
             -e DISPLAY=:99 -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated -e CLOTH_E2E_DIR=/workspace/artifacts/freecad-e2e \
-            -v "$PWD:/workspace" -w /workspace "$IMAGE" \
+            -e PYTHONPATH=/workspace -w /workspace "$IMAGE" \
             -euo pipefail -c '
+              echo "[container] $(date -Is) starting"
+              rm -f docs/images/generated/*.png docs/images/generated/gui-progress.log docs/images/generated/gui-screenshot-manifest.txt
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 &
               XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 &
@@ -149,36 +166,47 @@ jobs:
                 tests/test_drape_quality.py tests/test_pattern_sketch.py tests/test_pattern_ir.py \
                 tests/test_pattern_export_semantics.py tests/test_sketch_authority.py \
                 tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py; do
-                echo "TEST START $t"
+                echo "[container] TEST START $t"
                 python3 "$t"
-                echo "TEST PASS $t"
+                echo "[container] TEST PASS $t"
               done
               python3 -m compileall -q .
               for t in tests/freecad_smoke.py tests/freecad_meshpart_smoke.py tests/freecad_sewing_smoke.py; do
-                echo "FREECAD START $t"
+                echo "[container] FREECAD START $t"
                 timeout --signal=TERM --kill-after=5s 60s freecad "$t"
-                echo "FREECAD PASS $t"
+                echo "[container] FREECAD PASS $t"
               done
+              echo "[container] SCREENSHOT START"
               timeout --signal=TERM --kill-after=5s 120s freecad tests/freecad_screenshot.py
               test -s docs/images/generated/cloth-pattern-design.png
               test -s docs/images/generated/cloth-sewing.png
               test -s docs/images/generated/cloth-simulation.png
+              echo "[container] ALL TESTS PASS"
             '
-
-      - name: Run GUI screenshots on native runner
-        if: ${{ always() && steps.runner.outputs.mode == 'native' }}
-        env:
-          CLOTH_REPO_ROOT: ${{ github.workspace }}
-          CLOTH_SCREENSHOT_DIR: ${{ github.workspace }}/docs/images/generated
-        run: |
-          set -euo pipefail
-          mkdir -p "$CLOTH_SCREENSHOT_DIR"
-          screenshot_script="$RUNNER_TEMP/freecad_screenshot.py"
-          sed "s#REPO_ROOT = \"/workspace\"#REPO_ROOT = os.environ.get(\"CLOTH_REPO_ROOT\", os.getcwd())#" tests/freecad_screenshot.py > "$screenshot_script"
-          timeout --signal=TERM --kill-after=5s 120s xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' bash -lc 'openbox >/tmp/freecad-screenshot-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" "$1"' "$FREECAD_BIN" "$screenshot_script"
-          test -s "$CLOTH_SCREENSHOT_DIR/cloth-pattern-design.png"
-          test -s "$CLOTH_SCREENSHOT_DIR/cloth-sewing.png"
-          test -s "$CLOTH_SCREENSHOT_DIR/cloth-simulation.png"
+          )"
+          docker cp "$PWD/." "$CID:/workspace/"
+          docker start "$CID" >/dev/null
+          START_TS=$(date +%s)
+          while :; do
+            STATE=$(docker inspect -f '{{.State.Status}}' "$CID" 2>/dev/null || echo missing)
+            EXIT_CODE=$(docker inspect -f '{{.State.ExitCode}}' "$CID" 2>/dev/null || echo '?')
+            echo "[host] $(date -Is) state=$STATE exit=$EXIT_CODE elapsed=$(( $(date +%s) - START_TS ))s"
+            if [[ "$STATE" == running ]]; then
+              if (( $(date +%s) - START_TS >= 900 )); then
+                echo '[host] ERROR: 15 minute watchdog exceeded'
+                docker logs "$CID" || true
+                exit 124
+              fi
+              sleep 10
+            elif [[ "$STATE" == exited ]]; then
+              docker logs "$CID" || true
+              [[ "$EXIT_CODE" == 0 ]]
+              break
+            else
+              docker inspect "$CID" || true
+              exit 125
+            fi
+          done
 
       - name: Upload GUI screenshots
         if: ${{ always() }}
@@ -198,7 +226,7 @@ jobs:
             docs/images/generated/gui-progress.log
             docs/images/generated/gui-screenshot-manifest.txt
             artifacts/freecad-e2e/workflow.log
-            /tmp/freecad-openbox.log
-            /tmp/freecad-screenshot-openbox.log
+            artifacts/freecad-e2e/docker-console.log
+            artifacts/freecad-e2e/docker-inspect.json
           if-no-files-found: ignore
           compression-level: 1
