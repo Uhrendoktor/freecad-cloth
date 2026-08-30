@@ -2,7 +2,7 @@ name: Canonical execution
 
 on:
   push:
-    branches: [main]
+    branches: [main, ci/self-hosted-unified-cache-screenshots]
   pull_request:
   workflow_dispatch:
 
@@ -22,7 +22,6 @@ jobs:
       CLOTH_TEST_JOBS: 8
       FREECAD_VERSION: 1.1.3
       FREECAD_APPIMAGE_SHA256: 3a853eb69ee595f779f2255dbf80a765926981d8ff68903cefee4dfb03a8f5ef
-      DISPLAY: :99
       QT_X11_NO_MITSHM: 1
       QT_QPA_PLATFORM: xcb
       LIBGL_ALWAYS_SOFTWARE: 1
@@ -32,9 +31,6 @@ jobs:
         with:
           fetch-depth: 1
 
-      # Keep the old pinned FreeCAD runtime, but make it reusable on the
-      # persistent self-hosted runner. A runner-local installation wins; the
-      # GitHub Actions cache is the fallback across runners/clean workspaces.
       - name: Restore cached FreeCAD runtime
         uses: actions/cache@v4
         with:
@@ -46,14 +42,9 @@ jobs:
       - name: Prepare self-hosted FreeCAD runtime
         run: |
           set -euo pipefail
-
           for tool in Xvfb xvfb-run openbox curl xargs timeout sha256sum; do
-            command -v "$tool" >/dev/null || {
-              echo "Missing runner utility: $tool" >&2
-              exit 1
-            }
+            command -v "$tool" >/dev/null || { echo "Missing runner utility: $tool" >&2; exit 1; }
           done
-
           if command -v "$FREECAD_BIN" >/dev/null 2>&1; then
             echo "Using runner-provided FreeCAD: $(command -v "$FREECAD_BIN")"
             echo "FREECAD_SOURCE=runner" >> "$GITHUB_ENV"
@@ -62,13 +53,10 @@ jobs:
             appimage="$cache_root/FreeCAD_${FREECAD_VERSION}-Linux-x86_64-py311.AppImage"
             appdir="$cache_root/squashfs-root"
             mkdir -p "$cache_root"
-
             if [[ ! -x "$appdir/AppRun" ]]; then
               if [[ ! -f "$appimage" ]]; then
                 echo "Downloading pinned FreeCAD $FREECAD_VERSION AppImage"
-                curl --fail --location --retry 3 --retry-delay 2 \
-                  -o "$appimage" \
-                  "https://github.com/FreeCAD/FreeCAD/releases/download/${FREECAD_VERSION}/FreeCAD_${FREECAD_VERSION}-Linux-x86_64-py311.AppImage"
+                curl --fail --location --retry 3 --retry-delay 2 -o "$appimage" "https://github.com/FreeCAD/FreeCAD/releases/download/${FREECAD_VERSION}/FreeCAD_${FREECAD_VERSION}-Linux-x86_64-py311.AppImage"
               fi
               echo "$FREECAD_APPIMAGE_SHA256  $appimage" | sha256sum -c -
               rm -rf "$appdir" "$cache_root/.squashfs-root.tmp"
@@ -77,31 +65,20 @@ jobs:
               mv "$cache_root/.squashfs-root.tmp/squashfs-root" "$appdir"
               rm -rf "$cache_root/.squashfs-root.tmp"
             fi
-
             echo "FREECAD_BIN=$appdir/AppRun" >> "$GITHUB_ENV"
             echo "FREECAD_SOURCE=actions-cache" >> "$GITHUB_ENV"
           fi
-
           if command -v python3 >/dev/null 2>&1; then
             echo "PYTHON_TEST_MODE=system" >> "$GITHUB_ENV"
           else
-            # The target runner is intentionally FreeCAD-centric and does not
-            # require a separate system Python. FreeCAD itself embeds Python,
-            # and can execute the same .py test scripts. GUI tests are run under
-            # Xvfb so FreeCADGui remains available as it was in the old image.
             echo "PYTHON_TEST_MODE=freecad" >> "$GITHUB_ENV"
           fi
 
       - name: Validate self-hosted runtime
         run: |
           set -euo pipefail
-          for tool in Xvfb xvfb-run openbox xargs timeout; do
-            command -v "$tool" >/dev/null || exit 1
-          done
-          command -v "$FREECAD_BIN" >/dev/null || {
-            echo "Missing FreeCAD: $FREECAD_BIN" >&2
-            exit 1
-          }
+          for tool in Xvfb xvfb-run openbox xargs timeout; do command -v "$tool" >/dev/null || exit 1; done
+          command -v "$FREECAD_BIN" >/dev/null || { echo "Missing FreeCAD: $FREECAD_BIN" >&2; exit 1; }
           echo "Runner: $(hostname)"
           echo "FreeCAD source: $FREECAD_SOURCE"
           echo "Python test mode: $PYTHON_TEST_MODE"
@@ -121,7 +98,6 @@ PY
           set -euo pipefail
           mkdir -p docs/images/generated artifacts/freecad-e2e
           rm -f docs/images/generated/*.png docs/images/generated/gui-progress.log docs/images/generated/gui-screenshot-manifest.txt
-
           tests=(
             tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py
             tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py
@@ -132,44 +108,26 @@ PY
             tests/test_pattern_export_semantics.py tests/test_sketch_authority.py
             tests/test_simulation_quality.py tests/test_sewing_network_gui_contract.py
           )
-
           if [[ "$PYTHON_TEST_MODE" == "system" ]]; then
             printf '%s\n' "${tests[@]}" | xargs -P "${CLOTH_TEST_JOBS}" -n 1 python3
             python3 -m compileall -q .
           else
-            # The self-hosted target does not provide python3. Use the embedded
-            # FreeCAD interpreter instead, preserving the old test semantics and
-            # keeping FreeCADGui available for GUI-layer Python checks.
             for t in "${tests[@]}"; do
               echo "PYTHON/FREECAD START $t"
-              timeout --signal=TERM --kill-after=5s 60s \
-                xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' \
-                bash -lc 'openbox >/tmp/freecad-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" "$1"' \
-                "$FREECAD_BIN" "$t"
+              timeout --signal=TERM --kill-after=5s 60s xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' bash -lc 'openbox >/tmp/freecad-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" "$1"' "$FREECAD_BIN" "$t"
               echo "PYTHON/FREECAD PASS $t"
             done
-            timeout --signal=TERM --kill-after=5s 60s \
-              "$FREECAD_BIN" --console <<'PY'
+            timeout --signal=TERM --kill-after=5s 60s "$FREECAD_BIN" --console <<'PY'
 import compileall, sys
 sys.exit(0 if compileall.compile_dir('.', quiet=1) else 1)
 PY
           fi
-
-          # FreeCAD GUI smoke stages retain the old serial ordering. Each
-          # invocation gets an isolated Xvfb display so the self-hosted runner
-          # does not depend on a pre-existing desktop session.
           for t in tests/freecad_smoke.py tests/freecad_meshpart_smoke.py tests/freecad_sewing_smoke.py; do
             echo "FREECAD START $t"
-            timeout --signal=TERM --kill-after=5s 60s \
-              xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' \
-              bash -lc 'openbox >/tmp/freecad-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" "$1"' \
-              "$FREECAD_BIN" "$t"
+            timeout --signal=TERM --kill-after=5s 60s xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' bash -lc 'openbox >/tmp/freecad-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" "$1"' "$FREECAD_BIN" "$t"
             echo "FREECAD PASS $t"
           done
 
-      # Screenshots are deliberately independent of the smoke-test result.
-      # This restores the old GUI screenshot gate for every execution, even
-      # when an earlier non-GUI or smoke test fails.
       - name: Run GUI screenshots
         if: ${{ always() }}
         env:
@@ -178,17 +136,9 @@ PY
         run: |
           set -euo pipefail
           mkdir -p "$CLOTH_SCREENSHOT_DIR"
-          # The historical screenshot script used /workspace because it ran in
-          # the old FreeCAD container. Keep the script unchanged and patch that
-          # runtime-only path for the native self-hosted execution.
           screenshot_script="$RUNNER_TEMP/freecad_screenshot.py"
-          sed "s#REPO_ROOT = \"/workspace\"#REPO_ROOT = os.environ.get(\"CLOTH_REPO_ROOT\", os.getcwd())#" \
-            tests/freecad_screenshot.py > "$screenshot_script"
-          timeout --signal=TERM --kill-after=5s 120s \
-            xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' \
-            bash -lc 'openbox >/tmp/freecad-screenshot-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" "$1"' \
-            "$FREECAD_BIN" "$screenshot_script"
-
+          sed "s#REPO_ROOT = \"/workspace\"#REPO_ROOT = os.environ.get(\"CLOTH_REPO_ROOT\", os.getcwd())#" tests/freecad_screenshot.py > "$screenshot_script"
+          timeout --signal=TERM --kill-after=5s 120s xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' bash -lc 'openbox >/tmp/freecad-screenshot-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" "$1"' "$FREECAD_BIN" "$screenshot_script"
           test -s "$CLOTH_SCREENSHOT_DIR/cloth-pattern-design.png"
           test -s "$CLOTH_SCREENSHOT_DIR/cloth-sewing.png"
           test -s "$CLOTH_SCREENSHOT_DIR/cloth-simulation.png"
