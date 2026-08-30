@@ -22,7 +22,6 @@ jobs:
       CLOTH_TEST_JOBS: 8
       FREECAD_VERSION: 1.1.3
       FREECAD_APPIMAGE_SHA256: 3a853eb69ee595f779f2255dbf80a765926981d8ff68903cefee4dfb03a8f5ef
-      FREECAD_CACHE_ROOT: ${{ runner.temp }}/freecad-cloth-cache
       DISPLAY: :99
       QT_X11_NO_MITSHM: 1
       QT_QPA_PLATFORM: xcb
@@ -39,7 +38,7 @@ jobs:
       - name: Restore cached FreeCAD runtime
         uses: actions/cache@v4
         with:
-          path: ${{ env.FREECAD_CACHE_ROOT }}/${{ env.FREECAD_VERSION }}
+          path: ~/.cache/freecad-cloth/${{ env.FREECAD_VERSION }}
           key: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-${{ env.FREECAD_APPIMAGE_SHA256 }}
           restore-keys: |
             freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-
@@ -59,7 +58,7 @@ jobs:
             echo "Using runner-provided FreeCAD: $(command -v "$FREECAD_BIN")"
             echo "FREECAD_SOURCE=runner" >> "$GITHUB_ENV"
           else
-            cache_root="$FREECAD_CACHE_ROOT/$FREECAD_VERSION"
+            cache_root="$HOME/.cache/freecad-cloth/$FREECAD_VERSION"
             appimage="$cache_root/FreeCAD_${FREECAD_VERSION}-Linux-x86_64-py311.AppImage"
             appdir="$cache_root/squashfs-root"
             mkdir -p "$cache_root"
