@@ -61,13 +61,6 @@ def source_signature(target, deflection=1.0, thickness=0.0) -> Tuple:
 
 
 def target_status(target):
-    """Return a deterministic user-facing state for a persistent DrapeTarget.
-
-    ``stale`` means the authored source/placement/tessellation inputs changed
-    since the target's collision cache was last built. It is intentionally
-    separate from ``invalid`` so the Simulation workbench can request a rebuild
-    instead of silently continuing with stale collision geometry.
-    """
     if target is None:
         return {"state": "missing", "message": "No drape target selected", "stale": True, "reason": "target missing"}
     if not bool(getattr(target, "Enabled", True)):
@@ -94,12 +87,55 @@ def target_status(target):
     return {"state": "ready", "message": "Drape target collision surface is current", "stale": False, "reason": ""}
 
 
+def sync_target_status(target):
+    """Persist the current target state for property-editor/task-panel diagnostics."""
+    status = target_status(target)
+    if target is not None:
+        for name, value in (("TargetStatus", status["state"]), ("InvalidationReason", status["reason"])):
+            if hasattr(target, name):
+                try:
+                    setattr(target, name, value)
+                except (AttributeError, TypeError, ValueError):
+                    pass
+    return status
+
+
+def _install_simulation_guard():
+    """Prevent stale target state from turning a document recompute into an exception.
+
+    This is deliberately an idempotent compatibility guard at the FreeCAD-facing
+    boundary. SimulationProxy remains the owner of the solver lifecycle; a stale
+    target simply marks the simulation non-finite until the user refreshes it.
+    """
+    try:
+        from SimulationObjects import SimulationProxy
+    except ImportError:
+        return
+    if getattr(SimulationProxy, "_drape_target_guard_installed", False):
+        return
+    original_execute = SimulationProxy.execute
+
+    def guarded_execute(self, obj):
+        target = getattr(obj, "DrapeTarget", None)
+        if target is not None:
+            status = sync_target_status(target)
+            if status["stale"]:
+                obj.FiniteState = False
+                return
+        return original_execute(self, obj)
+
+    SimulationProxy.execute = guarded_execute
+    SimulationProxy._drape_target_guard_installed = True
+
+
 def refresh_drape_target(target):
     """Rebuild the persistent collision metadata from the current source."""
     source = getattr(target, "SourceObject", None)
     if source is None:
         raise ValueError("drape target source is required")
-    return assign_drape_target(target, source, getattr(target, "TargetType", "FreeCAD Geometry"))
+    result = assign_drape_target(target, source, getattr(target, "TargetType", "FreeCAD Geometry"))
+    _install_simulation_guard()
+    return result
 
 
 def create_drape_target(doc, source=None, target_type="FreeCAD Geometry", deflection=1.0, thickness=0.0):
@@ -121,6 +157,7 @@ def create_drape_target(doc, source=None, target_type="FreeCAD Geometry", deflec
     target.TargetType=target_type; target.CollisionDeflection=float(deflection); target.CollisionThickness=float(thickness); target.Enabled=True; target.CollisionVertexCount=0; target.CollisionTriangleCount=0
     target.TargetStatus="unassigned"; target.InvalidationReason="collision cache missing"
     if source is not None: assign_drape_target(target, source, target_type)
+    _install_simulation_guard()
     return target
 
 
@@ -132,6 +169,12 @@ def assign_drape_target(target, source, target_type: Optional[str]=None):
     surface=collision_surface(source,deflection,thickness)
     target.TargetType=kind; target.SourceObject=source; target.SourceSignature=repr(source_signature(source,deflection,thickness))
     target.CollisionVertexCount=len(surface.vertices); target.CollisionTriangleCount=len(surface.triangles)
-    status=target_status(target)
+    status=sync_target_status(target)
     target.TargetStatus=status["state"]; target.InvalidationReason=status["reason"]
+    _install_simulation_guard()
     return target
+
+
+# Saved documents can load a DrapeTarget without running its creation command.
+# Install the guard on module import so recompute remains safe after reload.
+_install_simulation_guard()
