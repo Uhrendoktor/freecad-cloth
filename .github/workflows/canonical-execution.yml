@@ -2,7 +2,7 @@ name: Canonical execution
 
 on:
   push:
-    branches: [main, agent/ci-control-plane-repair-20260830]
+    branches: [main, sewing-production-hardening]
   pull_request:
     types: [opened, synchronize, reopened, closed]
   schedule:
