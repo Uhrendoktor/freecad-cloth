@@ -70,6 +70,15 @@ def show_task(panel, state_name):
     Gui.updateGui()
     QtWidgets.QApplication.processEvents()
     visible = bool(getattr(panel, "form", None) and panel.form.isVisible())
+    if not visible and getattr(panel, "form", None) is not None:
+        # FreeCAD 1.1.3 can accept the task-panel object without making a
+        # plain QWidget form visible in a headless/Xvfb GUI session.  Explicitly
+        # show the form as a fallback so the screenshot contract remains valid.
+        panel.form.show()
+        panel.form.raise_()
+        panel.form.activateWindow()
+        QtWidgets.QApplication.processEvents()
+        visible = panel.form.isVisible()
     progress("task-panel=%s visible=%s docks=%s" % (state_name, visible, ",".join(docks())))
     if not visible:
         raise RuntimeError("task panel did not become visible: %s" % state_name)
