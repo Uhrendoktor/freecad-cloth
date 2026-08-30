@@ -364,6 +364,40 @@ def run_scenario():
             App.closeDocument(doc.Name); progress("document-closed")
 
 
+_original_get_main_window = Gui.getMainWindow
+
+class _ImageCompat:
+    def __init__(self, image):
+        self._image = image
+
+    def pixel(self, x, y):
+        return int(self._image.pixelColor(x, y).rgba())
+
+    def __getattr__(self, name):
+        return getattr(self._image, name)
+
+class _GrabCompat:
+    def __init__(self, pixmap):
+        self._pixmap = pixmap
+
+    def toImage(self):
+        return _ImageCompat(self._pixmap.toImage())
+
+    def __getattr__(self, name):
+        return getattr(self._pixmap, name)
+
+class _MainWindowCompat:
+    def __init__(self, window):
+        self._window = window
+
+    def grab(self, *args, **kwargs):
+        return _GrabCompat(self._window.grab(*args, **kwargs))
+
+    def __getattr__(self, name):
+        return getattr(self._window, name)
+
+Gui.getMainWindow = lambda: _MainWindowCompat(_original_get_main_window())
+
 run_scenario()
 progress("script-end")
 window = Gui.getMainWindow()
