@@ -94,15 +94,11 @@ class ClothSewingWorkbench(_ClothWorkbench):
         expected = SewingCommands.COMMANDS + SewingNetworkCommands.COMMANDS + FittingCommands.COMMANDS + AvatarCommands.COMMANDS
         _validate_sewing_command_groups(groups, expected); self._register_groups(groups, toolbar_name=self.MenuText, toolbar_commands=SEWING_TOOLBAR_COMMANDS)
 
-def _register_workbench(workbench):
-    if workbench.__class__.__name__ not in Gui.listWorkbenches(): Gui.addWorkbench(workbench)
-
 if Gui is not None:
     Gui.addIconPath(str(_ICON_DIR))
-    # Static GUI contract intentionally requires these literal registration calls:
-    # Gui.addWorkbench(ClothPatternWorkbench())
-    # Gui.addWorkbench(ClothSimulationWorkbench())
-    # Gui.addWorkbench(ClothSewingWorkbench())
-    _register_workbench(ClothPatternWorkbench())
-    _register_workbench(ClothSimulationWorkbench())
-    _register_workbench(ClothSewingWorkbench())
+    if "ClothPatternWorkbench" not in Gui.listWorkbenches():
+        Gui.addWorkbench(ClothPatternWorkbench())
+    if "ClothSimulationWorkbench" not in Gui.listWorkbenches():
+        Gui.addWorkbench(ClothSimulationWorkbench())
+    if "ClothSewingWorkbench" not in Gui.listWorkbenches():
+        Gui.addWorkbench(ClothSewingWorkbench())
