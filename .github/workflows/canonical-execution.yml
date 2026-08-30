@@ -142,10 +142,16 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$CLOTH_SCREENSHOT_DIR"
+          # The historical screenshot script used /workspace because it ran in
+          # the old FreeCAD container. Keep the script unchanged and patch that
+          # runtime-only path for the native self-hosted execution.
+          screenshot_script="$RUNNER_TEMP/freecad_screenshot.py"
+          sed "s#REPO_ROOT = \"/workspace\"#REPO_ROOT = os.environ.get(\"CLOTH_REPO_ROOT\", os.getcwd())#" \
+            tests/freecad_screenshot.py > "$screenshot_script"
           timeout --signal=TERM --kill-after=5s 120s \
             xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp' \
             bash -lc 'openbox >/tmp/freecad-screenshot-openbox.log 2>&1 & wm=$!; trap "kill $wm 2>/dev/null || true" EXIT; exec "$0" "$1"' \
-            "$FREECAD_BIN" tests/freecad_screenshot.py
+            "$FREECAD_BIN" "$screenshot_script"
 
           test -s "$CLOTH_SCREENSHOT_DIR/cloth-pattern-design.png"
           test -s "$CLOTH_SCREENSHOT_DIR/cloth-sewing.png"
