@@ -5,6 +5,7 @@ import tempfile
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import FreeCAD as App
 from AvatarCommands import create_avatar, set_avatar_measurements, set_avatar_pose, set_avatar_skin_offset
+from DrapeTarget import target_status
 
 
 def main():
@@ -20,15 +21,21 @@ def main():
         "neck", "chest", "waist", "hip",
         "shoulder_left", "shoulder_right", "knee_left", "knee_right",
     ]
+    assert avatar.DrapeTarget is not None
+    assert avatar.DrapeTarget.TargetType == "Mannequin"
+    assert target_status(avatar.DrapeTarget)["state"] == "ready"
     original_volume = avatar.Shape.Volume
     set_avatar_measurements(chest=1100)
     assert avatar.Shape.Volume != original_volume
     assert list(avatar.ArrangementPoints) == expected_arrangement
+    assert target_status(avatar.DrapeTarget)["state"] == "ready"
     set_avatar_pose("sewing")
     set_avatar_skin_offset(6.0)
     assert avatar.PosePreset == "sewing"
     assert abs(float(avatar.SkinOffset) - 6.0) < 1e-9
     assert avatar.CollisionProxy is not None
+    assert avatar.DrapeTarget is not None
+    assert target_status(avatar.DrapeTarget)["state"] == "ready"
     doc.recompute()
     with tempfile.TemporaryDirectory() as directory:
         path = str(Path(directory) / "avatar.FCStd")
@@ -43,6 +50,9 @@ def main():
         assert abs(float(restored.SkinOffset) - 6.0) < 1e-9
         assert list(restored.ArrangementPoints) == expected_arrangement
         assert list(restored.Landmarks)
+        assert restored.DrapeTarget is not None
+        assert restored.DrapeTarget.TargetType == "Mannequin"
+        assert target_status(restored.DrapeTarget)["state"] == "ready"
         App.closeDocument(reopened.Name)
     print("FreeCAD parametric avatar smoke test passed")
 
