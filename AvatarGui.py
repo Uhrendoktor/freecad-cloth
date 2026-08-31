@@ -41,6 +41,10 @@ class AvatarTaskPanel:
         ("inseam", "Inseam"), ("torso", "Torso length"),
         ("front_waist", "Front waist length"), ("back_waist", "Back waist length"),
     )
+    POSE_FIELDS = (
+        ("left_arm_angle", "Left arm"), ("right_arm_angle", "Right arm"),
+        ("left_elbow_angle", "Left elbow bend"), ("right_elbow_angle", "Right elbow bend"),
+    )
 
     def __init__(self, avatar=None):
         App, Gui, QtWidgets = _modules()
@@ -59,6 +63,7 @@ class AvatarTaskPanel:
         content = QtWidgets.QWidget()
         content_layout = QtWidgets.QVBoxLayout(content)
         self._boxes = {}
+        self._pose_boxes = {}
         self._add_measurement_group(content_layout, "Body measurements", self.BODY)
         self._add_measurement_group(content_layout, "Proportions", self.PROPORTIONS)
 
@@ -68,6 +73,14 @@ class AvatarTaskPanel:
         self.pose.addItems(("standing", "sewing", "sitting"))
         self.pose.setToolTip("Choose the saved fitting pose.")
         pose_layout.addRow("Preset", self.pose)
+        for key, label in self.POSE_FIELDS:
+            box = QtWidgets.QDoubleSpinBox()
+            box.setRange(-90.0, 90.0)
+            box.setDecimals(1)
+            box.setSuffix(" deg")
+            box.setToolTip("Staged joint angle. Preset changes remain editable.")
+            pose_layout.addRow(label, box)
+            self._pose_boxes[key] = box
         content_layout.addWidget(pose)
 
         display = QtWidgets.QGroupBox("Display")
@@ -115,7 +128,9 @@ class AvatarTaskPanel:
         self._load()
         for box in self._boxes.values():
             box.valueChanged.connect(self._staged_changed)
-        self.pose.currentTextChanged.connect(self._staged_changed)
+        for box in self._pose_boxes.values():
+            box.valueChanged.connect(self._staged_changed)
+        self.pose.currentTextChanged.connect(self._preset_changed)
         self.skin_offset.valueChanged.connect(self._staged_changed)
         self.show_measurements.toggled.connect(self._landmarks_visibility_changed)
         self.apply_button.clicked.connect(self._apply)
@@ -156,6 +171,11 @@ class AvatarTaskPanel:
         self.pose.blockSignals(True)
         self.pose.setCurrentText(str(getattr(self.avatar, "PosePreset", "standing")))
         self.pose.blockSignals(False)
+        pose_values = {"left_arm_angle": 12.0, "right_arm_angle": 12.0, "left_elbow_angle": 0.0, "right_elbow_angle": 0.0}
+        for key, box in self._pose_boxes.items():
+            box.blockSignals(True)
+            box.setValue(float(getattr(self.avatar, self._pose_property(key), pose_values[key])))
+            box.blockSignals(False)
         self.skin_offset.blockSignals(True)
         self.skin_offset.setValue(float(getattr(self.avatar, "SkinOffset", 3.0)))
         self.skin_offset.blockSignals(False)
@@ -164,6 +184,15 @@ class AvatarTaskPanel:
         self._update_landmarks()
         self._refresh_status()
 
+    @staticmethod
+    def _pose_property(key):
+        return {"left_arm_angle": "LeftArmAngle", "right_arm_angle": "RightArmAngle", "left_elbow_angle": "LeftElbowAngle", "right_elbow_angle": "RightElbowAngle"}[key]
+
+    def _preset_changed(self, preset):
+        # Keep custom joint angles when switching presets; the model supplies
+        # preset defaults only when the untouched 12-degree arm values remain.
+        self._staged_changed()
+
     def _staged_changed(self):
         self._dirty = True
         self._refresh_status("Unsaved mannequin edits are staged. Apply & Rebuild to update the body.")
@@ -171,7 +200,8 @@ class AvatarTaskPanel:
     def _staged_parameters(self):
         from AvatarModel import AvatarParameters, Pose
         values = {key: box.value() for key, box in self._boxes.items()}
-        return AvatarParameters(values, self.skin_offset.value(), Pose(str(self.pose.currentText())))
+        pose = Pose(str(self.pose.currentText()), *(self._pose_boxes[key].value() for key in ("left_arm_angle", "right_arm_angle", "left_elbow_angle", "right_elbow_angle")))
+        return AvatarParameters(values, self.skin_offset.value(), pose)
 
     def _apply(self):
         if self.avatar is None:
@@ -181,6 +211,8 @@ class AvatarTaskPanel:
             setattr(self.avatar, property_name, params.measurements[key])
         self.avatar.PosePreset = params.pose.preset
         self.avatar.SkinOffset = params.skin_offset
+        for key, value in zip(("left_arm_angle", "right_arm_angle", "left_elbow_angle", "right_elbow_angle"), (params.pose.left_arm_angle, params.pose.right_arm_angle, params.pose.left_elbow_angle, params.pose.right_elbow_angle)):
+            setattr(self.avatar, self._pose_property(key), value)
         self._dirty = False
         self._rebuild_geometry()
         self._update_arrangement_points()
