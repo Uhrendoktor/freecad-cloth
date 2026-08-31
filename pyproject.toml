@@ -1,37 +1,27 @@
 [build-system]
-requires = ["setuptools>=61,<76"]
+requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "freecad-cloth"
-version = "0.1.0"
-description = "FreeCAD workbenches for parametric sewing-pattern design and cloth simulation"
+version = "0.1.0.dev0"
+description = "FreeCAD workbenches for parametric sewing patterns and 3D cloth simulation"
 readme = "README.md"
-requires-python = ">=3.8"
-authors = [
-  { name = "FreeCAD Cloth contributors" },
-]
-keywords = ["FreeCAD", "CAD", "sewing", "patterns", "cloth", "simulation"]
+requires-python = ">=3.9"
+license = {text = "LGPL-2.1-or-later"}
 classifiers = [
   "Development Status :: 3 - Alpha",
-  "Environment :: Plugins",
-  "Intended Audience :: Science/Research",
   "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: GNU Lesser General Public License v2 or later (LGPLv2+)",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
 ]
 
-[tool.setuptools]
-# The repository is currently a classic FreeCAD Mod workbench: Init.py and
-# InitGui.py are discovered by FreeCAD from the Mod directory. Do not turn the
-# project into a pip-installed runtime package until the namespaced workbench
-# layout is adopted (see PACKAGING_PROPOSAL.md).
-py-modules = []
+[tool.setuptools.packages.find]
+include = ["freecad_cloth*"]
+
+[tool.setuptools.package-data]
+freecad_cloth = ["resources/**/*"]
 
 [tool.pytest.ini_options]
-addopts = "-ra"
+pythonpath = ["."]
