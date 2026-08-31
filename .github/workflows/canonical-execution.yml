@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.3-r2
+  FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.3-r1
   QT_X11_NO_MITSHM: 1
   QT_QPA_PLATFORM: xcb
   LIBGL_ALWAYS_SOFTWARE: 1
@@ -42,6 +42,7 @@ jobs:
           set -euo pipefail
           CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e PYTHONPATH=/workspace -w /workspace "$IMAGE" -euo pipefail -c '
             set -e
+            python3 -m pip install --no-cache-dir pypbd==2.2.2
             python3 -m compileall -q .
             for test in tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py tests/test_collisions.py tests/test_pattern_sketch.py tests/test_pattern_ir.py tests/test_pattern_export_semantics.py tests/test_sketch_authority.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_sewing_network_gui_contract.py tests/test_gui_structure.py tests/test_simulation_scene.py tests/test_simulation_quality.py tests/test_avatar_fitting.py tests/test_drape_quality.py tests/test_freecad_objects.py; do python3 "$test"; done
           ')"
@@ -73,6 +74,7 @@ jobs:
           mkdir -p docs/images/generated artifacts/freecad-gui
           CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 -w /workspace "$IMAGE" -euo pipefail -c '
             set -e
+            python3 -m pip install --no-cache-dir pypbd==2.2.2
             mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
             Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
             openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
