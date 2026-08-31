@@ -10,9 +10,9 @@ from PatternModel import PatternPiece, Seam
 from SeamGraph import SeamGraph
 
 
-def test_registry_selects_xpbd_backend_without_changing_solver_api():
+def test_registry_selects_pypbd_backend_without_changing_solver_api():
     system = ClothSystem.grid(20, 20, nx=3, ny=3)
-    backend = default_backend_registry().create("xpbd-cpu", system)
+    backend = default_backend_registry().create("pypbd", system)
     assert isinstance(backend, XPBDBackend)
     before = backend.positions()
     backend.step(dt=1.0 / 60.0, iterations=4)
@@ -55,7 +55,7 @@ def test_semantic_seams_feed_backend_but_graph_remains_unchanged():
 def test_registry_rejects_duplicate_or_invalid_backend_factories():
     registry = default_backend_registry()
     with pytest.raises(ValueError, match="already registered"):
-        registry.register("xpbd-cpu", XPBDBackend)
+        registry.register("pypbd", XPBDBackend)
     registry.register("fake", lambda system: object())
     with pytest.raises(TypeError, match="ClothSimulationBackend"):
         registry.create("fake", ClothSystem.grid(5, 5, nx=2, ny=2))
