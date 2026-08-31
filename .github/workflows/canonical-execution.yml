@@ -98,7 +98,7 @@ jobs:
               xdpyinfo -display :99 >/dev/null 2>&1
               echo "GUI DISPLAY READY :99"
               echo "FREECAD GUI SCREENSHOT START"
-              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun tests/freecad_screenshot.py
+              timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun tests/freecad_screenshot.py
               test -s docs/images/generated/cloth-pattern-design.png
               test -s docs/images/generated/cloth-sewing.png
               test -s docs/images/generated/cloth-simulation-arranged.png
@@ -114,6 +114,14 @@ jobs:
             docker cp "$CID:/workspace/docs/images/generated/gui-screenshot-manifest.txt" artifacts/freecad-gui/gui-screenshot-manifest.txt 2>/dev/null || true
             docker logs "$CID" > artifacts/freecad-gui/docker-console.log 2>&1 || true
             docker inspect "$CID" > artifacts/freecad-gui/docker-inspect.json 2>/dev/null || true
+            echo "===== FreeCAD GUI progress ====="
+            cat artifacts/freecad-gui/gui-progress.log 2>/dev/null || true
+            echo "===== FreeCAD Docker console ====="
+            cat artifacts/freecad-gui/docker-console.log 2>/dev/null || true
+            echo "===== Xvfb log ====="
+            cat artifacts/freecad-gui/xvfb.log 2>/dev/null || true
+            echo "===== Openbox log ====="
+            cat artifacts/freecad-gui/openbox.log 2>/dev/null || true
             docker rm -f "$CID" >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
