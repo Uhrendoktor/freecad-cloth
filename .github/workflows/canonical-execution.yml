@@ -90,8 +90,7 @@ jobs:
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
-              cleanup_gui() { kill "$OPENBOX_PID" "$XVFB_PID" 2>/dev/null || true; }
-              trap cleanup_gui EXIT
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do
                 xdpyinfo -display :99 >/dev/null 2>&1 && break
                 sleep 0.25
@@ -105,20 +104,7 @@ jobs:
               test -s docs/images/generated/cloth-simulation-arranged.png
               test -s docs/images/generated/cloth-simulation-draped.png
               for image in docs/images/generated/*.png; do
-                python3 - "$image" <<'PY'
-import struct, sys
-path = sys.argv[1]
-with open(path, "rb") as f:
-    data = f.read(24)
-if data[:8] != b"\x89PNG\r\n\x1a\n":
-    raise SystemExit("not a PNG: " + path)
-width, height = struct.unpack(">II", data[16:24])
-if (width, height) != (1280, 720):
-    raise SystemExit("wrong size %s: %sx%s" % (path, width, height))
-if __import__("os").path.getsize(path) < 20000:
-    raise SystemExit("suspiciously small PNG: " + path)
-print("VALID PNG", path, width, height)
-PY
+                python3 -c 'import os,struct,sys; p=sys.argv[1]; d=open(p,"rb").read(24); assert d[:8]==b"\x89PNG\r\n\x1a\n", p; w,h=struct.unpack(">II",d[16:24]); assert (w,h)==(1280,720),(p,w,h); assert os.path.getsize(p)>=20000,p; print("VALID PNG",p,w,h)' "$image"
               done
               echo "FREECAD GUI SCREENSHOT PASS"
             ')"
