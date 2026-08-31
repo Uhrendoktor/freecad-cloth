@@ -10,10 +10,32 @@ def _gui_modules():
     return App, Gui, QtWidgets, QtGui, QtCore
 
 
+def _show_tasks_dock(Gui, QtWidgets):
+    """Ensure FreeCAD's Tasks page is available before showDialog().
+
+    On a fresh FreeCAD/Xvfb startup the Combo View can still be on Model when
+    a Python task panel is opened. FreeCAD's showDialog() does not reliably
+    switch that page in this startup state, leaving the panel unattached from
+    the user's point of view even though the dialog object exists.
+    """
+    window = Gui.getMainWindow()
+    if window is None:
+        return
+    candidates = list(window.findChildren(QtWidgets.QWidget, "Tasks"))
+    candidates += [
+        widget for widget in window.findChildren(QtWidgets.QWidget)
+        if widget.objectName().strip().lower() in ("task", "tasks")
+    ]
+    for widget in candidates:
+        widget.show()
+        widget.raise_()
+
+
 class PatternPieceTaskPanel:
     def __init__(self, obj=None):
         App, Gui, QtWidgets, _, _ = _gui_modules()
         self.App, self.Gui, self.obj = App, Gui, obj
+        _show_tasks_dock(Gui, QtWidgets)
         self.form = QtWidgets.QWidget()
         self.form.setWindowTitle("Cloth Pattern — Pattern Piece")
         layout = QtWidgets.QFormLayout(self.form)
@@ -97,6 +119,7 @@ class PatternDraftingTaskPanel:
     def __init__(self, obj):
         App, Gui, QtWidgets, QtGui, QtCore = _gui_modules()
         self.App, self.Gui, self.obj = App, Gui, obj
+        _show_tasks_dock(Gui, QtWidgets)
         from PatternDrafting import default_points, parse_points, move_point, add_point, remove_point, seam_allowance_preview
         try:
             self.points = list(parse_points(obj.DraftingBoundary))
