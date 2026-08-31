@@ -9,7 +9,7 @@ Machine-readable supervisor coordination record for implementation agents.
 - Canonical CI: `.github/workflows/canonical-execution.yml`
 - CI policy: preserve the existing Docker/Xvfb GUI screenshot and PNG export path. Do not create a second workflow.
 - Current open-PR policy: every PR must be reviewed for scope, CI evidence, mergeability, and regression risk before merge.
-- Supervisor audit: PR #366, PR #368, and PR #372 have been reviewed and merged; PR #373 is the only currently open PR and is gated on terminal-green canonical evidence.
+- Supervisor audit: PR #366, PR #368, and PR #372 have been reviewed and merged; current open PRs must remain gated on focused review plus canonical evidence.
 
 ## Release gates
 
@@ -85,7 +85,7 @@ Only after the end-to-end contracts are stable: higher-fidelity replaceable huma
 
 ## Supervisor audit notes — 2026-08-31
 
-- Re-checked repository PRs and issues. PR #373 is the only open PR; it is a focused Sewing registration test slice and has been left open because its exact head has no associated canonical workflow run yet. A review comment records the terminal-green evidence requirement.
+- Re-checked repository PRs and issues. Sewing registration coverage is being re-cut from current `main` on `agent/sewing-registration-tests-20260831-r3`; the previous superseded PR #373 was closed without merge.
 - No PR or issue was closed without a reason. No stale PR was merged.
 - Canonical workflow remains the sole workflow and retains the real FreeCAD/Xvfb screenshot/export path: four 1280x720 PNG states plus diagnostics. Do not edit that workflow casually.
 - Merged PR #368 fixed simulation-quality tessellation by preserving authored boundary vertices and refining interiors; this remains a regression contract.
