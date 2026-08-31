@@ -1,3 +1,4 @@
+# GUI screenshot publishing uses the workflow token for its PR-specific image branch.
 name: Canonical execution
 
 on:
@@ -43,18 +44,7 @@ jobs:
           CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e PYTHONPATH=/workspace -w /workspace "$IMAGE" -euo pipefail -c '
             set -e
             python3 -m compileall -q .
-            for test in \
-              tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_xpbd.py \
-              tests/test_cloth_solver.py tests/test_side_tasks.py tests/test_collisions.py \
-              tests/test_pattern_sketch.py tests/test_pattern_ir.py tests/test_pattern_export_semantics.py \
-              tests/test_sketch_authority.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py \
-              tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_sewing_network_gui_contract.py \
-              tests/test_gui_structure.py tests/test_simulation_scene.py tests/test_simulation_quality.py \
-              tests/test_avatar_fitting.py tests/test_drape_quality.py tests/test_freecad_objects.py; do
-              echo "PYTEST START $test"
-              python3 "$test"
-              echo "PYTEST PASS $test"
-            done
+            for test in tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py tests/test_collisions.py tests/test_pattern_sketch.py tests/test_pattern_ir.py tests/test_pattern_export_semantics.py tests/test_sketch_authority.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_sewing_network_gui_contract.py tests/test_gui_structure.py tests/test_simulation_scene.py tests/test_simulation_quality.py tests/test_avatar_fitting.py tests/test_drape_quality.py tests/test_freecad_objects.py; do python3 "$test"; done
           ')"
           trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
           docker cp "$PWD/." "$CID:/workspace/"
@@ -82,59 +72,29 @@ jobs:
           set -euo pipefail
           rm -rf docs/images/generated artifacts/freecad-gui
           mkdir -p docs/images/generated artifacts/freecad-gui
-          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash \
-            -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
-            -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -w /workspace "$IMAGE" -euo pipefail -c '
-              set -e
-              mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
-              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
-              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
-              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 20); do
-                xdpyinfo -display :99 >/dev/null 2>&1 && break
-                sleep 0.25
-              done
-              xdpyinfo -display :99 >/dev/null 2>&1
-              echo "GUI DISPLAY READY :99"
-              echo "FREECAD GUI SCREENSHOT START"
-              timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun tests/freecad_screenshot.py
-              test -s docs/images/generated/cloth-pattern-design.png
-              test -s docs/images/generated/cloth-sewing.png
-              test -s docs/images/generated/cloth-simulation-arranged.png
-              test -s docs/images/generated/cloth-simulation-draped.png
-              echo "FREECAD GUI SCREENSHOT PASS"
-            ')"
-          cleanup() {
-            set +e
-            docker cp "$CID:/workspace/docs/images/generated/." docs/images/generated/ 2>/dev/null || true
-            docker cp "$CID:/tmp/xvfb.log" artifacts/freecad-gui/xvfb.log 2>/dev/null || true
-            docker cp "$CID:/tmp/openbox.log" artifacts/freecad-gui/openbox.log 2>/dev/null || true
-            docker cp "$CID:/workspace/docs/images/generated/gui-progress.log" artifacts/freecad-gui/gui-progress.log 2>/dev/null || true
-            docker cp "$CID:/workspace/docs/images/generated/gui-screenshot-manifest.txt" artifacts/freecad-gui/gui-screenshot-manifest.txt 2>/dev/null || true
-            docker logs "$CID" > artifacts/freecad-gui/docker-console.log 2>&1 || true
-            docker inspect "$CID" > artifacts/freecad-gui/docker-inspect.json 2>/dev/null || true
-            echo "===== FreeCAD GUI progress ====="
-            cat artifacts/freecad-gui/gui-progress.log 2>/dev/null || true
-            echo "===== FreeCAD Docker console ====="
-            cat artifacts/freecad-gui/docker-console.log 2>/dev/null || true
-            echo "===== Xvfb log ====="
-            cat artifacts/freecad-gui/xvfb.log 2>/dev/null || true
-            echo "===== Openbox log ====="
-            cat artifacts/freecad-gui/openbox.log 2>/dev/null || true
-            docker rm -f "$CID" >/dev/null 2>&1 || true
-          }
+          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 -w /workspace "$IMAGE" -euo pipefail -c '
+            set -e
+            mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
+            Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+            openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+            trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+            for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+            xdpyinfo -display :99 >/dev/null 2>&1
+            timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun tests/freecad_screenshot.py
+            test -s docs/images/generated/cloth-pattern-design.png
+            test -s docs/images/generated/cloth-sewing.png
+            test -s docs/images/generated/cloth-simulation-arranged.png
+            test -s docs/images/generated/cloth-simulation-draped.png
+          ')"
+          cleanup() { set +e; docker cp "$CID:/workspace/docs/images/generated/." docs/images/generated/ 2>/dev/null || true; docker rm -f "$CID" >/dev/null 2>&1 || true; }
           trap cleanup EXIT
           docker cp "$PWD/." "$CID:/workspace/"
           docker start -a "$CID"
       - name: Validate exported screenshots
         run: |
           set -euo pipefail
-          for image in docs/images/generated/*.png; do
-            python3 -c 'import os,struct,sys; p=sys.argv[1]; d=open(p,"rb").read(24); assert d[:8]==b"\x89PNG\r\n\x1a\n", p; w,h=struct.unpack(">II",d[16:24]); assert (w,h)==(1280,720),(p,w,h); assert os.path.getsize(p)>=20000,p; print("VALID PNG",p,w,h)' "$image"
-          done
+          for image in docs/images/generated/*.png; do python3 -c 'import os,struct,sys; p=sys.argv[1]; d=open(p,"rb").read(24); assert d[:8]==b"\x89PNG\r\n\x1a\n"; w,h=struct.unpack(">II",d[16:24]); assert (w,h)==(1280,720); assert os.path.getsize(p)>=20000' "$image"; done
       - name: Upload GUI screenshots
-        if: always()
         uses: actions/upload-artifact@v6
         with:
           name: cloth-gui-screenshots
@@ -176,13 +136,7 @@ jobs:
           git clone --filter=blob:none --no-checkout "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" screenshot-repo
           cd screenshot-repo
           branch="ci/pr-${PR_NUMBER}-screenshots"
-          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
-            git fetch origin "$branch"
-            git checkout -B "$branch" "origin/$branch"
-          else
-            git checkout --orphan "$branch"
-            git rm -rf . >/dev/null 2>&1 || true
-          fi
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then git fetch origin "$branch"; git checkout -B "$branch" "origin/$branch"; else git checkout --orphan "$branch"; git rm -rf . >/dev/null 2>&1 || true; fi
           mkdir -p docs/images/generated
           cp ../gui-screenshots/*.png docs/images/generated/
           git config user.name "github-actions[bot]"
