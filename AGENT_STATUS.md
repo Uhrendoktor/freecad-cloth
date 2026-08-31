@@ -63,7 +63,7 @@ Prototype -> MVP -> Production order is documented in `docs/PRODUCTION_PLAN_2026
 
 ## Active implementation slices
 
-- **Avatar GUI:** PR #370 is draft and requires transactional Apply/Cancel semantics plus real FreeCAD/Xvfb acceptance before merge.
+- **Avatar GUI:** PR #371 is the current non-draft implementation slice for #369; it now uses staged Apply & Rebuild semantics, explicit UI→FreeCAD property mapping, and focused GUI contract coverage. Canonical FreeCAD/Xvfb acceptance remains required before merge.
 - **DrapeTarget:** #228 remains the next target-neutral fitting slice after stale-state P0s are safe.
 - **Pattern/Sewing:** active audit branches must be re-cut from current main before handoff; no stale head may be merged.
 
