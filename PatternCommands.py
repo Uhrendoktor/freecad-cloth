@@ -47,7 +47,7 @@ def _create_native_sketch_for_piece(obj):
 
 
 def create_pattern_piece_with_sketch():
-    """Create a pattern piece and immediately attach its native Sketcher geometry."""
+    """Create a PatternPiece with native Sketcher geometry as its authority."""
     import FreeCAD as App
     obj = create_pattern_piece()
     _create_native_sketch_for_piece(obj)
@@ -64,6 +64,21 @@ def edit_pattern_piece():
         raise ValueError("select a pattern piece before editing it")
     from PatternGui import show_pattern_piece_task
     show_pattern_piece_task(obj)
+
+
+def edit_pattern_sketch():
+    """Enter the native Sketcher editor for the selected pattern piece."""
+    import FreeCADGui as Gui
+    obj = next((o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"), None)
+    if obj is None:
+        raise ValueError("select a pattern piece before editing its Sketcher geometry")
+    sketch = getattr(obj, "Sketch", None)
+    if sketch is None:
+        sketch = _create_native_sketch_for_piece(obj)
+    if sketch is None:
+        raise ValueError("pattern piece has no native Sketcher representation")
+    Gui.activeDocument().setEdit(sketch.Name)
+    return sketch
 
 
 def create_pattern_sketch():
@@ -177,6 +192,7 @@ class _FunctionCommand:
 COMMANDS = [
     "ClothPattern_CreatePieceTask",
     "ClothPattern_EditPiece",
+    "ClothPattern_EditSketch",
     "ClothPattern_CreateSketch",
     "ClothPattern_CreatePieceWithSketch",
     "ClothPattern_CreateDrafting",
@@ -193,11 +209,12 @@ try:
         for name, handler in {
             "ClothPattern_CreatePieceTask": create_pattern_piece_task,
             "ClothPattern_EditPiece": edit_pattern_piece,
+            "ClothPattern_EditSketch": edit_pattern_sketch,
             "ClothPattern_CreateSketch": create_pattern_sketch,
             "ClothPattern_CreatePieceWithSketch": create_pattern_piece_with_sketch,
             "ClothPattern_CreateDrafting": create_pattern_drafting,
             "ClothPattern_Show2D": show_pattern_2d,
-            "ClothPattern_CreatePiece": create_pattern_piece,
+            "ClothPattern_CreatePiece": create_pattern_piece_with_sketch,
             "ClothPattern_CreateCustomPiece": create_custom_pattern_piece,
             "ClothPattern_CreateMesh": create_pattern_mesh,
             "ClothPattern_AddSeam": add_seam,
