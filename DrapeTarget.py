@@ -135,3 +135,13 @@ def assign_drape_target(target, source, target_type: Optional[str]=None):
     status=target_status(target)
     target.TargetStatus=status["state"]; target.InvalidationReason=status["reason"]
     return target
+
+
+# Install the recompute guard when the target contract is imported. This keeps
+# saved/reloaded documents safe even when the Simulation workbench has not yet
+# been selected in the GUI.
+try:
+    from SimulationStaleGuard import install as _install_simulation_guard
+    _install_simulation_guard()
+except (ImportError, AttributeError, TypeError):
+    pass
