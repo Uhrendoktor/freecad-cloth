@@ -53,17 +53,22 @@ def create_pattern_piece_with_sketch():
     return create_pattern_piece()
 
 
-def edit_pattern_piece():
+def edit_sketch():
     """Open the selected pattern piece in the native Sketcher editor."""
     import FreeCADGui as Gui
     obj = next((o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"), None)
     if obj is None:
-        raise ValueError("select a pattern piece before editing it")
+        raise ValueError("select a pattern piece before editing its sketch")
     sketch = getattr(obj, "Sketch", None)
     if sketch is None or getattr(sketch, "TypeId", "") != "Sketcher::SketchObject":
         sketch = _ensure_native_sketch_for_piece(obj)
     Gui.activeDocument().setEdit(sketch.Name)
     return sketch
+
+
+# Keep the previous Python helper name as a compatibility alias; the public
+# command now presents the native Sketcher action as "Edit Sketch".
+edit_pattern_piece = edit_sketch
 
 
 def create_pattern_sketch():
@@ -191,7 +196,7 @@ try:
     if hasattr(Gui, "addCommand"):
         for name, handler in {
             "ClothPattern_CreatePieceTask": create_pattern_piece_task,
-            "ClothPattern_EditPiece": edit_pattern_piece,
+            "ClothPattern_EditPiece": edit_sketch,
             "ClothPattern_CreateSketch": create_pattern_sketch,
             "ClothPattern_CreatePieceWithSketch": create_pattern_piece_with_sketch,
             "ClothPattern_CreateDrafting": create_pattern_drafting,
