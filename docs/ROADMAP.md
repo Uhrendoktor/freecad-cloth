@@ -58,6 +58,6 @@ Do not pull a visible CLO feature forward merely because it exists in CLO. Stabi
 - P0: #145 — simulation quality/material lifecycle.
 - P1: #275 — sewing completion and correspondence repair UX.
 - P1: #162 / #360 — pattern production parity.
-- Later: #374 — production avatar fidelity; #362 — diagnostics/manufacturing; #148 — optional solver benchmark.
+- Later: #374 — production avatar fidelity; #362 — diagnostics/manufacturing; #148 — optional solver benchmark; #404 — optional PositionBasedDynamics evaluation with collision parity.
 
-Completed this supervisor pass: documentation consolidation, #322 duplicate cleanup, and #289 stale-target recompute safety (#397).
+Completed this supervisor pass: documentation consolidation, #322 duplicate cleanup, #289 stale-target recompute safety (#397), audit/closure of stale solver PR #401, and supervisor-state reconciliation. Canonical CI remains unchanged and the latest main push passed both Python/FreeCAD tests and all four GUI screenshot checks.
