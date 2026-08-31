@@ -97,6 +97,7 @@ Only after the end-to-end contracts are stable: higher-fidelity replaceable huma
 - Added `docs/CLO_FEATURE_MATRIX_2026.md` and `docs/AGENT_HANDOFF_TEMPLATE.md` to make feature triage, UI/UX contracts, avatar-provider architecture and agent handoff requirements explicit.
 - User-requested avatar direction is locked as two interchangeable providers: a recognizably human FreeCAD-native mannequin for normal garment fitting, and a generic FreeCAD Shape/PartDesign/Body/Mesh object through the same DrapeTarget interface. High-fidelity avatar work is later.
 - `ADVANCED_TOOL_MODE.md` is not present in the repository; supervisor execution policy is retained in `TOOL_STATE.md`.
+- Native Sketcher default authoring slice (#360) merged as PR #383 after canonical run 1049 passed both Python/FreeCAD tests and the real GUI screenshot/validation path. Standard PatternPiece creation now links a native Sketcher representation, and `ClothPattern_EditSketch` enters the native Sketcher editor.
 
 ## Handoff checklist
 
