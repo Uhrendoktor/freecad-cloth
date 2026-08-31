@@ -19,8 +19,6 @@ def create_pattern_piece_from_parameters(name, width, height, allowance, grainli
     obj.GeometryMode = "Rectangle"
     obj.Label = name
     doc.recompute()
-    # Native Sketcher is the default editable geometry authority. Keep the
-    # legacy Part feature as a semantic/document wrapper for downstream links.
     _create_native_sketch_for_piece(obj)
     doc.recompute()
     return obj
@@ -40,13 +38,7 @@ def _create_native_sketch_for_piece(obj):
         points = [(float(p[0]), float(p[1])) for p in ast.literal_eval(str(obj.SewingOutline))]
     except (ValueError, SyntaxError, TypeError, IndexError):
         raise ValueError("selected pattern piece has no valid sewing outline")
-    piece = PatternPiece(
-        obj.Label,
-        points,
-        seam_allowance=float(getattr(obj, "SeamAllowance", 0.0)),
-        grainline_angle=float(getattr(obj, "GrainlineAngle", 0.0)),
-        id=str(obj.PieceId),
-    )
+    piece = PatternPiece(obj.Label, points, seam_allowance=float(getattr(obj, "SeamAllowance", 0.0)), grainline_angle=float(getattr(obj, "GrainlineAngle", 0.0)), id=str(obj.PieceId))
     return create_sketch_for_piece(piece, App.ActiveDocument)
 
 
@@ -186,6 +178,19 @@ def add_seam():
     return obj
 
 
+def repair_pattern_topology():
+    """Open the explicit semantic-edge topology repair panel for invalid seams."""
+    import FreeCAD as App
+    from PatternTopologyRepair import invalid_seam_sides
+    doc = App.ActiveDocument
+    if doc is None:
+        raise ValueError("open a garment document before repairing pattern topology")
+    if not invalid_seam_sides(doc):
+        raise ValueError("no invalid Cloth seam references require repair")
+    from PatternTopologyRepairGui import show_topology_repair_task
+    return show_topology_repair_task(doc)
+
+
 class _FunctionCommand:
     def __init__(self, function): self.function = function
     def Activated(self): return self.function()
@@ -194,17 +199,10 @@ class _FunctionCommand:
 
 
 COMMANDS = [
-    "ClothPattern_CreatePieceTask",
-    "ClothPattern_EditPiece",
-    "ClothPattern_EditSketch",
-    "ClothPattern_CreateSketch",
-    "ClothPattern_CreatePieceWithSketch",
-    "ClothPattern_CreateDrafting",
-    "ClothPattern_Show2D",
-    "ClothPattern_CreatePiece",
-    "ClothPattern_CreateCustomPiece",
-    "ClothPattern_CreateMesh",
-    "ClothPattern_AddSeam",
+    "ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_EditSketch",
+    "ClothPattern_CreateSketch", "ClothPattern_CreatePieceWithSketch", "ClothPattern_CreateDrafting",
+    "ClothPattern_Show2D", "ClothPattern_CreatePiece", "ClothPattern_CreateCustomPiece",
+    "ClothPattern_CreateMesh", "ClothPattern_AddSeam", "ClothPattern_RepairTopology",
 ]
 
 try:
@@ -222,6 +220,7 @@ try:
             "ClothPattern_CreateCustomPiece": create_custom_pattern_piece,
             "ClothPattern_CreateMesh": create_pattern_mesh,
             "ClothPattern_AddSeam": add_seam,
+            "ClothPattern_RepairTopology": repair_pattern_topology,
         }.items():
             Gui.addCommand(name, _FunctionCommand(handler))
 except (ImportError, AttributeError):
