@@ -46,6 +46,10 @@ Machine-readable supervisor coordination record for implementation agents.
 - Generic FreeCAD-object drape target: #228; mannequin and arbitrary CAD targets must remain interchangeable providers behind the same target-neutral collision interface.
 - Production avatar provider/fidelity ladder is tracked by #374; do not start high-fidelity body generation until #369 and target-neutral DrapeTarget acceptance are stable.
 
+## Active implementation
+
+- Issue #369: `agent/avatar-acceptance-20260831` is a current-main re-cut focused on strengthening the real FreeCAD mannequin acceptance contract. It verifies stable fitting arrangement points at creation, after measurement rebuild, and after FCStd save/reload, plus the grouped task-panel fitting-point contract. No canonical workflow files are changed.
+
 ## Agent rules
 
 - Re-cut implementation branches from current `main`; do not revive stale heads.
