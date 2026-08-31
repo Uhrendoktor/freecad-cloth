@@ -11,6 +11,11 @@ def _qt():
 
 class SimulationQualityTaskPanel:
     QUALITY_NAMES = ("Fast", "Balanced", "Final")
+    SNAPSHOT_PROPERTIES = (
+        "QualityPreset", "ParticleDistance", "SolverIterations", "SolverSubsteps",
+        "FabricDensity", "FabricThickness", "FabricStretch", "FabricShear",
+        "FabricBend", "FabricFriction", "AvatarSkinOffset", "CollisionRadius", "Steps",
+    )
 
     def __init__(self, scene=None):
         App, Gui, QtWidgets = _qt()
@@ -18,6 +23,7 @@ class SimulationQualityTaskPanel:
         self.App, self.Gui, self.QtWidgets = App, Gui, QtWidgets
         self.scene = scene
         self._apply_quality_preset = apply_quality_preset
+        self._snapshot = None
         if self.scene is not None:
             ensure_quality_properties(self.scene)
         self.form = QtWidgets.QWidget(); self.form.setObjectName("ClothSimulationQualityTaskPanel")
@@ -58,11 +64,23 @@ class SimulationQualityTaskPanel:
             self.scene = create_quality_simulation_scene(self.App.ActiveDocument or self.App.newDocument("ClothDrape"))
         return self.scene
 
-    def _load(self):
+    def _capture_snapshot(self):
         if self.scene is None:
-            self.status.setText("Create or select a Cloth Simulation object."); return
-        from SimulationQualityRuntimeV2 import ensure_quality_properties
-        ensure_quality_properties(self.scene)
+            self._snapshot = None
+            return
+        self._snapshot = {name: getattr(self.scene, name) for name in self.SNAPSHOT_PROPERTIES if hasattr(self.scene, name)}
+
+    def _restore_snapshot(self):
+        if self.scene is None or self._snapshot is None:
+            return
+        for name, value in self._snapshot.items():
+            setattr(self.scene, name, value)
+        self.scene.Document.recompute()
+        self._load_widgets_only()
+
+    def _load_widgets_only(self):
+        if self.scene is None:
+            return
         widgets = [self.quality, self.particle_distance, self.iterations, self.substeps, self.density, self.thickness, self.stretch, self.shear, self.bend, self.friction, self.skin_offset, self.collision_radius, self.steps]
         for widget in widgets: widget.blockSignals(True)
         try:
@@ -71,6 +89,14 @@ class SimulationQualityTaskPanel:
             self.skin_offset.setValue(float(self.scene.AvatarSkinOffset)); self.collision_radius.setValue(float(getattr(self.scene, "CollisionRadius", 38.0))); self.steps.setValue(int(getattr(self.scene, "Steps", 0)))
         finally:
             for widget in widgets: widget.blockSignals(False)
+
+    def _load(self):
+        if self.scene is None:
+            self.status.setText("Create or select a Cloth Simulation object."); return
+        from SimulationQualityRuntimeV2 import ensure_quality_properties
+        ensure_quality_properties(self.scene)
+        self._load_widgets_only()
+        self._capture_snapshot()
         self._refresh()
 
     def _preset_changed(self, name):
@@ -79,11 +105,11 @@ class SimulationQualityTaskPanel:
         self.particle_distance.blockSignals(True); self.iterations.blockSignals(True); self.substeps.blockSignals(True)
         self.particle_distance.setValue(float(self.scene.ParticleDistance)); self.iterations.setValue(int(self.scene.SolverIterations)); self.substeps.setValue(int(self.scene.SolverSubsteps))
         self.particle_distance.blockSignals(False); self.iterations.blockSignals(False); self.substeps.blockSignals(False)
-        self.scene.Document.recompute(); self._refresh()
+        self.scene.Document.recompute(); self._refresh("Preset applied. Cancel restores the values from when this panel opened.")
 
     def _parameters_changed(self):
         if self.scene is None: return
-        self.scene.ParticleDistance = self.particle_distance.value(); self.scene.SolverIterations = self.iterations.value(); self.scene.SolverSubsteps = self.substeps.value(); self.scene.FabricDensity = self.density.value(); self.scene.FabricThickness = self.thickness.value(); self.scene.FabricStretch = self.stretch.value(); self.scene.FabricShear = self.shear.value(); self.scene.FabricBend = self.bend.value(); self.scene.FabricFriction = self.friction.value(); self.scene.AvatarSkinOffset = self.skin_offset.value(); self.scene.CollisionRadius = self.collision_radius.value(); self.scene.Document.recompute(); self._refresh()
+        self.scene.ParticleDistance = self.particle_distance.value(); self.scene.SolverIterations = self.iterations.value(); self.scene.SolverSubsteps = self.substeps.value(); self.scene.FabricDensity = self.density.value(); self.scene.FabricThickness = self.thickness.value(); self.scene.FabricStretch = self.stretch.value(); self.scene.FabricShear = self.shear.value(); self.scene.FabricBend = self.bend.value(); self.scene.FabricFriction = self.friction.value(); self.scene.AvatarSkinOffset = self.skin_offset.value(); self.scene.CollisionRadius = self.collision_radius.value(); self.scene.Document.recompute(); self._refresh("Changes are applied live. Cancel restores the panel-open state.")
 
     def step(self, count):
         scene = self._ensure_scene(); self._parameters_changed(); scene.Steps = int(scene.Steps) + int(count); scene.Document.recompute(); self.steps.setValue(int(scene.Steps)); self._refresh()
@@ -100,10 +126,11 @@ class SimulationQualityTaskPanel:
         self.status.setText(message or "State: %s | %.3f s | %d particles | %d steps | %s" % ("ready" if bool(getattr(self.scene, "FiniteState", True)) else "invalid/non-finite", float(getattr(self.scene, "SimulatedTime", 0.0)), int(getattr(self.scene, "ParticleCount", 0)), int(getattr(self.scene, "Steps", 0)), str(getattr(self.scene, "QualityPreset", "Balanced"))))
 
     def accept(self):
-        if self.scene is not None: self._parameters_changed()
+        if self.scene is not None: self._parameters_changed(); self._capture_snapshot()
         return True
 
     def reject(self):
+        self._restore_snapshot()
         if self.Gui.activeDocument() and self.Gui.Control.activeDialog(): self.Gui.Control.closeDialog()
         return True
 
