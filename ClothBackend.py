@@ -1,7 +1,7 @@
 """Solver-neutral adapter API for cloth simulation backends.
 
-FreeCAD document code should depend on this module rather than directly on a
-specific solver.  The bundled XPBD backend wraps ``ClothSystem`` unchanged.
+FreeCAD document code depends on this module rather than directly on a
+specific solver. The XPBD backend is backed by upstream PositionBasedDynamics.
 """
 from abc import ABC, abstractmethod
 from copy import deepcopy
@@ -13,8 +13,6 @@ from SeamGraph import SeamGraph
 
 
 class ClothSimulationBackend(ABC):
-    """Small stable interface consumed by simulation/document objects."""
-
     name = "abstract"
 
     @abstractmethod
@@ -48,9 +46,9 @@ class ClothSimulationBackend(ABC):
 
 
 class XPBDBackend(ClothSimulationBackend):
-    """Adapter for the repository's deterministic CPU XPBD-style solver."""
+    """Compatibility adapter whose dynamics are provided by upstream pyPBD."""
 
-    name = "xpbd-cpu"
+    name = "pypbd"
 
     def __init__(self, system: ClothSystem):
         if not isinstance(system, ClothSystem):
@@ -88,14 +86,7 @@ class XPBDBackend(ClothSimulationBackend):
         if self._stitches:
             self.system.add_stitches(self._stitches, self._stitch_compliance)
 
-    def set_seams(
-        self,
-        graph: SeamGraph,
-        edge_vertices: Mapping[Tuple[str, int], Sequence[int]],
-        seam_ids: Iterable[str] = (),
-        compliance=0.0,
-    ):
-        """Generate solver stitches from semantic seam metadata."""
+    def set_seams(self, graph: SeamGraph, edge_vertices: Mapping[Tuple[str, int], Sequence[int]], seam_ids: Iterable[str] = (), compliance=0.0):
         graph.validate()
         self.set_stitches(graph.stitch_pairs(edge_vertices, seam_ids), compliance)
 
@@ -107,8 +98,6 @@ class XPBDBackend(ClothSimulationBackend):
 
 
 class BackendRegistry:
-    """Deterministic named backend registry for dependency injection/tests."""
-
     def __init__(self):
         self._factories = {}
 
