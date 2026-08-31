@@ -14,6 +14,9 @@ assert 'def IsActive(self):' in source
 assert '_has_simulation' in source
 assert '"state": "unavailable"' in source
 assert '"state": "ready" if finite else "invalid/non-finite"' in source
+assert 'def _require_drape_target_ready(doc):' in source
+assert '_require_drape_target_ready(doc)' in source
+assert 'raise RuntimeError(status["message"])' in source
 
 # Lifecycle actions must not create a hidden scene: only the explicit Create
 # commands are allowed to create one when no simulation exists.
