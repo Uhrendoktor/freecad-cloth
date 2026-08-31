@@ -1,14 +1,11 @@
 """FreeCAD CI compatibility shims loaded before test scripts."""
 
-import sys
-
 # Qt 6 removed QPixmap.pixel(); FreeCAD CI uses the QImage implementation.
 try:
-    from PySide6 import QtGui, QtWidgets, QtCore
+    from PySide6 import QtGui, QtWidgets
 except Exception:
     QtGui = None
     QtWidgets = None
-    QtCore = None
 
 if QtGui is not None:
     QPixmap = QtGui.QPixmap
@@ -20,38 +17,21 @@ if QtGui is not None:
         except (AttributeError, TypeError):
             pass
 
-
 # FreeCAD 1.1 uses a separate Tasks dock. In a config-less Xvfb session the
 # Model dock is visible but Tasks is hidden. Gui.Control.showDialog() populates
-# the task view but does not necessarily make the dock visible. Keep a short
-# timer alive for the screenshot scenario so the dock is raised both before
-# and immediately after each task dialog is created.
+# the task view but does not necessarily make the dock visible, so expose it
+# before GUI regression scripts start. This is deliberately a CI shim rather
+# than a monkeypatch of FreeCAD extension objects.
 try:
     import FreeCADGui as Gui
-    if QtWidgets is not None and QtCore is not None and any("freecad_screenshot.py" in str(arg) for arg in sys.argv):
-        def _show_tasks():
-            window = Gui.getMainWindow()
-            if window is None:
-                return
+    if QtWidgets is not None:
+        window = Gui.getMainWindow()
+        if window is not None:
             tasks = window.findChild(QtWidgets.QDockWidget, "Tasks")
             if tasks is not None:
                 tasks.show()
                 tasks.raise_()
                 Gui.updateGui()
-
-        _task_timer = QtCore.QTimer()
-        _task_timer.setInterval(25)
-        _task_ticks = [0]
-
-        def _ensure_tasks():
-            _task_ticks[0] += 1
-            _show_tasks()
-            if _task_ticks[0] >= 200:
-                _task_timer.stop()
-                _task_timer.deleteLater()
-
-        _task_timer.timeout.connect(_ensure_tasks)
-        _task_timer.start()
 except Exception:
     pass
 
@@ -71,4 +51,5 @@ def _finish_freecad_screenshot(frame, event, arg):
 # the file does not terminate that process, so terminate exactly when the
 # module frame returns. This avoids touching Gui.Control or Qt extension
 # objects and cannot fire merely because an individual helper function returns.
+import sys
 sys.settrace(_finish_freecad_screenshot)
