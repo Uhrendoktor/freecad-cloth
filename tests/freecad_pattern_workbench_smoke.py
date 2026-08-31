@@ -24,6 +24,17 @@ def main():
     doc.recompute()
     assert piece.PatternType == "PatternPiece"
     assert piece.Shape.isValid()
+    assert piece.Sketch is not None
+    assert piece.Sketch.TypeId == "Sketcher::SketchObject"
+    assert piece.Sketch.GeometryAuthority == "Sketcher"
+
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(piece)
+    from PatternCommands import edit_sketch
+    sketch = edit_sketch()
+    assert sketch is piece.Sketch
+    assert Gui.activeDocument().getInEdit() == piece.Sketch.Name
+    Gui.activeDocument().resetEdit()
 
     panel = PatternPieceTaskPanel(piece)
     panel.name.setText("Smoke Piece")
