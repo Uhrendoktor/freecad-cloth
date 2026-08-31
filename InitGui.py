@@ -18,7 +18,11 @@ except ImportError:
     pass
 
 from freecad_cloth.pattern.workbench import ClothPatternWorkbench
-from freecad_cloth.sewing.workbench import ClothSewingWorkbench
+from freecad_cloth.sewing.workbench import (
+    COMMAND_GROUPS as SEWING_COMMAND_GROUPS,
+    TOOLBAR_COMMANDS as SEWING_TOOLBAR_COMMANDS,
+    ClothSewingWorkbench,
+)
 from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
 
 _ICON_DIR = Path(__file__).resolve().parent / "resources" / "icons"
