@@ -27,5 +27,3 @@ The reference CPU solver now includes explicit stretch/shear/bending constraint 
 The repository has a single canonical GitHub Actions workflow, `canonical-execution.yml`. It runs the headless core test suite and Python syntax/package checks across supported Python versions, a real FreeCAD smoke test, and a GUI screenshot scenario under Xvfb. Screenshot PNGs are uploaded as the `cloth-gui-screenshots` CI artifact so documentation captures remain reproducible without making image files a production runtime dependency.
 
 See [docs/SEWING_WORKFLOW_RESEARCH.md](docs/SEWING_WORKFLOW_RESEARCH.md) for workflow research, architecture decisions, and external-project evaluation.
-
-<!-- cleanup trigger -->
