@@ -38,6 +38,10 @@ class Pose:
     def validate(self):
         if self.preset not in self.VALID_PRESETS:
             raise ValueError("unsupported avatar pose: %s" % self.preset)
+        for name in ("left_arm_angle", "right_arm_angle", "left_elbow_angle", "right_elbow_angle"):
+            value = float(getattr(self, name))
+            if not -90.0 <= value <= 90.0:
+                raise ValueError("%s must be between -90 and 90 degrees" % name)
 
 @dataclass(frozen=True)
 class Landmark:
@@ -71,6 +75,8 @@ class AvatarParameters:
             raise ValueError("inseam must be shorter than height")
         if not 0 <= float(self.skin_offset) <= 50:
             raise ValueError("skin offset must be between 0 and 50 mm")
+        if not isinstance(self.pose, Pose):
+            raise TypeError("pose must be a Pose")
         self.pose.validate()
     def measurement(self, name):
         if name not in self.measurements:
@@ -122,6 +128,11 @@ def _radii(circumference, depth_ratio=0.39, skin_offset=0.0):
     c = float(circumference); offset = float(skin_offset)
     return (max(1.0, c / (2 * pi) * 1.18) + offset, max(1.0, c * depth_ratio / pi) + offset)
 
+def _limb_end(start, length, angle_deg, side=1.0):
+    """Return a deterministic endpoint in the X/Z pose plane."""
+    a = float(angle_deg) * pi / 180.0
+    return (start[0] + side * length * cos(a), start[1], start[2] - length * sin(a))
+
 def generate_mesh(params):
     """Return ``(vertices, triangles, landmarks)`` for the mannequin."""
     params.validate(); m = params.measurements; vertices, triangles = [], []
@@ -136,17 +147,28 @@ def generate_mesh(params):
     _capsule(vertices, triangles, (0, 0, neck_z-30), (0, 0, neck_z+70), m["neck"]/(2*pi)*.82 + params.skin_offset)
     _ellipsoid(vertices, triangles, (0, 0, neck_z+155), (m["neck"]/(2*pi)*1.22 + params.skin_offset, m["neck"]/(2*pi)*1.08 + params.skin_offset, 105 + params.skin_offset), 10, 24)
     shoulder_half = m["shoulder"] / 2; arm_radius = m["upper_arm"] / (2*pi) + params.skin_offset; wrist_radius = m["wrist"] / (2*pi) + params.skin_offset; arm_z = shoulder_z - 15
-    for side in (-1, 1):
-        sx = side * shoulder_half; ex = side * (shoulder_half + 125); wx = side * (shoulder_half + 245)
-        _capsule(vertices, triangles, (sx, 0, arm_z), (ex, 0, arm_z-35), arm_radius)
-        _capsule(vertices, triangles, (ex, 0, arm_z-35), (wx, 0, arm_z-55), max(wrist_radius*1.25, arm_radius*.72))
-        _ellipsoid(vertices, triangles, (wx, 0, arm_z-65), (wrist_radius*1.15, wrist_radius, wrist_radius*2.2), 6, 16)
+    arm_defaults = {"standing": 12.0, "sewing": 55.0, "sitting": 25.0}
+    default_angle = arm_defaults[params.pose.preset]
+    wrists = {}
+    for side, angle_value, elbow_value, label in ((-1, params.pose.left_arm_angle, params.pose.left_elbow_angle, "left"), (1, params.pose.right_arm_angle, params.pose.right_elbow_angle, "right")):
+        angle = default_angle if angle_value == 12.0 and params.pose.preset != "standing" else angle_value
+        sx = side * shoulder_half
+        elbow = _limb_end((sx, 0, arm_z), 125.0, angle, side=side)
+        wrist = _limb_end(elbow, 120.0, angle - float(elbow_value), side=side)
+        _capsule(vertices, triangles, (sx, 0, arm_z), elbow, arm_radius)
+        _capsule(vertices, triangles, elbow, wrist, max(wrist_radius*1.25, arm_radius*.72))
+        _ellipsoid(vertices, triangles, wrist, (wrist_radius*1.15, wrist_radius, wrist_radius*2.2), 6, 16)
+        wrists[label] = wrist
     knee_z = max(300, m["ankle"] + m["inseam"]*.52); ankle_z = m["ankle"] / 2
     thigh_radius = m["thigh"] / (2*pi) + params.skin_offset; calf_radius = m["calf"] / (2*pi) + params.skin_offset; hip_offset = hip_w * .42
-    for side in (-1, 1):
+    knees = {}
+    for side, label in ((-1, "left"), (1, "right")):
         x = side * hip_offset
-        _capsule(vertices, triangles, (x, 0, pelvis_z-20), (x, 0, knee_z), thigh_radius)
-        _capsule(vertices, triangles, (x, 0, knee_z), (x, 0, ankle_z+55), calf_radius)
+        knee = (x, 230.0, pelvis_z - 15.0) if params.pose.preset == "sitting" else (x, 0, knee_z)
+        ankle = (x, 230.0, ankle_z + 55.0) if params.pose.preset == "sitting" else (x, 0, ankle_z + 55)
+        _capsule(vertices, triangles, (x, 0, pelvis_z-20), knee, thigh_radius)
+        _capsule(vertices, triangles, knee, ankle, calf_radius)
         _ellipsoid(vertices, triangles, (x, 35, ankle_z), (m["ankle"]/(2*pi)*1.6 + params.skin_offset, m["ankle"]/(2*pi)*2 + params.skin_offset, 45 + params.skin_offset), 6, 16)
-    landmarks = {"neck": (0,0,neck_z), "chest": (0,0,chest_z), "underbust": (0,0,chest_z-75), "waist": (0,0,waist_z), "high_hip": (0,0,waist_z-70), "hip": (0,0,pelvis_z), "crotch": (0,0,pelvis_z-65), "shoulder_left": (-shoulder_half,0,arm_z), "shoulder_right": (shoulder_half,0,arm_z), "knee_left": (-hip_offset,0,knee_z), "knee_right": (hip_offset,0,knee_z), "ankle_left": (-hip_offset,0,ankle_z), "ankle_right": (hip_offset,0,ankle_z), "wrist_left": (-shoulder_half-245,0,arm_z-55), "wrist_right": (shoulder_half+245,0,arm_z-55)}
+        knees[label] = knee
+    landmarks = {"neck": (0,0,neck_z), "chest": (0,0,chest_z), "underbust": (0,0,chest_z-75), "waist": (0,0,waist_z), "high_hip": (0,0,waist_z-70), "hip": (0,0,pelvis_z), "crotch": (0,0,pelvis_z-65), "shoulder_left": (-shoulder_half,0,arm_z), "shoulder_right": (shoulder_half,0,arm_z), "knee_left": knees["left"], "knee_right": knees["right"], "ankle_left": ( -hip_offset, 230 if params.pose.preset == "sitting" else 0, ankle_z), "ankle_right": (hip_offset, 230 if params.pose.preset == "sitting" else 0, ankle_z), "wrist_left": wrists["left"], "wrist_right": wrists["right"]}
     return tuple(vertices), tuple(triangles), tuple(Landmark(k, tuple(map(float,p))) for k,p in sorted(landmarks.items()))
