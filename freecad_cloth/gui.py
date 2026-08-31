@@ -22,11 +22,21 @@ class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
     def normalize_commands(commands):
         return list(dict.fromkeys(str(c) for c in commands if str(c)))
 
-    def register(self, groups, toolbar_name=None, toolbar_commands=None):
+    # Compatibility aliases retained while top-level InitGui.py migrates to the
+    # package boundary. Existing tests and third-party scripts may use these
+    # historical private names; removing them is a separate API migration.
+    @staticmethod
+    def _normalize_commands(commands):
+        return ClothWorkbenchBase.normalize_commands(commands)
+
+    def _register(self, commands):
+        self._register_groups(((self.MenuText, commands),))
+
+    def _register_groups(self, groups, toolbar_name=None, toolbar_commands=None):
         if self.commands:
             return
         normalized = []
-        seen = set()
+        seen = []
         for group_name, commands in groups:
             group_commands = self.normalize_commands(commands)
             duplicates = [c for c in group_commands if c in seen]
@@ -34,7 +44,7 @@ class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
                 raise ValueError("commands registered in multiple groups: %s" % ", ".join(duplicates))
             if group_name and group_commands:
                 normalized.append((str(group_name), group_commands))
-                seen.update(group_commands)
+                seen.extend(group_commands)
         self.commands = [c for _, commands in normalized for c in commands]
         if Gui is None:
             return
@@ -46,6 +56,9 @@ class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
                 self.appendToolbar(group_name, commands)
         for group_name, commands in normalized:
             self.appendMenu([self.MenuText, group_name], commands)
+
+    def register(self, groups, toolbar_name=None, toolbar_commands=None):
+        self._register_groups(groups, toolbar_name=toolbar_name, toolbar_commands=toolbar_commands)
 
     def GetResources(self):
         return {"MenuText": self.MenuText, "ToolTip": self.ToolTip, "Icon": self.Icon}

@@ -2,9 +2,12 @@
 from pathlib import Path
 
 from InitGui import SEWING_COMMAND_GROUPS, SEWING_TOOLBAR_COMMANDS, ClothSewingWorkbench
+from freecad_cloth.gui import ClothWorkbenchBase
+from freecad_cloth.sewing.workbench import _validate_sewing_command_groups
 
 ROOT = Path(__file__).resolve().parents[1]
 init_gui = (ROOT / "InitGui.py").read_text()
+gui_base = (ROOT / "freecad_cloth" / "gui.py").read_text()
 pattern_gui = (ROOT / "PatternGui.py").read_text()
 sim_gui = (ROOT / "SimulationGui.py").read_text()
 sewing_gui = (ROOT / "SewingGui.py").read_text()
@@ -17,16 +20,16 @@ avatar_commands = (ROOT / "AvatarCommands.py").read_text()
 assert "Gui.addWorkbench(ClothPatternWorkbench())" in init_gui
 assert "Gui.addWorkbench(ClothSimulationWorkbench())" in init_gui
 assert "Gui.addWorkbench(ClothSewingWorkbench())" in init_gui
-assert 'MenuText = "Cloth Sewing"' in init_gui
-assert 'def GetResources(self):' in init_gui
-assert '"MenuText": self.MenuText' in init_gui
-assert '"ToolTip": self.ToolTip' in init_gui
-assert '"Icon": self.Icon' in init_gui
-assert "def __init__(self):" in init_gui
-assert "self.commands = []" in init_gui
-assert "if self.commands:" in init_gui
-assert "command not in registered" in init_gui
-assert 'return "Gui::PythonWorkbench"' in init_gui
+assert 'MenuText = "Cloth Sewing"' in gui_base
+assert "def GetResources(self):" in gui_base
+assert '"MenuText": self.MenuText' in gui_base
+assert '"ToolTip": self.ToolTip' in gui_base
+assert '"Icon": self.Icon' in gui_base
+assert "def __init__(self):" in gui_base
+assert "self.commands = []" in gui_base
+assert "if self.commands:" in gui_base
+assert "command not in seen" in gui_base
+assert 'return "Gui::PythonWorkbench"' in gui_base
 assert "class PatternPieceTaskPanel" in pattern_gui
 assert "Gui.Control.showDialog(panel)" in pattern_gui
 assert "class SimulationTaskPanel" in sim_gui
@@ -88,7 +91,6 @@ def test_sewing_registration_uses_native_nested_menu_paths_and_toolbar_subset():
 
 def test_sewing_command_group_validator_rejects_missing_duplicate_or_extra_commands():
     expected = ["one", "two", "three"]
-    from InitGui import _validate_sewing_command_groups
     _validate_sewing_command_groups((("A", ("one",)), ("B", ("two", "three"))), expected)
     for groups, marker in [
         ((("A", ("one",)), ("B", ("two",))), "missing: three"),
@@ -119,6 +121,12 @@ def test_workbench_group_registration_is_idempotent_and_keeps_flat_context_comma
     assert calls[1][1] == ["Cloth Sewing", "Sewing Creation"]
     assert calls[2][1] == ["Cloth Sewing", "Sewing Editing"]
     assert calls[3][1] == ["Cloth Sewing", "Validation & View"]
+
+
+def test_workbench_base_exposes_legacy_registration_aliases():
+    assert hasattr(ClothWorkbenchBase, "_normalize_commands")
+    assert hasattr(ClothWorkbenchBase, "_register")
+    assert hasattr(ClothWorkbenchBase, "_register_groups")
 
 
 def test_workbench_icons_are_present_and_valid_svg_resources():
