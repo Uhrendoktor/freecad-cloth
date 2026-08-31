@@ -1,0 +1,65 @@
+name: Native GUI screenshot test
+
+on:
+  push:
+    branches: [fix/gui-screenshot-task-panel-v2]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  gui-screenshot-native:
+    name: FreeCAD GUI screenshot (native runner)
+    runs-on: [self-hosted, linux, x64, docker]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Download official FreeCAD AppImage
+        env:
+          FREECAD_VERSION: '1.1.3'
+          FREECAD_SHA256: '3a853eb69ee595f779f2255dbf80a765926981d8ff68903cefee4dfb03a8f5ef'
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.cache/freecad-cloth/$FREECAD_VERSION"
+          APP="$HOME/.cache/freecad-cloth/$FREECAD_VERSION/FreeCAD_${FREECAD_VERSION}-Linux-x86_64-py311.AppImage"
+          if [ ! -x "$APP" ]; then
+            curl -L --fail --retry 4 --retry-delay 2 -o "$APP" "https://github.com/FreeCAD/FreeCAD/releases/download/${FREECAD_VERSION}/FreeCAD_${FREECAD_VERSION}-Linux-x86_64-py311.AppImage"
+            chmod +x "$APP"
+          fi
+          echo "$FREECAD_SHA256  $APP" | sha256sum -c -
+          echo "FREECAD_APPIMAGE=$APP" >> "$GITHUB_ENV"
+      - name: Start native X server
+        run: |
+          set -euo pipefail
+          export XDG_RUNTIME_DIR="$RUNNER_TEMP/freecad-runtime"
+          mkdir -p "$XDG_RUNTIME_DIR"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >"$RUNNER_TEMP/freecad-xvfb.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/freecad-xvfb.pid"
+          sleep 2
+          kill -0 "$(cat "$RUNNER_TEMP/freecad-xvfb.pid")"
+      - name: Run GUI screenshot natively
+        env:
+          DISPLAY: :99
+          QT_X11_NO_MITSHM: '1'
+          QT_QPA_PLATFORM: xcb
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          PIXELFLUX_WAYLAND: 'false'
+          XDG_RUNTIME_DIR: ${{ runner.temp }}/freecad-runtime
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          mkdir -p docs/images/generated
+          "$FREECAD_APPIMAGE" tests/freecad_screenshot.py
+      - name: Upload GUI diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: freecad-gui-native
+          path: |
+            docs/images/generated
+            ${{ runner.temp }}/freecad-xvfb.log
+          if-no-files-found: ignore
+          compression-level: 1
