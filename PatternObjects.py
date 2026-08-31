@@ -118,7 +118,7 @@ def add_pattern_piece(doc, piece: PatternPiece):
     obj.addProperty("App::PropertyLength", "Height", "Parameters").Height = height
     obj.addProperty("App::PropertyLength", "SeamAllowance", "Cloth").SeamAllowance = piece.seam_allowance
     obj.addProperty("App::PropertyAngle", "GrainlineAngle", "Cloth").GrainlineAngle = piece.grainline_angle
-    obj.addProperty("App::PropertyEnumeration", "GeometryMode", "Cloth").GeometryMode = ["Rectangle", "Custom"]
+    obj.addProperty("App::PropertyEnumeration", "GeometryMode", "Cloth").GeometryMode = ["Rectangle", "Custom", "Sketch"]
     obj.GeometryMode = "Rectangle" if _is_rectangle(piece.outline, width, height) else "Custom"
     obj.addProperty("App::PropertyString", "DraftingBoundary", "Cloth").DraftingBoundary = repr(piece.outline)
     obj.addProperty("App::PropertyString", "SewingBoundary", "Cloth")
@@ -183,6 +183,7 @@ def add_seam(doc, seam: Seam):
     obj.addProperty("App::PropertyLink", "PatternB", "Dependencies").PatternB = piece_b
     obj.addProperty("App::PropertyFloat", "StartA", "Seam").StartA = seam.start_a
     obj.addProperty("App::PropertyFloat", "EndA", "Seam").EndA = seam.end_a
+    obj.addProperty("App::PropertyFloat", "StartB", "Seam").EndB = seam.end_b
     obj.addProperty("App::PropertyFloat", "StartB", "Seam").StartB = seam.start_b
     obj.addProperty("App::PropertyFloat", "EndB", "Seam").EndB = seam.end_b
     obj.addProperty("App::PropertyBool", "ReversedB", "Seam").ReversedB = seam.reversed_b
