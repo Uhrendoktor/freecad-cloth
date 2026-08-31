@@ -67,7 +67,7 @@ Goal: usable for real garment experimentation and repeatable engineering workflo
 - Basic grading/size parameters.
 - DXF/SVG/TechDraw-oriented export path.
 
-CLO's current production workflow treats seam allowance, notches, grading and DXF interchange as first-class pattern concerns. citeturn0search2turn0search7turn0search9turn0search12
+CLO treats seam allowance, notches, grading and DXF interchange as first-class pattern-production concerns. Sources: CLO Help Center articles on 2D Pattern DXF Import/Export, Set Grading, Notch, and Seam Allowance.
 
 ### Sewing
 
@@ -79,7 +79,7 @@ CLO's current production workflow treats seam allowance, notches, grading and DX
 - Seam groups and construction kinds.
 - Visual seam direction and mismatch indicators.
 
-CLO exposes segment, free, 1:N and M:N sewing, including interactive selection and explicit direction handling. citeturn1search1turn1search5turn1search10turn1search16
+CLO exposes segment, free, 1:N and M:N sewing, including interactive selection and explicit direction handling. Sources: CLO Help Center articles on Segment Sewing, Free Sewing, 1:N Free Sewing and M:N Free Sewing.
 
 ### Fitting / arrangement
 
@@ -90,7 +90,7 @@ CLO exposes segment, free, 1:N and M:N sewing, including interactive selection a
 - Layer/sublayer and basic superimpose behavior.
 - Reset-to-2D arrangement.
 
-Arrangement points and 3D arrangement are central to the comparable workflow, while reset/superimpose operations help control layered garments. citeturn0search1turn0search5turn0search8turn0search11turn0search14
+Arrangement points and 3D arrangement are central to the comparable workflow, while reset/superimpose operations help control layered garments. Sources: Marvelous Designer Help Center articles on Arrangement, Arrangement Points, Reset 2D Arrangement and Superimpose.
 
 ### Simulation
 
@@ -101,7 +101,7 @@ Arrangement points and 3D arrangement are central to the comparable workflow, wh
 - Deterministic step/run/reset.
 - Simulation status and stale-state diagnostics.
 
-Particle distance is explicitly a quality/speed control in CLO-style workflows. citeturn1search15
+Particle distance is explicitly a quality/speed control in CLO. Source: CLO Help Center, Particle Distance.
 
 ### MVP exit criteria
 
@@ -140,7 +140,7 @@ The mannequin and arbitrary CAD object should be two providers of the same targe
 - Pressure map.
 - Point inspection with numerical values.
 
-CLO's fit-map workflow exposes stress, strain, fit and pressure views; its newer strain map also relates results to fabric stretch limits. citeturn1search0turn1search14
+CLO's fit-map workflow exposes stress, strain, fit and pressure views; its newer strain map also relates results to fabric stretch limits. Sources: CLO Help Center articles on Garment Fit Maps and Strain Map.
 
 ### Production/manufacturing
 
@@ -152,7 +152,7 @@ CLO's fit-map workflow exposes stress, strain, fit and pressure views; its newer
 - Shrinkage/compensation metadata.
 - Production validation report.
 
-Current CLO documentation treats grading, DXF export and nesting as manufacturing workflows rather than simulation-only features. citeturn0search2turn0search7turn0search19
+Current CLO documentation treats grading, DXF export and nesting as manufacturing workflows rather than simulation-only features. Sources: CLO Help Center articles on Set Grading, 2D Pattern DXF Import/Export, Nest Patterns and Plot Patterns.
 
 ### Advanced garment construction
 
