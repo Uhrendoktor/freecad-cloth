@@ -1,14 +1,17 @@
 # Agent status
 
-Machine-readable supervisor/release record. Keep this file compact; durable guidance lives in `docs/DEVELOPMENT.md`.
+Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVELOPMENT.md` and `docs/PROJECT_STRUCTURE.md`.
 
 ## Repository
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `f82373cd105737d27ffeaf91ad01b08afc9827a1`
+- Current main at task start: `9cbed3226c60e89e6bdf5313022a2de84fb5db7a`
+- Current implementation branch: `agent/python-project-structure-20260831`
+- PR: #408
+- Reversible pre-change snapshot: `backup/pre-structure-20260831` (branch; tag creation is not exposed by the available GitHub connector)
 - Canonical CI: `.github/workflows/canonical-execution.yml`
-- Open PRs: `0`
+- Open PRs before this pass: 0
 - CI policy: preserve the Docker/Xvfb FreeCAD screenshot/PNG path; never add a second workflow.
 
 ## Release gates
@@ -21,24 +24,22 @@ Machine-readable supervisor/release record. Keep this file compact; durable guid
 - P1: pattern production parity — #162, #360.
 - Later: production avatar fidelity #374; diagnostics/manufacturing #362; optional solver benchmark #148; P2 backend evaluation #404.
 
-Closed this pass: #401 (not planned: stale solver migration regressed collision coverage and altered canonical CI); #322 (duplicate of #289); #289 (completed by #397). Recent merged slices include native mannequin acceptance #369, generic FreeCAD-object DrapeTarget #389, arrangement #385, native Sketcher-first authoring #383, and command-side stale-target gating #393.
-
 ## Architecture / UX
 
 `Sketcher → PatternPiece → PatternIR/SewingGraph → SimulationScene/DrapeTarget → derived solver state`.
 
-FreeCAD owns geometry/document state; Cloth owns garment semantics; solver owns physics. Human mannequin and generic FreeCAD geometry are providers of one DrapeTarget contract.
+FreeCAD owns geometry/document state; Cloth owns garment semantics; solver owns physics. Human mannequin and generic FreeCAD geometry are providers of one target-neutral DrapeTarget contract.
 
-Task panels: Context → Primary action → Secondary actions → Parameters → Recovery. Sewing stages before commit (`Enter` complete, `Delete` undo latest stage, `Esc` cancel). Simulation: Run primary, Step debug, Reset recovery. Stale state exposes a reason and recovery action.
+Task panels use Context → Primary action → Secondary actions → Parameters → Recovery. Stale state exposes a reason and recovery action. Sewing retains explicit staged interactions and Simulation retains Run/Step/Reset recovery.
 
 ## Prototype → MVP → Production
 
 Prototype proves native semantic boundaries and end-to-end invalidation. MVP makes sewing, fitting, mannequin, generic target, material/quality and production-2D workflows repeatable. Production adds higher-fidelity avatars, richer diagnostics/targets, grading/nesting/manufacturing and advanced construction without changing public contracts.
 
+## Structure migration
+
+The repository is now introducing a standard `pyproject.toml` package boundary under `freecad_cloth/` while keeping root `Init.py`/`InitGui.py` and legacy top-level modules intact. Package submodules own Pattern, Sewing and Simulation workbench registration. Compatibility shims remain until later migration slices are proven by canonical FreeCAD/Xvfb acceptance.
+
 ## Agent rules
 
 Re-cut implementation branches from current `main`; one focused concern per PR; inspect diffs and terminal-green CI before merge; merge then verify and delete source branches. Never weaken tests or multiply workflows. Close issues only with an explicit GitHub state reason and a reason recorded in the conversation.
-
-## Documentation
-
-Canonical docs: `docs/README.md`, `docs/WORKBENCH_GUIDE.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/RESEARCH.md`, `docs/DEVELOPMENT.md`. Avoid creating dated duplicate notes.
