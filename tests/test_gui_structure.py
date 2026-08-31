@@ -8,6 +8,7 @@ from freecad_cloth.sewing.workbench import _validate_sewing_command_groups
 ROOT = Path(__file__).resolve().parents[1]
 init_gui = (ROOT / "InitGui.py").read_text()
 gui_base = (ROOT / "freecad_cloth" / "gui.py").read_text()
+sewing_workbench = (ROOT / "freecad_cloth" / "sewing" / "workbench.py").read_text()
 pattern_gui = (ROOT / "PatternGui.py").read_text()
 sim_gui = (ROOT / "SimulationGui.py").read_text()
 sewing_gui = (ROOT / "SewingGui.py").read_text()
@@ -20,7 +21,7 @@ avatar_commands = (ROOT / "AvatarCommands.py").read_text()
 assert "Gui.addWorkbench(ClothPatternWorkbench())" in init_gui
 assert "Gui.addWorkbench(ClothSimulationWorkbench())" in init_gui
 assert "Gui.addWorkbench(ClothSewingWorkbench())" in init_gui
-assert 'MenuText = "Cloth Sewing"' in gui_base
+assert 'MenuText = "Cloth Sewing"' in sewing_workbench
 assert "def GetResources(self):" in gui_base
 assert '"MenuText": self.MenuText' in gui_base
 assert '"ToolTip": self.ToolTip' in gui_base
