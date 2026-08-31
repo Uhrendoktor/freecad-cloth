@@ -2,9 +2,10 @@
 
 # Qt 6 removed QPixmap.pixel(); FreeCAD CI uses the QImage implementation.
 try:
-    from PySide6 import QtGui
+    from PySide6 import QtGui, QtWidgets
 except Exception:
     QtGui = None
+    QtWidgets = None
 
 if QtGui is not None:
     QPixmap = QtGui.QPixmap
@@ -16,6 +17,24 @@ if QtGui is not None:
         except (AttributeError, TypeError):
             pass
 
+# FreeCAD 1.1 uses a separate Tasks dock. In a config-less Xvfb session the
+# Model dock is visible but Tasks is hidden. Gui.Control.showDialog() populates
+# the task view but does not necessarily make the dock visible, so expose it
+# before GUI regression scripts start. This is deliberately a CI shim rather
+# than a monkeypatch of FreeCAD extension objects.
+try:
+    import FreeCADGui as Gui
+    if QtWidgets is not None:
+        window = Gui.getMainWindow()
+        if window is not None:
+            tasks = window.findChild(QtWidgets.QDockWidget, "Tasks")
+            if tasks is not None:
+                tasks.show()
+                tasks.raise_()
+                Gui.updateGui()
+except Exception:
+    pass
+
 
 def _finish_freecad_screenshot(frame, event, arg):
     """Hard-exit only when the screenshot script's module frame returns."""
@@ -23,8 +42,6 @@ def _finish_freecad_screenshot(frame, event, arg):
         filename = frame.f_code.co_filename.replace("\\", "/")
         if (filename.endswith("/tests/freecad_screenshot.py")
                 and frame.f_code.co_name == "<module>"):
-            # The script has completed. FreeCAD's outer GUI process otherwise
-            # remains in its Qt event loop after AppRun executes the script.
             import os
             os._exit(0)
     return _finish_freecad_screenshot
