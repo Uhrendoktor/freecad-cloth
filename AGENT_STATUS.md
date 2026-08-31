@@ -9,7 +9,7 @@ Machine-readable supervisor coordination record for implementation agents.
 - Canonical CI: `.github/workflows/canonical-execution.yml`
 - CI policy: preserve the existing Docker/Xvfb GUI screenshot and PNG export path. Do not create a second workflow.
 - Current open-PR policy: every PR must be reviewed for scope, CI evidence, mergeability, and regression risk before merge.
-- Supervisor audit: PR #377 merged into `main`; duplicate PRs #373, #376, #375 and #379 were closed as superseded with explicit reasons. PR #378 was closed because it introduced workflow multiplication around the fragile screenshot path. PR #381 remains open pending a current-main recut and canonical evidence.
+- Supervisor audit: PR #377 merged into `main`; duplicate/stale PRs #373, #376, #375, #379 and #381 were closed as superseded with explicit reasons. PR #378 was closed because it introduced workflow multiplication around the fragile screenshot path. There are currently no open PRs.
 
 ## Release gates
 
@@ -42,6 +42,7 @@ Machine-readable supervisor coordination record for implementation agents.
 ### Avatar / draping
 
 - Parametric mannequin service boundary: completed in #203; staged mannequin task-panel slice merged as PR #372; #369 remains open until complete create -> edit -> rebuild -> landmark -> save/reload canonical acceptance is evidenced.
+- Arrangement-point foundation: merged as PR #385 after canonical run 1062 passed Python tests and real FreeCAD/Xvfb screenshot/PNG validation.
 - Generic FreeCAD-object drape target: #228; mannequin and arbitrary CAD targets must remain interchangeable providers behind the same target-neutral collision interface.
 - Production avatar provider/fidelity ladder is tracked by #374; do not start high-fidelity body generation until #369 and target-neutral DrapeTarget acceptance are stable.
 
@@ -87,8 +88,9 @@ Only after the end-to-end contracts are stable: higher-fidelity replaceable huma
 
 ## Supervisor audit notes — 2026-08-31
 
-- Re-checked all open PRs after the latest mainline merge. PR #381 remains the only open PR after closing stale/duplicate #375 and #379 and rejecting #378's workflow-multiplication approach. #381 is not mergeable yet and has no canonical workflow run for its exact head; do not merge until it is re-cut from current `main` and passes the canonical Python + FreeCAD/Xvfb gate.
-- PR #383 is merged and supplies the native Sketcher default authoring path for #360; its canonical run 1049 passed before merge. Do not revive #379 or #375.
+- Audited every open PR. Stale/duplicate #375 and #379 were closed because #383 already merged the same Sketcher-first implementation. #378 was closed because it introduced separate workflow files around the fragile screenshot path. #381 was closed because #385 is its current-main re-cut. No PR remains open.
+- PR #385 was created from current `main`, limited to arrangement-point persistence/UI/read-only inspection plus focused headless contracts, and passed canonical run 1062: Python/non-GUI and FreeCAD/Xvfb GUI screenshot generation/validation both completed successfully before merge.
+- PR #383 is merged and supplies the native Sketcher default authoring path for #360; its canonical run 1049 passed before merge.
 - Canonical workflow remains the sole workflow and retains the real FreeCAD/Xvfb screenshot/export path: four 1280x720 PNG states plus diagnostics. The screenshot generation/validation job is not to be weakened or replaced.
 - Merged PR #368 fixed simulation-quality tessellation by preserving authored boundary vertices and refining interiors; this remains a regression contract.
 - Merged PR #372 provides the staged mannequin GUI. #369 still requires real canonical acceptance before the avatar workstream advances.
