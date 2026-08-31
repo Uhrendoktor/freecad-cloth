@@ -22,51 +22,38 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          CUTOFF: ${{ steps.cutoff.outputs.value }}
         run: |
           set -euo pipefail
           cutoff="$(date -u -d '1 hour ago' '+%Y-%m-%dT%H:%M:%SZ')"
           echo "Deleting workflow runs and artifacts created before $cutoff"
-
-          gh api --paginate "repos/$REPO/actions/runs?per_page=100" --jq ".workflow_runs[] | select(.created_at < \"$cutoff\") | .id" |
-            while read -r id; do
-              [ -n "$id" ] || continue
-              echo "delete run $id"
-              gh api -X DELETE "repos/$REPO/actions/runs/$id" || true
-            done
-
-          gh api --paginate "repos/$REPO/actions/artifacts?per_page=100" --jq ".artifacts[] | select(.created_at < \"$cutoff\") | .id" |
-            while read -r id; do
-              [ -n "$id" ] || continue
-              echo "delete artifact $id"
-              gh api -X DELETE "repos/$REPO/actions/artifacts/$id" || true
-            done
-
+          gh api --paginate "repos/$REPO/actions/runs?per_page=100" --jq ".workflow_runs[] | select(.created_at < \"$cutoff\") | .id" | while read -r id; do
+            [ -n "$id" ] || continue
+            echo "delete run $id"
+            gh api -X DELETE "repos/$REPO/actions/runs/$id" || true
+          done
+          gh api --paginate "repos/$REPO/actions/artifacts?per_page=100" --jq ".artifacts[] | select(.created_at < \"$cutoff\") | .id" | while read -r id; do
+            [ -n "$id" ] || continue
+            echo "delete artifact $id"
+            gh api -X DELETE "repos/$REPO/actions/artifacts/$id" || true
+          done
           echo 'Deleting all Actions cache entries'
-          gh api --paginate "repos/$REPO/actions/caches?per_page=100" --jq '.actions_caches[].id' |
-            while read -r id; do
-              [ -n "$id" ] || continue
-              gh api -X DELETE "repos/$REPO/actions/caches/$id" || true
-            done
-
+          gh api --paginate "repos/$REPO/actions/caches?per_page=100" --jq '.actions_caches[].id' | while read -r id; do
+            [ -n "$id" ] || continue
+            gh api -X DELETE "repos/$REPO/actions/caches/$id" || true
+          done
           echo 'Deleting stale agent branches'
-          gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name' |
-            while read -r branch; do
-              case "$branch" in
-                agent/*)
-                  encoded="${branch//\//%2F}"
-                  echo "delete branch $branch"
-                  gh api -X DELETE "repos/$REPO/git/refs/heads/$encoded" || true
-                  ;;
-              esac
-            done
-
-          echo 'Closing the falsely claimed in-progress task #258'
+          gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name' | while read -r branch; do
+            case "$branch" in
+              agent/*)
+                encoded="${branch//\//%2F}"
+                echo "delete branch $branch"
+                gh api -X DELETE "repos/$REPO/git/refs/heads/$encoded" || true
+                ;;
+            esac
+          done
+          echo 'Closing falsely claimed task #258 and abandoned PR #354'
           gh api -X PATCH "repos/$REPO/issues/258" -f state=closed -f state_reason=not_planned >/dev/null || true
-
-          echo 'Closing the abandoned PR #354'
           gh api -X PATCH "repos/$REPO/pulls/354" -f state=closed >/dev/null || true
-
           echo 'Removing stale agent state file'
           git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" repo
           cd repo
@@ -78,7 +65,6 @@ jobs:
             git commit -m 'Remove stale agent state [skip ci]'
             git push origin HEAD:main
           fi
-
       - name: Verify cleanup state
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -88,8 +74,5 @@ jobs:
           test -z "$(gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name' | grep '^agent/' || true)"
           test "$(gh api "repos/$REPO/issues/258" --jq '.state')" = closed
           test "$(gh api "repos/$REPO/pulls/354" --jq '.state')" = closed
-          if gh api "repos/$REPO/contents/AGENT_STATUS.md" >/dev/null 2>&1; then
-            echo 'AGENT_STATUS.md still exists' >&2
-            exit 1
-          fi
+          if gh api "repos/$REPO/contents/AGENT_STATUS.md" >/dev/null 2>&1; then exit 1; fi
           echo 'Cleanup verification passed'
