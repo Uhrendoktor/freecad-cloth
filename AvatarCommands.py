@@ -1,6 +1,16 @@
 """FreeCAD-facing parametric human mannequin commands."""
 from AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose
 
+PROPERTY_MAP = {
+    "height": "Height", "neck": "Neck", "shoulder": "Shoulder",
+    "chest": "Chest", "underbust": "Underbust", "waist": "Waist",
+    "high_hip": "High_Hip", "hip": "Hip", "upper_arm": "Upper_Arm",
+    "elbow": "Elbow", "wrist": "Wrist", "thigh": "Thigh",
+    "knee": "Knee", "calf": "Calf", "ankle": "Ankle",
+    "inseam": "Inseam", "torso": "Torso", "front_waist": "Front_Waist",
+    "back_waist": "Back_Waist",
+}
+
 
 def _avatar(doc):
     return next((o for o in doc.Objects if getattr(o, "AvatarType", "") == "ClothAvatar"), None)
@@ -13,7 +23,7 @@ def _set_prop(obj, kind, name, group, value):
 
 
 def _parameters(obj):
-    values = {name: float(getattr(obj, name.title())) for name in DEFAULT_MEASUREMENTS}
+    values = {name: float(getattr(obj, PROPERTY_MAP[name])) for name in DEFAULT_MEASUREMENTS}
     return AvatarParameters(values, float(obj.SkinOffset), Pose(str(obj.PosePreset)))
 
 
@@ -72,7 +82,7 @@ def create_avatar():
     if obj is None:
         obj=doc.addObject("Part::Feature","ClothAvatar"); obj.Label="Cloth Human Mannequin"
         _set_prop(obj,"App::PropertyString","AvatarType","Avatar","ClothAvatar"); _set_prop(obj,"App::PropertyString","SchemaVersion","Avatar","1")
-        for name,value in DEFAULT_MEASUREMENTS.items(): _set_prop(obj,"App::PropertyLength",name.title(),"Measurements",value)
+        for name,value in DEFAULT_MEASUREMENTS.items(): _set_prop(obj,"App::PropertyLength",PROPERTY_MAP[name],"Measurements",value)
         _set_prop(obj,"App::PropertyLength","SkinOffset","Collision",3.0); _set_prop(obj,"App::PropertyEnumeration","PosePreset","Pose",["standing","sewing","sitting"]); obj.PosePreset="standing"
         _set_prop(obj,"App::PropertyString","AvatarStatus","Avatar","Unbuilt"); _set_prop(obj,"App::PropertyString","ParametersJSON","Avatar",""); _set_prop(obj,"App::PropertyStringList","Landmarks","Measurements",[])
         _set_prop(obj,"App::PropertyLink","CollisionProxy","Collision",None)
@@ -109,11 +119,11 @@ def set_avatar_measurements(**changes):
     doc=App.ActiveDocument
     if doc is None: raise ValueError("open a document before changing avatar measurements")
     obj=_avatar(doc) or create_avatar()
-    allowed={k.title() for k in DEFAULT_MEASUREMENTS}
+    allowed=set(DEFAULT_MEASUREMENTS)
     for name,value in changes.items():
-        prop=str(name).title()
-        if prop not in allowed: raise ValueError("unknown avatar measurement: %s"%name)
-        setattr(obj,prop,float(value))
+        key=str(name)
+        if key not in allowed: raise ValueError("unknown avatar measurement: %s"%name)
+        setattr(obj,PROPERTY_MAP[key],float(value))
     return rebuild_avatar()
 
 
