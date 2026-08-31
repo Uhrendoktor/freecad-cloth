@@ -13,6 +13,13 @@ try:
 except ImportError:
     Gui = None
 
+# Load the target contract during GUI startup so saved/reloaded simulation
+# objects have the stale-recompute guard installed before their first execute().
+try:
+    import DrapeTarget  # noqa: F401
+except ImportError:
+    pass
+
 _WorkbenchBase = Gui.Workbench if Gui is not None else object
 
 
