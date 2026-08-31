@@ -9,7 +9,7 @@ Machine-readable supervisor coordination record for implementation agents.
 - Canonical CI: `.github/workflows/canonical-execution.yml`
 - CI policy: preserve the existing Docker/Xvfb GUI screenshot and PNG export path. Do not create a second workflow.
 - Current open-PR policy: every PR must be reviewed for scope, CI evidence, mergeability, and regression risk before merge.
-- Supervisor audit: PR #366, PR #368, and PR #372 have been reviewed and merged; PR #373 is the only currently open PR and is gated on terminal-green canonical evidence.
+- Supervisor audit: PR #377 merged into `main`; duplicate PRs #373 and #376 were closed as superseded with explicit reasons. PR #375 remains draft pending current-main recut and canonical evidence. PR #378 is a narrowly scoped addition to the existing canonical workflow and is awaiting terminal-green CI before any merge decision.
 
 ## Release gates
 
@@ -21,7 +21,7 @@ Machine-readable supervisor coordination record for implementation agents.
 6. DrapeTarget is authoritative for collision selection; mannequin is one provider.
 7. Real FreeCAD/Xvfb GUI acceptance remains mandatory.
 8. GUI screenshots remain real 1280x720 PNG artifacts in canonical CI.
-9. Changes to canonical CI require an explicit release-gate review and must remain narrowly scoped.
+9. Changes to canonical CI require an explicit release-gate review and must leave screenshot generation/validation semantics intact.
 
 ## Current release queue
 
@@ -35,15 +35,15 @@ Machine-readable supervisor coordination record for implementation agents.
 ### P1 — workbench completeness
 
 - Complete M:N/free sewing UX and curved correspondence repair (#275).
-- Improve native workbench command/toolbar coverage (#344 and related UI slices).
 - Apply the UI consistency audit (#267).
-- Add production pattern authoring parity: grading, seam allowance, notches, grainline, internal marks, validation, export (#162).
+- Add production pattern authoring parity: grading, seam allowance, notches, grainline/internal marks, validation and export (#162/#360).
+- Keep the Sewing command/toolbar contract covered after merged PR #377.
 
 ### Avatar / draping
 
 - Parametric mannequin service boundary: completed in #203; staged mannequin task-panel slice merged as PR #372; #369 remains open until complete create -> edit -> rebuild -> landmark -> save/reload canonical acceptance is evidenced.
-- Production avatar provider/fidelity ladder is tracked by #374; do not start high-fidelity body generation until #369 and target-neutral DrapeTarget acceptance are stable.
 - Generic FreeCAD-object drape target: #228; mannequin and arbitrary CAD targets must remain interchangeable providers behind the same target-neutral collision interface.
+- Production avatar provider/fidelity ladder is tracked by #374; do not start high-fidelity body generation until #369 and target-neutral DrapeTarget acceptance are stable.
 
 ## Agent rules
 
@@ -55,6 +55,7 @@ Machine-readable supervisor coordination record for implementation agents.
 - Prefer native FreeCAD APIs and document dependencies over custom parallel systems.
 - Never hide a failing test or weaken an assertion to make CI green.
 - Before merge: inspect changed files, review diff, verify Python tests, verify real FreeCAD/Xvfb where relevant, then merge and verify the merge.
+- Close stale/duplicate work only with an explicit reason recorded in the PR conversation; do not silently discard implementation scope.
 
 ## Feature direction
 
@@ -82,16 +83,17 @@ Only after the end-to-end contracts are stable: higher-fidelity replaceable huma
 - Simulation task panels use a clear action hierarchy: Run primary, Step secondary/debug, Reset recovery/destructive; quality/material values are persistent and unit-aware.
 - Human mannequin and generic FreeCAD geometry are providers of the same DrapeTarget/CollisionSurface contract; solver code must not branch on mannequin identity.
 - High-fidelity avatar work must preserve provider identity, measurements, pose, collision representation and deterministic invalidation across save/reload.
+- Production construction features such as grading, plotting, topstitch, buttons/buttonholes, pleats/folds, linings/facings and modular blocks remain downstream of the authoritative Pattern/Sewing/DrapeTarget contracts.
 
 ## Supervisor audit notes — 2026-08-31
 
-- Re-checked repository PRs and issues. PR #373 is the only open PR; it is a focused Sewing registration test slice and has been left open because its exact head has no associated canonical workflow run yet. A review comment records the terminal-green evidence requirement.
-- No PR or issue was closed without a reason. No stale PR was merged.
-- Canonical workflow remains the sole workflow and retains the real FreeCAD/Xvfb screenshot/export path: four 1280x720 PNG states plus diagnostics. Do not edit that workflow casually.
+- Re-checked all open PRs and issues. PR #377 passed the canonical Python + FreeCAD/Xvfb workflow and was merged. PR #373 and #376 were duplicate/stale Sewing registration test paths and were closed as superseded by #377 with explicit reasons. PR #375 has no workflow run for its current head and remains draft. PR #378 is currently running the existing canonical workflow; no merge decision will be made while CI is in progress.
+- Canonical workflow remains the sole workflow and retains the real FreeCAD/Xvfb screenshot/export path: four 1280x720 PNG states plus diagnostics. The screenshot generation/validation job is not to be weakened or replaced.
 - Merged PR #368 fixed simulation-quality tessellation by preserving authored boundary vertices and refining interiors; this remains a regression contract.
 - Merged PR #372 provides the staged mannequin GUI. #369 still requires real canonical acceptance before the avatar workstream advances.
-- Research baseline identifies M:N sewing, staged cancellation, visible sewing direction, arrangement points, reset arrangement, superimpose, collision-target interchangeability and task-oriented tool grouping as workflow contracts rather than decorative UI features.
-- Production feature inventory includes grading, DXF-AAMA/ASTM/Standard DXF interoperability where licensing permits, fit maps, POM/measurement inspection, topstitching, pleats/folds, buttons/buttonholes/tacks, linings/facings, modular blocks and automatic sewing helpers. These remain downstream of the P0/P1 release gates.
+- Research baseline confirms that CLO-style sewing is not just pairwise edges: Segment, Free, 1:N and M:N sewing use staged selection/commit, visible direction feedback, and explicit cancellation/rejection. Arrangement, reset and superimpose are fitting operations separate from solver behavior.
+- Recent official CLO documentation also reinforces production needs: editable seam allowance behavior, notches with persistence/display rules, grading including notch grading, DXF interoperability, plotting, and modular/block sewing. These are production features, not reasons to expand the solver boundary.
+- User-requested avatar direction is locked as two interchangeable providers: a recognizably human FreeCAD-native mannequin for normal garment fitting, and a generic FreeCAD Shape/PartDesign/Body/Mesh object through the same DrapeTarget interface. High-fidelity avatar work is later.
 - `ADVANCED_TOOL_MODE.md` is not present in the repository; supervisor execution policy is retained in `TOOL_STATE.md`.
 
 ## Handoff checklist
