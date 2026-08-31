@@ -1,7 +1,7 @@
 """Static checks for the real FreeCAD GUI layer."""
 from pathlib import Path
 
-from InitGui import SEWING_COMMAND_GROUPS, ClothSewingWorkbench
+from InitGui import SEWING_COMMAND_GROUPS, SEWING_TOOLBAR_COMMANDS, ClothSewingWorkbench
 
 ROOT = Path(__file__).resolve().parents[1]
 init_gui = (ROOT / "InitGui.py").read_text()
@@ -58,7 +58,7 @@ def test_sewing_command_groups_are_unique_and_complete():
     assert tuple(groups) == ("Sewing Creation", "Sewing Editing", "Validation & View")
     commands = [command for group in groups.values() for command in group]
     assert len(commands) == len(set(commands))
-    assert set(commands) == {
+    assert commands == [
         "ClothSewing_CreateSeam",
         "ClothSewing_CreateMNSewing",
         "ClothSewing_CreateNetwork",
@@ -71,26 +71,51 @@ def test_sewing_command_groups_are_unique_and_complete():
         "ClothSewing_Validate",
         "ClothSewing_RepairSeam",
         "ClothSewing_Show2D",
-    }
+    ]
 
 
-def test_sewing_command_group_validator_rejects_missing_or_duplicate_commands():
+def test_sewing_toolbar_is_small_and_stable():
+    assert SEWING_TOOLBAR_COMMANDS == (
+        "ClothSewing_CreateSeam",
+        "ClothSewing_CreateOperation",
+        "ClothSewing_Validate",
+    )
+    grouped = {command for _group, commands in SEWING_COMMAND_GROUPS for command in commands}
+    assert set(SEWING_TOOLBAR_COMMANDS) <= grouped
+    assert len(SEWING_TOOLBAR_COMMANDS) == len(set(SEWING_TOOLBAR_COMMANDS))
+
+
+def test_sewing_registration_uses_native_nested_menu_paths_and_toolbar_subset():
+    workbench = ClothSewingWorkbench()
+    calls = []
+    workbench.appendToolbar = lambda name, commands: calls.append(("toolbar", name, list(commands)))
+    workbench.appendMenu = lambda name, commands: calls.append(("menu", name, list(commands)))
+    workbench._register_groups(SEWING_COMMAND_GROUPS, toolbar_name=workbench.MenuText, toolbar_commands=SEWING_TOOLBAR_COMMANDS)
+    assert calls[0] == ("toolbar", "Cloth Sewing", list(SEWING_TOOLBAR_COMMANDS))
+    assert calls[1:] == [
+        ("menu", ["Cloth Sewing", "Sewing Creation"], list(SEWING_COMMAND_GROUPS[0][1])),
+        ("menu", ["Cloth Sewing", "Sewing Editing"], list(SEWING_COMMAND_GROUPS[1][1])),
+        ("menu", ["Cloth Sewing", "Validation & View"], list(SEWING_COMMAND_GROUPS[2][1])),
+    ]
+
+
+def test_sewing_command_group_validator_rejects_missing_duplicate_or_extra_commands():
     expected = ["one", "two", "three"]
     from InitGui import _validate_sewing_command_groups
 
     _validate_sewing_command_groups((("A", ("one",)), ("B", ("two", "three"))), expected)
-    try:
-        _validate_sewing_command_groups((("A", ("one",)), ("B", ("two",))), expected)
-    except ValueError as exc:
-        assert "missing: three" in str(exc)
-    else:
-        raise AssertionError("missing command group entry was not rejected")
-    try:
-        _validate_sewing_command_groups((("A", ("one", "two")), ("B", ("two", "three"))), expected)
-    except ValueError as exc:
-        assert "duplicates" in str(exc)
-    else:
-        raise AssertionError("duplicate command group entry was not rejected")
+    cases = [
+        ((("A", ("one",)), ("B", ("two",))), "missing: three"),
+        ((("A", ("one", "two")), ("B", ("two", "three"))), "duplicates"),
+        ((("A", ("one",)), ("B", ("two", "three")), ("C", ("extra",))), "unexpected"),
+    ]
+    for groups, marker in cases:
+        try:
+            _validate_sewing_command_groups(groups, expected)
+        except ValueError as exc:
+            assert marker in str(exc)
+        else:
+            raise AssertionError(f"invalid command groups were accepted: {marker}")
 
 
 def test_workbench_group_registration_is_idempotent_and_keeps_flat_context_commands():
