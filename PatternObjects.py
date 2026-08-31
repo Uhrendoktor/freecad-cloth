@@ -183,7 +183,6 @@ def add_seam(doc, seam: Seam):
     obj.addProperty("App::PropertyLink", "PatternB", "Dependencies").PatternB = piece_b
     obj.addProperty("App::PropertyFloat", "StartA", "Seam").StartA = seam.start_a
     obj.addProperty("App::PropertyFloat", "EndA", "Seam").EndA = seam.end_a
-    obj.addProperty("App::PropertyFloat", "StartB", "Seam").EndB = seam.end_b
     obj.addProperty("App::PropertyFloat", "StartB", "Seam").StartB = seam.start_b
     obj.addProperty("App::PropertyFloat", "EndB", "Seam").EndB = seam.end_b
     obj.addProperty("App::PropertyBool", "ReversedB", "Seam").ReversedB = seam.reversed_b
