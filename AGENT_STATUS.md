@@ -9,7 +9,7 @@ Machine-readable supervisor coordination record for implementation agents.
 - Canonical CI: `.github/workflows/canonical-execution.yml`
 - CI policy: preserve the existing Docker/Xvfb GUI screenshot and PNG export path. Do not create a second workflow.
 - Current open-PR policy: every PR must be reviewed for scope, CI evidence, mergeability, and regression risk before merge.
-- Supervisor audit: PR #366 and PR #368 have been reviewed and merged; current open PRs must remain gated on focused review plus canonical evidence.
+- Supervisor audit: PR #366, PR #368, and PR #372 have been reviewed and merged; current open PRs must remain gated on focused review plus canonical evidence.
 
 ## Release gates
 
@@ -41,7 +41,7 @@ Machine-readable supervisor coordination record for implementation agents.
 
 ### Avatar / draping
 
-- Parametric mannequin service boundary: completed in #203; user-facing mannequin task panel and canonical acceptance continue in #369 / PR #370.
+- Parametric mannequin service boundary: completed in #203; staged mannequin task-panel slice merged as PR #372; #369 remains open until the complete create -> edit -> rebuild -> landmark -> save/reload canonical acceptance is evidenced.
 - Generic FreeCAD-object drape target: #228.
 - Keep both behind the same target-neutral collision interface.
 - Prototype the mannequin before higher-fidelity body generation; generic CAD targets should use the same collision provider boundary.
@@ -63,7 +63,7 @@ Prototype -> MVP -> Production order is documented in `docs/PRODUCTION_PLAN_2026
 
 ## Active implementation slices
 
-- **Avatar GUI:** PR #371 is the current non-draft implementation slice for #369; it now uses staged Apply & Rebuild semantics, explicit UI→FreeCAD property mapping, and focused GUI contract coverage. Canonical FreeCAD/Xvfb acceptance remains required before merge.
+- **Avatar GUI:** PR #372 is merged. Remaining #369 work is canonical end-to-end acceptance and any missing persistence/rebuild evidence; do not start high-fidelity body generation until the provider contract is locked.
 - **DrapeTarget:** #228 remains the next target-neutral fitting slice after stale-state P0s are safe.
 - **Pattern/Sewing:** active audit branches must be re-cut from current main before handoff; no stale head may be merged.
 - **Pattern Sketcher-first:** issue #360 is claimed on branch `agent/pattern-sketcher-first-20260831`; implementation is limited to making native Sketcher the default Pattern creation/edit path, with focused tests and no workflow changes.
@@ -71,8 +71,10 @@ Prototype -> MVP -> Production order is documented in `docs/PRODUCTION_PLAN_2026
 ## Supervisor audit notes — 2026-08-31
 
 - Reviewed all open PRs and merged only focused, evidenced PRs; no PR was closed without a reason.
+- PR #372 was merged after its head had successful canonical Python/FreeCAD and real Xvfb screenshot/PNG runs; the canonical workflow was not modified.
 - Closed issue #356 as completed after canonical GUI screenshot/PNG validation demonstrated the Task View bootstrap fix works.
 - Closed issue #347 automatically through merged PR #368 after Python/FreeCAD and real Xvfb GUI execution succeeded.
 - Confirmed the canonical workflow remains the sole CI workflow and retains the real FreeCAD/Xvfb screenshot/export checks.
 - Research confirms that M:N sewing, staged cancellation, arrangement points, reset arrangement, superimpose, visible sewing direction and task-oriented tool grouping should be treated as workflow contracts, not decorative UI features.
+- Additional current CLO research confirms production planning must reserve explicit contracts for grading, DXF-AAMA/ASTM/Standard DXF interoperability, fit maps, auto-sewing, POM/measurement inspection, topstitching, pleats/folds, lacing/gluing and layered construction; these remain post-P0/P1 features rather than reasons to expand the solver now.
 - Human avatar and arbitrary FreeCAD geometry remain interchangeable providers behind the target-neutral collision boundary.
