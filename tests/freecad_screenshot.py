@@ -83,7 +83,13 @@ def ensure_task_view_visible():
 
 
 def show_task(panel, name, required=()):
-    Gui.Control.showDialog(panel)
+    # A second screenshot state can reuse the same active task dialog. Calling
+    # showDialog() again while one is active raises "Active task dialog found".
+    active = Gui.Control.activeDialog()
+    if active is None:
+        Gui.Control.showDialog(panel)
+    elif active is not panel:
+        raise RuntimeError("another task dialog is already active: %s" % type(active).__name__)
     events()
     ensure_task_view_visible()
     events()
@@ -213,9 +219,6 @@ def simulation():
     add_seam(doc, Seam(str(front.PieceId), 1, str(back.PieceId), 3, id="SimFrontBack", alignment="uniform", stitch_group="MainSeam"))
     scene = create_quality_simulation_scene(doc)
     scene.ClothPieces = [front, back]
-    # create_quality_simulation_scene builds a valid default collision cache.
-    # Reassigning the garment pieces can invalidate the FreeCAD recompute state;
-    # refresh the persistent DrapeTarget before the quality proxy rebuilds.
     refresh_drape_target(scene.DrapeTarget)
     scene.QualityPreset = "Fast"
     scene.ParticleDistance = 10.0
@@ -281,10 +284,6 @@ finally:
         log(traceback.format_exc())
         exit_code = 1
 
-# FreeCAD runs command-line scripts before entering its normal Qt event loop.
-# QApplication.quit() alone therefore does not guarantee process termination.
-# Explicitly terminate the script interpreter so a successful screenshot run
-# cannot depend on the outer timeout to kill FreeCAD.
 sys.stdout.flush()
 sys.stderr.flush()
 sys.exit(exit_code)
