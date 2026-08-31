@@ -13,9 +13,17 @@ def main():
     assert avatar.AvatarType == "ClothAvatar"
     assert avatar.Shape.Volume > 0
     assert avatar.AvatarStatus == "Valid"
+    assert avatar.ArrangementPoints
+    expected_arrangement = list(avatar.ArrangementPoints)
+    arrangement_names = [str(item).split("|", 1)[0] for item in expected_arrangement]
+    assert arrangement_names == [
+        "neck", "chest", "waist", "hip",
+        "shoulder_left", "shoulder_right", "knee_left", "knee_right",
+    ]
     original_volume = avatar.Shape.Volume
     set_avatar_measurements(chest=1100)
     assert avatar.Shape.Volume != original_volume
+    assert list(avatar.ArrangementPoints) == expected_arrangement
     set_avatar_pose("sewing")
     set_avatar_skin_offset(6.0)
     assert avatar.PosePreset == "sewing"
@@ -33,6 +41,8 @@ def main():
         assert restored.PosePreset == "sewing"
         assert abs(float(restored.Chest) - 1100.0) < 1e-9
         assert abs(float(restored.SkinOffset) - 6.0) < 1e-9
+        assert list(restored.ArrangementPoints) == expected_arrangement
+        assert list(restored.Landmarks)
         App.closeDocument(reopened.Name)
     print("FreeCAD parametric avatar smoke test passed")
 
