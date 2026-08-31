@@ -203,6 +203,7 @@ def simulation():
     from PatternObjects import add_seam
     from SimulationQualityRuntimeV2 import create_quality_simulation_scene
     from SimulationQualityGui import SimulationQualityTaskPanel
+    from DrapeTarget import refresh_drape_target
 
     doc = App.newDocument("ClothSimulationVisualRegression")
     front = create_pattern_piece_from_parameters("SimFront", 140.0, 90.0, 10.0, 0.0)
@@ -212,6 +213,10 @@ def simulation():
     add_seam(doc, Seam(str(front.PieceId), 1, str(back.PieceId), 3, id="SimFrontBack", alignment="uniform", stitch_group="MainSeam"))
     scene = create_quality_simulation_scene(doc)
     scene.ClothPieces = [front, back]
+    # create_quality_simulation_scene builds a valid default collision cache.
+    # Reassigning the garment pieces can invalidate the FreeCAD recompute state;
+    # refresh the persistent DrapeTarget before the quality proxy rebuilds.
+    refresh_drape_target(scene.DrapeTarget)
     scene.QualityPreset = "Fast"
     scene.ParticleDistance = 10.0
     doc.recompute()
@@ -219,7 +224,7 @@ def simulation():
         raise RuntimeError("simulation fixture did not create avatar and garment panels")
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
     panel = SimulationQualityTaskPanel(scene)
-    show_task(panel, "Simulation Workbench arranged", ("Simulation quality", "Preset", "Fabric", "Collision", "Simulation steps", "Step", "Run 30", "Reset", "State:"))
+    show_task(panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset", "State:"))
     Gui.activeDocument().activeView().viewAxonometric(); Gui.activeDocument().activeView().fitAll(); events()
     save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "deterministic avatar and arranged garment panels with ready task state")
     for batch in (6, 6, 6, 6):
