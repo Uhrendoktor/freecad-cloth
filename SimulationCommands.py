@@ -1,6 +1,41 @@
 """Commands for the Cloth Simulation workbench."""
 
 
+def _drape_target_guard(target):
+    """Return a stale-target status that must block proxy execution."""
+    try:
+        from DrapeTarget import target_status
+        status = target_status(target)
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        return {"blocked": True, "state": "invalid", "message": "Cannot inspect drape target: %s" % exc,
+                "stale": True, "reason": "target inspection failed"}
+    blocked_states = {"stale", "unbuilt", "unassigned", "invalid", "missing"}
+    return {"blocked": status["state"] in blocked_states, **status}
+
+
+def _install_drape_target_recompute_guard():
+    """Keep document recompute safe when a persistent target becomes stale."""
+    try:
+        from SimulationObjects import SimulationProxy
+    except ImportError:
+        return
+    if getattr(SimulationProxy.execute, "_drape_target_guard", False):
+        return
+    original_execute = SimulationProxy.execute
+
+    def guarded_execute(proxy, obj):
+        target = getattr(obj, "DrapeTarget", None)
+        if target is not None:
+            status = _drape_target_guard(target)
+            if status["blocked"]:
+                obj.FiniteState = False
+                return
+        return original_execute(proxy, obj)
+
+    guarded_execute._drape_target_guard = True
+    SimulationProxy.execute = guarded_execute
+
+
 def create_simulation():
     import FreeCAD as App
     from SimulationQualityRuntimeV2 import create_quality_simulation_scene
@@ -32,11 +67,7 @@ def _find_drape_target(doc):
 def _require_drape_target_ready(doc):
     """Refuse solver advancement until the persistent collision target is current."""
     target = _find_drape_target(doc)
-    try:
-        from DrapeTarget import target_status
-        status = target_status(target)
-    except (ImportError, AttributeError, TypeError, ValueError) as exc:
-        raise RuntimeError("cannot inspect drape target: %s" % exc)
+    status = _drape_target_guard(target)
     if status["state"] != "ready":
         raise RuntimeError(status["message"])
     return target
@@ -102,15 +133,10 @@ def simulation_status():
                 "target_reason": "target missing"}
     finite = bool(getattr(scene, "FiniteState", True))
     target = _find_drape_target(doc)
-    try:
-        from DrapeTarget import target_status
-        target_info = target_status(target)
-    except (ImportError, AttributeError, TypeError, ValueError) as exc:
-        target_info = {"state": "invalid", "message": "Cannot inspect drape target: %s" % exc, "stale": True,
-                       "reason": "target inspection failed"}
+    target_info = _drape_target_guard(target)
     return {
-        "state": "ready" if finite else "invalid/non-finite",
-        "message": "Cloth Simulation ready" if finite else "Cloth Simulation has invalid/non-finite state",
+        "state": "ready" if finite and not target_info["blocked"] else "invalid/stale",
+        "message": "Cloth Simulation ready" if finite and not target_info["blocked"] else target_info["message"],
         "steps": int(getattr(scene, "Steps", 0)),
         "particles": int(getattr(scene, "ParticleCount", 0)),
         "time": float(getattr(scene, "SimulatedTime", 0.0)),
@@ -153,6 +179,7 @@ COMMANDS = [
 ]
 
 try:
+    _install_drape_target_recompute_guard()
     import FreeCADGui as Gui
     if hasattr(Gui, "addCommand"):
         Gui.addCommand("ClothSimulation_Create", _FunctionCommand(create_simulation, "Create Simulation", "Create a quality-aware cloth simulation object"))
