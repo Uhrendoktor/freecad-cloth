@@ -6,16 +6,16 @@ from ClothBackend import ClothSimulationBackend, XPBDBackend, default_backend_re
 from ClothSolver import ClothSystem
 
 
-def test_default_registry_exposes_single_reference_backend():
+def test_default_registry_exposes_single_pypbd_backend():
     registry = default_backend_registry()
-    backend = registry.create("xpbd-cpu", ClothSystem.grid(20.0, 10.0, 3, 2))
+    backend = registry.create("pypbd", ClothSystem.grid(20.0, 10.0, 3, 2))
     assert isinstance(backend, ClothSimulationBackend)
     assert isinstance(backend, XPBDBackend)
-    assert backend.name == "xpbd-cpu"
+    assert backend.name == "pypbd"
 
 
-def test_backend_drives_solver_and_reset_restores_initial_state():
-    backend = default_backend_registry().create("xpbd-cpu", ClothSystem.grid(20.0, 10.0, 3, 2))
+def test_backend_drives_pypbd_solver_and_reset_restores_initial_state():
+    backend = default_backend_registry().create("pypbd", ClothSystem.grid(20.0, 10.0, 3, 2))
     initial = backend.positions()
     backend.pin((0, 2))
     backend.step(dt=1.0 / 60.0, iterations=2, gravity=(0.0, 0.0, -9810.0))
