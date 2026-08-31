@@ -225,7 +225,23 @@ def save_window(filename, state_name, proof):
 progress("script-start")
 try:
     init_gui = os.path.join(REPO_ROOT, "InitGui.py")
-    exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
+    # Execute InitGui.py with its real module filename.  A plain exec(...,
+    # globals(), globals()) inherits this script's __file__ (tests/...), which
+    # made InitGui.py resolve resources/icons relative to /workspace/tests.
+    # FreeCAD then reported all three workbench icons missing.  Use a dedicated
+    # namespace with the correct __file__ so Path(__file__) in InitGui.py points
+    # at /workspace/InitGui.py, exactly as it does during normal workbench load.
+    init_namespace = {
+        "__name__": "InitGui",
+        "__file__": init_gui,
+        "__package__": None,
+        "__builtins__": __builtins__,
+    }
+    exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), init_namespace, init_namespace)
+    progress("init-gui-icon-dir=%s" % init_namespace.get("_ICON_DIR"))
+    icon_dir = init_namespace.get("_ICON_DIR")
+    if icon_dir is None or not os.path.isfile(os.path.join(str(icon_dir), "ClothPattern.svg")):
+        raise RuntimeError("InitGui icon directory is invalid: %s" % icon_dir)
     from PatternCommands import create_pattern_piece_from_parameters
     from PatternModel import Seam
     from PatternObjects import add_seam
@@ -336,7 +352,6 @@ def run_scenario():
         set_axon_camera()
         save_window("cloth-simulation-arranged.png", "Simulation Workbench arranged", "humanoid avatar plus two deterministic arranged garment panels at StartHeight; simulation controls and ready state")
 
-        # Advance through the real task-panel control path, logging each deterministic batch.
         for batch in (6, 6, 6, 6):
             sim_panel.step(batch)
             sim_doc.recompute()
