@@ -54,7 +54,6 @@ class SketchAuthorityProxy:
         # Keep the legacy line-sampled boundary as a derived compatibility
         # representation. Native curve identity remains in PatternIR and in
         # the Sketcher object itself.
-        import ast
         obj.DraftingBoundary = repr(points)
         obj.SewingOutline = repr(points)
         obj.SewingBoundary = ",".join(boundary.id for boundary in piece_ir.boundaries)
@@ -62,11 +61,13 @@ class SketchAuthorityProxy:
         obj.Height = max(y for _, y in points) - min(y for _, y in points)
 
         # Reuse the existing seam-allowance/Part feature implementation for
-        # compatibility consumers, then restore the authoritative mode.
+        # compatibility consumers, then retain Sketcher as the authoritative
+        # source through GeometryAuthority. GeometryMode remains a legacy
+        # Rectangle/Custom value because it is intentionally not a third
+        # geometry-authority enum.
         from PatternObjects import PatternPieceProxy
         obj.GeometryMode = "Custom"
         PatternPieceProxy().execute(obj)
-        obj.GeometryMode = "Sketch"
         obj.GeometryAuthority = "Sketcher"
 
         # With no seam allowance, expose the actual Sketcher topology instead
@@ -94,7 +95,6 @@ def attach(obj, sketch):
         obj.GeometryAuthority = ["PatternParameters", "Sketcher"]
     obj.Sketch = sketch
     obj.GeometryAuthority = "Sketcher"
-    obj.GeometryMode = "Sketch"
     obj.Proxy = SketchAuthorityProxy()
     obj.touch()
     return obj
