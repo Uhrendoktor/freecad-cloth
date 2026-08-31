@@ -1,13 +1,15 @@
-# Retry trigger: restore main screenshot test and apply authoritative FreeCAD task-dialog visibility check.
+# Repair the screenshot harness once, then remove this workflow.
 name: Repair screenshot test
 on:
   push:
     branches: [fix/freecad-screenshot-initgui-loading]
+  pull_request:
+    types: [synchronize]
 permissions:
   contents: write
 jobs:
   repair:
-    if: ${{ !contains(github.event.head_commit.message, '[screenshot-repair]') }}
+    if: ${{ !contains(github.event.head_commit.message || '', '[screenshot-repair]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,8 +37,8 @@ jobs:
           if old not in s:
               raise SystemExit('show_task source did not match main; aborting repair')
           new = '''def _panel_visible(panel):
-    # FreeCAD owns/reparents the task widget. activeDialog() is the
-    # authoritative state; QWidget.isVisible() on panel.form is not.
+    # FreeCAD owns/reparents the task widget. activeDialog() is authoritative;
+    # QWidget.isVisible() on panel.form is not reliable in headless Qt.
     try:
         active = Gui.Control.activeDialog()
         if active is not None:
@@ -53,11 +55,9 @@ jobs:
     if form is None:
         return False
     try:
-        if form.isVisible() or form.isVisibleTo(Gui.getMainWindow()):
-            return True
+        return bool(form.isVisible() or form.isVisibleTo(Gui.getMainWindow()))
     except Exception:
-        pass
-    return False
+        return False
 
 
 def show_task(panel, state_name):
