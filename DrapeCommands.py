@@ -92,6 +92,16 @@ def set_drape_target_enabled(enabled=True):
     return target
 
 
+def show_diagnostics():
+    """Open post-simulation stress/strain/fit/pressure diagnostics."""
+    import FreeCAD as App
+    from ClothDiagnosticsGui import show_diagnostics as show_panel
+    doc = App.ActiveDocument
+    if doc is None:
+        raise ValueError("create a simulation before opening diagnostics")
+    return show_panel()
+
+
 def _has_document():
     try:
         import FreeCAD as App
@@ -115,6 +125,7 @@ COMMANDS = [
     "ClothDrape_RefreshTarget",
     "ClothDrape_EnableTarget",
     "ClothDrape_DisableTarget",
+    "ClothDrape_Diagnostics",
 ]
 _HANDLERS = {
     "ClothDrape_CreateTarget": create_drape_target_from_selection,
@@ -123,6 +134,7 @@ _HANDLERS = {
     "ClothDrape_RefreshTarget": refresh_drape_target,
     "ClothDrape_EnableTarget": lambda: set_drape_target_enabled(True),
     "ClothDrape_DisableTarget": lambda: set_drape_target_enabled(False),
+    "ClothDrape_Diagnostics": show_diagnostics,
 }
 _TOOLTIPS = {
     "ClothDrape_CreateTarget": "Use the selected FreeCAD shape or mesh as the persistent drape target",
@@ -131,6 +143,7 @@ _TOOLTIPS = {
     "ClothDrape_RefreshTarget": "Rebuild collision geometry from the current drape target source",
     "ClothDrape_EnableTarget": "Enable the persistent drape target",
     "ClothDrape_DisableTarget": "Disable the persistent drape target without clearing its source",
+    "ClothDrape_Diagnostics": "Analyze simulated cloth with stress, strain, fit, and pressure maps",
 }
 
 
@@ -148,6 +161,7 @@ class _DrapeCommand:
         labels = {
             "edit_drape_target": "Edit Drape Target",
             "refresh_drape_target": "Refresh Drape Target",
+            "show_diagnostics": "Cloth Diagnostics",
         }
         label = labels.get(self.function.__name__, self.function.__name__.replace("_", " ").title())
         return {"MenuText": label, "ToolTip": self.tooltip}
