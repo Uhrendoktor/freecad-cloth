@@ -94,7 +94,7 @@ jobs:
           set -euo pipefail
           for image in docs/images/generated/*.png; do python3 -c 'import os,struct,sys; p=sys.argv[1]; d=open(p,"rb").read(24); assert d[:8]==b"\x89PNG\r\n\x1a\n"; w,h=struct.unpack(">II",d[16:24]); assert (w,h)==(1280,720); assert os.path.getsize(p)>=20000' "$image"; done
       - name: Upload GUI screenshots
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        if: ${{ success() && (github.event_name == 'push' || github.event_name == 'pull_request') }}
         uses: actions/upload-artifact@v6
         with:
           name: cloth-gui-screenshots
