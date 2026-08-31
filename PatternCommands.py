@@ -2,32 +2,7 @@
 import ast
 
 
-def create_pattern_piece_from_parameters(name, width, height, allowance, grainline):
-    import FreeCAD as App
-    from PatternModel import PatternPiece
-    from PatternObjects import add_pattern_piece
-    from PatternGeometry import rectangle
-    doc = App.ActiveDocument or App.newDocument("ClothPattern")
-    geometry = rectangle(float(width), float(height))
-    piece_id = "pattern-piece-" + str(len([o for o in doc.Objects if getattr(o, "PatternType", "") == "PatternPiece"]) + 1)
-    piece = PatternPiece(name, geometry.sampled_outline(), id=piece_id, seam_allowance=float(allowance), grainline_angle=float(grainline))
-    obj = add_pattern_piece(doc, piece)
-    obj.Width = float(width)
-    obj.Height = float(height)
-    obj.SeamAllowance = float(allowance)
-    obj.GrainlineAngle = float(grainline)
-    obj.GeometryMode = "Rectangle"
-    obj.Label = name
-    doc.recompute()
-    return obj
-
-
-def create_pattern_piece():
-    """Create a 100 x 60 mm parametric demo pattern piece."""
-    return create_pattern_piece_from_parameters("PatternPiece", 100.0, 60.0, 0.0, 0.0)
-
-
-def _create_native_sketch_for_piece(obj):
+def _ensure_native_sketch_for_piece(obj):
     """Create/link the native Sketcher representation for a PatternPiece."""
     import FreeCAD as App
     from PatternModel import PatternPiece
@@ -46,24 +21,49 @@ def _create_native_sketch_for_piece(obj):
     return create_sketch_for_piece(piece, App.ActiveDocument)
 
 
-def create_pattern_piece_with_sketch():
-    """Create a pattern piece and immediately attach its native Sketcher geometry."""
+def create_pattern_piece_from_parameters(name, width, height, allowance, grainline):
     import FreeCAD as App
-    obj = create_pattern_piece()
-    _create_native_sketch_for_piece(obj)
-    App.ActiveDocument.recompute()
+    from PatternModel import PatternPiece
+    from PatternObjects import add_pattern_piece
+    from PatternGeometry import rectangle
+    doc = App.ActiveDocument or App.newDocument("ClothPattern")
+    geometry = rectangle(float(width), float(height))
+    piece_id = "pattern-piece-" + str(len([o for o in doc.Objects if getattr(o, "PatternType", "") == "PatternPiece"]) + 1)
+    piece = PatternPiece(name, geometry.sampled_outline(), id=piece_id, seam_allowance=float(allowance), grainline_angle=float(grainline))
+    obj = add_pattern_piece(doc, piece)
+    obj.Width = float(width)
+    obj.Height = float(height)
+    obj.SeamAllowance = float(allowance)
+    obj.GrainlineAngle = float(grainline)
+    obj.GeometryMode = "Rectangle"
+    obj.Label = name
+    doc.recompute()
+    _ensure_native_sketch_for_piece(obj)
+    doc.recompute()
     return obj
 
 
+def create_pattern_piece():
+    """Create a 100 x 60 mm parametric demo pattern piece with native Sketcher geometry."""
+    return create_pattern_piece_from_parameters("PatternPiece", 100.0, 60.0, 0.0, 0.0)
+
+
+def create_pattern_piece_with_sketch():
+    """Compatibility alias for creating a PatternPiece with native Sketcher geometry."""
+    return create_pattern_piece()
+
+
 def edit_pattern_piece():
-    """Open the Pattern Piece task panel for the selected piece."""
+    """Open the selected pattern piece in the native Sketcher editor."""
     import FreeCADGui as Gui
-    selection = Gui.Selection.getSelection()
-    obj = next((o for o in selection if getattr(o, "PatternType", "") == "PatternPiece"), None)
+    obj = next((o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"), None)
     if obj is None:
         raise ValueError("select a pattern piece before editing it")
-    from PatternGui import show_pattern_piece_task
-    show_pattern_piece_task(obj)
+    sketch = getattr(obj, "Sketch", None)
+    if sketch is None or getattr(sketch, "TypeId", "") != "Sketcher::SketchObject":
+        sketch = _ensure_native_sketch_for_piece(obj)
+    Gui.activeDocument().setEdit(sketch.Name)
+    return sketch
 
 
 def create_pattern_sketch():
@@ -72,7 +72,7 @@ def create_pattern_sketch():
     obj = next((o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"), None)
     if obj is None:
         raise ValueError("select a pattern piece before creating its Sketcher representation")
-    return _create_native_sketch_for_piece(obj)
+    return _ensure_native_sketch_for_piece(obj)
 
 
 def create_pattern_piece_task():
@@ -170,8 +170,7 @@ def add_seam():
 class _FunctionCommand:
     def __init__(self, function): self.function = function
     def Activated(self): return self.function()
-    def GetResources(self):
-        return {"MenuText": self.function.__name__.replace("_", " ").title(), "ToolTip": self.function.__doc__ or "Cloth pattern command"}
+    def GetResources(self): return {"MenuText": self.function.__name__.replace("_", " ").title(), "ToolTip": self.function.__doc__ or "Cloth pattern command"}
 
 
 COMMANDS = [
