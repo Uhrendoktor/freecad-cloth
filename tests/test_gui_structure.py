@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 init_gui = (ROOT / "InitGui.py").read_text()
 pattern_gui = (ROOT / "PatternGui.py").read_text()
 sim_gui = (ROOT / "SimulationGui.py").read_text()
+quality_gui = (ROOT / "SimulationQualityGui.py").read_text()
 sewing_gui = (ROOT / "SewingGui.py").read_text()
 avatar_gui = (ROOT / "AvatarGui.py").read_text()
 commands = (ROOT / "PatternCommands.py").read_text()
@@ -31,6 +32,12 @@ assert "class PatternPieceTaskPanel" in pattern_gui
 assert "Gui.Control.showDialog(panel)" in pattern_gui
 assert "class SimulationTaskPanel" in sim_gui
 assert "Gui.Control.showDialog(panel)" in sim_gui
+assert "class SimulationQualityTaskPanel" in quality_gui
+assert '"Simulation quality"' in quality_gui
+assert '"Fabric"' in quality_gui
+assert '"Collision"' in quality_gui
+assert '"Run"' in quality_gui
+assert "show_simulation_quality_task" in quality_gui
 assert "class SewingTaskPanel" in sewing_gui
 assert "Gui.Control.showDialog(panel)" in sewing_gui
 assert "class AvatarTaskPanel" in avatar_gui
@@ -44,6 +51,9 @@ assert "ClothPattern_CreatePieceTask" in commands
 assert "ClothPattern_EditPiece" in commands
 assert "ClothPattern_Show2D" in commands
 assert "ClothSimulation_Edit" in sim_commands
+assert "ClothSimulation_Step" in sim_commands
+assert "ClothSimulation_Run" in sim_commands
+assert "ClothSimulation_Reset" in sim_commands
 assert "ClothSewing_CreateOperation" in sewing_commands
 assert "ClothSewing_EditOperation" in sewing_commands
 assert "ClothSewing_Validate" in sewing_commands
