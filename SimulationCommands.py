@@ -29,6 +29,19 @@ def _find_drape_target(doc):
                  or getattr(obj, "TargetType", None) is not None), None)
 
 
+def _require_drape_target_ready(doc):
+    """Refuse solver advancement until the persistent collision target is current."""
+    target = _find_drape_target(doc)
+    try:
+        from DrapeTarget import target_status
+        status = target_status(target)
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        raise RuntimeError("cannot inspect drape target: %s" % exc)
+    if status["state"] != "ready":
+        raise RuntimeError(status["message"])
+    return target
+
+
 def edit_simulation():
     """Open the native simulation quality controls task panel."""
     import FreeCAD as App
@@ -55,6 +68,7 @@ def _require_simulation():
 def simulate_selected(steps=None):
     """Advance the selected native simulation through its document proxy."""
     doc, scene = _require_simulation()
+    _require_drape_target_ready(doc)
     count = int(steps if steps is not None else 1)
     if count < 1:
         raise ValueError("steps must be positive")
