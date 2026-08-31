@@ -47,6 +47,14 @@ while also making the Python package importable by standard tooling.
 The package must never import FreeCAD at module import time unless it is a GUI
 entry point. `freecad_cloth.shared` is intentionally FreeCAD-independent.
 
+## Compatibility rule
+
+The package GUI base retains the historical `_register`, `_register_groups`, and
+`_normalize_commands` names as migration shims. Existing GUI tests and external
+scripts therefore keep working while registration ownership moves into the
+package. These private aliases are candidates for removal only in a later API
+migration with explicit release notes.
+
 ## Migration rule
 
 1. Introduce a package boundary.
