@@ -12,7 +12,12 @@ def _modules():
 
 
 class SimulationTaskPanel:
-    """FreeCAD task panel for solver, material, collision and run controls."""
+    """Task panel for fabric, target, solver and simulation actions.
+
+    Collision selection is deliberately target-neutral: the persistent
+    ``DrapeTarget`` object is authoritative and can reference either the Cloth
+    mannequin or arbitrary FreeCAD Shape/Mesh geometry.
+    """
     MATERIALS = {
         "Cotton": (0.35, 0.20, 0.01), "Silk": (0.12, 0.08, 0.005),
         "Denim": (0.65, 0.45, 0.02), "Wool": (0.45, 0.30, 0.015),
@@ -27,10 +32,10 @@ class SimulationTaskPanel:
 
         selection = QtWidgets.QGroupBox("Scene")
         layout = QtWidgets.QFormLayout(selection)
-        self.cloth, self.avatar = QtWidgets.QComboBox(), QtWidgets.QComboBox()
+        self.cloth, self.target = QtWidgets.QComboBox(), QtWidgets.QComboBox()
         self._populate_selection_lists()
         layout.addRow("Cloth pieces", self.cloth)
-        layout.addRow("Collision object", self.avatar)
+        layout.addRow("Drape target", self.target)
         root.addWidget(selection)
 
         material = QtWidgets.QGroupBox("Fabric")
@@ -59,13 +64,13 @@ class SimulationTaskPanel:
         layout.addRow("Gravity Z", self.gravity_z); layout.addRow("Steps", self.steps)
         root.addWidget(solver)
 
-        collision = QtWidgets.QGroupBox("Collision")
+        collision = QtWidgets.QGroupBox("Drape target collision")
         layout = QtWidgets.QFormLayout(collision)
         self.thickness = self._double_box(0.0, 100.0, 2.0, 2)
         self.deflection = self._double_box(0.01, 100.0, 1.0, 2)
         self.collision_radius = self._double_box(0.0, 10000.0, float(getattr(scene, "CollisionRadius", 38.0)), 2)
         layout.addRow("Thickness", self.thickness); layout.addRow("Mesh deflection", self.deflection)
-        layout.addRow("Sphere radius", self.collision_radius)
+        layout.addRow("Legacy sphere radius", self.collision_radius)
         root.addWidget(collision)
 
         sewing = QtWidgets.QGroupBox("Sewing & pinning")
@@ -87,8 +92,7 @@ class SimulationTaskPanel:
         self.step_button.setToolTip("Advance the simulation by one step")
         self.run_button.setToolTip("Run the simulation for 30 steps")
         self.reset_button.setToolTip("Reset simulation state while retaining selections")
-        self.run_button.setDefault(True)
-        self.run_button.setAutoDefault(True)
+        self.run_button.setDefault(True); self.run_button.setAutoDefault(True)
         controls.addWidget(self.step_button); controls.addWidget(self.run_button); controls.addWidget(self.reset_button)
         root.addLayout(controls)
 
@@ -97,7 +101,7 @@ class SimulationTaskPanel:
         self.run_button.clicked.connect(lambda: self.step(30))
         self.reset_button.clicked.connect(self.reset)
         self.cloth.currentIndexChanged.connect(self._selection_changed)
-        self.avatar.currentIndexChanged.connect(self._selection_changed)
+        self.target.currentIndexChanged.connect(self._selection_changed)
         self.pins.editingFinished.connect(self._selection_changed); self.seams.editingFinished.connect(self._selection_changed)
         for widget in (self.iterations, self.timestep, self.gravity_x, self.gravity_y, self.gravity_z, self.collision_radius):
             widget.valueChanged.connect(self._parameters_changed)
@@ -134,28 +138,36 @@ class SimulationTaskPanel:
         self._refresh_status()
 
     def _populate_selection_lists(self):
-        self.cloth.clear(); self.avatar.clear(); doc = self.App.ActiveDocument
+        self.cloth.clear(); self.target.clear(); doc = self.App.ActiveDocument
         if doc is None: return
+        targets = []
         for obj in doc.Objects:
-            if getattr(obj, "ClothMeshType", "") or getattr(obj, "PatternType", "") == "PatternPiece": self.cloth.addItem(obj.Label, obj.Name)
-            if getattr(obj, "CollisionType", ""): self.avatar.addItem(obj.Label, obj.Name)
+            if getattr(obj, "ClothMeshType", "") or getattr(obj, "PatternType", "") == "PatternPiece":
+                self.cloth.addItem(obj.Label, obj.Name)
+            if getattr(obj, "TargetType", "") in ("Mannequin", "FreeCAD Geometry") and hasattr(obj, "SourceObject"):
+                targets.append(obj)
+        for obj in targets:
+            source = getattr(obj, "SourceObject", None)
+            label = obj.Label
+            if source is not None: label = "%s — %s" % (label, getattr(source, "Label", source.Name))
+            self.target.addItem(label, obj.Name)
         if self.scene is not None:
             for obj in getattr(self.scene, "ClothPieces", ()):
                 index = self.cloth.findData(obj.Name)
                 if index >= 0: self.cloth.setCurrentIndex(index)
-            avatar = getattr(self.scene, "AvatarProxy", None)
-            if avatar is not None:
-                index = self.avatar.findData(avatar.Name)
-                if index >= 0: self.avatar.setCurrentIndex(index)
+            selected = getattr(self.scene, "DrapeTarget", None)
+            if selected is not None:
+                index = self.target.findData(selected.Name)
+                if index >= 0: self.target.setCurrentIndex(index)
 
     def _selection_changed(self):
         if self.scene is None: return
         if self.cloth.currentData():
             obj = self.scene.Document.getObject(self.cloth.currentData())
             if obj: self.scene.ClothPieces = [obj]
-        if self.avatar.currentData():
-            obj = self.scene.Document.getObject(self.avatar.currentData())
-            if obj: self.scene.AvatarProxy = obj
+        if self.target.currentData():
+            obj = self.scene.Document.getObject(self.target.currentData())
+            if obj: self.scene.DrapeTarget = obj
         self.scene.PinSelection = [p.strip() for p in self.pins.text().replace(";", ",").split(",") if p.strip()]
         self.scene.SeamSelection = [p.strip() for p in self.seams.text().replace(",", ";").split(";") if p.strip()]
         self.scene.Document.recompute(); self._refresh_status()
@@ -177,8 +189,10 @@ class SimulationTaskPanel:
 
     def _collision_changed(self):
         if self.scene is None: return
-        avatar = getattr(self.scene, "AvatarProxy", None)
-        if avatar is not None: avatar.CollisionThickness = self.thickness.value(); avatar.CollisionDeflection = self.deflection.value()
+        target = getattr(self.scene, "DrapeTarget", None)
+        if target is not None:
+            target.CollisionThickness = self.thickness.value()
+            target.CollisionDeflection = self.deflection.value()
         self.scene.Document.recompute(); self._refresh_status()
 
     def _ensure_scene(self):
@@ -199,9 +213,18 @@ class SimulationTaskPanel:
         self.steps.setValue(0); self._refresh_status("Simulation reset; selections retained.")
 
     def _refresh_status(self, message=None):
-        if self.scene is None: self.status.setText(message or "Select a simulation scene or create one with Create Simulation."); return
+        if self.scene is None:
+            self.status.setText(message or "Select a simulation scene or create one with Create Simulation.")
+            return
+        target_message = "No DrapeTarget selected"
+        try:
+            from DrapeTarget import target_status
+            status = target_status(getattr(self.scene, "DrapeTarget", None))
+            target_message = status["message"]
+        except (ImportError, AttributeError, TypeError, ValueError):
+            pass
         state = "ready" if bool(getattr(self.scene, "FiniteState", True)) else "invalid/non-finite"
-        self.status.setText(message or "State: %s | %.3f s | %d particles | %d steps" % (state, float(getattr(self.scene, "SimulatedTime", 0.0)), int(getattr(self.scene, "ParticleCount", 0)), int(getattr(self.scene, "Steps", 0))))
+        self.status.setText(message or "State: %s | Target: %s | %.3f s | %d particles | %d steps" % (state, target_message, float(getattr(self.scene, "SimulatedTime", 0.0)), int(getattr(self.scene, "ParticleCount", 0)), int(getattr(self.scene, "Steps", 0))))
 
     def accept(self): self._ensure_scene().Document.recompute(); return True
 
