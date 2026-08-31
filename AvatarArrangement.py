@@ -2,7 +2,8 @@
 
 Arrangement points are persistent fitting metadata, not solver state. They are
 stored in the mannequin's local coordinate system so normal FreeCAD Placement
-continues to own world-space positioning.
+continues to own world-space positioning. This provides the persistent fitting
+anchor foundation needed by later CLO-like garment placement interactions.
 """
 
 ARRANGEMENT_POINT_NAMES = (
