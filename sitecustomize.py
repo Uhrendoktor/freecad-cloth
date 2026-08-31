@@ -1,5 +1,7 @@
 """FreeCAD CI compatibility shims loaded before test scripts."""
 
+import sys
+
 # Qt 6 removed QPixmap.pixel(); FreeCAD CI uses the QImage implementation.
 try:
     from PySide6 import QtGui, QtWidgets, QtCore
@@ -69,5 +71,4 @@ def _finish_freecad_screenshot(frame, event, arg):
 # the file does not terminate that process, so terminate exactly when the
 # module frame returns. This avoids touching Gui.Control or Qt extension
 # objects and cannot fire merely because an individual helper function returns.
-import sys
 sys.settrace(_finish_freecad_screenshot)
