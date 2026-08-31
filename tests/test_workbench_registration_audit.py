@@ -92,6 +92,18 @@ def _initialize_method(tree, class_name):
     )
 
 
+def _module_command_union(expr):
+    """Resolve a simple ``A.COMMANDS + B.COMMANDS`` AST expression."""
+    assert isinstance(expr, ast.BinOp) and isinstance(expr.op, ast.Add)
+    modules = []
+    for operand in (expr.left, expr.right):
+        assert isinstance(operand, ast.Attribute)
+        assert operand.attr == "COMMANDS"
+        assert isinstance(operand.value, ast.Name)
+        modules.append(operand.value.id)
+    return set().union(*(_literal_commands(module) for module in modules))
+
+
 def test_sewing_menu_groups_have_stable_names_order_and_complete_commands():
     tree = _parse_initgui()
     groups = _literal_constant(tree, "SEWING_COMMAND_GROUPS")
@@ -100,19 +112,32 @@ def test_sewing_menu_groups_have_stable_names_order_and_complete_commands():
         for name, commands in EXPECTED_SEWING_GROUPS[:-1]
     )
 
-    expected = (
+    sewing_commands = (
         _literal_commands("SewingCommands")
         | _literal_commands("SewingNetworkCommands")
-        | _literal_commands("FittingCommands")
-        | _literal_commands("AvatarCommands")
     )
     grouped = set(command for _name, commands in groups for command in commands)
-    # The explicit groups are followed by the dynamically assembled fitting/
-    # avatar group in ClothSewingWorkbench.Initialize().
+    assert grouped == sewing_commands
     assert grouped.isdisjoint(
         _literal_commands("FittingCommands") | _literal_commands("AvatarCommands")
     )
-    assert grouped | _literal_commands("FittingCommands") | _literal_commands("AvatarCommands") == expected
+
+
+def test_fitting_and_avatar_form_the_final_sewing_menu_group():
+    tree = _parse_initgui()
+    initialize = _initialize_method(tree, "ClothSewingWorkbench")
+    group_append = next(
+        node for node in ast.walk(initialize)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "append"
+        and len(node.args) == 1
+        and isinstance(node.args[0], ast.Tuple)
+    )
+    group_name = ast.literal_eval(group_append.args[0].elts[0])
+    group_commands = _module_command_union(group_append.args[0].elts[1])
+    assert group_name == "Fitting & Avatar"
+    assert group_commands == _literal_commands("FittingCommands") | _literal_commands("AvatarCommands")
 
 
 def test_sewing_toolbar_is_stable_and_subset_of_registered_commands():
@@ -128,6 +153,26 @@ def test_sewing_toolbar_is_stable_and_subset_of_registered_commands():
         | _literal_commands("AvatarCommands")
     )
     assert set(toolbar) <= all_commands
+
+
+def test_sewing_registration_passes_group_and_toolbar_constants_to_freecad():
+    tree = _parse_initgui()
+    initialize = _initialize_method(tree, "ClothSewingWorkbench")
+    calls = [
+        node for node in ast.walk(initialize)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "_register_groups"
+    ]
+    assert len(calls) == 1
+    call = calls[0]
+    assert isinstance(call.args[0], ast.Name)
+    assert call.args[0].id == "groups"
+    keywords = {keyword.arg: keyword.value for keyword in call.keywords}
+    assert isinstance(keywords["toolbar_name"], ast.Attribute)
+    assert keywords["toolbar_name"].attr == "MenuText"
+    assert isinstance(keywords["toolbar_commands"], ast.Name)
+    assert keywords["toolbar_commands"].id == "SEWING_TOOLBAR_COMMANDS"
 
 
 def test_sewing_workbench_covers_all_command_modules_without_private_registration_lists():
