@@ -4,11 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 concurrency:
-  group: canonical-${{ github.event_name == 'pull_request' && github.event.action == 'closed' && format('closed-pr-{0}', github.event.pull_request.number) || github.ref }}
+  group: canonical-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -56,7 +56,6 @@ jobs:
 
   gui-screenshot:
     name: FreeCAD GUI screenshots
-    if: ${{ github.event_name != 'pull_request' || github.event.action != 'closed' || github.event.pull_request.merged == true }}
     runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 15
     steps:
@@ -119,26 +118,43 @@ jobs:
   publish-merged-pr-screenshots:
     name: Publish merged PR GUI screenshots
     needs: gui-screenshot
-    if: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true }}
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 10
     steps:
+      - name: Locate merged PR for main commit
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          number="$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '[.[] | select(.base.ref == "main" and .merged_at != null)] | .[0].number // empty')"
+          if [ -z "$number" ]; then
+            echo "No merged PR is associated with main commit $SHA; nothing to publish."
+            exit 0
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
       - name: Download canonical GUI screenshots
+        if: ${{ steps.pr.outputs.number != '' }}
         uses: actions/download-artifact@v6
         with:
           name: cloth-gui-screenshots
           path: gui-screenshots
       - name: Validate screenshot set
+        if: ${{ steps.pr.outputs.number != '' }}
         run: |
           set -euo pipefail
           for image in cloth-pattern-design.png cloth-sewing.png cloth-simulation-arranged.png cloth-simulation-draped.png; do
             test -s "gui-screenshots/$image"
           done
       - name: Publish screenshots to PR-specific branch
+        if: ${{ steps.pr.outputs.number != '' }}
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
         run: |
           set -euo pipefail
           git clone --filter=blob:none --no-checkout "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" screenshot-repo
@@ -159,10 +175,11 @@ jobs:
           git commit -m "ci: publish PR ${PR_NUMBER} GUI screenshots" || true
           git push --force origin "HEAD:$branch"
       - name: Comment merged PR with rendered screenshots
+        if: ${{ steps.pr.outputs.number != '' }}
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
           SERVER_URL: ${{ github.server_url }}
         run: |
           set -euo pipefail
