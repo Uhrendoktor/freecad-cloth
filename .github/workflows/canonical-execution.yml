@@ -173,7 +173,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          git clone --filter=blob:none --no-checkout "$GITHUB_SERVER_URL/$REPO.git" screenshot-repo
+          git clone --filter=blob:none --no-checkout "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" screenshot-repo
           cd screenshot-repo
           branch="ci/pr-${PR_NUMBER}-screenshots"
           if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
