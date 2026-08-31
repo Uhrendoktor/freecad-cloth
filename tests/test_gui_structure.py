@@ -49,6 +49,8 @@ assert "ClothSewing_EditOperation" in sewing_commands
 assert "ClothSewing_Validate" in sewing_commands
 assert "ClothFitting_CreateAvatar" in avatar_commands
 assert "ClothFitting_EditAvatar" in avatar_commands
+assert '"high_hip": "High_Hip"' in avatar_commands
+assert '"upper_arm": "Upper_Arm"' in avatar_commands
 
 
 def test_sewing_command_groups_are_unique_and_complete():
