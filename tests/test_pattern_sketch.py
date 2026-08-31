@@ -85,12 +85,12 @@ def test_one_step_pattern_piece_command_is_registered_and_creates_native_sketch(
 def test_edit_sketch_enters_native_editor_for_selected_piece():
     import PatternCommands
 
-    class Sketch:
+    class SketchObject:
         Name = "PatternSketch_front"
 
     class Piece:
         PatternType = "PatternPiece"
-        Sketch = Sketch()
+        Sketch = SketchObject()
 
     edits = []
     old_gui = sys.modules.get("FreeCADGui")
