@@ -149,3 +149,44 @@ jobs:
           path: artifacts/freecad-gui
           if-no-files-found: ignore
           compression-level: 1
+
+  comment-gui-screenshots:
+    name: Comment GUI screenshots on successful PR
+    needs: [python, gui-screenshot]
+    if: ${{ github.event_name == 'pull_request' && success() }}
+    runs-on: [self-hosted, linux, x64, docker]
+    timeout-minutes: 10
+    permissions:
+      pull-requests: write
+      actions: read
+    steps:
+      - name: Download GUI screenshots
+        uses: actions/download-artifact@v6
+        with:
+          name: cloth-gui-screenshots
+          path: gui-screenshots
+      - name: Comment PR with screenshot links
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_ID: ${{ github.run_id }}
+          SERVER_URL: ${{ github.server_url }}
+        run: |
+          set -euo pipefail
+          artifact_url="$SERVER_URL/$REPO/actions/runs/$RUN_ID"
+          body=$(cat <<EOF
+          ## Canonical GUI screenshots
+
+          Canonical FreeCAD/Xvfb GUI acceptance passed for this PR. The generated 1280x720 screenshots are attached as the \`cloth-gui-screenshots\` workflow artifact.
+
+          **Artifact:** [$artifact_url]($artifact_url)
+
+          Screenshots:
+          - \`cloth-pattern-design.png\`
+          - \`cloth-sewing.png\`
+          - \`cloth-simulation-arranged.png\`
+          - \`cloth-simulation-draped.png\`
+          EOF
+          )
+          gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$body"
