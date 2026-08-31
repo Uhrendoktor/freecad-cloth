@@ -8,9 +8,11 @@ init_gui = (ROOT / "InitGui.py").read_text()
 pattern_gui = (ROOT / "PatternGui.py").read_text()
 sim_gui = (ROOT / "SimulationGui.py").read_text()
 sewing_gui = (ROOT / "SewingGui.py").read_text()
+avatar_gui = (ROOT / "AvatarGui.py").read_text()
 commands = (ROOT / "PatternCommands.py").read_text()
 sim_commands = (ROOT / "SimulationCommands.py").read_text()
 sewing_commands = (ROOT / "SewingCommands.py").read_text()
+avatar_commands = (ROOT / "AvatarCommands.py").read_text()
 
 assert "Gui.addWorkbench(ClothPatternWorkbench())" in init_gui
 assert "Gui.addWorkbench(ClothSimulationWorkbench())" in init_gui
@@ -31,6 +33,12 @@ assert "class SimulationTaskPanel" in sim_gui
 assert "Gui.Control.showDialog(panel)" in sim_gui
 assert "class SewingTaskPanel" in sewing_gui
 assert "Gui.Control.showDialog(panel)" in sewing_gui
+assert "class AvatarTaskPanel" in avatar_gui
+assert '"Body measurements"' in avatar_gui
+assert '"Proportions"' in avatar_gui
+assert '"Pose"' in avatar_gui
+assert '"Display"' in avatar_gui
+assert "Gui.Control.showDialog(panel)" in avatar_gui
 assert "ClothPattern_CreatePieceTask" in commands
 assert "ClothPattern_EditPiece" in commands
 assert "ClothPattern_Show2D" in commands
@@ -38,6 +46,8 @@ assert "ClothSimulation_Edit" in sim_commands
 assert "ClothSewing_CreateOperation" in sewing_commands
 assert "ClothSewing_EditOperation" in sewing_commands
 assert "ClothSewing_Validate" in sewing_commands
+assert "ClothFitting_CreateAvatar" in avatar_commands
+assert "ClothFitting_EditAvatar" in avatar_commands
 
 
 def test_sewing_command_groups_are_unique_and_complete():
