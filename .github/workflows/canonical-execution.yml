@@ -4,12 +4,17 @@ on:
   push:
     branches: [main]
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, closed]
   workflow_dispatch:
 
 concurrency:
   group: canonical-${{ github.ref }}
   cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
 
 env:
   FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.3-r1
@@ -51,6 +56,7 @@ jobs:
 
   gui-screenshot:
     name: FreeCAD GUI screenshots
+    if: ${{ github.event_name != 'pull_request' || github.event.action != 'closed' || github.event.pull_request.merged == true }}
     runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 15
     steps:
@@ -94,7 +100,7 @@ jobs:
           set -euo pipefail
           for image in docs/images/generated/*.png; do python3 -c 'import os,struct,sys; p=sys.argv[1]; d=open(p,"rb").read(24); assert d[:8]==b"\x89PNG\r\n\x1a\n"; w,h=struct.unpack(">II",d[16:24]); assert (w,h)==(1280,720); assert os.path.getsize(p)>=20000' "$image"; done
       - name: Upload GUI screenshots
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        if: ${{ success() && (github.event_name == 'push' || github.event_name == 'pull_request') }}
         uses: actions/upload-artifact@v6
         with:
           name: cloth-gui-screenshots
@@ -109,3 +115,81 @@ jobs:
           path: artifacts/freecad-gui
           if-no-files-found: ignore
           compression-level: 1
+
+  publish-merged-pr-screenshots:
+    name: Publish merged PR GUI screenshots
+    needs: gui-screenshot
+    if: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true }}
+    runs-on: [self-hosted, linux, x64, docker]
+    timeout-minutes: 10
+    steps:
+      - name: Download canonical GUI screenshots
+        uses: actions/download-artifact@v6
+        with:
+          name: cloth-gui-screenshots
+          path: gui-screenshots
+      - name: Validate screenshot set
+        run: |
+          set -euo pipefail
+          for image in cloth-pattern-design.png cloth-sewing.png cloth-simulation-arranged.png cloth-simulation-draped.png; do
+            test -s "gui-screenshots/$image"
+          done
+      - name: Publish screenshots to PR-specific branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --no-checkout "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" screenshot-repo
+          cd screenshot-repo
+          branch="ci/pr-${PR_NUMBER}-screenshots"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            git fetch origin "$branch"
+            git checkout -B "$branch" "origin/$branch"
+          else
+            git checkout --orphan "$branch"
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
+          mkdir -p docs/images/generated
+          cp ../gui-screenshots/*.png docs/images/generated/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/images/generated/*.png
+          git commit -m "ci: publish PR ${PR_NUMBER} GUI screenshots" || true
+          git push --force origin "HEAD:$branch"
+      - name: Comment merged PR with rendered screenshots
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SERVER_URL: ${{ github.server_url }}
+        run: |
+          set -euo pipefail
+          branch="ci/pr-${PR_NUMBER}-screenshots"
+          raw_base="$SERVER_URL/$REPO/raw/refs/heads/$branch/docs/images/generated"
+          marker="<!-- canonical-gui-screenshots:${PR_NUMBER} -->"
+          body=$(cat <<EOF
+          $marker
+          ## Canonical GUI screenshots
+
+          The merged PR passed the canonical FreeCAD/Xvfb GUI acceptance run. The generated screenshots are rendered below.
+
+          ### Pattern design
+          ![cloth-pattern-design.png]($raw_base/cloth-pattern-design.png)
+
+          ### Sewing
+          ![cloth-sewing.png]($raw_base/cloth-sewing.png)
+
+          ### Simulation arranged
+          ![cloth-simulation-arranged.png]($raw_base/cloth-simulation-arranged.png)
+
+          ### Simulation draped
+          ![cloth-simulation-draped.png]($raw_base/cloth-simulation-draped.png)
+          EOF
+          )
+          existing="$(gh pr view "$PR_NUMBER" --repo "$REPO" --json comments --jq '.comments[].body' | grep -F "$marker" || true)"
+          if [ -n "$existing" ]; then
+            exit 0
+          fi
+          gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$body"
