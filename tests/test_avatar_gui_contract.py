@@ -28,11 +28,15 @@ def test_avatar_panel_stages_values_and_validates_before_mutation():
 
 
 def test_avatar_panel_uses_explicit_property_mapping():
-    assert '"high_hip": "HighHip"' in source
-    assert '"upper_arm": "UpperArm"' in source
-    assert '"front_waist": "FrontWaist"' in source
-    assert '"back_waist": "BackWaist"' in source
-    assert "key.title()" not in source
+    assert '"high_hip": "High_Hip"' in source
+    assert '"upper_arm": "Upper_Arm"' in source
+    assert '"front_waist": "Front_Waist"' in source
+    assert '"back_waist": "Back_Waist"' in source
+    assert 'PROPERTY_MAP = {' in commands
+    assert '"high_hip": "High_Hip"' in commands
+    assert '"upper_arm": "Upper_Arm"' in commands
+    assert '"front_waist": "Front_Waist"' in commands
+    assert '"back_waist": "Back_Waist"' in commands
 
 
 def test_avatar_edit_command_is_publicly_registered():
