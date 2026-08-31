@@ -51,10 +51,6 @@ def ensure_task_view_visible():
         task_dock.show()
         task_dock.raise_()
         events()
-        # FreeCAD 1.1 commonly restores Tasks as a tabified dock. A hidden
-        # tabified dock reports isVisible()==False even after show()/raise_().
-        # Detach it from the tab group so the screenshot always contains the
-        # real FreeCAD task view rather than a separate imitation widget.
         if not task_dock.isVisible():
             window.removeDockWidget(task_dock)
             window.addDockWidget(QtCore.Qt.RightDockWidgetArea, task_dock)
@@ -65,7 +61,6 @@ def ensure_task_view_visible():
         if task_dock.isVisible():
             return task_dock
 
-    # Older layouts can still expose Tasks as a tab in the Combo View.
     combo = window.findChild(QtWidgets.QDockWidget, "Model")
     if combo is not None:
         combo.show()
@@ -82,19 +77,10 @@ def ensure_task_view_visible():
     raise RuntimeError("FreeCAD Tasks dock/tab is unavailable or could not be made visible")
 
 
-def show_task(panel, name, required=()):
-    # A second screenshot state can reuse the same active task dialog. Calling
-    # showDialog() again while one is active raises "Active task dialog found".
-    active = Gui.Control.activeDialog()
-    if active is None:
-        Gui.Control.showDialog(panel)
-    elif active is not panel:
-        raise RuntimeError("another task dialog is already active: %s" % type(active).__name__)
+def validate_task(panel, name, required):
     events()
     ensure_task_view_visible()
     events()
-
-    # FreeCAD 1.1 can finish reparenting the Python widget one event cycle later.
     if not panel.form.isVisible():
         log("task-panel-hidden name=%s active=%s parent=%s; retrying form.show()" % (
             name, bool(Gui.Control.activeDialog()), type(panel.form.parentWidget()).__name__ if panel.form.parentWidget() else "None"))
@@ -103,13 +89,11 @@ def show_task(panel, name, required=()):
         panel.form.raise_()
         panel.form.activateWindow()
         events()
-
     visible = panel.form.isVisible() or panel.form.isVisibleTo(Gui.getMainWindow())
     log("task-panel-state name=%s isVisible=%s isVisibleToMain=%s active=%s" % (
         name, panel.form.isVisible(), panel.form.isVisibleTo(Gui.getMainWindow()), bool(Gui.Control.activeDialog())))
     if not visible:
         raise RuntimeError("task panel did not become visible: %s" % name)
-
     text = " | ".join(str(w.text() if callable(getattr(w, "text", None)) else getattr(w, "text", ""))
                       for w in [panel.form] + panel.form.findChildren(QtWidgets.QWidget)
                       if getattr(w, "text", "") or callable(getattr(w, "text", None)))
@@ -117,6 +101,17 @@ def show_task(panel, name, required=()):
     log("task-panel=%s visible=true missing=%s" % (name, ",".join(missing)))
     if missing:
         raise RuntimeError("task panel %s is missing visible text: %s" % (name, ",".join(missing)))
+
+
+def show_task(panel, name, required=(), reuse_active=False):
+    if not reuse_active:
+        # FreeCAD can restore a stale task dialog from its saved GUI state.
+        # Close that dialog before opening the deterministic test panel.
+        if Gui.Control.activeDialog():
+            Gui.Control.closeDialog()
+            events()
+        Gui.Control.showDialog(panel)
+    validate_task(panel, name, required)
 
 
 def activate(name, toolbar, commands):
@@ -236,7 +231,7 @@ def simulation():
         events()
     if int(scene.Steps) != 24 or float(scene.SimulatedTime) <= 0 or not bool(scene.FiniteState):
         raise RuntimeError("simulation did not reach a finite 24-step state")
-    show_task(panel, "Simulation Workbench draped", ("State:", "24", "particles", "Fast"))
+    show_task(panel, "Simulation Workbench draped", ("State:", "24", "particles", "Fast"), reuse_active=True)
     Gui.activeDocument().activeView().fitAll(); events()
     save("cloth-simulation-draped.png", "Simulation Workbench draped", "same scene after 24 real task-panel simulation steps")
     close_task()
