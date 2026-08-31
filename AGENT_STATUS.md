@@ -64,7 +64,7 @@ Prototype -> MVP -> Production order is documented in `docs/PRODUCTION_PLAN_2026
 ## Active implementation slices
 
 - **P0-D:** issue #347 is assigned to `Uhrendoktor`; branch `agent/347-sim-refinement-20260831` is stale by one main commit and must be re-cut before implementation continues.
-- **Avatar:** branches `agent/avatar-mannequin-20260831` and `agent/avatar-service-20260831` exist. The former is a one-commit coordination-only branch; the latter contains a useful solver-neutral `AvatarService.py` slice but is diverged from current main and must be re-cut before any PR is opened.
+- **Avatar:** `agent/avatar-mannequin-20260831` claims issue #203 and is implementing the native mannequin task-panel/editor slice on current main. `agent/avatar-service-20260831` contains a useful solver-neutral `AvatarService.py` slice but is diverged and must be re-cut before any PR is opened.
 - **Pattern/Sewing:** active audit branches must be re-cut from current main before handoff; no stale head may be merged.
 
 ## Supervisor audit notes — 2026-08-31
