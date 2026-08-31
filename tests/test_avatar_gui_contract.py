@@ -25,7 +25,7 @@ def test_avatar_panel_stages_values_and_validates_before_mutation():
     assert "AvatarParameters(values, self.skin_offset.value(), Pose(str(self.pose.currentText())))" in source
     assert "for key, property_name in self.PROPERTY_MAP.items()" in source
     assert "setattr(self.avatar, property_name, params.measurements[key])" in source
-    assert "from AvatarCommands import rebuild_avatar" in source
+    assert "from freecad_cloth.avatar.AvatarCommands import rebuild_avatar" in source
 
 
 def test_avatar_panel_uses_explicit_property_mapping():

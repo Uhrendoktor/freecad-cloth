@@ -5,8 +5,8 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from SewingCorrespondence import analyze_correspondence
-from SewingGui import repair_correspondence_settings, seam_reference_status, validate_seam_for_accept
+from freecad_cloth.sewing.SewingCorrespondence import analyze_correspondence
+from freecad_cloth.sewing.SewingGui import repair_correspondence_settings, seam_reference_status, validate_seam_for_accept
 
 
 class SewingGuiContractTests(unittest.TestCase):

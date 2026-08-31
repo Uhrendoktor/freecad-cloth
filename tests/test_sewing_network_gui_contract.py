@@ -4,7 +4,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from SewingNetworkGui import network_reference_errors, validate_network_for_edit
+from freecad_cloth.sewing.SewingNetworkGui import network_reference_errors, validate_network_for_edit
 
 
 class _Seam:

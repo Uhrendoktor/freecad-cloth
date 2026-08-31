@@ -14,6 +14,6 @@ class ClothPatternWorkbench(ClothWorkbenchBase):
     def Initialize(self):
         if self.commands:
             return
-        import PatternCommands
-        import PatternMarks
+        import freecad_cloth.pattern.PatternCommands
+        import freecad_cloth.pattern.PatternMarks
         self.register((("Pattern", PatternCommands.COMMANDS + PatternMarks.COMMANDS),))

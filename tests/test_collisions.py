@@ -1,8 +1,8 @@
 from math import sqrt
 
-from PatternGeometry import rectangle
-from PatternMesh import triangulate
-from SimulationBackend import ClothState
+from freecad_cloth.pattern.PatternGeometry import rectangle
+from freecad_cloth.pattern.PatternMesh import triangulate
+from freecad_cloth.simulation.SimulationBackend import ClothState
 from XPBD import DistanceConstraint, SphereCollider, XPBDClothSolver
 
 

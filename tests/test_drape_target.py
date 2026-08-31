@@ -1,6 +1,6 @@
 """Regression tests for the target-neutral draping contract."""
 import unittest
-from DrapeTarget import DrapeTargetSpec, source_signature, target_status
+from freecad_cloth.pattern.DrapeTarget import DrapeTargetSpec, source_signature, target_status
 
 class _Vec:
     def __init__(self,x=0.0,y=0.0,z=0.0): self.x,self.y,self.z=x,y,z

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from PatternObjects import PatternPieceProxy
+from freecad_cloth.pattern.PatternObjects import PatternPieceProxy
 
 
 class Vector:

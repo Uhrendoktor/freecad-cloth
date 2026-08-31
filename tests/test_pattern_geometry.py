@@ -1,4 +1,4 @@
-from PatternGeometry import LineSegment, ParametricPattern, rectangle, seam_allowance_outline
+from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, rectangle, seam_allowance_outline
 
 
 def test_rectangle_allowance_offsets_every_side():

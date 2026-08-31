@@ -15,13 +15,13 @@ import FreeCAD as App
 _boot_checkpoint("freecad_smoke: imported-FreeCAD")
 import Part
 _boot_checkpoint("freecad_smoke: imported-Part")
-from PatternCommands import create_pattern_piece, create_pattern_sketch
+from freecad_cloth.pattern.PatternCommands import create_pattern_piece, create_pattern_sketch
 _boot_checkpoint("freecad_smoke: imported-PatternCommands")
-from PatternOCCT import native_offset_wire
-from SimulationObjects import create_simulation_scene, reset_scene, set_avatar_collision_source, step_scene
-from AvatarCommands import create_avatar, set_avatar_measurements, set_avatar_pose, set_avatar_skin_offset
-from DrapeCommands import create_drape_target_from_selection
-from SewingGui import correspondence_report
+from freecad_cloth.pattern.PatternOCCT import native_offset_wire
+from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, reset_scene, set_avatar_collision_source, step_scene
+from freecad_cloth.avatar.AvatarCommands import create_avatar, set_avatar_measurements, set_avatar_pose, set_avatar_skin_offset
+from freecad_cloth.pattern.DrapeCommands import create_drape_target_from_selection
+from freecad_cloth.sewing.SewingGui import correspondence_report
 _boot_checkpoint("freecad_smoke: imported-all")
 _PROGRESS = Path(os.environ.get("CLOTH_SCREENSHOT_DIR", "/tmp")) / "gui-progress.log"
 def checkpoint(name):

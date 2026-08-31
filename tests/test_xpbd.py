@@ -1,10 +1,10 @@
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from PatternGeometry import rectangle
-from PatternMesh import triangulate
+from freecad_cloth.pattern.PatternGeometry import rectangle
+from freecad_cloth.pattern.PatternMesh import triangulate
 from XPBD import CapsuleCollider, DistanceConstraint, XPBDClothSolver, ShearConstraint, BendingConstraint, structural_constraints, shear_constraints, bending_constraints
-from SimulationBackend import ClothState
+from freecad_cloth.simulation.SimulationBackend import ClothState
 
 def test_structural_constraints_are_unique():
     mesh=triangulate(rectangle(100.,50.));constraints=structural_constraints(mesh);assert len(constraints)==5;assert len({(c.a,c.b) for c in constraints})==5

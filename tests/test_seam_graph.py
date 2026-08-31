@@ -4,7 +4,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
 
-from PatternModel import PatternPiece, Seam
+from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from SeamGraph import SeamGraph, Transform3D
 
 

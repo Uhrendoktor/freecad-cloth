@@ -2,10 +2,10 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from PatternModel import PatternPiece, Seam
-from PatternGeometry import LineSegment, ParametricPattern, QuadraticBezier, rectangle
-from PatternSchema import PatternDocument, dumps, loads
-from SimulationBackend import ClothState, NullSolver
+from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
+from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, QuadraticBezier, rectangle
+from freecad_cloth.pattern.PatternSchema import PatternDocument, dumps, loads
+from freecad_cloth.simulation.SimulationBackend import ClothState, NullSolver
 import PatternCommands
 import SimulationCommands
 

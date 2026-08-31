@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ClothBackend import ClothSimulationBackend, XPBDBackend, default_backend_registry
+from freecad_cloth.common.ClothBackend import ClothSimulationBackend, XPBDBackend, default_backend_registry
 from ClothSolver import ClothSystem
 
 

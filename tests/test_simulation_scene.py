@@ -1,6 +1,6 @@
-from PatternGeometry import rectangle
-from PatternMesh import triangulate
-from SimulationScene import SimulationScene
+from freecad_cloth.pattern.PatternGeometry import rectangle
+from freecad_cloth.pattern.PatternMesh import triangulate
+from freecad_cloth.simulation.SimulationScene import SimulationScene
 
 
 def test_scene_is_constructed_from_pattern_mesh():
@@ -33,7 +33,7 @@ def test_step_many_rejects_negative_steps():
 def test_stale_drape_target_recompute_guard_is_safe():
     from types import SimpleNamespace
     import SimulationStaleGuard
-    from SimulationObjects import SimulationProxy
+    from freecad_cloth.simulation.SimulationObjects import SimulationProxy
 
     source = SimpleNamespace(
         Name="Body", Label="Body",

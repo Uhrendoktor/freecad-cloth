@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from SewingView import pattern_pieces_for_2d
+from freecad_cloth.sewing.SewingView import pattern_pieces_for_2d
 
 
 def test_2d_focus_includes_only_authoritative_pattern_pieces_in_document_order():

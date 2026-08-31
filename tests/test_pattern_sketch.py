@@ -2,9 +2,9 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from PatternModel import PatternPiece
-from PatternSketch import create_sketch_for_piece
-from PatternDrafting import parse_points, serialize_points, add_point, remove_point, bounds
+from freecad_cloth.pattern.PatternModel import PatternPiece
+from freecad_cloth.pattern.PatternSketch import create_sketch_for_piece
+from freecad_cloth.pattern.PatternDrafting import parse_points, serialize_points, add_point, remove_point, bounds
 
 
 def test_pattern_sketch_module_is_headless_safe():

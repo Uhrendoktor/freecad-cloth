@@ -6,12 +6,28 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `03cd25f54bf2c7a0301329030cbc2bc4992b8942`
+- Current main: `505a0f2b64c496fa516e2a220dad4aca2464baa4`
 - Structure migration PR: #408 (merged)
-- Reversible pre-change snapshot: `backup/pre-structure-20260831` (branch; tag creation is not exposed by the available GitHub connector)
+- Python package boundary: `freecad_cloth/` with `avatar`, `pattern`, `sewing`, `simulation`, `common` subpackages
+- Root entry points: `Init.py` (marker), `InitGui.py` (FreeCAD GUI registration)
 - Canonical CI: `.github/workflows/canonical-execution.yml`
 - Open PRs: 0
 - CI policy: preserve the Docker/Xvfb FreeCAD screenshot/PNG path; never add a second workflow.
+
+## Package structure
+
+```
+freecad_cloth/
+├── avatar/        — Avatar model, collision, arrangement, fitting, commands, GUI
+├── common/        — Shared utilities (CommandAdapter, ClothDiagnostics)
+├── pattern/       — Pattern geometry, IR, mesh, objects, schema, sketch, sync, OCCT, derived geometry, commands, GUI
+├── sewing/        — Sewing graph, references, assembly, constraints, correspondence, commands, GUI, network, objects, plan, semantics, view
+├── simulation/    — Simulation backend, commands, GUI, mesh quality, objects, quality, scene, stale guard, XPBD, drake
+├── shared/        — Shared targets (collision surface, drape target reference)
+└── gui.py         — ClothWorkbenchBase shared base class
+```
+
+All root-level modules have been moved into their respective `freecad_cloth/` subpackages with updated imports. Root `Init.py` and `InitGui.py` remain as FreeCAD entry points for backwards-compatible installation directly into a Mod directory.
 
 ## Release gates
 
@@ -37,7 +53,7 @@ Prototype proves native semantic boundaries and end-to-end invalidation. MVP mak
 
 ## Structure migration
 
-The standard `pyproject.toml` package boundary under `freecad_cloth/` is now merged. Root `Init.py`/`InitGui.py` and legacy top-level modules remain intact. Package submodules own Pattern, Sewing and Simulation workbench registration. Compatibility shims remain until later migration slices are proven by canonical FreeCAD/Xvfb acceptance.
+The standard `pyproject.toml` package boundary under `freecad_cloth/` is now complete. All root-level modules have been moved into their respective subpackages (`avatar`, `pattern`, `sewing`, `simulation`, `common`) with updated imports preserved. Root `Init.py` and `InitGui.py` remain as FreeCAD entry points for backwards-compatible installation directly into a Mod directory. Package submodules own Pattern, Sewing and Simulation workbench registration. All imports have been updated to fully-qualified paths (`freecad_cloth.{package}.{module}`).
 
 ## Agent rules
 

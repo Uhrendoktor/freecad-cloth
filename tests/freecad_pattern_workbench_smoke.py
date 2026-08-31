@@ -7,8 +7,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import FreeCAD as App
 import FreeCADGui as Gui
 import InitGui
-from PatternCommands import create_pattern_piece
-from PatternGui import PatternPieceTaskPanel, PatternDraftingTaskPanel
+from freecad_cloth.pattern.PatternCommands import create_pattern_piece
+from freecad_cloth.pattern.PatternGui import PatternPieceTaskPanel, PatternDraftingTaskPanel
 
 
 def main():

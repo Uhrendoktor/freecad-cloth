@@ -4,7 +4,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 def test_repair_reversed_correspondence_only_changes_orientation():
-    from SewingGui import repair_correspondence_settings
+    from freecad_cloth.sewing.SewingGui import repair_correspondence_settings
 
     class Seam:
         ReversedB = True
@@ -18,7 +18,7 @@ def test_repair_reversed_correspondence_only_changes_orientation():
 
 
 def test_repair_invalid_range_restores_full_ranges():
-    from SewingGui import repair_correspondence_settings
+    from freecad_cloth.sewing.SewingGui import repair_correspondence_settings
 
     class Seam:
         StartA, EndA, StartB, EndB = 0.8, 0.2, 0.7, 0.1
@@ -32,7 +32,7 @@ def test_repair_invalid_range_restores_full_ranges():
 
 
 def test_repair_does_not_hide_physical_length_mismatch():
-    from SewingGui import repair_correspondence_settings
+    from freecad_cloth.sewing.SewingGui import repair_correspondence_settings
 
     class Seam:
         pass

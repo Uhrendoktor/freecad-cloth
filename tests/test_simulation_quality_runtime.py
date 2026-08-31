@@ -2,8 +2,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from SimulationQuality import FabricMaterial, preset
-from SimulationQualityRuntimeV2 import QUALITY_NAMES, apply_quality_preset, quality_discretization
+from freecad_cloth.simulation.SimulationQuality import FabricMaterial, preset
+from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QUALITY_NAMES, apply_quality_preset, quality_discretization
 
 
 def test_quality_names_and_discretization_are_materially_distinct():

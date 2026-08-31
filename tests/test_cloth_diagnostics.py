@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from ClothDiagnostics import analyze_mesh, fit_score, summarize
+from freecad_cloth.common.ClothDiagnostics import analyze_mesh, fit_score, summarize
 
 
 def _triangle(scale=1.0, z=0.0):

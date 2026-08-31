@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from SewingCommands import _MENU_TEXT, _SewingCommand, _selected_pattern_edges, repair_selected_seam
+from freecad_cloth.sewing.SewingCommands import _MENU_TEXT, _SewingCommand, _selected_pattern_edges, repair_selected_seam
 
 
 def test_sewing_command_exposes_contextual_activation():

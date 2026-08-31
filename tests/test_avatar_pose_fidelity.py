@@ -1,6 +1,6 @@
 import unittest
 
-from AvatarModel import AvatarParameters, Pose, generate_mesh
+from freecad_cloth.avatar.AvatarModel import AvatarParameters, Pose, generate_mesh
 
 
 class AvatarPoseFidelityTests(unittest.TestCase):

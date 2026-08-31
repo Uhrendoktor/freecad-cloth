@@ -2,8 +2,8 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from PatternGeometry import LineSegment, ParametricPattern, QuadraticBezier, rectangle
-from PatternDerivedGeometry import Notch, add_notches, derive_cut_boundary, notch_point
+from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, QuadraticBezier, rectangle
+from freecad_cloth.pattern.PatternDerivedGeometry import Notch, add_notches, derive_cut_boundary, notch_point
 
 
 def test_zero_allowance_preserves_sewing_boundary():

@@ -2,8 +2,8 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from PatternGeometry import rectangle
-from PatternMeshFreeCAD import _canonical_triangle_mesh
+from freecad_cloth.pattern.PatternGeometry import rectangle
+from freecad_cloth.pattern.PatternMeshFreeCAD import _canonical_triangle_mesh
 
 
 def test_native_mesh_adapter_canonicalizes_vertex_order_and_provenance():

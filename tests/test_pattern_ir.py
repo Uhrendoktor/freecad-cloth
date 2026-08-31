@@ -2,9 +2,9 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from PatternGeometry import LineSegment as GeometryLineSegment, ParametricPattern, QuadraticBezier, rectangle
-from PatternIR import PatternIR
-from PatternModel import PatternPiece, Seam
+from freecad_cloth.pattern.PatternGeometry import LineSegment as GeometryLineSegment, ParametricPattern, QuadraticBezier, rectangle
+from freecad_cloth.pattern.PatternIR import PatternIR
+from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from SeamGraph import SeamGraph
 
 

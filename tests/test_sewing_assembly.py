@@ -3,9 +3,9 @@ from pathlib import Path
 from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from PatternModel import PatternPiece, Seam
+from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from SeamGraph import SeamGraph, Transform3D
-from SewingAssembly import SewingAssembly, align_piece_to_seam, make_translation
+from freecad_cloth.sewing.SewingAssembly import SewingAssembly, align_piece_to_seam, make_translation
 
 
 def graph():

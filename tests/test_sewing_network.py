@@ -3,8 +3,8 @@ import sys
 import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from PatternModel import Seam
-from SewingNetwork import SewingMember, build_mn_seams, network_invalid_reason
+from freecad_cloth.pattern.PatternModel import Seam
+from freecad_cloth.sewing.SewingNetwork import SewingMember, build_mn_seams, network_invalid_reason
 
 
 def lengths(mapping):

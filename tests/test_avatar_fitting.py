@@ -3,10 +3,10 @@ import os
 import tempfile
 import unittest
 
-from AvatarFitting import ArrangementPoint, BodyMeasurements, BoundingVolume, FittingScene, PiecePlacement
-from AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose, generate_mesh
-from AvatarService import AvatarService
-from AvatarArrangement import ARRANGEMENT_POINT_NAMES, arrangement_point_map, arrangement_points_from_landmarks
+from freecad_cloth.avatar.AvatarFitting import ArrangementPoint, BodyMeasurements, BoundingVolume, FittingScene, PiecePlacement
+from freecad_cloth.avatar.AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose, generate_mesh
+from freecad_cloth.avatar.AvatarService import AvatarService
+from freecad_cloth.avatar.AvatarArrangement import ARRANGEMENT_POINT_NAMES, arrangement_point_map, arrangement_points_from_landmarks
 
 
 class AvatarFittingTests(unittest.TestCase):
@@ -124,7 +124,7 @@ class AvatarFittingTests(unittest.TestCase):
             import FreeCAD as App
         except ModuleNotFoundError:
             self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
-        from AvatarCommands import create_avatar, rebuild_avatar
+        from freecad_cloth.avatar.AvatarCommands import create_avatar, rebuild_avatar
 
         doc = App.newDocument("AvatarAcceptance")
         path = None

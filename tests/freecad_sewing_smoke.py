@@ -9,11 +9,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import FreeCAD as App
 import FreeCADGui as Gui
 
-from PatternCommands import create_pattern_piece_from_parameters
-from PatternModel import Seam
-from PatternObjects import add_seam
-from SewingObjects import add_sewing_operation
-from SewingGui import SewingTaskPanel
+from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_parameters
+from freecad_cloth.pattern.PatternModel import Seam
+from freecad_cloth.pattern.PatternObjects import add_seam
+from freecad_cloth.sewing.SewingObjects import add_sewing_operation
+from freecad_cloth.sewing.SewingGui import SewingTaskPanel
 
 
 def main():

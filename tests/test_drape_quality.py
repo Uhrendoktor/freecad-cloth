@@ -3,8 +3,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from ClothSolver import ClothSystem
-from DrapeQuality import assert_quality, benchmark, measure
-from DrapeTarget import DrapeTargetSpec, source_signature
+from freecad_cloth.pattern.DrapeQuality import assert_quality, benchmark, measure
+from freecad_cloth.pattern.DrapeTarget import DrapeTargetSpec, source_signature
 
 
 def test_metrics_capture_constraint_residual_and_displacement():

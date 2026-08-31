@@ -1,6 +1,6 @@
 """Regression tests for Pattern/Sewing -> Simulation source invalidation."""
 
-from SimulationObjects import _simulation_source_signature
+from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
 
 
 class _Vec:

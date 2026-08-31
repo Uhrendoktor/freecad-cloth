@@ -4,9 +4,9 @@ from unittest import TestCase
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from PatternDerivedGeometry import Notch, PatternMark, add_marks, add_notches, derive_cut_boundary
-from PatternExport import from_dxf_metadata, from_svg_metadata, to_dxf, to_svg, validate_export
-from PatternGeometry import LineSegment, ParametricPattern, QuadraticBezier
+from freecad_cloth.pattern.PatternDerivedGeometry import Notch, PatternMark, add_marks, add_notches, derive_cut_boundary
+from freecad_cloth.pattern.PatternExport import from_dxf_metadata, from_svg_metadata, to_dxf, to_svg, validate_export
+from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, QuadraticBezier
 
 
 def _curved_pattern():

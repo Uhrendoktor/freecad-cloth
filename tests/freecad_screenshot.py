@@ -158,12 +158,12 @@ def close_task():
 
 
 def pattern_and_sewing():
-    from PatternCommands import create_pattern_piece_from_parameters
-    from PatternModel import Seam
-    from PatternObjects import add_seam
-    from PatternGui import PatternPieceTaskPanel
-    from SewingCommands import create_sewing_operation
-    from SewingGui import SewingTaskPanel
+    from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_parameters
+    from freecad_cloth.pattern.PatternModel import Seam
+    from freecad_cloth.pattern.PatternObjects import add_seam
+    from freecad_cloth.pattern.PatternGui import PatternPieceTaskPanel
+    from freecad_cloth.sewing.SewingCommands import create_sewing_operation
+    from freecad_cloth.sewing.SewingGui import SewingTaskPanel
     import Part
 
     doc = App.newDocument("ClothVisualRegression")
@@ -199,12 +199,12 @@ def pattern_and_sewing():
 
 
 def simulation():
-    from PatternCommands import create_pattern_piece_from_parameters
-    from PatternModel import Seam
-    from PatternObjects import add_seam
-    from SimulationQualityRuntimeV2 import create_quality_simulation_scene
-    from SimulationQualityGui import SimulationQualityTaskPanel
-    from DrapeTarget import refresh_drape_target
+    from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_parameters
+    from freecad_cloth.pattern.PatternModel import Seam
+    from freecad_cloth.pattern.PatternObjects import add_seam
+    from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
+    from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
+    from freecad_cloth.pattern.DrapeTarget import refresh_drape_target
 
     doc = App.newDocument("ClothSimulationVisualRegression")
     front = create_pattern_piece_from_parameters("SimFront", 140.0, 90.0, 10.0, 0.0)

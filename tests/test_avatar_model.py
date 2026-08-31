@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose, generate_mesh
+from freecad_cloth.avatar.AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose, generate_mesh
 
 
 def test_default_avatar_is_valid_and_deterministic():

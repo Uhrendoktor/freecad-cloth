@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from PatternTopologyRepair import (
+from freecad_cloth.pattern.PatternTopologyRepair import (
     InvalidRepairTarget,
     TopologyRepairError,
     build_repair_plan,

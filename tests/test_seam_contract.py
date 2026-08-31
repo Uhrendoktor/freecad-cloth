@@ -5,10 +5,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
 
-from PatternModel import PatternPiece, Seam
+from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from SeamGraph import SeamGraph
-from SewingAssembly import SewingPair
-from SewingSemantics import SeamConstraint
+from freecad_cloth.sewing.SewingAssembly import SewingPair
+from freecad_cloth.sewing.SewingSemantics import SeamConstraint
 
 
 def graph():

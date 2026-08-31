@@ -3,10 +3,10 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from PatternGeometry import rectangle
-from PatternMeshFreeCAD import mesh_from_pattern
-from PatternModel import Seam
-from SewingConstraints import build_sewing_constraints
+from freecad_cloth.pattern.PatternGeometry import rectangle
+from freecad_cloth.pattern.PatternMeshFreeCAD import mesh_from_pattern
+from freecad_cloth.pattern.PatternModel import Seam
+from freecad_cloth.sewing.SewingConstraints import build_sewing_constraints
 
 
 def main():

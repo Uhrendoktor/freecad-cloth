@@ -2,10 +2,10 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from PatternGeometry import LineSegment, ParametricPattern, rectangle
-from PatternMesh import triangulate
-from PatternModel import Seam
-from SewingConstraints import build_sewing_constraints
+from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, rectangle
+from freecad_cloth.pattern.PatternMesh import triangulate
+from freecad_cloth.pattern.PatternModel import Seam
+from freecad_cloth.sewing.SewingConstraints import build_sewing_constraints
 
 
 def test_rectangle_mesh_area_and_topology():

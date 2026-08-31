@@ -1,5 +1,5 @@
-from PatternModel import PatternPiece, Seam
-from SewingPlan import connected_components, validate_sewing_plan
+from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
+from freecad_cloth.sewing.SewingPlan import connected_components, validate_sewing_plan
 
 
 def pieces():

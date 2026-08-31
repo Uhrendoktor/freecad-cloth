@@ -2,14 +2,14 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from SewingObjects import (
+from freecad_cloth.sewing.SewingObjects import (
     SewingOperationProxy,
     _edge_length,
     _seam_correspondence,
     _seam_length,
     _outline_points,
 )
-from SimulationObjects import _sample_boundary
+from freecad_cloth.simulation.SimulationObjects import _sample_boundary
 
 
 def _install_fake_freecad():

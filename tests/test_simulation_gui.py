@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from SimulationGui import SimulationTaskPanel
+from freecad_cloth.simulation.SimulationGui import SimulationTaskPanel
 
 
 def test_simulation_task_panel_is_headless_importable():

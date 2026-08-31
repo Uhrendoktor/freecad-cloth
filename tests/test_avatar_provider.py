@@ -1,8 +1,8 @@
 import unittest
 from types import SimpleNamespace
 
-from AvatarModel import AvatarParameters
-from AvatarProvider import (
+from freecad_cloth.avatar.AvatarModel import AvatarParameters
+from freecad_cloth.avatar.AvatarProvider import (
     AvatarProviderInfo,
     FreeCADGeometryAvatarProvider,
     ParametricAvatarProvider,

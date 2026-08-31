@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from PatternObjects import _edge_records, _resolve_document_edge
+from freecad_cloth.pattern.PatternObjects import _edge_records, _resolve_document_edge
 from SeamReference import ChangedEdgeReference, MissingEdgeReference, capture_edge_reference
 
 

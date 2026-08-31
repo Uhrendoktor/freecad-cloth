@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from CommandAdapter import FunctionCommand, register_commands
+from freecad_cloth.common.CommandAdapter import FunctionCommand, register_commands
 
 
 def test_function_command_uses_callable_metadata_and_returns_result():

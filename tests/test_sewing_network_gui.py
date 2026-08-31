@@ -8,7 +8,7 @@ def test_sewing_network_gui_contract_is_headless_importable():
     assert hasattr(SewingNetworkGui, "show_sewing_network_task")
 
 def test_network_task_panel_uses_transactional_editor_contract():
-    from SewingNetworkGui import SewingNetworkTaskPanel
+    from freecad_cloth.sewing.SewingNetworkGui import SewingNetworkTaskPanel
     assert SewingNetworkTaskPanel._TRANSACTION_NAME == "Edit Sewing Network"
     assert hasattr(SewingNetworkTaskPanel, "_begin_transaction")
     assert hasattr(SewingNetworkTaskPanel, "_commit_transaction")
@@ -16,7 +16,7 @@ def test_network_task_panel_uses_transactional_editor_contract():
     assert hasattr(SewingNetworkTaskPanel, "_restore_original")
 
 def test_network_task_panel_restores_all_persisted_member_settings():
-    from SewingNetworkGui import SewingNetworkTaskPanel
+    from freecad_cloth.sewing.SewingNetworkGui import SewingNetworkTaskPanel
     class Seam:
         def __init__(self):
             self.StartA = 0.2; self.EndA = 0.8; self.StartB = 0.1; self.EndB = 0.9
@@ -31,7 +31,7 @@ def test_network_task_panel_restores_all_persisted_member_settings():
     assert seam.ReversedB is False
 
 def test_network_task_panel_commit_is_one_document_transaction():
-    from SewingNetworkGui import SewingNetworkTaskPanel
+    from freecad_cloth.sewing.SewingNetworkGui import SewingNetworkTaskPanel
     class Doc:
         def __init__(self): self.calls = []
         def openTransaction(self, name): self.calls.append(("open", name))
@@ -44,7 +44,7 @@ def test_network_task_panel_commit_is_one_document_transaction():
     assert App.ActiveDocument.calls == [("open", "Edit Sewing Network"), ("commit",)]
 
 def test_network_task_panel_cancel_aborts_transaction_and_refreshes_warning():
-    from SewingNetworkGui import SewingNetworkTaskPanel
+    from freecad_cloth.sewing.SewingNetworkGui import SewingNetworkTaskPanel
     class Doc:
         def __init__(self): self.calls = []
         def abortTransaction(self): self.calls.append(("abort",))
@@ -63,7 +63,7 @@ def test_network_task_panel_cancel_aborts_transaction_and_refreshes_warning():
     assert panel.warning.text == ""
 
 def test_network_task_panel_invalid_recompute_restores_and_aborts():
-    from SewingNetworkGui import SewingNetworkTaskPanel
+    from freecad_cloth.sewing.SewingNetworkGui import SewingNetworkTaskPanel
     class Seam:
         SeamId = "s1"; Status = "Valid"; StartA = 0.2; EndA = 0.8; StartB = 0.1; EndB = 0.9; Alignment = "uniform"; ReversedB = True
     class Network:
@@ -100,7 +100,7 @@ def test_network_task_panel_invalid_recompute_restores_and_aborts():
     assert panel._transaction_active is False
 
 def test_network_task_panel_update_refreshes_invalid_reference_warning():
-    from SewingNetworkGui import SewingNetworkTaskPanel
+    from freecad_cloth.sewing.SewingNetworkGui import SewingNetworkTaskPanel
     class Seam: SeamId = "s2"; Status = "Missing reference"
     class Network:
         Seams = (Seam(),); Status = "Invalid"; SegmentCount = 0; LengthDifference = 0.0
@@ -118,7 +118,7 @@ def test_sewing_network_commands_expose_free_sewing_and_editor():
     assert "ClothSewing_CreateNetwork" in SewingNetworkCommands.COMMANDS
 
 def test_valid_network_has_no_reference_errors():
-    from SewingNetworkGui import network_reference_errors, validate_network_for_edit
+    from freecad_cloth.sewing.SewingNetworkGui import network_reference_errors, validate_network_for_edit
     class Seam:
         def __init__(self, seam_id, status="Valid"): self.SeamId=seam_id; self.Status=status
     class Network:
@@ -126,7 +126,7 @@ def test_valid_network_has_no_reference_errors():
     network=Network([Seam("s1"),Seam("s2")]); assert network_reference_errors(network)==(); assert validate_network_for_edit(network) is True
 
 def test_invalid_reference_is_reported_with_seam_identity():
-    from SewingNetworkGui import network_reference_errors, validate_network_for_edit
+    from freecad_cloth.sewing.SewingNetworkGui import network_reference_errors, validate_network_for_edit
     class Seam:
         def __init__(self, seam_id, status="Valid"): self.SeamId=seam_id; self.Status=status
     class Network:
@@ -137,7 +137,7 @@ def test_invalid_reference_is_reported_with_seam_identity():
     else: raise AssertionError("invalid reference was silently accepted")
 
 def test_missing_reference_is_reported_without_silent_edit():
-    from SewingNetworkGui import validate_network_for_edit
+    from freecad_cloth.sewing.SewingNetworkGui import validate_network_for_edit
     class Seam: SeamId="s-missing"; Status="Missing reference"
     class Network: Seams=(Seam(),)
     try: validate_network_for_edit(Network())
@@ -145,7 +145,7 @@ def test_missing_reference_is_reported_without_silent_edit():
     else: raise AssertionError("missing reference was silently accepted")
 
 def test_curved_correspondence_reports_reversal_and_mismatch():
-    from SewingGui import correspondence_report
+    from freecad_cloth.sewing.SewingGui import correspondence_report
     class Seam:
         StartA=0.0; EndA=1.0; StartB=0.0; EndB=1.0; ReversedB=True
     report=correspondence_report(Seam(),120.0,121.0,0.05)
@@ -155,7 +155,7 @@ def test_curved_correspondence_reports_reversal_and_mismatch():
     assert mismatch.status=="length_mismatch" and not mismatch.valid
 
 def test_curved_correspondence_rejects_invalid_range():
-    from SewingGui import correspondence_report
+    from freecad_cloth.sewing.SewingGui import correspondence_report
     class Seam:
         StartA=0.8; EndA=0.2; StartB=0.0; EndB=1.0; ReversedB=False
     report=correspondence_report(Seam(),100.0,100.0,0.05)

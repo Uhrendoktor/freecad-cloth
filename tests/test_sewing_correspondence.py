@@ -5,7 +5,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from SewingCorrespondence import (
+from freecad_cloth.sewing.SewingCorrespondence import (
     STATUS_INVALID_RANGE,
     STATUS_LENGTH_MISMATCH,
     STATUS_REVERSED,

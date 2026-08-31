@@ -70,8 +70,8 @@ def close_panel():
 
 
 def make_piece(doc, name, points, piece_id):
-    from PatternModel import PatternPiece
-    from PatternObjects import add_pattern_piece
+    from freecad_cloth.pattern.PatternModel import PatternPiece
+    from freecad_cloth.pattern.PatternObjects import add_pattern_piece
     piece = PatternPiece(name, list(points), id=piece_id, seam_allowance=10.0, grainline_angle=0.0)
     return add_pattern_piece(doc, piece)
 
@@ -96,9 +96,9 @@ def create_native_sketch(piece):
 
 
 def run():
-    from PatternGui import PatternDraftingTaskPanel
-    from SewingGui import SewingTaskPanel
-    from SimulationQualityGui import SimulationQualityTaskPanel
+    from freecad_cloth.pattern.PatternGui import PatternDraftingTaskPanel
+    from freecad_cloth.sewing.SewingGui import SewingTaskPanel
+    from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
     doc = App.newDocument("CanonicalClothE2E")
     path = None
     try:

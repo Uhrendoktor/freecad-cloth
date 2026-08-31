@@ -2,12 +2,12 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from PatternGeometry import LineSegment, ParametricPattern, QuadraticBezier, rectangle
-from PatternExport import from_dxf_metadata, to_dxf, to_svg
-from PatternDerivedGeometry import Notch, PatternMark, add_marks, add_notches, derive_cut_boundary, notch_point
-from SewingSemantics import SeamConstraint, validate_seam_graph
-from SewingObjects import _edge_length, _edge_points
-from AvatarCollision import AvatarSpec, CollisionSurface, surface_from_triangles
+from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, QuadraticBezier, rectangle
+from freecad_cloth.pattern.PatternExport import from_dxf_metadata, to_dxf, to_svg
+from freecad_cloth.pattern.PatternDerivedGeometry import Notch, PatternMark, add_marks, add_notches, derive_cut_boundary, notch_point
+from freecad_cloth.sewing.SewingSemantics import SeamConstraint, validate_seam_graph
+from freecad_cloth.sewing.SewingObjects import _edge_length, _edge_points
+from freecad_cloth.avatar.AvatarCollision import AvatarSpec, CollisionSurface, surface_from_triangles
 from ClothSolver import ClothSystem, Particle
 from fixtures.garment_fixtures import two_piece_rectangle, mirrored_pair, multi_piece
 

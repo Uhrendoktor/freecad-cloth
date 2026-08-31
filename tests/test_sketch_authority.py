@@ -2,8 +2,8 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from PatternModel import PatternPiece
-from PatternIR import PatternIR
+from freecad_cloth.pattern.PatternModel import PatternPiece
+from freecad_cloth.pattern.PatternIR import PatternIR
 from SeamGraph import SeamGraph
 
 

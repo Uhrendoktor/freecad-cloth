@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 from ClothSolver import ClothSystem
-from DrapeQuality import benchmark
+from freecad_cloth.pattern.DrapeQuality import benchmark
 
 result = benchmark(lambda: ClothSystem.grid(30, 15, nx=4, ny=3), steps=30, iterations=8, repeats=2, gravity=(0, 0, -98.1))
 out = Path("artifacts/drape-benchmark.json")
