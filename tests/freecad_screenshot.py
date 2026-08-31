@@ -81,7 +81,16 @@ def _panel_visible(panel):
     return False
 
 def show_task(panel, state_name):
+    try:
+        Gui.Control.showTaskView()
+    except Exception:
+        pass
+    Gui.updateGui()
     Gui.Control.showDialog(panel)
+    try:
+        Gui.Control.showTaskView()
+    except Exception:
+        pass
     Gui.updateGui()
     form = getattr(panel, "form", None)
     if form is not None:
@@ -128,12 +137,10 @@ def require_panel(panel, state_name, required):
         raise RuntimeError("task panel %s is missing visible text: %s" % (state_name, ",".join(missing)))
 
 def set_top_camera():
-    view = Gui.activeDocument().activeView()
-    view.viewTop(); view.fitAll(); Gui.updateGui(); QtWidgets.QApplication.processEvents(); progress("camera=top fitAll=true")
+    view = Gui.activeDocument().activeView(); view.viewTop(); view.fitAll(); Gui.updateGui(); QtWidgets.QApplication.processEvents(); progress("camera=top fitAll=true")
 
 def set_axon_camera():
-    view = Gui.activeDocument().activeView()
-    view.viewAxonometric(); view.fitAll(); Gui.updateGui(); QtWidgets.QApplication.processEvents(); progress("camera=axonometric fitAll=true")
+    view = Gui.activeDocument().activeView(); view.viewAxonometric(); view.fitAll(); Gui.updateGui(); QtWidgets.QApplication.processEvents(); progress("camera=axonometric fitAll=true")
 
 def add_line_feature(doc, name, segments, width=4.0):
     import Part
@@ -143,41 +150,34 @@ def add_line_feature(doc, name, segments, width=4.0):
 
 def add_pattern_markers(doc, front, back):
     import FreeCAD as FC
-    front_x = float(front.Placement.Base.x); back_x = float(back.Placement.Base.x); y = 45.0; markers = []
+    front_x = float(front.Placement.Base.x); back_x = float(back.Placement.Base.x); markers = []
     for name, x in (("Front notch marker", front_x + 70.0), ("Back notch marker", back_x + 70.0)):
-        markers.append(add_line_feature(doc, name, [(FC.Vector(x - 5, 90, 0.8), FC.Vector(x, 84, 0.8)), (FC.Vector(x, 84, 0.8), FC.Vector(x + 5, 90, 0.8))]))
-    markers.append(add_line_feature(doc, "Front grainline marker", [(FC.Vector(front_x + 70, 12, 0.8), FC.Vector(front_x + 70, 78, 0.8)), (FC.Vector(front_x + 70, 78, 0.8), FC.Vector(front_x + 66, 70, 0.8)), (FC.Vector(front_x + 70, 78, 0.8), FC.Vector(front_x + 74, 70, 0.8))]))
-    for marker in markers: marker.ViewObject.LineColor = (0.85, 0.15, 0.15)
+        markers.append(add_line_feature(doc, name, [(FC.Vector(x - 5, 90, .8), FC.Vector(x, 84, .8)), (FC.Vector(x, 84, .8), FC.Vector(x + 5, 90, .8))]))
+    markers.append(add_line_feature(doc, "Front grainline marker", [(FC.Vector(front_x + 70, 12, .8), FC.Vector(front_x + 70, 78, .8)), (FC.Vector(front_x + 70, 78, .8), FC.Vector(front_x + 66, 70, .8)), (FC.Vector(front_x + 70, 78, .8), FC.Vector(front_x + 74, 70, .8))]))
     progress("pattern-markers=notches+grainline count=%s" % len(markers)); return markers
 
 def add_sewing_arrows(doc, front, back):
     import FreeCAD as FC
-    y = 45.0; arrows = []
-    for name, x0, x1 in (("Sew direction A", front.Placement.Base.x + 140.0, front.Placement.Base.x + 128.0), ("Sew direction B", back.Placement.Base.x, back.Placement.Base.x + 12.0)):
-        head = FC.Vector(x0, y, 0.9); tail = FC.Vector(x1, y, 0.9); left = FC.Vector(x0 - (3 if x0 < x1 else -3), y + 4, 0.9); right = FC.Vector(x0 - (3 if x0 < x1 else -3), y - 4, 0.9)
+    arrows = []
+    for name, x0, x1 in (("Sew direction A", front.Placement.Base.x + 140, front.Placement.Base.x + 128), ("Sew direction B", back.Placement.Base.x, back.Placement.Base.x + 12)):
+        head = FC.Vector(x0, 45, .9); tail = FC.Vector(x1, 45, .9); left = FC.Vector(x0 - (3 if x0 < x1 else -3), 49, .9); right = FC.Vector(x0 - (3 if x0 < x1 else -3), 41, .9)
         arrows.append(add_line_feature(doc, name, [(tail, head), (head, left), (head, right)]))
-    progress("sewing-direction-arrows=count=%s" % len(arrows)); return arrows
+    return arrows
 
 def image_is_useful(path, state_name):
     if not os.path.isfile(path): raise RuntimeError("screenshot does not exist: %s" % path)
-    file_size = os.path.getsize(path)
-    if file_size < 20000: raise RuntimeError("screenshot is suspiciously small: %s (%d bytes)" % (path, file_size))
+    if os.path.getsize(path) < 20000: raise RuntimeError("screenshot is suspiciously small: %s" % path)
     image = Gui.getMainWindow().grab()
-    if image.isNull() or image.width() < 1000 or image.height() < 600: raise RuntimeError("captured window is blank/partial for %s: %sx%s" % (state_name, image.width(), image.height()))
-    samples = set()
-    for y in range(0, image.height(), max(1, image.height() // 24)):
-        for x in range(0, image.width(), max(1, image.width() // 32)): samples.add(int(image.pixel(x, y)))
-    if len(samples) < 80: raise RuntimeError("screenshot is visually uniform for %s (%d sampled colors)" % (state_name, len(samples)))
-    progress("image-validation=%s path=%s bytes=%d size=%sx%s sampled_colors=%d" % (state_name, path, file_size, image.width(), image.height(), len(samples)))
+    if image.isNull() or image.width() < 1000 or image.height() < 600: raise RuntimeError("captured window is blank/partial for %s" % state_name)
+    samples = {int(image.pixel(x, y)) for y in range(0, image.height(), max(1, image.height() // 24)) for x in range(0, image.width(), max(1, image.width() // 32))}
+    if len(samples) < 80: raise RuntimeError("screenshot is visually uniform for %s" % state_name)
 
 def save_window(filename, state_name, proof):
     Gui.updateGui(); QtWidgets.QApplication.processEvents(); window = Gui.getMainWindow()
     if window is None: raise RuntimeError("FreeCAD main window is unavailable")
     window.show(); window.raise_(); window.activateWindow(); window.resize(1280, 720); QtWidgets.QApplication.processEvents()
     image = window.grab(); path = os.path.join(OUT, filename)
-    if image.isNull(): raise RuntimeError("FreeCAD main-window grab returned an empty image")
-    if not image.save(path): raise RuntimeError("failed to save full-window screenshot: %s" % path)
-    progress("screenshot=%s state=%s scope=main-window size=%sx%s toolbars=%s docks=%s" % (path, state_name, image.width(), image.height(), ",".join(toolbars()), ",".join(docks())))
+    if image.isNull() or not image.save(path): raise RuntimeError("failed to save screenshot: %s" % path)
     image_is_useful(path, state_name)
     with open(MANIFEST, "a", encoding="utf-8") as handle: handle.write("%s\t%s\t%s\n" % (filename, state_name, proof))
 
@@ -205,19 +205,16 @@ def run_scenario():
         if window is not None:
             window.show(); window.raise_(); window.activateWindow(); window.resize(1280, 720); Gui.updateGui(); progress("main-window=%sx%s" % (window.width(), window.height()))
         doc = App.newDocument("ClothVisualRegression")
-        front = create_pattern_piece_from_parameters("Front", 140.0, 90.0, 10.0, 0.0)
-        back = create_pattern_piece_from_parameters("Back", 140.0, 90.0, 10.0, 0.0)
-        front.Placement.Base.x = -160.0; back.Placement.Base.x = 20.0
-        markers = add_pattern_markers(doc, front, back); doc.recompute()
+        front = create_pattern_piece_from_parameters("Front", 140.0, 90.0, 10.0, 0.0); back = create_pattern_piece_from_parameters("Back", 140.0, 90.0, 10.0, 0.0)
+        front.Placement.Base.x = -160.0; back.Placement.Base.x = 20.0; add_pattern_markers(doc, front, back); doc.recompute()
         if front.Shape.isNull() or back.Shape.isNull(): raise RuntimeError("pattern fixture produced empty geometry")
         activate_workbench("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D"])
-        pattern_panel = PatternPieceTaskPanel(front); show_task(pattern_panel, "Pattern Workbench")
-        require_panel(pattern_panel, "Pattern Workbench", ["Piece name", "Width", "Height", "Seam allowance", "Grainline angle"])
+        pattern_panel = PatternPieceTaskPanel(front); show_task(pattern_panel, "Pattern Workbench"); require_panel(pattern_panel, "Pattern Workbench", ["Piece name", "Width", "Height", "Seam allowance", "Grainline angle"])
         if pattern_panel.width.value() != 140.0 or pattern_panel.height.value() != 90.0 or pattern_panel.allowance.value() != 10.0: raise RuntimeError("pattern task panel does not expose deterministic dimensions/allowance")
         Gui.Selection.clearSelection(); Gui.Selection.addSelection(front); set_top_camera(); save_window("cloth-pattern-design.png", "Pattern Workbench", "two 140x90 mm pieces; native 10 mm seam allowance; task-panel dimensions/allowance; notch and grainline markers"); Gui.Control.closeDialog()
         seam = add_seam(doc, Seam(str(front.PieceId), 1, str(back.PieceId), 3, id="FrontBack", alignment="uniform", stitch_group="MainSeam")); doc.recompute()
         if str(seam.Status) != "Valid" or seam.Shape.isNull(): raise RuntimeError("seam visualization is not valid/non-empty")
-        Gui.Selection.clearSelection(); Gui.Selection.addSelection(seam); sewing = create_sewing_operation(); doc.recompute(); arrows = add_sewing_arrows(doc, front, back)
+        Gui.Selection.clearSelection(); Gui.Selection.addSelection(seam); sewing = create_sewing_operation(); doc.recompute(); add_sewing_arrows(doc, front, back)
         if str(sewing.Status) != "Valid" or sewing.Shape.isNull() or int(sewing.StitchCount) < 2: raise RuntimeError("sewing operation did not produce valid seam diagnostics")
         progress("sewing-created status=%s stitches=%s length_a=%.2f length_b=%.2f difference=%.2f" % (sewing.Status, sewing.StitchCount, sewing.LengthA, sewing.LengthB, sewing.LengthDifference))
         activate_workbench("ClothSewingWorkbench", "Cloth Sewing", ["ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_Validate"])
@@ -236,8 +233,7 @@ def run_scenario():
         if not scene.DrapePanels or any(getattr(panel.Mesh, "CountFacets", 0) < 20 for panel in scene.DrapePanels): raise RuntimeError("simulation fixture has no useful arranged garment meshes")
         progress("simulation-arranged-ready target=%s avatar=%s particles=%s panels=%s" % (scene.DrapeTarget.Label, scene.AvatarProxy.Label, scene.ParticleCount, len(scene.DrapePanels)))
         activate_workbench("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
-        sim_panel = SimulationQualityTaskPanel(scene); show_task(sim_panel, "Simulation Workbench arranged")
-        require_panel(sim_panel, "Simulation Workbench arranged", ["Simulation quality", "Preset", "Fabric", "Collision", "Simulation steps", "Step", "Run 30", "Reset", "State:"])
+        sim_panel = SimulationQualityTaskPanel(scene); show_task(sim_panel, "Simulation Workbench arranged"); require_panel(sim_panel, "Simulation Workbench arranged", ["Simulation quality", "Preset", "Fabric", "Collision", "Simulation steps", "Step", "Run 30", "Reset", "State:"])
         set_axon_camera(); save_window("cloth-simulation-arranged.png", "Simulation Workbench arranged", "humanoid avatar plus two deterministic arranged garment panels at StartHeight; simulation controls and ready state")
         for batch in (6, 6, 6, 6):
             sim_panel.step(batch); sim_doc.recompute(); progress("simulation-step batch=%d total=%d time=%.4f particles=%d finite=%s" % (batch, scene.Steps, scene.SimulatedTime, scene.ParticleCount, scene.FiniteState))
