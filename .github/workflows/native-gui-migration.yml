@@ -9,13 +9,11 @@ permissions:
 
 jobs:
   migrate:
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: [self-hosted, linux, x64]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
       - name: Replace Docker GUI job with native FreeCAD execution
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -29,7 +27,7 @@ jobs:
           native = r'''
   gui-screenshot:
     name: FreeCAD GUI screenshot (native runner)
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: [self-hosted, linux, x64]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
@@ -46,9 +44,7 @@ jobs:
             curl -L --fail --retry 4 --retry-delay 2 -o "$APP" "https://github.com/FreeCAD/FreeCAD/releases/download/${FREECAD_VERSION}/FreeCAD_${FREECAD_VERSION}-Linux-x86_64-py311.AppImage"
             chmod +x "$APP"
           fi
-          echo "$APP" > "$RUNNER_TEMP/freecad-appimage"
           echo "FREECAD_APPIMAGE=$APP" >> "$GITHUB_ENV"
-          echo "$(cat "$RUNNER_TEMP/freecad-appimage")"
           echo "${FREECAD_APPIMAGE_SHA256}  $APP" | sha256sum -c -
       - name: Start native X server
         run: |
@@ -59,7 +55,7 @@ jobs:
           Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >"$RUNNER_TEMP/xvfb.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/xvfb.pid"
           sleep 2
-          if ! kill -0 "$(cat "$RUNNER_TEMP/xvfb.pid")" 2>/dev/null; then cat "$RUNNER_TEMP/xvfb.log"; exit 1; fi
+          kill -0 "$(cat "$RUNNER_TEMP/xvfb.pid")"
       - name: Run GUI screenshot natively
         env:
           DISPLAY: :99
