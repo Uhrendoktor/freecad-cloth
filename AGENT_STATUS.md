@@ -9,6 +9,7 @@ Machine-readable supervisor coordination record for implementation agents.
 - Canonical CI: `.github/workflows/canonical-execution.yml`
 - CI policy: preserve the existing Docker/Xvfb GUI screenshot and PNG export path. Do not create a second workflow.
 - Current open-PR policy: every PR must be reviewed for scope, CI evidence, mergeability, and regression risk before merge.
+- Supervisor audit: no open PRs remain after the 2026-08-31 review; PR #366 was merged after its focused registration-contract review.
 
 ## Release gates
 
@@ -43,6 +44,7 @@ Machine-readable supervisor coordination record for implementation agents.
 - Parametric human mannequin: #203.
 - Generic FreeCAD-object drape target: #228.
 - Keep both behind the same target-neutral collision interface.
+- Prototype the mannequin before higher-fidelity body generation; generic CAD targets should use the same collision provider boundary.
 
 ## Agent rules
 
@@ -57,10 +59,18 @@ Machine-readable supervisor coordination record for implementation agents.
 
 ## Current feature direction
 
-Prototype -> MVP -> Production order is documented in `docs/PRODUCTION_PLAN_2026.md`.
+Prototype -> MVP -> Production order is documented in `docs/PRODUCTION_PLAN_2026.md` and the detailed sewing/draping research in `docs/SEWING_WORKFLOW_RESEARCH.md`.
 
-## Active agent slice
+## Active implementation slices
 
-- **2026-08-31:** `agent/workbench-registration-20260831` claimed issue #344.
-- Scope: strengthen native Pattern/Sewing/Simulation workbench registration regression coverage, specifically Sewing menu group order/completeness and stable toolbar membership.
-- Constraints: no workflow changes; no command implementation changes.
+- **P0-D:** issue #347 is assigned to `Uhrendoktor`; branch `agent/347-sim-refinement-20260831` is stale by one main commit and must be re-cut before implementation continues.
+- **Avatar:** branches `agent/avatar-mannequin-20260831` and `agent/avatar-service-20260831` exist. The former is a one-commit coordination-only branch; the latter contains a useful solver-neutral `AvatarService.py` slice but is diverged from current main and must be re-cut before any PR is opened.
+- **Pattern/Sewing:** active audit branches must be re-cut from current main before handoff; no stale head may be merged.
+
+## Supervisor audit notes — 2026-08-31
+
+- Reviewed all open PRs: none remain.
+- Reviewed current open issue queue, with P0 release gates prioritized over feature expansion.
+- Confirmed the canonical workflow remains the sole CI workflow and retains the real FreeCAD/Xvfb screenshot/export checks.
+- Research confirms that M:N sewing, staged cancellation, arrangement points, reset arrangement, superimpose, visible sewing direction and task-oriented tool grouping should be treated as workflow contracts, not decorative UI features.
+- Human avatar and arbitrary FreeCAD geometry must remain interchangeable providers behind the target-neutral collision boundary.
