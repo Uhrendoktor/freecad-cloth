@@ -6,7 +6,7 @@ Machine-readable supervisor/release record. Keep this file compact; durable guid
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `152712048f3d8ecea1e5414b92d33fa236223e7e`
+- Current main: `f82373cd105737d27ffeaf91ad01b08afc9827a1`
 - Canonical CI: `.github/workflows/canonical-execution.yml`
 - Open PRs: `0`
 - CI policy: preserve the Docker/Xvfb FreeCAD screenshot/PNG path; never add a second workflow.
@@ -19,9 +19,9 @@ Machine-readable supervisor/release record. Keep this file compact; durable guid
 - P0: simulation quality/material lifecycle — #145.
 - P1: sewing completion — #275.
 - P1: pattern production parity — #162, #360.
-- Later: production avatar fidelity #374; diagnostics/manufacturing #362; optional solver benchmark #148.
+- Later: production avatar fidelity #374; diagnostics/manufacturing #362; optional solver benchmark #148; P2 backend evaluation #404.
 
-Closed this pass: #322 (duplicate of #289), #289 (completed by #397). Recent merged slices include native mannequin acceptance #369, generic FreeCAD-object DrapeTarget #389, arrangement #385, native Sketcher-first authoring #383, and command-side stale-target gating #393.
+Closed this pass: #401 (not planned: stale solver migration regressed collision coverage and altered canonical CI); #322 (duplicate of #289); #289 (completed by #397). Recent merged slices include native mannequin acceptance #369, generic FreeCAD-object DrapeTarget #389, arrangement #385, native Sketcher-first authoring #383, and command-side stale-target gating #393.
 
 ## Architecture / UX
 
