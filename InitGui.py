@@ -156,10 +156,6 @@ SEWING_COMMAND_GROUPS = (
     ),
 )
 
-# Keep the Sewing toolbar deliberately small. FreeCAD's GUI builds command
-# actions/widgets synchronously while switching workbenches; putting the full
-# sewing/fitting command surface on the toolbar can stall that transition.
-# The complete command set is still exposed by the grouped menus/context menu.
 SEWING_TOOLBAR_COMMANDS = (
     "ClothSewing_CreateSeam",
     "ClothSewing_CreateOperation",
@@ -208,6 +204,10 @@ class ClothSewingWorkbench(_ClothWorkbench):
 
 if Gui is not None:
     Gui.addIconPath(str(_ICON_DIR))
-    Gui.addWorkbench(ClothPatternWorkbench())
-    Gui.addWorkbench(ClothSimulationWorkbench())
-    Gui.addWorkbench(ClothSewingWorkbench())
+    registered = Gui.listWorkbenches()
+    if "ClothPatternWorkbench" not in registered:
+        Gui.addWorkbench(ClothPatternWorkbench())
+    if "ClothSimulationWorkbench" not in registered:
+        Gui.addWorkbench(ClothSimulationWorkbench())
+    if "ClothSewingWorkbench" not in registered:
+        Gui.addWorkbench(ClothSewingWorkbench())
