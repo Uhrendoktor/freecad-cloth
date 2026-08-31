@@ -1,4 +1,5 @@
 import unittest
+from types import SimpleNamespace
 
 from AvatarModel import AvatarParameters
 from AvatarProvider import (
@@ -21,6 +22,11 @@ class _Shape:
 
     def hashCode(self):
         return 42
+
+    def tessellate(self, _deflection):
+        vertices = tuple(SimpleNamespace(x=x, y=y, z=z) for x, y, z in (
+            (0, 0, 0), (10, 0, 0), (0, 10, 0)))
+        return vertices, ((0, 1, 2),)
 
 
 class AvatarProviderTests(unittest.TestCase):
