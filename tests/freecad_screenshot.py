@@ -75,7 +75,15 @@ def _panel_visible(panel):
             if active is panel or (form is not None and active_form is form):
                 task_view = Gui.Control.taskPanel()
                 tabs = Gui.Control.tabPanel()
-                if task_view is None or task_view.isVisible() or (tabs is not None and tabs.isVisible()):
+                window = Gui.getMainWindow()
+                tasks_dock = window.findChild(QtWidgets.QDockWidget, "Tasks") if window is not None else None
+                if tasks_dock is not None and not tasks_dock.isVisible():
+                    tasks_dock.show()
+                    tasks_dock.raise_()
+                    Gui.updateGui()
+                if (task_view is None or task_view.isVisible()
+                        or (tabs is not None and tabs.isVisible())
+                        or (tasks_dock is not None and tasks_dock.isVisible())):
                     return True
     except Exception:
         pass
