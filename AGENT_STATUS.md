@@ -40,9 +40,9 @@ Machine-readable supervisor coordination record for implementation agents.
 
 ### Avatar / draping
 
-- Native mannequin acceptance: #369.
-- Generic FreeCAD-object DrapeTarget: #228 is implemented through merged PR #389; canonical run 1078 passed.
-- Production avatar fidelity ladder: #374; defer until #369 and target-neutral acceptance are stable.
+- Native mannequin acceptance #369: completed.
+- Generic FreeCAD-object DrapeTarget #228: completed through merged PR #389; canonical run 1078 passed.
+- Production avatar fidelity #374: defer until stale-target safety and the complete end-to-end target contract are stable.
 
 ### Production diagnostics
 
@@ -109,10 +109,11 @@ Every implementation issue should state: authoritative data model/API; files all
 - Coordination issue #333 was closed as `completed` after the audit queue reached zero, with an explicit closing comment.
 - PR #391 added the current supervisor audit/release-state documentation and was merged documentation-only; it did not change canonical CI.
 - PR #389 added the native DrapeTarget task panel/public Edit/Refresh commands for #228; canonical run 1078 passed Python and real FreeCAD/Xvfb screenshot validation.
+- Issue #369 is completed; the mannequin target contract and canonical acceptance slice are on main.
 - PR #386 merged mannequin acceptance assertions after canonical run 1065.
 - PR #385 merged arrangement-point foundation after canonical run 1062.
 - PR #383 merged the native Sketcher-first authoring path after canonical run 1049.
-- Canonical workflow remains the sole workflow and retains four real 1280x720 PNG states plus diagnostics.
+- Canonical workflow remains the sole workflow and retains four real 1280x720 PNG states plus diagnostics; its file hash remains unchanged at `90502f96c174ee2f30d09ce2fa92b3070d178751`.
 - Research baseline: CLO-style sewing is staged/transactional across Segment, Free, 1:N and M:N; arrangement, reset and superimpose are fitting operations separate from solver behavior. Production priorities include seam allowance, notches, grading, DXF/plot output, fit maps and manufacturing validation.
 - User-requested avatar direction remains two interchangeable providers: a recognizably human FreeCAD-native mannequin and generic FreeCAD Shape/PartDesign/Body/Mesh through the same DrapeTarget interface.
 - `ADVANCED_TOOL_MODE.md` is not present in `Uhrendoktor/GPT-ToolsAndStorage`; current persistent tooling policy is recorded in `TOOL_STATE.md`.
