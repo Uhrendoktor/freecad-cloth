@@ -4,6 +4,7 @@ import unittest
 from AvatarFitting import ArrangementPoint, BodyMeasurements, BoundingVolume, FittingScene, PiecePlacement
 from AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose, generate_mesh
 from AvatarService import AvatarService
+from AvatarArrangement import ARRANGEMENT_POINT_NAMES, arrangement_point_map, arrangement_points_from_landmarks
 
 
 class AvatarFittingTests(unittest.TestCase):
@@ -95,6 +96,26 @@ class AvatarFittingTests(unittest.TestCase):
 
     def test_invalid_mannequin_measurements_are_rejected(self):
         with self.assertRaises(ValueError): AvatarParameters().with_measurements(underbust=1200, chest=1000)
+
+    def test_avatar_arrangement_points_are_stable_and_landmark_backed(self):
+        landmarks = [
+            "knee_right|55,0,400", "unknown|0,0,0", "waist|0,0,900",
+            "shoulder_left|-210,0,1050", "neck|0,0,1150", "malformed",
+            "hip|0,0,700", "shoulder_right|210,0,1050", "chest|0,0,980",
+            "knee_left|-55,0,400",
+        ]
+        points = arrangement_points_from_landmarks(landmarks)
+        self.assertEqual([record.split("|", 1)[0] for record in points], list(ARRANGEMENT_POINT_NAMES))
+        self.assertEqual(arrangement_point_map(points)["shoulder_left"], "-210,0,1050")
+        self.assertEqual(arrangement_point_map(points)["knee_right"], "55,0,400")
+
+    def test_avatar_arrangement_points_ignore_unknown_and_malformed_records(self):
+        self.assertEqual(arrangement_points_from_landmarks(["unknown|1,2,3", "bad"]), [])
+        self.assertEqual(arrangement_point_map(["unknown|1,2,3", "bad"]), {})
+
+    def test_avatar_arrangement_points_replace_duplicate_with_last_value(self):
+        points = arrangement_points_from_landmarks(["waist|0,0,900", "waist|0,0,905", "neck|0,0,1150"])
+        self.assertEqual(points, ["neck|0,0,1150", "waist|0,0,905"])
 
 
 if __name__ == "__main__": unittest.main()

@@ -1,5 +1,6 @@
 """FreeCAD-facing parametric human mannequin commands."""
 from AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose
+from AvatarArrangement import arrangement_points_from_landmarks
 
 PROPERTY_MAP = {
     "height": "Height", "neck": "Neck", "shoulder": "Shoulder",
@@ -55,6 +56,8 @@ def _rebuild(obj):
         for part in (_limb((sx,0,arm_z),(ex,abduct,ez),arm_radius),_limb((ex,abduct,ez),(wx,abduct,wz),forearm_radius),Part.makeSphere(wrist_radius*1.25,App.Vector(wx,abduct,wz)),Part.makeSphere(arm_radius*1.1,App.Vector(sx,0,arm_z))): shape=shape.fuse(part)
     obj.Shape=shape; obj.ParametersJSON=p.to_json(); obj.AvatarStatus="Valid"
     obj.Landmarks=["neck|0,0,%.3f"%neck_z,"chest|0,0,%.3f"%chest_z,"waist|0,0,%.3f"%waist_z,"hip|0,0,%.3f"%pelvis_z,"shoulder_left|%.3f,0,%.3f"%(-shoulder_half,arm_z),"shoulder_right|%.3f,0,%.3f"%(shoulder_half,arm_z),"knee_left|%.3f,0,%.3f"%(-leg_x,knee_z),"knee_right|%.3f,0,%.3f"%(leg_x,knee_z)]
+    _set_prop(obj, "App::PropertyStringList", "ArrangementPoints", "Fitting", [])
+    obj.ArrangementPoints = arrangement_points_from_landmarks(obj.Landmarks)
     obj.Document.recompute()
     return obj
 
@@ -85,6 +88,7 @@ def create_avatar():
         for name,value in DEFAULT_MEASUREMENTS.items(): _set_prop(obj,"App::PropertyLength",PROPERTY_MAP[name],"Measurements",value)
         _set_prop(obj,"App::PropertyLength","SkinOffset","Collision",3.0); _set_prop(obj,"App::PropertyEnumeration","PosePreset","Pose",["standing","sewing","sitting"]); obj.PosePreset="standing"
         _set_prop(obj,"App::PropertyString","AvatarStatus","Avatar","Unbuilt"); _set_prop(obj,"App::PropertyString","ParametersJSON","Avatar",""); _set_prop(obj,"App::PropertyStringList","Landmarks","Measurements",[])
+        _set_prop(obj,"App::PropertyStringList","ArrangementPoints","Fitting",[])
         _set_prop(obj,"App::PropertyLink","CollisionProxy","Collision",None)
     _rebuild(obj)
     collision = _ensure_collision(obj)
@@ -146,6 +150,16 @@ def avatar_measurement(name):
     doc=App.ActiveDocument
     if doc is None or _avatar(doc) is None: raise ValueError("create a Cloth Avatar first")
     return _parameters(_avatar(doc)).measurement(str(name))
+
+
+def avatar_arrangement_points():
+    """Return persisted local fitting points for the active mannequin."""
+    import FreeCAD as App
+    doc = App.ActiveDocument
+    if doc is None or _avatar(doc) is None:
+        raise ValueError("create a Cloth Avatar first")
+    return arrangement_points_from_landmarks(_avatar(doc).Landmarks)
+
 
 COMMANDS=["ClothFitting_CreateAvatar","ClothFitting_EditAvatar","ClothFitting_RebuildAvatar","ClothFitting_SetAvatarMeasurements","ClothFitting_SetAvatarPose","ClothFitting_SetAvatarSkinOffset"]
 _HANDLERS={"ClothFitting_CreateAvatar":create_avatar,"ClothFitting_EditAvatar":edit_avatar,"ClothFitting_RebuildAvatar":rebuild_avatar,"ClothFitting_SetAvatarMeasurements":lambda:set_avatar_measurements(height=1750,chest=980,waist=820,hip=1020),"ClothFitting_SetAvatarPose":lambda:set_avatar_pose("sewing"),"ClothFitting_SetAvatarSkinOffset":lambda:set_avatar_skin_offset(5.0)}
