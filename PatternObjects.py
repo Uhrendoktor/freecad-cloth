@@ -118,7 +118,7 @@ def add_pattern_piece(doc, piece: PatternPiece):
     obj.addProperty("App::PropertyLength", "Height", "Parameters").Height = height
     obj.addProperty("App::PropertyLength", "SeamAllowance", "Cloth").SeamAllowance = piece.seam_allowance
     obj.addProperty("App::PropertyAngle", "GrainlineAngle", "Cloth").GrainlineAngle = piece.grainline_angle
-    obj.addProperty("App::PropertyEnumeration", "GeometryMode", "Cloth").GeometryMode = ["Rectangle", "Custom"]
+    obj.addProperty("App::PropertyEnumeration", "GeometryMode", "Cloth").GeometryMode = ["Rectangle", "Custom", "Sketch"]
     obj.GeometryMode = "Rectangle" if _is_rectangle(piece.outline, width, height) else "Custom"
     obj.addProperty("App::PropertyString", "DraftingBoundary", "Cloth").DraftingBoundary = repr(piece.outline)
     obj.addProperty("App::PropertyString", "SewingBoundary", "Cloth")
