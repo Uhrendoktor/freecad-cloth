@@ -21,6 +21,9 @@ class Particle:
     px: float = 0.0
     py: float = 0.0
     pz: float = 0.0
+    vx: float = 0.0
+    vy: float = 0.0
+    vz: float = 0.0
 
     def position(self):
         return (self.x, self.y, self.z)
@@ -81,13 +84,9 @@ class ClothSystem:
                     constraints.append(DistanceConstraint(idx(i + 1, j), idx(i, j + 1), distance(particles[idx(i + 1, j)], particles[idx(i, j + 1)])))
         return cls(particles, constraints)
 
-    def _make_solver(self, gravity):
+    def _make_solver(self, gravity, iterations):
         constraints = [PBDDistanceConstraint(c.a, c.b, c.rest, c.compliance) for c in self.constraints + self.stitches]
-        self._solver = XPBDClothSolver(
-            constraints=constraints,
-            gravity=gravity,
-            pinned=self.pins.keys(),
-        )
+        self._solver = XPBDClothSolver(constraints=constraints, gravity=gravity, iterations=iterations, pinned=self.pins.keys())
 
     def step(self, dt=1.0 / 60.0, iterations=8, gravity=(0.0, 0.0, -9810.0), sphere=None, surface=None):
         if dt <= 0 or iterations < 1:
@@ -95,16 +94,17 @@ class ClothSystem:
         if sphere is not None or surface is not None:
             raise NotImplementedError("use the pyPBD mesh collision scene for collision targets")
         if self._solver is None or self._solver.iterations != int(iterations) or tuple(self._solver.gravity) != tuple(gravity):
-            self._make_solver(gravity)
-            self._solver.iterations = int(iterations)
+            self._make_solver(gravity, int(iterations))
         state = ClothState(
             positions=[p.position() for p in self.particles],
-            velocities=[(0.0, 0.0, 0.0) for _ in self.particles],
+            velocities=[(p.vx, p.vy, p.vz) for p in self.particles],
             inverse_masses=[p.inv_mass for p in self.particles],
         )
         self._solver.step(state, dt)
         for index, particle in enumerate(self.particles):
+            particle.px, particle.py, particle.pz = particle.x, particle.y, particle.z
             particle.x, particle.y, particle.z = state.positions[index]
+            particle.vx, particle.vy, particle.vz = state.velocities[index]
             if state.inverse_masses[index] == 0.0 or index in self.pins:
                 particle.inv_mass = 0.0
         self.time += dt
