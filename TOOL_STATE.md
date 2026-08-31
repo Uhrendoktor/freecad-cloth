@@ -1,16 +1,17 @@
 # Tool State
 
 ```yaml
-schema: 4
+schema: 5
 repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_task: cloth-sewing-workbench-roadmap-replan-v2
-current_main: cbe6b4ceeaa6af49df7c9e9067e4af6caca1ae11
+current_main: 152712048f3d8ecea1e5414b92d33fa236223e7e
 open_prs: []
-active_release_gates: [322, 289, 284, 155, 278, 298, 297, 145]
+active_release_gates: [155, 278, 284, 298, 297, 145]
 queued_release_gates: [275, 162, 360]
 non_blocking: [148]
+closed_this_pass: [322, 289]
 
 workflow_contract:
   workflow_count: 1
@@ -25,12 +26,14 @@ workflow_contract:
   policy: preserve_existing_Docker_Xvfb_PNG_path; no_second_workflow
 
 latest_verified_ci:
-  run_id: 33411023425
-  commit: 301a0b79fd8c97502a7282f286ea7d42288cbdc0
+  run_id: 33413104880
+  run_number: 1101
+  commit: 0335360e3fbf24750df931ed159bf17f7e0c5488
   status: completed
+  conclusion: success
   python_job: success
   gui_job: success
-  note: PR 393 passed Python/non-GUI and real FreeCAD/Xvfb screenshot/PNG validation; current main also contains the later documentation/simulation-UI commits, so run those changes through canonical CI before claiming a new green state.
+  note: PR 397 passed Python/non-GUI and real FreeCAD/Xvfb screenshot/PNG validation before merge. Main merge commit is 152712048f3d8ecea1e5414b92d33fa236223e7e.
 
 policy:
   - inspect_open_prs_and_issues_before_changes
@@ -42,6 +45,6 @@ policy:
   - recut_branches_from_current_main
 
 current_focus:
-  docs: consolidated_into_docs_README_ARCHITECTURE_ROADMAP_RESEARCH_DEVELOPMENT
-  next_p0: stale_DrapeTarget_document_recompute_guard
+  docs: consolidated_into_six_canonical_docs
+  next_p0: canonical_DrapeTarget_acceptance_and_end_to_end_garment_fixture
 ```

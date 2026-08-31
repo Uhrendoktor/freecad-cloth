@@ -6,22 +6,22 @@ Machine-readable supervisor/release record. Keep this file compact; durable guid
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main at audit start: `cbe6b4ceeaa6af49df7c9e9067e4af6caca1ae11`
+- Current main: `152712048f3d8ecea1e5414b92d33fa236223e7e`
 - Canonical CI: `.github/workflows/canonical-execution.yml`
-- Open PRs at latest audit: `0`
+- Open PRs: `0`
 - CI policy: preserve the Docker/Xvfb FreeCAD screenshot/PNG path; never add a second workflow.
 
 ## Release gates
 
-- P0: stale DrapeTarget safety — #322, #289, #284.
 - P0: canonical end-to-end garment fixture — #155, #278.
+- P0: DrapeTarget-authoritative acceptance — #284.
 - P0: native Sketcher acceptance/topology repair — #298, #297.
 - P0: simulation quality/material lifecycle — #145.
 - P1: sewing completion — #275.
 - P1: pattern production parity — #162, #360.
 - Later: production avatar fidelity #374; diagnostics/manufacturing #362; optional solver benchmark #148.
 
-Completed recent slices include native mannequin acceptance (#369), generic FreeCAD-object DrapeTarget (#228, merged #389), arrangement foundation (#385), native Sketcher-first authoring (#383), and command-side stale-target gating (#393). #289 remains open for the deeper document-recompute guard.
+Closed this pass: #322 (duplicate of #289), #289 (completed by #397). Recent merged slices include native mannequin acceptance #369, generic FreeCAD-object DrapeTarget #389, arrangement #385, native Sketcher-first authoring #383, and command-side stale-target gating #393.
 
 ## Architecture / UX
 
@@ -33,7 +33,7 @@ Task panels: Context → Primary action → Secondary actions → Parameters →
 
 ## Prototype → MVP → Production
 
-Prototype proves the native semantic boundaries and end-to-end invalidation. MVP makes sewing, fitting, mannequin, generic target, material/quality and production-2D workflows repeatable. Production adds higher-fidelity avatars, richer diagnostics/targets, grading/nesting/manufacturing and advanced construction without changing the public contracts.
+Prototype proves native semantic boundaries and end-to-end invalidation. MVP makes sewing, fitting, mannequin, generic target, material/quality and production-2D workflows repeatable. Production adds higher-fidelity avatars, richer diagnostics/targets, grading/nesting/manufacturing and advanced construction without changing public contracts.
 
 ## Agent rules
 
