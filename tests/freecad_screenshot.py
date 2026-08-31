@@ -30,18 +30,66 @@ def events():
     QtWidgets.QApplication.processEvents()
 
 
+def ensure_task_view_visible():
+    """Make FreeCAD 1.1's standalone Tasks dock visible before checking a panel."""
+    window = Gui.getMainWindow()
+    if window is None:
+        raise RuntimeError("FreeCAD main window is unavailable while opening task panel")
+
+    docks = window.findChildren(QtWidgets.QDockWidget)
+    summary = [
+        "%s:%s:%s" % (dock.objectName(), dock.windowTitle(), dock.isVisible())
+        for dock in docks
+    ]
+    log("dock-widgets=" + " | ".join(summary))
+
+    task_dock = window.findChild(QtWidgets.QDockWidget, "Tasks")
+    if task_dock is not None:
+        task_dock.show()
+        task_dock.raise_()
+        task_dock.resize(max(320, task_dock.width()), max(400, task_dock.height()))
+        log("task-dock=Tasks visible=%s" % task_dock.isVisible())
+        return task_dock
+
+    # Older layouts can still expose Tasks as a tab in the Combo View.
+    combo = window.findChild(QtWidgets.QDockWidget, "Model")
+    if combo is not None:
+        combo.show()
+        tabs = combo.findChild(QtWidgets.QTabWidget)
+        if tabs is not None:
+            for index in range(tabs.count()):
+                if tabs.tabText(index).strip().lower() == "tasks":
+                    tabs.setCurrentIndex(index)
+                    combo.raise_()
+                    events()
+                    log("task-tab=Tasks visible=%s" % combo.isVisible())
+                    return combo
+
+    raise RuntimeError("FreeCAD Tasks dock/tab is unavailable; GUI task view is not enabled")
+
+
 def show_task(panel, name, required=()):
     Gui.Control.showDialog(panel)
     events()
-    # FreeCAD 1.1 may finish embedding a Python task widget one event cycle later.
+    ensure_task_view_visible()
+    events()
+
+    # FreeCAD 1.1 can finish reparenting the Python widget one event cycle later.
     if not panel.form.isVisible():
-        log("task-panel-hidden name=%s active=%s; retrying form.show()" % (name, bool(Gui.Control.activeDialog())))
+        log("task-panel-hidden name=%s active=%s parent=%s; retrying form.show()" % (
+            name, bool(Gui.Control.activeDialog()), type(panel.form.parentWidget()).__name__ if panel.form.parentWidget() else "None"))
         panel.form.show()
+        panel.form.setVisible(True)
         panel.form.raise_()
         panel.form.activateWindow()
         events()
-    if not panel.form.isVisible():
+
+    visible = panel.form.isVisible() or panel.form.isVisibleTo(Gui.getMainWindow())
+    log("task-panel-state name=%s isVisible=%s isVisibleToMain=%s active=%s" % (
+        name, panel.form.isVisible(), panel.form.isVisibleTo(Gui.getMainWindow()), bool(Gui.Control.activeDialog())))
+    if not visible:
         raise RuntimeError("task panel did not become visible: %s" % name)
+
     text = " | ".join(str(w.text() if callable(getattr(w, "text", None)) else getattr(w, "text", ""))
                       for w in [panel.form] + panel.form.findChildren(QtWidgets.QWidget)
                       if getattr(w, "text", "") or callable(getattr(w, "text", None)))
@@ -179,6 +227,8 @@ try:
         raise RuntimeError("FreeCAD GUI main window did not launch")
     Gui.getMainWindow().show()
     events()
+    if not Gui.getMainWindow().isVisible():
+        raise RuntimeError("FreeCAD GUI main window failed to become visible")
     log("gui-launch-ok window=%sx%s" % (Gui.getMainWindow().width(), Gui.getMainWindow().height()))
     init_gui = os.path.join(ROOT, "InitGui.py")
     exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
