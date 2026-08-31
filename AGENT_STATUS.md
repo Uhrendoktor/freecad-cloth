@@ -41,7 +41,7 @@ Machine-readable supervisor coordination record for implementation agents.
 
 ### Avatar / draping
 
-- Parametric human mannequin: #203.
+- Parametric human mannequin service boundary: implemented as the focused #203 slice; continue with the remaining document-object/GUI/acceptance work as a follow-up.
 - Generic FreeCAD-object drape target: #228.
 - Keep both behind the same target-neutral collision interface.
 - Prototype the mannequin before higher-fidelity body generation; generic CAD targets should use the same collision provider boundary.
@@ -63,8 +63,9 @@ Prototype -> MVP -> Production order is documented in `docs/PRODUCTION_PLAN_2026
 
 ## Active implementation slices
 
-- **P0-D:** issue #347 is assigned to `Uhrendoktor`; branch `agent/347-sim-refinement-20260831` is stale by one main commit and must be re-cut before implementation continues.
-- **Avatar:** branches `agent/avatar-mannequin-20260831` and `agent/avatar-service-20260831` exist. The former is a one-commit coordination-only branch; the latter contains a useful solver-neutral `AvatarService.py` slice but is diverged from current main and must be re-cut before any PR is opened.
+- **P0-D:** issue #347 is assigned to `Uhrendoktor`; branch `agent/347-sim-refinement-20260831` must track current main before implementation continues.
+- **Avatar GUI:** branch `agent/avatar-mannequin-20260831` contains an unmerged GUI slice and is currently diverged from main; re-cut before opening a PR and address the supervisor review notes on property mapping and staged rebuild behavior.
+- **Avatar service:** the solver-neutral `AvatarService.py` slice has landed on main as the focused #203 completion; the old branch is no longer an active merge candidate.
 - **Pattern/Sewing:** active audit branches must be re-cut from current main before handoff; no stale head may be merged.
 
 ## Supervisor audit notes — 2026-08-31
