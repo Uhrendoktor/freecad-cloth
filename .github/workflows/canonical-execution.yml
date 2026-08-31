@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: canonical-${{ github.ref }}
+  group: canonical-${{ github.event_name == 'pull_request' && github.event.action == 'closed' && format('closed-pr-{0}', github.event.pull_request.number) || github.ref }}
   cancel-in-progress: true
 
 permissions:
