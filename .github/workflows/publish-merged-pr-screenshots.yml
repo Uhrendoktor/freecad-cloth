@@ -1,0 +1,105 @@
+name: Publish merged PR GUI screenshots
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+jobs:
+  publish:
+    name: Publish GUI screenshots to merged PR
+    if: ${{ github.event.pull_request.merged == true }}
+    runs-on: [self-hosted, linux, x64, docker]
+    timeout-minutes: 10
+    steps:
+      - name: Locate successful PR GUI run
+        id: run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          run_id="$(gh api "repos/$REPO/actions/workflows/canonical-execution.yml/runs?head_sha=$HEAD_SHA&event=pull_request&status=success&per_page=20" --jq '[.workflow_runs[] | select(.conclusion == "success")] | .[0].id // empty')"
+          if [ -z "$run_id" ]; then
+            echo "No successful canonical pull_request run found for $HEAD_SHA" >&2
+            exit 1
+          fi
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Download GUI screenshots from successful PR run
+        uses: actions/download-artifact@v6
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.run.outputs.run_id }}
+          name: cloth-gui-screenshots
+          path: gui-screenshots
+
+      - name: Publish images to PR-specific branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          test -s gui-screenshots/cloth-pattern-design.png
+          test -s gui-screenshots/cloth-sewing.png
+          test -s gui-screenshots/cloth-simulation-arranged.png
+          test -s gui-screenshots/cloth-simulation-draped.png
+
+          git clone --filter=blob:none --no-checkout "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" screenshot-repo
+          cd screenshot-repo
+          branch="ci/pr-${PR_NUMBER}-screenshots"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            git fetch origin "$branch"
+            git checkout -B "$branch" "origin/$branch"
+          else
+            git checkout --orphan "$branch"
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
+          mkdir -p docs/images/generated
+          cp ../gui-screenshots/*.png docs/images/generated/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/images/generated/*.png
+          git commit -m "ci: publish PR ${PR_NUMBER} GUI screenshots" || true
+          git push --force origin "HEAD:$branch"
+
+      - name: Comment merged PR with rendered screenshots
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SERVER_URL: ${{ github.server_url }}
+        run: |
+          set -euo pipefail
+          branch="ci/pr-${PR_NUMBER}-screenshots"
+          raw_base="$SERVER_URL/$REPO/raw/refs/heads/$branch/docs/images/generated"
+          marker="<!-- canonical-gui-screenshots:${PR_NUMBER} -->"
+          body=$(cat <<EOF
+          $marker
+          ## Canonical GUI screenshots
+
+          The merged PR passed the canonical FreeCAD/Xvfb GUI acceptance run. The generated screenshots are rendered below.
+
+          **Source workflow run:** [$SERVER_URL/$REPO/actions/runs/${{ steps.run.outputs.run_id }}]($SERVER_URL/$REPO/actions/runs/${{ steps.run.outputs.run_id }})
+
+          ### Pattern design
+          ![cloth-pattern-design.png]($raw_base/cloth-pattern-design.png)
+
+          ### Sewing
+          ![cloth-sewing.png]($raw_base/cloth-sewing.png)
+
+          ### Simulation arranged
+          ![cloth-simulation-arranged.png]($raw_base/cloth-simulation-arranged.png)
+
+          ### Simulation draped
+          ![cloth-simulation-draped.png]($raw_base/cloth-simulation-draped.png)
+          EOF
+          )
+          gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$body"
