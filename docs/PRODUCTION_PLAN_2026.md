@@ -83,7 +83,7 @@ CLO treats seam allowance, notches, grading and DXF interchange as first-class p
 - Visual seam direction and mismatch indicators.
 - Check-sewing-length validation before simulation.
 
-Current CLO documentation exposes Segment Sewing, Free Sewing, M:N Segment Sewing and M:N Free Sewing; M:N workflows use explicit selection completion and allow Delete/Esc cancellation, while unsuitable segments are visibly rejected. citeturn0search2turn0search0turn0search8
+Current CLO documentation exposes Segment Sewing, Free Sewing, M:N Segment Sewing and M:N Free Sewing; M:N workflows use explicit selection completion and allow Delete/Esc cancellation, while unsuitable segments are visibly rejected. Sources: CLO Help Center, 2D/3D Segment Sewing, Free Sewing and M:N Sewing.
 
 ### Fitting / arrangement
 
@@ -151,7 +151,7 @@ The mannequin and arbitrary CAD object should be two providers of the same targe
 - Point inspection with numerical values.
 - Exportable diagnostic images/data.
 
-CLO documents fit-map workflows covering stress and fit, and current documentation also exposes strain-map analysis. citeturn0search9
+CLO documents fit-map workflows covering stress and fit, and current documentation also exposes strain-map analysis. Source: CLO Help Center, Garment Fit Maps Guide.
 
 ### Production/manufacturing
 
@@ -163,7 +163,7 @@ CLO documents fit-map workflows covering stress and fit, and current documentati
 - Shrinkage/compensation metadata.
 - Production validation report.
 
-Current CLO documentation treats grading and DXF interoperability as explicit production workflows; current DXF export supports AAMA, ASTM and Standard DXF variants and size/grading options. citeturn0search3turn0search6
+Current CLO documentation treats grading and DXF interoperability as explicit production workflows; current DXF export supports AAMA, ASTM and Standard DXF variants and size/grading options. Sources: CLO Help Center, Set Grading and 2D Pattern (DXF) Import/Export.
 
 ### Advanced garment construction
 
@@ -179,7 +179,7 @@ After the production baseline is stable:
 - Garment fit maps and measurement reports.
 - Lacing/gluing only where they map cleanly onto the existing semantic garment model.
 
-Current CLO's manual index demonstrates that these are separate workflow families rather than reasons to couple them into the core solver: sewing, grading, POM, pleats/folds, lacing/gluing, simulation and fit maps are exposed as distinct tools. citeturn0search11
+Current CLO's manual index demonstrates that these are separate workflow families rather than reasons to couple them into the core solver: sewing, grading, POM, pleats/folds, lacing/gluing, simulation and fit maps are exposed as distinct tools. Source: CLO Help Center Manual index.
 
 ## Recommended implementation order
 
