@@ -9,7 +9,7 @@ Machine-readable supervisor coordination record for implementation agents.
 - Canonical CI: `.github/workflows/canonical-execution.yml`
 - CI policy: preserve the existing Docker/Xvfb GUI screenshot and PNG export path. Do not create a second workflow.
 - Current open-PR policy: every PR must be reviewed for scope, CI evidence, mergeability, and regression risk before merge.
-- Supervisor audit: PR #377 merged into `main`; duplicate/stale PRs #373, #376, #375, #379 and #381 were closed as superseded with explicit reasons. PR #378 was closed because it introduced workflow multiplication around the fragile screenshot path. PR #386 merged after canonical run 1065 passed.
+- Supervisor audit: PR #377 merged into `main`; duplicate/stale PRs #373, #376, #375, #379 and #381 were closed as superseded with explicit reasons. PR #378 was closed because it introduced workflow multiplication around the fragile screenshot path. PR #386 merged after canonical run 1065 passed. PR #389 merged after canonical run 1078 passed.
 
 ## Release gates
 
@@ -43,12 +43,8 @@ Machine-readable supervisor coordination record for implementation agents.
 
 - Parametric mannequin service boundary: completed in #203; staged mannequin task-panel slice merged as PR #372; #369 remains open until complete create -> edit -> rebuild -> landmark -> save/reload canonical acceptance is evidenced.
 - Arrangement-point foundation: merged as PR #385 after canonical run 1062 passed Python tests and real FreeCAD/Xvfb screenshot/PNG validation.
-- Generic FreeCAD-object drape target: #228; mannequin and arbitrary CAD targets must remain interchangeable providers behind the same target-neutral collision interface.
+- Generic FreeCAD-object drape target: #228 is complete through merged PR #389; the native Drape Target task panel supports mannequin/FreeCAD Geometry provider selection, persistent source selection, collision quality presets, thickness, enabled state, staged Apply & Refresh/Cancel, and public Edit/Refresh commands.
 - Production avatar provider/fidelity ladder is tracked by #374; do not start high-fidelity body generation until #369 and target-neutral DrapeTarget acceptance are stable.
-
-## Active implementation
-
-- Issue #228: `agent/drape-target-ux-20260831` adds a native FreeCAD Drape Target task panel with provider/source selection, Preview/Normal/Final tessellation presets, collision thickness, enabled state, staged Apply & Refresh/Cancel lifecycle, and public Edit/Refresh commands. The persistent `DrapeTarget` remains authoritative; no canonical workflow files are changed.
 
 ## Agent rules
 
@@ -98,6 +94,7 @@ Only after the end-to-end contracts are stable: higher-fidelity replaceable huma
 - Canonical workflow remains the sole workflow and retains the real FreeCAD/Xvfb screenshot/export path: four 1280x720 PNG states plus diagnostics. The screenshot generation/validation job is not to be weakened or replaced.
 - Merged PR #368 fixed simulation-quality tessellation by preserving authored boundary vertices and refining interiors; this remains a regression contract.
 - Merged PR #372 provides the staged mannequin GUI. #369 still requires complete real canonical create -> edit -> rebuild -> landmark -> save/reload acceptance beyond the focused arrangement-point contract now merged in #386.
+- PR #389 added the native Drape Target task panel and public Edit/Refresh commands for #228. Canonical run 1078 passed both Python/non-GUI tests and real FreeCAD/Xvfb screenshot validation; the canonical workflow was not changed.
 - Research baseline confirms that CLO-style sewing is not just pairwise edges: Segment, Free, 1:N and M:N sewing use staged selection/commit, visible direction feedback, and explicit cancellation/rejection. Arrangement, reset and superimpose are fitting operations separate from solver behavior.
 - Recent official CLO documentation also reinforces production needs: editable seam allowance behavior, notches with persistence/display rules, grading including notch grading, DXF interoperability, plotting, and modular/block sewing. These are production features, not reasons to expand the solver boundary.
 - Added `docs/CLO_FEATURE_MATRIX_2026.md` and `docs/AGENT_HANDOFF_TEMPLATE.md` to make feature triage, UI/UX contracts, avatar-provider architecture and agent handoff requirements explicit.
