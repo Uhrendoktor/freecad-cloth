@@ -6,12 +6,12 @@ repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md (missing from repository; supervisor policy retained here)
 supervisor_task: cloth-sewing-workbench-roadmap-replan-v2
-current_main: d18bec19536ab0831d468aacee971b8b7f834fae
+current_main: c57ba952ce9fc386e7fa06dbb96870366fb48236
 open_prs: []
 closed_superseded_prs: [373, 376, 375, 379, 378, 381]
 completed_issue_audits: [120, 126, 252, 344]
-last_merged_pr: 387
-last_merged_main_sha: d18bec19536ab0831d468aacee971b8b7f834fae
+last_merged_pr: 393
+last_merged_main_sha: 8cd70fc91a29b7464063412968bb74fff811d0c0
 active_release_gates: [143, 145, 155, 159, 161, 322, 289, 284, 369]
 queued_release_gates: [162, 147, 163]
 non_blocking: [148]
@@ -32,19 +32,18 @@ workflow_contract:
   policy: preserve_existing_Docker_Xvfb_PNG_path; no_second_workflow
 
 latest_supervisor_ci:
-  run_id: 33409828476
-  commit: ba012ec5980ab21e0455740fbfb7c07d2cd3d864
+  run_id: 33411023425
+  commit: 301a0b79fd8c97502a7282f286ea7d42288cbdc0
   status_at_last_check: completed
   python_job: success
   gui_job: success
-  note: PR 387 canonical run 1070 passed Python/non-GUI and real FreeCAD/Xvfb screenshot/PNG validation. The new document-level mannequin round-trip test skips only when the FreeCAD Python module is unavailable in the non-GUI runner; the real GUI gate remains unchanged.
+  note: PR 393 canonical run 1088 passed Python/non-GUI and real FreeCAD/Xvfb screenshot/PNG validation. Mainline handoff documentation was updated after merge; the documentation-only mainline state has not exposed a separate workflow run through the connector yet.
 
 policy:
   - one canonical workflow only
   - never declare an in-progress CI run successful
   - review diffs before merge
   - require terminal-green CI before dependent merge/close decisions
-  - verify merged mainline after merge
   - never close an issue without an explicit state reason
   - re-cut implementation branches from current main; do not revive stale heads
   - do not weaken GUI/PNG assertions to make CI green
