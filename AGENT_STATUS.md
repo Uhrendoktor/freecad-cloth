@@ -63,6 +63,7 @@ Prototype -> MVP -> Production order is documented in `docs/PRODUCTION_PLAN_2026
 
 ## Active implementation slices
 
+- **Sewing registration coverage:** issue #344 is claimed on `agent/sewing-registration-tests-20260831-r2` from current `main`; focused canonical GUI tests cover the grouped native menu hierarchy, stable toolbar subset, complete command ordering, idempotent registration, and fail-closed validation. No workflow or production registration changes.
 - **Avatar GUI:** PR #372 is merged. Remaining #369 work is canonical end-to-end acceptance and any missing persistence/rebuild evidence; do not start high-fidelity body generation until the provider contract is locked.
 - **DrapeTarget:** #228 remains the next target-neutral fitting slice after stale-state P0s are safe.
 - **Pattern/Sewing:** active audit branches must be re-cut from current main before handoff; no stale head may be merged.
