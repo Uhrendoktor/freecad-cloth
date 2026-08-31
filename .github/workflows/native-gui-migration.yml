@@ -35,17 +35,31 @@ jobs:
         with:
           path: ~/.cache/freecad-cloth/${{ env.FREECAD_VERSION }}
           key: freecad-appimage-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-${{ env.FREECAD_APPIMAGE_SHA256 }}
-      - name: Download FreeCAD AppImage
+          restore-keys: |
+            freecad-appimage-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-
+      - name: Prepare cached FreeCAD AppImage
         run: |
           set -euo pipefail
-          mkdir -p "$HOME/.cache/freecad-cloth/${FREECAD_VERSION}"
-          APP="$HOME/.cache/freecad-cloth/${FREECAD_VERSION}/FreeCAD_${FREECAD_VERSION}-Linux-x86_64.AppImage"
-          if [ ! -x "$APP" ]; then
-            curl -L --fail --retry 4 --retry-delay 2 -o "$APP" "https://github.com/FreeCAD/FreeCAD/releases/download/${FREECAD_VERSION}/FreeCAD_${FREECAD_VERSION}-Linux-x86_64-py311.AppImage"
+          CACHE_DIR="$HOME/.cache/freecad-cloth/${FREECAD_VERSION}"
+          mkdir -p "$CACHE_DIR"
+          APP="$CACHE_DIR/FreeCAD_${FREECAD_VERSION}-Linux-x86_64.AppImage"
+          if [ -f "$APP" ]; then
             chmod +x "$APP"
+            if echo "${FREECAD_APPIMAGE_SHA256}  $APP" | sha256sum -c -; then
+              echo "Using cached FreeCAD AppImage: $APP"
+            else
+              echo "Cached FreeCAD AppImage has wrong checksum; replacing it"
+              rm -f "$APP"
+            fi
+          fi
+          if [ ! -f "$APP" ]; then
+            echo "Downloading FreeCAD AppImage once into persistent cache: $APP"
+            curl -L --fail --retry 4 --retry-delay 2 -o "$APP.tmp" "https://github.com/FreeCAD/FreeCAD/releases/download/${FREECAD_VERSION}/FreeCAD_${FREECAD_VERSION}-Linux-x86_64-py311.AppImage"
+            echo "${FREECAD_APPIMAGE_SHA256}  $APP.tmp" | sha256sum -c -
+            chmod +x "$APP.tmp"
+            mv "$APP.tmp" "$APP"
           fi
           echo "FREECAD_APPIMAGE=$APP" >> "$GITHUB_ENV"
-          echo "${FREECAD_APPIMAGE_SHA256}  $APP" | sha256sum -c -
       - name: Start native X server
         run: |
           set -euo pipefail
