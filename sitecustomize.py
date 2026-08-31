@@ -19,31 +19,44 @@ if QtGui is not None:
         except (AttributeError, TypeError):
             pass
 
-# FreeCAD's Task View is preference-gated. A fresh AppImage/container can have
-# BaseApp/Preferences/DockWindows/TaskView/Enabled unset/false. In that state
-# Gui.Control.showDialog() has no Task View dock into which a Python task panel
-# can be embedded. Normal desktop installations commonly have this enabled.
-# Limit the change to the GUI screenshot process so ordinary Python/FreeCAD
-# tests retain their normal preferences.
+# FreeCAD's Task View can be preference-gated in a fresh AppImage/container.
+# The preference alone is not sufficient when the Combo View has already been
+# constructed hidden: showTaskView() must be invoked after the GUI event loop
+# exists. Restrict this bootstrap to the visual-regression process.
 import os
 import sys
 
 if os.path.basename(sys.argv[0]) == "freecad_screenshot.py":
     try:
         import FreeCAD as App
+        import FreeCADGui as Gui
         group = App.ParamGet("User parameter:BaseApp/Preferences/DockWindows/TaskView")
         group.SetBool("Enabled", True)
         group.SetBool("RestoreWidth", True)
+
+        # Queue the GUI operation rather than calling it during Python startup;
+        # at that point the main window/Combo View may not exist yet.
+        try:
+            from PySide import QtCore
+        except Exception:
+            from PySide2 import QtCore
+
+        def _show_task_view():
+            try:
+                Gui.Control.showTaskView()
+                Gui.updateGui()
+            except Exception:
+                pass
+
+        QtCore.QTimer.singleShot(0, _show_task_view)
 
         out = "/workspace/docs/images/generated"
         os.makedirs(out, exist_ok=True)
         with open(os.path.join(out, "task-view-bootstrap.log"), "w", encoding="utf-8") as handle:
             handle.write("task-view-enabled=true\n")
+            handle.write("task-view-show-queued=true\n")
             handle.write("argv0=%s\n" % sys.argv[0])
     except Exception as exc:
-        # Startup hooks must never prevent FreeCAD from launching. The normal
-        # screenshot harness will expose the underlying GUI state if this
-        # compatibility step cannot run in a particular FreeCAD build.
         try:
             out = "/workspace/docs/images/generated"
             os.makedirs(out, exist_ok=True)
