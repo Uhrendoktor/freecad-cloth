@@ -6,13 +6,14 @@ repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md (missing from repository; supervisor policy retained here)
 supervisor_task: cloth-sewing-workbench-roadmap-replan-v2
-current_main: f1530f5f6a312a475877697bd47f7896759b1acc
+current_main: f0e2efa99439784d496c218e4ed6ec8ced2e5847
 open_prs: [375, 378]
 pr_375_head: 209b57081bb6e52b6c0e1d641932f729db2df04a
 pr_375_status: draft_no_canonical_run
 pr_378_head: f6d8e31704bcf7f764eb54dc8f12dc8e839cbf85
 pr_378_status: canonical_ci_in_progress
 closed_superseded_prs: [373, 376]
+completed_issue_audits: [120, 126, 252, 344]
 last_merged_pr: 377
 last_merged_main_sha: 2823aadf3b3348dec75d82bc297b3cea5f6567c7
 active_release_gates: [143, 145, 155, 159, 161, 322, 289, 284]
