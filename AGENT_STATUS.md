@@ -9,7 +9,7 @@ Machine-readable supervisor coordination record for implementation agents.
 - Canonical CI: `.github/workflows/canonical-execution.yml`
 - CI policy: preserve the existing Docker/Xvfb GUI screenshot and PNG export path. Do not create a second workflow.
 - Current open-PR policy: every PR must be reviewed for scope, CI evidence, mergeability, and regression risk before merge.
-- Supervisor audit: no open PRs remain after the 2026-08-31 review; PR #366 was merged after its focused registration-contract review.
+- Supervisor audit: PR #366 and PR #368 have been reviewed and merged; current open PRs must remain gated on focused review plus canonical evidence.
 
 ## Release gates
 
@@ -27,7 +27,7 @@ Machine-readable supervisor coordination record for implementation agents.
 
 ### P0 — release blockers
 
-- Repair simulation tessellation/quality integration tracked by issue #347.
+- Simulation tessellation/quality integration #347 is complete and merged through PR #368; keep particle-distance topology and GUI screenshot contracts covered.
 - Resolve DrapeTarget stale-state safety and authority tracked by #322/#289/#284.
 - Keep the canonical end-to-end fixture healthy (#155/#278).
 - Finish native Sketcher acceptance and topology repair (#298/#297).
@@ -41,7 +41,7 @@ Machine-readable supervisor coordination record for implementation agents.
 
 ### Avatar / draping
 
-- Parametric human mannequin service boundary: implemented as the focused #203 slice; continue with the remaining document-object/GUI/acceptance work as a follow-up.
+- Parametric mannequin service boundary: completed in #203; user-facing mannequin task panel and canonical acceptance continue in #369 / PR #370.
 - Generic FreeCAD-object drape target: #228.
 - Keep both behind the same target-neutral collision interface.
 - Prototype the mannequin before higher-fidelity body generation; generic CAD targets should use the same collision provider boundary.
@@ -63,15 +63,15 @@ Prototype -> MVP -> Production order is documented in `docs/PRODUCTION_PLAN_2026
 
 ## Active implementation slices
 
-- **P0-D:** issue #347 is assigned to `Uhrendoktor`; branch `agent/347-sim-refinement-20260831` must track current main before implementation continues.
-- **Avatar GUI:** branch `agent/avatar-mannequin-20260831` contains an unmerged GUI slice and is currently diverged from main; re-cut before opening a PR and address the supervisor review notes on property mapping and staged rebuild behavior.
-- **Avatar service:** the solver-neutral `AvatarService.py` slice has landed on main as the focused #203 completion; the old branch is no longer an active merge candidate.
+- **Avatar GUI:** PR #370 is draft and requires transactional Apply/Cancel semantics plus real FreeCAD/Xvfb acceptance before merge.
+- **DrapeTarget:** #228 remains the next target-neutral fitting slice after stale-state P0s are safe.
 - **Pattern/Sewing:** active audit branches must be re-cut from current main before handoff; no stale head may be merged.
 
 ## Supervisor audit notes — 2026-08-31
 
-- Reviewed all open PRs: none remain.
-- Reviewed current open issue queue, with P0 release gates prioritized over feature expansion.
+- Reviewed all open PRs and merged only focused, evidenced PRs; no PR was closed without a reason.
+- Closed issue #356 as completed after canonical GUI screenshot/PNG validation demonstrated the Task View bootstrap fix works.
+- Closed issue #347 automatically through merged PR #368 after Python/FreeCAD and real Xvfb GUI execution succeeded.
 - Confirmed the canonical workflow remains the sole CI workflow and retains the real FreeCAD/Xvfb screenshot/export checks.
 - Research confirms that M:N sewing, staged cancellation, arrangement points, reset arrangement, superimpose, visible sewing direction and task-oriented tool grouping should be treated as workflow contracts, not decorative UI features.
-- Human avatar and arbitrary FreeCAD geometry must remain interchangeable providers behind the target-neutral collision boundary.
+- Human avatar and arbitrary FreeCAD geometry remain interchangeable providers behind the target-neutral collision boundary.
