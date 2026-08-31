@@ -46,6 +46,10 @@ Machine-readable supervisor coordination record for implementation agents.
 - Generic FreeCAD-object drape target: #228; mannequin and arbitrary CAD targets must remain interchangeable providers behind the same target-neutral collision interface.
 - Production avatar provider/fidelity ladder is tracked by #374; do not start high-fidelity body generation until #369 and target-neutral DrapeTarget acceptance are stable.
 
+## Active implementation
+
+- Issue #228: `agent/drape-target-ux-20260831` adds a native FreeCAD Drape Target task panel with provider/source selection, Preview/Normal/Final tessellation presets, collision thickness, enabled state, staged Apply & Refresh/Cancel lifecycle, and public Edit/Refresh commands. The persistent `DrapeTarget` remains authoritative; no canonical workflow files are changed.
+
 ## Agent rules
 
 - Re-cut implementation branches from current `main`; do not revive stale heads.
