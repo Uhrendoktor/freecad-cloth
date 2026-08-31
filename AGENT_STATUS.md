@@ -113,6 +113,7 @@ Every implementation issue should state: authoritative data model/API; files all
 - PR #386 merged mannequin acceptance assertions after canonical run 1065.
 - PR #385 merged arrangement-point foundation after canonical run 1062.
 - PR #383 merged the native Sketcher-first authoring path after canonical run 1049.
+- PR #393 added command-side stale-target safety: Simulation Step/Run now inspect the persistent DrapeTarget and refuse advancement with the target's actionable status before mutating Steps/recompute. Canonical run 1088 passed both Python/non-GUI and real FreeCAD/Xvfb screenshot/PNG validation. The deeper document-recompute guard in SimulationObjects remains part of #289 and is not claimed complete by this slice.
 - Canonical workflow remains the sole workflow and retains four real 1280x720 PNG states plus diagnostics; its file hash remains unchanged at `90502f96c174ee2f30d09ce2fa92b3070d178751`.
 - Research baseline: CLO-style sewing is staged/transactional across Segment, Free, 1:N and M:N; arrangement, reset and superimpose are fitting operations separate from solver behavior. Production priorities include seam allowance, notches, grading, DXF/plot output, fit maps and manufacturing validation.
 - User-requested avatar direction remains two interchangeable providers: a recognizably human FreeCAD-native mannequin and generic FreeCAD Shape/PartDesign/Body/Mesh through the same DrapeTarget interface.
