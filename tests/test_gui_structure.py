@@ -29,7 +29,7 @@ assert '"Icon": self.Icon' in gui_base
 assert "def __init__(self):" in gui_base
 assert "self.commands = []" in gui_base
 assert "if self.commands:" in gui_base
-assert "command not in seen" in gui_base
+assert "duplicates = [c for c in group_commands if c in seen]" in gui_base
 assert 'return "Gui::PythonWorkbench"' in gui_base
 assert "class PatternPieceTaskPanel" in pattern_gui
 assert "Gui.Control.showDialog(panel)" in pattern_gui
