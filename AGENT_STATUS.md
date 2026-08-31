@@ -6,7 +6,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `03cd25f54bf2c7a0301329030cbc2bc4992b8942`
+- Current main: `505a0f2b64c496fa516e2a220dad4aca2464baa4`
 - Structure migration PR: #408 (merged)
 - Reversible pre-change snapshot: `backup/pre-structure-20260831` (branch; tag creation is not exposed by the available GitHub connector)
 - Canonical CI: `.github/workflows/canonical-execution.yml`
