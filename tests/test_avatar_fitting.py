@@ -3,6 +3,7 @@ import unittest
 
 from AvatarFitting import ArrangementPoint, BodyMeasurements, BoundingVolume, FittingScene, PiecePlacement
 from AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose, generate_mesh
+from AvatarService import AvatarService
 
 
 class AvatarFittingTests(unittest.TestCase):
@@ -70,6 +71,27 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertNotEqual(generate_mesh(base)[0], generate_mesh(padded)[0])
         params = AvatarParameters(pose=Pose("sewing"))
         self.assertEqual(AvatarParameters.from_json(params.to_json()), params)
+
+    def test_avatar_service_exposes_stable_downstream_contract(self):
+        params = AvatarParameters(pose=Pose("sewing"))
+        service = AvatarService(params)
+        self.assertEqual(service.parameters(), params)
+        self.assertEqual(service.measurement("chest"), params.measurement("chest"))
+        self.assertEqual(service.pose(), params.pose)
+        self.assertEqual(service.skin_offset(), params.skin_offset)
+        self.assertIn(("waist", params.measurement("waist")), service.measurements())
+        self.assertEqual(service.surface(), service.collision_mesh())
+        self.assertGreater(len(service.surface()[0]), 100)
+        self.assertEqual(service.landmark("chest").name, "chest")
+        with self.assertRaises(KeyError): service.landmark("does-not-exist")
+
+    def test_avatar_service_derives_geometry_from_new_parameters(self):
+        base = AvatarParameters()
+        wider = base.with_measurements(chest=base.measurement("chest") + 100)
+        self.assertNotEqual(AvatarService(base).surface(), AvatarService(wider).surface())
+
+    def test_invalid_avatar_service_parameter_type_is_rejected(self):
+        with self.assertRaises(TypeError): AvatarService(object())
 
     def test_invalid_mannequin_measurements_are_rejected(self):
         with self.assertRaises(ValueError): AvatarParameters().with_measurements(underbust=1200, chest=1000)
