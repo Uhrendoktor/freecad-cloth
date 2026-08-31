@@ -1,10 +1,11 @@
 FROM lscr.io/linuxserver/freecad:1.1.3-ls148
 
-LABEL org.opencontainers.image.source="https://github.com/Uhrendoktor/freecad-cloth"
+LABEL org.opencontainers.image.source="https://github.com/uhrendoktor/freecad-cloth"
 LABEL org.opencontainers.image.description="Pinned FreeCAD 1.1.3 CI image for freecad-cloth GUI and smoke tests"
 
 RUN apt-get update -qq \
-    && apt-get install -y --no-install-recommends xvfb openbox \
+    && apt-get install -y --no-install-recommends xvfb openbox python3-pip \
+    && python3 -m pip install --no-cache-dir --break-system-packages pypbd==2.2.2 \
     && rm -rf /var/lib/apt/lists/*
 
 ENV DISPLAY=:99 \
