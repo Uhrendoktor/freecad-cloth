@@ -1,0 +1,100 @@
+name: Native GUI migration
+
+on:
+  push:
+    branches: [fix/gui-screenshot-task-panel-v2]
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: [self-hosted, linux, x64, docker]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Replace Docker GUI job with native FreeCAD execution
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/workflows/canonical-execution.yml')
+          text = p.read_text()
+          marker = '\n  gui-screenshot:\n'
+          if marker not in text:
+              raise SystemExit('gui-screenshot job not found')
+          prefix = text.split(marker, 1)[0]
+          native = r'''
+  gui-screenshot:
+    name: FreeCAD GUI screenshot (native runner)
+    runs-on: [self-hosted, linux, x64, docker]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/freecad-cloth/${{ env.FREECAD_VERSION }}
+          key: freecad-appimage-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-${{ env.FREECAD_APPIMAGE_SHA256 }}
+      - name: Download FreeCAD AppImage
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.cache/freecad-cloth/${FREECAD_VERSION}"
+          APP="$HOME/.cache/freecad-cloth/${FREECAD_VERSION}/FreeCAD_${FREECAD_VERSION}-Linux-x86_64.AppImage"
+          if [ ! -x "$APP" ]; then
+            curl -L --fail --retry 4 --retry-delay 2 -o "$APP" "https://github.com/FreeCAD/FreeCAD/releases/download/${FREECAD_VERSION}/FreeCAD_${FREECAD_VERSION}-Linux-x86_64-py311.AppImage"
+            chmod +x "$APP"
+          fi
+          echo "$APP" > "$RUNNER_TEMP/freecad-appimage"
+          echo "FREECAD_APPIMAGE=$APP" >> "$GITHUB_ENV"
+          echo "$(cat "$RUNNER_TEMP/freecad-appimage")"
+          echo "${FREECAD_APPIMAGE_SHA256}  $APP" | sha256sum -c -
+      - name: Start native X server
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/freecad-runtime"
+          export XDG_RUNTIME_DIR="$RUNNER_TEMP/freecad-runtime"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >"$RUNNER_TEMP/xvfb.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/xvfb.pid"
+          sleep 2
+          if ! kill -0 "$(cat "$RUNNER_TEMP/xvfb.pid")" 2>/dev/null; then cat "$RUNNER_TEMP/xvfb.log"; exit 1; fi
+      - name: Run GUI screenshot natively
+        env:
+          DISPLAY: :99
+          QT_X11_NO_MITSHM: 1
+          QT_QPA_PLATFORM: xcb
+          LIBGL_ALWAYS_SOFTWARE: 1
+          PIXELFLUX_WAYLAND: false
+          XDG_RUNTIME_DIR: ${{ runner.temp }}/freecad-runtime
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          mkdir -p docs/images/generated
+          "$FREECAD_APPIMAGE" tests/freecad_screenshot.py
+      - name: Upload GUI artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: freecad-gui-screenshot-native
+          path: |
+            docs/images/generated
+            ${{ runner.temp }}/xvfb.log
+          if-no-files-found: ignore
+          compression-level: 1
+'''
+          p.write_text(prefix + native + '\n')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/canonical-execution.yml
+          git commit -m 'Run GUI screenshot directly on native runner'
+          git push
+      - name: Remove migration workflow
+        if: always()
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/native-gui-migration.yml
+          git commit -m 'Remove one-shot GUI migration workflow'
+          git push
