@@ -120,7 +120,10 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertEqual(points, ["neck|0,0,1150", "waist|0,0,905"])
 
     def test_freecad_mannequin_document_round_trip_and_rebuild(self):
-        import FreeCAD as App
+        try:
+            import FreeCAD as App
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
         from AvatarCommands import create_avatar, rebuild_avatar
 
         doc = App.newDocument("AvatarAcceptance")
