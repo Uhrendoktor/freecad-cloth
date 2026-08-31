@@ -6,17 +6,13 @@ repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md (missing from repository; supervisor policy retained here)
 supervisor_task: cloth-sewing-workbench-roadmap-replan-v2
-current_main: f0e2efa99439784d496c218e4ed6ec8ced2e5847
-open_prs: [375, 378]
-pr_375_head: 209b57081bb6e52b6c0e1d641932f729db2df04a
-pr_375_status: draft_no_canonical_run
-pr_378_head: f6d8e31704bcf7f764eb54dc8f12dc8e839cbf85
-pr_378_status: canonical_ci_in_progress
-closed_superseded_prs: [373, 376]
+current_main: d18bec19536ab0831d468aacee971b8b7f834fae
+open_prs: []
+closed_superseded_prs: [373, 376, 375, 379, 378, 381]
 completed_issue_audits: [120, 126, 252, 344]
-last_merged_pr: 377
-last_merged_main_sha: 2823aadf3b3348dec75d82bc297b3cea5f6567c7
-active_release_gates: [143, 145, 155, 159, 161, 322, 289, 284]
+last_merged_pr: 387
+last_merged_main_sha: d18bec19536ab0831d468aacee971b8b7f834fae
+active_release_gates: [143, 145, 155, 159, 161, 322, 289, 284, 369]
 queued_release_gates: [162, 147, 163]
 non_blocking: [148]
 
@@ -36,12 +32,12 @@ workflow_contract:
   policy: preserve_existing_Docker_Xvfb_PNG_path; no_second_workflow
 
 latest_supervisor_ci:
-  run_id: 33405455692
-  commit: f6d8e31704bcf7f764eb54dc8f12dc8e839cbf85
-  status_at_last_check: in_progress
+  run_id: 33409828476
+  commit: ba012ec5980ab21e0455740fbfb7c07d2cd3d864
+  status_at_last_check: completed
   python_job: success
-  gui_job: screenshot_generation_in_progress
-  note: PR 378 adds only a post-success screenshot-comment job; do not merge until terminal-green evidence proves the existing screenshot/export path is unaffected.
+  gui_job: success
+  note: PR 387 canonical run 1070 passed Python/non-GUI and real FreeCAD/Xvfb screenshot/PNG validation. The new document-level mannequin round-trip test skips only when the FreeCAD Python module is unavailable in the non-GUI runner; the real GUI gate remains unchanged.
 
 policy:
   - one canonical workflow only
