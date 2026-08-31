@@ -103,9 +103,6 @@ jobs:
               test -s docs/images/generated/cloth-sewing.png
               test -s docs/images/generated/cloth-simulation-arranged.png
               test -s docs/images/generated/cloth-simulation-draped.png
-              for image in docs/images/generated/*.png; do
-                python3 -c 'import os,struct,sys; p=sys.argv[1]; d=open(p,"rb").read(24); assert d[:8]==b"\x89PNG\r\n\x1a\n", p; w,h=struct.unpack(">II",d[16:24]); assert (w,h)==(1280,720),(p,w,h); assert os.path.getsize(p)>=20000,p; print("VALID PNG",p,w,h)' "$image"
-              done
               echo "FREECAD GUI SCREENSHOT PASS"
             ')"
           cleanup() {
@@ -122,6 +119,12 @@ jobs:
           trap cleanup EXIT
           docker cp "$PWD/." "$CID:/workspace/"
           docker start -a "$CID"
+      - name: Validate exported screenshots
+        run: |
+          set -euo pipefail
+          for image in docs/images/generated/*.png; do
+            python3 -c 'import os,struct,sys; p=sys.argv[1]; d=open(p,"rb").read(24); assert d[:8]==b"\x89PNG\r\n\x1a\n", p; w,h=struct.unpack(">II",d[16:24]); assert (w,h)==(1280,720),(p,w,h); assert os.path.getsize(p)>=20000,p; print("VALID PNG",p,w,h)' "$image"
+          done
       - name: Upload GUI screenshots
         if: always()
         uses: actions/upload-artifact@v6
