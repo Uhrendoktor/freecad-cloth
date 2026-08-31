@@ -6,9 +6,9 @@ import traceback
 import FreeCAD as App
 import FreeCADGui as Gui
 try:
-    from PySide import QtWidgets
+    from PySide import QtWidgets, QtCore
 except ImportError:
-    from PySide2 import QtWidgets
+    from PySide2 import QtWidgets, QtCore
 
 ROOT = "/workspace"
 if ROOT not in sys.path:
@@ -45,11 +45,25 @@ def ensure_task_view_visible():
 
     task_dock = window.findChild(QtWidgets.QDockWidget, "Tasks")
     if task_dock is not None:
+        action = task_dock.toggleViewAction()
+        if not action.isChecked():
+            action.trigger()
         task_dock.show()
         task_dock.raise_()
-        task_dock.resize(max(320, task_dock.width()), max(400, task_dock.height()))
-        log("task-dock=Tasks visible=%s" % task_dock.isVisible())
-        return task_dock
+        events()
+        # FreeCAD 1.1 commonly restores Tasks as a tabified dock. A hidden
+        # tabified dock reports isVisible()==False even after show()/raise_().
+        # Detach it from the tab group so the screenshot always contains the
+        # real FreeCAD task view rather than a separate imitation widget.
+        if not task_dock.isVisible():
+            window.removeDockWidget(task_dock)
+            window.addDockWidget(QtCore.Qt.RightDockWidgetArea, task_dock)
+            task_dock.show()
+            task_dock.raise_()
+            events()
+        log("task-dock=Tasks checked=%s visible=%s" % (action.isChecked(), task_dock.isVisible()))
+        if task_dock.isVisible():
+            return task_dock
 
     # Older layouts can still expose Tasks as a tab in the Combo View.
     combo = window.findChild(QtWidgets.QDockWidget, "Model")
@@ -65,7 +79,7 @@ def ensure_task_view_visible():
                     log("task-tab=Tasks visible=%s" % combo.isVisible())
                     return combo
 
-    raise RuntimeError("FreeCAD Tasks dock/tab is unavailable; GUI task view is not enabled")
+    raise RuntimeError("FreeCAD Tasks dock/tab is unavailable or could not be made visible")
 
 
 def show_task(panel, name, required=()):
@@ -221,6 +235,7 @@ def simulation():
     App.closeDocument(doc.Name)
 
 
+exit_code = 0
 log("script-start")
 try:
     if Gui.getMainWindow() is None:
@@ -237,15 +252,34 @@ try:
     simulation()
     log("scenario-pass")
 except Exception:
+    exit_code = 1
     log("scenario-fail")
     log(traceback.format_exc())
-    raise
 finally:
-    close_task()
-    events()
-    log("script-end")
     try:
-        Gui.getMainWindow().close()
-        QtWidgets.QApplication.quit()
+        close_task()
+        for document in list(App.listDocuments().values()):
+            try:
+                App.closeDocument(document.Name)
+            except Exception:
+                pass
+        events()
+        log("script-end exit-code=%d" % exit_code)
+        window = Gui.getMainWindow()
+        if window is not None:
+            window.close()
+        app = QtWidgets.QApplication.instance()
+        if app is not None:
+            app.quit()
     except Exception:
-        pass
+        log("shutdown-error")
+        log(traceback.format_exc())
+        exit_code = 1
+
+# FreeCAD runs command-line scripts before entering its normal Qt event loop.
+# QApplication.quit() alone therefore does not guarantee process termination.
+# Explicitly terminate the script interpreter so a successful screenshot run
+# cannot depend on the outer timeout to kill FreeCAD.
+sys.stdout.flush()
+sys.stderr.flush()
+sys.exit(exit_code)
