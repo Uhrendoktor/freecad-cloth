@@ -221,13 +221,21 @@ jobs:
           CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -w /workspace "$IMAGE" -euo pipefail -c '
             set -e
             mkdir -p "$XDG_RUNTIME_DIR"
-            Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
             openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+            Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
             trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
             sleep 1
             timeout --signal=TERM --kill-after=10s 120s /opt/freecad/AppRun tests/freecad_screenshot.py
           ')"
-          trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
+          cleanup() {
+            set +e
+            docker cp "$CID:/workspace/docs/images/generated/." docs/images/generated/ 2>/dev/null || true
+            docker logs "$CID" > docs/images/generated/docker-console.log 2>&1 || true
+            docker cp "$CID:/tmp/xvfb.log" docs/images/generated/xvfb.log 2>/dev/null || true
+            docker cp "$CID:/tmp/openbox.log" docs/images/generated/openbox.log 2>/dev/null || true
+            docker rm -f "$CID" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
           docker cp "$PWD/." "$CID:/workspace/"
           docker start -a "$CID"
       - name: Upload GUI artifacts
@@ -236,5 +244,5 @@ jobs:
         with:
           name: freecad-gui-screenshot
           path: docs/images/generated
-          if-no-files-found: ignore
+          if-no-files-found: error
           compression-level: 1
