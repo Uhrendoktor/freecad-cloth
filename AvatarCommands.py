@@ -94,6 +94,16 @@ def rebuild_avatar():
     return obj
 
 
+def edit_avatar():
+    import FreeCAD as App
+    doc = App.ActiveDocument
+    if doc is None:
+        doc = App.newDocument("ClothSewing")
+    obj = _avatar(doc) or create_avatar()
+    from AvatarGui import show_avatar_task
+    return show_avatar_task(obj)
+
+
 def set_avatar_measurements(**changes):
     import FreeCAD as App
     doc=App.ActiveDocument
@@ -127,8 +137,8 @@ def avatar_measurement(name):
     if doc is None or _avatar(doc) is None: raise ValueError("create a Cloth Avatar first")
     return _parameters(_avatar(doc)).measurement(str(name))
 
-COMMANDS=["ClothFitting_CreateAvatar","ClothFitting_RebuildAvatar","ClothFitting_SetAvatarMeasurements","ClothFitting_SetAvatarPose","ClothFitting_SetAvatarSkinOffset"]
-_HANDLERS={"ClothFitting_CreateAvatar":create_avatar,"ClothFitting_RebuildAvatar":rebuild_avatar,"ClothFitting_SetAvatarMeasurements":lambda:set_avatar_measurements(height=1750,chest=980,waist=820,hip=1020),"ClothFitting_SetAvatarPose":lambda:set_avatar_pose("sewing"),"ClothFitting_SetAvatarSkinOffset":lambda:set_avatar_skin_offset(5.0)}
+COMMANDS=["ClothFitting_CreateAvatar","ClothFitting_EditAvatar","ClothFitting_RebuildAvatar","ClothFitting_SetAvatarMeasurements","ClothFitting_SetAvatarPose","ClothFitting_SetAvatarSkinOffset"]
+_HANDLERS={"ClothFitting_CreateAvatar":create_avatar,"ClothFitting_EditAvatar":edit_avatar,"ClothFitting_RebuildAvatar":rebuild_avatar,"ClothFitting_SetAvatarMeasurements":lambda:set_avatar_measurements(height=1750,chest=980,waist=820,hip=1020),"ClothFitting_SetAvatarPose":lambda:set_avatar_pose("sewing"),"ClothFitting_SetAvatarSkinOffset":lambda:set_avatar_skin_offset(5.0)}
 try:
     import FreeCADGui as Gui
     from CommandAdapter import register_commands
