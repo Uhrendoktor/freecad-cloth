@@ -88,11 +88,13 @@ Only after the end-to-end contracts are stable: higher-fidelity replaceable huma
 ## Supervisor audit notes — 2026-08-31
 
 - Re-checked all open PRs and issues. PR #377 passed the canonical Python + FreeCAD/Xvfb workflow and was merged. PR #373 and #376 were duplicate/stale Sewing registration test paths and were closed as superseded by #377 with explicit reasons. PR #375 has no workflow run for its current head and remains draft. PR #378 is currently running the existing canonical workflow; no merge decision will be made while CI is in progress.
+- Completed issue cleanup: #120 and #126 were closed with state reason `completed` because the canonical screenshot suite now activates the real workbenches, exposes task panels/toolbars, captures full 1280x720 application-window PNGs, and retains diagnostics. #252 was closed with state reason `completed` because stable Sewing command labels and activation/resource tests are already present on main.
 - Canonical workflow remains the sole workflow and retains the real FreeCAD/Xvfb screenshot/export path: four 1280x720 PNG states plus diagnostics. The screenshot generation/validation job is not to be weakened or replaced.
 - Merged PR #368 fixed simulation-quality tessellation by preserving authored boundary vertices and refining interiors; this remains a regression contract.
 - Merged PR #372 provides the staged mannequin GUI. #369 still requires real canonical acceptance before the avatar workstream advances.
 - Research baseline confirms that CLO-style sewing is not just pairwise edges: Segment, Free, 1:N and M:N sewing use staged selection/commit, visible direction feedback, and explicit cancellation/rejection. Arrangement, reset and superimpose are fitting operations separate from solver behavior.
 - Recent official CLO documentation also reinforces production needs: editable seam allowance behavior, notches with persistence/display rules, grading including notch grading, DXF interoperability, plotting, and modular/block sewing. These are production features, not reasons to expand the solver boundary.
+- Added `docs/CLO_FEATURE_MATRIX_2026.md` and `docs/AGENT_HANDOFF_TEMPLATE.md` to make feature triage, UI/UX contracts, avatar-provider architecture and agent handoff requirements explicit.
 - User-requested avatar direction is locked as two interchangeable providers: a recognizably human FreeCAD-native mannequin for normal garment fitting, and a generic FreeCAD Shape/PartDesign/Body/Mesh object through the same DrapeTarget interface. High-fidelity avatar work is later.
 - `ADVANCED_TOOL_MODE.md` is not present in the repository; supervisor execution policy is retained in `TOOL_STATE.md`.
 
