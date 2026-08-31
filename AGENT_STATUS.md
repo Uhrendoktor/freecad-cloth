@@ -58,3 +58,9 @@ Machine-readable supervisor coordination record for implementation agents.
 ## Current feature direction
 
 Prototype -> MVP -> Production order is documented in `docs/PRODUCTION_PLAN_2026.md`.
+
+## Active agent slice
+
+- **2026-08-31:** `agent/workbench-registration-20260831` claimed issue #344.
+- Scope: strengthen native Pattern/Sewing/Simulation workbench registration regression coverage, specifically Sewing menu group order/completeness and stable toolbar membership.
+- Constraints: no workflow changes; no command implementation changes.
