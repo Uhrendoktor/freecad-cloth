@@ -1,9 +1,9 @@
 """Focused regression checks for native Cloth workbench registration.
 
-The existing contract test checks the primary command groups. This audit adds
-coverage for the M:N/free-sewing command group, which is explicitly registered
-by the Sewing workbench and therefore must not be omitted from its registration
-expression.
+These tests intentionally inspect the registration declarations rather than
+requiring a running FreeCAD GUI. The public registration contract is the
+stable bridge between the three workbenches and FreeCAD's native menus and
+commands.
 """
 from __future__ import annotations
 
@@ -12,6 +12,45 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+EXPECTED_SEWING_GROUPS = [
+    (
+        "Sewing Creation",
+        [
+            "ClothSewing_CreateSeam",
+            "ClothSewing_CreateMNSewing",
+            "ClothSewing_CreateNetwork",
+            "ClothSewing_FreeSewing",
+        ],
+    ),
+    (
+        "Sewing Editing",
+        [
+            "ClothSewing_CreateOperation",
+            "ClothSewing_EditOperation",
+            "ClothSewing_EditNetwork",
+            "ClothSewing_ReverseSeam",
+            "ClothSewing_ToggleAlignment",
+        ],
+    ),
+    (
+        "Validation & View",
+        [
+            "ClothSewing_Validate",
+            "ClothSewing_RepairSeam",
+            "ClothSewing_Show2D",
+        ],
+    ),
+    ("Fitting & Avatar", "FROM_MODULES"),
+]
+EXPECTED_SEWING_TOOLBAR = [
+    "ClothSewing_CreateSeam",
+    "ClothSewing_CreateOperation",
+    "ClothSewing_Validate",
+]
+
+
+def _parse_initgui():
+    return ast.parse((ROOT / "InitGui.py").read_text(encoding="utf-8"))
 
 
 def _class(tree, name):
@@ -34,38 +73,79 @@ def _literal_commands(module_name):
     raise AssertionError(f"{module_name}.COMMANDS is missing")
 
 
-def _register_expression(initialize):
-    for node in ast.walk(initialize):
-        if not isinstance(node, ast.Call):
-            continue
-        if not isinstance(node.func, ast.Attribute) or node.func.attr != "_register":
-            continue
-        assert len(node.args) == 1
-        return node.args[0]
-    raise AssertionError("workbench Initialize() must call _register once")
+def _literal_constant(tree, name):
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == name
+            for target in node.targets
+        ):
+            return ast.literal_eval(node.value)
+    raise AssertionError(f"InitGui.py is missing {name}")
 
 
-def test_sewing_workbench_registers_free_sewing_command_group():
-    tree = ast.parse((ROOT / "InitGui.py").read_text(encoding="utf-8"))
-    sewing = _class(tree, "ClothSewingWorkbench")
-    initialize = next(
-        node for node in sewing.body
-        if isinstance(node, ast.FunctionDef) and node.name == "Initialize"
+def _initialize_method(tree, class_name):
+    workbench = _class(tree, class_name)
+    return next(
+        node for node in workbench.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "Initialize"
     )
 
-    expression = _register_expression(initialize)
+
+def test_sewing_menu_groups_have_stable_names_order_and_complete_commands():
+    tree = _parse_initgui()
+    groups = _literal_constant(tree, "SEWING_COMMAND_GROUPS")
+    assert groups == tuple(
+        (name, tuple(commands))
+        for name, commands in EXPECTED_SEWING_GROUPS[:-1]
+    )
+
+    expected = (
+        _literal_commands("SewingCommands")
+        | _literal_commands("SewingNetworkCommands")
+        | _literal_commands("FittingCommands")
+        | _literal_commands("AvatarCommands")
+    )
+    grouped = set(command for _name, commands in groups for command in commands)
+    # The explicit groups are followed by the dynamically assembled fitting/
+    # avatar group in ClothSewingWorkbench.Initialize().
+    assert grouped.isdisjoint(
+        _literal_commands("FittingCommands") | _literal_commands("AvatarCommands")
+    )
+    assert grouped | _literal_commands("FittingCommands") | _literal_commands("AvatarCommands") == expected
+
+
+def test_sewing_toolbar_is_stable_and_subset_of_registered_commands():
+    tree = _parse_initgui()
+    toolbar = _literal_constant(tree, "SEWING_TOOLBAR_COMMANDS")
+    assert toolbar == tuple(EXPECTED_SEWING_TOOLBAR)
+    assert len(toolbar) == len(set(toolbar))
+
+    all_commands = (
+        _literal_commands("SewingCommands")
+        | _literal_commands("SewingNetworkCommands")
+        | _literal_commands("FittingCommands")
+        | _literal_commands("AvatarCommands")
+    )
+    assert set(toolbar) <= all_commands
+
+
+def test_sewing_workbench_covers_all_command_modules_without_private_registration_lists():
+    tree = _parse_initgui()
+    initialize = _initialize_method(tree, "ClothSewingWorkbench")
     modules = {
         node.value.id
-        for node in ast.walk(expression)
+        for node in ast.walk(initialize)
         if isinstance(node, ast.Attribute)
         and node.attr == "COMMANDS"
         and isinstance(node.value, ast.Name)
     }
-    assert modules == {"SewingCommands", "SewingNetworkCommands", "FittingCommands"}
-
-    # Keep the assertion tied to the actual module contents so adding a new
-    # network command cannot silently leave it outside the native workbench.
-    assert _literal_commands("SewingNetworkCommands")
+    assert modules == {
+        "SewingCommands",
+        "SewingNetworkCommands",
+        "FittingCommands",
+        "AvatarCommands",
+    }
 
 
 def test_workbench_command_groups_do_not_overlap():
@@ -75,8 +155,9 @@ def test_workbench_command_groups_do_not_overlap():
             _literal_commands("SewingCommands")
             | _literal_commands("SewingNetworkCommands")
             | _literal_commands("FittingCommands")
+            | _literal_commands("AvatarCommands")
         ),
-        "Simulation": _literal_commands("SimulationCommands"),
+        "Simulation": _literal_commands("SimulationCommands") | _literal_commands("DrapeCommands"),
     }
 
     names = {}
