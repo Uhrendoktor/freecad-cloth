@@ -82,6 +82,35 @@ def test_one_step_pattern_piece_command_is_registered_and_creates_native_sketch(
     assert document.recompute_calls == 1
 
 
+def test_edit_sketch_enters_native_editor_for_selected_piece():
+    import PatternCommands
+
+    class Sketch:
+        Name = "PatternSketch_front"
+
+    class Piece:
+        PatternType = "PatternPiece"
+        Sketch = Sketch()
+
+    edits = []
+    old_gui = sys.modules.get("FreeCADGui")
+    gui = type("FreeCADGui", (), {})()
+    gui.Selection = type("Selection", (), {"getSelection": staticmethod(lambda: [Piece()])})()
+    gui.activeDocument = staticmethod(lambda: type("DocGui", (), {"setEdit": lambda self, name: edits.append(name)})())
+    sys.modules["FreeCADGui"] = gui
+    try:
+        result = PatternCommands.edit_pattern_sketch()
+    finally:
+        if old_gui is None:
+            sys.modules.pop("FreeCADGui", None)
+        else:
+            sys.modules["FreeCADGui"] = old_gui
+
+    assert result.Name == "PatternSketch_front"
+    assert edits == ["PatternSketch_front"]
+    assert "ClothPattern_EditSketch" in PatternCommands.COMMANDS
+
+
 def test_polygon_drafting_round_trip_and_editing():
     points = ((0.0, 0.0), (80.0, 0.0), (100.0, 40.0), (40.0, 70.0), (0.0, 50.0))
     encoded = serialize_points(points)
@@ -97,5 +126,6 @@ if __name__ == "__main__":
     test_pattern_sketch_module_is_headless_safe()
     test_pattern_sketch_requires_freecad_when_called()
     test_one_step_pattern_piece_command_is_registered_and_creates_native_sketch()
+    test_edit_sketch_enters_native_editor_for_selected_piece()
     test_polygon_drafting_round_trip_and_editing()
     print("pattern sketch tests passed")
