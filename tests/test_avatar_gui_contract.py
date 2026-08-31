@@ -12,6 +12,7 @@ def test_avatar_panel_has_grouped_controls_and_lifecycle():
     assert '"Proportions"' in source
     assert '"Pose"' in source
     assert '"Display"' in source
+    assert '"Arrangement points"' in source
     assert "Apply & Rebuild" in source
     assert "getStandardButtons" in source
     assert "QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel" in source
@@ -37,6 +38,14 @@ def test_avatar_panel_uses_explicit_property_mapping():
     assert '"upper_arm": "Upper_Arm"' in commands
     assert '"front_waist": "Front_Waist"' in commands
     assert '"back_waist": "Back_Waist"' in commands
+
+
+def test_avatar_panel_exposes_persistent_fitting_points():
+    assert "self.arrangement_points = QtWidgets.QListWidget()" in source
+    assert "getattr(self.avatar, \"ArrangementPoints\", [])" in source
+    assert "self._update_arrangement_points()" in source
+    assert '"ArrangementPoints"' in commands
+    assert "def avatar_arrangement_points():" in commands
 
 
 def test_avatar_edit_command_is_publicly_registered():
