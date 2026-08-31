@@ -9,7 +9,7 @@ Machine-readable supervisor coordination record for implementation agents.
 - Canonical CI: `.github/workflows/canonical-execution.yml`
 - CI policy: preserve the existing Docker/Xvfb GUI screenshot and PNG export path. Do not create a second workflow.
 - Current open-PR policy: every PR must be reviewed for scope, CI evidence, mergeability, and regression risk before merge.
-- Supervisor audit: PR #377 merged into `main`; duplicate/stale PRs #373, #376, #375, #379 and #381 were closed as superseded with explicit reasons. PR #378 was closed because it introduced workflow multiplication around the fragile screenshot path. There are currently no open PRs.
+- Supervisor audit: PR #377 merged into `main`; duplicate/stale PRs #373, #376, #375, #379 and #381 were closed as superseded with explicit reasons. PR #378 was closed because it introduced workflow multiplication around the fragile screenshot path. PR #386 merged after canonical run 1065 passed.
 
 ## Release gates
 
@@ -45,10 +45,6 @@ Machine-readable supervisor coordination record for implementation agents.
 - Arrangement-point foundation: merged as PR #385 after canonical run 1062 passed Python tests and real FreeCAD/Xvfb screenshot/PNG validation.
 - Generic FreeCAD-object drape target: #228; mannequin and arbitrary CAD targets must remain interchangeable providers behind the same target-neutral collision interface.
 - Production avatar provider/fidelity ladder is tracked by #374; do not start high-fidelity body generation until #369 and target-neutral DrapeTarget acceptance are stable.
-
-## Active implementation
-
-- Issue #369: `agent/avatar-acceptance-20260831` is a current-main re-cut focused on strengthening the real FreeCAD mannequin acceptance contract. It verifies stable fitting arrangement points at creation, after measurement rebuild, and after FCStd save/reload, plus the grouped task-panel fitting-point contract. No canonical workflow files are changed.
 
 ## Agent rules
 
@@ -92,12 +88,12 @@ Only after the end-to-end contracts are stable: higher-fidelity replaceable huma
 
 ## Supervisor audit notes — 2026-08-31
 
-- Audited every open PR. Stale/duplicate #375 and #379 were closed because #383 already merged the same Sketcher-first implementation. #378 was closed because it introduced separate workflow files around the fragile screenshot path. #381 was closed because #385 is its current-main re-cut. No PR remains open.
+- Audited every open PR. Stale/duplicate #375 and #379 were closed because #383 already merged the same Sketcher-first implementation. #378 was closed because it introduced separate workflow files around the fragile screenshot path. #381 was closed because #385 is its current-main re-cut. PR #386 then added focused mannequin acceptance assertions and merged after canonical run 1065 passed; no canonical workflow changes were introduced.
 - PR #385 was created from current `main`, limited to arrangement-point persistence/UI/read-only inspection plus focused headless contracts, and passed canonical run 1062: Python/non-GUI and FreeCAD/Xvfb GUI screenshot generation/validation both completed successfully before merge.
 - PR #383 is merged and supplies the native Sketcher default authoring path for #360; its canonical run 1049 passed before merge.
 - Canonical workflow remains the sole workflow and retains the real FreeCAD/Xvfb screenshot/export path: four 1280x720 PNG states plus diagnostics. The screenshot generation/validation job is not to be weakened or replaced.
 - Merged PR #368 fixed simulation-quality tessellation by preserving authored boundary vertices and refining interiors; this remains a regression contract.
-- Merged PR #372 provides the staged mannequin GUI. #369 still requires real canonical acceptance before the avatar workstream advances.
+- Merged PR #372 provides the staged mannequin GUI. #369 still requires complete real canonical create -> edit -> rebuild -> landmark -> save/reload acceptance beyond the focused arrangement-point contract now merged in #386.
 - Research baseline confirms that CLO-style sewing is not just pairwise edges: Segment, Free, 1:N and M:N sewing use staged selection/commit, visible direction feedback, and explicit cancellation/rejection. Arrangement, reset and superimpose are fitting operations separate from solver behavior.
 - Recent official CLO documentation also reinforces production needs: editable seam allowance behavior, notches with persistence/display rules, grading including notch grading, DXF interoperability, plotting, and modular/block sewing. These are production features, not reasons to expand the solver boundary.
 - Added `docs/CLO_FEATURE_MATRIX_2026.md` and `docs/AGENT_HANDOFF_TEMPLATE.md` to make feature triage, UI/UX contracts, avatar-provider architecture and agent handoff requirements explicit.
