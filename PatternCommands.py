@@ -19,11 +19,15 @@ def create_pattern_piece_from_parameters(name, width, height, allowance, grainli
     obj.GeometryMode = "Rectangle"
     obj.Label = name
     doc.recompute()
+    # Native Sketcher is the default editable geometry authority. Keep the
+    # legacy Part feature as a semantic/document wrapper for downstream links.
+    _create_native_sketch_for_piece(obj)
+    doc.recompute()
     return obj
 
 
 def create_pattern_piece():
-    """Create a 100 x 60 mm parametric demo pattern piece."""
+    """Create a 100 x 60 mm pattern piece with native Sketcher geometry."""
     return create_pattern_piece_from_parameters("PatternPiece", 100.0, 60.0, 0.0, 0.0)
 
 
