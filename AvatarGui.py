@@ -22,11 +22,11 @@ class AvatarTaskPanel:
     PROPERTY_MAP = {
         "height": "Height", "neck": "Neck", "shoulder": "Shoulder",
         "chest": "Chest", "underbust": "Underbust", "waist": "Waist",
-        "high_hip": "HighHip", "hip": "Hip", "upper_arm": "UpperArm",
+        "high_hip": "High_Hip", "hip": "Hip", "upper_arm": "Upper_Arm",
         "elbow": "Elbow", "wrist": "Wrist", "thigh": "Thigh",
         "knee": "Knee", "calf": "Calf", "ankle": "Ankle",
-        "inseam": "Inseam", "torso": "Torso", "front_waist": "FrontWaist",
-        "back_waist": "BackWaist",
+        "inseam": "Inseam", "torso": "Torso", "front_waist": "Front_Waist",
+        "back_waist": "Back_Waist",
     }
     BODY = (
         ("height", "Height"), ("neck", "Neck circumference"),
@@ -103,8 +103,8 @@ class AvatarTaskPanel:
         self.status.setWordWrap(True)
         root.addWidget(self.status)
 
-        self._load()
         self._dirty = False
+        self._load()
         for box in self._boxes.values():
             box.valueChanged.connect(self._staged_changed)
         self.pose.currentTextChanged.connect(self._staged_changed)
