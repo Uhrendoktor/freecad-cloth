@@ -1,4 +1,6 @@
 import json
+import os
+import tempfile
 import unittest
 
 from AvatarFitting import ArrangementPoint, BodyMeasurements, BoundingVolume, FittingScene, PiecePlacement
@@ -116,6 +118,52 @@ class AvatarFittingTests(unittest.TestCase):
     def test_avatar_arrangement_points_replace_duplicate_with_last_value(self):
         points = arrangement_points_from_landmarks(["waist|0,0,900", "waist|0,0,905", "neck|0,0,1150"])
         self.assertEqual(points, ["neck|0,0,1150", "waist|0,0,905"])
+
+    def test_freecad_mannequin_document_round_trip_and_rebuild(self):
+        import FreeCAD as App
+        from AvatarCommands import create_avatar, rebuild_avatar
+
+        doc = App.newDocument("AvatarAcceptance")
+        path = None
+        try:
+            avatar = create_avatar()
+            self.assertEqual(avatar.AvatarType, "ClothAvatar")
+            self.assertEqual(avatar.AvatarStatus, "Valid")
+            self.assertFalse(avatar.Shape.isNull())
+            self.assertGreaterEqual(len(avatar.Landmarks), 6)
+            self.assertEqual(len(avatar.ArrangementPoints), len(avatar.Landmarks))
+            original_shape = avatar.Shape.copy()
+            original_chest = float(avatar.Chest)
+
+            avatar.Chest = original_chest + 40.0
+            rebuild_avatar()
+            self.assertNotEqual(avatar.Shape.hashCode(), original_shape.hashCode())
+            self.assertEqual(float(avatar.Chest), original_chest + 40.0)
+            self.assertEqual(avatar.AvatarStatus, "Valid")
+            self.assertTrue(avatar.ParametersJSON)
+
+            fd, path = tempfile.mkstemp(prefix="cloth-avatar-", suffix=".FCStd")
+            os.close(fd)
+            doc.recompute()
+            doc.saveAs(path)
+            App.closeDocument(doc.Name)
+            doc = App.openDocument(path)
+            doc.recompute()
+            restored = doc.getObject("ClothAvatar")
+            self.assertIsNotNone(restored)
+            self.assertEqual(restored.AvatarType, "ClothAvatar")
+            self.assertEqual(restored.AvatarStatus, "Valid")
+            self.assertAlmostEqual(float(restored.Chest), original_chest + 40.0)
+            self.assertEqual(len(restored.ArrangementPoints), len(restored.Landmarks))
+            self.assertFalse(restored.Shape.isNull())
+        finally:
+            if doc is not None and doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
+            if path:
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
 
 
 if __name__ == "__main__": unittest.main()
