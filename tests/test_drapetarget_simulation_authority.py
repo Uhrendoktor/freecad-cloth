@@ -10,9 +10,7 @@ class _FakeSurface:
 
 
 class DrapeTargetAuthorityTests(unittest.TestCase):
-    def test_simulation_prefers_persistent_drape_target_over_avatar_proxy(self):
-        from DrapeTarget import target_status
-
+    def _target(self):
         source = SimpleNamespace(
             Name="Body",
             Label="Body",
@@ -28,6 +26,12 @@ class DrapeTargetAuthorityTests(unittest.TestCase):
             Enabled=True, CollisionVertexCount=3, CollisionTriangleCount=1,
             SourceSignature=repr(("Body", "Body", ("Shape", 123), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0)),
         )
+        return source, target
+
+    def test_simulation_prefers_persistent_drape_target_over_avatar_proxy(self):
+        from DrapeTarget import target_status
+
+        source, target = self._target()
         status = target_status(target)
         self.assertEqual(status["state"], "ready")
 
@@ -35,6 +39,17 @@ class DrapeTargetAuthorityTests(unittest.TestCase):
         status = target_status(target)
         self.assertEqual(status["state"], "stale")
         self.assertTrue(status["stale"])
+
+    def test_stale_target_guard_blocks_proxy_recompute(self):
+        from SimulationCommands import _drape_target_guard
+
+        source, target = self._target()
+        self.assertFalse(_drape_target_guard(target)["blocked"])
+        source.Placement.Base.x = 10.0
+        status = _drape_target_guard(target)
+        self.assertTrue(status["blocked"])
+        self.assertEqual(status["state"], "stale")
+        self.assertIn("rebuild collision surface", status["message"])
 
     def test_target_contract_is_provider_neutral(self):
         from DrapeTarget import DrapeTargetSpec
