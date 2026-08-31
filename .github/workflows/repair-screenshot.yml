@@ -1,3 +1,4 @@
+# Retry trigger: restore main screenshot test and apply authoritative FreeCAD task-dialog visibility check.
 name: Repair screenshot test
 on:
   push:
@@ -22,7 +23,6 @@ jobs:
           from pathlib import Path
           p = Path('tests/freecad_screenshot.py')
           s = p.read_text(encoding='utf-8')
-
           old = '''def show_task(panel, state_name):
     Gui.Control.showDialog(panel)
     Gui.updateGui()
@@ -34,11 +34,9 @@ jobs:
 '''
           if old not in s:
               raise SystemExit('show_task source did not match main; aborting repair')
-
           new = '''def _panel_visible(panel):
-    # FreeCAD owns the task-panel widget and may reparent/wrap the Python
-    # form. The authoritative state is the FreeCAD TaskDialog itself, not
-    # QWidget.isVisible() on the Python-side form object.
+    # FreeCAD owns/reparents the task widget. activeDialog() is the
+    # authoritative state; QWidget.isVisible() on panel.form is not.
     try:
         active = Gui.Control.activeDialog()
         if active is not None:
@@ -46,14 +44,11 @@ jobs:
             panel_form = getattr(panel, "form", None)
             if active is panel or (active_form is not None and active_form is panel_form):
                 task_view = Gui.Control.taskPanel()
-                if task_view is None or task_view.isVisible():
-                    return True
                 tabs = Gui.Control.tabPanel()
-                if tabs is not None and tabs.isVisible():
+                if task_view is None or task_view.isVisible() or (tabs is not None and tabs.isVisible()):
                     return True
     except Exception:
         pass
-
     form = getattr(panel, "form", None)
     if form is None:
         return False
@@ -62,15 +57,6 @@ jobs:
             return True
     except Exception:
         pass
-    window = Gui.getMainWindow()
-    if window is None:
-        return False
-    for widget in window.findChildren(QtWidgets.QWidget):
-        try:
-            if widget.isVisible() and (widget is form or form in widget.findChildren(QtWidgets.QWidget)):
-                return True
-        except Exception:
-            pass
     return False
 
 
@@ -86,12 +72,11 @@ def show_task(panel, state_name):
         Gui.updateGui()
         if _panel_visible(panel):
             break
-    active = False
+    visible = _panel_visible(panel)
     try:
         active = Gui.Control.activeDialog() is not None
     except Exception:
-        pass
-    visible = _panel_visible(panel)
+        active = False
     progress("task-panel=%s visible=%s active_dialog=%s docks=%s" % (state_name, visible, active, ",".join(docks())))
     if not visible:
         raise RuntimeError("task panel did not become visible: %s" % state_name)
@@ -104,7 +89,6 @@ def show_task(panel, state_name):
               s = s.replace(old_req, '''    if not _panel_visible(panel):
         raise RuntimeError("task panel is not visible: %s" % state_name)
 ''', 1)
-
           p.write_text(s, encoding='utf-8')
           print('restored/modified bytes:', p.stat().st_size)
           PY
