@@ -20,36 +20,17 @@ jobs:
         run: |
           from pathlib import Path
 
-          replacements = {
-              "PatternGui.py": [
-                  ("        self.form.show()\n", ""),
-              ],
-              "SewingGui.py": [
-                  ("        self.form.show()\n", ""),
-              ],
-              "tests/freecad_screenshot.py": [
-                  ('''def show_task(panel, state_name):\n    Gui.Control.showDialog(panel)\n    Gui.updateGui()\n    QtWidgets.QApplication.processEvents()\n    visible = bool(getattr(panel, "form", None) and panel.form.isVisible())\n    progress("task-panel=%s visible=%s docks=%s" % (state_name, visible, ",".join(docks())))\n    if not visible:\n        raise RuntimeError("task panel did not become visible: %s" % state_name)\n''', '''def _task_dialog_active(panel):\n    try:\n        active = Gui.Control.activeDialog()\n    except Exception:\n        active = None\n    if active is panel:\n        return True\n    # FreeCAD 1.1 may wrap the Python panel while moving its QWidget into\n    # the Tasks dock, so QWidget.isVisible() is not a reliable contract.\n    return active is not None and type(active) is type(panel)\n\ndef _show_tasks_dock():\n    window = Gui.getMainWindow()\n    if window is None:\n        return None\n    dock = window.findChild(QtWidgets.QDockWidget, "Tasks")\n    if dock is not None:\n        dock.show()\n        dock.raise_()\n    return dock\n\ndef show_task(panel, state_name):\n    Gui.Control.showDialog(panel)\n    dock = _show_tasks_dock()\n    Gui.updateGui()\n    for _ in range(30):\n        QtWidgets.QApplication.processEvents()\n        if _task_dialog_active(panel):\n            break\n    active = _task_dialog_active(panel)\n    progress("task-panel=%s active_dialog=%s form_visible=%s tasks_dock=%s docks=%s" % (\n        state_name, active, bool(getattr(panel, "form", None) and panel.form.isVisible()),\n        bool(dock and dock.isVisible()), ",".join(docks())))\n    if not active:\n        raise RuntimeError("FreeCAD task dialog did not become active: %s" % state_name)\n'''),
-                  ('''def require_panel(panel, state_name, required):\n    if not panel.form.isVisible():\n        raise RuntimeError("task panel is not visible: %s" % state_name)\n    text = panel_text(panel)\n''', '''def require_panel(panel, state_name, required):\n    if not _task_dialog_active(panel):\n        raise RuntimeError("FreeCAD task dialog is not active: %s" % state_name)\n    text = panel_text(panel)\n'''),
-              ],
-          }
+          path = Path("tests/freecad_screenshot.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''                task_view = Gui.Control.taskPanel()\n                tabs = Gui.Control.tabPanel()\n                if task_view is None or task_view.isVisible() or (tabs is not None and tabs.isVisible()):\n                    return True\n'''
+          new = '''                task_view = Gui.Control.taskPanel()\n                tabs = Gui.Control.tabPanel()\n                window = Gui.getMainWindow()\n                tasks_dock = window.findChild(QtWidgets.QDockWidget, "Tasks") if window is not None else None\n                if tasks_dock is not None and not tasks_dock.isVisible():\n                    tasks_dock.show()\n                    tasks_dock.raise_()\n                    Gui.updateGui()\n                if (task_view is None or task_view.isVisible()\n                        or (tabs is not None and tabs.isVisible())\n                        or (tasks_dock is not None and tasks_dock.isVisible())):\n                    return True\n'''
+          if text.count(old) != 1:
+              raise SystemExit(f"tests/freecad_screenshot.py: expected exactly one task-view visibility block, found {text.count(old)}")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
-          for filename, edits in replacements.items():
-              path = Path(filename)
-              text = path.read_text(encoding="utf-8")
-              for old, new in edits:
-                  count = text.count(old)
-                  if count != 1:
-                      raise SystemExit(f"{filename}: expected exactly one occurrence, found {count}: {old[:80]!r}")
-                  text = text.replace(old, new, 1)
-              path.write_text(text, encoding="utf-8")
-
-          # Verify the lifecycle change is present before committing.
-          for filename in ("PatternGui.py", "SewingGui.py"):
-              if "self.form.show()" in Path(filename).read_text(encoding="utf-8"):
-                  raise SystemExit(f"{filename}: task-panel form.show() still present")
-          test = Path("tests/freecad_screenshot.py").read_text(encoding="utf-8")
-          if "Gui.Control.activeDialog()" not in test or "QDockWidget, \"Tasks\"" not in test:
-              raise SystemExit("screenshot task-dialog validation was not installed")
+          test = path.read_text(encoding="utf-8")
+          if 'QDockWidget, "Tasks"' not in test or 'tasks_dock.show()' not in test:
+              raise SystemExit("task dock visibility repair was not installed")
       - name: Commit repair and remove one-shot workflow
         shell: bash
         run: |
@@ -57,6 +38,6 @@ jobs:
           rm .github/workflows/repair-gui-taskpanel.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add PatternGui.py SewingGui.py tests/freecad_screenshot.py .github/workflows/repair-gui-taskpanel.yml
-          git commit -m "fix: use FreeCAD task view lifecycle for GUI panels"
+          git add tests/freecad_screenshot.py .github/workflows/repair-gui-taskpanel.yml sitecustomize.py
+          git commit -m "fix: force FreeCAD task dock visible for screenshots"
           git push origin HEAD:fix/freecad-screenshot-initgui-loading
