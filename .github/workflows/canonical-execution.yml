@@ -159,34 +159,65 @@ jobs:
     permissions:
       pull-requests: write
       actions: read
+      contents: write
     steps:
       - name: Download GUI screenshots
         uses: actions/download-artifact@v6
         with:
           name: cloth-gui-screenshots
           path: gui-screenshots
-      - name: Comment PR with screenshot links
+      - name: Publish screenshots to PR-specific image branch
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --no-checkout "$GITHUB_SERVER_URL/$REPO.git" screenshot-repo
+          cd screenshot-repo
+          branch="ci/pr-${PR_NUMBER}-screenshots"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            git fetch origin "$branch"
+            git checkout -B "$branch" "origin/$branch"
+          else
+            git checkout --orphan "$branch"
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
+          mkdir -p docs/images/generated
+          cp ../gui-screenshots/*.png docs/images/generated/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/images/generated/*.png
+          git commit -m "ci: publish PR ${PR_NUMBER} GUI screenshots" || true
+          git push --force origin "HEAD:$branch"
+      - name: Comment PR with rendered screenshots
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           SERVER_URL: ${{ github.server_url }}
         run: |
           set -euo pipefail
-          artifact_url="$SERVER_URL/$REPO/actions/runs/$RUN_ID"
+          branch="ci/pr-${PR_NUMBER}-screenshots"
+          raw_base="$SERVER_URL/$REPO/raw/refs/heads/$branch/docs/images/generated"
           body=$(cat <<EOF
           ## Canonical GUI screenshots
 
-          Canonical FreeCAD/Xvfb GUI acceptance passed for this PR. The generated 1280x720 screenshots are attached as the \`cloth-gui-screenshots\` workflow artifact.
+          Canonical FreeCAD/Xvfb GUI acceptance passed for this PR. The generated 1280x720 screenshots are rendered below; the workflow artifact remains available for download.
 
-          **Artifact:** [$artifact_url]($artifact_url)
+          **Artifact:** [$SERVER_URL/$REPO/actions/runs/$GITHUB_RUN_ID]($SERVER_URL/$REPO/actions/runs/$GITHUB_RUN_ID)
 
-          Screenshots:
-          - \`cloth-pattern-design.png\`
-          - \`cloth-sewing.png\`
-          - \`cloth-simulation-arranged.png\`
-          - \`cloth-simulation-draped.png\`
+          ### Pattern design
+          ![cloth-pattern-design.png]($raw_base/cloth-pattern-design.png)
+
+          ### Sewing
+          ![cloth-sewing.png]($raw_base/cloth-sewing.png)
+
+          ### Simulation arranged
+          ![cloth-simulation-arranged.png]($raw_base/cloth-simulation-arranged.png)
+
+          ### Simulation draped
+          ![cloth-simulation-draped.png]($raw_base/cloth-simulation-draped.png)
           EOF
           )
           gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$body"
