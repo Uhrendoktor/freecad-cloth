@@ -25,7 +25,7 @@ class AvatarTaskPanel:
         "high_hip": "High_Hip", "hip": "Hip", "upper_arm": "Upper_Arm",
         "elbow": "Elbow", "wrist": "Wrist", "thigh": "Thigh",
         "knee": "Knee", "calf": "Calf", "ankle": "Ankle",
-        "inseam": "Inseam", "torso": "Torso", "front_waist": "Front_Waist",
+        "inseam": "Inseam", "torso": "Torso length", "front_waist": "Front_Waist",
         "back_waist": "Back_Waist",
     }
     BODY = (
@@ -81,6 +81,14 @@ class AvatarTaskPanel:
         display_layout.addRow("Collision / skin offset", self.skin_offset)
         display_layout.addRow(self.show_measurements)
         content_layout.addWidget(display)
+
+        arrangement = QtWidgets.QGroupBox("Arrangement points")
+        arrangement_layout = QtWidgets.QVBoxLayout(arrangement)
+        self.arrangement_points = QtWidgets.QListWidget()
+        self.arrangement_points.setToolTip("Persistent local fitting points used as a foundation for garment placement.")
+        self.arrangement_points.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
+        arrangement_layout.addWidget(self.arrangement_points)
+        content_layout.addWidget(arrangement)
 
         self.landmarks = QtWidgets.QLabel()
         self.landmarks.setWordWrap(True)
@@ -143,7 +151,7 @@ class AvatarTaskPanel:
             return
         for key, box in self._boxes.items():
             box.blockSignals(True)
-            box.setValue(float(getattr(self.avatar, self.PROPERTY_MAP[key])))
+            box.setValue(float(getattr(self.avatar, self.PROPERTY_MAP[key])) )
             box.blockSignals(False)
         self.pose.blockSignals(True)
         self.pose.setCurrentText(str(getattr(self.avatar, "PosePreset", "standing")))
@@ -152,6 +160,7 @@ class AvatarTaskPanel:
         self.skin_offset.setValue(float(getattr(self.avatar, "SkinOffset", 3.0)))
         self.skin_offset.blockSignals(False)
         self.show_measurements.setChecked(True)
+        self._update_arrangement_points()
         self._update_landmarks()
         self._refresh_status()
 
@@ -174,6 +183,7 @@ class AvatarTaskPanel:
         self.avatar.SkinOffset = params.skin_offset
         self._dirty = False
         self._rebuild_geometry()
+        self._update_arrangement_points()
         self._update_landmarks()
         self._refresh_status("Mannequin rebuilt from applied persistent parameters.")
         self._fit_view()
@@ -182,6 +192,18 @@ class AvatarTaskPanel:
     def _rebuild_geometry(self):
         from AvatarCommands import rebuild_avatar
         rebuild_avatar()
+
+    def _update_arrangement_points(self):
+        self.arrangement_points.clear()
+        if self.avatar is None:
+            return
+        records = getattr(self.avatar, "ArrangementPoints", []) or []
+        for item in records:
+            try:
+                name, coords = str(item).split("|", 1)
+            except ValueError:
+                continue
+            self.arrangement_points.addItem("%s: (%s)" % (name.replace("_", " ").title(), coords))
 
     def _update_landmarks(self):
         if self.avatar is None or not self.show_measurements.isChecked():
