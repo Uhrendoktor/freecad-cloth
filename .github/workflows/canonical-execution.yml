@@ -12,8 +12,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FREECAD_VERSION: 1.1.3
-  FREECAD_APPIMAGE_SHA256: 3a853eb69ee595f779f2255dbf80a765926981d8ff68903cefee4dfb03a8f5ef
   FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.3-r1
   QT_X11_NO_MITSHM: 1
   QT_QPA_PLATFORM: xcb
@@ -22,219 +20,135 @@ env:
   XDG_RUNTIME_DIR: /tmp/runtime-cloth
 
 jobs:
-  python-core:
-    name: Python core
+  python:
+    name: Python and FreeCAD non-GUI tests
     runs-on: [self-hosted, linux, x64, docker]
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/freecad-cloth/${{ env.FREECAD_VERSION }}
-          key: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-${{ env.FREECAD_APPIMAGE_SHA256 }}
-          restore-keys: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-
       - name: Prepare FreeCAD image
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
           if docker image inspect "$IMAGE" >/dev/null 2>&1; then exit 0; fi
-          if printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1 && timeout 60s docker pull "$IMAGE"; then exit 0; fi
+          if printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1 && timeout 90s docker pull "$IMAGE"; then exit 0; fi
           docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
-          docker buildx build --progress=plain --load --tag "$IMAGE" --cache-from type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache --cache-to type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache,mode=max docker/freecad-ci
-      - name: Run core tests
+          docker buildx build --progress=plain --load --tag "$IMAGE" docker/freecad-ci
+      - name: Run Python tests in Docker
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
           CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e PYTHONPATH=/workspace -w /workspace "$IMAGE" -euo pipefail -c '
             set -e
-            for test in tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py tests/test_collisions.py; do echo "PYTEST START $test"; python3 "$test"; echo "PYTEST PASS $test"; done
+            python3 -m compileall -q .
+            for test in \
+              tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_xpbd.py \
+              tests/test_cloth_solver.py tests/test_side_tasks.py tests/test_collisions.py \
+              tests/test_pattern_sketch.py tests/test_pattern_ir.py tests/test_pattern_export_semantics.py \
+              tests/test_sketch_authority.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py \
+              tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_sewing_network_gui_contract.py \
+              tests/test_gui_structure.py tests/test_simulation_scene.py tests/test_simulation_quality.py \
+              tests/test_avatar_fitting.py tests/test_drape_quality.py tests/test_freecad_objects.py; do
+              echo "PYTEST START $test"
+              python3 "$test"
+              echo "PYTEST PASS $test"
+            done
           ')"
           trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
           docker cp "$PWD/." "$CID:/workspace/"
           docker start -a "$CID"
 
-  python-pattern-sewing:
-    name: Python pattern and sewing
+  gui-screenshot:
+    name: FreeCAD GUI screenshots
     runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/freecad-cloth/${{ env.FREECAD_VERSION }}
-          key: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-${{ env.FREECAD_APPIMAGE_SHA256 }}
-          restore-keys: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-
       - name: Prepare FreeCAD image
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
           if docker image inspect "$IMAGE" >/dev/null 2>&1; then exit 0; fi
-          if printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1 && timeout 60s docker pull "$IMAGE"; then exit 0; fi
+          if printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1 && timeout 90s docker pull "$IMAGE"; then exit 0; fi
           docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
-          docker buildx build --progress=plain --load --tag "$IMAGE" --cache-from type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache --cache-to type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache,mode=max docker/freecad-ci
-      - name: Run pattern and sewing tests
+          docker buildx build --progress=plain --load --tag "$IMAGE" docker/freecad-ci
+      - name: Launch FreeCAD GUI and export screenshots in Docker
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
-          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e PYTHONPATH=/workspace -w /workspace "$IMAGE" -euo pipefail -c '
-            set -e
-            for test in tests/test_pattern_sketch.py tests/test_pattern_ir.py tests/test_pattern_export_semantics.py tests/test_sketch_authority.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_sewing_network_gui_contract.py tests/test_gui_structure.py; do echo "PYTEST START $test"; python3 "$test"; echo "PYTEST PASS $test"; done
-          ')"
-          trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
-          docker cp "$PWD/." "$CID:/workspace/"
-          docker start -a "$CID"
-
-  python-simulation:
-    name: Python simulation
-    runs-on: [self-hosted, linux, x64, docker]
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/freecad-cloth/${{ env.FREECAD_VERSION }}
-          key: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-${{ env.FREECAD_APPIMAGE_SHA256 }}
-          restore-keys: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-
-      - name: Prepare FreeCAD image
-        env:
-          IMAGE: ${{ env.FREECAD_IMAGE }}
-        run: |
-          set -euo pipefail
-          if docker image inspect "$IMAGE" >/dev/null 2>&1; then exit 0; fi
-          if printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1 && timeout 60s docker pull "$IMAGE"; then exit 0; fi
-          docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
-          docker buildx build --progress=plain --load --tag "$IMAGE" --cache-from type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache --cache-to type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache,mode=max docker/freecad-ci
-      - name: Run simulation tests
-        env:
-          IMAGE: ${{ env.FREECAD_IMAGE }}
-        run: |
-          set -euo pipefail
-          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e PYTHONPATH=/workspace -w /workspace "$IMAGE" -euo pipefail -c '
-            set -e
-            for test in tests/test_simulation_scene.py tests/test_simulation_quality.py tests/test_avatar_fitting.py tests/test_drape_quality.py tests/test_freecad_objects.py; do echo "PYTEST START $test"; python3 "$test"; echo "PYTEST PASS $test"; done
-          ')"
-          trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
-          docker cp "$PWD/." "$CID:/workspace/"
-          docker start -a "$CID"
-
-  python-compile:
-    name: Python compileall
-    runs-on: [self-hosted, linux, x64, docker]
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v5
-      - run: python3 -m compileall -q .
-
-  freecad-smoke:
-    name: FreeCAD smoke ${{ matrix.test }}
-    runs-on: [self-hosted, linux, x64, docker]
-    timeout-minutes: 8
-    strategy:
-      fail-fast: false
-      max-parallel: 3
-      matrix:
-        test: [tests/freecad_smoke.py, tests/freecad_meshpart_smoke.py, tests/freecad_sewing_smoke.py]
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/freecad-cloth/${{ env.FREECAD_VERSION }}
-          key: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-${{ env.FREECAD_APPIMAGE_SHA256 }}
-          restore-keys: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-
-      - name: Prepare FreeCAD image
-        env:
-          IMAGE: ${{ env.FREECAD_IMAGE }}
-        run: |
-          set -euo pipefail
-          if docker image inspect "$IMAGE" >/dev/null 2>&1; then exit 0; fi
-          if printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1 && timeout 60s docker pull "$IMAGE"; then exit 0; fi
-          docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
-          docker buildx build --progress=plain --load --tag "$IMAGE" --cache-from type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache --cache-to type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache,mode=max docker/freecad-ci
-      - name: Run FreeCAD smoke with bounded console execution
-        env:
-          IMAGE: ${{ env.FREECAD_IMAGE }}
-          TEST: ${{ matrix.test }}
-        run: |
-          set -euo pipefail
-          mkdir -p artifacts/freecad-e2e docs/images/generated
-          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e DISPLAY=:99 -e TEST="$TEST" -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -w /workspace "$IMAGE" -euo pipefail -c '
-            set -e
-            mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/freecad-e2e
-            Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
-            trap "kill $XVFB_PID 2>/dev/null || true" EXIT
-            sleep 1
-            echo "FREECAD START $TEST"
-            printf "%s\n" "import FreeCADGui; FreeCADGui.setupWithoutGUI(); exec(compile(open(\"$TEST\", encoding=\"utf-8\").read(), \"$TEST\", \"exec\"))" "exit()" | timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun freecad --console
-            echo "FREECAD PASS $TEST"
-          ')"
+          rm -rf docs/images/generated artifacts/freecad-gui
+          mkdir -p docs/images/generated artifacts/freecad-gui
+          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash \
+            -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
+            -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -w /workspace "$IMAGE" -euo pipefail -c '
+              set -e
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              cleanup_gui() { kill "$OPENBOX_PID" "$XVFB_PID" 2>/dev/null || true; }
+              trap cleanup_gui EXIT
+              for i in $(seq 1 20); do
+                xdpyinfo -display :99 >/dev/null 2>&1 && break
+                sleep 0.25
+              done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              echo "GUI DISPLAY READY :99"
+              echo "FREECAD GUI SCREENSHOT START"
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun tests/freecad_screenshot.py
+              test -s docs/images/generated/cloth-pattern-design.png
+              test -s docs/images/generated/cloth-sewing.png
+              test -s docs/images/generated/cloth-simulation-arranged.png
+              test -s docs/images/generated/cloth-simulation-draped.png
+              for image in docs/images/generated/*.png; do
+                python3 - "$image" <<'PY'
+import struct, sys
+path = sys.argv[1]
+with open(path, "rb") as f:
+    data = f.read(24)
+if data[:8] != b"\x89PNG\r\n\x1a\n":
+    raise SystemExit("not a PNG: " + path)
+width, height = struct.unpack(">II", data[16:24])
+if (width, height) != (1280, 720):
+    raise SystemExit("wrong size %s: %sx%s" % (path, width, height))
+if __import__("os").path.getsize(path) < 20000:
+    raise SystemExit("suspiciously small PNG: " + path)
+print("VALID PNG", path, width, height)
+PY
+              done
+              echo "FREECAD GUI SCREENSHOT PASS"
+            ')"
           cleanup() {
             set +e
-            docker cp "$CID:/workspace/artifacts/freecad-e2e/." artifacts/freecad-e2e/ 2>/dev/null || true
             docker cp "$CID:/workspace/docs/images/generated/." docs/images/generated/ 2>/dev/null || true
-            docker logs "$CID" > artifacts/freecad-e2e/docker-console.log 2>&1 || true
-            docker inspect "$CID" > artifacts/freecad-e2e/docker-inspect.json 2>/dev/null || true
-            docker cp "$CID:/tmp/xvfb.log" artifacts/freecad-e2e/xvfb.log 2>/dev/null || true
+            docker cp "$CID:/tmp/xvfb.log" artifacts/freecad-gui/xvfb.log 2>/dev/null || true
+            docker cp "$CID:/tmp/openbox.log" artifacts/freecad-gui/openbox.log 2>/dev/null || true
+            docker cp "$CID:/workspace/docs/images/generated/gui-progress.log" artifacts/freecad-gui/gui-progress.log 2>/dev/null || true
+            docker cp "$CID:/workspace/docs/images/generated/gui-screenshot-manifest.txt" artifacts/freecad-gui/gui-screenshot-manifest.txt 2>/dev/null || true
+            docker logs "$CID" > artifacts/freecad-gui/docker-console.log 2>&1 || true
+            docker inspect "$CID" > artifacts/freecad-gui/docker-inspect.json 2>/dev/null || true
             docker rm -f "$CID" >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
           docker cp "$PWD/." "$CID:/workspace/"
           docker start -a "$CID"
-      - name: Upload smoke diagnostics
+      - name: Upload GUI screenshots
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: freecad-smoke-${{ strategy.job-index }}-${{ matrix.test == 'tests/freecad_smoke.py' && 'core' || matrix.test == 'tests/freecad_meshpart_smoke.py' && 'meshpart' || 'sewing' }}-diagnostics
-          path: artifacts/freecad-e2e
-          if-no-files-found: ignore
+          name: cloth-gui-screenshots
+          path: docs/images/generated/*.png
+          if-no-files-found: error
           compression-level: 1
-
-  gui-screenshot:
-    name: FreeCAD GUI screenshot
-    runs-on: [self-hosted, linux, x64, docker]
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/freecad-cloth/${{ env.FREECAD_VERSION }}
-          key: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-${{ env.FREECAD_APPIMAGE_SHA256 }}
-          restore-keys: freecad-${{ runner.os }}-${{ runner.arch }}-${{ env.FREECAD_VERSION }}-
-      - name: Prepare FreeCAD image
-        env:
-          IMAGE: ${{ env.FREECAD_IMAGE }}
-        run: |
-          set -euo pipefail
-          if docker image inspect "$IMAGE" >/dev/null 2>&1; then exit 0; fi
-          if printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1 && timeout 60s docker pull "$IMAGE"; then exit 0; fi
-          docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
-          docker buildx build --progress=plain --load --tag "$IMAGE" --cache-from type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache --cache-to type=registry,ref=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:buildcache,mode=max docker/freecad-ci
-      - name: Run GUI screenshot
-        env:
-          IMAGE: ${{ env.FREECAD_IMAGE }}
-        run: |
-          set -euo pipefail
-          mkdir -p docs/images/generated
-          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -w /workspace "$IMAGE" -euo pipefail -c '
-            set -e
-            mkdir -p "$XDG_RUNTIME_DIR"
-            Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
-            openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
-            trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-            sleep 1
-            timeout --signal=TERM --kill-after=10s 120s /opt/freecad/AppRun tests/freecad_screenshot.py
-          ')"
-          trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
-          docker cp "$PWD/." "$CID:/workspace/"
-          docker start -a "$CID"
-      - name: Upload GUI artifacts
+      - name: Upload GUI diagnostics
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: freecad-gui-screenshot
-          path: docs/images/generated
+          name: cloth-gui-diagnostics
+          path: artifacts/freecad-gui
           if-no-files-found: ignore
           compression-level: 1
