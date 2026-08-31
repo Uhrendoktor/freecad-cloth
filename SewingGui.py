@@ -62,6 +62,8 @@ class SewingTaskPanel:
         self.tolerance=QtWidgets.QDoubleSpinBox(); self.tolerance.setRange(0,1000); self.tolerance.setDecimals(2); self.tolerance.setSuffix(" mm"); self.tolerance.setValue(float(obj.Tolerance)); layout.addRow("Validation tolerance",self.tolerance)
         self.stitches=QtWidgets.QSpinBox(); self.stitches.setRange(2,10000); self.stitches.setValue(max(2,int(obj.Stitches))); layout.addRow("Stitch samples",self.stitches)
         self.status=QtWidgets.QLabel(); self.status.setWordWrap(True); self.lengths=QtWidgets.QLabel(); self.lengths.setWordWrap(True); self.correspondence=QtWidgets.QLabel(); self.correspondence.setWordWrap(True); layout.addRow("Status",self.status); layout.addRow("Seam lengths",self.lengths); layout.addRow("Correspondence",self.correspondence)
+        self.reverse_button=QtWidgets.QPushButton("Reverse B"); self.reverse_button.setToolTip("Toggle the direction of seam B correspondence"); self.reverse_button.clicked.connect(self.reverse_b); layout.addRow("Orientation",self.reverse_button)
+        self.reset_ranges_button=QtWidgets.QPushButton("Reset ranges"); self.reset_ranges_button.setToolTip("Reset both seam ranges to the complete referenced edges"); self.reset_ranges_button.clicked.connect(self.reset_ranges); layout.addRow("Ranges",self.reset_ranges_button)
         self.repair_button=QtWidgets.QPushButton("Repair correspondence"); self.repair_button.setToolTip("Repair reversible/invalid-range correspondence without hiding physical length mismatch"); self.repair_button.clicked.connect(self.repair); layout.addRow("Repair",self.repair_button)
         self._original={"Tolerance":float(obj.Tolerance),"Stitches":int(obj.Stitches),"Alignment":str(getattr(self.seam,"Alignment","endpoints")) if self.seam else "endpoints","ReversedB":bool(getattr(self.seam,"ReversedB",False)) if self.seam else False,"StartA":float(getattr(self.seam,"StartA",0.0)) if self.seam else 0.0,"EndA":float(getattr(self.seam,"EndA",1.0)) if self.seam else 1.0,"StartB":float(getattr(self.seam,"StartB",0.0)) if self.seam else 0.0,"EndB":float(getattr(self.seam,"EndB",1.0)) if self.seam else 1.0}
         self._begin_transaction(); self._refresh()
@@ -85,14 +87,30 @@ class SewingTaskPanel:
         report=correspondence_report(self.seam,self.obj.LengthA,self.obj.LengthB,max(0.0,float(self.obj.Tolerance))/max(1.0,float(self.obj.LengthA)))
         if report is None: self.correspondence.setText("No seam correspondence"); return
         self.correspondence.setText("%s — %s (ratio %.4f)"%(report.status,report.message,report.length_ratio))
+        self.reverse_button.setText("Unreverse B" if bool(getattr(self.seam,"ReversedB",False)) else "Reverse B")
+        self.reset_ranges_button.setEnabled(any(abs(float(getattr(self.seam,name,default))-default)>1e-9 for name,default in (("StartA",0.0),("EndA",1.0),("StartB",0.0),("EndB",1.0))))
     def update(self): self._refresh()
     def _apply_seam_settings(self):
         if self.seam is None: return
         self.seam.Alignment=str(self.alignment.currentText()); self.seam.ReversedB=bool(self.reversed_b.isChecked()); self.seam.StartA=self.start_a.value(); self.seam.EndA=self.end_a.value(); self.seam.StartB=self.start_b.value(); self.seam.EndB=self.end_b.value()
+    def reverse_b(self):
+        validate_seam_for_accept(self.seam)
+        self.seam.ReversedB=not bool(getattr(self.seam,"ReversedB",False))
+        self.reversed_b.setChecked(bool(self.seam.ReversedB))
+        self.App.ActiveDocument.recompute(); self._refresh()
+        return bool(self.seam.ReversedB)
+    def reset_ranges(self):
+        validate_seam_for_accept(self.seam)
+        for widget in (self.start_a,self.end_a,self.start_b,self.end_b):
+            widget.setValue(0.0 if widget in (self.start_a,self.start_b) else 1.0)
+        self._apply_seam_settings(); self.App.ActiveDocument.recompute(); self._refresh(); return True
     def repair(self):
         validate_seam_for_accept(self.seam)
         report=correspondence_report(self.seam,self.obj.LengthA,self.obj.LengthB,max(0.0,float(self.obj.Tolerance))/max(1.0,float(self.obj.LengthA)))
         message=repair_correspondence_settings(self.seam, report)
+        self.reversed_b.setChecked(bool(getattr(self.seam,"ReversedB",False)))
+        for widget,name,default in ((self.start_a,"StartA",0.0),(self.end_a,"EndA",1.0),(self.start_b,"StartB",0.0),(self.end_b,"EndB",1.0)):
+            widget.setValue(float(getattr(self.seam,name,default)))
         self.App.ActiveDocument.recompute(); self._refresh(); return message
     def accept(self):
         validate_seam_for_accept(self.seam); self._apply_seam_settings(); self.obj.Tolerance=self.tolerance.value(); self.obj.Stitches=self.stitches.value(); self.App.ActiveDocument.recompute(); validate_seam_for_accept(self.seam)
