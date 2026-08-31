@@ -73,6 +73,16 @@ def _ensure_collision(obj):
     return avatar
 
 
+def _ensure_drape_target(obj):
+    """Attach the mannequin to the same target-neutral collision API as CAD targets."""
+    from DrapeTarget import assign_drape_target, create_drape_target
+    target = obj.Document.getObject("DrapeTarget")
+    if target is None:
+        target = create_drape_target(obj.Document, target_type="Mannequin", deflection=1.0, thickness=2.0)
+    assign_drape_target(target, obj, "Mannequin")
+    return target
+
+
 def _make_scene(doc):
     from FittingCommands import create_fitting_scene
     return create_fitting_scene()
@@ -90,9 +100,12 @@ def create_avatar():
         _set_prop(obj,"App::PropertyString","AvatarStatus","Avatar","Unbuilt"); _set_prop(obj,"App::PropertyString","ParametersJSON","Avatar",""); _set_prop(obj,"App::PropertyStringList","Landmarks","Measurements",[])
         _set_prop(obj,"App::PropertyStringList","ArrangementPoints","Fitting",[])
         _set_prop(obj,"App::PropertyLink","CollisionProxy","Collision",None)
+        _set_prop(obj,"App::PropertyLink","DrapeTarget","Collision",None)
     _rebuild(obj)
     collision = _ensure_collision(obj)
+    target = _ensure_drape_target(obj)
     obj.CollisionProxy = collision
+    obj.DrapeTarget = target
     doc.recompute()
     return obj
 
@@ -105,6 +118,7 @@ def rebuild_avatar():
     if obj is None: raise ValueError("create a Cloth Avatar first")
     _rebuild(obj)
     obj.CollisionProxy = _ensure_collision(obj)
+    obj.DrapeTarget = _ensure_drape_target(obj)
     return obj
 
 
