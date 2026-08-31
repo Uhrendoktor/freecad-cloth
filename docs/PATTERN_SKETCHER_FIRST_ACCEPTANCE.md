@@ -20,6 +20,7 @@ Release acceptance for the native Sketcher-first Pattern authoring slice.
 - The legacy sketch-generation command remains available only for compatibility/migration.
 - No second constraint solver or duplicate drafting kernel is introduced.
 - Semantic Cloth metadata remains outside Sketcher while Sketcher owns geometry.
+- `GeometryAuthority=Sketcher` is the persistent authority marker; the legacy `GeometryMode` remains limited to its existing `Rectangle`/`Custom` values.
 
 ## CI gate
 
