@@ -9,7 +9,7 @@ Machine-readable supervisor coordination record for implementation agents.
 - Canonical CI: `.github/workflows/canonical-execution.yml`
 - CI policy: preserve the existing Docker/Xvfb GUI screenshot and PNG export path. Do not create a second workflow.
 - Current open-PR policy: every PR must be reviewed for scope, CI evidence, mergeability, and regression risk before merge.
-- Supervisor audit: PR #377 merged into `main`; duplicate PRs #373 and #376 were closed as superseded with explicit reasons. PR #375 remains draft pending current-main recut and canonical evidence. PR #378 is a narrowly scoped addition to the existing canonical workflow and is awaiting terminal-green CI before any merge decision.
+- Supervisor audit: PR #377 merged into `main`; duplicate PRs #373, #376, #375 and #379 were closed as superseded with explicit reasons. PR #378 was closed because it introduced workflow multiplication around the fragile screenshot path. PR #381 remains open pending a current-main recut and canonical evidence.
 
 ## Release gates
 
@@ -29,7 +29,7 @@ Machine-readable supervisor coordination record for implementation agents.
 
 - Resolve DrapeTarget stale-state safety and authority tracked by #322/#289/#284.
 - Keep the canonical end-to-end fixture healthy (#155/#278).
-- Finish native Sketcher acceptance and topology repair (#298/#297).
+- Finish native Sketcher acceptance and topology repair (#298/#297); the default Sketcher authoring slice from #360 is now merged as PR #383.
 - Finish simulation quality/material lifecycle (#145) after the tessellation fix in merged PR #368.
 
 ### P1 — workbench completeness
@@ -87,8 +87,8 @@ Only after the end-to-end contracts are stable: higher-fidelity replaceable huma
 
 ## Supervisor audit notes — 2026-08-31
 
-- Re-checked all open PRs and issues. PR #377 passed the canonical Python + FreeCAD/Xvfb workflow and was merged. PR #373 and #376 were duplicate/stale Sewing registration test paths and were closed as superseded by #377 with explicit reasons. PR #375 has no workflow run for its current head and remains draft. PR #378 is currently running the existing canonical workflow; no merge decision will be made while CI is in progress.
-- Completed issue cleanup: #120 and #126 were closed with state reason `completed` because the canonical screenshot suite now activates the real workbenches, exposes task panels/toolbars, captures full 1280x720 application-window PNGs, and retains diagnostics. #252 was closed with state reason `completed` because stable Sewing command labels and activation/resource tests are already present on main.
+- Re-checked all open PRs after the latest mainline merge. PR #381 remains the only open PR after closing stale/duplicate #375 and #379 and rejecting #378's workflow-multiplication approach. #381 is not mergeable yet and has no canonical workflow run for its exact head; do not merge until it is re-cut from current `main` and passes the canonical Python + FreeCAD/Xvfb gate.
+- PR #383 is merged and supplies the native Sketcher default authoring path for #360; its canonical run 1049 passed before merge. Do not revive #379 or #375.
 - Canonical workflow remains the sole workflow and retains the real FreeCAD/Xvfb screenshot/export path: four 1280x720 PNG states plus diagnostics. The screenshot generation/validation job is not to be weakened or replaced.
 - Merged PR #368 fixed simulation-quality tessellation by preserving authored boundary vertices and refining interiors; this remains a regression contract.
 - Merged PR #372 provides the staged mannequin GUI. #369 still requires real canonical acceptance before the avatar workstream advances.
@@ -97,7 +97,6 @@ Only after the end-to-end contracts are stable: higher-fidelity replaceable huma
 - Added `docs/CLO_FEATURE_MATRIX_2026.md` and `docs/AGENT_HANDOFF_TEMPLATE.md` to make feature triage, UI/UX contracts, avatar-provider architecture and agent handoff requirements explicit.
 - User-requested avatar direction is locked as two interchangeable providers: a recognizably human FreeCAD-native mannequin for normal garment fitting, and a generic FreeCAD Shape/PartDesign/Body/Mesh object through the same DrapeTarget interface. High-fidelity avatar work is later.
 - `ADVANCED_TOOL_MODE.md` is not present in the repository; supervisor execution policy is retained in `TOOL_STATE.md`.
-- Native Sketcher default authoring slice (#360) merged as PR #383 after canonical run 1049 passed both Python/FreeCAD tests and the real GUI screenshot/validation path. Standard PatternPiece creation now links a native Sketcher representation, and `ClothPattern_EditSketch` enters the native Sketcher editor.
 
 ## Handoff checklist
 
