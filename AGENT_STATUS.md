@@ -6,12 +6,11 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main at task start: `9cbed3226c60e89e6bdf5313022a2de84fb5db7a`
-- Current implementation branch: `agent/python-project-structure-20260831`
-- PR: #408
+- Current main: `03cd25f54bf2c7a0301329030cbc2bc4992b8942`
+- Structure migration PR: #408 (merged)
 - Reversible pre-change snapshot: `backup/pre-structure-20260831` (branch; tag creation is not exposed by the available GitHub connector)
 - Canonical CI: `.github/workflows/canonical-execution.yml`
-- Open PRs before this pass: 0
+- Open PRs: 0
 - CI policy: preserve the Docker/Xvfb FreeCAD screenshot/PNG path; never add a second workflow.
 
 ## Release gates
@@ -38,8 +37,8 @@ Prototype proves native semantic boundaries and end-to-end invalidation. MVP mak
 
 ## Structure migration
 
-The repository is now introducing a standard `pyproject.toml` package boundary under `freecad_cloth/` while keeping root `Init.py`/`InitGui.py` and legacy top-level modules intact. Package submodules own Pattern, Sewing and Simulation workbench registration. Compatibility shims remain until later migration slices are proven by canonical FreeCAD/Xvfb acceptance.
+The standard `pyproject.toml` package boundary under `freecad_cloth/` is now merged. Root `Init.py`/`InitGui.py` and legacy top-level modules remain intact. Package submodules own Pattern, Sewing and Simulation workbench registration. Compatibility shims remain until later migration slices are proven by canonical FreeCAD/Xvfb acceptance.
 
 ## Agent rules
 
-Re-cut implementation branches from current `main`; one focused concern per PR; inspect diffs and terminal-green CI before merge; merge then verify and delete source branches. Never weaken tests or multiply workflows. Close issues only with an explicit GitHub state reason and a reason recorded in the conversation.
+Re-cut implementation branches from current `main`; one focused concern per PR; inspect diffs and terminal-green CI before merge; merge then verify and delete source branches when tooling permits. Never weaken tests or multiply workflows. Close issues only with an explicit GitHub state reason and a reason recorded in the conversation.
