@@ -111,7 +111,7 @@ A high-fidelity imported/generated body is a later provider behind the same boun
 - CLO Help Center, M:N Segment Sewing: https://support.clo3d.com/hc/en-us/articles/115000497727--2D-Tool-M-N-Segment-Sewing
 - CLO Help Center, Segment Sewing: https://support.clo3d.com/hc/en-us/articles/115000498767--2D-Tool-Segment-Sewing
 - CLO Help Center, Free Sewing: https://support.clo3d.com/hc/en-us/articles/360001754628--3D-Tool-Free-Sewing
-- CLO Help Center, Seam Allowance: https://support.clo3d.com/hc/en-us/articles/360001?placeholder
+- CLO Help Center, Seam Allowance: https://support.clo3d.com/hc/en-us/articles/115013215727-Create-Seam-Allowance
 - CLO Help Center, Notch: https://support.clo3d.com/hc/en-us/articles/115015735467-Notch
 - CLO Help Center, Set Grading: https://support.clo3d.com/hc/en-us/articles/115015798567-Set-Grading
 - CLO Help Center, DXF import/export: https://support.clo3d.com/hc/en-us/articles/115000493067-2D-Pattern-DXF-Import-Export
