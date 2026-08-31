@@ -92,6 +92,18 @@ def _initialize_method(tree, class_name):
     )
 
 
+def _module_command_union(expr):
+    """Resolve a simple ``A.COMMANDS + B.COMMANDS`` AST expression."""
+    assert isinstance(expr, ast.BinOp) and isinstance(expr.op, ast.Add)
+    modules = []
+    for operand in (expr.left, expr.right):
+        assert isinstance(operand, ast.Attribute)
+        assert operand.attr == "COMMANDS"
+        assert isinstance(operand.value, ast.Name)
+        modules.append(operand.value.id)
+    return set().union(*(_literal_commands(module) for module in modules))
+
+
 def test_sewing_menu_groups_have_stable_names_order_and_complete_commands():
     tree = _parse_initgui()
     groups = _literal_constant(tree, "SEWING_COMMAND_GROUPS")
@@ -119,11 +131,13 @@ def test_fitting_and_avatar_form_the_final_sewing_menu_group():
         if isinstance(node, ast.Call)
         and isinstance(node.func, ast.Attribute)
         and node.func.attr == "append"
+        and len(node.args) == 1
+        and isinstance(node.args[0], ast.Tuple)
     )
-    group = ast.literal_eval(group_append.args[0])
-    commands = ast.literal_eval(group_append.args[1].args[1])
-    assert group == "Fitting & Avatar"
-    assert commands == _literal_commands("FittingCommands") | _literal_commands("AvatarCommands")
+    group_name = ast.literal_eval(group_append.args[0].elts[0])
+    group_commands = _module_command_union(group_append.args[0].elts[1])
+    assert group_name == "Fitting & Avatar"
+    assert group_commands == _literal_commands("FittingCommands") | _literal_commands("AvatarCommands")
 
 
 def test_sewing_toolbar_is_stable_and_subset_of_registered_commands():
