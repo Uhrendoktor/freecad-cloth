@@ -25,7 +25,7 @@ class AvatarTaskPanel:
         "high_hip": "High_Hip", "hip": "Hip", "upper_arm": "Upper_Arm",
         "elbow": "Elbow", "wrist": "Wrist", "thigh": "Thigh",
         "knee": "Knee", "calf": "Calf", "ankle": "Ankle",
-        "inseam": "Inseam", "torso": "Torso length", "front_waist": "Front_Waist",
+        "inseam": "Inseam", "torso": "Torso", "front_waist": "Front_Waist",
         "back_waist": "Back_Waist",
     }
     BODY = (
@@ -151,7 +151,7 @@ class AvatarTaskPanel:
             return
         for key, box in self._boxes.items():
             box.blockSignals(True)
-            box.setValue(float(getattr(self.avatar, self.PROPERTY_MAP[key])) )
+            box.setValue(float(getattr(self.avatar, self.PROPERTY_MAP[key])))
             box.blockSignals(False)
         self.pose.blockSignals(True)
         self.pose.setCurrentText(str(getattr(self.avatar, "PosePreset", "standing")))
