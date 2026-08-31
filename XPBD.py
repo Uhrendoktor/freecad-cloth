@@ -165,6 +165,10 @@ class XPBDClothSolver:
 
     def _build(self, state: ClothState) -> None:
         pbd = _require_pypbd()
+        if not pbd.TimeManager.hasCurrent():
+            pbd.TimeManager.setCurrent(pbd.TimeManager())
+        if not pbd.Simulation.hasCurrent():
+            pbd.Simulation.setCurrent(pbd.Simulation())
         simulation = pbd.Simulation.getCurrent()
         simulation.initDefault()
         model = simulation.getModel()
