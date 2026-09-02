@@ -1,4 +1,4 @@
-from ClothSolver import ClothSystem
+from freecad_cloth.simulation.ClothSolver import ClothSystem
 
 
 def test_deterministic_step_and_pins():

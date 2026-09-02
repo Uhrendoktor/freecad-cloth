@@ -8,7 +8,7 @@ from freecad_cloth.pattern.PatternDerivedGeometry import Notch, PatternMark, add
 from freecad_cloth.sewing.SewingSemantics import SeamConstraint, validate_seam_graph
 from freecad_cloth.sewing.SewingObjects import _edge_length, _edge_points
 from freecad_cloth.avatar.AvatarCollision import AvatarSpec, CollisionSurface, surface_from_triangles
-from ClothSolver import ClothSystem, Particle
+from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
 from fixtures.garment_fixtures import two_piece_rectangle, mirrored_pair, multi_piece
 
 

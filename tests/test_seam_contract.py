@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import pytest
 
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
-from SeamGraph import SeamGraph
+from freecad_cloth.sewing.SeamGraph import SeamGraph
 from freecad_cloth.sewing.SewingAssembly import SewingPair
 from freecad_cloth.sewing.SewingSemantics import SeamConstraint
 

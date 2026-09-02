@@ -2,7 +2,7 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-GUI = (ROOT / "SimulationQualityGui.py").read_text(encoding="utf-8")
+GUI = (ROOT / "freecad_cloth" / "simulation" / "SimulationQualityGui.py").read_text(encoding="utf-8")
 
 
 def test_quality_panel_captures_panel_open_state():

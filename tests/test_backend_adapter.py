@@ -4,10 +4,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
 
-from freecad_cloth.common.ClothBackend import ClothSimulationBackend, XPBDBackend, default_backend_registry
-from ClothSolver import ClothSystem
+from freecad_cloth.simulation.ClothSolver import ClothSystem
+from freecad_cloth.simulation.ClothBackend import (
+    ClothSimulationBackend,
+    XPBDBackend,
+    default_backend_registry,
+)
+from freecad_cloth.simulation.SimulationBackend import ClothState, NullSolver
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
-from SeamGraph import SeamGraph
+from freecad_cloth.sewing.SeamGraph import SeamGraph
 
 
 def test_registry_selects_xpbd_backend_without_changing_solver_api():

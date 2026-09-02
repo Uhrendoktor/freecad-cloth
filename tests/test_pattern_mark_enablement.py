@@ -2,7 +2,7 @@
 import sys
 import types
 
-import PatternMarks
+import freecad_cloth.pattern.PatternMarks as PatternMarks
 
 
 class _Selection:

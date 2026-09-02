@@ -36,12 +36,12 @@ class ClothSewingWorkbench(ClothWorkbenchBase):
     def Initialize(self):
         if self.commands:
             return
-        import freecad_cloth.sewing.SewingCommands
-        import freecad_cloth.sewing.SewingNetworkCommands
-        import freecad_cloth.simulation.FittingCommands
-        import freecad_cloth.avatar.AvatarCommands
+        import freecad_cloth.sewing.SewingCommands as SewingCommands
+        import freecad_cloth.sewing.SewingNetworkCommands as SewingNetworkCommands
+        import freecad_cloth.simulation.FittingCommands as FittingCommands
+        import freecad_cloth.avatar.AvatarCommands as AvatarCommands
         groups = list(COMMAND_GROUPS)
-        groups.append(("Fitting & Avatar", FittingCommands.COMMANDS + AvatarCommands.COMMANDS))
+        groups.append(("Fitting & Avatar", tuple(frozenset(FittingCommands.COMMANDS) | frozenset(AvatarCommands.COMMANDS))))
         expected = SewingCommands.COMMANDS + SewingNetworkCommands.COMMANDS + FittingCommands.COMMANDS + AvatarCommands.COMMANDS
         _validate_sewing_command_groups(groups, expected)
         self.register(groups, toolbar_name=self.MenuText, toolbar_commands=TOOLBAR_COMMANDS)

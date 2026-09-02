@@ -4,7 +4,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.pattern.PatternSync import PatternSourceSnapshot, SimulationLockedError, SynchronizationState
-from SeamGraph import SeamGraph, Transform3D
+from freecad_cloth.sewing.SeamGraph import SeamGraph, Transform3D
 
 
 def _graph():

@@ -10,7 +10,7 @@ import hashlib
 import json
 from typing import Dict, Iterable, Tuple
 
-from freecad_cloth.sewing.SeamGraph import freecad_cloth.sewing.SeamGraph
+from freecad_cloth.sewing.SeamGraph import SeamGraph
 
 
 class SimulationLockedError(RuntimeError):

@@ -7,7 +7,7 @@ presentation-level pairing metadata.
 from dataclasses import dataclass, field
 from typing import Dict
 
-from freecad_cloth.sewing.SeamGraph import freecad_cloth.sewing.SeamGraph, Transform3D
+from freecad_cloth.sewing.SeamGraph import SeamGraph, Transform3D
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 
 

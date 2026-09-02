@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-PatternGui = importlib.import_module("PatternGui")
+PatternGui = importlib.import_module("freecad_cloth.pattern.PatternGui")
 
 
 class _Document:

@@ -4,8 +4,8 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-GUI = (ROOT / "DrapeGui.py").read_text(encoding="utf-8")
-COMMANDS = (ROOT / "DrapeCommands.py").read_text(encoding="utf-8")
+GUI = (ROOT / "freecad_cloth" / "simulation" / "DrapeGui.py").read_text(encoding="utf-8")
+COMMANDS = (ROOT / "freecad_cloth" / "simulation" / "DrapeCommands.py").read_text(encoding="utf-8")
 
 
 class DrapeGuiTests(unittest.TestCase):

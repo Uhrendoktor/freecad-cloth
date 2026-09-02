@@ -2,7 +2,7 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-source = (ROOT / "SimulationCommands.py").read_text()
+source = (ROOT / "freecad_cloth" / "simulation" / "SimulationCommands.py").read_text()
 
 assert '"ClothSimulation_Step"' in source
 assert '"ClothSimulation_Run"' in source
@@ -13,7 +13,7 @@ assert 'def simulation_status():' in source
 assert 'def IsActive(self):' in source
 assert '_has_simulation' in source
 assert '"state": "unavailable"' in source
-assert '"state": "ready" if finite else "invalid/non-finite"' in source
+assert '"state": "ready" if finite else "invalid/non-finite"' in source or '"state": "ready" if finite and not target_info["blocked"] else "invalid/stale"' in source
 assert 'def _require_drape_target_ready(doc):' in source
 assert '_require_drape_target_ready(doc)' in source
 assert 'raise RuntimeError(status["message"])' in source

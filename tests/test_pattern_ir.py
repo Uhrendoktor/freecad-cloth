@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from freecad_cloth.pattern.PatternGeometry import LineSegment as GeometryLineSegment, ParametricPattern, QuadraticBezier, rectangle
 from freecad_cloth.pattern.PatternIR import PatternIR
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
-from SeamGraph import SeamGraph
+from freecad_cloth.sewing.SeamGraph import SeamGraph
 
 
 def _graph():

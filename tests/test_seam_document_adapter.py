@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 from freecad_cloth.pattern.PatternObjects import _edge_records, _resolve_document_edge
-from SeamReference import ChangedEdgeReference, MissingEdgeReference, capture_edge_reference
+from freecad_cloth.sewing.SeamReference import ChangedEdgeReference, MissingEdgeReference, capture_edge_reference
 
 
 def _piece(points=((0, 0), (10, 0), (10, 10), (0, 10))):

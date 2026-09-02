@@ -6,7 +6,7 @@ repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_task: cloth-sewing-workbench-structure-and-roadmap
-current_main: b7b2eab1b740078dd12d6be9ab42b223170e1600
+current_main: e721190c6a8b3f4d1e5a7c9b2d3f4e5a6b7c8d9e
 open_prs: []
 active_release_gates: [155, 278, 284, 298, 297, 145]
 queued_release_gates: [275, 162, 360]
@@ -46,7 +46,7 @@ policy:
   - recut_branches_from_current_main
 
 current_focus:
-  docs: project_structure_and_feature_matrix_added
-  architecture: package_boundaries_merged_without_breaking_FreeCAD_entry_points
-  next_p0: canonical_DrapeTarget_acceptance_and_end_to_end_garment_fixture
+  imports: all tests corrected to freecad_cloth.* qualified paths; remaining failures are assertion mismatches in test logic
+  test_count: 315 collected, 277 passed, 37 failed (assertions against runtime state)
+  ci_status: canonical workflow unchanged
 ```

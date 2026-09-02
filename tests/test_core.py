@@ -6,8 +6,9 @@ from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, QuadraticBezier, rectangle
 from freecad_cloth.pattern.PatternSchema import PatternDocument, dumps, loads
 from freecad_cloth.simulation.SimulationBackend import ClothState, NullSolver
-import PatternCommands
-import SimulationCommands
+from freecad_cloth.pattern import PatternCommands as _PatMod
+from freecad_cloth.sewing import SewingCommands as _SewMod
+from freecad_cloth.simulation import SimulationCommands as _SimMod
 
 
 def test_pattern_piece_validation():
@@ -60,9 +61,11 @@ def test_null_solver_is_deterministic():
     state = ClothState([(0.0, 0.0, 0.0)]); assert NullSolver().step(state, 0.01) == state
 
 def test_workbench_command_scopes():
-    assert {"ClothPattern_CreatePiece", "ClothPattern_CreateCustomPiece", "ClothPattern_CreateMesh", "ClothPattern_AddSeam", "ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D"}.issubset(set(PatternCommands.COMMANDS))
-    assert {"ClothSimulation_Create", "ClothSimulation_CreateDrape", "ClothSimulation_Step", "ClothSimulation_Edit"}.issubset(set(SimulationCommands.COMMANDS))
-    assert not set(PatternCommands.COMMANDS) & set(SimulationCommands.COMMANDS)
+    assert {"ClothPattern_CreatePiece", "ClothPattern_CreateCustomPiece", "ClothPattern_CreateMesh", "ClothPattern_AddSeam", "ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D"}.issubset(set(_PatMod.COMMANDS))
+    assert {"ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing", "ClothSewing_CreateOperation", "ClothSewing_Validate"}.issubset(set(_SewMod.COMMANDS))
+    assert {"ClothSimulation_Create", "ClothSimulation_CreateDrape", "ClothSimulation_Step", "ClothSimulation_Edit"}.issubset(set(_SimMod.COMMANDS))
+    assert not set(_PatMod.COMMANDS) & set(_SewMod.COMMANDS)
+    assert not set(_SewMod.COMMANDS) & set(_SimMod.COMMANDS)
 
 def run():
     for name, fn in globals().copy().items():

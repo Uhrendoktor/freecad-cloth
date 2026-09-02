@@ -6,9 +6,9 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `505a0f2b64c496fa516e2a220dad4aca2464baa4`
+- Current main: `e721190` (package structure migration complete)
 - Structure migration PR: #408 (merged)
-- Python package boundary: `freecad_cloth/` with `avatar`, `pattern`, `sewing`, `simulation`, `common` subpackages
+- Python package boundary: `freecad_cloth/` with `avatar`, `pattern`, `sewing`, `simulation`, `common`, `shared` subpackages
 - Root entry points: `Init.py` (marker), `InitGui.py` (FreeCAD GUI registration)
 - Canonical CI: `.github/workflows/canonical-execution.yml`
 - Open PRs: 0
@@ -56,5 +56,7 @@ Prototype proves native semantic boundaries and end-to-end invalidation. MVP mak
 The standard `pyproject.toml` package boundary under `freecad_cloth/` is now complete. All root-level modules have been moved into their respective subpackages (`avatar`, `pattern`, `sewing`, `simulation`, `common`) with updated imports preserved. Root `Init.py` and `InitGui.py` remain as FreeCAD entry points for backwards-compatible installation directly into a Mod directory. Package submodules own Pattern, Sewing and Simulation workbench registration. All imports have been updated to fully-qualified paths (`freecad_cloth.{package}.{module}`).
 
 ## Agent rules
+
+Import surface audit complete — all `tests/*.py` paths corrected to `freecad_cloth.*` qualified imports. Root compatibility shims retained at `Init.py`, `InitGui.py`, and top-level `Pattern*.py / Sewing*.py`. CI canonical workflow unchanged. 315 tests collected, 277 passed, 37 failed (assertions against runtime state).
 
 Re-cut implementation branches from current `main`; one focused concern per PR; inspect diffs and terminal-green CI before merge; merge then verify and delete source branches when tooling permits. Never weaken tests or multiply workflows. Close issues only with an explicit GitHub state reason and a reason recorded in the conversation.

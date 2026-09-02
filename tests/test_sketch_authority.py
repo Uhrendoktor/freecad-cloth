@@ -4,7 +4,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.pattern.PatternIR import PatternIR
-from SeamGraph import SeamGraph
+from freecad_cloth.sewing.SeamGraph import SeamGraph
 
 
 class Point:

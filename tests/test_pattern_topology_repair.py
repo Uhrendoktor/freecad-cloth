@@ -9,7 +9,7 @@ from freecad_cloth.pattern.PatternTopologyRepair import (
     current_edge_candidates,
     seam_reference_status,
 )
-from SeamReference import capture_edge_reference
+from freecad_cloth.pattern.SeamReference import capture_edge_reference
 
 
 def _piece(piece_id="front", points=((0, 0), (10, 0), (10, 10), (0, 10))):

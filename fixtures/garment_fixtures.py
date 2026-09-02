@@ -1,5 +1,5 @@
 """Small generated, license-safe garment fixtures for regression tests."""
-from PatternGeometry import rectangle
+from freecad_cloth.pattern.PatternGeometry import rectangle
 
 def two_piece_rectangle():
     return {"pieces": [rectangle(100, 60), rectangle(100, 60)], "seams": [("right", "left")]}

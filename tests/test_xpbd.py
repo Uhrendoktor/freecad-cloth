@@ -3,7 +3,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from freecad_cloth.pattern.PatternGeometry import rectangle
 from freecad_cloth.pattern.PatternMesh import triangulate
-from XPBD import CapsuleCollider, DistanceConstraint, XPBDClothSolver, ShearConstraint, BendingConstraint, structural_constraints, shear_constraints, bending_constraints
+from freecad_cloth.simulation.XPBD import CapsuleCollider, DistanceConstraint, XPBDClothSolver, ShearConstraint, BendingConstraint, structural_constraints, shear_constraints, bending_constraints
 from freecad_cloth.simulation.SimulationBackend import ClothState
 
 def test_structural_constraints_are_unique():

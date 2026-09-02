@@ -3,7 +3,7 @@ from math import sqrt
 from freecad_cloth.pattern.PatternGeometry import rectangle
 from freecad_cloth.pattern.PatternMesh import triangulate
 from freecad_cloth.simulation.SimulationBackend import ClothState
-from XPBD import DistanceConstraint, SphereCollider, XPBDClothSolver
+from freecad_cloth.simulation.XPBD import DistanceConstraint, SphereCollider, XPBDClothSolver
 
 
 def test_sphere_collision_pushes_particle_outside_surface():

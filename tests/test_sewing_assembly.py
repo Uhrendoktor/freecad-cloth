@@ -4,7 +4,7 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
-from SeamGraph import SeamGraph, Transform3D
+from freecad_cloth.sewing.SeamGraph import SeamGraph, Transform3D
 from freecad_cloth.sewing.SewingAssembly import SewingAssembly, align_piece_to_seam, make_translation
 
 
