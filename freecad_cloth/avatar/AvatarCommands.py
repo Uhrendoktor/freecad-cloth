@@ -89,12 +89,12 @@ def _ensure_drape_target(obj):
     return target
 
 
-def create_avatar(attach_collision=True):
+def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
     import FreeCAD as App
-    doc = App.ActiveDocument or App.newDocument("ClothSewing")
+    doc = doc or App.ActiveDocument or App.newDocument("ClothSewing")
     obj = _avatar(doc)
     if obj is None:
-        obj = doc.addObject("Mesh::Feature", "ClothAvatar")
+        obj = doc.addObject("Mesh::Feature", object_name)
         obj.Label = "Cloth Human Avatar"
         _set_prop(obj, "App::PropertyString", "AvatarType", "Avatar", "ClothAvatar")
         _set_prop(obj, "App::PropertyString", "SchemaVersion", "Avatar", "1")
