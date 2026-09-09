@@ -8,6 +8,7 @@ COMMAND_GROUPS = (
     ("Sewing Creation", ("ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing", "ClothSewing_CreateNetwork", "ClothSewing_FreeSewing")),
     ("Sewing Editing", ("ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_EditNetwork", "ClothSewing_ReverseSeam", "ClothSewing_ToggleAlignment")),
     ("Validation & View", ("ClothSewing_Validate", "ClothSewing_RepairSeam", "ClothSewing_Show2D")),
+    ("Fitting & Avatar", ()),
 )
 TOOLBAR_COMMANDS = ("ClothSewing_CreateSeam", "ClothSewing_CreateOperation", "ClothSewing_Validate")
 
@@ -43,9 +44,9 @@ class ClothSewingWorkbench(ClothWorkbenchBase):
             return
         import freecad_cloth.sewing.SewingCommands as SewingCommands
         import freecad_cloth.sewing.SewingNetworkCommands as SewingNetworkCommands
-        import freecad_cloth.simulation.FittingCommands as FittingCommands
+        import freecad_cloth.avatar.FittingCommands as FittingCommands
         import freecad_cloth.avatar.AvatarCommands as AvatarCommands
-        groups = list(COMMAND_GROUPS)
+        groups = list(COMMAND_GROUPS[:3])
         groups.append(("Fitting & Avatar", tuple(frozenset(FittingCommands.COMMANDS) | frozenset(AvatarCommands.COMMANDS))))
         expected = SewingCommands.COMMANDS + SewingNetworkCommands.COMMANDS + FittingCommands.COMMANDS + AvatarCommands.COMMANDS
         _validate_sewing_command_groups(groups, expected)
