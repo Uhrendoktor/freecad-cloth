@@ -55,23 +55,31 @@ def _geometry_signature(target):
         return mesh_signature
     shape = getattr(target, "Shape", None)
     if shape is not None:
-        try:
-            if not shape.isNull():
-                box = shape.BoundBox
-                return (
-                    "Shape",
-                    int(len(getattr(shape, "Solids", ()))),
-                    int(len(getattr(shape, "Faces", ()))),
-                    int(len(getattr(shape, "Edges", ()))),
-                    int(len(getattr(shape, "Vertexes", ()))),
-                    round(float(shape.Volume), 6),
-                    round(float(shape.Area), 6),
-                    round(float(box.XMin), 6), round(float(box.XMax), 6),
-                    round(float(box.YMin), 6), round(float(box.YMax), 6),
-                    round(float(box.ZMin), 6), round(float(box.ZMax), 6),
-                )
-        except (AttributeError, TypeError, ValueError):
-            pass
+        tessellate = getattr(shape, "tessellate", None)
+        if callable(tessellate):
+            try:
+                if not shape.isNull():
+                    box = shape.BoundBox
+                    return (
+                        "Shape",
+                        int(len(getattr(shape, "Solids", ()))),
+                        int(len(getattr(shape, "Faces", ()))),
+                        int(len(getattr(shape, "Edges", ()))),
+                        int(len(getattr(shape, "Vertexes", ()))),
+                        round(float(shape.Volume), 6),
+                        round(float(shape.Area), 6),
+                        round(float(box.XMin), 6), round(float(box.XMax), 6),
+                        round(float(box.YMin), 6), round(float(box.YMax), 6),
+                        round(float(box.ZMin), 6), round(float(box.ZMax), 6),
+                    )
+            except (AttributeError, TypeError, ValueError):
+                pass
+        hash_code = getattr(shape, "hashCode", None)
+        if callable(hash_code):
+            try:
+                return ("ShapeHash", int(hash_code()))
+            except (TypeError, ValueError):
+                pass
     return ("Unknown",)
 
 
