@@ -15,7 +15,7 @@ from pathlib import Path
 import tempfile
 from urllib.request import Request, urlopen
 
-MAKEHUMAN_COMMIT = "1f508f6083b2f823dab15de924b3bde72e08d77c"
+MAKEHUMAN_COMMIT = "1f508f6083b2f823dab15de924b3bde72e08d77c9"
 MAKEHUMAN_BASE_URL = (
     "https://raw.githubusercontent.com/makehumancommunity/makehuman/"
     + MAKEHUMAN_COMMIT
@@ -113,7 +113,12 @@ def ensure_makehuman_base(path: str | os.PathLike[str] | None = None) -> Path:
 
 
 def parse_obj(text: str) -> MeshData:
-    """Parse Wavefront vertices/faces; triangulate quads and n-gons."""
+    """Parse Wavefront vertices/faces; triangulate quads and n-gons.
+
+    Keep the source topology intact.  The MakeHuman base mesh is one canonical
+    surface; choosing an arbitrary connected component can silently discard
+    legitimate anatomy or produce a visibly incomplete mannequin.
+    """
     vertices = []
     triangles = []
     for raw in text.splitlines():
@@ -143,19 +148,6 @@ def load_makehuman_mesh(path: str | None = None) -> MeshData:
         raise HumanoidMeshError("unable to parse MakeHuman base mesh %s: %s" % (source, exc)) from exc
 
 
-def _percentile(values, fraction):
-    values = sorted(values)
-    if not values:
-        return 0.0
-    position = (len(values) - 1) * fraction
-    low = int(math.floor(position))
-    high = int(math.ceil(position))
-    if low == high:
-        return float(values[low])
-    weight = position - low
-    return float(values[low] * (1.0 - weight) + values[high] * weight)
-
-
 def _lerp(a, b, t):
     return a + (b - a) * max(0.0, min(1.0, t))
 
@@ -176,23 +168,7 @@ def _map_makehuman_axes(vertices):
     """Convert MakeHuman's Y-up coordinates to RH-Z-up normalized coordinates."""
     ymin, ymax = _axis_bounds(vertices, 1)
     span = max(1e-9, ymax - ymin)
-    return [(float(x), float(z), float(y - ymin) / span) for x, y, z in vertices]
-
-
-def _section_extents(vertices, z, band=0.025, predicate=None):
-    samples = [v for v in vertices if abs(v[2] - z) <= band and (predicate is None or predicate(v))]
-    if len(samples) < 6:
-        return 0.0, 0.0
-    xs = [v[0] for v in samples]
-    ys = [v[1] for v in samples]
-    return max(xs) - min(xs), max(ys) - min(ys)
-
-
-def _ellipse_perimeter(width, depth):
-    """Ramanujan-style perimeter estimate from an axis-aligned section."""
-    a = max(1e-6, width * 0.5)
-    b = max(1e-6, depth * 0.5)
-    return math.pi * (3.0 * (a + b) - math.sqrt((3.0 * a + b) * (a + 3.0 * b)))
+    return [(float(x), float(-z), float(y - ymin) / span) for x, y, z in vertices]
 
 
 def _profile_scale(z, profile):
@@ -204,24 +180,20 @@ def _profile_scale(z, profile):
     return profile[-1][1]
 
 
-def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
-    """Fit the real base mesh to Cloth measurements with mannequin-safe proportions.
+def _is_default_measurement_shape(parameters) -> bool:
+    """Return whether the authoritative dimensions are the canonical defaults."""
+    from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
 
-    Circumference measurements are fitted from actual horizontal section extents.
-    Shoulder is a breadth measurement, not a circumference, so it gets its own
-    lateral correction. The visible mesh is the bare base body; collision padding
-    is supplied separately by the target rather than by an inflated default skin.
-    """
-    mesh.validate()
-    source = _map_makehuman_axes(mesh.vertices)
-    max_x = max(abs(v[0]) for v in source) or 1.0
+    return all(
+        math.isclose(parameters.measurement(name), value, rel_tol=0.0, abs_tol=1e-9)
+        for name, value in DEFAULT_MEASUREMENTS.items()
+    )
 
-    height_mm = float(parameters.measurement("height"))
-    z0, z1 = _axis_bounds(source, 2)
-    height_unit = max(1e-9, z1 - z0)
-    base_scale = height_mm / height_unit
 
-    torso_vertices = [v for v in source if abs(v[0]) <= max_x * 0.48] or source
+def _measurement_profile(parameters):
+    """Return proportional changes relative to the canonical mannequin dimensions."""
+    from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
+
     bands = (
         ("hip", 0.50),
         ("high_hip", 0.54),
@@ -229,32 +201,44 @@ def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
         ("underbust", 0.64),
         ("chest", 0.69),
     )
-    target_circumferences = {name: float(parameters.measurement(name)) for name, _ in bands}
-    torso_profile = [(0.42, 1.0)]
+    profile = [(0.42, 1.0)]
     for name, z in bands:
-        width, depth = _section_extents(torso_vertices, z)
-        source_perimeter = _ellipse_perimeter(width, depth)
-        if source_perimeter <= 1e-6:
-            scale = 1.0
-        else:
-            scale = target_circumferences[name] / (source_perimeter * base_scale)
-        torso_profile.append((z, scale))
-    torso_profile.extend(((0.75, torso_profile[-1][1]), (1.0, torso_profile[-1][1])))
+        ratio = parameters.measurement(name) / float(DEFAULT_MEASUREMENTS[name])
+        profile.append((z, max(0.75, min(1.35, ratio))))
+    profile.extend(((0.75, profile[-1][1]), (1.0, profile[-1][1])))
+    return profile
 
-    shoulder_width, _ = _section_extents(torso_vertices, 0.76)
-    shoulder_target = float(parameters.measurement("shoulder"))
-    shoulder_base = max(1e-6, shoulder_width * base_scale * _profile_scale(0.76, torso_profile))
-    shoulder_scale = shoulder_target / shoulder_base
+
+def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
+    """Fit HM08 without rewriting its canonical silhouette.
+
+    The default mannequin gets one global height normalization and the selected
+    pose.  Custom measurements are applied only as proportional deltas from that
+    canonical shape, avoiding a five-band reconstruction of the human body.
+    """
+    mesh.validate()
+    source = _map_makehuman_axes(mesh.vertices)
+    height_mm = float(parameters.measurement("height"))
+    z0, z1 = _axis_bounds(source, 2)
+    height_unit = max(1e-9, z1 - z0)
+    base_scale = height_mm / height_unit
+
+    torso_profile = [(0.0, 1.0), (1.0, 1.0)] if _is_default_measurement_shape(parameters) else _measurement_profile(parameters)
+
+    if _is_default_measurement_shape(parameters):
+        shoulder_scale = 1.0
+    else:
+        from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
+        shoulder_ratio = parameters.measurement("shoulder") / float(DEFAULT_MEASUREMENTS["shoulder"])
+        shoulder_scale = max(0.80, min(1.25, shoulder_ratio))
 
     skin_offset = float(parameters.skin_offset)
     fitted = []
+    body_half = float(parameters.measurement("shoulder")) * 0.36
     for x, y, z in source:
         torso_scale = _profile_scale(z, torso_profile)
         shoulder_blend = _smoothstep(0.67, 0.79, z)
         lateral_scale = _lerp(1.0, shoulder_scale, shoulder_blend)
-        # Keep the head neutral while the shoulder breadth correction fades out.
-        if z >= 0.79:
-            lateral_scale = 1.0
         x_mm = x * base_scale * torso_scale * lateral_scale
         y_mm = y * base_scale * torso_scale
         radius = math.hypot(x_mm, y_mm)
@@ -265,12 +249,11 @@ def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
 
     pose = parameters.pose
     shoulder_z = height_mm * 0.76
-    shoulder_half = shoulder_target / 2.0
+    shoulder_half = float(parameters.measurement("shoulder")) / 2.0
     default_angle = {"standing": 12.0, "sewing": 55.0, "sitting": 25.0}.get(pose.preset, 12.0)
     left_angle = default_angle if pose.preset != "standing" and float(pose.left_arm_angle) == 12.0 else float(pose.left_arm_angle)
     right_angle = default_angle if pose.preset != "standing" and float(pose.right_arm_angle) == 12.0 else float(pose.right_arm_angle)
     posed = []
-    body_half = max(1.0, shoulder_half * 0.72)
     for x, y, z in fitted:
         nz = z / max(1.0, height_mm)
         if 0.58 <= nz <= 0.90 and abs(x) > body_half:
