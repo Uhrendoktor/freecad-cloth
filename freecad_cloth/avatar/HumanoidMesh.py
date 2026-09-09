@@ -57,10 +57,9 @@ def _verified(path: Path) -> bool:
     if not path.is_file() or path.stat().st_size <= 1024:
         return False
     try:
-        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        return hashlib.sha256(path.read_bytes()).hexdigest() == MAKEHUMAN_BASE_SHA256
     except OSError:
         return False
-    return digest == MAKEHUMAN_BASE_SHA256
 
 
 def _download(url: str, destination: Path) -> None:
@@ -87,9 +86,20 @@ def _download(url: str, destination: Path) -> None:
 
 
 def ensure_makehuman_base(path: str | os.PathLike[str] | None = None) -> Path:
-    """Return a cached real MakeHuman base mesh, downloading it when absent."""
+    """Return a real human OBJ, using an explicit local override when supplied."""
     override = os.environ.get(CACHE_ENV, "").strip()
-    destination = Path(path).expanduser() if path else (Path(override).expanduser() if override else _default_cache_path())
+    if path is not None:
+        destination = Path(path).expanduser()
+        if not destination.is_file():
+            raise HumanoidMeshError("explicit humanoid mesh path does not exist: %s" % destination)
+        return destination
+    if override:
+        destination = Path(override).expanduser()
+        if not destination.is_file():
+            raise HumanoidMeshError("%s points to a missing humanoid mesh: %s" % (CACHE_ENV, destination))
+        return destination
+
+    destination = _default_cache_path()
     if _verified(destination):
         return destination
     try:
@@ -97,7 +107,7 @@ def ensure_makehuman_base(path: str | os.PathLike[str] | None = None) -> Path:
     except Exception as exc:
         raise HumanoidMeshError(
             "unable to obtain the pinned MakeHuman HM08 base mesh; "
-            "set %s to a verified local .obj file or allow network access (%s)" % (CACHE_ENV, exc)
+            "set %s to a local OBJ file or allow network access (%s)" % (CACHE_ENV, exc)
         ) from exc
     return destination
 
@@ -241,4 +251,4 @@ def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
 
 def build_humanoid_mesh(parameters, source_path=None) -> MeshData:
     """Load, fit and return the real MakeHuman mesh for Cloth."""
-    return fit_makehuman_mesh(load_makehuman_mesh(source_path), parameters)
+    return fit_makehuman_mesh(load_makehuman_mesh(str(source_path) if source_path is not None else None), parameters)
