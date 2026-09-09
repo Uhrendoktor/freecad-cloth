@@ -98,6 +98,7 @@ def run_acceptance():
         curved.Placement.Base.x = -120
         mate.Placement.Base.x = 20
         _make_curved(curved, doc)
+        _make_curved(mate, doc)
 
         from freecad_cloth.pattern.PatternGui import PatternPieceTaskPanel
         _show_panel(PatternPieceTaskPanel(curved), ("Piece name", "Width", "Height", "Seam allowance", "Grainline angle"))
@@ -106,7 +107,7 @@ def run_acceptance():
         _activate("ClothSewingWorkbench", ["ClothSewing_CreateSeam", "ClothSewing_CreateOperation", "ClothSewing_Validate"])
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(curved, "Edge3")
-        Gui.Selection.addSelection(mate, "Edge1")
+        Gui.Selection.addSelection(mate, "Edge3")
         Gui.runCommand("ClothSewing_CreateSeam", 0)
         doc.recompute()
         seam = next((obj for obj in doc.Objects if getattr(obj, "SeamId", "")), None)
