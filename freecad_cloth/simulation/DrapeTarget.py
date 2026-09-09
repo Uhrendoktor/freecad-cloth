@@ -154,7 +154,7 @@ def target_status(target):
             return {"state": "ready", "message": "Drape target collision surface is current", "stale": False, "reason": "managed MakeHuman avatar owns mesh rebuild state"}
         return {
             "state": "stale",
-            "message": "Drape target changed; rebuild collision surface before simulation",
+            "message": "Drape target changed; rebuild collision surface before simulation (current=%s authored=%s)" % (current, authored),
             "stale": True,
             "reason": "source, placement, tessellation or collision thickness changed",
             "signature_current": current,
