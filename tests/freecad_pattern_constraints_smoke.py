@@ -3,6 +3,7 @@ import math
 import os
 import sys
 import tempfile
+import traceback
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -157,4 +158,28 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        traceback.print_exc()
+        sys.stderr.flush()
+        raise
+    finally:
+        for document in list(App.listDocuments().values()):
+            try:
+                App.closeDocument(document.Name)
+            except Exception:
+                pass
+        try:
+            Gui.updateGui()
+            window = Gui.getMainWindow()
+            if window is not None:
+                window.close()
+            app = getattr(__import__("PySide6", fromlist=["QtWidgets"]), "QtWidgets").QApplication.instance()
+            if app is not None:
+                app.quit()
+        except Exception:
+            pass
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(0)
