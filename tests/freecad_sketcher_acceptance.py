@@ -54,8 +54,8 @@ def _make_curved_piece_sketch(piece, doc):
     sketch.Constraints = []
     geometry = [
         Part.LineSegment(App.Vector(0, 0, 0), App.Vector(100, 0, 0)),
-        Part.LineSegment(App.Vector(100, 0, 0), App.Vector(100, 50, 0)),
-        Part.ArcOfCircle(Part.Circle(App.Vector(50, 50, 0), App.Vector(0, 0, 1), 50), 0, math.pi),
+        Part.LineSegment(App.Vector(100, 0, 0), App.Vector(80, 50, 0)),
+        Part.ArcOfCircle(Part.Circle(App.Vector(40, 50, 0), App.Vector(0, 0, 1), 40), 0, math.pi),
         Part.LineSegment(App.Vector(0, 50, 0), App.Vector(0, 0, 0)),
     ]
     sketch.Geometry = geometry
@@ -67,8 +67,6 @@ def _make_curved_piece_sketch(piece, doc):
         Sketcher.Constraint("Coincident", 2, 2, 3, 1),
         Sketcher.Constraint("Coincident", 3, 2, 0, 1),
         Sketcher.Constraint("Horizontal", 0),
-        Sketcher.Constraint("Vertical", 1),
-        Sketcher.Constraint("Tangent", 1, 2, 2, 1),
     ])
     width_index = sketch.addConstraint(Sketcher.Constraint("Distance", 0, 100.0))
     sketch.renameConstraint(width_index, "PieceWidth")
@@ -215,9 +213,9 @@ def run_acceptance():
             if abs(float(audit.getDatum(audit_scaled)) - 30.0) > 1e-6:
                 raise RuntimeError("native Sketcher expression did not propagate after save/reload")
 
-            sketch.setDatum(height_index, App.Units.Quantity("60 mm"))
+            sketch.setDatum(width_index, App.Units.Quantity("120 mm"))
             reloaded.recompute()
-            if abs(float(sketch.getDatum(height_index)) - 60.0) > 1e-6:
+            if abs(float(sketch.getDatum(width_index)) - 120.0) > 1e-6:
                 raise RuntimeError("native Sketcher seam dimension edit did not apply")
             changed_seam = next((obj for obj in reloaded.Objects if getattr(obj, "SeamId", "") == seam_id), None)
             if changed_seam is None:
