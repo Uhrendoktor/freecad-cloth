@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.simulation.SimulationQuality import FabricMaterial, QUALITY_PRESETS, preset, solver_parameters
-from freecad_cloth.simulation.SimulationQualityRuntimeV2 import quality_discretization
+from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, quality_discretization
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 
 
@@ -74,6 +74,17 @@ class SimulationQualityTests(unittest.TestCase):
         self.assertEqual(len(triangles), 162)
         self.assertEqual([positions[i][:2] for i in boundary], piece.outline)
         self.assertGreater(len(positions), len(boundary))
+
+    def test_quality_proxy_recreates_nonserializable_solver_state(self):
+        proxy = QualitySimulationProxy()
+        original = proxy.__dict__["_base"]
+        del proxy.__dict__["_base"]
+        self.assertEqual(proxy.last_steps, 0)
+        restored = proxy.__dict__["_base"]
+        self.assertIsNot(restored, original)
+        self.assertEqual(restored.last_steps, 0)
+        proxy.onDocumentRestored(None)
+        self.assertIsNot(proxy.__dict__["_base"], restored)
 
 
 if __name__ == "__main__":
