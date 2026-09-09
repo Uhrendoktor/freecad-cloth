@@ -113,13 +113,12 @@ def _assert_ir_preserves_native_curves(sketch, piece_id, document):
 
 def main():
     mark("start")
-    init_gui = os.path.join(ROOT, "InitGui.py")
-    mark("loading-initgui")
-    exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
-    mark("initgui-loaded")
+    # The canonical screenshot runner has already executed InitGui.py in this
+    # same FreeCAD process. Re-executing it can abort FreeCAD 1.1, so this
+    # acceptance only validates the registered public workbench state here.
     Gui.updateGui()
     assert "Cloth Pattern" in [str(name) for name in Gui.listWorkbenches()]
-    mark("activating-workbench")
+    mark("workbench-present")
     Gui.activateWorkbench("Cloth Pattern")
     Gui.updateGui()
     mark("workbench-active")
