@@ -7,6 +7,7 @@ from freecad_cloth.avatar.AvatarFitting import ArrangementPoint, BodyMeasurement
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose, generate_mesh
 from freecad_cloth.avatar.AvatarService import AvatarService
 from freecad_cloth.avatar.AvatarArrangement import ARRANGEMENT_POINT_NAMES, arrangement_point_map, arrangement_points_from_landmarks
+from freecad_cloth.avatar.HumanoidMesh import _map_makehuman_axes, parse_obj
 
 
 class AvatarFittingTests(unittest.TestCase):
@@ -52,6 +53,23 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertEqual(restored, scene)
         self.assertFalse(restored.symmetry_enabled)
         self.assertEqual(restored.arrangement_map()["chest"].position(), (10.0, 20.0, 5.0))
+
+    def test_mannequin_component_extraction_and_axis_mapping_are_stable(self):
+        mesh = parse_obj("""
+        v 0 0 0
+        v 1 0 0
+        v 0 1 0
+        v 1 1 0
+        v 20 20 20
+        v 21 20 20
+        v 20 21 20
+        f 1 2 3
+        f 2 4 3
+        f 5 6 7
+        """)
+        self.assertEqual(len(mesh.vertices), 4)
+        self.assertEqual(len(mesh.triangles), 2)
+        self.assertEqual(_map_makehuman_axes(((-2.0, -5.0, -1.0), (2.0, 5.0, 1.0))), ((-2.0, 1.0, 0.0), (2.0, -1.0, 1.0)))
 
     def test_mannequin_is_deterministic_and_landmarked(self):
         params = AvatarParameters()
