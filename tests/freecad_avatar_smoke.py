@@ -5,7 +5,7 @@ import tempfile
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import FreeCAD as App
 from freecad_cloth.avatar.AvatarCommands import create_avatar, set_avatar_measurements, set_avatar_pose, set_avatar_skin_offset
-from freecad_cloth.pattern.DrapeTarget import target_status
+from freecad_cloth.simulation.DrapeTarget import target_status
 
 
 def main():

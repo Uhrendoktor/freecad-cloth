@@ -1,17 +1,28 @@
 # Tool State
 
 ```yaml
-schema: 5
+schema: 6
 repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_task: cloth-sewing-workbench-structure-and-roadmap
-current_main: e721190c6a8b3f4d1e5a7c9b2d3f4e5a6b7c8d9e
-open_prs: []
+current_main: 86eea3e33518dc82048d44677331d93407a0fe89
+open_prs: [414]
 active_release_gates: [155, 278, 284, 298, 297, 145]
 queued_release_gates: [275, 162, 360]
 non_blocking: [148]
 closed_this_pass: []
+
+architecture:
+  package_root: freecad_cloth/
+  domain_packages: [avatar, pattern, sewing, simulation]
+  shared_packages: [common, shared]
+  root_python: [Init.py, InitGui.py, sitecustomize.py]
+  root_domain_implementations: forbidden
+  root_compatibility_shims: forbidden
+  drape_target_owner: freecad_cloth.simulation.DrapeTarget
+  diagnostics_owner: freecad_cloth.common.ClothDiagnostics
+  policy: migrate_callers_to_package_namespace; never_restore_root_domain_modules
 
 workflow_contract:
   workflow_count: 1
@@ -26,15 +37,15 @@ workflow_contract:
   policy: preserve_existing_Docker_Xvfb_PNG_path; no_second_workflow
 
 latest_verified_ci:
-  run_id: 33415287754
-  run_number: 1143
-  commit: 03cd25f54bf2c7a0301329030cbc2bc4992b8942
+  run_id: 34389227217
+  run_number: 1159
+  commit: 86eea3e33518dc82048d44677331d93407a0fe89
   status: completed
   conclusion: success
   python_job: success
   gui_job: success
   publish_merged_pr_screenshots: success
-  note: The merged structure code passed the canonical Python and real FreeCAD/Xvfb screenshot/PNG acceptance on main. Subsequent supervisor-state commits are documentation-only and do not alter executable workbench code.
+  note: Main was green immediately before the module-tree cleanup. PR #414 is the follow-up that makes the package tree authoritative and removes remaining root/domain duplicates.
 
 policy:
   - inspect_open_prs_and_issues_before_changes
@@ -46,7 +57,7 @@ policy:
   - recut_branches_from_current_main
 
 current_focus:
-  imports: all tests corrected to freecad_cloth.* qualified paths; remaining failures are assertion mismatches in test logic
-  test_count: 315 collected, 277 passed, 37 failed (assertions against runtime state)
-  ci_status: canonical workflow unchanged
+  imports: package-qualified module namespace is authoritative
+  structure: package-tree cleanup in PR 414
+  ci_status: PR checks running
 ```

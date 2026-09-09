@@ -204,7 +204,7 @@ def simulation():
     from freecad_cloth.pattern.PatternObjects import add_seam
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
     from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
-    from freecad_cloth.pattern.DrapeTarget import refresh_drape_target
+    from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
 
     doc = App.newDocument("ClothSimulationVisualRegression")
     front = create_pattern_piece_from_parameters("SimFront", 140.0, 90.0, 10.0, 0.0)

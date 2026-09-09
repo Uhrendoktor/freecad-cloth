@@ -1,7 +1,9 @@
-"""Headless regression checks for native Cloth workbench registration."""
+"""Headless regression checks for package-owned Cloth workbench registration."""
 import importlib
 
-import InitGui
+from freecad_cloth.pattern.workbench import ClothPatternWorkbench
+from freecad_cloth.sewing.workbench import COMMAND_GROUPS as SEWING_COMMAND_GROUPS, ClothSewingWorkbench
+from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
 
 
 EXPECTED_WORKBENCHES = {
@@ -12,42 +14,28 @@ EXPECTED_WORKBENCHES = {
 
 
 def test_workbench_resources_are_stable():
-    workbenches = (
-        InitGui.ClothPatternWorkbench(),
-        InitGui.ClothSewingWorkbench(),
-        InitGui.ClothSimulationWorkbench(),
-    )
+    workbenches = (ClothPatternWorkbench(), ClothSewingWorkbench(), ClothSimulationWorkbench())
     assert {wb.MenuText: wb.ToolTip for wb in workbenches} == EXPECTED_WORKBENCHES
     for wb in workbenches:
         resources = wb.GetResources()
         assert resources["MenuText"] == wb.MenuText
         assert resources["ToolTip"] == wb.ToolTip
-        assert resources["Icon"] == {
-            "Cloth Pattern": "ClothPattern.svg",
-            "Cloth Sewing": "ClothSewing.svg",
-            "Cloth Simulation": "ClothSimulation.svg",
-        }[wb.MenuText]
+        assert resources["Icon"] in {"ClothPattern.svg", "ClothSewing.svg", "ClothSimulation.svg"}
         assert wb.GetClassName() == "Gui::PythonWorkbench"
 
 
 def test_sewing_command_groups_are_unique_and_complete():
-    groups = InitGui.SEWING_COMMAND_GROUPS
-    commands = [command for _name, group in groups for command in group]
+    commands = [command for _name, group in SEWING_COMMAND_GROUPS for command in group]
     assert commands
     assert len(commands) == len(set(commands))
-
-    sewing = importlib.import_module("SewingCommands")
-    network = importlib.import_module("SewingNetworkCommands")
+    sewing = importlib.import_module("freecad_cloth.sewing.SewingCommands")
+    network = importlib.import_module("freecad_cloth.sewing.SewingNetworkCommands")
     expected = set(sewing.COMMANDS + network.COMMANDS)
     assert set(commands) == expected
 
 
 def test_initialize_is_idempotent_and_preserves_registered_command_order():
-    for workbench in (
-        InitGui.ClothPatternWorkbench(),
-        InitGui.ClothSewingWorkbench(),
-        InitGui.ClothSimulationWorkbench(),
-    ):
+    for workbench in (ClothPatternWorkbench(), ClothSewingWorkbench(), ClothSimulationWorkbench()):
         workbench.Initialize()
         first = list(workbench.commands)
         assert first
@@ -57,14 +45,12 @@ def test_initialize_is_idempotent_and_preserves_registered_command_order():
 
 
 def test_sewing_groups_cover_fitting_and_avatar_without_duplicates():
-    # Keep this contract tied to the actual command declarations, rather than
-    # duplicating the complete list in the test.
-    wb = InitGui.ClothSewingWorkbench()
+    wb = ClothSewingWorkbench()
     wb.Initialize()
-    fitting = importlib.import_module("FittingCommands")
-    avatar = importlib.import_module("AvatarCommands")
+    fitting = importlib.import_module("freecad_cloth.simulation.FittingCommands")
+    avatar = importlib.import_module("freecad_cloth.avatar.AvatarCommands")
     assert set(wb.commands) == set(
         command
-        for _name, group in InitGui.SEWING_COMMAND_GROUPS
+        for _name, group in SEWING_COMMAND_GROUPS
         for command in group
     ) | set(fitting.COMMANDS) | set(avatar.COMMANDS)

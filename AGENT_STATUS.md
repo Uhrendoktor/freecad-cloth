@@ -6,12 +6,12 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `e721190` (package structure migration complete)
+- Current main at cleanup start: `86eea3e33518dc82048d44677331d93407a0fe89`
 - Structure migration PR: #408 (merged)
+- Module-tree cleanup: in progress
 - Python package boundary: `freecad_cloth/` with `avatar`, `pattern`, `sewing`, `simulation`, `common`, `shared` subpackages
-- Root entry points: `Init.py` (marker), `InitGui.py` (FreeCAD GUI registration)
+- Root Python files: `Init.py`, `InitGui.py`, and interpreter-level `sitecustomize.py` only
 - Canonical CI: `.github/workflows/canonical-execution.yml`
-- Open PRs: 0
 - CI policy: preserve the Docker/Xvfb FreeCAD screenshot/PNG path; never add a second workflow.
 
 ## Package structure
@@ -19,15 +19,15 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 ```
 freecad_cloth/
 ├── avatar/        — Avatar model, collision, arrangement, fitting, commands, GUI
-├── common/        — Shared utilities (CommandAdapter, ClothDiagnostics)
+├── common/        — Shared utilities and document adapters
 ├── pattern/       — Pattern geometry, IR, mesh, objects, schema, sketch, sync, OCCT, derived geometry, commands, GUI
 ├── sewing/        — Sewing graph, references, assembly, constraints, correspondence, commands, GUI, network, objects, plan, semantics, view
-├── simulation/    — Simulation backend, commands, GUI, mesh quality, objects, quality, scene, stale guard, XPBD, drake
-├── shared/        — Shared targets (collision surface, drape target reference)
+├── simulation/    — Simulation backend, commands, GUI, mesh quality, objects, quality, drape, target, stale guard, XPBD, diagnostics
+├── shared/        — Shared target/collision contracts
 └── gui.py         — ClothWorkbenchBase shared base class
 ```
 
-All root-level modules have been moved into their respective `freecad_cloth/` subpackages with updated imports. Root `Init.py` and `InitGui.py` remain as FreeCAD entry points for backwards-compatible installation directly into a Mod directory.
+Implementation modules belong under this package tree. `Init.py` and `InitGui.py` remain at repository root because FreeCAD discovers those bootstrap files in a directly installed `Mod` directory. Root `sitecustomize.py` is an interpreter/CI hook, not Cloth domain implementation.
 
 ## Release gates
 
@@ -47,16 +47,12 @@ FreeCAD owns geometry/document state; Cloth owns garment semantics; solver owns 
 
 Task panels use Context → Primary action → Secondary actions → Parameters → Recovery. Stale state exposes a reason and recovery action. Sewing retains explicit staged interactions and Simulation retains Run/Step/Reset recovery.
 
-## Prototype → MVP → Production
-
-Prototype proves native semantic boundaries and end-to-end invalidation. MVP makes sewing, fitting, mannequin, generic target, material/quality and production-2D workflows repeatable. Production adds higher-fidelity avatars, richer diagnostics/targets, grading/nesting/manufacturing and advanced construction without changing public contracts.
-
 ## Structure migration
 
-The standard `pyproject.toml` package boundary under `freecad_cloth/` is now complete. All root-level modules have been moved into their respective subpackages (`avatar`, `pattern`, `sewing`, `simulation`, `common`) with updated imports preserved. Root `Init.py` and `InitGui.py` remain as FreeCAD entry points for backwards-compatible installation directly into a Mod directory. Package submodules own Pattern, Sewing and Simulation workbench registration. All imports have been updated to fully-qualified paths (`freecad_cloth.{package}.{module}`).
+The package tree is the canonical implementation architecture. There are no root-level Pattern/Sewing/Avatar/Drape/Simulation implementation modules and no root compatibility shims. Internal callers and tests use fully qualified `freecad_cloth.<package>.<module>` imports. `Init.py` and `InitGui.py` are bootstrap adapters only.
+
+The target-neutral `DrapeTarget` implementation lives in `freecad_cloth.simulation.DrapeTarget`; duplicate copies in `freecad_cloth.pattern` are removed. Common diagnostics have one owner under `freecad_cloth.common`.
 
 ## Agent rules
-
-Import surface audit complete — all `tests/*.py` paths corrected to `freecad_cloth.*` qualified imports. Root compatibility shims retained at `Init.py`, `InitGui.py`, and top-level `Pattern*.py / Sewing*.py`. CI canonical workflow unchanged. 315 tests collected, 277 passed, 37 failed (assertions against runtime state).
 
 Re-cut implementation branches from current `main`; one focused concern per PR; inspect diffs and terminal-green CI before merge; merge then verify and delete source branches when tooling permits. Never weaken tests or multiply workflows. Close issues only with an explicit GitHub state reason and a reason recorded in the conversation.

@@ -7,6 +7,25 @@
 3. **The solver owns physics.** Particles, triangles, numerical constraints and solver state are derived from the Cloth model and may be rebuilt.
 4. **There is one semantic authority.** Never infer persistent seam identity from generated mesh edge numbering and never create a second pattern/scene/persistence model.
 
+## Module tree
+
+Implementation code lives exclusively below `freecad_cloth/`:
+
+```text
+freecad_cloth/
+├── common/        # genuinely shared utilities and document adapters
+├── shared/        # host/solver-neutral contracts
+├── pattern/       # pattern domain, Sketcher authority, pattern GUI/commands
+├── sewing/        # sewing domain, graph/network, GUI/commands
+├── avatar/        # mannequin/avatar domain, fitting and collision
+├── simulation/    # draping, targets, solver, diagnostics, GUI/commands
+└── gui.py         # shared workbench registration base
+```
+
+The only Python files intentionally outside this tree are the FreeCAD bootstrap files `Init.py` and `InitGui.py` at repository root. They delegate to package-owned implementations. There are no root-level Pattern/Sewing/Avatar/Drape/Simulation implementation shims.
+
+Internal imports use the package namespace (`freecad_cloth.<domain>.<module>`). Historical top-level imports are migrated at their callers instead of being restored.
+
 ## Dependency direction
 
 ```text
@@ -43,7 +62,7 @@ Selection is a GUI concern; the committed sewing graph is document authority. Cu
 
 A fitting scene stores garment placements, arrangement points/anchors, wrap/superimpose/reset metadata, body measurements where available and a persistent `DrapeTarget` reference.
 
-`DrapeTarget` is target-neutral. Providers include the native human mannequin and ordinary FreeCAD Shape/PartDesign/Body/Mesh geometry. Both produce a solver-neutral `CollisionSurface`. Target edits invalidate derived collision state; stale targets must never be consumed by simulation.
+`DrapeTarget` is target-neutral and is implemented in `freecad_cloth.simulation.DrapeTarget`. Providers include the native human mannequin and ordinary FreeCAD Shape/PartDesign/Body/Mesh geometry. Both produce a solver-neutral `CollisionSurface`. Target edits invalidate derived collision state; stale targets must never be consumed by simulation.
 
 ## Simulation lifecycle
 

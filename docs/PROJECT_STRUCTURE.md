@@ -1,67 +1,58 @@
 # Project structure
 
-The repository is both a normal Python project and a directly installable FreeCAD workbench. Those requirements are intentionally separated.
+The repository is both a normal Python project and a directly installable FreeCAD workbench. The package tree is the canonical home of implementation code.
 
 ```text
 .
-├── Init.py                         # FreeCAD Mod package marker (keep at root)
-├── InitGui.py                      # FreeCAD GUI entry point (keep at root)
+├── Init.py                         # FreeCAD Mod package marker; root by requirement
+├── InitGui.py                      # FreeCAD GUI bootstrap; root by requirement
+├── sitecustomize.py                # interpreter/CI hook; root by Python convention
 ├── pyproject.toml                  # standard Python packaging metadata
 ├── freecad_cloth/
 │   ├── __init__.py
-│   ├── gui.py                      # FreeCAD-independent registration shell
+│   ├── gui.py                      # shared workbench registration base
+│   ├── common/                     # shared utilities and document adapters
 │   ├── shared/                     # solver/workbench-neutral contracts
-│   │   └── targets.py              # target-neutral collision references
-│   ├── pattern/                    # Pattern workbench boundary
-│   │   └── workbench.py
-│   ├── sewing/                     # Sewing workbench boundary
-│   │   └── workbench.py
-│   └── simulation/                 # Simulation workbench boundary
-│       └── workbench.py
-├── Pattern*.py / Sewing*.py / ...  # compatibility implementation modules
+│   ├── avatar/                     # avatar model, fitting, collision, GUI
+│   ├── pattern/                    # pattern geometry, objects, IR, sketch, GUI
+│   ├── sewing/                     # sewing graph, references, network, GUI
+│   └── simulation/                 # solver, draping, targets, diagnostics, GUI
 ├── tests/
 ├── docs/
 └── .github/workflows/
     └── canonical-execution.yml     # the only CI workflow
 ```
 
-## Why the legacy modules remain at the root
+## Module-tree rule
 
-FreeCAD's Mod discovery and the existing document/test ecosystem currently load
-modules such as `PatternIR`, `DrapeTarget`, and `FittingCommands` by their
-historical top-level names. A single large move would turn a packaging cleanup
-into an API migration and would risk saved-document compatibility.
+All implementation modules belong under `freecad_cloth/<domain>/`. There are no top-level `Pattern*.py`, `Sewing*.py`, `Avatar*.py`, `Drape*.py`, `Simulation*.py`, or other domain implementation modules.
 
-The first structure slice therefore introduces package boundaries and keeps the
-old import surface intact. Future slices can move implementation modules one
-workbench at a time and leave thin compatibility shims at the root until the
-migration is proven by the canonical FreeCAD/Xvfb suite.
+Use fully qualified imports such as:
 
-## Workbench rule
+```python
+from freecad_cloth.pattern.PatternCommands import create_pattern_piece
+from freecad_cloth.sewing.SewingNetworkCommands import create_sewing_network
+from freecad_cloth.simulation.DrapeTarget import create_drape_target
+```
 
-`InitGui.py` is deliberately still the root registration entry point. It imports
-the three package-owned workbench classes and registers them with FreeCAD. This
-keeps the repository valid when copied directly into a FreeCAD `Mod` directory
-while also making the Python package importable by standard tooling.
+The root is reserved for FreeCAD bootstrap files, the Python `sitecustomize.py` interpreter hook, and project metadata/documentation. `sitecustomize.py` is infrastructure rather than a domain implementation module.
 
-The package must never import FreeCAD at module import time unless it is a GUI
-entry point. `freecad_cloth.shared` is intentionally FreeCAD-independent.
+## Workbench ownership
 
-## Compatibility rule
+`pattern`, `sewing`, and `simulation` own their workbench registration, commands, domain objects, and GUI integration. `avatar` owns the human/avatar domain. `common` and `shared` contain only responsibility-neutral contracts/utilities and must not become alternate workbench implementations.
 
-The package GUI base retains the historical `_register`, `_register_groups`, and
-`_normalize_commands` names as migration shims. Existing GUI tests and external
-scripts therefore keep working while registration ownership moves into the
-package. These private aliases are candidates for removal only in a later API
-migration with explicit release notes.
+The target-neutral drape contract is owned by `freecad_cloth.simulation.DrapeTarget`; `freecad_cloth.shared` contains only host/solver-neutral target references and collision contracts.
+
+## FreeCAD rule
+
+`Init.py` and `InitGui.py` remain at the repository root because FreeCAD discovers a workbench installed directly into a `Mod` directory through those filenames. They are thin bootstrap adapters; domain behavior lives in `freecad_cloth/`.
+
+The Python `sitecustomize.py` hook remains at root because Python loads that conventional module from the interpreter search path. It contains only CI/Qt compatibility behavior and is not part of the Cloth domain module tree.
+
+The package must not import FreeCAD at module import time unless the module is explicitly a GUI/host integration boundary.
 
 ## Migration rule
 
-1. Introduce a package boundary.
-2. Add compatibility tests.
-3. Move one implementation module.
-4. Leave a top-level shim when external documents/tests may import the old name.
-5. Run the complete canonical workflow before deleting a shim.
-6. Delete legacy paths only after the public FreeCAD workflow proves equivalent.
+The module-tree migration is complete. Do not reintroduce root-level implementation shims to satisfy tests or legacy imports. Tests and internal callers must migrate to the canonical package namespace instead.
 
-Do not perform a repository-wide mechanical rename of FreeCAD modules.
+When a historical import is discovered, update the caller and add/adjust a regression test at the canonical package path. Do not create a second implementation or compatibility module at repository root.
