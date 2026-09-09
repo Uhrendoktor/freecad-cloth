@@ -1,8 +1,8 @@
-"""FreeCAD GUI entry point.
+"""FreeCAD GUI bootstrap entry point.
 
 FreeCAD requires ``InitGui.py`` at the workbench root when the repository is
-installed directly as a Mod. The implementation lives in the Python package so
-normal tooling, tests, and future workbench packaging share the same code.
+installed directly as a Mod. All workbench implementation remains under the
+``freecad_cloth`` package tree.
 """
 from pathlib import Path
 
@@ -13,7 +13,7 @@ except ImportError:
 
 # Install the target execute/recompute guard before GUI workbench activation.
 try:
-    import DrapeTarget  # noqa: F401
+    import freecad_cloth.simulation.DrapeTarget  # noqa: F401
 except ImportError:
     pass
 
