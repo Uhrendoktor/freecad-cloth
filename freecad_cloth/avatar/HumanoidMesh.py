@@ -2,7 +2,8 @@
 
 The avatar is a real polygonal human base mesh rather than a collection of
 FreeCAD primitives. The pinned MakeHuman HM08 base mesh is fetched lazily and
-cached locally, then fitted into the Cloth millimetre coordinate system.
+cached locally, then uniformly scaled into the Cloth millimetre coordinate
+system so the authored human anatomy remains intact.
 """
 from __future__ import annotations
 
@@ -98,7 +99,6 @@ def ensure_makehuman_base(path: str | os.PathLike[str] | None = None) -> Path:
         if not destination.is_file():
             raise HumanoidMeshError("%s points to a missing humanoid mesh: %s" % (CACHE_ENV, destination))
         return destination
-
     destination = _default_cache_path()
     if _verified(destination):
         return destination
@@ -143,17 +143,16 @@ def load_makehuman_mesh(path: str | None = None) -> MeshData:
         raise HumanoidMeshError("unable to parse MakeHuman base mesh %s: %s" % (source, exc)) from exc
 
 
-def _percentile(values, fraction):
-    values = sorted(values)
-    if not values:
-        return 0.0
-    position = (len(values) - 1) * fraction
-    low = int(math.floor(position))
-    high = int(math.ceil(position))
-    if low == high:
-        return float(values[low])
-    weight = position - low
-    return float(values[low] * (1.0 - weight) + values[high] * weight)
+def _axis_bounds(vertices, axis):
+    values = [v[axis] for v in vertices]
+    return min(values), max(values)
+
+
+def _map_makehuman_axes(vertices):
+    """Convert MakeHuman Y-up coordinates to FreeCAD X/Y/Z normalized space."""
+    ymin, ymax = _axis_bounds(vertices, 1)
+    span = max(1e-9, ymax - ymin)
+    return [(float(x), float(z), (float(y) - ymin) / span) for x, y, z in vertices]
 
 
 def _lerp(a, b, t):
@@ -167,113 +166,33 @@ def _smoothstep(a, b, x):
     return t * t * (3.0 - 2.0 * t)
 
 
-def _axis_bounds(vertices, axis):
-    values = [v[axis] for v in vertices]
-    return min(values), max(values)
-
-
-def _map_makehuman_axes(vertices):
-    """Convert MakeHuman's Y-up coordinates to RH-Z-up normalized coordinates."""
-    ymin, ymax = _axis_bounds(vertices, 1)
-    span = max(1e-9, ymax - ymin)
-    return [(float(x), float(z), float(y - ymin) / span) for x, y, z in vertices]
-
-
-def _section_extents(vertices, z, band=0.025, predicate=None):
-    samples = [v for v in vertices if abs(v[2] - z) <= band and (predicate is None or predicate(v))]
-    if len(samples) < 6:
-        return 0.0, 0.0
-    xs = [v[0] for v in samples]
-    ys = [v[1] for v in samples]
-    return max(xs) - min(xs), max(ys) - min(ys)
-
-
-def _ellipse_perimeter(width, depth):
-    """Ramanujan-style perimeter estimate from an axis-aligned section."""
-    a = max(1e-6, width * 0.5)
-    b = max(1e-6, depth * 0.5)
-    return math.pi * (3.0 * (a + b) - math.sqrt((3.0 * a + b) * (a + 3.0 * b)))
-
-
-def _profile_scale(z, profile):
-    for i in range(len(profile) - 1):
-        z0, s0 = profile[i]
-        z1, s1 = profile[i + 1]
-        if z <= z1:
-            return _lerp(s0, s1, _smoothstep(z0, z1, z))
-    return profile[-1][1]
-
-
 def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
-    """Fit the real base mesh to Cloth measurements with mannequin-safe proportions.
+    """Scale the authored MakeHuman anatomy uniformly and optionally pose the arms.
 
-    Circumference measurements are fitted from actual horizontal section extents.
-    Shoulder is a breadth measurement, not a circumference, so it gets its own
-    lateral correction. The visible mesh is the bare base body; collision padding
-    is supplied separately by the target rather than by an inflated default skin.
+    Anthropometric measurements remain authoritative for the document model, but
+    the default visible mannequin deliberately does not warp each body section.
+    Section-by-section scaling destroyed the anatomical silhouette in the prior
+    implementation and made the body look like draped cloth instead of a human.
     """
     mesh.validate()
     source = _map_makehuman_axes(mesh.vertices)
-    max_x = max(abs(v[0]) for v in source) or 1.0
-
     height_mm = float(parameters.measurement("height"))
     z0, z1 = _axis_bounds(source, 2)
-    height_unit = max(1e-9, z1 - z0)
-    base_scale = height_mm / height_unit
+    base_scale = height_mm / max(1e-9, z1 - z0)
 
-    torso_vertices = [v for v in source if abs(v[0]) <= max_x * 0.48] or source
-    bands = (
-        ("hip", 0.50),
-        ("high_hip", 0.54),
-        ("waist", 0.58),
-        ("underbust", 0.64),
-        ("chest", 0.69),
-    )
-    target_circumferences = {name: float(parameters.measurement(name)) for name, _ in bands}
-    torso_profile = [(0.42, 1.0)]
-    for name, z in bands:
-        width, depth = _section_extents(torso_vertices, z)
-        source_perimeter = _ellipse_perimeter(width, depth)
-        if source_perimeter <= 1e-6:
-            scale = 1.0
-        else:
-            scale = target_circumferences[name] / (source_perimeter * base_scale)
-        torso_profile.append((z, scale))
-    torso_profile.extend(((0.75, torso_profile[-1][1]), (1.0, torso_profile[-1][1])))
-
-    shoulder_width, _ = _section_extents(torso_vertices, 0.76)
-    shoulder_target = float(parameters.measurement("shoulder"))
-    shoulder_base = max(1e-6, shoulder_width * base_scale * _profile_scale(0.76, torso_profile))
-    shoulder_scale = shoulder_target / shoulder_base
-
-    skin_offset = float(parameters.skin_offset)
-    fitted = []
-    for x, y, z in source:
-        torso_scale = _profile_scale(z, torso_profile)
-        shoulder_blend = _smoothstep(0.67, 0.79, z)
-        lateral_scale = _lerp(1.0, shoulder_scale, shoulder_blend)
-        # Keep the head neutral while the shoulder breadth correction fades out.
-        if z >= 0.79:
-            lateral_scale = 1.0
-        x_mm = x * base_scale * torso_scale * lateral_scale
-        y_mm = y * base_scale * torso_scale
-        radius = math.hypot(x_mm, y_mm)
-        if radius > 1e-9 and skin_offset:
-            x_mm += x_mm / radius * skin_offset
-            y_mm += y_mm / radius * skin_offset
-        fitted.append((x_mm, y_mm, z * height_mm))
+    fitted = [(x * base_scale, y * base_scale, z * height_mm) for x, y, z in source]
 
     pose = parameters.pose
+    shoulder_half = float(parameters.measurement("shoulder")) / 2.0
     shoulder_z = height_mm * 0.76
-    shoulder_half = shoulder_target / 2.0
     default_angle = {"standing": 12.0, "sewing": 55.0, "sitting": 25.0}.get(pose.preset, 12.0)
     left_angle = default_angle if pose.preset != "standing" and float(pose.left_arm_angle) == 12.0 else float(pose.left_arm_angle)
     right_angle = default_angle if pose.preset != "standing" and float(pose.right_arm_angle) == 12.0 else float(pose.right_arm_angle)
+
     posed = []
     body_half = max(1.0, shoulder_half * 0.72)
     for x, y, z in fitted:
-        nz = z / max(1.0, height_mm)
-        if 0.58 <= nz <= 0.90 and abs(x) > body_half:
+        if 0.58 * height_mm <= z <= 0.90 * height_mm and abs(x) > body_half:
             side = -1.0 if x < 0.0 else 1.0
             angle = left_angle if side < 0 else right_angle
             if angle:
@@ -286,7 +205,13 @@ def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
                     shoulder_z - math.sin(radians) * dx + math.cos(radians) * dz,
                 )
         posed.append((x, y, z))
-    return MeshData(tuple(posed), mesh.triangles)
+    result = MeshData(tuple(posed), mesh.triangles).validate()
+    spans = [max(v[i] for v in result.vertices) - min(v[i] for v in result.vertices) for i in range(3)]
+    if abs(spans[2] - height_mm) > height_mm * 0.001:
+        raise HumanoidMeshError("fitted mannequin height is outside tolerance")
+    if spans[2] <= spans[0] * 1.5 or spans[2] <= spans[1] * 2.0:
+        raise HumanoidMeshError("fitted mannequin failed standing-human proportions")
+    return result
 
 
 def build_humanoid_mesh(parameters, source_path=None) -> MeshData:
