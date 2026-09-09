@@ -139,17 +139,19 @@ class AvatarFittingTests(unittest.TestCase):
             avatar.Chest = float(avatar.Chest) + 40.0
             rebuild_avatar()
             self.assertEqual(int(avatar.AvatarRevision), original_revision + 1)
-            self.assertNotEqual(str(target.SourceSignature), repr(("unused",)))
+            self.assertEqual(str(target.SourceSignature), original_signature)
             status = target_status(target)
             self.assertEqual(status["state"], "stale")
             self.assertTrue(status["stale"])
-            self.assertNotEqual(str(target.SourceSignature), repr(target_status(target).get("signature_current")))
-            self.assertNotEqual(str(target.SourceSignature), original_signature)
+            self.assertEqual(status["signature_authored"], original_signature)
+            self.assertNotEqual(status["signature_current"], original_signature)
+            self.assertEqual(target.TargetStatus, "stale")
 
             avatar.PosePreset = "sewing"
             rebuild_avatar()
             self.assertEqual(int(avatar.AvatarRevision), original_revision + 2)
             self.assertEqual(target_status(target)["state"], "stale")
+            self.assertEqual(target.TargetStatus, "stale")
 
             refresh_drape_target(target)
             self.assertEqual(target_status(target)["state"], "ready")
