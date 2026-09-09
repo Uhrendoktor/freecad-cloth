@@ -6,9 +6,9 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main at cleanup start: `344d84fc8d4150a67b9e4a5ed7683728af23d801`
+- Current main after structure audit: `c3c0d42d093bbcfb585ef8782860f180bfb3f4fc`
 - Structure migration PR: #408 (merged)
-- Module-tree cleanup: in progress
+- Module-tree cleanup: fitting command ownership consolidated under `freecad_cloth/avatar/FittingCommands.py`; duplicate simulation copy removed
 - Python package boundary: `freecad_cloth/` with `avatar`, `pattern`, `sewing`, `simulation`, `common`, `shared` subpackages
 - Root Python files: `Init.py`, `InitGui.py`, and interpreter-level `sitecustomize.py` only
 - Canonical CI: `.github/workflows/canonical-execution.yml`
@@ -31,17 +31,18 @@ Implementation modules belong under this package tree. `Init.py` and `InitGui.py
 
 ## Release gates
 
-- P0: canonical end-to-end garment fixture — #155, #278.
-- P0: DrapeTarget-authoritative acceptance — #284.
-- P0: native Sketcher acceptance/topology repair — #298, #297.
-- P0: simulation quality/material lifecycle — #145.
+- P0: canonical end-to-end garment fixture — #155, #278. The acceptance bar remains 3+ native Sketcher-backed pieces, curved sewing, save/reload, invalidation, deterministic re-simulation, and real FreeCAD/Xvfb evidence.
+- P0: DrapeTarget-authoritative acceptance — #284. Core lifecycle acceptance is completed; continue guarding against regressions in target invalidation/cache correctness.
+- P0: native Sketcher acceptance/topology repair — #298, #297. #298 is completed by PR #422; retain the acceptance tests as regression gates.
+- P0: simulation quality/material lifecycle — #145. Quality/material persistence and status controls are implemented; terminal canonical GUI acceptance remains the release evidence gate.
 - P1: sewing completion — #275.
 - P1: pattern production parity — #162, #360.
 - Later: production avatar fidelity #374; diagnostics/manufacturing #362; optional solver benchmark #148; P2 backend evaluation #404.
 
 ## Active focused work
 
-- #298 native Sketcher GUI/XvFB acceptance on `agent/issue-298-sketcher-acceptance-20260909`; reuses the canonical workflow and adds no second CI workflow.
+- Audit found PR #433's provider-specific MakeHuman `ready` exception masks a stale collision-source lifecycle on the historical sampled-avatar path. Do not use provider-specific readiness exceptions to bypass target invalidation.
+- Audit hardened `DrapeTarget` source signatures to hash complete mesh topology instead of aggregate counts/bounds/sums, while retaining `hashCode()` only for lightweight test doubles.
 
 ## Architecture / UX
 
@@ -55,7 +56,7 @@ Task panels use Context → Primary action → Secondary actions → Parameters 
 
 The package tree is the canonical implementation architecture. There are no root-level Pattern/Sewing/Avatar/Drape/Simulation implementation modules and no root compatibility shims. Internal callers and tests use fully qualified `freecad_cloth.<package>.<module>` imports. `Init.py` and `InitGui.py` are bootstrap adapters only.
 
-The target-neutral `DrapeTarget` implementation lives in `freecad_cloth.simulation.DrapeTarget`; duplicate copies in `freecad_cloth.pattern` are removed. Common diagnostics have one owner under `freecad_cloth.common`.
+Fitting commands are owned by `freecad_cloth.avatar.FittingCommands`; `freecad_cloth.simulation` owns simulation/drape implementation. There is one fitting command implementation and one common diagnostics implementation. `DrapeTarget` remains authoritative for collision-target lifecycle.
 
 ## Agent rules
 
