@@ -36,18 +36,19 @@ def _show_panel(panel, required):
     _close_task()
     Gui.Control.showDialog(panel)
     _events()
-    widgets = [panel.form] + panel.form.findChildren(type(panel.form))
-    texts = []
-    for widget in widgets:
-        getter = getattr(widget, "text", None)
-        if callable(getter):
-            try:
-                texts.append(str(getter()))
-            except RuntimeError:
-                pass
-        elif getter:
-            texts.append(str(getter))
-    missing = [item for item in required if item not in " | ".join(texts)]
+    widgets = [panel.form]
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
+    widgets.extend(panel.form.findChildren(QtWidgets.QWidget))
+    text = " | ".join(
+        str(getter())
+        for widget in widgets
+        for getter in [getattr(widget, "text", None)]
+        if callable(getter)
+    )
+    missing = [item for item in required if item not in text]
     if missing:
         raise RuntimeError("task panel missing visible text: %s" % ",".join(missing))
 
@@ -156,6 +157,7 @@ def run_acceptance():
             doc.saveAs(path)
             piece_name = curved.Name
             App.closeDocument(doc.Name)
+            doc = None
             reloaded = App.openDocument(path)
             scene = reloaded.getObject("ClothSimulation")
             target = reloaded.getObject("DrapeTarget")
@@ -170,10 +172,12 @@ def run_acceptance():
             if str(changed_seam.Status) != "Valid":
                 raise RuntimeError("reloaded curved seam lost validity: %s" % changed_seam.Status)
 
-            dimensional = curved.Sketch.addConstraint(Sketcher.Constraint("Distance", 0, 100.0))
-            curved.Sketch.renameConstraint(dimensional, "UpstreamLength")
-            curved.Sketch.setExpression(f"Constraints[{dimensional}]", "112 mm")
+            dimensional = curved.Sketch.addConstraint(Sketcher.Constraint("Distance", 3, 50.0))
+            curved.Sketch.renameConstraint(dimensional, "UpstreamSeamEdgeLength")
+            curved.Sketch.setDatum(dimensional, App.Units.Quantity("62 mm"))
             reloaded.recompute()
+            if abs(float(curved.Height) - 62.0) > 1e-6:
+                raise RuntimeError("native Sketcher edit did not update PatternPiece geometry")
             if str(changed_seam.Status) not in {"Changed reference", "Missing reference"}:
                 raise RuntimeError("native Sketcher parameter edit did not invalidate downstream seam: %s" % changed_seam.Status)
 
@@ -192,12 +196,17 @@ def run_acceptance():
             if int(scene.Steps) < 1 or not bool(scene.FiniteState):
                 raise RuntimeError("simulation did not rerun after save/reload and upstream invalidation")
             App.closeDocument(reloaded.Name)
-            doc = None
         print("canonical garment end-to-end acceptance passed", flush=True)
     finally:
         _close_task()
-        if doc is not None and doc.Name in App.listDocuments():
-            App.closeDocument(doc.Name)
+        if doc is not None:
+            name = None
+            try:
+                name = doc.Name
+            except ReferenceError:
+                pass
+            if name and name in App.listDocuments():
+                App.closeDocument(name)
 
 
 if __name__ == "__main__":
