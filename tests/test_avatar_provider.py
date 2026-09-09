@@ -6,6 +6,7 @@ from freecad_cloth.avatar.AvatarProvider import (
     AvatarProviderInfo,
     FreeCADGeometryAvatarProvider,
     ParametricAvatarProvider,
+    HumanoidMeshAvatarProvider,
     provider_from_target,
 )
 
@@ -30,10 +31,11 @@ class _Shape:
 
 
 class AvatarProviderTests(unittest.TestCase):
-    def test_parametric_provider_is_deterministic_and_identified(self):
+    def test_parametric_provider_is_makehuman_mesh_provider(self):
         provider = ParametricAvatarProvider(AvatarParameters())
         self.assertEqual(provider.info, AvatarProviderInfo(
-            "parametric-mannequin", "Parametric human mannequin", "baseline"))
+            "makehuman-hm08", "MakeHuman HM08 humanoid mesh", "high"))
+        self.assertIs(HumanoidMeshAvatarProvider, ParametricAvatarProvider)
         self.assertEqual(provider.surface(), provider.collision_surface())
         self.assertGreater(len(provider.landmarks()), 5)
 
@@ -42,7 +44,7 @@ class AvatarProviderTests(unittest.TestCase):
         provider = ParametricAvatarProvider(params)
         self.assertEqual(provider.parameters(), params)
 
-    def test_factory_selects_parametric_provider(self):
+    def test_factory_selects_makehuman_provider(self):
         provider = provider_from_target(None, "Mannequin", AvatarParameters())
         self.assertIsInstance(provider, ParametricAvatarProvider)
 
