@@ -73,7 +73,7 @@ def _make_curved_piece_sketch(piece, doc):
     sketch.renameConstraint(width_index, "PieceWidth")
     height_index = sketch.addConstraint(Sketcher.Constraint("Distance", 1, 50.0))
     sketch.renameConstraint(height_index, "PieceHeight")
-    sketch.setExpression("Constraints[PieceHeight]", "Constraints[PieceWidth] / 2")
+    sketch.setExpression("Constraints[%d]" % height_index, "Constraints[%d] / 2" % width_index)
     doc.recompute()
     if sketch.Shape.isNull() or piece.Shape.isNull():
         raise RuntimeError("curved PatternPiece did not produce native geometry")
@@ -81,7 +81,7 @@ def _make_curved_piece_sketch(piece, doc):
         raise RuntimeError("native dimensional constraints were not retained")
     if abs(float(sketch.getDatum(height_index)) - 50.0) > 1e-6:
         raise RuntimeError("named Sketcher expression did not evaluate to the expected height")
-    if sketch.getExpression("Constraints[PieceHeight]") in (None, ""):
+    if sketch.getExpression("Constraints[%d]" % height_index) in (None, ""):
         raise RuntimeError("named Sketcher expression was not attached to PieceHeight")
     return sketch, width_index, height_index
 
@@ -181,7 +181,7 @@ def run_acceptance():
                 raise RuntimeError("named width dimensional constraint did not survive save/reload")
             if abs(float(sketch.getDatum(height_index)) - original_height) > 1e-6:
                 raise RuntimeError("named expression result did not survive save/reload")
-            height_expression = sketch.getExpression("Constraints[PieceHeight]")
+            height_expression = sketch.getExpression("Constraints[%d]" % height_index)
             if height_expression in (None, ""):
                 raise RuntimeError("named Sketcher expression did not survive save/reload")
             audit = reloaded.getObject("SketchConstraintAudit")
