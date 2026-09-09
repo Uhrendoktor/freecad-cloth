@@ -114,11 +114,14 @@ def _assert_ir_preserves_native_curves(sketch, piece_id, document):
 def main():
     mark("start")
     # InitGui.py has already been executed by the canonical GUI runner. Avoid
-    # a second GUI bootstrap/event-pump here; it can make FreeCAD 1.1 abort.
+    # re-running the GUI bootstrap and avoid Gui.activateWorkbench() here;
+    # initialize the package-owned workbench directly so its public commands
+    # are registered without re-entering FreeCAD's workbench switcher.
     assert "Cloth Pattern" in [str(name) for name in Gui.listWorkbenches()]
     mark("workbench-present")
-    Gui.activateWorkbench("Cloth Pattern")
-    mark("workbench-active")
+    from freecad_cloth.pattern.workbench import ClothPatternWorkbench
+    ClothPatternWorkbench().Initialize()
+    mark("workbench-initialized")
 
     doc = App.newDocument("PatternConstraintAcceptance")
     assert "ClothPattern_CreatePieceWithSketch" in Gui.listCommands()
