@@ -10,6 +10,16 @@ from freecad_cloth.avatar.AvatarArrangement import ARRANGEMENT_POINT_NAMES, arra
 
 
 class AvatarFittingTests(unittest.TestCase):
+    def test_hm08_source_extents(self):
+        from freecad_cloth.avatar.HumanoidMesh import load_makehuman_mesh, _map_makehuman_axes
+        mesh = load_makehuman_mesh()
+        raw = [max(p[i] for p in mesh.vertices) - min(p[i] for p in mesh.vertices) for i in range(3)]
+        mapped = _map_makehuman_axes(mesh.vertices)
+        normalized = [max(p[i] for p in mapped) - min(p[i] for p in mapped) for i in range(3)]
+        print("HM08_RAW_SPANS", raw, "MAPPED_SPANS", normalized, flush=True)
+        self.assertEqual(len(mesh.vertices), 13380)
+        self.assertEqual(len(mesh.triangles), len(mesh.triangles))
+
     def test_measurements_are_valid_and_canonical(self):
         measurements = BodyMeasurements({"waist": 760, "height": 1700, "chest": 900})
         self.assertEqual(measurements.normalized(), (("chest", 900.0), ("height", 1700.0), ("waist", 760.0)))

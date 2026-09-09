@@ -22,6 +22,7 @@ MAKEHUMAN_BASE_URL = (
     + "/makehuman/data/3dobjs/base.obj"
 )
 MAKEHUMAN_BASE_SHA256 = "8e761e6624b8f54536409135d1636da63b32486a90d4897f84e121d144f6fb4c"
+BODY_VERTEX_COUNT = 13380
 CACHE_ENV = "FREECAD_CLOTH_AVATAR_MESH"
 CACHE_DIR_ENV = "FREECAD_CLOTH_AVATAR_CACHE"
 DEFAULT_CACHE_NAME = "makehuman-hm08-base.obj"
@@ -98,7 +99,6 @@ def ensure_makehuman_base(path: str | os.PathLike[str] | None = None) -> Path:
         if not destination.is_file():
             raise HumanoidMeshError("%s points to a missing humanoid mesh: %s" % (CACHE_ENV, destination))
         return destination
-
     destination = _default_cache_path()
     if _verified(destination):
         return destination
@@ -106,14 +106,13 @@ def ensure_makehuman_base(path: str | os.PathLike[str] | None = None) -> Path:
         _download(MAKEHUMAN_BASE_URL, destination)
     except Exception as exc:
         raise HumanoidMeshError(
-            "unable to obtain the pinned MakeHuman HM08 base mesh; "
-            "set %s to a local OBJ file or allow network access (%s)" % (CACHE_ENV, exc)
+            "unable to obtain the pinned MakeHuman HM08 base mesh; set %s to a local OBJ file or allow network access (%s)" % (CACHE_ENV, exc)
         ) from exc
     return destination
 
 
 def parse_obj(text: str) -> MeshData:
-    """Parse Wavefront vertices/faces; triangulate quads and n-gons."""
+    """Parse Wavefront vertices/faces and discard HM08 helper geometry."""
     vertices = []
     triangles = []
     for raw in text.splitlines():
@@ -131,6 +130,9 @@ def parse_obj(text: str) -> MeshData:
                 indices.append(index)
             for i in range(1, len(indices) - 1):
                 triangles.append((indices[0], indices[i], indices[i + 1]))
+    if len(vertices) > BODY_VERTEX_COUNT:
+        triangles = [tri for tri in triangles if max(tri) < BODY_VERTEX_COUNT]
+        vertices = vertices[:BODY_VERTEX_COUNT]
     return MeshData(tuple(vertices), tuple(triangles)).validate()
 
 
@@ -189,7 +191,6 @@ def _section_extents(vertices, z, band=0.025, predicate=None):
 
 
 def _ellipse_perimeter(width, depth):
-    """Ramanujan-style perimeter estimate from an axis-aligned section."""
     a = max(1e-6, width * 0.5)
     b = max(1e-6, depth * 0.5)
     return math.pi * (3.0 * (a + b) - math.sqrt((3.0 * a + b) * (a + 3.0 * b)))
@@ -205,56 +206,37 @@ def _profile_scale(z, profile):
 
 
 def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
-    """Fit the real base mesh to Cloth measurements with mannequin-safe proportions.
-
-    Circumference measurements are fitted from actual horizontal section extents.
-    Shoulder is a breadth measurement, not a circumference, so it gets its own
-    lateral correction. The visible mesh is the bare base body; collision padding
-    is supplied separately by the target rather than by an inflated default skin.
-    """
+    """Fit the real base mesh conservatively while retaining its human silhouette."""
     mesh.validate()
     source = _map_makehuman_axes(mesh.vertices)
     max_x = max(abs(v[0]) for v in source) or 1.0
-
     height_mm = float(parameters.measurement("height"))
     z0, z1 = _axis_bounds(source, 2)
-    height_unit = max(1e-9, z1 - z0)
-    base_scale = height_mm / height_unit
+    base_scale = height_mm / max(1e-9, z1 - z0)
 
+    # Default anthropometric values only make bounded torso corrections. The
+    # body-only mesh prevents helper/cap/joint geometry from changing section extents.
     torso_vertices = [v for v in source if abs(v[0]) <= max_x * 0.48] or source
-    bands = (
-        ("hip", 0.50),
-        ("high_hip", 0.54),
-        ("waist", 0.58),
-        ("underbust", 0.64),
-        ("chest", 0.69),
-    )
-    target_circumferences = {name: float(parameters.measurement(name)) for name, _ in bands}
-    torso_profile = [(0.42, 1.0)]
+    bands = (("hip", 0.50), ("high_hip", 0.54), ("waist", 0.58), ("underbust", 0.64), ("chest", 0.69))
+    profile = [(0.42, 1.0)]
     for name, z in bands:
         width, depth = _section_extents(torso_vertices, z)
-        source_perimeter = _ellipse_perimeter(width, depth)
-        if source_perimeter <= 1e-6:
-            scale = 1.0
-        else:
-            scale = target_circumferences[name] / (source_perimeter * base_scale)
-        torso_profile.append((z, scale))
-    torso_profile.extend(((0.75, torso_profile[-1][1]), (1.0, torso_profile[-1][1])))
+        perimeter = _ellipse_perimeter(width, depth)
+        raw = float(parameters.measurement(name)) / max(1e-6, perimeter * base_scale)
+        profile.append((z, max(0.90, min(1.10, raw))))
+    profile.extend(((0.75, profile[-1][1]), (1.0, profile[-1][1])))
 
     shoulder_width, _ = _section_extents(torso_vertices, 0.76)
     shoulder_target = float(parameters.measurement("shoulder"))
-    shoulder_base = max(1e-6, shoulder_width * base_scale * _profile_scale(0.76, torso_profile))
-    shoulder_scale = shoulder_target / shoulder_base
+    shoulder_base = max(1e-6, shoulder_width * base_scale * _profile_scale(0.76, profile))
+    shoulder_scale = max(0.94, min(1.06, shoulder_target / shoulder_base))
 
     skin_offset = float(parameters.skin_offset)
     fitted = []
     for x, y, z in source:
-        torso_scale = _profile_scale(z, torso_profile)
+        torso_scale = _profile_scale(z, profile)
         shoulder_blend = _smoothstep(0.67, 0.79, z)
         lateral_scale = _lerp(1.0, shoulder_scale, shoulder_blend)
-        # Keep the head neutral while the shoulder breadth correction fades out.
-        if z >= 0.79:
-            lateral_scale = 1.0
         x_mm = x * base_scale * torso_scale * lateral_scale
         y_mm = y * base_scale * torso_scale
         radius = math.hypot(x_mm, y_mm)
