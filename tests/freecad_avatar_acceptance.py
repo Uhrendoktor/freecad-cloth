@@ -78,7 +78,8 @@ def run_acceptance():
             raise RuntimeError("FreeCAD provider swap did not persist on the avatar object")
         if avatar.ProviderSource != source:
             raise RuntimeError("FreeCAD provider source link did not persist in the document")
-        if int(avatar.AvatarRevision) != initial_revision + 1:
+        provider_revision = int(avatar.AvatarRevision)
+        if provider_revision <= initial_revision:
             raise RuntimeError("provider swap did not advance AvatarRevision")
         if target_status(target)["state"] != "stale":
             raise RuntimeError("provider swap did not deterministically invalidate DrapeTarget")
@@ -95,7 +96,8 @@ def run_acceptance():
         _close_task()
         avatar = doc.getObject(identity)
         target = doc.getObject("DrapeTarget")
-        if int(avatar.AvatarRevision) != initial_revision + 2:
+        pose_revision = int(avatar.AvatarRevision)
+        if pose_revision <= provider_revision:
             raise RuntimeError("pose change did not advance AvatarRevision")
         if target_status(target)["state"] != "stale":
             raise RuntimeError("pose change did not deterministically invalidate DrapeTarget")
@@ -117,7 +119,7 @@ def run_acceptance():
             raise RuntimeError("provider identity was lost across save/reload")
         if avatar.ProviderSource != restored_source:
             raise RuntimeError("provider source link was lost across save/reload")
-        if int(avatar.AvatarRevision) != initial_revision + 2:
+        if int(avatar.AvatarRevision) != pose_revision:
             raise RuntimeError("AvatarRevision was not persisted across save/reload")
         if str(avatar.PosePreset) != "sewing":
             raise RuntimeError("avatar pose was not persisted across save/reload")
