@@ -41,9 +41,14 @@ def _digest_surface(vertices, triangles):
 
 
 def _mesh_signature(target):
-    if str(getattr(target, "AvatarType", "")) == "ClothAvatar":
+    # MakeHuman avatars retain a stable authored revision instead of depending
+    # on FreeCAD's internal Mesh::Feature topology ordering across recomputes.
+    if (
+        str(getattr(target, "AvatarType", "")) == "ClothAvatar"
+        or str(getattr(target, "AvatarMeshProvider", "")) == "makehuman-hm08"
+    ):
         return (
-            "ClothAvatar",
+            "MakeHumanAvatar",
             str(getattr(target, "AvatarMeshProvider", "")),
             str(getattr(target, "AvatarMeshSource", "")),
             str(getattr(target, "AvatarMeshLicense", "")),
@@ -121,8 +126,6 @@ def target_status(target):
     triangles = int(getattr(target, "CollisionTriangleCount", 0))
     if not getattr(target, "SourceSignature", "") or vertices <= 0 or triangles <= 0:
         return {"state": "unbuilt", "message": "Drape target collision surface needs to be built", "stale": True, "reason": "collision cache missing"}
-    if target_type == "Mannequin" and str(getattr(source, "AvatarType", "")) == "ClothAvatar":
-        return {"state": "ready", "message": "Managed humanoid drape target is ready", "stale": False, "reason": "managed mannequin collision is rebuilt from authored mesh"}
     try:
         current = repr(source_signature(source, float(getattr(target, "CollisionDeflection", 1.0)), float(getattr(target, "CollisionThickness", 0.0))))
     except (AttributeError, TypeError, ValueError) as exc:
