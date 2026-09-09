@@ -48,6 +48,9 @@ def apply_quality_preset(scene, name=None):
     scene.ParticleDistance = quality.particle_distance
     scene.SolverIterations = quality.solver_iterations
     scene.SolverSubsteps = quality.substeps
+    touch = getattr(scene, "touch", None)
+    if callable(touch):
+        touch()
     return quality
 
 
@@ -228,8 +231,6 @@ class QualitySimulationProxy:
 def create_quality_simulation_scene(doc):
     from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
     from freecad_cloth.avatar.AvatarCommands import create_avatar
-    import FreeCAD as App
-    import Mesh
 
     scene = create_simulation_scene(doc)
 
@@ -240,31 +241,13 @@ def create_quality_simulation_scene(doc):
     avatar = create_avatar(attach_collision=False)
     avatar.Label = "Cloth Human Avatar (MakeHuman)"
     avatar.ViewObject.Visibility = True
-
-    # Keep the visible avatar at full MakeHuman fidelity. For cloth collision,
-    # sample the visual topology into a small triangle mesh instead of running
-    # an expensive OCC/mesh conversion over the complete human surface.
-    raw_vertices, raw_faces = avatar.Mesh.Topology
-    target_faces = 5000
-    stride = max(1, int(ceil(len(raw_faces) / float(target_faces))))
-    collision_mesh = Mesh.Mesh()
-    vectors = [App.Vector(float(v.x), float(v.y), float(v.z)) for v in raw_vertices]
-    selected_faces = raw_faces[::stride]
-    collision_mesh.addFacets([(vectors[a], vectors[b], vectors[c]) for a, b, c in selected_faces])
-    collision_source = doc.addObject("Mesh::Feature", "MakeHumanCollisionMesh")
-    collision_source.Label = "MakeHuman collision mesh (sampled)"
-    collision_source.Mesh = collision_mesh
-    collision_source.ViewObject.Visibility = False
-    collision_source.addProperty("App::PropertyLink", "VisualAvatar", "Collision")
-    collision_source.VisualAvatar = avatar
-
     set_avatar_collision_source(
         scene,
-        collision_source,
+        avatar,
         float(getattr(avatar, "SkinOffset", 3.0)),
         1.0,
     )
-    scene.AvatarProxy.SourceObject = collision_source
+    scene.AvatarProxy.SourceObject = avatar
     scene.DrapeTarget = doc.getObject("DrapeTarget")
     ensure_quality_properties(scene)
     scene.Proxy = QualitySimulationProxy()
