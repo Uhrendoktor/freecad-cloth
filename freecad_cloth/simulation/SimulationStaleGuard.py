@@ -2,12 +2,12 @@
 
 FreeCAD calls FeaturePython ``execute`` during ordinary document recompute.
 A stale collision target is a recoverable document state, not an exception
-condition. This small compatibility layer gates SimulationProxy before the
-existing builder can consume stale collision data.
+condition. This compatibility layer gates both the base and quality simulation
+proxies before they consume stale collision data.
 """
 
 _INSTALLED = False
-_ORIGINAL_EXECUTE = None
+_ORIGINAL_EXECUTES = {}
 
 
 def _ensure_state_properties(obj):
@@ -50,8 +50,11 @@ def _guarded_execute(self, obj):
         _set_state(obj, "STALE" if status.get("stale") else status["state"].upper(), status["reason"] or status["message"])
         return None
 
+    original = _ORIGINAL_EXECUTES.get(type(self))
+    if original is None:
+        return None
     try:
-        result = _ORIGINAL_EXECUTE(self, obj)
+        result = original(self, obj)
     except RuntimeError:
         # The target may change between the status check and collision build.
         # Only swallow the known recoverable target transition; unrelated
@@ -65,23 +68,33 @@ def _guarded_execute(self, obj):
     return result
 
 
-def install():
-    """Install the guard once for the current Python process."""
-    global _INSTALLED, _ORIGINAL_EXECUTE
-    if _INSTALLED:
+def _guard_class(cls):
+    current = getattr(cls, "execute", None)
+    if not callable(current) or getattr(current, "_drape_target_guard", False):
         return
+    _ORIGINAL_EXECUTES[cls] = current
+
+    def guarded(self, obj):
+        return _guarded_execute(self, obj)
+
+    guarded._drape_target_guard = True
+    cls.execute = guarded
+
+
+def install():
+    """Install the guard once for all simulation proxy classes available now."""
+    global _INSTALLED
     try:
         from freecad_cloth.simulation.SimulationObjects import SimulationProxy
-    except ImportError:
-        return
-    current = SimulationProxy.execute
-    if getattr(current, "_drape_target_guard", False):
-        _INSTALLED = True
-        return
-    _ORIGINAL_EXECUTE = current
-    _guarded_execute._drape_target_guard = True
-    SimulationProxy.execute = _guarded_execute
-    _INSTALLED = True
+        _guard_class(SimulationProxy)
+    except (ImportError, AttributeError, TypeError):
+        pass
+    try:
+        from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy
+        _guard_class(QualitySimulationProxy)
+    except (ImportError, AttributeError, TypeError):
+        pass
+    _INSTALLED = bool(_ORIGINAL_EXECUTES)
 
 
 try:
