@@ -47,14 +47,14 @@ def _make_curved_piece_sketch(piece, doc):
     sketch = piece.Sketch
     if sketch is None:
         raise RuntimeError("PatternPiece did not create a native Sketcher sketch")
-    sketch.clear()
+    sketch.Constraints = []
     geometry = [
         Part.LineSegment(App.Vector(0, 0, 0), App.Vector(100, 0, 0)),
         Part.LineSegment(App.Vector(100, 0, 0), App.Vector(100, 50, 0)),
         Part.ArcOfCircle(Part.Circle(App.Vector(50, 50, 0), App.Vector(0, 0, 1), 50), 0, math.pi),
         Part.LineSegment(App.Vector(0, 50, 0), App.Vector(0, 0, 0)),
     ]
-    sketch.addGeometry(geometry, False)
+    sketch.Geometry = geometry
     sketch.SemanticEdgeIds = [f"{piece.PieceId}:edge:{i}" for i in range(4)]
     sketch.GeometryAuthority = "Sketcher"
     sketch.addConstraint([
