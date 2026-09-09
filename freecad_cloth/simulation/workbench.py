@@ -21,4 +21,10 @@ class ClothSimulationWorkbench(ClothWorkbenchBase):
             return
         import freecad_cloth.simulation.SimulationCommands as SimulationCommands
         import freecad_cloth.simulation.DrapeCommands as DrapeCommands
+        # Load both simulation proxy classes before installing the stale-target
+        # guard so ordinary recomputes can never raise on an intentionally stale
+        # target; the task panel remains responsible for the explicit refresh.
+        import freecad_cloth.simulation.SimulationQualityRuntimeV2 as SimulationQualityRuntimeV2
+        from freecad_cloth.simulation.SimulationStaleGuard import install as install_stale_guard
+        install_stale_guard()
         self.register((("Simulation", SimulationCommands.COMMANDS + DrapeCommands.COMMANDS),))
