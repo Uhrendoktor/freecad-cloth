@@ -6,28 +6,13 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main at cleanup start: `86eea3e33518dc82048d44677331d93407a0fe89`
+- Main baseline for active branches: `344d84fc8d4150a67b9e4a5ed7683728af23d801`
 - Structure migration PR: #408 (merged)
 - Module-tree cleanup: in progress
 - Python package boundary: `freecad_cloth/` with `avatar`, `pattern`, `sewing`, `simulation`, `common`, `shared` subpackages
 - Root Python files: `Init.py`, `InitGui.py`, and interpreter-level `sitecustomize.py` only
 - Canonical CI: `.github/workflows/canonical-execution.yml`
 - CI policy: preserve the Docker/Xvfb FreeCAD screenshot/PNG path; never add a second workflow.
-
-## Package structure
-
-```
-freecad_cloth/
-├── avatar/        — Avatar model, collision, arrangement, fitting, commands, GUI
-├── common/        — Shared utilities and document adapters
-├── pattern/       — Pattern geometry, IR, mesh, objects, schema, sketch, sync, OCCT, derived geometry, commands, GUI
-├── sewing/        — Sewing graph, references, assembly, constraints, correspondence, commands, GUI, network, objects, plan, semantics, view
-├── simulation/    — Simulation backend, commands, GUI, mesh quality, objects, quality, drape, target, stale guard, XPBD, diagnostics
-├── shared/        — Shared target/collision contracts
-└── gui.py         — ClothWorkbenchBase shared base class
-```
-
-Implementation modules belong under this package tree. `Init.py` and `InitGui.py` remain at repository root because FreeCAD discovers those bootstrap files in a directly installed `Mod` directory. Root `sitecustomize.py` is an interpreter/CI hook, not Cloth domain implementation.
 
 ## Release gates
 
@@ -38,6 +23,11 @@ Implementation modules belong under this package tree. `Init.py` and `InitGui.py
 - P1: sewing completion — #275.
 - P1: pattern production parity — #162, #360.
 - Later: production avatar fidelity #374; diagnostics/manufacturing #362; optional solver benchmark #148; P2 backend evaluation #404.
+
+## Active focused work
+
+- #298 native Sketcher GUI/XvFB acceptance on `agent/issue-298-sketcher-acceptance-20260909`; reuses the canonical workflow and adds no second CI workflow.
+- #145 simulation quality/material persistence acceptance on `agent/issue-145-quality-persistence-20260909`; intentionally uses the same canonical workflow when promoted into the GUI runner.
 
 ## Architecture / UX
 
