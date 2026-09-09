@@ -10,6 +10,6 @@ class ClothSimulationWorkbench(ClothWorkbenchBase):
     def Initialize(self):
         if self.commands:
             return
-        import freecad_cloth.simulation.SimulationCommands
-        import freecad_cloth.simulation.DrapeCommands
+        import freecad_cloth.simulation.SimulationCommands as SimulationCommands
+        import freecad_cloth.simulation.DrapeCommands as DrapeCommands
         self.register((("Simulation", SimulationCommands.COMMANDS + DrapeCommands.COMMANDS),))

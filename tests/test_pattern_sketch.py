@@ -46,7 +46,7 @@ def test_one_step_pattern_piece_command_is_registered_and_creates_native_sketch(
     calls = []
     original_create = PatternCommands.create_pattern_piece
     old_freecad = sys.modules.get("FreeCAD")
-    old_sketch = sys.modules.get("PatternSketch")
+    old_sketch = sys.modules.get("freecad_cloth.pattern.PatternSketch")
 
     PatternCommands.create_pattern_piece = lambda: piece
     sys.modules["FreeCAD"] = type("FreeCAD", (), {"ActiveDocument": document})
@@ -55,7 +55,7 @@ def test_one_step_pattern_piece_command_is_registered_and_creates_native_sketch(
         calls.append((model, doc))
         return "Sketch"
 
-    sys.modules["PatternSketch"] = type("PatternSketch", (), {"create_sketch_for_piece": create_sketch_for_piece})
+    sys.modules["freecad_cloth.pattern.PatternSketch"] = type("PatternSketch", (), {"create_sketch_for_piece": create_sketch_for_piece})
     try:
         assert "ClothPattern_CreatePieceWithSketch" in PatternCommands.COMMANDS
         result = PatternCommands.create_pattern_piece_with_sketch()
@@ -66,9 +66,9 @@ def test_one_step_pattern_piece_command_is_registered_and_creates_native_sketch(
         else:
             sys.modules["FreeCAD"] = old_freecad
         if old_sketch is None:
-            sys.modules.pop("PatternSketch", None)
+            sys.modules.pop("freecad_cloth.pattern.PatternSketch", None)
         else:
-            sys.modules["PatternSketch"] = old_sketch
+            sys.modules["freecad_cloth.pattern.PatternSketch"] = old_sketch
 
     assert result is piece
     assert len(calls) == 1
