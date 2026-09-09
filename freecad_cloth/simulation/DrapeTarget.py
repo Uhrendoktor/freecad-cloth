@@ -96,6 +96,16 @@ def _geometry_signature(target):
 
 
 def source_signature(target, deflection=1.0, thickness=0.0) -> Tuple:
+    # A generated avatar's Placement is presentation state; its mesh is already
+    # expressed in world coordinates. Keeping placement out of the avatar
+    # signature avoids false invalidation from FreeCAD's default rotation axis.
+    if str(getattr(target, "AvatarType", "")) == "ClothAvatar":
+        return (
+            str(getattr(target, "Name", "")),
+            _geometry_signature(target),
+            float(deflection),
+            float(thickness),
+        )
     placement = getattr(target, "Placement", None)
     base = getattr(placement, "Base", None) if placement is not None else None
     rotation = getattr(placement, "Rotation", None) if placement is not None else None
