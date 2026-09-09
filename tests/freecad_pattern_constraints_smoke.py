@@ -29,6 +29,7 @@ from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.pattern.PatternObjects import add_pattern_piece, add_seam
 from freecad_cloth.pattern.PatternIR import PatternIR
 from freecad_cloth.pattern.PatternGeometry import rectangle
+from freecad_cloth.pattern.PatternCommands import create_pattern_piece_with_sketch
 from freecad_cloth.sewing.SeamGraph import SeamGraph
 
 
@@ -116,14 +117,10 @@ def main(document=None):
     doc = document or App.newDocument("PatternConstraintAcceptance")
     mark("document-ready")
     try:
-        assert "ClothPattern_CreatePieceWithSketch" in Gui.listCommands()
-        mark("creating-piece-command")
-        Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
-        mark("piece-command-returned")
+        piece = document_piece = create_pattern_piece_with_sketch()
+        assert piece is document_piece and piece.Sketch is not None
+        mark("package-command-returned")
         doc.recompute()
-        mark("initial-recompute-returned")
-        piece = next((obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"), None)
-        assert piece is not None and piece.Sketch is not None
         piece_name = piece.Name
         piece_id = str(piece.PieceId)
         sketch = piece.Sketch
