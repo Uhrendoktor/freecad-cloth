@@ -79,6 +79,8 @@ def _make_curved_piece_sketch(piece, doc):
         raise RuntimeError("native dimensional constraints were not retained")
     if abs(float(sketch.getDatum(height_index)) - 50.0) > 1e-6:
         raise RuntimeError("named Sketcher expression did not evaluate to the expected height")
+    if sketch.getExpression("Constraints[PieceHeight]") in (None, ""):
+        raise RuntimeError("named Sketcher expression was not attached to PieceHeight")
     return sketch, width_index, height_index
 
 
@@ -157,6 +159,7 @@ def run_acceptance():
             raise RuntimeError("public Sewing command did not create a valid seam from native Sketch edges")
         original_piece_id = str(curved.PieceId)
         original_height = float(curved_sketch.getDatum(height_index))
+        seam_id = str(seam.SeamId)
 
         with tempfile.TemporaryDirectory() as directory:
             path = os.path.join(directory, "native-sketcher-acceptance.FCStd")
@@ -172,31 +175,26 @@ def run_acceptance():
                 raise RuntimeError("Sketcher authority flag did not survive save/reload")
             if str(sketch.GeometryAuthority) != "Sketcher":
                 raise RuntimeError("Sketcher source authority did not survive save/reload")
-            if str(sketch.getDatum(width_index)) == "":
-                raise RuntimeError("named dimensional constraint did not survive save/reload")
+            if abs(float(sketch.getDatum(width_index)) - 100.0) > 1e-6:
+                raise RuntimeError("named width dimensional constraint did not survive save/reload")
             if abs(float(sketch.getDatum(height_index)) - original_height) > 1e-6:
                 raise RuntimeError("named expression result did not survive save/reload")
-            named_names = {str(c.Name) for c in sketch.Constraints if getattr(c, "Name", "")}
-            if "PieceWidth" not in named_names or "PieceHeight" not in named_names:
-                raise RuntimeError("named Sketcher dimensions did not survive save/reload")
+            height_expression = sketch.getExpression("Constraints[PieceHeight]")
+            if height_expression in (None, ""):
+                raise RuntimeError("named Sketcher expression did not survive save/reload")
             audit = reloaded.getObject("SketchConstraintAudit")
             if audit is None or not getattr(audit, "ExternalGeometry", ()):
                 raise RuntimeError("external Sketcher reference did not survive save/reload")
             if not bool(audit.GeometryFacadeList[2].Construction):
                 raise RuntimeError("construction geometry state did not survive save/reload")
 
-            width_expression = sketch.getExpression("Constraints[PieceWidth]")
-            height_expression = sketch.getExpression("Constraints[PieceHeight]")
-            if width_expression not in (None, "") or height_expression in (None, ""):
-                if width_expression in (None, ""):
-                    raise RuntimeError("named width dimension lost its native expression state")
             sketch.setDatum(width_index, App.Units.Quantity("120 mm"))
             reloaded.recompute()
             if abs(float(sketch.getDatum(width_index)) - 120.0) > 1e-6:
                 raise RuntimeError("native Sketcher dimensional edit did not apply")
             if abs(float(sketch.getDatum(height_index)) - 60.0) > 1e-6:
                 raise RuntimeError("named Sketcher expression did not propagate after dimensional edit")
-            changed_seam = next((obj for obj in reloaded.Objects if getattr(obj, "SeamId", "") == seam.SeamId), None)
+            changed_seam = next((obj for obj in reloaded.Objects if getattr(obj, "SeamId", "") == seam_id), None)
             if changed_seam is None:
                 raise RuntimeError("seam did not survive save/reload")
             if str(changed_seam.Status) == "Valid":
