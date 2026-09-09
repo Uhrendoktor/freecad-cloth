@@ -4,7 +4,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 from freecad_cloth.simulation.DrapeQuality import assert_quality, benchmark, measure
-from freecad_cloth.simulation.DrapeTarget import DrapeTargetSpec, source_signature
+from freecad_cloth.simulation.DrapeTarget import DrapeTargetSpec, source_signature, target_status
+from freecad_cloth.simulation.SimulationCommands import _drape_target_guard
 
 
 def test_metrics_capture_constraint_residual_and_displacement():
@@ -54,11 +55,38 @@ def test_drape_target_contract_tracks_source_changes():
         Label = "Target"
         Placement = PlacementType()
         Shape = ShapeType()
+        Enabled = True
+        TargetType = "FreeCAD Geometry"
+        SourceObject = None
+        SourceSignature = ""
+        CollisionVertexCount = 0
+        CollisionTriangleCount = 0
+        CollisionDeflection = 1.0
+        CollisionThickness = 2.0
     DrapeTargetSpec("Mannequin", "ClothAvatar", 1.0, 2.0).validate()
     DrapeTargetSpec("FreeCAD Geometry", "Target", 1.0, 2.0).validate()
     target = Target(); baseline = source_signature(target, 1.0, 2.0)
     target.Shape.value = 2
     assert source_signature(target, 1.0, 2.0) != baseline
+
+
+def test_disabled_drape_target_is_explicitly_blocked():
+    class Target:
+        Enabled = False
+        TargetType = "Mannequin"
+        SourceObject = object()
+        SourceSignature = "anything"
+        CollisionVertexCount = 8
+        CollisionTriangleCount = 12
+        CollisionDeflection = 1.0
+        CollisionThickness = 2.0
+    target = Target()
+    status = target_status(target)
+    assert status["state"] == "disabled"
+    assert not status["stale"]
+    guard = _drape_target_guard(target)
+    assert guard["blocked"]
+    assert guard["state"] == "disabled"
 
 
 if __name__ == "__main__":
