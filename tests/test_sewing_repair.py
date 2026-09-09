@@ -50,7 +50,7 @@ def test_repair_does_not_hide_physical_length_mismatch():
 
 
 def test_repair_command_is_registered_with_context_activation():
-    import SewingCommands
+    from freecad_cloth.sewing import SewingCommands
     assert "ClothSewing_RepairSeam" in SewingCommands.COMMANDS
     assert "ClothSewing_RepairSeam" in SewingCommands._COMMAND_HANDLERS
     assert "ClothSewing_RepairSeam" in SewingCommands._ACTIVATION
