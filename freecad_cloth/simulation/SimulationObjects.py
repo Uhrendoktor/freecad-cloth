@@ -352,24 +352,10 @@ class SimulationProxy:
 
 
 def create_humanoid_avatar(doc, scale=1.0):
-    """Create a deterministic, editable mannequin collision proxy for draping tests."""
-    import Part, FreeCAD
-    s = float(scale)
-    if s <= 0:
-        raise ValueError("avatar scale must be positive")
-    parts = [
-        Part.makeCylinder(28 * s, 70 * s, FreeCAD.Vector(0, 0, -30 * s)),
-        Part.makeSphere(22 * s, FreeCAD.Vector(0, 0, 62 * s)),
-        Part.makeCylinder(12 * s, 60 * s, FreeCAD.Vector(-40 * s, 0, 20 * s)),
-        Part.makeCylinder(12 * s, 60 * s, FreeCAD.Vector(28 * s, 0, 20 * s)),
-        Part.makeCylinder(14 * s, 75 * s, FreeCAD.Vector(-15 * s, 0, -105 * s)),
-        Part.makeCylinder(14 * s, 75 * s, FreeCAD.Vector(1 * s, 0, -105 * s)),
-    ]
-    avatar = doc.addObject("Part::Feature", "HumanoidAvatar")
-    avatar.Label = "Humanoid Avatar"
-    avatar.Shape = Part.makeCompound(parts)
-    avatar.addProperty("App::PropertyString", "AvatarType", "Avatar").AvatarType = "ParametricHumanoid"
-    avatar.addProperty("App::PropertyFloat", "Scale", "Avatar").Scale = s
+    """Create the production MakeHuman mesh avatar used by simulation."""
+    from freecad_cloth.avatar.AvatarCommands import create_avatar
+    avatar = create_avatar(attach_collision=False, doc=doc, object_name="HumanoidAvatar")
+    avatar.Label = "Humanoid Avatar (MakeHuman)"
     return avatar
 
 
