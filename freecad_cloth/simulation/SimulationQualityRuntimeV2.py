@@ -123,9 +123,14 @@ class QualitySimulationProxy:
         if base.backend is None or signature != base.source_signature or int(obj.Steps) < base.last_steps:
             target = getattr(obj, "DrapeTarget", None)
             source = getattr(target, "SourceObject", None) if target is not None else None
-            if target is not None and str(getattr(source, "AvatarType", "")) == "ClothAvatar":
-                from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
-                refresh_drape_target(target)
+            if target is not None:
+                from freecad_cloth.simulation.DrapeTarget import target_status
+                status = target_status(target)
+                if status["state"] in ("stale", "unbuilt", "unassigned", "invalid", "missing"):
+                    return None
+                if str(getattr(source, "AvatarType", "")) == "ClothAvatar":
+                    from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
+                    refresh_drape_target(target)
             if pieces:
                 self._build_pattern_scene(obj, pieces, signature)
             else:
@@ -238,7 +243,6 @@ def create_quality_simulation_scene(doc):
     from freecad_cloth.avatar.AvatarCommands import create_avatar
 
     scene = create_simulation_scene(doc)
-
     legacy = doc.getObject("HumanoidAvatar")
     if legacy is not None and hasattr(legacy, "ViewObject"):
         legacy.ViewObject.Visibility = False
