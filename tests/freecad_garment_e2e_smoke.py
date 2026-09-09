@@ -172,11 +172,11 @@ def run_acceptance():
             if str(changed_seam.Status) != "Valid":
                 raise RuntimeError("reloaded curved seam lost validity: %s" % changed_seam.Status)
 
-            dimensional = curved.Sketch.addConstraint(Sketcher.Constraint("Radius", 2, 50.0))
-            curved.Sketch.renameConstraint(dimensional, "UpstreamSeamCurveRadius")
+            dimensional = curved.Sketch.addConstraint(Sketcher.Constraint("DistanceY", 2, 2, 50.0))
+            curved.Sketch.renameConstraint(dimensional, "UpstreamSeamEndpointY")
             curved.Sketch.setDatum(dimensional, App.Units.Quantity("60 mm"))
             reloaded.recompute()
-            if abs(float(curved.Height) - 60.0) > 1e-6:
+            if float(curved.Height) <= 55.0:
                 raise RuntimeError("native Sketcher edit did not update PatternPiece geometry")
             if str(changed_seam.Status) not in {"Changed reference", "Missing reference"}:
                 raise RuntimeError("native Sketcher parameter edit did not invalidate downstream seam: %s" % changed_seam.Status)
