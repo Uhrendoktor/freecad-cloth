@@ -154,7 +154,8 @@ def target_status(target):
             return {"state": "ready", "message": "Drape target collision surface is current", "stale": False, "reason": "managed MakeHuman avatar owns mesh rebuild state"}
         return {
             "state": "stale",
-            "message": "Drape target changed; rebuild collision surface before simulation",
+            "message": "Drape target changed; rebuild collision surface before simulation (type=%s source=%s avatar=%s provider=%s status=%s)" % (
+                target_type, str(getattr(source, "Name", "")), str(getattr(source, "AvatarType", "")), str(getattr(source, "AvatarMeshProvider", "")), str(getattr(source, "AvatarStatus", ""))),
             "stale": True,
             "reason": "source, placement, tessellation or collision thickness changed",
             "signature_current": current,
