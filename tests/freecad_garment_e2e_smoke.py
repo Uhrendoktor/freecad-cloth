@@ -80,7 +80,7 @@ def _make_curved(piece, doc):
 def run_acceptance():
     doc = App.newDocument("CanonicalGarmentAcceptance")
     try:
-        _activate("Cloth Pattern", ["ClothPattern_CreatePieceWithSketch", "ClothPattern_EditPiece"])
+        _activate("ClothPatternWorkbench", ["ClothPattern_CreatePieceWithSketch", "ClothPattern_EditPiece"])
         Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
         Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
         doc.recompute()
@@ -96,7 +96,7 @@ def run_acceptance():
         _show_panel(PatternPieceTaskPanel(curved), ("Piece name", "Width", "Height", "Seam allowance", "Grainline angle"))
         _close_task()
 
-        _activate("Cloth Sewing", ["ClothSewing_CreateSeam", "ClothSewing_CreateOperation", "ClothSewing_Validate"])
+        _activate("ClothSewingWorkbench", ["ClothSewing_CreateSeam", "ClothSewing_CreateOperation", "ClothSewing_Validate"])
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(curved, "Edge3")
         Gui.Selection.addSelection(mate, "Edge1")
@@ -120,7 +120,7 @@ def run_acceptance():
         target_body.Shape = Part.makeCylinder(35, 100, App.Vector(0, 0, -50))
         doc.recompute()
 
-        _activate("Cloth Simulation", ["ClothSimulation_Create", "ClothSimulation_Step", "ClothSimulation_Reset", "ClothDrape_CreateTarget", "ClothDrape_RefreshTarget"])
+        _activate("ClothSimulationWorkbench", ["ClothSimulation_Create", "ClothSimulation_Step", "ClothSimulation_Reset", "ClothDrape_CreateTarget", "ClothDrape_RefreshTarget"])
         Gui.Selection.clearSelection(); Gui.Selection.addSelection(target_body)
         Gui.runCommand("ClothSimulation_Create", 0)
         doc.recompute()
