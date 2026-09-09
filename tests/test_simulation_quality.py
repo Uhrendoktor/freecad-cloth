@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.simulation.SimulationQuality import FabricMaterial, QUALITY_PRESETS, preset, solver_parameters
-from freecad_cloth.simulation.SimulationQualityRuntimeV2 import quality_discretization
+from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene, quality_discretization
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 
 
@@ -74,6 +74,25 @@ class SimulationQualityTests(unittest.TestCase):
         self.assertEqual(len(triangles), 162)
         self.assertEqual([positions[i][:2] for i in boundary], piece.outline)
         self.assertGreater(len(positions), len(boundary))
+
+    def test_pattern_scene_uses_quality_particle_distance(self):
+        import FreeCAD as App
+        from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_parameters
+
+        doc = App.newDocument("SimulationQualityPatternAcceptance")
+        try:
+            piece = create_pattern_piece_from_parameters("QualityPiece", 100.0, 60.0, 0.0, 0.0)
+            scene = create_quality_simulation_scene(doc)
+            scene.ClothPieces = [piece]
+            scene.ParticleDistance = 20.0
+            doc.recompute()
+            coarse = int(scene.ParticleCount)
+            scene.ParticleDistance = 5.0
+            doc.recompute()
+            fine = int(scene.ParticleCount)
+            self.assertGreater(fine, coarse)
+        finally:
+            App.closeDocument(doc.Name)
 
 
 if __name__ == "__main__":
