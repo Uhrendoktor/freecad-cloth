@@ -5,9 +5,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternModel import PatternPiece
+from freecad_cloth.simulation.PatternModel import PatternPiece
 from freecad_cloth.simulation.SimulationQuality import FabricMaterial, QUALITY_PRESETS, preset, solver_parameters
 from freecad_cloth.simulation.SimulationQualityRuntimeV2 import quality_discretization
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
+from freecad_cloth.simulation import SimulationObjects
 
 
 class SimulationQualityTests(unittest.TestCase):
@@ -74,6 +76,12 @@ class SimulationQualityTests(unittest.TestCase):
         self.assertEqual(len(triangles), 162)
         self.assertEqual([positions[i][:2] for i in boundary], piece.outline)
         self.assertGreater(len(positions), len(boundary))
+
+    def test_authoritative_proxy_owns_quality_mesh_hook(self):
+        from freecad_cloth.simulation.SimulationMeshQuality import install_quality_mesh_patch
+
+        install_quality_mesh_patch()
+        self.assertTrue(getattr(SimulationObjects.SimulationProxy, "_cloth_quality_mesh_patched", False))
 
 
 if __name__ == "__main__":
