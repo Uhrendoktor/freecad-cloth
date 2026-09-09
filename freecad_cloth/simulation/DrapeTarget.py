@@ -29,6 +29,18 @@ def collision_surface(target, deflection=1.0, thickness=0.0) -> CollisionSurface
 
 
 def _mesh_signature(target):
+    # The production humanoid mesh owns its rebuild state. Use authored avatar
+    # properties instead of FreeCAD's transient Mesh/Shape bookkeeping.
+    if str(getattr(target, "AvatarType", "")) == "ClothAvatar":
+        return (
+            "ClothAvatar",
+            str(getattr(target, "AvatarMeshProvider", "")),
+            str(getattr(target, "AvatarMeshSource", "")),
+            str(getattr(target, "AvatarStatus", "")),
+            int(getattr(target, "MeshVertexCount", 0)),
+            int(getattr(target, "MeshTriangleCount", 0)),
+            str(getattr(target, "ParametersJSON", "")),
+        )
     mesh = getattr(target, "Mesh", None)
     topology = getattr(mesh, "Topology", None) if mesh is not None else None
     if topology is None:
@@ -40,9 +52,6 @@ def _mesh_signature(target):
         xs = [float(v.x) for v in vertices]
         ys = [float(v.y) for v in vertices]
         zs = [float(v.z) for v in vertices]
-        # Mesh::Feature topology can be normalized/reindexed by FreeCAD during
-        # recompute. Use order-independent geometric moments instead of the
-        # transient vertex/triangle ordering while still detecting real edits.
         descriptor = (
             len(vertices), len(triangles),
             tuple(round(value, 6) for value in (min(xs), max(xs), min(ys), max(ys), min(zs), max(zs))),
@@ -55,9 +64,6 @@ def _mesh_signature(target):
 
 
 def _geometry_signature(target):
-    # Mesh::Feature is the production representation of the humanoid avatar.
-    # Use its topology directly so transient OCC Shape state cannot invalidate
-    # a target immediately after a normal FreeCAD recompute.
     mesh_signature = _mesh_signature(target)
     if mesh_signature is not None:
         return mesh_signature
