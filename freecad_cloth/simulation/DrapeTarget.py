@@ -42,15 +42,9 @@ def _digest_surface(vertices, triangles):
 
 def _mesh_signature(target):
     if str(getattr(target, "AvatarType", "")) == "ClothAvatar":
-        mesh = getattr(target, "Mesh", None)
-        topology = getattr(mesh, "Topology", None) if mesh is not None else None
-        topology_digest = None
-        if topology is not None:
-            try:
-                vertices, triangles = topology
-                topology_digest = _digest_surface(vertices, triangles)
-            except (TypeError, ValueError, AttributeError):
-                topology_digest = None
+        # A production ClothAvatar is an authored parametric mesh. Its stable
+        # identity is the provider/provenance/parameters contract, not the
+        # transient ordering returned by FreeCAD Mesh.Topology.
         return (
             "ClothAvatar",
             str(getattr(target, "AvatarMeshProvider", "")),
@@ -59,7 +53,6 @@ def _mesh_signature(target):
             int(getattr(target, "MeshVertexCount", 0)),
             int(getattr(target, "MeshTriangleCount", 0)),
             str(getattr(target, "ParametersJSON", "")),
-            topology_digest,
         )
     mesh = getattr(target, "Mesh", None)
     topology = getattr(mesh, "Topology", None) if mesh is not None else None
