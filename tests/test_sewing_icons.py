@@ -25,7 +25,7 @@ def test_sewing_commands_have_svg_icons():
 
 
 def test_sewing_command_resources_reference_command_icons():
-    import SewingCommands
+    from freecad_cloth.sewing import SewingCommands
 
     assert set(SewingCommands.COMMANDS) == set(COMMANDS)
     assert set(SewingCommands._COMMAND_HANDLERS) == set(COMMANDS)
@@ -43,7 +43,7 @@ def test_sewing_command_resources_reference_command_icons():
 
 
 def test_sewing_command_wrapper_preserves_activation_and_handler_behavior():
-    import SewingCommands
+    from freecad_cloth.sewing import SewingCommands
 
     calls = []
 

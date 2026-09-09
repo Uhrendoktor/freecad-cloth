@@ -1,11 +1,14 @@
 """Headless regression checks for package-owned Cloth workbench registration."""
 import importlib
+from pathlib import Path
 
 from freecad_cloth.pattern.workbench import ClothPatternWorkbench
 from freecad_cloth.sewing.workbench import COMMAND_GROUPS as SEWING_COMMAND_GROUPS, ClothSewingWorkbench
 from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
 
 
+ROOT = Path(__file__).resolve().parents[1]
+ICON_DIR = ROOT / "resources" / "icons"
 EXPECTED_WORKBENCHES = {
     "Cloth Pattern": "Parametric sewing-pattern design",
     "Cloth Sewing": "Sewing operations and avatar fitting",
@@ -20,7 +23,8 @@ def test_workbench_resources_are_stable():
         resources = wb.GetResources()
         assert resources["MenuText"] == wb.MenuText
         assert resources["ToolTip"] == wb.ToolTip
-        assert resources["Icon"] in {"ClothPattern.svg", "ClothSewing.svg", "ClothSimulation.svg"}
+        assert Path(resources["Icon"]).resolve() == (ICON_DIR / Path(resources["Icon"]).name).resolve()
+        assert Path(resources["Icon"]).is_file()
         assert wb.GetClassName() == "Gui::PythonWorkbench"
 
 

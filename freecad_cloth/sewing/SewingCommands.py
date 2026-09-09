@@ -2,7 +2,7 @@
 from pathlib import Path
 
 
-_ICON_DIR = Path(__file__).resolve().parent / "resources" / "icons"
+_ICON_DIR = Path(__file__).resolve().parents[2] / "resources" / "icons"
 
 
 def _seams(doc):

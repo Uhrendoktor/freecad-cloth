@@ -1,4 +1,6 @@
 """Sewing workbench registration facade."""
+from pathlib import Path
+
 from freecad_cloth.gui import ClothWorkbenchBase
 
 
@@ -31,7 +33,10 @@ def _validate_sewing_command_groups(groups, expected):
 class ClothSewingWorkbench(ClothWorkbenchBase):
     MenuText = "Cloth Sewing"
     ToolTip = "Sewing operations and avatar fitting"
-    Icon = "ClothSewing.svg"
+
+    def __init__(self):
+        super().__init__()
+        self.Icon = str(Path(__file__).resolve().parents[2] / "resources" / "icons" / "ClothSewing.svg")
 
     def Initialize(self):
         if self.commands:
