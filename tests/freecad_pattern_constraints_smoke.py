@@ -113,14 +113,11 @@ def _assert_ir_preserves_native_curves(sketch, piece_id, document):
 
 def main():
     mark("start")
-    # The canonical screenshot runner has already executed InitGui.py in this
-    # same FreeCAD process. Re-executing it can abort FreeCAD 1.1, so this
-    # acceptance only validates the registered public workbench state here.
-    Gui.updateGui()
+    # InitGui.py has already been executed by the canonical GUI runner. Avoid
+    # a second GUI bootstrap/event-pump here; it can make FreeCAD 1.1 abort.
     assert "Cloth Pattern" in [str(name) for name in Gui.listWorkbenches()]
     mark("workbench-present")
     Gui.activateWorkbench("Cloth Pattern")
-    Gui.updateGui()
     mark("workbench-active")
 
     doc = App.newDocument("PatternConstraintAcceptance")
@@ -194,7 +191,6 @@ if __name__ == "__main__":
                     App.closeDocument(document.Name)
                 except Exception:
                     pass
-            Gui.updateGui()
             window = Gui.getMainWindow()
             if window is not None:
                 window.close()
