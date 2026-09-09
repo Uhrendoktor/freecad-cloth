@@ -35,13 +35,7 @@ def _parameters(obj):
 
 
 def _mesh_data(vertices, triangles):
-    """Build the native FreeCAD mesh directly from the humanoid topology.
-
-    A high-resolution humanoid should remain a mesh in FreeCAD. Converting the
-    full MakeHuman surface to an OCC Part shape is unnecessarily expensive and
-    can block the GUI for tens of seconds while providing no benefit for cloth
-    collision, which already consumes triangle meshes.
-    """
+    """Build the native FreeCAD mesh directly from the humanoid topology."""
     import FreeCAD as App
     import Mesh
 
@@ -95,7 +89,7 @@ def _make_scene(doc):
     return create_fitting_scene()
 
 
-def create_avatar():
+def create_avatar(attach_collision=True):
     import FreeCAD as App
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
     obj = _avatar(doc)
@@ -130,10 +124,11 @@ def create_avatar():
         for name in ("MeshVertexCount", "MeshTriangleCount"):
             _set_prop(obj, "App::PropertyInteger", name, "Avatar", 0)
     _rebuild(obj)
-    collision = _ensure_collision(obj)
-    target = _ensure_drape_target(obj)
-    obj.CollisionProxy = collision
-    obj.DrapeTarget = target
+    if attach_collision:
+        collision = _ensure_collision(obj)
+        target = _ensure_drape_target(obj)
+        obj.CollisionProxy = collision
+        obj.DrapeTarget = target
     doc.recompute()
     return obj
 
