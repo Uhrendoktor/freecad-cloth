@@ -73,14 +73,21 @@ def _geometry_signature(target):
         return mesh_signature
     shape = getattr(target, "Shape", None)
     if shape is not None:
-        tessellate = getattr(shape, "tessellate", None)
-        if callable(tessellate):
-            try:
-                if not shape.isNull():
-                    vertices, faces = tessellate(1.0)
-                    return ("Shape", _digest_surface(vertices, faces))
-            except (AttributeError, TypeError, ValueError, RuntimeError):
-                pass
+        try:
+            if not shape.isNull():
+                box = shape.BoundBox
+                return (
+                    "Shape",
+                    int(len(getattr(shape, "Solids", ()))),
+                    int(len(getattr(shape, "Faces", ()))),
+                    int(len(getattr(shape, "Edges", ()))),
+                    int(len(getattr(shape, "Vertexes", ()))),
+                    round(float(box.XMin), 6), round(float(box.XMax), 6),
+                    round(float(box.YMin), 6), round(float(box.YMax), 6),
+                    round(float(box.ZMin), 6), round(float(box.ZMax), 6),
+                )
+        except (AttributeError, TypeError, ValueError):
+            pass
         hash_code = getattr(shape, "hashCode", None)
         if callable(hash_code):
             try:
@@ -132,16 +139,9 @@ def target_status(target):
         return {"state": "invalid", "message": "Cannot inspect drape target: %s" % exc, "stale": True, "reason": "signature failed"}
     authored = str(getattr(target, "SourceSignature", ""))
     if current != authored:
-        source_name = str(getattr(source, "Name", ""))
-        source_type = str(getattr(source, "AvatarType", ""))
-        provider = str(getattr(source, "AvatarMeshProvider", ""))
-        message = (
-            "Drape target changed; rebuild collision surface before simulation "
-            "(source=%s, type=%s, provider=%s)" % (source_name, source_type, provider)
-        )
         return {
             "state": "stale",
-            "message": message,
+            "message": "Drape target changed; rebuild collision surface before simulation",
             "stale": True,
             "reason": "source, placement, tessellation or collision thickness changed",
             "signature_current": current,
