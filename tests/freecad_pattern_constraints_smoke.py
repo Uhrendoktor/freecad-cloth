@@ -111,64 +111,68 @@ def _assert_ir_preserves_native_curves(sketch, piece_id, document):
     document.recompute()
 
 
-def main():
+def main(document=None):
     mark("start")
-    mark("newdocument-start")
-    doc = App.newDocument("PatternConstraintAcceptance")
-    mark("newdocument-returned")
-    assert "ClothPattern_CreatePieceWithSketch" in Gui.listCommands()
-    mark("creating-piece-command")
-    Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
-    mark("piece-command-returned")
-    doc.recompute()
-    mark("initial-recompute-returned")
-    piece = doc.getObject("PatternPiece")
-    assert piece is not None and piece.Sketch is not None
-    piece_name = piece.Name
-    piece_id = str(piece.PieceId)
-    sketch = piece.Sketch
-    _add_curved_sketch(piece)
-    doc.recompute()
-    mark("curved-sketch-recompute-returned")
-    assert list(sketch.SemanticEdgeIds) == [f"{piece_id}:edge:{i}" for i in range(4)]
-    assert len(sketch.Geometry) == 4
-    assert _constraint_type(sketch, 7) == "Tangent"
-    _exercise_reference_constraints(sketch, doc)
-    dimensional = _exercise_dimension_expression(sketch, doc)
-
-    mark("creating-seam")
-    piece2 = add_pattern_piece(doc, PatternPiece("Mate", rectangle(80, 50).sampled_outline(), id="pattern-piece-2"))
-    doc.recompute()
-    seam = add_seam(doc, Seam(piece_id, 0, str(piece2.PieceId), 0, id="AcceptanceSeam"))
-    doc.recompute()
-    assert seam.Status == "Valid"
-    _assert_ir_preserves_native_curves(sketch, piece_id, doc)
-    baseline_boundary = str(piece.SewingOutline)
-    sketch.setDatum(dimensional, App.Units.Quantity("140 mm"))
-    doc.recompute()
-    assert str(piece.SewingOutline) != baseline_boundary
-    assert str(seam.Status) in {"Changed reference", "Missing reference"}
-
-    mark("save-reload")
-    with tempfile.TemporaryDirectory() as directory:
-        path = os.path.join(directory, "pattern-constraints.FCStd")
+    doc = document or App.newDocument("PatternConstraintAcceptance")
+    mark("document-ready")
+    try:
+        assert "ClothPattern_CreatePieceWithSketch" in Gui.listCommands()
+        mark("creating-piece-command")
+        Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
+        mark("piece-command-returned")
         doc.recompute()
-        doc.saveAs(path)
-        App.closeDocument(doc.Name)
-        reloaded = App.openDocument(path)
-        restored = reloaded.getObject(piece_name)
-        assert restored is not None
-        restored_sketch = restored.Sketch
-        assert restored_sketch is not None
-        assert str(restored.GeometryAuthority) == "Sketcher"
-        assert list(restored_sketch.SemanticEdgeIds) == [f"{restored.PieceId}:edge:{i}" for i in range(4)]
-        restored_dimensional = next(i for i, constraint in enumerate(restored_sketch.Constraints) if str(constraint.Name) == "Width")
-        assert restored_sketch.constraintHasExpression(restored_dimensional)
-        assert abs(float(restored_sketch.getDatum(restored_dimensional)) - 140.0) < 1e-7
-        assert restored_sketch.GeometryAuthority == "Sketcher"
-        App.closeDocument(reloaded.Name)
+        mark("initial-recompute-returned")
+        piece = next((obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"), None)
+        assert piece is not None and piece.Sketch is not None
+        piece_name = piece.Name
+        piece_id = str(piece.PieceId)
+        sketch = piece.Sketch
+        _add_curved_sketch(piece)
+        doc.recompute()
+        mark("curved-sketch-recompute-returned")
+        assert list(sketch.SemanticEdgeIds) == [f"{piece_id}:edge:{i}" for i in range(4)]
+        assert len(sketch.Geometry) == 4
+        assert _constraint_type(sketch, 7) == "Tangent"
+        _exercise_reference_constraints(sketch, doc)
+        dimensional = _exercise_dimension_expression(sketch, doc)
 
-    mark("passed")
+        mark("creating-seam")
+        piece2 = add_pattern_piece(doc, PatternPiece("Mate", rectangle(80, 50).sampled_outline(), id="pattern-piece-2"))
+        doc.recompute()
+        seam = add_seam(doc, Seam(piece_id, 0, str(piece2.PieceId), 0, id="AcceptanceSeam"))
+        doc.recompute()
+        assert seam.Status == "Valid"
+        _assert_ir_preserves_native_curves(sketch, piece_id, doc)
+        baseline_boundary = str(piece.SewingOutline)
+        sketch.setDatum(dimensional, App.Units.Quantity("140 mm"))
+        doc.recompute()
+        assert str(piece.SewingOutline) != baseline_boundary
+        assert str(seam.Status) in {"Changed reference", "Missing reference"}
+
+        mark("save-reload")
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "pattern-constraints.FCStd")
+            doc.recompute()
+            doc.saveAs(path)
+            App.closeDocument(doc.Name)
+            reloaded = App.openDocument(path)
+            restored = reloaded.getObject(piece_name)
+            assert restored is not None
+            restored_sketch = restored.Sketch
+            assert restored_sketch is not None
+            assert str(restored.GeometryAuthority) == "Sketcher"
+            assert list(restored_sketch.SemanticEdgeIds) == [f"{restored.PieceId}:edge:{i}" for i in range(4)]
+            restored_dimensional = next(i for i, constraint in enumerate(restored_sketch.Constraints) if str(constraint.Name) == "Width")
+            assert restored_sketch.constraintHasExpression(restored_dimensional)
+            assert abs(float(restored_sketch.getDatum(restored_dimensional)) - 140.0) < 1e-7
+            assert restored_sketch.GeometryAuthority == "Sketcher"
+            App.closeDocument(reloaded.Name)
+            doc = None
+
+        mark("passed")
+    finally:
+        if doc is not None and doc.Name in App.listDocuments():
+            App.closeDocument(doc.Name)
 
 
 if __name__ == "__main__":
