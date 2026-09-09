@@ -19,9 +19,9 @@ def test_workbench_package_boundaries_exist():
         assert (root / "freecad_cloth" / name / "workbench.py").is_file()
 
 
-def test_only_freecad_bootstrap_python_files_remain_at_root():
+def test_only_bootstrap_python_files_remain_at_root():
     root = Path(__file__).resolve().parents[1]
-    assert {path.name for path in root.glob("*.py")} <= {"Init.py", "InitGui.py"}
+    assert {path.name for path in root.glob("*.py")} <= {"Init.py", "InitGui.py", "sitecustomize.py"}
 
 
 def test_freecad_entry_points_remain_at_root():
