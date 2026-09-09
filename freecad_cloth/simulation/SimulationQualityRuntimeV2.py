@@ -238,13 +238,27 @@ def create_quality_simulation_scene(doc):
     avatar = create_avatar(attach_collision=False)
     avatar.Label = "Cloth Human Avatar (MakeHuman)"
     avatar.ViewObject.Visibility = True
+
+    # Keep the visible avatar at full MakeHuman fidelity, but use a small
+    # collision-only copy. Python conversion of a very dense visual mesh into
+    # a solver surface is needlessly expensive in the GUI path.
+    collision_source = doc.addObject("Mesh::Feature", "MakeHumanCollisionMesh")
+    collision_source.Label = "MakeHuman collision mesh (decimated)"
+    collision_source.Mesh = avatar.Mesh.copy()
+    target_facets = 5000
+    if int(collision_source.Mesh.CountFacets) > target_facets:
+        collision_source.Mesh.decimate(target_facets)
+    collision_source.ViewObject.Visibility = False
+    collision_source.addProperty("App::PropertyLink", "VisualAvatar", "Collision")
+    collision_source.VisualAvatar = avatar
+
     set_avatar_collision_source(
         scene,
-        avatar,
+        collision_source,
         float(getattr(avatar, "SkinOffset", 3.0)),
         1.0,
     )
-    scene.AvatarProxy.SourceObject = avatar
+    scene.AvatarProxy.SourceObject = collision_source
     scene.DrapeTarget = doc.getObject("DrapeTarget")
     ensure_quality_properties(scene)
     scene.Proxy = QualitySimulationProxy()
