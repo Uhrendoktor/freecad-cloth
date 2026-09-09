@@ -2,7 +2,8 @@
 
 The avatar is a real polygonal human base mesh rather than a collection of
 FreeCAD primitives. The pinned MakeHuman HM08 base mesh is fetched lazily and
-cached locally, then fitted into the Cloth millimetre coordinate system.
+cached locally, then converted from MakeHuman Y-up coordinates into Cloth's
+right-handed Z-up millimetre space.
 """
 from __future__ import annotations
 
@@ -37,7 +38,7 @@ class MeshData:
     triangles: tuple[tuple[int, int, int], ...]
 
     def validate(self):
-        if len(self.vertices) < 3 or len(self.triangles) < 1:
+        if len(self.vertices) < 3 or not self.triangles:
             raise HumanoidMeshError("humanoid mesh is empty")
         count = len(self.vertices)
         for tri in self.triangles:
@@ -74,9 +75,10 @@ def _download(url: str, destination: Path) -> None:
                     if not chunk:
                         break
                     handle.write(chunk)
-        if not _verified(Path(temporary)):
+        temporary_path = Path(temporary)
+        if not _verified(temporary_path):
             raise HumanoidMeshError("downloaded MakeHuman base mesh failed SHA-256 verification")
-        os.replace(temporary, destination)
+        os.replace(temporary_path, destination)
     except Exception:
         try:
             os.unlink(temporary)
@@ -86,7 +88,7 @@ def _download(url: str, destination: Path) -> None:
 
 
 def ensure_makehuman_base(path: str | os.PathLike[str] | None = None) -> Path:
-    """Return a real human OBJ, using an explicit local override when supplied."""
+    """Return the pinned real MakeHuman OBJ, using a local override when supplied."""
     override = os.environ.get(CACHE_ENV, "").strip()
     if path is not None:
         destination = Path(path).expanduser()
@@ -112,8 +114,60 @@ def ensure_makehuman_base(path: str | os.PathLike[str] | None = None) -> Path:
     return destination
 
 
+def _largest_surface_component(vertices, triangles):
+    """Keep the largest triangle-connected surface and remap its vertex indices.
+
+    The HM08 OBJ can contain disconnected auxiliary surfaces. Never select the
+    body by a hard-coded vertex count: that silently truncates the real mesh and
+    can produce missing limbs or a corrupted silhouette when the upstream asset
+    changes. The human body surface is the largest connected triangle component.
+    """
+    if not triangles:
+        raise HumanoidMeshError("humanoid mesh contains no triangles")
+
+    parent = list(range(len(vertices)))
+    size = [1] * len(vertices)
+
+    def find(index):
+        root = index
+        while parent[root] != root:
+            root = parent[root]
+        while parent[index] != index:
+            next_index = parent[index]
+            parent[index] = root
+            index = next_index
+        return root
+
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra == rb:
+            return
+        if size[ra] < size[rb]:
+            ra, rb = rb, ra
+        parent[rb] = ra
+        size[ra] += size[rb]
+
+    for a, b, c in triangles:
+        union(a, b)
+        union(b, c)
+        union(c, a)
+
+    component_triangles = {}
+    for tri in triangles:
+        root = find(tri[0])
+        component_triangles[root] = component_triangles.get(root, 0) + 1
+    body_root = max(component_triangles, key=component_triangles.get)
+
+    selected = [tri for tri in triangles if find(tri[0]) == body_root]
+    used = sorted({index for tri in selected for index in tri})
+    remap = {old: new for new, old in enumerate(used)}
+    body_vertices = tuple(vertices[index] for index in used)
+    body_triangles = tuple(tuple(remap[index] for index in tri) for tri in selected)
+    return MeshData(body_vertices, body_triangles).validate()
+
+
 def parse_obj(text: str) -> MeshData:
-    """Parse Wavefront vertices/faces; triangulate quads and n-gons."""
+    """Parse Wavefront vertices/faces and retain only the body surface component."""
     vertices = []
     triangles = []
     for raw in text.splitlines():
@@ -131,7 +185,7 @@ def parse_obj(text: str) -> MeshData:
                 indices.append(index)
             for i in range(1, len(indices) - 1):
                 triangles.append((indices[0], indices[i], indices[i + 1]))
-    return MeshData(tuple(vertices), tuple(triangles)).validate()
+    return _largest_surface_component(tuple(vertices), tuple(triangles))
 
 
 @lru_cache(maxsize=4)
@@ -141,19 +195,6 @@ def load_makehuman_mesh(path: str | None = None) -> MeshData:
         return parse_obj(source.read_text(encoding="utf-8", errors="strict"))
     except (OSError, UnicodeError, ValueError, HumanoidMeshError) as exc:
         raise HumanoidMeshError("unable to parse MakeHuman base mesh %s: %s" % (source, exc)) from exc
-
-
-def _percentile(values, fraction):
-    values = sorted(values)
-    if not values:
-        return 0.0
-    position = (len(values) - 1) * fraction
-    low = int(math.floor(position))
-    high = int(math.ceil(position))
-    if low == high:
-        return float(values[low])
-    weight = position - low
-    return float(values[low] * (1.0 - weight) + values[high] * weight)
 
 
 def _lerp(a, b, t):
@@ -173,14 +214,14 @@ def _axis_bounds(vertices, axis):
 
 
 def _map_makehuman_axes(vertices):
-    """Convert MakeHuman's Y-up coordinates to RH-Z-up normalized coordinates."""
+    """Convert MakeHuman (X, Y-up, Z-depth) to Cloth RH (X, Z-up, Y-depth)."""
     ymin, ymax = _axis_bounds(vertices, 1)
     span = max(1e-9, ymax - ymin)
-    return [(float(x), float(z), float(y - ymin) / span) for x, y, z in vertices]
+    return [(float(x), float(-z), float(y - ymin) / span) for x, y, z in vertices]
 
 
-def _section_extents(vertices, z, band=0.025, predicate=None):
-    samples = [v for v in vertices if abs(v[2] - z) <= band and (predicate is None or predicate(v))]
+def _section_extents(vertices, z, band=0.025):
+    samples = [v for v in vertices if abs(v[2] - z) <= band]
     if len(samples) < 6:
         return 0.0, 0.0
     xs = [v[0] for v in samples]
@@ -189,7 +230,6 @@ def _section_extents(vertices, z, band=0.025, predicate=None):
 
 
 def _ellipse_perimeter(width, depth):
-    """Ramanujan-style perimeter estimate from an axis-aligned section."""
     a = max(1e-6, width * 0.5)
     b = max(1e-6, depth * 0.5)
     return math.pi * (3.0 * (a + b) - math.sqrt((3.0 * a + b) * (a + 3.0 * b)))
@@ -205,56 +245,35 @@ def _profile_scale(z, profile):
 
 
 def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
-    """Fit the real base mesh to Cloth measurements with mannequin-safe proportions.
-
-    Circumference measurements are fitted from actual horizontal section extents.
-    Shoulder is a breadth measurement, not a circumference, so it gets its own
-    lateral correction. The visible mesh is the bare base body; collision padding
-    is supplied separately by the target rather than by an inflated default skin.
-    """
+    """Fit the real HM08 body conservatively while retaining its human silhouette."""
     mesh.validate()
     source = _map_makehuman_axes(mesh.vertices)
     max_x = max(abs(v[0]) for v in source) or 1.0
-
     height_mm = float(parameters.measurement("height"))
     z0, z1 = _axis_bounds(source, 2)
-    height_unit = max(1e-9, z1 - z0)
-    base_scale = height_mm / height_unit
+    base_scale = height_mm / max(1e-9, z1 - z0)
 
     torso_vertices = [v for v in source if abs(v[0]) <= max_x * 0.48] or source
-    bands = (
-        ("hip", 0.50),
-        ("high_hip", 0.54),
-        ("waist", 0.58),
-        ("underbust", 0.64),
-        ("chest", 0.69),
-    )
-    target_circumferences = {name: float(parameters.measurement(name)) for name, _ in bands}
-    torso_profile = [(0.42, 1.0)]
+    bands = (("hip", 0.50), ("high_hip", 0.54), ("waist", 0.58), ("underbust", 0.64), ("chest", 0.69))
+    profile = [(0.42, 1.0)]
     for name, z in bands:
         width, depth = _section_extents(torso_vertices, z)
-        source_perimeter = _ellipse_perimeter(width, depth)
-        if source_perimeter <= 1e-6:
-            scale = 1.0
-        else:
-            scale = target_circumferences[name] / (source_perimeter * base_scale)
-        torso_profile.append((z, scale))
-    torso_profile.extend(((0.75, torso_profile[-1][1]), (1.0, torso_profile[-1][1])))
+        perimeter = _ellipse_perimeter(width, depth)
+        raw = float(parameters.measurement(name)) / max(1e-6, perimeter * base_scale)
+        profile.append((z, max(0.90, min(1.10, raw))))
+    profile.extend(((0.75, profile[-1][1]), (1.0, profile[-1][1])))
 
     shoulder_width, _ = _section_extents(torso_vertices, 0.76)
     shoulder_target = float(parameters.measurement("shoulder"))
-    shoulder_base = max(1e-6, shoulder_width * base_scale * _profile_scale(0.76, torso_profile))
-    shoulder_scale = shoulder_target / shoulder_base
+    shoulder_base = max(1e-6, shoulder_width * base_scale * _profile_scale(0.76, profile))
+    shoulder_scale = max(0.94, min(1.06, shoulder_target / shoulder_base))
 
     skin_offset = float(parameters.skin_offset)
     fitted = []
     for x, y, z in source:
-        torso_scale = _profile_scale(z, torso_profile)
+        torso_scale = _profile_scale(z, profile)
         shoulder_blend = _smoothstep(0.67, 0.79, z)
         lateral_scale = _lerp(1.0, shoulder_scale, shoulder_blend)
-        # Keep the head neutral while the shoulder breadth correction fades out.
-        if z >= 0.79:
-            lateral_scale = 1.0
         x_mm = x * base_scale * torso_scale * lateral_scale
         y_mm = y * base_scale * torso_scale
         radius = math.hypot(x_mm, y_mm)
@@ -269,11 +288,12 @@ def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
     default_angle = {"standing": 12.0, "sewing": 55.0, "sitting": 25.0}.get(pose.preset, 12.0)
     left_angle = default_angle if pose.preset != "standing" and float(pose.left_arm_angle) == 12.0 else float(pose.left_arm_angle)
     right_angle = default_angle if pose.preset != "standing" and float(pose.right_arm_angle) == 12.0 else float(pose.right_arm_angle)
+
     posed = []
     body_half = max(1.0, shoulder_half * 0.72)
     for x, y, z in fitted:
-        nz = z / max(1.0, height_mm)
-        if 0.58 <= nz <= 0.90 and abs(x) > body_half:
+        normalized_z = z / max(1.0, height_mm)
+        if 0.58 <= normalized_z <= 0.90 and abs(x) > body_half:
             side = -1.0 if x < 0.0 else 1.0
             angle = left_angle if side < 0 else right_angle
             if angle:
@@ -290,5 +310,5 @@ def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
 
 
 def build_humanoid_mesh(parameters, source_path=None) -> MeshData:
-    """Load, fit and return the real MakeHuman mannequin mesh for Cloth."""
+    """Load, extract, fit and return the real MakeHuman mannequin mesh."""
     return fit_makehuman_mesh(load_makehuman_mesh(str(source_path) if source_path is not None else None), parameters)
