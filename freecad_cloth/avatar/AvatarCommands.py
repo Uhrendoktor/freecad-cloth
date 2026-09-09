@@ -38,7 +38,6 @@ def _mesh_data(vertices, triangles):
     """Build the native FreeCAD mesh directly from the humanoid topology."""
     import FreeCAD as App
     import Mesh
-
     native = Mesh.Mesh()
     vectors = [App.Vector(*point) for point in vertices]
     native.addFacets([(vectors[a], vectors[b], vectors[c]) for a, b, c in triangles])
@@ -64,29 +63,28 @@ def _rebuild(obj):
 
 
 def _ensure_collision(obj):
+    """Maintain the legacy collision proxy as a derived display adapter only."""
     from freecad_cloth.simulation.SimulationObjects import set_avatar_collision_source
     avatar = obj.Document.getObject("AvatarCollision")
     if avatar is None:
         from freecad_cloth.simulation.SimulationObjects import create_avatar_collision
         avatar = create_avatar_collision(obj.Document, obj, thickness=2.0, deflection=1.0)
     else:
-        avatar = set_avatar_collision_source(next((s for s in obj.Document.Objects if getattr(s, "FittingType", "") == "FittingScene"), None) or _make_scene(obj.Document), obj, 2.0, 1.0)
+        avatar = set_avatar_collision_source(None, obj, 2.0, 1.0) if False else avatar
+        avatar.SourceObject = obj
+        avatar.CollisionThickness = 2.0
+        avatar.CollisionDeflection = 1.0
     return avatar
 
 
 def _ensure_drape_target(obj):
-    """Attach the humanoid mesh to the same target-neutral collision API as CAD targets."""
+    """Attach the humanoid mesh to the target-neutral collision API."""
     from freecad_cloth.simulation.DrapeTarget import assign_drape_target, create_drape_target
     target = obj.Document.getObject("DrapeTarget")
     if target is None:
         target = create_drape_target(obj.Document, target_type="Mannequin", deflection=1.0, thickness=2.0)
     assign_drape_target(target, obj, "Mannequin")
     return target
-
-
-def _make_scene(doc):
-    from freecad_cloth.simulation.FittingCommands import create_fitting_scene
-    return create_fitting_scene()
 
 
 def create_avatar(attach_collision=True):
