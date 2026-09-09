@@ -14,6 +14,21 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - Canonical CI: `.github/workflows/canonical-execution.yml`
 - CI policy: preserve the Docker/Xvfb FreeCAD screenshot/PNG path; never add a second workflow.
 
+## Package structure
+
+```
+freecad_cloth/
+├── avatar/        — Avatar model, collision, arrangement, fitting, commands, GUI
+├── common/        — Shared utilities and document adapters
+├── pattern/       — Pattern geometry, IR, mesh, objects, schema, sketch, sync, OCCT, derived geometry, commands, GUI
+├── sewing/        — Sewing graph, references, assembly, constraints, correspondence, commands, GUI, network, objects, plan, semantics, view
+├── simulation/    — Simulation backend, commands, GUI, mesh quality, objects, quality, drape, target, stale guard, XPBD, diagnostics
+├── shared/        — Shared target/collision contracts
+└── gui.py         — ClothWorkbenchBase shared base class
+```
+
+Implementation modules belong under this package tree. `Init.py` and `InitGui.py` remain at repository root because FreeCAD discovers those bootstrap files in a directly installed `Mod` directory. Root `sitecustomize.py` is an interpreter/CI hook, not Cloth domain implementation.
+
 ## Release gates
 
 - P0: canonical end-to-end garment fixture — #155, #278.
@@ -26,7 +41,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 ## Active focused work
 
-- #298 native Sketcher GUI/Xvfb acceptance on `agent/issue-298-sketcher-acceptance-20260909`; reuses the canonical workflow and adds no second CI workflow.
+- #298 native Sketcher GUI/XvFB acceptance on `agent/issue-298-sketcher-acceptance-20260909`; reuses the canonical workflow and adds no second CI workflow.
 
 ## Architecture / UX
 
