@@ -2,14 +2,14 @@
 
 
 def _drape_target_guard(target):
-    """Return a stale-target status that must block proxy execution."""
+    """Return a target status that must block proxy execution."""
     try:
         from freecad_cloth.simulation.DrapeTarget import target_status
         status = target_status(target)
     except (ImportError, AttributeError, TypeError, ValueError) as exc:
         return {"blocked": True, "state": "invalid", "message": "Cannot inspect drape target: %s" % exc,
                 "stale": True, "reason": "target inspection failed"}
-    blocked_states = {"stale", "unbuilt", "unassigned", "invalid", "missing"}
+    blocked_states = {"stale", "unbuilt", "unassigned", "invalid", "missing", "disabled"}
     return {"blocked": status["state"] in blocked_states, **status}
 
 
@@ -65,7 +65,7 @@ def _find_drape_target(doc):
 
 
 def _require_drape_target_ready(doc):
-    """Refuse solver advancement until the persistent collision target is current."""
+    """Refuse solver advancement until the persistent collision target is current and enabled."""
     target = _find_drape_target(doc)
     status = _drape_target_guard(target)
     if status["state"] != "ready":
