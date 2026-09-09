@@ -211,11 +211,22 @@ def simulation():
     doc.recompute()
     if scene.DrapeTarget is None or scene.AvatarProxy is None or not scene.DrapePanels:
         raise RuntimeError("simulation fixture did not create avatar and garment panels")
+    avatar = getattr(scene.AvatarProxy, "SourceObject", None)
+    if avatar is None or str(getattr(avatar, "AvatarType", "")) != "ClothAvatar":
+        raise RuntimeError("simulation fixture is not using the production ClothAvatar source")
+    if str(getattr(avatar, "AvatarMeshProvider", "")) != "makehuman-hm08":
+        raise RuntimeError("simulation fixture is not using the MakeHuman HM08 provider")
+    if str(getattr(avatar, "AvatarMeshLicense", "")) != "CC0":
+        raise RuntimeError("simulation fixture lost MakeHuman CC0 provenance")
+    if int(getattr(avatar, "MeshVertexCount", 0)) <= 100 or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100:
+        raise RuntimeError("simulation fixture does not contain a real polygonal humanoid mesh")
+    if doc.getObject("MakeHumanCollisionMesh") is not None:
+        raise RuntimeError("simulation fixture must not create a sampled collision mesh")
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
     panel = SimulationQualityTaskPanel(scene)
     show_task(panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset"))
     Gui.activeDocument().activeView().viewAxonometric(); Gui.activeDocument().activeView().fitAll(); events()
-    save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "deterministic avatar and arranged garment panels with ready task state")
+    save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "production MakeHuman humanoid mesh and arranged garment panels with ready task state")
     for batch in (6, 6, 6, 6):
         panel.step(batch)
         doc.recompute()
@@ -224,7 +235,7 @@ def simulation():
         raise RuntimeError("simulation did not reach a finite 24-step state")
     show_task(panel, "Simulation Workbench draped", ("State:", "24", "particles", "Fast"), reuse_active=True)
     Gui.activeDocument().activeView().fitAll(); events()
-    save("cloth-simulation-draped.png", "Simulation Workbench draped", "same scene after 24 real task-panel simulation steps")
+    save("cloth-simulation-draped.png", "Simulation Workbench draped", "same MakeHuman-backed scene after 24 real task-panel simulation steps")
     close_task()
     App.closeDocument(doc.Name)
 
