@@ -4,6 +4,7 @@ The model layer deliberately does not import FreeCAD.  ``surface_from_freecad``
 is the small GUI/runtime bridge used by the document workbench.
 """
 from dataclasses import dataclass
+from math import ceil
 from typing import Tuple
 
 
@@ -53,6 +54,70 @@ class AvatarSpec:
             raise ValueError("unsupported coordinate convention")
         if self.collision:
             self.collision.validate()
+
+
+def coarsen_collision_surface(surface: CollisionSurface, max_triangles: int = 1024) -> CollisionSurface:
+    """Derive a spatially covered collision surface from a real authored mesh.
+
+    The visible avatar remains the full MakeHuman mesh. The solver does not need
+    every render triangle, so this keeps one representative triangle per coarse
+    spatial cell until the requested triangle budget is reached. No proxy object
+    is created and the result remains derived solely from the real avatar mesh.
+    """
+    limit = int(max_triangles)
+    surface.validate()
+    if limit < 1:
+        raise ValueError("max_triangles must be positive")
+    if len(surface.triangles) <= limit:
+        return surface
+
+    points = surface.vertices
+    centroids = []
+    mins = [float("inf")] * 3
+    maxs = [float("-inf")] * 3
+    for ia, ib, ic in surface.triangles:
+        a, b, c = points[ia], points[ib], points[ic]
+        center = tuple((a[i] + b[i] + c[i]) / 3.0 for i in range(3))
+        centroids.append(center)
+        for i in range(3):
+            mins[i] = min(mins[i], center[i])
+            maxs[i] = max(maxs[i], center[i])
+
+    span = max(maxs[i] - mins[i] for i in range(3))
+    if span <= 1e-9:
+        step = 1
+    else:
+        cells_per_axis = max(1, int(ceil(limit ** (1.0 / 3.0))))
+        cell = span / cells_per_axis
+        step = max(1, cells_per_axis)
+
+    selected = {}
+    for index, center in enumerate(centroids):
+        if span <= 1e-9:
+            key = (0, 0, 0)
+        else:
+            key = tuple(min(step - 1, max(0, int((center[i] - mins[i]) / cell))) for i in range(3))
+        if key not in selected:
+            selected[key] = index
+
+    indices = list(selected.values())
+    if len(indices) > limit:
+        stride = max(1, int(ceil(len(indices) / float(limit))))
+        indices = indices[::stride][:limit]
+    elif len(indices) < limit:
+        used = set(indices)
+        stride = max(1, len(surface.triangles) // limit)
+        for index in range(0, len(surface.triangles), stride):
+            if index not in used:
+                indices.append(index)
+                used.add(index)
+                if len(indices) >= limit:
+                    break
+
+    triangles = tuple(surface.triangles[index] for index in indices[:limit])
+    result = CollisionSurface(surface.vertices, triangles, surface.region, surface.thickness)
+    result.validate()
+    return result
 
 
 def surface_from_freecad(obj, deflection: float = 1.0, thickness: float = 0.0) -> CollisionSurface:
