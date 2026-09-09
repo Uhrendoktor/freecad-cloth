@@ -91,11 +91,14 @@ def run_acceptance():
             raise RuntimeError("Fast preset did not use a coarser particle distance than Final")
         if fast["iterations"] >= final.solver_iterations:
             raise RuntimeError("Fast preset did not use fewer solver iterations than Final")
+        if fast["particles"] <= 0:
+            raise RuntimeError("Fast preset did not build a real simulation discretization")
 
         panel = SimulationQualityTaskPanel(scene)
         Gui.Control.showDialog(panel)
         _events()
-        panel._preset_changed("Final")
+        panel.quality.setCurrentText("Final")
+        _events()
         doc.recompute()
         if str(scene.QualityPreset) != "Final":
             raise RuntimeError("task panel did not persist the selected quality preset")
