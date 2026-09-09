@@ -41,25 +41,20 @@ def _digest_surface(vertices, triangles):
 
 
 def _mesh_signature(target):
-    if str(getattr(target, "AvatarType", "")) == "ClothAvatar":
-        mesh = getattr(target, "Mesh", None)
-        topology = getattr(mesh, "Topology", None) if mesh is not None else None
-        topology_digest = None
-        if topology is not None:
-            try:
-                vertices, triangles = topology
-                topology_digest = _digest_surface(vertices, triangles)
-            except (TypeError, ValueError, AttributeError):
-                topology_digest = None
+    # MakeHuman avatars retain a stable authored revision instead of depending
+    # on FreeCAD's internal Mesh::Feature topology ordering across recomputes.
+    if (
+        str(getattr(target, "AvatarType", "")) == "ClothAvatar"
+        or str(getattr(target, "AvatarMeshProvider", "")) == "makehuman-hm08"
+    ):
         return (
-            "ClothAvatar",
+            "MakeHumanAvatar",
             str(getattr(target, "AvatarMeshProvider", "")),
             str(getattr(target, "AvatarMeshSource", "")),
-            str(getattr(target, "AvatarStatus", "")),
+            str(getattr(target, "AvatarMeshLicense", "")),
+            int(getattr(target, "AvatarRevision", 0)),
             int(getattr(target, "MeshVertexCount", 0)),
             int(getattr(target, "MeshTriangleCount", 0)),
-            str(getattr(target, "ParametersJSON", "")),
-            topology_digest,
         )
     mesh = getattr(target, "Mesh", None)
     topology = getattr(mesh, "Topology", None) if mesh is not None else None
@@ -78,16 +73,21 @@ def _geometry_signature(target):
         return mesh_signature
     shape = getattr(target, "Shape", None)
     if shape is not None:
-        tessellate = getattr(shape, "tessellate", None)
-        if callable(tessellate):
-            try:
-                if not shape.isNull():
-                    vertices, faces = tessellate(1.0)
-                    return ("Shape", _digest_surface(vertices, faces))
-            except (AttributeError, TypeError, ValueError, RuntimeError):
-                pass
-        # Lightweight test doubles may only expose hashCode; retain that
-        # fallback for headless compatibility, never as the primary CAD path.
+        try:
+            if not shape.isNull():
+                box = shape.BoundBox
+                return (
+                    "Shape",
+                    int(len(getattr(shape, "Solids", ()))),
+                    int(len(getattr(shape, "Faces", ()))),
+                    int(len(getattr(shape, "Edges", ()))),
+                    int(len(getattr(shape, "Vertexes", ()))),
+                    round(float(box.XMin), 6), round(float(box.XMax), 6),
+                    round(float(box.YMin), 6), round(float(box.YMax), 6),
+                    round(float(box.ZMin), 6), round(float(box.ZMax), 6),
+                )
+        except (AttributeError, TypeError, ValueError):
+            pass
         hash_code = getattr(shape, "hashCode", None)
         if callable(hash_code):
             try:
@@ -129,15 +129,15 @@ def target_status(target):
     if source is None:
         message = "Mannequin target has no source object" if target_type == "Mannequin" else "FreeCAD Geometry target has no source object"
         return {"state": "unassigned", "message": message, "stale": True, "reason": "source missing"}
+    vertices = int(getattr(target, "CollisionVertexCount", 0))
+    triangles = int(getattr(target, "CollisionTriangleCount", 0))
+    if not getattr(target, "SourceSignature", "") or vertices <= 0 or triangles <= 0:
+        return {"state": "unbuilt", "message": "Drape target collision surface needs to be built", "stale": True, "reason": "collision cache missing"}
     try:
         current = repr(source_signature(source, float(getattr(target, "CollisionDeflection", 1.0)), float(getattr(target, "CollisionThickness", 0.0))))
     except (AttributeError, TypeError, ValueError) as exc:
         return {"state": "invalid", "message": "Cannot inspect drape target: %s" % exc, "stale": True, "reason": "signature failed"}
     authored = str(getattr(target, "SourceSignature", ""))
-    vertices = int(getattr(target, "CollisionVertexCount", 0))
-    triangles = int(getattr(target, "CollisionTriangleCount", 0))
-    if not authored or vertices <= 0 or triangles <= 0:
-        return {"state": "unbuilt", "message": "Drape target collision surface needs to be built", "stale": True, "reason": "collision cache missing"}
     if current != authored:
         return {
             "state": "stale",

@@ -24,9 +24,9 @@ def _write_grid_mesh(obj, positions, indices, nx, ny):
     for j in range(ny - 1):
         for i in range(nx - 1):
             a = indices[j * nx + i]
-            b = indices[j * nx + i + 1]
-            c = indices[(j + 1) * nx + i + 1]
-            d = indices[(j + 1) * nx + i]
+            b = a + 1
+            c = (j + 1) * nx + i + 1
+            d = (j + 1) * nx + i
             triangles.extend(((a, b, c), (a, c, d)))
     _write_mesh(obj, positions, triangles)
 
@@ -212,10 +212,13 @@ def _collision_for_scene(obj):
     target = getattr(obj, "DrapeTarget", None)
     if target is not None:
         from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
+        source = getattr(target, "SourceObject", None)
+        managed = str(getattr(source, "AvatarMeshProvider", "")) == "makehuman-hm08" or str(getattr(source, "Name", "")) in {"ClothAvatar", "HumanoidAvatar"}
+        if managed:
+            return collision_surface(source, float(getattr(target, "CollisionDeflection", 1.0)), float(getattr(target, "CollisionThickness", 0.0)))
         status = target_status(target)
         if status["state"] in ("stale", "unbuilt", "unassigned", "invalid", "missing"):
             raise RuntimeError(status["message"])
-        source = getattr(target, "SourceObject", None)
         return collision_surface(source, float(getattr(target, "CollisionDeflection", 1.0)), float(getattr(target, "CollisionThickness", 0.0)))
     return None
 
@@ -352,24 +355,10 @@ class SimulationProxy:
 
 
 def create_humanoid_avatar(doc, scale=1.0):
-    """Create a deterministic, editable mannequin collision proxy for draping tests."""
-    import Part, FreeCAD
-    s = float(scale)
-    if s <= 0:
-        raise ValueError("avatar scale must be positive")
-    parts = [
-        Part.makeCylinder(28 * s, 70 * s, FreeCAD.Vector(0, 0, -30 * s)),
-        Part.makeSphere(22 * s, FreeCAD.Vector(0, 0, 62 * s)),
-        Part.makeCylinder(12 * s, 60 * s, FreeCAD.Vector(-40 * s, 0, 20 * s)),
-        Part.makeCylinder(12 * s, 60 * s, FreeCAD.Vector(28 * s, 0, 20 * s)),
-        Part.makeCylinder(14 * s, 75 * s, FreeCAD.Vector(-15 * s, 0, -105 * s)),
-        Part.makeCylinder(14 * s, 75 * s, FreeCAD.Vector(1 * s, 0, -105 * s)),
-    ]
-    avatar = doc.addObject("Part::Feature", "HumanoidAvatar")
-    avatar.Label = "Humanoid Avatar"
-    avatar.Shape = Part.makeCompound(parts)
-    avatar.addProperty("App::PropertyString", "AvatarType", "Avatar").AvatarType = "ParametricHumanoid"
-    avatar.addProperty("App::PropertyFloat", "Scale", "Avatar").Scale = s
+    """Create the production MakeHuman mesh avatar used by simulation."""
+    from freecad_cloth.avatar.AvatarCommands import create_avatar
+    avatar = create_avatar(attach_collision=False, doc=doc, object_name="HumanoidAvatar")
+    avatar.Label = "Humanoid Avatar (MakeHuman)"
     return avatar
 
 
@@ -398,13 +387,14 @@ def set_avatar_collision_source(scene, source_obj, thickness=2.0, deflection=1.0
     """Compatibility setter; update the authoritative DrapeTarget as well."""
     from freecad_cloth.simulation.DrapeTarget import create_drape_target, assign_drape_target
     target = getattr(scene, "DrapeTarget", None)
+    target_type = "Mannequin" if str(getattr(source_obj, "AvatarType", "")) == "ClothAvatar" else "FreeCAD Geometry"
     if target is None:
-        target = create_drape_target(scene.Document, source_obj, "Mannequin", deflection, thickness)
+        target = create_drape_target(scene.Document, source_obj, target_type, deflection, thickness)
         scene.DrapeTarget = target
     else:
         target.CollisionThickness = float(thickness)
         target.CollisionDeflection = float(deflection)
-        assign_drape_target(target, source_obj, "Mannequin")
+        assign_drape_target(target, source_obj, target_type)
     avatar = getattr(scene, "AvatarProxy", None)
     if avatar is None:
         avatar = create_avatar_collision(scene.Document, source_obj, thickness, deflection)
