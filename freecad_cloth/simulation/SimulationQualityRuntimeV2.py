@@ -231,15 +231,11 @@ def create_quality_simulation_scene(doc):
 
     scene = create_simulation_scene(doc)
 
-    # create_simulation_scene predates the MakeHuman provider and still creates
-    # its compatibility mannequin. Replace that visible source with the real
-    # fitted humanoid mesh so quality/screenshot scenes exercise the production
-    # avatar path rather than the legacy primitive fixture.
     legacy = doc.getObject("HumanoidAvatar")
     if legacy is not None and hasattr(legacy, "ViewObject"):
         legacy.ViewObject.Visibility = False
 
-    avatar = create_avatar()
+    avatar = create_avatar(attach_collision=False)
     avatar.Label = "Cloth Human Avatar (MakeHuman)"
     avatar.ViewObject.Visibility = True
     set_avatar_collision_source(
