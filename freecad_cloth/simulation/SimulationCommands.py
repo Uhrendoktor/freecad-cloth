@@ -2,7 +2,7 @@
 
 
 def _drape_target_guard(target):
-    """Return a target status that must block proxy execution."""
+    """Return a target status that must block solver advancement."""
     try:
         from freecad_cloth.simulation.DrapeTarget import target_status
         status = target_status(target)
@@ -11,29 +11,6 @@ def _drape_target_guard(target):
                 "stale": True, "reason": "target inspection failed"}
     blocked_states = {"stale", "unbuilt", "unassigned", "invalid", "missing", "disabled"}
     return {"blocked": status["state"] in blocked_states, **status}
-
-
-def _install_drape_target_recompute_guard():
-    """Keep document recompute safe when a persistent target becomes stale."""
-    try:
-        from freecad_cloth.simulation.SimulationObjects import SimulationProxy
-    except ImportError:
-        return
-    if getattr(SimulationProxy.execute, "_drape_target_guard", False):
-        return
-    original_execute = SimulationProxy.execute
-
-    def guarded_execute(proxy, obj):
-        target = getattr(obj, "DrapeTarget", None)
-        if target is not None:
-            status = _drape_target_guard(target)
-            if status["blocked"]:
-                obj.FiniteState = False
-                return
-        return original_execute(proxy, obj)
-
-    guarded_execute._drape_target_guard = True
-    SimulationProxy.execute = guarded_execute
 
 
 def create_simulation():
@@ -183,6 +160,7 @@ COMMANDS = [
 ]
 
 try:
+    from freecad_cloth.simulation.SimulationStaleGuard import install as _install_drape_target_recompute_guard
     _install_drape_target_recompute_guard()
     import FreeCADGui as Gui
     if hasattr(Gui, "addCommand"):
