@@ -222,6 +222,27 @@ def simulation():
         raise RuntimeError("simulation fixture does not contain a real polygonal humanoid mesh")
     if doc.getObject("MakeHumanCollisionMesh") is not None:
         raise RuntimeError("simulation fixture must not create a sampled collision mesh")
+
+    # Isolate the actual mannequin for a direct visual regression frame.
+    avatar_visibility = getattr(avatar.ViewObject, "Visibility", True)
+    panel_visibility = [(panel, getattr(panel.ViewObject, "Visibility", True)) for panel in scene.DrapePanels]
+    proxy_view = getattr(scene.AvatarProxy, "ViewObject", None)
+    proxy_visibility = getattr(proxy_view, "Visibility", None) if proxy_view is not None else None
+    for panel in scene.DrapePanels:
+        panel.ViewObject.Visibility = False
+    if proxy_view is not None:
+        proxy_view.Visibility = False
+    avatar.ViewObject.Visibility = True
+    Gui.activeDocument().activeView().viewFront()
+    Gui.activeDocument().activeView().fitAll()
+    events()
+    save("cloth-avatar-mannequin-debug.png", "Bare mannequin diagnostic", "only ClothAvatar visible; drape panels and AvatarProxy hidden")
+    for panel, visible in panel_visibility:
+        panel.ViewObject.Visibility = visible
+    if proxy_view is not None and proxy_visibility is not None:
+        proxy_view.Visibility = proxy_visibility
+    avatar.ViewObject.Visibility = avatar_visibility
+
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
     panel = SimulationQualityTaskPanel(scene)
     show_task(panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset"))
@@ -250,14 +271,12 @@ def load_and_run(path, module_name):
 
 
 def canonical_garment_e2e():
-    """Run the P0 multi-workbench garment lifecycle in this GUI process."""
     path = os.path.join(ROOT, "tests", "freecad_garment_e2e_smoke.py")
     load_and_run(path, "freecad_garment_e2e_smoke")
     log("canonical-garment-e2e=passed")
 
 
 def simulation_quality_acceptance():
-    """Run the P0 simulation quality/material lifecycle in this GUI process."""
     path = os.path.join(ROOT, "tests", "freecad_simulation_quality_acceptance.py")
     load_and_run(path, "freecad_simulation_quality_acceptance")
     log("simulation-quality-acceptance=passed")
