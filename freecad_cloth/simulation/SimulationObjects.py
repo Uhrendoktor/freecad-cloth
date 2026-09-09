@@ -384,13 +384,14 @@ def set_avatar_collision_source(scene, source_obj, thickness=2.0, deflection=1.0
     """Compatibility setter; update the authoritative DrapeTarget as well."""
     from freecad_cloth.simulation.DrapeTarget import create_drape_target, assign_drape_target
     target = getattr(scene, "DrapeTarget", None)
+    target_type = "Mannequin" if str(getattr(source_obj, "AvatarType", "")) == "ClothAvatar" else "FreeCAD Geometry"
     if target is None:
-        target = create_drape_target(scene.Document, source_obj, "Mannequin", deflection, thickness)
+        target = create_drape_target(scene.Document, source_obj, target_type, deflection, thickness)
         scene.DrapeTarget = target
     else:
         target.CollisionThickness = float(thickness)
         target.CollisionDeflection = float(deflection)
-        assign_drape_target(target, source_obj, "Mannequin")
+        assign_drape_target(target, source_obj, target_type)
     avatar = getattr(scene, "AvatarProxy", None)
     if avatar is None:
         avatar = create_avatar_collision(scene.Document, source_obj, thickness, deflection)
