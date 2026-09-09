@@ -32,7 +32,7 @@ def test_step_many_rejects_negative_steps():
 
 def test_stale_drape_target_recompute_guard_is_safe():
     from types import SimpleNamespace
-    import SimulationStaleGuard
+    from freecad_cloth.simulation import SimulationStaleGuard
     from freecad_cloth.simulation.SimulationObjects import SimulationProxy
 
     source = SimpleNamespace(
@@ -60,11 +60,3 @@ def test_stale_drape_target_recompute_guard_is_safe():
     SimulationProxy().execute(scene)
     assert scene.SimulationState == "STALE"
     assert "source, placement" in scene.InvalidationReason
-
-
-if __name__ == "__main__":
-    test_scene_is_constructed_from_pattern_mesh()
-    test_pinned_vertices_remain_fixed_while_free_vertices_move()
-    test_step_many_rejects_negative_steps()
-    test_stale_drape_target_recompute_guard_is_safe()
-    print("simulation scene tests passed")
