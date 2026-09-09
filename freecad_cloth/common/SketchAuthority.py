@@ -23,8 +23,8 @@ def _piece_model(obj):
 
 
 def _resolve_sketch_ir(obj):
-    from freecad_cloth.pattern.PatternIR import freecad_cloth.pattern.PatternIR
-    from freecad_cloth.sewing.SeamGraph import freecad_cloth.sewing.SeamGraph
+    from freecad_cloth.pattern.PatternIR import PatternIR
+    from freecad_cloth.sewing.SeamGraph import SeamGraph
     piece = _piece_model(obj)
     graph = SeamGraph()
     graph.add_piece(piece)
@@ -51,27 +51,18 @@ class SketchAuthorityProxy:
         if len(points) < 3:
             raise ValueError("authoritative Sketcher boundary needs at least three edges")
 
-        # Keep the legacy line-sampled boundary as a derived compatibility
-        # representation. Native curve identity remains in PatternIR and in
-        # the Sketcher object itself.
-        import ast
         obj.DraftingBoundary = repr(points)
         obj.SewingOutline = repr(points)
         obj.SewingBoundary = ",".join(boundary.id for boundary in piece_ir.boundaries)
         obj.Width = max(x for x, _ in points) - min(x for x, _ in points)
         obj.Height = max(y for _, y in points) - min(y for _, y in points)
 
-        # Reuse the existing seam-allowance/Part feature implementation for
-        # compatibility consumers, then restore the authoritative mode.
         from freecad_cloth.pattern.PatternObjects import PatternPieceProxy
         obj.GeometryMode = "Custom"
         PatternPieceProxy().execute(obj)
         obj.GeometryMode = "Sketch"
         obj.GeometryAuthority = "Sketcher"
 
-        # With no seam allowance, expose the actual Sketcher topology instead
-        # of a sampled polygon. For allowances, the existing deterministic
-        # derived offset remains the compatibility shape.
         if abs(float(getattr(obj, "SeamAllowance", 0.0))) <= 1e-12:
             try:
                 import Part
