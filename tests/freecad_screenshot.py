@@ -268,9 +268,9 @@ try:
     pattern_and_sewing()
     simulation()
     log("scenario-pass")
-except Exception:
+except BaseException as error:
     exit_code = 1
-    log("scenario-fail")
+    log("scenario-fail exception=%r" % (error,))
     log(traceback.format_exc())
 finally:
     try:
