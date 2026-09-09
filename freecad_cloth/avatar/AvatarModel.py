@@ -1,12 +1,10 @@
-"""FreeCAD-independent parametric human mannequin model.
+"""FreeCAD-independent parametric human avatar model.
 
-Anthropometric measurements are authoritative; geometry is a deterministic
-visual/collision representation derived from them. A FreeCAD bridge can use
-``generate_mesh`` without making this module depend on FreeCAD.
+Anthropometric measurements remain authoritative; geometry is now backed by the
+real MakeHuman HM08 human base mesh and a deterministic measurement/pose fit.
 """
 from dataclasses import dataclass, field
 import json
-from math import cos, pi, sin
 
 DEFAULT_MEASUREMENTS = {
     "height": 1750.0, "neck": 380.0, "shoulder": 440.0,
@@ -27,6 +25,7 @@ LIMITS = {
     "front_waist": (300, 650), "back_waist": (300, 650),
 }
 
+
 @dataclass(frozen=True)
 class Pose:
     preset: str = "standing"
@@ -35,6 +34,7 @@ class Pose:
     left_elbow_angle: float = 0.0
     right_elbow_angle: float = 0.0
     VALID_PRESETS = ("standing", "sewing", "sitting")
+
     def validate(self):
         if self.preset not in self.VALID_PRESETS:
             raise ValueError("unsupported avatar pose: %s" % self.preset)
@@ -43,10 +43,12 @@ class Pose:
             if not -90.0 <= value <= 90.0:
                 raise ValueError("%s must be between -90 and 90 degrees" % name)
 
+
 @dataclass(frozen=True)
 class Landmark:
     name: str
     position: tuple
+
 
 @dataclass(frozen=True)
 class AvatarParameters:
@@ -54,11 +56,13 @@ class AvatarParameters:
     skin_offset: float = 3.0
     pose: Pose = field(default_factory=Pose)
     schema_version: int = 1
+
     def __post_init__(self):
         values = dict(DEFAULT_MEASUREMENTS)
         values.update({str(k): float(v) for k, v in self.measurements.items()})
         object.__setattr__(self, "measurements", values)
         self.validate()
+
     def validate(self):
         if self.schema_version != 1:
             raise ValueError("unsupported avatar schema version")
@@ -78,17 +82,21 @@ class AvatarParameters:
         if not isinstance(self.pose, Pose):
             raise TypeError("pose must be a Pose")
         self.pose.validate()
+
     def measurement(self, name):
         if name not in self.measurements:
             raise KeyError(name)
         return float(self.measurements[name])
+
     def with_measurements(self, **changes):
         values = dict(self.measurements)
         values.update({str(k): float(v) for k, v in changes.items()})
         return AvatarParameters(values, self.skin_offset, self.pose, self.schema_version)
+
     def to_json(self):
         self.validate()
         return json.dumps({"schema_version": self.schema_version, "units": "mm", "measurements": dict(sorted(self.measurements.items())), "skin_offset": float(self.skin_offset), "pose": {"preset": self.pose.preset, "left_arm_angle": self.pose.left_arm_angle, "right_arm_angle": self.pose.right_arm_angle, "left_elbow_angle": self.pose.left_elbow_angle, "right_elbow_angle": self.pose.right_elbow_angle}}, sort_keys=True, separators=(",", ":"))
+
     @classmethod
     def from_json(cls, payload):
         data = json.loads(str(payload))
@@ -98,77 +106,59 @@ class AvatarParameters:
         pose = Pose(str(p.get("preset", "standing")), float(p.get("left_arm_angle", 12)), float(p.get("right_arm_angle", 12)), float(p.get("left_elbow_angle", 0)), float(p.get("right_elbow_angle", 0)))
         return cls(data.get("measurements", {}), float(data.get("skin_offset", 3)), pose, int(data.get("schema_version", 1)))
 
-def _ring(vertices, z, rx, ry, segments=24):
-    start = len(vertices)
-    for i in range(segments):
-        a = 2 * pi * i / segments
-        vertices.append((rx * cos(a), ry * sin(a), z))
-    return start
 
-def _connect(triangles, a, b, segments=24):
-    for i in range(segments):
-        j = (i + 1) % segments
-        triangles.extend(((a + i, a + j, b + j), (a + i, b + j, b + i)))
+def _landmarks(params):
+    m = params.measurements
+    height = float(m["height"])
+    pelvis_z = min(height * 0.43, float(m["inseam"]) + 120.0)
+    waist_z = min(height * 0.58, pelvis_z + float(m["back_waist"]))
+    chest_z = min(height * 0.70, waist_z + max(90.0, float(m["torso"]) * 0.72))
+    shoulder_z = min(height * 0.77, chest_z + 150.0)
+    neck_z = min(height * 0.88, shoulder_z + 100.0)
+    knee_z = max(300.0, float(m["ankle"]) + float(m["inseam"]) * 0.52)
+    ankle_z = float(m["ankle"]) / 2.0
+    shoulder_half = float(m["shoulder"]) / 2.0
+    leg_x = max(55.0, float(m["hip"]) / (2.0 * 3.141592653589793) * 0.42)
+    side_y = 230.0 if params.pose.preset == "sitting" else 0.0
+    knees = {
+        "left": (-leg_x, side_y, pelvis_z - 15.0) if params.pose.preset == "sitting" else (-leg_x, 0.0, knee_z),
+        "right": (leg_x, side_y, pelvis_z - 15.0) if params.pose.preset == "sitting" else (leg_x, 0.0, knee_z),
+    }
+    arm_defaults = {"standing": 12.0, "sewing": 55.0, "sitting": 25.0}
+    default = arm_defaults[params.pose.preset]
+    wrists = {}
+    for side, angle_value, elbow_value, label in ((-1.0, params.pose.left_arm_angle, params.pose.left_elbow_angle, "left"), (1.0, params.pose.right_arm_angle, params.pose.right_elbow_angle, "right")):
+        angle = default if params.pose.preset != "standing" and angle_value == 12.0 else angle_value
+        a = angle * 3.141592653589793 / 180.0
+        ex = side * shoulder_half + side * 125.0 * __import__("math").cos(a)
+        ez = shoulder_z - 125.0 * __import__("math").sin(a)
+        fa = (angle - elbow_value) * 3.141592653589793 / 180.0
+        wx = ex + side * 120.0 * __import__("math").cos(fa)
+        wz = ez - 120.0 * __import__("math").sin(fa)
+        wrists[label] = (wx, 0.0, wz)
+    landmarks = {
+        "neck": (0.0, 0.0, neck_z),
+        "chest": (0.0, 0.0, chest_z),
+        "underbust": (0.0, 0.0, chest_z - 75.0),
+        "waist": (0.0, 0.0, waist_z),
+        "high_hip": (0.0, 0.0, waist_z - 70.0),
+        "hip": (0.0, 0.0, pelvis_z),
+        "crotch": (0.0, 0.0, pelvis_z - 65.0),
+        "shoulder_left": (-shoulder_half, 0.0, shoulder_z),
+        "shoulder_right": (shoulder_half, 0.0, shoulder_z),
+        "knee_left": knees["left"],
+        "knee_right": knees["right"],
+        "ankle_left": (-leg_x, side_y, ankle_z),
+        "ankle_right": (leg_x, side_y, ankle_z),
+        "wrist_left": wrists["left"],
+        "wrist_right": wrists["right"],
+    }
+    return tuple(Landmark(name, tuple(map(float, position))) for name, position in sorted(landmarks.items()))
 
-def _ellipsoid(vertices, triangles, center, radii, rings=8, segments=24):
-    cx, cy, cz = center; rx, ry, rz = radii; ids = []
-    for r in range(rings + 1):
-        phi = -pi / 2 + pi * r / rings
-        ids.append(_ring(vertices, cz + rz * sin(phi), rx * cos(phi), ry * cos(phi), segments))
-    for a, b in zip(ids, ids[1:]):
-        _connect(triangles, a, b, segments)
-
-def _capsule(vertices, triangles, a, b, radius, segments=16):
-    ax, ay, az = a; bx, by, bz = b
-    length = max(1.0, ((bx-ax)**2 + (by-ay)**2 + (bz-az)**2) ** 0.5)
-    cx, cy, cz = ((ax+bx)/2, (ay+by)/2, (az+bz)/2)
-    _ellipsoid(vertices, triangles, (cx, cy, cz), (radius, radius, length/2 + radius), 6, segments)
-
-def _radii(circumference, depth_ratio=0.39, skin_offset=0.0):
-    c = float(circumference); offset = float(skin_offset)
-    return (max(1.0, c / (2 * pi) * 1.18) + offset, max(1.0, c * depth_ratio / pi) + offset)
-
-def _limb_end(start, length, angle_deg, side=1.0):
-    """Return a deterministic endpoint in the X/Z pose plane."""
-    a = float(angle_deg) * pi / 180.0
-    return (start[0] + side * length * cos(a), start[1], start[2] - length * sin(a))
 
 def generate_mesh(params):
-    """Return ``(vertices, triangles, landmarks)`` for the mannequin."""
-    params.validate(); m = params.measurements; vertices, triangles = [], []
-    chest_w, chest_d = _radii(m["chest"], skin_offset=params.skin_offset)
-    waist_w, waist_d = _radii(m["waist"], .40, params.skin_offset)
-    hip_w, hip_d = _radii(m["hip"], .42, params.skin_offset)
-    pelvis_z = m["inseam"] + 120; waist_z = pelvis_z + m["back_waist"]
-    chest_z = waist_z + max(90, m["torso"] * .72)
-    shoulder_z = min(m["height"] - 180, chest_z + 150); neck_z = shoulder_z + 100
-    rings = [_ring(vertices, pelvis_z-100, hip_w, hip_d), _ring(vertices, pelvis_z, hip_w*1.02, hip_d*1.02), _ring(vertices, waist_z, waist_w, waist_d), _ring(vertices, chest_z, chest_w, chest_d), _ring(vertices, shoulder_z, chest_w*.88, chest_d*.88), _ring(vertices, neck_z, m["neck"]/(2*pi) + params.skin_offset, m["neck"]/(2*pi)*.85 + params.skin_offset)]
-    for a, b in zip(rings, rings[1:]): _connect(triangles, a, b)
-    _capsule(vertices, triangles, (0, 0, neck_z-30), (0, 0, neck_z+70), m["neck"]/(2*pi)*.82 + params.skin_offset)
-    _ellipsoid(vertices, triangles, (0, 0, neck_z+155), (m["neck"]/(2*pi)*1.22 + params.skin_offset, m["neck"]/(2*pi)*1.08 + params.skin_offset, 105 + params.skin_offset), 10, 24)
-    shoulder_half = m["shoulder"] / 2; arm_radius = m["upper_arm"] / (2*pi) + params.skin_offset; wrist_radius = m["wrist"] / (2*pi) + params.skin_offset; arm_z = shoulder_z - 15
-    arm_defaults = {"standing": 12.0, "sewing": 55.0, "sitting": 25.0}
-    default_angle = arm_defaults[params.pose.preset]
-    wrists = {}
-    for side, angle_value, elbow_value, label in ((-1, params.pose.left_arm_angle, params.pose.left_elbow_angle, "left"), (1, params.pose.right_arm_angle, params.pose.right_elbow_angle, "right")):
-        angle = default_angle if angle_value == 12.0 and params.pose.preset != "standing" else angle_value
-        sx = side * shoulder_half
-        elbow = _limb_end((sx, 0, arm_z), 125.0, angle, side=side)
-        wrist = _limb_end(elbow, 120.0, angle - float(elbow_value), side=side)
-        _capsule(vertices, triangles, (sx, 0, arm_z), elbow, arm_radius)
-        _capsule(vertices, triangles, elbow, wrist, max(wrist_radius*1.25, arm_radius*.72))
-        _ellipsoid(vertices, triangles, wrist, (wrist_radius*1.15, wrist_radius, wrist_radius*2.2), 6, 16)
-        wrists[label] = wrist
-    knee_z = max(300, m["ankle"] + m["inseam"]*.52); ankle_z = m["ankle"] / 2
-    thigh_radius = m["thigh"] / (2*pi) + params.skin_offset; calf_radius = m["calf"] / (2*pi) + params.skin_offset; hip_offset = hip_w * .42
-    knees = {}
-    for side, label in ((-1, "left"), (1, "right")):
-        x = side * hip_offset
-        knee = (x, 230.0, pelvis_z - 15.0) if params.pose.preset == "sitting" else (x, 0, knee_z)
-        ankle = (x, 230.0, ankle_z + 55.0) if params.pose.preset == "sitting" else (x, 0, ankle_z + 55)
-        _capsule(vertices, triangles, (x, 0, pelvis_z-20), knee, thigh_radius)
-        _capsule(vertices, triangles, knee, ankle, calf_radius)
-        _ellipsoid(vertices, triangles, (x, 35, ankle_z), (m["ankle"]/(2*pi)*1.6 + params.skin_offset, m["ankle"]/(2*pi)*2 + params.skin_offset, 45 + params.skin_offset), 6, 16)
-        knees[label] = knee
-    landmarks = {"neck": (0,0,neck_z), "chest": (0,0,chest_z), "underbust": (0,0,chest_z-75), "waist": (0,0,waist_z), "high_hip": (0,0,waist_z-70), "hip": (0,0,pelvis_z), "crotch": (0,0,pelvis_z-65), "shoulder_left": (-shoulder_half,0,arm_z), "shoulder_right": (shoulder_half,0,arm_z), "knee_left": knees["left"], "knee_right": knees["right"], "ankle_left": ( -hip_offset, 230 if params.pose.preset == "sitting" else 0, ankle_z), "ankle_right": (hip_offset, 230 if params.pose.preset == "sitting" else 0, ankle_z), "wrist_left": wrists["left"], "wrist_right": wrists["right"]}
-    return tuple(vertices), tuple(triangles), tuple(Landmark(k, tuple(map(float,p))) for k,p in sorted(landmarks.items()))
+    """Return ``(vertices, triangles, landmarks)`` from the real human mesh."""
+    params.validate()
+    from freecad_cloth.avatar.HumanoidMesh import build_humanoid_mesh
+    mesh = build_humanoid_mesh(params)
+    return mesh.vertices, mesh.triangles, _landmarks(params)
