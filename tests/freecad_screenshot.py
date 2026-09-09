@@ -263,6 +263,13 @@ def simulation_quality_acceptance():
     log("simulation-quality-acceptance=passed")
 
 
+def avatar_provider_acceptance():
+    """Run the production avatar provider/task-panel/save-reload lifecycle."""
+    path = os.path.join(ROOT, "tests", "freecad_avatar_acceptance.py")
+    load_and_run(path, "freecad_avatar_acceptance")
+    log("avatar-provider-acceptance=passed")
+
+
 exit_code = 0
 log("script-start")
 try:
@@ -276,6 +283,7 @@ try:
     init_gui = os.path.join(ROOT, "InitGui.py")
     exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
     events()
+    avatar_provider_acceptance()
     canonical_garment_e2e()
     simulation_quality_acceptance()
     pattern_and_sewing()
