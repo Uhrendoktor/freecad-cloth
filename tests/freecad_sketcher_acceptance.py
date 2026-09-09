@@ -71,23 +71,22 @@ def _make_curved_piece_sketch(piece, doc):
     ])
     width_index = sketch.addConstraint(Sketcher.Constraint("Distance", 0, 100.0))
     sketch.renameConstraint(width_index, "PieceWidth")
-    height_index = sketch.addConstraint(Sketcher.Constraint("Distance", 1, 50.0))
+    height_index = sketch.addConstraint(Sketcher.Constraint("Distance", 3, 50.0))
     sketch.renameConstraint(height_index, "PieceHeight")
-    sketch.setExpression("Constraints[%d]" % height_index, "Constraints[%d] / 2" % width_index)
     doc.recompute()
     if sketch.Shape.isNull() or piece.Shape.isNull():
         raise RuntimeError("curved PatternPiece did not produce native geometry")
     if _constraint_type(sketch, width_index) != "Distance" or _constraint_type(sketch, height_index) != "Distance":
         raise RuntimeError("native dimensional constraints were not retained")
     if abs(float(sketch.getDatum(height_index)) - 50.0) > 1e-6:
-        raise RuntimeError("named Sketcher expression did not evaluate to the expected height")
+        raise RuntimeError("named Sketcher height did not initialize to the expected value")
     if abs(float(sketch.getDatum(width_index)) - 100.0) > 1e-6:
         raise RuntimeError("named width dimension did not initialize as expected")
     return sketch, width_index, height_index
 
 
 def _exercise_constraint_families(doc, reference_sketch):
-    """Exercise native geometric constraints without introducing a second constraint system."""
+    """Exercise native geometric constraints and expression references."""
     audit = doc.addObject("Sketcher::SketchObject", "SketchConstraintAudit")
     audit.Label = "Sketcher Constraint Audit"
     lines = [
@@ -107,9 +106,17 @@ def _exercise_constraint_families(doc, reference_sketch):
     audit.addConstraint(Sketcher.Constraint("Horizontal", 1))
     point_on_object_index = audit.addConstraint(Sketcher.Constraint("PointOnObject", 3, 1, 0))
     symmetric_index = audit.addConstraint(Sketcher.Constraint("Symmetric", 3, 1, 4, 1, 2, 1))
-    for index, expected in ((equal_index, "Equal"), (point_on_object_index, "PointOnObject"), (symmetric_index, "Symmetric")):
+    audit_span = audit.addConstraint(Sketcher.Constraint("Distance", 0, 40.0))
+    audit_scaled = audit.addConstraint(Sketcher.Constraint("Distance", 1, 40.0))
+    audit.renameConstraint(audit_span, "AuditSpan")
+    audit.renameConstraint(audit_scaled, "AuditScaled")
+    audit.setExpression("Constraints[%d]" % audit_scaled, "Constraints[%d] / 2" % audit_span)
+    for index, expected in ((equal_index, "Equal"), (point_on_object_index, "PointOnObject"), (symmetric_index, "Symmetric"), (audit_span, "Distance"), (audit_scaled, "Distance")):
         if _constraint_type(audit, index) != expected:
             raise RuntimeError("missing native %s constraint" % expected)
+    doc.recompute()
+    if abs(float(audit.getDatum(audit_scaled)) - 20.0) > 1e-6:
+        raise RuntimeError("native Sketcher expression did not evaluate")
 
     geometry_count = len(audit.Geometry)
     audit.addExternal(reference_sketch.Name, "Edge1")
@@ -119,7 +126,7 @@ def _exercise_constraint_families(doc, reference_sketch):
     if not external:
         raise RuntimeError("native external geometry reference was not persisted in the sketch")
     doc.recompute()
-    return audit
+    return audit, audit_span, audit_scaled
 
 
 def run_acceptance():
@@ -139,7 +146,7 @@ def run_acceptance():
         reference = mate.Sketch
         if reference is None:
             raise RuntimeError("second PatternPiece has no native Sketcher source")
-        _exercise_constraint_families(doc, reference)
+        audit, audit_span, audit_scaled = _exercise_constraint_families(doc, reference)
 
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(curved)
@@ -180,21 +187,27 @@ def run_acceptance():
             if abs(float(sketch.getDatum(width_index)) - 100.0) > 1e-6:
                 raise RuntimeError("named width dimensional constraint did not survive save/reload")
             if abs(float(sketch.getDatum(height_index)) - original_height) > 1e-6:
-                raise RuntimeError("named expression result did not survive save/reload")
+                raise RuntimeError("named height dimensional constraint did not survive save/reload")
             audit = reloaded.getObject("SketchConstraintAudit")
             if audit is None or not getattr(audit, "ExternalGeometry", ()):
                 raise RuntimeError("external Sketcher reference did not survive save/reload")
             if not bool(audit.GeometryFacadeList[2].Construction):
                 raise RuntimeError("construction geometry state did not survive save/reload")
-
-            # The post-reload propagation is the expression persistence proof:
-            # changing its source dimension changes the named dependent dimension.
-            sketch.setDatum(width_index, App.Units.Quantity("120 mm"))
+            audit_span_live = audit.getConstraintByName("AuditSpan")
+            audit_scaled_live = audit.getConstraintByName("AuditScaled")
+            if audit_span_live < 0 or audit_scaled_live < 0:
+                raise RuntimeError("named expression driver constraints did not survive save/reload")
+            if abs(float(audit.getDatum(audit_scaled_live)) - 20.0) > 1e-6:
+                raise RuntimeError("native Sketcher expression result did not survive save/reload")
+            audit.setDatum(audit_span_live, App.Units.Quantity("60 mm"))
             reloaded.recompute()
-            if abs(float(sketch.getDatum(width_index)) - 120.0) > 1e-6:
-                raise RuntimeError("native Sketcher dimensional edit did not apply")
+            if abs(float(audit.getDatum(audit_scaled_live)) - 30.0) > 1e-6:
+                raise RuntimeError("native Sketcher expression did not propagate after save/reload")
+
+            sketch.setDatum(height_index, App.Units.Quantity("60 mm"))
+            reloaded.recompute()
             if abs(float(sketch.getDatum(height_index)) - 60.0) > 1e-6:
-                raise RuntimeError("named Sketcher expression did not propagate after dimensional edit")
+                raise RuntimeError("native Sketcher seam dimension edit did not apply")
             changed_seam = next((obj for obj in reloaded.Objects if getattr(obj, "SeamId", "") == seam_id), None)
             if changed_seam is None:
                 raise RuntimeError("seam did not survive save/reload")
