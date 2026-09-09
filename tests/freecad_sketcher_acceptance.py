@@ -47,6 +47,8 @@ def _make_curved_piece_sketch(piece, doc):
     sketch = piece.Sketch
     if sketch is None:
         raise RuntimeError("PatternPiece did not create a native Sketcher sketch")
+    # FreeCAD 1.1 exposes geometry/constraint collections directly; replace both
+    # collections without relying on a non-existent SketchObject.clear() helper.
     sketch.Constraints = []
     geometry = [
         Part.LineSegment(App.Vector(0, 0, 0), App.Vector(100, 0, 0)),
