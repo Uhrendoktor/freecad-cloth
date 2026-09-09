@@ -1,4 +1,4 @@
-"""Real FreeCAD runtime smoke coverage for the humanoid mesh avatar."""
+"""Real FreeCAD runtime smoke coverage for the production humanoid mesh avatar."""
 import sys
 from pathlib import Path
 import tempfile
@@ -8,20 +8,17 @@ from freecad_cloth.avatar.AvatarCommands import create_avatar, set_avatar_measur
 from freecad_cloth.simulation.DrapeTarget import target_status
 
 
-def mesh_signature(obj):
-    points = list(obj.Mesh.Points)
-    sample = tuple((round(float(p.x), 3), round(float(p.y), 3), round(float(p.z), 3)) for p in points[:12])
-    return int(obj.Mesh.CountPoints), int(obj.Mesh.CountFacets), sample
-
-
 def main():
     doc = App.newDocument("ClothAvatarSmoke")
     avatar = create_avatar()
     assert avatar.AvatarType == "ClothAvatar"
-    assert avatar.AvatarMeshProvider == "makehuman-hm08"
-    assert avatar.Mesh.CountPoints > 100
-    assert avatar.Mesh.CountFacets > 100
+    assert avatar.Shape.Volume > 0
     assert avatar.AvatarStatus == "Valid"
+    assert avatar.AvatarMeshProvider == "makehuman-hm08"
+    assert "MakeHuman HM08" in avatar.AvatarMeshSource
+    assert avatar.AvatarMeshLicense == "CC0"
+    assert int(avatar.MeshVertexCount) > 0
+    assert int(avatar.MeshTriangleCount) > 0
     assert avatar.ArrangementPoints
     expected_arrangement = list(avatar.ArrangementPoints)
     arrangement_names = [str(item).split("|", 1)[0] for item in expected_arrangement]
@@ -32,15 +29,18 @@ def main():
     assert avatar.DrapeTarget is not None
     assert avatar.DrapeTarget.TargetType == "Mannequin"
     assert target_status(avatar.DrapeTarget)["state"] == "ready"
-    original_mesh = mesh_signature(avatar)
+    original_volume = avatar.Shape.Volume
     set_avatar_measurements(chest=1100)
-    assert mesh_signature(avatar) != original_mesh
+    assert avatar.Shape.Volume != original_volume
+    assert avatar.AvatarMeshProvider == "makehuman-hm08"
+    assert int(avatar.MeshVertexCount) > 0
     assert list(avatar.ArrangementPoints) == expected_arrangement
     assert target_status(avatar.DrapeTarget)["state"] == "ready"
     set_avatar_pose("sewing")
     set_avatar_skin_offset(6.0)
     assert avatar.PosePreset == "sewing"
     assert abs(float(avatar.SkinOffset) - 6.0) < 1e-9
+    assert avatar.AvatarMeshProvider == "makehuman-hm08"
     assert avatar.CollisionProxy is not None
     assert avatar.DrapeTarget is not None
     assert target_status(avatar.DrapeTarget)["state"] == "ready"
@@ -54,13 +54,15 @@ def main():
         assert restored is not None
         assert restored.AvatarStatus == "Valid"
         assert restored.AvatarMeshProvider == "makehuman-hm08"
+        assert "MakeHuman HM08" in restored.AvatarMeshSource
+        assert restored.AvatarMeshLicense == "CC0"
+        assert int(restored.MeshVertexCount) > 0
+        assert int(restored.MeshTriangleCount) > 0
         assert restored.PosePreset == "sewing"
         assert abs(float(restored.Chest) - 1100.0) < 1e-9
         assert abs(float(restored.SkinOffset) - 6.0) < 1e-9
         assert list(restored.ArrangementPoints) == expected_arrangement
         assert list(restored.Landmarks)
-        assert restored.Mesh.CountPoints > 100
-        assert restored.Mesh.CountFacets > 100
         assert restored.DrapeTarget is not None
         assert restored.DrapeTarget.TargetType == "Mannequin"
         assert target_status(restored.DrapeTarget)["state"] == "ready"

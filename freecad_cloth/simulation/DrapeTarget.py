@@ -33,7 +33,20 @@ def _geometry_signature(target):
     shape = getattr(target, "Shape", None)
     if shape is not None:
         try:
-            if not shape.isNull(): return ("Shape", int(shape.hashCode()))
+            if not shape.isNull():
+                box = shape.BoundBox
+                return (
+                    "Shape",
+                    int(len(getattr(shape, "Solids", ()))),
+                    int(len(getattr(shape, "Faces", ()))),
+                    int(len(getattr(shape, "Edges", ()))),
+                    int(len(getattr(shape, "Vertexes", ()))),
+                    round(float(shape.Volume), 6),
+                    round(float(shape.Area), 6),
+                    round(float(box.XMin), 6), round(float(box.XMax), 6),
+                    round(float(box.YMin), 6), round(float(box.YMax), 6),
+                    round(float(box.ZMin), 6), round(float(box.ZMax), 6),
+                )
         except (AttributeError, TypeError, ValueError): pass
     mesh = getattr(target, "Mesh", None)
     if mesh is not None:
