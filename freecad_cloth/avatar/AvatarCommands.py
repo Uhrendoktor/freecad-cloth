@@ -87,10 +87,18 @@ def _rebuild(obj):
     obj.MeshVertexCount = len(vertices)
     obj.MeshTriangleCount = len(triangles)
     obj.Landmarks = ["%s|%s,%s,%s" % (landmark.name, landmark.position[0], landmark.position[1], landmark.position[2]) for landmark in landmarks]
+    _set_prop(obj, "App::PropertyInteger", "AvatarRevision", "Avatar", 0)
+    obj.AvatarRevision = int(getattr(obj, "AvatarRevision", 0)) + 1
     _set_prop(obj, "App::PropertyStringList", "ArrangementPoints", "Fitting", [])
     obj.ArrangementPoints = arrangement_points_from_landmarks(obj.Landmarks)
     _style_mannequin(obj)
     obj.Document.recompute()
+    target = getattr(obj, "DrapeTarget", None) or obj.Document.getObject("DrapeTarget")
+    if target is not None:
+        from freecad_cloth.simulation.DrapeTarget import target_status
+        status = target_status(target)
+        target.TargetStatus = status["state"]
+        target.InvalidationReason = status["reason"]
     return obj
 
 
@@ -164,6 +172,7 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
             _set_prop(obj, "App::PropertyString", name, "Avatar", default)
         _set_prop(obj, "App::PropertyInteger", "MeshVertexCount", "Avatar", 0)
         _set_prop(obj, "App::PropertyInteger", "MeshTriangleCount", "Avatar", 0)
+        _set_prop(obj, "App::PropertyInteger", "AvatarRevision", "Avatar", int(getattr(obj, "AvatarRevision", 0)))
     _rebuild(obj)
     if attach_collision:
         collision = _ensure_collision(obj)
@@ -184,7 +193,10 @@ def rebuild_avatar():
         raise ValueError("create a Cloth Avatar first")
     _rebuild(obj)
     obj.CollisionProxy = _ensure_collision(obj)
-    obj.DrapeTarget = _ensure_drape_target(obj)
+    target = doc.getObject("DrapeTarget")
+    if target is None:
+        target = _ensure_drape_target(obj)
+    obj.DrapeTarget = target
     return obj
 
 

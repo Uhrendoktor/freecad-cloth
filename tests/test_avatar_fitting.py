@@ -119,6 +119,48 @@ class AvatarFittingTests(unittest.TestCase):
         points = arrangement_points_from_landmarks(["waist|0,0,900", "waist|0,0,905", "neck|0,0,1150"])
         self.assertEqual(points, ["neck|0,0,1150", "waist|0,0,905"])
 
+    def test_freecad_mannequin_rebuild_invalidates_target_until_refreshed(self):
+        try:
+            import FreeCAD as App
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
+        from freecad_cloth.avatar.AvatarCommands import create_avatar, rebuild_avatar
+        from freecad_cloth.simulation.DrapeTarget import refresh_drape_target, target_status
+
+        doc = App.newDocument("AvatarTargetInvalidation")
+        try:
+            avatar = create_avatar()
+            target = doc.getObject("DrapeTarget")
+            self.assertIsNotNone(target)
+            self.assertEqual(target_status(target)["state"], "ready")
+            original_revision = int(avatar.AvatarRevision)
+            original_signature = str(target.SourceSignature)
+
+            avatar.Chest = float(avatar.Chest) + 40.0
+            rebuild_avatar()
+            self.assertEqual(int(avatar.AvatarRevision), original_revision + 1)
+            self.assertEqual(str(target.SourceSignature), original_signature)
+            status = target_status(target)
+            self.assertEqual(status["state"], "stale")
+            self.assertTrue(status["stale"])
+            self.assertEqual(status["signature_authored"], original_signature)
+            self.assertNotEqual(status["signature_current"], original_signature)
+            self.assertEqual(target.TargetStatus, "stale")
+
+            avatar.PosePreset = "sewing"
+            rebuild_avatar()
+            self.assertEqual(int(avatar.AvatarRevision), original_revision + 2)
+            self.assertEqual(target_status(target)["state"], "stale")
+            self.assertEqual(target.TargetStatus, "stale")
+
+            refresh_drape_target(target)
+            self.assertEqual(target_status(target)["state"], "ready")
+            self.assertEqual(target.TargetStatus, "ready")
+            self.assertEqual(target.InvalidationReason, "")
+        finally:
+            if doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
+
     def test_freecad_mannequin_document_round_trip_and_rebuild(self):
         try:
             import FreeCAD as App
@@ -137,8 +179,10 @@ class AvatarFittingTests(unittest.TestCase):
             self.assertGreater(int(avatar.Mesh.CountFacets), 100)
             self.assertGreaterEqual(len(avatar.Landmarks), 6)
             self.assertEqual(len(avatar.ArrangementPoints), len(avatar.Landmarks))
+            self.assertGreaterEqual(int(avatar.AvatarRevision), 1)
             original_mesh = tuple((round(float(p.x), 3), round(float(p.y), 3), round(float(p.z), 3)) for p in list(avatar.Mesh.Points)[:12])
             original_chest = float(avatar.Chest)
+            original_revision = int(avatar.AvatarRevision)
 
             avatar.Chest = original_chest + 40.0
             rebuild_avatar()
@@ -146,6 +190,7 @@ class AvatarFittingTests(unittest.TestCase):
             self.assertNotEqual(rebuilt_mesh, original_mesh)
             self.assertEqual(float(avatar.Chest), original_chest + 40.0)
             self.assertEqual(avatar.AvatarStatus, "Valid")
+            self.assertEqual(int(avatar.AvatarRevision), original_revision + 1)
             self.assertTrue(avatar.ParametersJSON)
 
             fd, path = tempfile.mkstemp(prefix="cloth-avatar-", suffix=".FCStd")
@@ -161,6 +206,7 @@ class AvatarFittingTests(unittest.TestCase):
             self.assertEqual(restored.AvatarMeshProvider, "makehuman-hm08")
             self.assertEqual(restored.AvatarStatus, "Valid")
             self.assertAlmostEqual(float(restored.Chest), original_chest + 40.0)
+            self.assertEqual(int(restored.AvatarRevision), original_revision + 1)
             self.assertEqual(len(restored.ArrangementPoints), len(restored.Landmarks))
             self.assertGreater(int(restored.Mesh.CountPoints), 100)
             self.assertGreater(int(restored.Mesh.CountFacets), 100)
