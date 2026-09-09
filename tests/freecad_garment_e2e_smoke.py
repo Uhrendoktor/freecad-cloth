@@ -50,7 +50,6 @@ def _find_pattern_pieces(doc):
 
 def _make_curved(piece, doc):
     sketch = piece.Sketch
-    sketch.delAllGeometry()
     piece_id = str(piece.PieceId)
     geometry = [
         Part.LineSegment(App.Vector(0, 0, 0), App.Vector(100, 0, 0)),
@@ -58,7 +57,8 @@ def _make_curved(piece, doc):
         Part.ArcOfCircle(Part.Circle(App.Vector(50, 50, 0), App.Vector(0, 0, 1), 50), 0, math.pi),
         Part.LineSegment(App.Vector(0, 50, 0), App.Vector(0, 0, 0)),
     ]
-    sketch.addGeometry(geometry, False)
+    sketch.Constraints = []
+    sketch.Geometry = geometry
     sketch.SemanticEdgeIds = [f"{piece_id}:edge:{index}" for index in range(4)]
     sketch.GeometryAuthority = "Sketcher"
     sketch.addConstraint([
