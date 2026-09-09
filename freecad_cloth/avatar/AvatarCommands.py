@@ -55,6 +55,8 @@ def _rebuild(obj):
     obj.MeshVertexCount = len(vertices)
     obj.MeshTriangleCount = len(triangles)
     obj.Landmarks = ["%s|%s,%s,%s" % (landmark.name, landmark.position[0], landmark.position[1], landmark.position[2]) for landmark in landmarks]
+    _set_prop(obj, "App::PropertyInteger", "AvatarRevision", "Avatar", 0)
+    obj.AvatarRevision = int(getattr(obj, "AvatarRevision", 0)) + 1
     _set_prop(obj, "App::PropertyStringList", "ArrangementPoints", "Fitting", [])
     obj.ArrangementPoints = arrangement_points_from_landmarks(obj.Landmarks)
     obj.Document.recompute()
@@ -112,6 +114,7 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
         _set_prop(obj, "App::PropertyString", "AvatarMeshProvider", "Avatar", "")
         _set_prop(obj, "App::PropertyString", "AvatarMeshSource", "Avatar", "")
         _set_prop(obj, "App::PropertyString", "AvatarMeshLicense", "Avatar", "")
+        _set_prop(obj, "App::PropertyInteger", "AvatarRevision", "Avatar", 0)
         _set_prop(obj, "App::PropertyInteger", "MeshVertexCount", "Avatar", 0)
         _set_prop(obj, "App::PropertyInteger", "MeshTriangleCount", "Avatar", 0)
         _set_prop(obj, "App::PropertyLink", "CollisionProxy", "Collision", None)
@@ -121,6 +124,7 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
             _set_prop(obj, "App::PropertyAngle", prop, "Pose", 12.0 if "arm" in name else 0.0)
         for name, default in (("AvatarMeshProvider", ""), ("AvatarMeshSource", ""), ("AvatarMeshLicense", "")):
             _set_prop(obj, "App::PropertyString", name, "Avatar", default)
+        _set_prop(obj, "App::PropertyInteger", "AvatarRevision", "Avatar", int(getattr(obj, "AvatarRevision", 0)))
         for name in ("MeshVertexCount", "MeshTriangleCount"):
             _set_prop(obj, "App::PropertyInteger", name, "Avatar", 0)
     _rebuild(obj)
