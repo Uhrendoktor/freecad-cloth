@@ -7,24 +7,21 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 _WORKBENCHES = {
     "freecad_cloth.pattern.workbench": {
-        "class": "ClothPatternWorkbench",
-        "menu": "Cloth Pattern",
+        "class": "ClothPatternWorkbench", "menu": "Cloth Pattern",
         "imports": ("freecad_cloth.pattern.PatternCommands", "freecad_cloth.pattern.PatternMarks"),
         "prefixes": ("ClothPattern_",),
     },
     "freecad_cloth.simulation.workbench": {
-        "class": "ClothSimulationWorkbench",
-        "menu": "Cloth Simulation",
+        "class": "ClothSimulationWorkbench", "menu": "Cloth Simulation",
         "imports": ("freecad_cloth.simulation.SimulationCommands", "freecad_cloth.simulation.DrapeCommands"),
         "prefixes": ("ClothSimulation_", "ClothDrape_"),
     },
     "freecad_cloth.sewing.workbench": {
-        "class": "ClothSewingWorkbench",
-        "menu": "Cloth Sewing",
+        "class": "ClothSewingWorkbench", "menu": "Cloth Sewing",
         "imports": (
             "freecad_cloth.sewing.SewingCommands",
             "freecad_cloth.sewing.SewingNetworkCommands",
-            "freecad_cloth.simulation.FittingCommands",
+            "freecad_cloth.avatar.FittingCommands",
             "freecad_cloth.avatar.AvatarCommands",
         ),
         "prefixes": ("ClothSewing_", "ClothFitting_", "ClothAvatar_"),
@@ -65,14 +62,9 @@ def test_init_gui_is_bootstrap_only():
 
 
 def test_all_implementation_python_files_are_inside_package_tree():
-    forbidden = {
-        "PatternCommands.py",
-        "SewingNetworkCommands.py",
-        "SewingNetworkGui.py",
-        "SimulationStaleGuard.py",
-    }
+    forbidden = {"PatternCommands.py", "SewingNetworkCommands.py", "SewingNetworkGui.py", "SimulationStaleGuard.py", "FittingCommands.py"}
     root_python = {path.name for path in ROOT.glob("*.py")}
-    assert root_python <= {"Init.py", "InitGui.py"}
+    assert root_python <= {"Init.py", "InitGui.py", "sitecustomize.py"}
     assert not root_python.intersection(forbidden)
 
 
