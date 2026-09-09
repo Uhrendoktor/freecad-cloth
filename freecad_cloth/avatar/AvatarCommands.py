@@ -1,6 +1,7 @@
 """FreeCAD-facing humanoid mesh avatar commands."""
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose, generate_mesh
 from freecad_cloth.avatar.AvatarArrangement import arrangement_points_from_landmarks
+from freecad_cloth.avatar.AvatarProvider import FreeCADGeometryAvatarProvider
 
 PROPERTY_MAP = {
     "height": "Height", "neck": "Neck", "shoulder": "Shoulder",
@@ -15,6 +16,7 @@ POSE_PROPERTY_MAP = {
     "left_arm_angle": "LeftArmAngle", "right_arm_angle": "RightArmAngle",
     "left_elbow_angle": "LeftElbowAngle", "right_elbow_angle": "RightElbowAngle",
 }
+PROVIDER_IDS = ("makehuman-hm08", "freecad-geometry")
 
 
 def _avatar(doc):
@@ -34,7 +36,7 @@ def _parameters(obj):
 
 
 def _mesh_data(vertices, triangles):
-    """Build the native FreeCAD mesh directly from the humanoid topology."""
+    """Build the native FreeCAD mesh directly from the selected provider topology."""
     import FreeCAD as App
     import Mesh
     native = Mesh.Mesh()
@@ -43,20 +45,51 @@ def _mesh_data(vertices, triangles):
     return native
 
 
+def _style_mannequin(obj):
+    """Give the body a neutral CAD-mannequin presentation, not a garment look."""
+    try:
+        view = obj.ViewObject
+        view.DisplayMode = "Flat Lines"
+        view.ShapeColor = (0.72, 0.72, 0.72)
+        view.LineColor = (0.20, 0.20, 0.20)
+        view.LineWidth = 1.0
+    except (AttributeError, TypeError, ValueError):
+        pass
+
+
+def _provider_geometry(obj, params):
+    provider_id = str(getattr(obj, "AvatarProviderId", "makehuman-hm08"))
+    if provider_id == "makehuman-hm08":
+        vertices, triangles, landmarks = generate_mesh(params)
+        source = "MakeHuman HM08 base mesh @ %s" % __import__("freecad_cloth.avatar.HumanoidMesh", fromlist=["MAKEHUMAN_COMMIT"]).MAKEHUMAN_COMMIT
+        return vertices, triangles, landmarks, provider_id, source, "CC0"
+    if provider_id == "freecad-geometry":
+        source_obj = getattr(obj, "ProviderSource", None)
+        if source_obj is None or source_obj is obj:
+            raise ValueError("select a FreeCAD body as the avatar provider source")
+        provider = FreeCADGeometryAvatarProvider(source_obj, deflection=1.0, thickness=0.0)
+        vertices, triangles = provider.surface()
+        source_name = getattr(source_obj, "Label", getattr(source_obj, "Name", "FreeCAD body"))
+        return vertices, triangles, (), provider_id, "FreeCAD geometry: %s" % source_name, "Inherited from source object"
+    raise ValueError("unsupported avatar provider: %s" % provider_id)
+
+
 def _rebuild(obj):
     params = _parameters(obj)
-    vertices, triangles, landmarks = generate_mesh(params)
+    vertices, triangles, landmarks, provider_id, source, license_name = _provider_geometry(obj, params)
     obj.Mesh = _mesh_data(vertices, triangles)
     obj.ParametersJSON = params.to_json()
     obj.AvatarStatus = "Valid"
-    obj.AvatarMeshProvider = "makehuman-hm08"
-    obj.AvatarMeshSource = "MakeHuman HM08 base mesh @ %s" % __import__("freecad_cloth.avatar.HumanoidMesh", fromlist=["MAKEHUMAN_COMMIT"]).MAKEHUMAN_COMMIT
-    obj.AvatarMeshLicense = "CC0"
+    obj.AvatarMeshProvider = provider_id
+    obj.AvatarMeshSource = source
+    obj.AvatarMeshLicense = license_name
+    obj.GarmentState = "Bare mannequin / provider geometry only"
     obj.MeshVertexCount = len(vertices)
     obj.MeshTriangleCount = len(triangles)
     obj.Landmarks = ["%s|%s,%s,%s" % (landmark.name, landmark.position[0], landmark.position[1], landmark.position[2]) for landmark in landmarks]
     _set_prop(obj, "App::PropertyStringList", "ArrangementPoints", "Fitting", [])
     obj.ArrangementPoints = arrangement_points_from_landmarks(obj.Landmarks)
+    _style_mannequin(obj)
     obj.Document.recompute()
     return obj
 
@@ -98,6 +131,9 @@ def create_avatar(attach_collision=True):
         obj.Label = "Cloth Human Avatar"
         _set_prop(obj, "App::PropertyString", "AvatarType", "Avatar", "ClothAvatar")
         _set_prop(obj, "App::PropertyString", "SchemaVersion", "Avatar", "1")
+        _set_prop(obj, "App::PropertyEnumeration", "AvatarProviderId", "Avatar", list(PROVIDER_IDS))
+        obj.AvatarProviderId = "makehuman-hm08"
+        _set_prop(obj, "App::PropertyLink", "ProviderSource", "Avatar", None)
         for name, value in DEFAULT_MEASUREMENTS.items():
             _set_prop(obj, "App::PropertyLength", PROPERTY_MAP[name], "Measurements", value)
         _set_prop(obj, "App::PropertyLength", "SkinOffset", "Collision", 3.0)
@@ -112,17 +148,22 @@ def create_avatar(attach_collision=True):
         _set_prop(obj, "App::PropertyString", "AvatarMeshProvider", "Avatar", "")
         _set_prop(obj, "App::PropertyString", "AvatarMeshSource", "Avatar", "")
         _set_prop(obj, "App::PropertyString", "AvatarMeshLicense", "Avatar", "")
+        _set_prop(obj, "App::PropertyString", "GarmentState", "Avatar", "Bare mannequin / provider geometry only")
         _set_prop(obj, "App::PropertyInteger", "MeshVertexCount", "Avatar", 0)
         _set_prop(obj, "App::PropertyInteger", "MeshTriangleCount", "Avatar", 0)
         _set_prop(obj, "App::PropertyLink", "CollisionProxy", "Collision", None)
         _set_prop(obj, "App::PropertyLink", "DrapeTarget", "Collision", None)
     else:
+        _set_prop(obj, "App::PropertyEnumeration", "AvatarProviderId", "Avatar", list(PROVIDER_IDS))
+        if not str(getattr(obj, "AvatarProviderId", "")):
+            obj.AvatarProviderId = "makehuman-hm08"
+        _set_prop(obj, "App::PropertyLink", "ProviderSource", "Avatar", None)
         for name, prop in POSE_PROPERTY_MAP.items():
             _set_prop(obj, "App::PropertyAngle", prop, "Pose", 12.0 if "arm" in name else 0.0)
-        for name, default in (("AvatarMeshProvider", ""), ("AvatarMeshSource", ""), ("AvatarMeshLicense", "")):
+        for name, default in (("AvatarMeshProvider", ""), ("AvatarMeshSource", ""), ("AvatarMeshLicense", ""), ("GarmentState", "Bare mannequin / provider geometry only")):
             _set_prop(obj, "App::PropertyString", name, "Avatar", default)
-        for name in ("MeshVertexCount", "MeshTriangleCount"):
-            _set_prop(obj, "App::PropertyInteger", name, "Avatar", 0)
+        _set_prop(obj, "App::PropertyInteger", "MeshVertexCount", "Avatar", 0)
+        _set_prop(obj, "App::PropertyInteger", "MeshTriangleCount", "Avatar", 0)
     _rebuild(obj)
     if attach_collision:
         collision = _ensure_collision(obj)
@@ -183,6 +224,27 @@ def set_avatar_pose(pose):
     return rebuild_avatar()
 
 
+def set_avatar_provider(provider_id, source=None):
+    """Swap providers without replacing the avatar object or garment links."""
+    import FreeCAD as App
+    doc = App.ActiveDocument
+    if doc is None:
+        raise ValueError("open a document before changing the avatar provider")
+    obj = _avatar(doc) or create_avatar()
+    provider_id = str(provider_id)
+    if provider_id not in PROVIDER_IDS:
+        raise ValueError("unsupported avatar provider: %s" % provider_id)
+    if provider_id == "freecad-geometry":
+        source = source or getattr(obj, "ProviderSource", None)
+        if source is None or source is obj:
+            raise ValueError("a FreeCAD source object is required for the freecad-geometry provider")
+        obj.ProviderSource = source
+    else:
+        obj.ProviderSource = None
+    obj.AvatarProviderId = provider_id
+    return rebuild_avatar()
+
+
 def set_avatar_skin_offset(offset):
     import FreeCAD as App
     doc = App.ActiveDocument
@@ -212,7 +274,8 @@ def avatar_arrangement_points():
 
 COMMANDS = [
     "ClothFitting_CreateAvatar", "ClothFitting_EditAvatar", "ClothFitting_RebuildAvatar",
-    "ClothFitting_SetAvatarMeasurements", "ClothFitting_SetAvatarPose", "ClothFitting_SetAvatarSkinOffset"
+    "ClothFitting_SetAvatarMeasurements", "ClothFitting_SetAvatarPose", "ClothFitting_SetAvatarProvider",
+    "ClothFitting_SetAvatarSkinOffset"
 ]
 _HANDLERS = {
     "ClothFitting_CreateAvatar": create_avatar,
@@ -220,6 +283,7 @@ _HANDLERS = {
     "ClothFitting_RebuildAvatar": rebuild_avatar,
     "ClothFitting_SetAvatarMeasurements": lambda: set_avatar_measurements(height=1750, chest=980, waist=820, hip=1020),
     "ClothFitting_SetAvatarPose": lambda: set_avatar_pose("sewing"),
+    "ClothFitting_SetAvatarProvider": lambda: set_avatar_provider("makehuman-hm08"),
     "ClothFitting_SetAvatarSkinOffset": lambda: set_avatar_skin_offset(5.0),
 }
 try:
