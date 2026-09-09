@@ -36,10 +36,18 @@ def _show_panel(panel, required):
     _close_task()
     Gui.Control.showDialog(panel)
     _events()
-    text = " | ".join(
-        str(widget.text()) for widget in panel.form.findChildren(type(panel.form)) if callable(getattr(widget, "text", None))
-    )
-    missing = [item for item in required if item not in text]
+    widgets = [panel.form] + panel.form.findChildren(type(panel.form))
+    texts = []
+    for widget in widgets:
+        getter = getattr(widget, "text", None)
+        if callable(getter):
+            try:
+                texts.append(str(getter()))
+            except RuntimeError:
+                pass
+        elif getter:
+            texts.append(str(getter))
+    missing = [item for item in required if item not in " | ".join(texts)]
     if missing:
         raise RuntimeError("task panel missing visible text: %s" % ",".join(missing))
 
@@ -67,7 +75,6 @@ def _make_curved(piece, doc):
         Sketcher.Constraint("Coincident", 2, 2, 3, 1),
         Sketcher.Constraint("Coincident", 3, 2, 0, 1),
         Sketcher.Constraint("Horizontal", 0),
-        Sketcher.Constraint("Vertical", 1),
         Sketcher.Constraint("Vertical", 3),
         Sketcher.Constraint("Tangent", 1, 2, 2, 1),
     ])
@@ -121,22 +128,24 @@ def run_acceptance():
         doc.recompute()
 
         _activate("ClothSimulationWorkbench", ["ClothSimulation_Create", "ClothSimulation_Step", "ClothSimulation_Reset", "ClothDrape_CreateTarget", "ClothDrape_RefreshTarget"])
-        Gui.Selection.clearSelection(); Gui.Selection.addSelection(target_body)
+        Gui.Selection.clearSelection()
         Gui.runCommand("ClothSimulation_Create", 0)
         doc.recompute()
-        scene = next((obj for obj in doc.Objects if getattr(obj, "Type", "") == "ClothSimulation"), None)
+        scene = doc.getObject("ClothSimulation")
         if scene is None:
             raise RuntimeError("public Simulation command did not create ClothSimulation")
         scene.ClothPieces = [curved, mate]
         doc.recompute()
+        Gui.Selection.clearSelection(); Gui.Selection.addSelection(target_body)
         Gui.runCommand("ClothDrape_CreateTarget", 0)
         doc.recompute()
         target = doc.getObject("DrapeTarget")
-        if target is None or target.SourceObject != target_body:
+        if target is None or target.SourceObject != target_body or scene.DrapeTarget != target:
             raise RuntimeError("public DrapeTarget command did not persist CAD target")
         from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
         _show_panel(SimulationQualityTaskPanel(scene), ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset"))
         _close_task()
+        Gui.Selection.clearSelection(); Gui.Selection.addSelection(scene)
         Gui.runCommand("ClothSimulation_Step", 0)
         doc.recompute()
         if int(scene.Steps) < 1 or not bool(scene.FiniteState):
@@ -176,6 +185,7 @@ def run_acceptance():
                 raise RuntimeError("upstream CAD target edit did not invalidate collision target")
             Gui.runCommand("ClothDrape_RefreshTarget", 0)
             reloaded.recompute()
+            Gui.Selection.clearSelection(); Gui.Selection.addSelection(scene)
             Gui.runCommand("ClothSimulation_Reset", 0)
             Gui.runCommand("ClothSimulation_Step", 0)
             reloaded.recompute()
