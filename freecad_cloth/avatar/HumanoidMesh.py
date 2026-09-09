@@ -1,21 +1,19 @@
 """MakeHuman-backed humanoid mesh provider.
 
 The avatar is a real polygonal human base mesh rather than a collection of
-FreeCAD primitives.  The pinned MakeHuman HM08 base mesh is fetched lazily and
+FreeCAD primitives. The pinned MakeHuman HM08 base mesh is fetched lazily and
 cached locally, then fitted into the Cloth millimetre coordinate system.
-
-MakeHuman's repository explicitly releases the base mesh as CC0.  Keeping the
-source URL pinned makes the provenance deterministic while avoiding a large
-binary/blob vendored directly into the plugin.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
+import hashlib
+import math
 import os
 from pathlib import Path
 import tempfile
 from urllib.request import Request, urlopen
-import math
 
 MAKEHUMAN_COMMIT = "1f508f6083b2f823dab15de924b3bde72e08d77c"
 MAKEHUMAN_BASE_URL = (
@@ -23,6 +21,7 @@ MAKEHUMAN_BASE_URL = (
     + MAKEHUMAN_COMMIT
     + "/makehuman/data/3dobjs/base.obj"
 )
+MAKEHUMAN_BASE_SHA256 = "8e761e6624b8f54536409135d1636da63b32486a90d4897f84e121d144f6fb4c"
 CACHE_ENV = "FREECAD_CLOTH_AVATAR_MESH"
 CACHE_DIR_ENV = "FREECAD_CLOTH_AVATAR_CACHE"
 DEFAULT_CACHE_NAME = "makehuman-hm08-base.obj"
@@ -54,6 +53,16 @@ def _default_cache_path() -> Path:
     return Path.home() / ".cache" / "freecad-cloth" / DEFAULT_CACHE_NAME
 
 
+def _verified(path: Path) -> bool:
+    if not path.is_file() or path.stat().st_size <= 1024:
+        return False
+    try:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return False
+    return digest == MAKEHUMAN_BASE_SHA256
+
+
 def _download(url: str, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=".makehuman-", suffix=".obj", dir=str(destination.parent))
@@ -66,6 +75,8 @@ def _download(url: str, destination: Path) -> None:
                     if not chunk:
                         break
                     handle.write(chunk)
+        if not _verified(Path(temporary)):
+            raise HumanoidMeshError("downloaded MakeHuman base mesh failed SHA-256 verification")
         os.replace(temporary, destination)
     except Exception:
         try:
@@ -79,14 +90,14 @@ def ensure_makehuman_base(path: str | os.PathLike[str] | None = None) -> Path:
     """Return a cached real MakeHuman base mesh, downloading it when absent."""
     override = os.environ.get(CACHE_ENV, "").strip()
     destination = Path(path).expanduser() if path else (Path(override).expanduser() if override else _default_cache_path())
-    if destination.is_file() and destination.stat().st_size > 1024:
+    if _verified(destination):
         return destination
     try:
         _download(MAKEHUMAN_BASE_URL, destination)
     except Exception as exc:
         raise HumanoidMeshError(
             "unable to obtain the pinned MakeHuman HM08 base mesh; "
-            "set %s to a local .obj file or allow network access (%s)" % (CACHE_ENV, exc)
+            "set %s to a verified local .obj file or allow network access (%s)" % (CACHE_ENV, exc)
         ) from exc
     return destination
 
@@ -105,19 +116,16 @@ def parse_obj(text: str) -> MeshData:
         elif fields[0] == "f" and len(fields) >= 4:
             indices = []
             for token in fields[1:]:
-                # OBJ permits v, v/vt, v//vn and v/vt/vn.
                 index = int(token.split("/", 1)[0])
-                if index < 0:
-                    index = len(vertices) + index
-                else:
-                    index -= 1
+                index = len(vertices) + index if index < 0 else index - 1
                 indices.append(index)
             for i in range(1, len(indices) - 1):
                 triangles.append((indices[0], indices[i], indices[i + 1]))
     return MeshData(tuple(vertices), tuple(triangles)).validate()
 
 
-def load_makehuman_mesh(path: str | os.PathLike[str] | None = None) -> MeshData:
+@lru_cache(maxsize=4)
+def load_makehuman_mesh(path: str | None = None) -> MeshData:
     source = ensure_makehuman_base(path)
     try:
         return parse_obj(source.read_text(encoding="utf-8", errors="strict"))
@@ -158,11 +166,7 @@ def _map_makehuman_axes(vertices):
     """Convert MakeHuman's Y-up decimetre coordinates to RH-Z-up millimetres."""
     ymin, ymax = _axis_bounds(vertices, 1)
     span = max(1e-9, ymax - ymin)
-    # MakeHuman is Y-up; preserve X, use source Z as depth and source Y as Z.
-    return [
-        (float(x), float(z), float(y - ymin) / span)
-        for x, y, z in vertices
-    ]
+    return [(float(x), float(z), float(y - ymin) / span) for x, y, z in vertices]
 
 
 def _profile_scale(z, profile):
@@ -170,8 +174,7 @@ def _profile_scale(z, profile):
         z0, s0 = profile[i]
         z1, s1 = profile[i + 1]
         if z <= z1:
-            t = _smoothstep(z0, z1, z)
-            return _lerp(s0, s1, t)
+            return _lerp(s0, s1, _smoothstep(z0, z1, z))
     return profile[-1][1]
 
 
@@ -180,56 +183,36 @@ def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
     mesh.validate()
     source = _map_makehuman_axes(mesh.vertices)
     max_x = max(abs(v[0]) for v in source) or 1.0
-    max_y = max(abs(v[1]) for v in source) or 1.0
 
-    # The authored height is the strongest scale constraint.
     height_mm = float(parameters.measurement("height"))
-    x0, x1 = _axis_bounds(source, 2)
-    height_unit = max(1e-9, x1 - x0)
+    z0, z1 = _axis_bounds(source, 2)
+    height_unit = max(1e-9, z1 - z0)
     base_scale = height_mm / height_unit
 
-    # Estimate torso widths from the base mesh around the centreline so the
-    # arms do not dominate chest/waist/hip fitting.
-    torso_vertices = [v for v in source if abs(v[0]) <= max_x * 0.38]
-    if not torso_vertices:
-        torso_vertices = source
-    bands = {
-        "hip": 0.43,
-        "high_hip": 0.48,
-        "waist": 0.56,
-        "underbust": 0.62,
-        "chest": 0.69,
-        "shoulder": 0.75,
-    }
+    torso_vertices = [v for v in source if abs(v[0]) <= max_x * 0.38] or source
+    bands = {"hip": 0.43, "high_hip": 0.48, "waist": 0.56, "underbust": 0.62, "chest": 0.69, "shoulder": 0.75}
     target_circumferences = {name: float(parameters.measurement(name)) for name in bands}
     base_radius = {}
     for name, z in bands.items():
-        samples = [
-            math.hypot(v[0], v[1])
-            for v in torso_vertices
-            if abs(v[2] - z) < 0.025
-        ]
+        samples = [math.hypot(v[0], v[1]) for v in torso_vertices if abs(v[2] - z) < 0.025]
         base_radius[name] = max(1e-5, _percentile(samples, 0.75) if samples else max_x * 0.30)
 
     target_radius = {name: value / (2.0 * math.pi * base_scale) for name, value in target_circumferences.items()}
-    profile_points = [(0.35, target_radius["hip"] / base_radius["hip"]),
-                      (0.48, target_radius["high_hip"] / base_radius["high_hip"]),
-                      (0.56, target_radius["waist"] / base_radius["waist"]),
-                      (0.62, target_radius["underbust"] / base_radius["underbust"]),
-                      (0.69, target_radius["chest"] / base_radius["chest"]),
-                      (0.77, target_radius["shoulder"] / base_radius["shoulder"]),
-                      (1.0, target_radius["shoulder"] / base_radius["shoulder"])]
+    profile_points = [
+        (0.35, target_radius["hip"] / base_radius["hip"]),
+        (0.48, target_radius["high_hip"] / base_radius["high_hip"]),
+        (0.56, target_radius["waist"] / base_radius["waist"]),
+        (0.62, target_radius["underbust"] / base_radius["underbust"]),
+        (0.69, target_radius["chest"] / base_radius["chest"]),
+        (0.77, target_radius["shoulder"] / base_radius["shoulder"]),
+        (1.0, target_radius["shoulder"] / base_radius["shoulder"]),
+    ]
 
     fitted = []
     for x, y, z in source:
         radial = _profile_scale(z, profile_points)
-        # Preserve a realistic torso depth ratio rather than forcing circular
-        # cross sections.  Head/hand/foot geometry receives the same scale.
         fitted.append((x * base_scale * radial, y * base_scale * radial, z * height_mm))
 
-    # MakeHuman HM08 is supplied in a neutral raised-arm pose. Rotate the arm
-    # regions around the estimated shoulder pivots for the Cloth presets. This
-    # is intentionally a shape deformation, not a primitive replacement.
     pose = parameters.pose
     shoulder_z = height_mm * 0.76
     shoulder_half = float(parameters.measurement("shoulder")) / 2.0
@@ -248,8 +231,10 @@ def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
                 pivot_x = side * shoulder_half
                 dx = x - pivot_x
                 dz = z - shoulder_z
-                x, z = (pivot_x + math.cos(radians) * dx + math.sin(radians) * dz,
-                        shoulder_z - math.sin(radians) * dx + math.cos(radians) * dz)
+                x, z = (
+                    pivot_x + math.cos(radians) * dx + math.sin(radians) * dz,
+                    shoulder_z - math.sin(radians) * dx + math.cos(radians) * dz,
+                )
         posed.append((x, y, z))
     return MeshData(tuple(posed), mesh.triangles)
 
