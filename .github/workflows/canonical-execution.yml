@@ -78,20 +78,20 @@ jobs:
           mkdir -p docs/images/generated artifacts/freecad-gui
           CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 -w /workspace "$IMAGE" -euo pipefail -c '
             set -e
-            mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
+            mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated /workspace/artifacts/freecad-gui
             Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
             openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
             trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
             for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
             xdpyinfo -display :99 >/dev/null 2>&1
-            timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun tests/freecad_screenshot.py
             timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun tests/freecad_pattern_constraints_smoke.py
+            timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun tests/freecad_screenshot.py
             test -s docs/images/generated/cloth-pattern-design.png
             test -s docs/images/generated/cloth-sewing.png
             test -s docs/images/generated/cloth-simulation-arranged.png
             test -s docs/images/generated/cloth-simulation-draped.png
           ')"
-          cleanup() { set +e; docker cp "$CID:/workspace/docs/images/generated/." docs/images/generated/ 2>/dev/null || true; docker rm -f "$CID" >/dev/null 2>&1 || true; }
+          cleanup() { set +e; docker cp "$CID:/workspace/docs/images/generated/." docs/images/generated/ 2>/dev/null || true; docker cp "$CID:/workspace/artifacts/freecad-gui/." artifacts/freecad-gui/ 2>/dev/null || true; docker rm -f "$CID" >/dev/null 2>&1 || true; }
           trap cleanup EXIT
           docker cp "$PWD/." "$CID:/workspace/"
           docker start -a "$CID"
