@@ -50,7 +50,7 @@ def _find_pattern_pieces(doc):
 
 def _make_curved(piece, doc):
     sketch = piece.Sketch
-    sketch.clear()
+    sketch.delAllGeometry()
     piece_id = str(piece.PieceId)
     geometry = [
         Part.LineSegment(App.Vector(0, 0, 0), App.Vector(100, 0, 0)),
