@@ -42,17 +42,17 @@ def _digest_surface(vertices, triangles):
 
 def _mesh_signature(target):
     if str(getattr(target, "AvatarType", "")) == "ClothAvatar":
-        # A production ClothAvatar is an authored parametric mesh. Its stable
-        # identity is the provider/provenance/parameters contract, not the
-        # transient ordering returned by FreeCAD Mesh.Topology.
+        # Mesh::Feature topology ordering is not a stable identity in FreeCAD.
+        # The avatar provider owns an explicit monotonic revision for every
+        # authored mesh rebuild, so target invalidation remains deterministic.
         return (
             "ClothAvatar",
             str(getattr(target, "AvatarMeshProvider", "")),
             str(getattr(target, "AvatarMeshSource", "")),
-            str(getattr(target, "AvatarStatus", "")),
+            str(getattr(target, "AvatarMeshLicense", "")),
+            int(getattr(target, "AvatarRevision", 0)),
             int(getattr(target, "MeshVertexCount", 0)),
             int(getattr(target, "MeshTriangleCount", 0)),
-            str(getattr(target, "ParametersJSON", "")),
         )
     mesh = getattr(target, "Mesh", None)
     topology = getattr(mesh, "Topology", None) if mesh is not None else None
