@@ -1,6 +1,5 @@
 """Target-neutral draping/collision contract."""
 from dataclasses import dataclass
-import hashlib
 from typing import Optional, Tuple
 from freecad_cloth.avatar.AvatarCollision import CollisionSurface, surface_from_freecad
 
@@ -36,12 +35,21 @@ def _mesh_signature(target):
         return None
     try:
         vertices, triangles = topology
-        digest = hashlib.sha256()
-        for vertex in vertices:
-            digest.update(("%.9f,%.9f,%.9f;" % (float(vertex.x), float(vertex.y), float(vertex.z))).encode("ascii"))
-        for triangle in triangles:
-            digest.update(("%d,%d,%d;" % tuple(int(i) for i in triangle)).encode("ascii"))
-        return ("Mesh", len(vertices), len(triangles), digest.hexdigest())
+        if not vertices or not triangles:
+            return ("Mesh", len(vertices), len(triangles), ())
+        xs = [float(v.x) for v in vertices]
+        ys = [float(v.y) for v in vertices]
+        zs = [float(v.z) for v in vertices]
+        # Mesh::Feature topology can be normalized/reindexed by FreeCAD during
+        # recompute. Use order-independent geometric moments instead of the
+        # transient vertex/triangle ordering while still detecting real edits.
+        descriptor = (
+            len(vertices), len(triangles),
+            tuple(round(value, 6) for value in (min(xs), max(xs), min(ys), max(ys), min(zs), max(zs))),
+            tuple(round(sum(values), 6) for values in (xs, ys, zs)),
+            tuple(round(sum(value * value for value in values), 6) for values in (xs, ys, zs)),
+        )
+        return ("Mesh",) + descriptor
     except (TypeError, ValueError, AttributeError):
         return None
 
