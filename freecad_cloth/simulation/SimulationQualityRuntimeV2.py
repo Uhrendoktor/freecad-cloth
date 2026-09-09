@@ -124,9 +124,8 @@ class QualitySimulationProxy:
             target = getattr(obj, "DrapeTarget", None)
             source = getattr(target, "SourceObject", None) if target is not None else None
             if target is not None and str(getattr(source, "AvatarType", "")) == "ClothAvatar":
-                from freecad_cloth.simulation.DrapeTarget import refresh_drape_target, target_status
-                if target_status(target).get("stale"):
-                    refresh_drape_target(target)
+                from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
+                refresh_drape_target(target)
             if pieces:
                 self._build_pattern_scene(obj, pieces, signature)
             else:
