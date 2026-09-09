@@ -53,7 +53,9 @@ class Landmark:
 @dataclass(frozen=True)
 class AvatarParameters:
     measurements: dict = field(default_factory=lambda: dict(DEFAULT_MEASUREMENTS))
-    skin_offset: float = 3.0
+    # The mannequin is a bare body surface by default. Cloth collision padding
+    # remains a target setting rather than a visible layer on the avatar.
+    skin_offset: float = 0.0
     pose: Pose = field(default_factory=Pose)
     schema_version: int = 1
 
@@ -104,18 +106,18 @@ class AvatarParameters:
             raise ValueError("avatar presets must use millimetres")
         p = data.get("pose", {})
         pose = Pose(str(p.get("preset", "standing")), float(p.get("left_arm_angle", 12)), float(p.get("right_arm_angle", 12)), float(p.get("left_elbow_angle", 0)), float(p.get("right_elbow_angle", 0)))
-        return cls(data.get("measurements", {}), float(data.get("skin_offset", 3)), pose, int(data.get("schema_version", 1)))
+        return cls(data.get("measurements", {}), float(data.get("skin_offset", 0)), pose, int(data.get("schema_version", 1)))
 
 
 def _landmarks(params):
     m = params.measurements
     height = float(m["height"])
-    pelvis_z = min(height * 0.43, float(m["inseam"]) + 120.0)
-    waist_z = min(height * 0.58, pelvis_z + float(m["back_waist"]))
-    chest_z = min(height * 0.70, waist_z + max(90.0, float(m["torso"]) * 0.72))
-    shoulder_z = min(height * 0.77, chest_z + 150.0)
+    pelvis_z = min(height * 0.53, float(m["inseam"]) + 120.0)
+    waist_z = min(height * 0.62, pelvis_z + max(120.0, min(220.0, float(m["back_waist"]) * 0.35)))
+    chest_z = min(height * 0.72, waist_z + max(140.0, float(m["torso"]) * 0.42))
+    shoulder_z = min(height * 0.77, chest_z + 120.0)
     neck_z = min(height * 0.88, shoulder_z + 100.0)
-    knee_z = max(300.0, float(m["ankle"]) + float(m["inseam"]) * 0.52)
+    knee_z = max(300.0, float(m["ankle"]) / 2.0 + float(m["inseam"]) * 0.52)
     ankle_z = float(m["ankle"]) / 2.0
     shoulder_half = float(m["shoulder"]) / 2.0
     leg_x = max(55.0, float(m["hip"]) / (2.0 * 3.141592653589793) * 0.42)
