@@ -176,7 +176,7 @@ def run_acceptance():
         if seam is None or str(seam.Status) != "Valid":
             raise RuntimeError("public Sewing command did not create a valid seam from native Sketch edges")
         original_piece_id = str(curved.PieceId)
-        original_height = float(curved_sketch.getDatum(height_index))
+        original_width = float(curved_sketch.getDatum(width_index))
         seam_id = str(seam.SeamId)
         semantic_ids = tuple(str(item) for item in curved_sketch.SemanticEdgeIds)
 
@@ -196,9 +196,9 @@ def run_acceptance():
                 raise RuntimeError("Sketcher source authority did not survive save/reload")
             if tuple(str(item) for item in sketch.SemanticEdgeIds) != semantic_ids:
                 raise RuntimeError("Cloth semantic edge ids did not survive save/reload")
-            if abs(float(sketch.getDatum(width_index)) - 100.0) > 1e-6:
+            if abs(float(sketch.getDatum(width_index)) - original_width) > 1e-6:
                 raise RuntimeError("named width dimensional constraint did not survive save/reload")
-            if abs(float(sketch.getDatum(height_index)) - original_height) > 1e-6:
+            if abs(float(sketch.getDatum(height_index)) - 50.0) > 1e-6:
                 raise RuntimeError("named height dimensional constraint did not survive save/reload")
             if _constraint_name(sketch, width_index) != "PieceWidth" or _constraint_name(sketch, height_index) != "PieceHeight":
                 raise RuntimeError("named PatternPiece Sketcher dimensions did not survive save/reload")
@@ -216,9 +216,9 @@ def run_acceptance():
             if abs(float(audit.getDatum(audit_scaled)) - 30.0) > 1e-6:
                 raise RuntimeError("native Sketcher expression did not propagate after save/reload")
 
-            sketch.setDatum(height_index, App.Units.Quantity("60 mm"))
+            sketch.setDatum(width_index, App.Units.Quantity("120 mm"))
             reloaded.recompute()
-            if abs(float(sketch.getDatum(height_index)) - 60.0) > 1e-6:
+            if abs(float(sketch.getDatum(width_index)) - 120.0) > 1e-6:
                 raise RuntimeError("native Sketcher seam dimension edit did not apply")
             changed_seam = next((obj for obj in reloaded.Objects if getattr(obj, "SeamId", "") == seam_id), None)
             if changed_seam is None:
