@@ -24,9 +24,9 @@ def _write_grid_mesh(obj, positions, indices, nx, ny):
     for j in range(ny - 1):
         for i in range(nx - 1):
             a = indices[j * nx + i]
-            b = indices[j * nx + i + 1]
-            c = indices[(j + 1) * nx + i + 1]
-            d = indices[(j + 1) * nx + i]
+            b = a + 1
+            c = (j + 1) * nx + i + 1
+            d = (j + 1) * nx + i
             triangles.extend(((a, b, c), (a, c, d)))
     _write_mesh(obj, positions, triangles)
 
@@ -213,7 +213,8 @@ def _collision_for_scene(obj):
     if target is not None:
         from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
         source = getattr(target, "SourceObject", None)
-        if str(getattr(source, "AvatarMeshProvider", "")) == "makehuman-hm08":
+        managed = str(getattr(source, "AvatarMeshProvider", "")) == "makehuman-hm08" or str(getattr(source, "Name", "")) in {"ClothAvatar", "HumanoidAvatar"}
+        if managed:
             return collision_surface(source, float(getattr(target, "CollisionDeflection", 1.0)), float(getattr(target, "CollisionThickness", 0.0)))
         status = target_status(target)
         if status["state"] in ("stale", "unbuilt", "unassigned", "invalid", "missing"):
