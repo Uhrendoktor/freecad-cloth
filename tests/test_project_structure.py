@@ -1,4 +1,4 @@
-"""Structural checks for the standard Python package boundary."""
+"""Structural checks for the canonical Python package tree."""
 from pathlib import Path
 
 
@@ -12,10 +12,16 @@ def test_project_metadata_exists():
 
 def test_workbench_package_boundaries_exist():
     root = Path(__file__).resolve().parents[1]
-    for name in ("pattern", "sewing", "simulation"):
+    for name in ("pattern", "sewing", "simulation", "avatar", "common", "shared"):
         package = root / "freecad_cloth" / name
         assert (package / "__init__.py").is_file()
-        assert (package / "workbench.py").is_file()
+    for name in ("pattern", "sewing", "simulation"):
+        assert (root / "freecad_cloth" / name / "workbench.py").is_file()
+
+
+def test_only_freecad_bootstrap_python_files_remain_at_root():
+    root = Path(__file__).resolve().parents[1]
+    assert {path.name for path in root.glob("*.py")} <= {"Init.py", "InitGui.py"}
 
 
 def test_freecad_entry_points_remain_at_root():
