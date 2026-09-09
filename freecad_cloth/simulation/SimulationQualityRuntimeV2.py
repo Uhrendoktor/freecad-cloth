@@ -233,9 +233,10 @@ class QualitySimulationProxy:
         source = getattr(avatar, "SourceObject", None) if avatar is not None else None
         if source is None:
             return
-        from freecad_cloth.avatar.AvatarCollision import surface_from_freecad
+        from freecad_cloth.avatar.AvatarCollision import coarsen_collision_surface, surface_from_freecad
         thickness = float(getattr(avatar, "CollisionThickness", 0.0)) + float(obj.FabricThickness) + float(obj.AvatarSkinOffset)
-        base.collision_surface = surface_from_freecad(source, float(getattr(avatar, "CollisionDeflection", 1.0)), thickness)
+        full_surface = surface_from_freecad(source, float(getattr(avatar, "CollisionDeflection", 1.0)), thickness)
+        base.collision_surface = coarsen_collision_surface(full_surface, 512)
 
     def reset(self, obj):
         self._base_or_restore().reset(obj)
