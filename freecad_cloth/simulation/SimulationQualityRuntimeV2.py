@@ -228,6 +228,8 @@ class QualitySimulationProxy:
 def create_quality_simulation_scene(doc):
     from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
     from freecad_cloth.avatar.AvatarCommands import create_avatar
+    import FreeCAD as App
+    import Mesh
 
     scene = create_simulation_scene(doc)
 
@@ -239,15 +241,19 @@ def create_quality_simulation_scene(doc):
     avatar.Label = "Cloth Human Avatar (MakeHuman)"
     avatar.ViewObject.Visibility = True
 
-    # Keep the visible avatar at full MakeHuman fidelity, but use a small
-    # collision-only copy. Python conversion of a very dense visual mesh into
-    # a solver surface is needlessly expensive in the GUI path.
+    # Keep the visible avatar at full MakeHuman fidelity. For cloth collision,
+    # sample the visual topology into a small triangle mesh instead of running
+    # an expensive OCC/mesh conversion over the complete human surface.
+    raw_vertices, raw_faces = avatar.Mesh.Topology
+    target_faces = 5000
+    stride = max(1, int(ceil(len(raw_faces) / float(target_faces))))
+    collision_mesh = Mesh.Mesh()
+    vectors = [App.Vector(float(v.x), float(v.y), float(v.z)) for v in raw_vertices]
+    selected_faces = raw_faces[::stride]
+    collision_mesh.addFacets([(vectors[a], vectors[b], vectors[c]) for a, b, c in selected_faces])
     collision_source = doc.addObject("Mesh::Feature", "MakeHumanCollisionMesh")
-    collision_source.Label = "MakeHuman collision mesh (decimated)"
-    collision_source.Mesh = avatar.Mesh.copy()
-    target_facets = 5000
-    if int(collision_source.Mesh.CountFacets) > target_facets:
-        collision_source.Mesh.decimate(target_facets)
+    collision_source.Label = "MakeHuman collision mesh (sampled)"
+    collision_source.Mesh = collision_mesh
     collision_source.ViewObject.Visibility = False
     collision_source.addProperty("App::PropertyLink", "VisualAvatar", "Collision")
     collision_source.VisualAvatar = avatar
