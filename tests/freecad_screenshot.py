@@ -1,4 +1,5 @@
 """Deterministic FreeCAD GUI screenshots; run under Xvfb with software rendering."""
+import importlib.util
 import os
 import sys
 import traceback
@@ -35,14 +36,12 @@ def ensure_task_view_visible():
     window = Gui.getMainWindow()
     if window is None:
         raise RuntimeError("FreeCAD main window is unavailable while opening task panel")
-
     docks = window.findChildren(QtWidgets.QDockWidget)
     summary = [
         "%s:%s:%s" % (dock.objectName(), dock.windowTitle(), dock.isVisible())
         for dock in docks
     ]
     log("dock-widgets=" + " | ".join(summary))
-
     task_dock = window.findChild(QtWidgets.QDockWidget, "Tasks")
     if task_dock is not None:
         action = task_dock.toggleViewAction()
@@ -60,7 +59,6 @@ def ensure_task_view_visible():
         log("task-dock=Tasks checked=%s visible=%s" % (action.isChecked(), task_dock.isVisible()))
         if task_dock.isVisible():
             return task_dock
-
     combo = window.findChild(QtWidgets.QDockWidget, "Model")
     if combo is not None:
         combo.show()
@@ -73,7 +71,6 @@ def ensure_task_view_visible():
                     events()
                     log("task-tab=Tasks visible=%s" % combo.isVisible())
                     return combo
-
     raise RuntimeError("FreeCAD Tasks dock/tab is unavailable or could not be made visible")
 
 
@@ -105,8 +102,6 @@ def validate_task(panel, name, required):
 
 def show_task(panel, name, required=(), reuse_active=False):
     if not reuse_active:
-        # FreeCAD can restore a stale task dialog from its saved GUI state.
-        # Close that dialog before opening the deterministic test panel.
         if Gui.Control.activeDialog():
             Gui.Control.closeDialog()
             events()
@@ -165,7 +160,6 @@ def pattern_and_sewing():
     from freecad_cloth.sewing.SewingCommands import create_sewing_operation
     from freecad_cloth.sewing.SewingGui import SewingTaskPanel
     import Part
-
     doc = App.newDocument("ClothVisualRegression")
     front = create_pattern_piece_from_parameters("Front", 140.0, 90.0, 10.0, 0.0)
     back = create_pattern_piece_from_parameters("Back", 140.0, 90.0, 10.0, 0.0)
@@ -176,14 +170,12 @@ def pattern_and_sewing():
     doc.recompute()
     if front.Shape.isNull() or back.Shape.isNull():
         raise RuntimeError("pattern fixture produced empty geometry")
-
     activate("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D"])
     panel = PatternPieceTaskPanel(front)
     show_task(panel, "Pattern Workbench", ("Piece name", "Width", "Height", "Seam allowance", "Grainline angle"))
     Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll(); events()
     save("cloth-pattern-design.png", "Pattern Workbench", "two 140x90 mm pieces with native 10 mm seam allowance and task-panel dimensions")
     close_task()
-
     seam = add_seam(doc, Seam(str(front.PieceId), 1, str(back.PieceId), 3, id="FrontBack", alignment="uniform", stitch_group="MainSeam"))
     sewing = create_sewing_operation()
     doc.recompute()
@@ -205,7 +197,6 @@ def simulation():
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
     from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
     from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
-
     doc = App.newDocument("ClothSimulationVisualRegression")
     front = create_pattern_piece_from_parameters("SimFront", 140.0, 90.0, 10.0, 0.0)
     back = create_pattern_piece_from_parameters("SimBack", 140.0, 90.0, 10.0, 0.0)
@@ -238,6 +229,18 @@ def simulation():
     App.closeDocument(doc.Name)
 
 
+def canonical_garment_e2e():
+    """Run the P0 multi-workbench garment lifecycle in this GUI process."""
+    path = os.path.join(ROOT, "tests", "freecad_garment_e2e_smoke.py")
+    spec = importlib.util.spec_from_file_location("freecad_garment_e2e_smoke", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("cannot load canonical garment acceptance module")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.run_acceptance()
+    log("canonical-garment-e2e=passed")
+
+
 exit_code = 0
 log("script-start")
 try:
@@ -251,12 +254,15 @@ try:
     init_gui = os.path.join(ROOT, "InitGui.py")
     exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
     events()
+    canonical_garment_e2e()
     pattern_and_sewing()
     simulation()
     log("scenario-pass")
-except Exception:
+except BaseException as error:
     exit_code = 1
-    log("scenario-fail")
+    print("SCENARIO FAILURE: %r" % (error,), flush=True)
+    print(traceback.format_exc(), flush=True)
+    log("scenario-fail exception=%r" % (error,))
     log(traceback.format_exc())
 finally:
     try:
@@ -278,7 +284,6 @@ finally:
         log("shutdown-error")
         log(traceback.format_exc())
         exit_code = 1
-
 sys.stdout.flush()
 sys.stderr.flush()
 sys.exit(exit_code)

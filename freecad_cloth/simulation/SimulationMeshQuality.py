@@ -84,7 +84,7 @@ def install_quality_mesh_patch():
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy
     if getattr(QualitySimulationProxy, "_cloth_quality_mesh_patched", False):
         return
-    import freecad_cloth.simulation.SimulationObjects
+    from freecad_cloth.simulation import SimulationObjects
     original = QualitySimulationProxy._build_pattern_scene
 
     def build_pattern_scene(self, obj, pieces, signature):

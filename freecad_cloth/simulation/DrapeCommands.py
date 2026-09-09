@@ -13,12 +13,18 @@ def _target(doc):
     return doc.getObject("DrapeTarget")
 
 
+def _is_simulation_scene(obj):
+    return (getattr(obj, "Name", "") == "ClothSimulation"
+            or getattr(getattr(obj, "Proxy", None), "Type", "") == "ClothSimulation")
+
+
 def _attach_to_simulation(doc, source, target):
     from freecad_cloth.simulation.SimulationObjects import set_avatar_collision_source
-    scenes = [o for o in doc.Objects if getattr(o, "Type", "") == "ClothSimulation"]
+    scenes = [o for o in doc.Objects if _is_simulation_scene(o)]
     for scene in scenes:
         proxy = set_avatar_collision_source(scene, source, float(target.CollisionThickness), float(target.CollisionDeflection))
         scene.AvatarProxy = proxy
+        scene.DrapeTarget = target
     doc.recompute()
 
 

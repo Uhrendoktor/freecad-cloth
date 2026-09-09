@@ -54,9 +54,13 @@ def create_drape_scene():
     return create_simulation_scene(doc)
 
 
+def _is_simulation_scene(obj):
+    return (getattr(obj, "Name", "") == "ClothSimulation"
+            or getattr(getattr(obj, "Proxy", None), "Type", "") == "ClothSimulation")
+
+
 def _find_simulation(doc):
-    return next((obj for obj in doc.Objects if getattr(obj, "TypeId", "") == "App::FeaturePython"
-                 and getattr(obj, "Type", "") == "ClothSimulation"), None)
+    return next((obj for obj in doc.Objects if _is_simulation_scene(obj)), None)
 
 
 def _find_drape_target(doc):
