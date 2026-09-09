@@ -1,6 +1,7 @@
 """Real FreeCAD runtime smoke coverage for the production humanoid mesh avatar."""
 # Keep this contract on the canonical workflow path; avoid replacing the provider with a fixture.
 # Baseline is refreshed against the latest mainline collision-mesh implementation.
+# DrapeTarget signatures intentionally ignore rotation normalization for unchanged targets.
 import sys
 from pathlib import Path
 import tempfile
