@@ -173,10 +173,26 @@ def _axis_bounds(vertices, axis):
 
 
 def _map_makehuman_axes(vertices):
-    """Convert MakeHuman's Y-up decimetre coordinates to RH-Z-up millimetres."""
+    """Convert MakeHuman's Y-up coordinates to RH-Z-up normalized coordinates."""
     ymin, ymax = _axis_bounds(vertices, 1)
     span = max(1e-9, ymax - ymin)
     return [(float(x), float(z), float(y - ymin) / span) for x, y, z in vertices]
+
+
+def _section_extents(vertices, z, band=0.025, predicate=None):
+    samples = [v for v in vertices if abs(v[2] - z) <= band and (predicate is None or predicate(v))]
+    if len(samples) < 6:
+        return 0.0, 0.0
+    xs = [v[0] for v in samples]
+    ys = [v[1] for v in samples]
+    return max(xs) - min(xs), max(ys) - min(ys)
+
+
+def _ellipse_perimeter(width, depth):
+    """Ramanujan-style perimeter estimate from an axis-aligned section."""
+    a = max(1e-6, width * 0.5)
+    b = max(1e-6, depth * 0.5)
+    return math.pi * (3.0 * (a + b) - math.sqrt((3.0 * a + b) * (a + 3.0 * b)))
 
 
 def _profile_scale(z, profile):
@@ -189,7 +205,13 @@ def _profile_scale(z, profile):
 
 
 def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
-    """Fit the real base mesh to Cloth measurements while retaining topology."""
+    """Fit the real base mesh to Cloth measurements with mannequin-safe proportions.
+
+    Circumference measurements are fitted from actual horizontal section extents.
+    Shoulder is a breadth measurement, not a circumference, so it gets its own
+    lateral correction. The visible mesh is the bare base body; collision padding
+    is supplied separately by the target rather than by an inflated default skin.
+    """
     mesh.validate()
     source = _map_makehuman_axes(mesh.vertices)
     max_x = max(abs(v[0]) for v in source) or 1.0
@@ -199,31 +221,42 @@ def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
     height_unit = max(1e-9, z1 - z0)
     base_scale = height_mm / height_unit
 
-    torso_vertices = [v for v in source if abs(v[0]) <= max_x * 0.38] or source
-    bands = {"hip": 0.43, "high_hip": 0.48, "waist": 0.56, "underbust": 0.62, "chest": 0.69, "shoulder": 0.75}
-    target_circumferences = {name: float(parameters.measurement(name)) for name in bands}
-    base_radius = {}
-    for name, z in bands.items():
-        samples = [math.hypot(v[0], v[1]) for v in torso_vertices if abs(v[2] - z) < 0.025]
-        base_radius[name] = max(1e-5, _percentile(samples, 0.75) if samples else max_x * 0.30)
+    torso_vertices = [v for v in source if abs(v[0]) <= max_x * 0.48] or source
+    bands = (
+        ("hip", 0.50),
+        ("high_hip", 0.54),
+        ("waist", 0.58),
+        ("underbust", 0.64),
+        ("chest", 0.69),
+    )
+    target_circumferences = {name: float(parameters.measurement(name)) for name, _ in bands}
+    torso_profile = [(0.42, 1.0)]
+    for name, z in bands:
+        width, depth = _section_extents(torso_vertices, z)
+        source_perimeter = _ellipse_perimeter(width, depth)
+        if source_perimeter <= 1e-6:
+            scale = 1.0
+        else:
+            scale = target_circumferences[name] / (source_perimeter * base_scale)
+        torso_profile.append((z, scale))
+    torso_profile.extend(((0.75, torso_profile[-1][1]), (1.0, torso_profile[-1][1])))
 
-    target_radius = {name: value / (2.0 * math.pi * base_scale) for name, value in target_circumferences.items()}
-    profile_points = [
-        (0.35, target_radius["hip"] / base_radius["hip"]),
-        (0.48, target_radius["high_hip"] / base_radius["high_hip"]),
-        (0.56, target_radius["waist"] / base_radius["waist"]),
-        (0.62, target_radius["underbust"] / base_radius["underbust"]),
-        (0.69, target_radius["chest"] / base_radius["chest"]),
-        (0.77, target_radius["shoulder"] / base_radius["shoulder"]),
-        (1.0, target_radius["shoulder"] / base_radius["shoulder"]),
-    ]
+    shoulder_width, _ = _section_extents(torso_vertices, 0.76)
+    shoulder_target = float(parameters.measurement("shoulder"))
+    shoulder_base = max(1e-6, shoulder_width * base_scale * _profile_scale(0.76, torso_profile))
+    shoulder_scale = shoulder_target / shoulder_base
 
     skin_offset = float(parameters.skin_offset)
     fitted = []
     for x, y, z in source:
-        radial = _profile_scale(z, profile_points)
-        x_mm = x * base_scale * radial
-        y_mm = y * base_scale * radial
+        torso_scale = _profile_scale(z, torso_profile)
+        shoulder_blend = _smoothstep(0.67, 0.79, z)
+        lateral_scale = _lerp(1.0, shoulder_scale, shoulder_blend)
+        # Keep the head neutral while the shoulder breadth correction fades out.
+        if z >= 0.79:
+            lateral_scale = 1.0
+        x_mm = x * base_scale * torso_scale * lateral_scale
+        y_mm = y * base_scale * torso_scale
         radius = math.hypot(x_mm, y_mm)
         if radius > 1e-9 and skin_offset:
             x_mm += x_mm / radius * skin_offset
@@ -232,12 +265,12 @@ def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
 
     pose = parameters.pose
     shoulder_z = height_mm * 0.76
-    shoulder_half = float(parameters.measurement("shoulder")) / 2.0
+    shoulder_half = shoulder_target / 2.0
     default_angle = {"standing": 12.0, "sewing": 55.0, "sitting": 25.0}.get(pose.preset, 12.0)
     left_angle = default_angle if pose.preset != "standing" and float(pose.left_arm_angle) == 12.0 else float(pose.left_arm_angle)
     right_angle = default_angle if pose.preset != "standing" and float(pose.right_arm_angle) == 12.0 else float(pose.right_arm_angle)
     posed = []
-    body_half = max(1.0, shoulder_half * 0.75)
+    body_half = max(1.0, shoulder_half * 0.72)
     for x, y, z in fitted:
         nz = z / max(1.0, height_mm)
         if 0.58 <= nz <= 0.90 and abs(x) > body_half:
@@ -257,5 +290,5 @@ def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
 
 
 def build_humanoid_mesh(parameters, source_path=None) -> MeshData:
-    """Load, fit and return the real MakeHuman mesh for Cloth."""
+    """Load, fit and return the real MakeHuman mannequin mesh for Cloth."""
     return fit_makehuman_mesh(load_makehuman_mesh(str(source_path) if source_path is not None else None), parameters)

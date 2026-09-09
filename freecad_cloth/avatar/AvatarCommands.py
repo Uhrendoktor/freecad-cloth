@@ -43,6 +43,18 @@ def _mesh_data(vertices, triangles):
     return native
 
 
+def _style_mannequin(obj):
+    """Give the bare body a neutral CAD-mannequin presentation, not a garment look."""
+    try:
+        view = obj.ViewObject
+        view.DisplayMode = "Flat Lines"
+        view.ShapeColor = (0.72, 0.72, 0.72)
+        view.LineColor = (0.20, 0.20, 0.20)
+        view.LineWidth = 1.0
+    except (AttributeError, TypeError, ValueError):
+        pass
+
+
 def _rebuild(obj):
     params = _parameters(obj)
     vertices, triangles, landmarks = generate_mesh(params)
@@ -50,8 +62,9 @@ def _rebuild(obj):
     obj.ParametersJSON = params.to_json()
     obj.AvatarStatus = "Valid"
     obj.AvatarMeshProvider = "makehuman-hm08"
-    obj.AvatarMeshSource = "MakeHuman HM08 base mesh @ %s" % __import__("freecad_cloth.avatar.HumanoidMesh", fromlist=["MAKEHUMAN_COMMIT"]).MAKEHUMAN_COMMIT
+    obj.AvatarMeshSource = "MakeHuman HM08 base mesh @ %s (garment-free mannequin)" % __import__("freecad_cloth.avatar.HumanoidMesh", fromlist=["MAKEHUMAN_COMMIT"]).MAKEHUMAN_COMMIT
     obj.AvatarMeshLicense = "CC0"
+    obj.GarmentState = "Bare mannequin / no garment geometry"
     obj.MeshVertexCount = len(vertices)
     obj.MeshTriangleCount = len(triangles)
     obj.Landmarks = ["%s|%s,%s,%s" % (landmark.name, landmark.position[0], landmark.position[1], landmark.position[2]) for landmark in landmarks]
@@ -59,6 +72,7 @@ def _rebuild(obj):
     obj.AvatarRevision = int(getattr(obj, "AvatarRevision", 0)) + 1
     _set_prop(obj, "App::PropertyStringList", "ArrangementPoints", "Fitting", [])
     obj.ArrangementPoints = arrangement_points_from_landmarks(obj.Landmarks)
+    _style_mannequin(obj)
     obj.Document.recompute()
     return obj
 
@@ -97,12 +111,12 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
     obj = _avatar(doc)
     if obj is None:
         obj = doc.addObject("Mesh::Feature", object_name)
-        obj.Label = "Cloth Human Avatar"
+        obj.Label = "Cloth Human Mannequin (Bare)"
         _set_prop(obj, "App::PropertyString", "AvatarType", "Avatar", "ClothAvatar")
         _set_prop(obj, "App::PropertyString", "SchemaVersion", "Avatar", "1")
         for name, value in DEFAULT_MEASUREMENTS.items():
             _set_prop(obj, "App::PropertyLength", PROPERTY_MAP[name], "Measurements", value)
-        _set_prop(obj, "App::PropertyLength", "SkinOffset", "Collision", 3.0)
+        _set_prop(obj, "App::PropertyLength", "SkinOffset", "Collision", 0.0)
         _set_prop(obj, "App::PropertyEnumeration", "PosePreset", "Pose", ["standing", "sewing", "sitting"])
         obj.PosePreset = "standing"
         for name, prop in POSE_PROPERTY_MAP.items():
@@ -114,6 +128,7 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
         _set_prop(obj, "App::PropertyString", "AvatarMeshProvider", "Avatar", "")
         _set_prop(obj, "App::PropertyString", "AvatarMeshSource", "Avatar", "")
         _set_prop(obj, "App::PropertyString", "AvatarMeshLicense", "Avatar", "")
+        _set_prop(obj, "App::PropertyString", "GarmentState", "Avatar", "Bare mannequin / no garment geometry")
         _set_prop(obj, "App::PropertyInteger", "AvatarRevision", "Avatar", 0)
         _set_prop(obj, "App::PropertyInteger", "MeshVertexCount", "Avatar", 0)
         _set_prop(obj, "App::PropertyInteger", "MeshTriangleCount", "Avatar", 0)
@@ -122,7 +137,7 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
     else:
         for name, prop in POSE_PROPERTY_MAP.items():
             _set_prop(obj, "App::PropertyAngle", prop, "Pose", 12.0 if "arm" in name else 0.0)
-        for name, default in (("AvatarMeshProvider", ""), ("AvatarMeshSource", ""), ("AvatarMeshLicense", "")):
+        for name, default in (("AvatarMeshProvider", ""), ("AvatarMeshSource", ""), ("AvatarMeshLicense", ""), ("GarmentState", "Bare mannequin / no garment geometry")):
             _set_prop(obj, "App::PropertyString", name, "Avatar", default)
         _set_prop(obj, "App::PropertyInteger", "AvatarRevision", "Avatar", int(getattr(obj, "AvatarRevision", 0)))
         for name in ("MeshVertexCount", "MeshTriangleCount"):
