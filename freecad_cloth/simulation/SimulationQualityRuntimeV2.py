@@ -226,8 +226,30 @@ class QualitySimulationProxy:
 
 
 def create_quality_simulation_scene(doc):
-    from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
+    from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
+    from freecad_cloth.avatar.AvatarCommands import create_avatar
+
     scene = create_simulation_scene(doc)
+
+    # create_simulation_scene predates the MakeHuman provider and still creates
+    # its compatibility mannequin. Replace that visible source with the real
+    # fitted humanoid mesh so quality/screenshot scenes exercise the production
+    # avatar path rather than the legacy primitive fixture.
+    legacy = doc.getObject("HumanoidAvatar")
+    if legacy is not None and hasattr(legacy, "ViewObject"):
+        legacy.ViewObject.Visibility = False
+
+    avatar = create_avatar()
+    avatar.Label = "Cloth Human Avatar (MakeHuman)"
+    avatar.ViewObject.Visibility = True
+    set_avatar_collision_source(
+        scene,
+        avatar,
+        float(getattr(avatar, "SkinOffset", 3.0)),
+        1.0,
+    )
+    scene.AvatarProxy.SourceObject = avatar
+    scene.DrapeTarget = doc.getObject("DrapeTarget")
     ensure_quality_properties(scene)
     scene.Proxy = QualitySimulationProxy()
     scene.Document.recompute()
