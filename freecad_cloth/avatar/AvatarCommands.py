@@ -87,7 +87,8 @@ def _rebuild(obj):
     obj.MeshVertexCount = len(vertices)
     obj.MeshTriangleCount = len(triangles)
     obj.Landmarks = ["%s|%s,%s,%s" % (landmark.name, landmark.position[0], landmark.position[1], landmark.position[2]) for landmark in landmarks]
-    _set_prop(obj, "App::PropertyInteger", "AvatarRevision", "Avatar", 0)
+    if not hasattr(obj, "AvatarRevision"):
+        _set_prop(obj, "App::PropertyInteger", "AvatarRevision", "Avatar", 0)
     obj.AvatarRevision = int(getattr(obj, "AvatarRevision", 0)) + 1
     _set_prop(obj, "App::PropertyStringList", "ArrangementPoints", "Fitting", [])
     obj.ArrangementPoints = arrangement_points_from_landmarks(obj.Landmarks)
