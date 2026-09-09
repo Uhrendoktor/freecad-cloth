@@ -127,6 +127,9 @@ class QualitySimulationProxy:
                 from freecad_cloth.simulation.DrapeTarget import target_status
                 status = target_status(target)
                 if status["state"] in ("stale", "unbuilt", "unassigned", "invalid", "missing"):
+                    base.source_signature = None
+                    base.collision_surface = None
+                    base.last_steps = 0
                     return None
                 if str(getattr(source, "AvatarType", "")) == "ClothAvatar":
                     from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
