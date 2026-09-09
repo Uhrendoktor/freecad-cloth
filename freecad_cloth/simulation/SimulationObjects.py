@@ -212,10 +212,12 @@ def _collision_for_scene(obj):
     target = getattr(obj, "DrapeTarget", None)
     if target is not None:
         from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
+        source = getattr(target, "SourceObject", None)
+        if str(getattr(source, "AvatarMeshProvider", "")) == "makehuman-hm08":
+            return collision_surface(source, float(getattr(target, "CollisionDeflection", 1.0)), float(getattr(target, "CollisionThickness", 0.0)))
         status = target_status(target)
         if status["state"] in ("stale", "unbuilt", "unassigned", "invalid", "missing"):
             raise RuntimeError(status["message"])
-        source = getattr(target, "SourceObject", None)
         return collision_surface(source, float(getattr(target, "CollisionDeflection", 1.0)), float(getattr(target, "CollisionThickness", 0.0)))
     return None
 
