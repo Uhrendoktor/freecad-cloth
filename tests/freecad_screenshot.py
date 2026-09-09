@@ -213,7 +213,7 @@ def simulation():
         raise RuntimeError("simulation fixture did not create avatar and garment panels")
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
     panel = SimulationQualityTaskPanel(scene)
-    show_task(panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset", "State:"))
+    show_task(panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset"))
     Gui.activeDocument().activeView().viewAxonometric(); Gui.activeDocument().activeView().fitAll(); events()
     save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "deterministic avatar and arranged garment panels with ready task state")
     for batch in (6, 6, 6, 6):
@@ -229,16 +229,27 @@ def simulation():
     App.closeDocument(doc.Name)
 
 
-def canonical_garment_e2e():
-    """Run the P0 multi-workbench garment lifecycle in this GUI process."""
-    path = os.path.join(ROOT, "tests", "freecad_garment_e2e_smoke.py")
-    spec = importlib.util.spec_from_file_location("freecad_garment_e2e_smoke", path)
+def load_and_run(path, module_name):
+    spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None or spec.loader is None:
-        raise RuntimeError("cannot load canonical garment acceptance module")
+        raise RuntimeError("cannot load acceptance module: %s" % path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     module.run_acceptance()
+
+
+def canonical_garment_e2e():
+    """Run the P0 multi-workbench garment lifecycle in this GUI process."""
+    path = os.path.join(ROOT, "tests", "freecad_garment_e2e_smoke.py")
+    load_and_run(path, "freecad_garment_e2e_smoke")
     log("canonical-garment-e2e=passed")
+
+
+def simulation_quality_acceptance():
+    """Run the P0 simulation quality/material lifecycle in this GUI process."""
+    path = os.path.join(ROOT, "tests", "freecad_simulation_quality_acceptance.py")
+    load_and_run(path, "freecad_simulation_quality_acceptance")
+    log("simulation-quality-acceptance=passed")
 
 
 exit_code = 0
@@ -255,6 +266,7 @@ try:
     exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
     events()
     canonical_garment_e2e()
+    simulation_quality_acceptance()
     pattern_and_sewing()
     simulation()
     log("scenario-pass")
