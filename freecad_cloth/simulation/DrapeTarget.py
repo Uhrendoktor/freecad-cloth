@@ -132,9 +132,16 @@ def target_status(target):
         return {"state": "invalid", "message": "Cannot inspect drape target: %s" % exc, "stale": True, "reason": "signature failed"}
     authored = str(getattr(target, "SourceSignature", ""))
     if current != authored:
+        source_name = str(getattr(source, "Name", ""))
+        source_type = str(getattr(source, "AvatarType", ""))
+        provider = str(getattr(source, "AvatarMeshProvider", ""))
+        message = (
+            "Drape target changed; rebuild collision surface before simulation "
+            "(source=%s, type=%s, provider=%s)" % (source_name, source_type, provider)
+        )
         return {
             "state": "stale",
-            "message": "Drape target changed; rebuild collision surface before simulation",
+            "message": message,
             "stale": True,
             "reason": "source, placement, tessellation or collision thickness changed",
             "signature_current": current,
