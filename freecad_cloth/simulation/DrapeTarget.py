@@ -75,20 +75,18 @@ def _geometry_signature(target):
                     int(len(getattr(shape, "Faces", ()))),
                     int(len(getattr(shape, "Edges", ()))),
                     int(len(getattr(shape, "Vertexes", ()))),
-                    round(float(shape.Volume), 6),
-                    round(float(shape.Area), 6),
                     round(float(box.XMin), 6), round(float(box.XMax), 6),
                     round(float(box.YMin), 6), round(float(box.YMax), 6),
                     round(float(box.ZMin), 6), round(float(box.ZMax), 6),
                 )
         except (AttributeError, TypeError, ValueError):
             pass
-    hash_code = getattr(shape, "hashCode", None) if shape is not None else None
-    if callable(hash_code):
-        try:
-            return ("ShapeHash", int(hash_code()))
-        except (TypeError, ValueError):
-            pass
+        hash_code = getattr(shape, "hashCode", None)
+        if callable(hash_code):
+            try:
+                return ("ShapeHash", int(hash_code()))
+            except (TypeError, ValueError):
+                pass
     return ("Unknown",)
 
 
@@ -141,6 +139,14 @@ def target_status(target):
     if not authored or vertices <= 0 or triangles <= 0:
         return {"state": "unbuilt", "message": "Drape target collision surface needs to be built", "stale": True, "reason": "collision cache missing"}
     if current != authored:
+        managed_avatar = (
+            target_type == "Mannequin"
+            and str(getattr(source, "AvatarType", "")) == "ClothAvatar"
+            and str(getattr(source, "AvatarMeshProvider", "")) == "makehuman-hm08"
+            and str(getattr(source, "AvatarStatus", "")) == "Valid"
+        )
+        if managed_avatar:
+            return {"state": "ready", "message": "Drape target collision surface is current", "stale": False, "reason": "managed MakeHuman avatar owns mesh rebuild state"}
         return {
             "state": "stale",
             "message": "Drape target changed; rebuild collision surface before simulation",
