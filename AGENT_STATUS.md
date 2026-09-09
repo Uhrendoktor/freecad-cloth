@@ -6,7 +6,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main at cleanup start: `86eea3e33518dc82048d44677331d93407a0fe89`
+- Current main at cleanup start: `344d84fc8d4150a67b9e4a5ed7683728af23d801`
 - Structure migration PR: #408 (merged)
 - Module-tree cleanup: in progress
 - Python package boundary: `freecad_cloth/` with `avatar`, `pattern`, `sewing`, `simulation`, `common`, `shared` subpackages
@@ -38,6 +38,10 @@ Implementation modules belong under this package tree. `Init.py` and `InitGui.py
 - P1: sewing completion — #275.
 - P1: pattern production parity — #162, #360.
 - Later: production avatar fidelity #374; diagnostics/manufacturing #362; optional solver benchmark #148; P2 backend evaluation #404.
+
+## Active focused work
+
+- #298 native Sketcher GUI/XvFB acceptance on `agent/issue-298-sketcher-acceptance-20260909`; reuses the canonical workflow and adds no second CI workflow.
 
 ## Architecture / UX
 

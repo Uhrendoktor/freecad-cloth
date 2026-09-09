@@ -241,6 +241,18 @@ def canonical_garment_e2e():
     log("canonical-garment-e2e=passed")
 
 
+def native_sketcher_acceptance():
+    """Run native Sketcher constraint/expression acceptance in the same GUI process."""
+    path = os.path.join(ROOT, "tests", "freecad_sketcher_acceptance.py")
+    spec = importlib.util.spec_from_file_location("freecad_sketcher_acceptance", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("cannot load native Sketcher acceptance module")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.run_acceptance()
+    log("native-sketcher-acceptance=passed")
+
+
 exit_code = 0
 log("script-start")
 try:
@@ -255,6 +267,7 @@ try:
     exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
     events()
     canonical_garment_e2e()
+    native_sketcher_acceptance()
     pattern_and_sewing()
     simulation()
     log("scenario-pass")
