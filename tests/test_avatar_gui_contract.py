@@ -10,6 +10,7 @@ def test_avatar_panel_has_grouped_controls_and_lifecycle():
     assert "class AvatarTaskPanel" in source
     assert '"Body measurements"' in source
     assert '"Proportions"' in source
+    assert '"Avatar provider"' in source
     assert '"Pose"' in source
     assert '"Display"' in source
     assert '"Arrangement points"' in source
@@ -28,6 +29,16 @@ def test_avatar_panel_stages_values_and_validates_before_mutation():
     assert "self.avatar.PosePreset = params.pose.preset" in source
     assert "self.avatar.SkinOffset = params.skin_offset" in source
     assert "from freecad_cloth.avatar.AvatarCommands import rebuild_avatar" in source
+
+
+def test_avatar_panel_exposes_provider_swap_without_replacing_avatar_object():
+    assert '"makehuman-hm08", "MakeHuman HM08 humanoid mesh"' in source
+    assert '"freecad-geometry", "FreeCAD body / imported geometry"' in source
+    assert "Use selected FreeCAD object" in source
+    assert "self.avatar.AvatarProviderId = provider_id" in source
+    assert "self.avatar.ProviderSource = provider_source if provider_id == \"freecad-geometry\" else None" in source
+    assert "def set_avatar_provider(provider_id, source=None):" in commands
+    assert "provider_id not in PROVIDER_IDS" in commands
 
 
 def test_avatar_panel_uses_explicit_property_mapping():
@@ -53,6 +64,7 @@ def test_avatar_panel_exposes_persistent_fitting_points():
 def test_avatar_edit_command_is_publicly_registered():
     assert "ClothFitting_EditAvatar" in commands
     assert '"ClothFitting_EditAvatar": edit_avatar' in commands
+    assert "ClothFitting_SetAvatarProvider" in commands
 
 
 if __name__ == "__main__":
