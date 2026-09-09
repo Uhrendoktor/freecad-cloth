@@ -10,7 +10,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - Structure migration PR: #408 (merged)
 - Module-tree cleanup: in progress
 - Python package boundary: `freecad_cloth/` with `avatar`, `pattern`, `sewing`, `simulation`, `common`, `shared` subpackages
-- Root Python entry points: `Init.py` (marker), `InitGui.py` (FreeCAD GUI bootstrap)
+- Root Python files: `Init.py`, `InitGui.py`, and interpreter-level `sitecustomize.py` only
 - Canonical CI: `.github/workflows/canonical-execution.yml`
 - CI policy: preserve the Docker/Xvfb FreeCAD screenshot/PNG path; never add a second workflow.
 
@@ -27,7 +27,7 @@ freecad_cloth/
 └── gui.py         — ClothWorkbenchBase shared base class
 ```
 
-Implementation modules belong under this package tree. Only `Init.py` and `InitGui.py` remain at repository root because FreeCAD discovers those bootstrap files in a directly installed `Mod` directory.
+Implementation modules belong under this package tree. `Init.py` and `InitGui.py` remain at repository root because FreeCAD discovers those bootstrap files in a directly installed `Mod` directory. Root `sitecustomize.py` is an interpreter/CI hook, not Cloth domain implementation.
 
 ## Release gates
 
@@ -49,9 +49,9 @@ Task panels use Context → Primary action → Secondary actions → Parameters 
 
 ## Structure migration
 
-The package boundary is now the canonical implementation architecture. There are no root-level Pattern/Sewing/Avatar/Drape/Simulation implementation modules and no root compatibility shims. Internal callers and tests use fully qualified `freecad_cloth.<package>.<module>` imports. `Init.py` and `InitGui.py` are bootstrap adapters only.
+The package tree is the canonical implementation architecture. There are no root-level Pattern/Sewing/Avatar/Drape/Simulation implementation modules and no root compatibility shims. Internal callers and tests use fully qualified `freecad_cloth.<package>.<module>` imports. `Init.py` and `InitGui.py` are bootstrap adapters only.
 
-The target-neutral `DrapeTarget` implementation lives in `freecad_cloth.simulation.DrapeTarget`; the duplicated pattern copy is removed as part of this cleanup.
+The target-neutral `DrapeTarget` implementation lives in `freecad_cloth.simulation.DrapeTarget`; duplicate copies in `freecad_cloth.pattern` are removed. Common diagnostics have one owner under `freecad_cloth.common`.
 
 ## Agent rules
 
