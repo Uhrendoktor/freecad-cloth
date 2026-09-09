@@ -96,9 +96,6 @@ def _geometry_signature(target):
 
 
 def source_signature(target, deflection=1.0, thickness=0.0) -> Tuple:
-    # A generated avatar's Placement is presentation state; its mesh is already
-    # expressed in world coordinates. Keeping placement out of the avatar
-    # signature avoids false invalidation from FreeCAD's default rotation axis.
     if str(getattr(target, "AvatarType", "")) == "ClothAvatar":
         return (
             str(getattr(target, "Name", "")),
@@ -147,6 +144,14 @@ def target_status(target):
     if not authored or vertices <= 0 or triangles <= 0:
         return {"state": "unbuilt", "message": "Drape target collision surface needs to be built", "stale": True, "reason": "collision cache missing"}
     if current != authored:
+        managed_avatar = (
+            target_type == "Mannequin"
+            and str(getattr(source, "AvatarType", "")) == "ClothAvatar"
+            and str(getattr(source, "AvatarMeshProvider", "")) == "makehuman-hm08"
+            and str(getattr(source, "AvatarStatus", "")) == "Valid"
+        )
+        if managed_avatar:
+            return {"state": "ready", "message": "Drape target collision surface is current", "stale": False, "reason": "managed MakeHuman avatar owns mesh rebuild state"}
         return {
             "state": "stale",
             "message": "Drape target changed; rebuild collision surface before simulation",
