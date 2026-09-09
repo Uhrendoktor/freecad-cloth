@@ -48,6 +48,9 @@ def apply_quality_preset(scene, name=None):
     scene.ParticleDistance = quality.particle_distance
     scene.SolverIterations = quality.solver_iterations
     scene.SolverSubsteps = quality.substeps
+    touch = getattr(scene, "touch", None)
+    if callable(touch):
+        touch()
     return quality
 
 
