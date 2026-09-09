@@ -70,7 +70,7 @@ def ensure_task_view_visible():
 def validate_task(panel, name, required):
     events(); ensure_task_view_visible(); events()
     if not panel.form.isVisible():
-        log("task-panel-hidden name=%s active=%s parent=%s; retrying form.show()" % (
+        log("task-panel-hidden name=%s active=%s parent=%s" % (
             name, bool(Gui.Control.activeDialog()), type(panel.form.parentWidget()).__name__ if panel.form.parentWidget() else "None"))
         panel.form.show(); panel.form.setVisible(True); panel.form.raise_(); panel.form.activateWindow(); events()
     visible = panel.form.isVisible() or panel.form.isVisibleTo(Gui.getMainWindow())
@@ -193,14 +193,15 @@ def simulation():
 
 
 def native_sketcher_acceptance():
-    """Run the native Sketcher constraint acceptance in the current FreeCAD session."""
+    """Run the native Sketcher constraint acceptance in a fresh outer document."""
     path = os.path.join(ROOT, "tests", "freecad_pattern_constraints_smoke.py")
     spec = importlib.util.spec_from_file_location("freecad_pattern_constraints_smoke", path)
     if spec is None or spec.loader is None:
         raise RuntimeError("cannot load native Sketcher acceptance module")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    module.main()
+    doc = App.newDocument("PatternConstraintAcceptance")
+    module.main(doc)
 
 
 exit_code = 0
