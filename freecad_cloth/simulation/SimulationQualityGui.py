@@ -77,6 +77,7 @@ class SimulationQualityTaskPanel:
             setattr(self.scene, name, value)
         self.scene.Document.recompute()
         self._load_widgets_only()
+        self._refresh()
 
     def _load_widgets_only(self):
         if self.scene is None:
@@ -112,7 +113,13 @@ class SimulationQualityTaskPanel:
         self.scene.ParticleDistance = self.particle_distance.value(); self.scene.SolverIterations = self.iterations.value(); self.scene.SolverSubsteps = self.substeps.value(); self.scene.FabricDensity = self.density.value(); self.scene.FabricThickness = self.thickness.value(); self.scene.FabricStretch = self.stretch.value(); self.scene.FabricShear = self.shear.value(); self.scene.FabricBend = self.bend.value(); self.scene.FabricFriction = self.friction.value(); self.scene.AvatarSkinOffset = self.skin_offset.value(); self.scene.CollisionRadius = self.collision_radius.value(); self.scene.Document.recompute(); self._refresh("Changes are applied live. Cancel restores the panel-open state.")
 
     def step(self, count):
-        scene = self._ensure_scene(); self._parameters_changed(); scene.Steps = int(scene.Steps) + int(count); scene.Document.recompute(); self.steps.setValue(int(scene.Steps)); self._refresh()
+        scene = self._ensure_scene()
+        from freecad_cloth.simulation.DrapeTarget import target_status
+        status = target_status(getattr(scene, "DrapeTarget", None))
+        if status["state"] in {"stale", "unbuilt", "unassigned", "invalid", "missing"}:
+            self._refresh()
+            raise RuntimeError(status["message"])
+        self._parameters_changed(); scene.Steps = int(scene.Steps) + int(count); scene.Document.recompute(); self.steps.setValue(int(scene.Steps)); self._refresh()
         if self.Gui.activeDocument(): self.Gui.activeDocument().activeView().fitAll()
 
     def reset(self):
@@ -122,8 +129,31 @@ class SimulationQualityTaskPanel:
         self.steps.setValue(0); self._refresh("Simulation reset; quality and fabric values retained.")
 
     def _refresh(self, message=None):
-        if self.scene is None: self.status.setText(message or "Create or select a Cloth Simulation object."); return
-        self.status.setText(message or "State: %s | %.3f s | %d particles | %d steps | %s" % ("ready" if bool(getattr(self.scene, "FiniteState", True)) else "invalid/non-finite", float(getattr(self.scene, "SimulatedTime", 0.0)), int(getattr(self.scene, "ParticleCount", 0)), int(getattr(self.scene, "Steps", 0)), str(getattr(self.scene, "QualityPreset", "Balanced"))))
+        if self.scene is None:
+            self.step_button.setEnabled(False); self.run_button.setEnabled(False); self.reset_button.setEnabled(False)
+            self.status.setText(message or "Create or select a Cloth Simulation object.")
+            return
+        from freecad_cloth.simulation.DrapeTarget import target_status
+        target = getattr(self.scene, "DrapeTarget", None)
+        target_info = target_status(target)
+        blocked = target_info["state"] in {"stale", "unbuilt", "unassigned", "invalid", "missing"}
+        self.step_button.setEnabled(not blocked)
+        self.run_button.setEnabled(not blocked)
+        self.reset_button.setEnabled(True)
+        if blocked:
+            text = "Simulation blocked — %s" % target_info["message"]
+        elif message:
+            text = message
+        else:
+            text = "State: %s | %.3f s | %d particles | %d steps | %s | target: %s" % (
+                "ready" if bool(getattr(self.scene, "FiniteState", True)) else "invalid/non-finite",
+                float(getattr(self.scene, "SimulatedTime", 0.0)),
+                int(getattr(self.scene, "ParticleCount", 0)),
+                int(getattr(self.scene, "Steps", 0)),
+                str(getattr(self.scene, "QualityPreset", "Balanced")),
+                target_info["state"],
+            )
+        self.status.setText(text)
 
     def accept(self):
         if self.scene is not None: self._parameters_changed(); self._capture_snapshot()
