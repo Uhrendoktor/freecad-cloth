@@ -69,7 +69,7 @@ def _material(scene):
 
 
 class QualitySimulationProxy:
-    """Wrap the existing deterministic proxy without duplicating document plumbing."""
+    """Wrap the deterministic simulation proxy with quality/material behavior."""
 
     Type = "ClothSimulation"
 
@@ -98,7 +98,7 @@ class QualitySimulationProxy:
         pieces = [p for p in getattr(obj, "ClothPieces", ()) if getattr(p, "PatternType", "") == "PatternPiece"]
         if self._base.backend is None or signature != self._base.source_signature or int(obj.Steps) < self._base.last_steps:
             if pieces:
-                self._base._build_pattern_scene(obj, pieces, signature)
+                self._build_pattern_scene(obj, pieces, signature)
             else:
                 self._build_demo(obj, signature)
             self._apply_material(obj)
@@ -129,6 +129,20 @@ class QualitySimulationProxy:
         obj.SimulatedTime = self._base.backend.time
         obj.ParticleCount = len(positions)
         obj.FiniteState = self._base.backend.finite()
+
+    def _build_pattern_scene(self, obj, pieces, signature):
+        """Use the authoritative base scene builder with quality tessellation."""
+        from freecad_cloth.simulation import SimulationObjects
+        from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
+
+        previous = SimulationObjects._piece_mesh
+        SimulationObjects._piece_mesh = lambda piece, start_height: quality_piece_mesh(
+            piece, start_height, float(obj.ParticleDistance)
+        )
+        try:
+            return self._base._build_pattern_scene(obj, pieces, signature)
+        finally:
+            SimulationObjects._piece_mesh = previous
 
     def _build_demo(self, obj, signature):
         from freecad_cloth.simulation.ClothBackend import default_backend_registry
