@@ -114,12 +114,8 @@ def _assert_ir_preserves_native_curves(sketch, piece_id, document):
 def main():
     mark("start")
     # InitGui.py has already been executed by the canonical GUI runner. Avoid
-    # querying or switching workbenches here; both can terminate FreeCAD 1.1
-    # when invoked from an already initialized GUI acceptance process.
-    from freecad_cloth.pattern.workbench import ClothPatternWorkbench
-    ClothPatternWorkbench().Initialize()
-    mark("workbench-initialized")
-
+    # re-entering any GUI workbench discovery/initialization here; the command
+    # is already registered by the shared session.
     doc = App.newDocument("PatternConstraintAcceptance")
     assert "ClothPattern_CreatePieceWithSketch" in Gui.listCommands()
     mark("creating-piece-command")
