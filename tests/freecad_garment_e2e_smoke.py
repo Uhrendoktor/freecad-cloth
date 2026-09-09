@@ -77,7 +77,6 @@ def _make_curved(piece, doc):
         Sketcher.Constraint("Coincident", 3, 2, 0, 1),
         Sketcher.Constraint("Horizontal", 0),
         Sketcher.Constraint("Vertical", 3),
-        Sketcher.Constraint("Tangent", 1, 2, 2, 1),
     ])
     doc.recompute()
     if sketch.Shape.isNull() or piece.Shape.isNull():
