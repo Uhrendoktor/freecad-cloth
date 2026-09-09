@@ -1,4 +1,5 @@
 """Deterministic FreeCAD GUI screenshots; run under Xvfb with software rendering."""
+import importlib.util
 import os
 import sys
 import traceback
@@ -238,6 +239,18 @@ def simulation():
     App.closeDocument(doc.Name)
 
 
+def canonical_garment_e2e():
+    """Run the P0 multi-workbench garment lifecycle in this GUI process."""
+    path = os.path.join(ROOT, "tests", "freecad_garment_e2e_smoke.py")
+    spec = importlib.util.spec_from_file_location("freecad_garment_e2e_smoke", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("cannot load canonical garment acceptance module")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.run_acceptance()
+    log("canonical-garment-e2e=passed")
+
+
 exit_code = 0
 log("script-start")
 try:
@@ -251,6 +264,7 @@ try:
     init_gui = os.path.join(ROOT, "InitGui.py")
     exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
     events()
+    canonical_garment_e2e()
     pattern_and_sewing()
     simulation()
     log("scenario-pass")
