@@ -67,6 +67,12 @@ def _geometry_signature(target):
         return mesh_signature
     shape = getattr(target, "Shape", None)
     if shape is not None:
+        hash_code = getattr(shape, "hashCode", None)
+        if callable(hash_code):
+            try:
+                return ("ShapeHash", int(hash_code()))
+            except (TypeError, ValueError):
+                pass
         tessellate = getattr(shape, "tessellate", None)
         if callable(tessellate):
             try:
@@ -85,12 +91,6 @@ def _geometry_signature(target):
                         round(float(box.ZMin), 6), round(float(box.ZMax), 6),
                     )
             except (AttributeError, TypeError, ValueError):
-                pass
-        hash_code = getattr(shape, "hashCode", None)
-        if callable(hash_code):
-            try:
-                return ("ShapeHash", int(hash_code()))
-            except (TypeError, ValueError):
                 pass
     return ("Unknown",)
 
@@ -154,8 +154,7 @@ def target_status(target):
             return {"state": "ready", "message": "Drape target collision surface is current", "stale": False, "reason": "managed MakeHuman avatar owns mesh rebuild state"}
         return {
             "state": "stale",
-            "message": "Drape target changed; rebuild collision surface before simulation (type=%s source=%s avatar=%s provider=%s status=%s)" % (
-                target_type, str(getattr(source, "Name", "")), str(getattr(source, "AvatarType", "")), str(getattr(source, "AvatarMeshProvider", "")), str(getattr(source, "AvatarStatus", ""))),
+            "message": "Drape target changed; rebuild collision surface before simulation",
             "stale": True,
             "reason": "source, placement, tessellation or collision thickness changed",
             "signature_current": current,
