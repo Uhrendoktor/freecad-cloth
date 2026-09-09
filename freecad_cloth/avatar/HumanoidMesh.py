@@ -218,10 +218,17 @@ def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
         (1.0, target_radius["shoulder"] / base_radius["shoulder"]),
     ]
 
+    skin_offset = float(parameters.skin_offset)
     fitted = []
     for x, y, z in source:
         radial = _profile_scale(z, profile_points)
-        fitted.append((x * base_scale * radial, y * base_scale * radial, z * height_mm))
+        x_mm = x * base_scale * radial
+        y_mm = y * base_scale * radial
+        radius = math.hypot(x_mm, y_mm)
+        if radius > 1e-9 and skin_offset:
+            x_mm += x_mm / radius * skin_offset
+            y_mm += y_mm / radius * skin_offset
+        fitted.append((x_mm, y_mm, z * height_mm))
 
     pose = parameters.pose
     shoulder_z = height_mm * 0.76
