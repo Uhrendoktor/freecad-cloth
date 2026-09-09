@@ -1,4 +1,4 @@
-"""FreeCAD boundary integration for simulation quality and fabric controls.""""
+"""FreeCAD boundary integration for simulation quality and fabric controls."""
 from math import ceil
 
 from freecad_cloth.simulation.SimulationQuality import FabricMaterial, QUALITY_PRESETS, preset
