@@ -131,16 +131,19 @@ class AvatarFittingTests(unittest.TestCase):
         try:
             avatar = create_avatar()
             self.assertEqual(avatar.AvatarType, "ClothAvatar")
+            self.assertEqual(avatar.AvatarMeshProvider, "makehuman-hm08")
             self.assertEqual(avatar.AvatarStatus, "Valid")
-            self.assertFalse(avatar.Shape.isNull())
+            self.assertGreater(int(avatar.Mesh.CountPoints), 100)
+            self.assertGreater(int(avatar.Mesh.CountFacets), 100)
             self.assertGreaterEqual(len(avatar.Landmarks), 6)
             self.assertEqual(len(avatar.ArrangementPoints), len(avatar.Landmarks))
-            original_shape = avatar.Shape.copy()
+            original_mesh = tuple((round(float(p.x), 3), round(float(p.y), 3), round(float(p.z), 3)) for p in list(avatar.Mesh.Points)[:12])
             original_chest = float(avatar.Chest)
 
             avatar.Chest = original_chest + 40.0
             rebuild_avatar()
-            self.assertNotEqual(avatar.Shape.hashCode(), original_shape.hashCode())
+            rebuilt_mesh = tuple((round(float(p.x), 3), round(float(p.y), 3), round(float(p.z), 3)) for p in list(avatar.Mesh.Points)[:12])
+            self.assertNotEqual(rebuilt_mesh, original_mesh)
             self.assertEqual(float(avatar.Chest), original_chest + 40.0)
             self.assertEqual(avatar.AvatarStatus, "Valid")
             self.assertTrue(avatar.ParametersJSON)
@@ -155,10 +158,12 @@ class AvatarFittingTests(unittest.TestCase):
             restored = doc.getObject("ClothAvatar")
             self.assertIsNotNone(restored)
             self.assertEqual(restored.AvatarType, "ClothAvatar")
+            self.assertEqual(restored.AvatarMeshProvider, "makehuman-hm08")
             self.assertEqual(restored.AvatarStatus, "Valid")
             self.assertAlmostEqual(float(restored.Chest), original_chest + 40.0)
             self.assertEqual(len(restored.ArrangementPoints), len(restored.Landmarks))
-            self.assertFalse(restored.Shape.isNull())
+            self.assertGreater(int(restored.Mesh.CountPoints), 100)
+            self.assertGreater(int(restored.Mesh.CountFacets), 100)
         finally:
             if doc is not None and doc.Name in App.listDocuments():
                 App.closeDocument(doc.Name)
