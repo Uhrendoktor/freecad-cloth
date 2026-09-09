@@ -42,6 +42,10 @@ def _constraint_type(sketch, index):
     return str(getattr(sketch.Constraints[index], "Type", ""))
 
 
+def _constraint_name(sketch, index):
+    return str(getattr(sketch.Constraints[index], "Name", ""))
+
+
 def _make_curved_piece_sketch(piece, doc):
     """Use native Sketcher geometry as the actual PatternPiece geometry authority."""
     sketch = piece.Sketch
@@ -78,6 +82,8 @@ def _make_curved_piece_sketch(piece, doc):
         raise RuntimeError("curved PatternPiece did not produce native geometry")
     if _constraint_type(sketch, width_index) != "Distance" or _constraint_type(sketch, height_index) != "Distance":
         raise RuntimeError("native dimensional constraints were not retained")
+    if _constraint_name(sketch, width_index) != "PieceWidth" or _constraint_name(sketch, height_index) != "PieceHeight":
+        raise RuntimeError("named Sketcher dimensions were not retained")
     if abs(float(sketch.getDatum(height_index)) - 50.0) > 1e-6:
         raise RuntimeError("named Sketcher height did not initialize to the expected value")
     if abs(float(sketch.getDatum(width_index)) - 100.0) > 1e-6:
@@ -120,6 +126,8 @@ def _exercise_constraint_families(doc, reference_sketch):
     doc.recompute()
     if abs(float(audit.getDatum(audit_scaled)) - 20.0) > 1e-6:
         raise RuntimeError("native Sketcher expression did not evaluate")
+    if _constraint_name(audit, audit_span) != "AuditSpan" or _constraint_name(audit, audit_scaled) != "AuditScaled":
+        raise RuntimeError("named native Sketcher expression drivers were not retained")
 
     geometry_count = len(audit.Geometry)
     audit.addExternal(reference_sketch.Name, "Edge1")
@@ -172,6 +180,7 @@ def run_acceptance():
         original_piece_id = str(curved.PieceId)
         original_height = float(curved_sketch.getDatum(height_index))
         seam_id = str(seam.SeamId)
+        semantic_ids = tuple(str(item) for item in curved_sketch.SemanticEdgeIds)
 
         with tempfile.TemporaryDirectory() as directory:
             path = os.path.join(directory, "native-sketcher-acceptance.FCStd")
@@ -187,16 +196,20 @@ def run_acceptance():
                 raise RuntimeError("Sketcher authority flag did not survive save/reload")
             if str(sketch.GeometryAuthority) != "Sketcher":
                 raise RuntimeError("Sketcher source authority did not survive save/reload")
+            if tuple(str(item) for item in sketch.SemanticEdgeIds) != semantic_ids:
+                raise RuntimeError("Cloth semantic edge ids did not survive save/reload")
             if abs(float(sketch.getDatum(width_index)) - 100.0) > 1e-6:
                 raise RuntimeError("named width dimensional constraint did not survive save/reload")
             if abs(float(sketch.getDatum(height_index)) - original_height) > 1e-6:
                 raise RuntimeError("named height dimensional constraint did not survive save/reload")
+            if _constraint_name(sketch, width_index) != "PieceWidth" or _constraint_name(sketch, height_index) != "PieceHeight":
+                raise RuntimeError("named PatternPiece Sketcher dimensions did not survive save/reload")
             audit = reloaded.getObject("SketchConstraintAudit")
             if audit is None or not getattr(audit, "ExternalGeometry", ()):
                 raise RuntimeError("external Sketcher reference did not survive save/reload")
             if not bool(audit.GeometryFacadeList[2].Construction):
                 raise RuntimeError("construction geometry state did not survive save/reload")
-            if audit.Constraints[audit_span].Name != "AuditSpan" or audit.Constraints[audit_scaled].Name != "AuditScaled":
+            if _constraint_name(audit, audit_span) != "AuditSpan" or _constraint_name(audit, audit_scaled) != "AuditScaled":
                 raise RuntimeError("named expression driver constraints did not survive save/reload")
             if abs(float(audit.getDatum(audit_scaled)) - 20.0) > 1e-6:
                 raise RuntimeError("native Sketcher expression result did not survive save/reload")
