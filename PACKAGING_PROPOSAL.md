@@ -1,105 +1,56 @@
-# Packaging and module architecture proposal
+# Packaging and module architecture
 
-This proposal recommends a package-oriented Python architecture while preserving FreeCAD's external-workbench discovery contract.
+The repository uses a package-oriented Python architecture with a thin FreeCAD bootstrap at the repository root. The package tree is the canonical home of implementation code.
 
-## Current state
-
-The repository is a classic FreeCAD `Mod` workbench: `Init.py` and `InitGui.py` live at the workbench root, while most implementation is currently a flat collection of `Pattern*`, `Sewing*`, `Avatar*`, and cloth/simulation modules.
-
-## Target architecture
-
-The project has **three user-facing workbenches** and shared domain infrastructure:
+## Current architecture
 
 ```text
 freecad-cloth/
 ├── Init.py
 ├── InitGui.py
-├── package.xml
 ├── pyproject.toml
 ├── freecad_cloth/
 │   ├── __init__.py
-│   │
+│   ├── gui.py
 │   ├── common/
-│   │   ├── __init__.py
-│   │   ├── geometry.py
-│   │   ├── topology.py
-│   │   ├── units.py
-│   │   ├── errors.py
-│   │   └── freecad.py
-│   │
+│   ├── shared/
 │   ├── pattern/
-│   │   ├── __init__.py
-│   │   ├── workbench.py
-│   │   ├── model.py
-│   │   ├── geometry.py
-│   │   ├── objects.py
-│   │   ├── drafting.py
-│   │   ├── mesh.py
-│   │   ├── commands.py
-│   │   └── gui/
-│   │
 │   ├── sewing/
-│   │   ├── __init__.py
-│   │   ├── workbench.py
-│   │   ├── model.py
-│   │   ├── assembly.py
-│   │   ├── constraints.py
-│   │   ├── correspondence.py
-│   │   ├── network.py
-│   │   ├── commands.py
-│   │   └── gui/
-│   │
 │   ├── avatar/
-│   │   ├── __init__.py
-│   │   ├── workbench.py
-│   │   ├── model.py
-│   │   ├── fitting.py
-│   │   ├── collision.py
-│   │   ├── commands.py
-│   │   └── gui/
-│   │
 │   └── simulation/
-│       ├── __init__.py
-│       ├── solver.py
-│       ├── backend.py
-│       └── drape.py
-│
 └── tests/
-    ├── common/
-    ├── pattern/
-    ├── sewing/
-    ├── avatar/
-    └── simulation/
 ```
 
-The names above are architectural targets, not a requirement to split every existing file one-for-one. Existing modules should be grouped by responsibility as they are migrated.
+`Init.py` and `InitGui.py` are the only Python files intentionally kept at the workbench root because FreeCAD discovers them when the repository is installed directly into a `Mod` directory. Every command, model, adapter, solver, target, GUI module, and other implementation belongs under `freecad_cloth/`.
 
-### Why three workbench packages?
+## Package responsibilities
 
-`pattern`, `sewing`, and `avatar` represent user-facing FreeCAD workbench domains. Each owns its workbench registration, commands, domain model, and GUI integration.
+`freecad_cloth.pattern` owns pattern geometry, PatternPiece/PatternIR, Sketcher integration, pattern objects, drafting, derived geometry, export, commands, and pattern GUI.
 
-The current `ClothBackend.py` and `ClothSolver.py` look primarily like simulation infrastructure rather than a separate user-facing workbench. Therefore the proposal calls that layer `simulation` for now. If product requirements establish a distinct Cloth workbench, it can become `freecad_cloth.cloth` without changing the package/bootstrap principle.
+`freecad_cloth.sewing` owns sewing semantics, references, graph/network data, assembly/constraints/correspondence, commands, views, and sewing GUI.
 
-### Why a shared `common` package?
+`freecad_cloth.avatar` owns mannequin/avatar models, providers, collision and fitting behavior, commands, and avatar GUI.
 
-Shared functionality should have explicit responsibility-based modules rather than a catch-all `utils.py`. Examples include geometry, topology, units, errors, and small FreeCAD adapters. Workbench-specific behavior must stay in its owning package even when another package happens to call it.
+`freecad_cloth.simulation` owns cloth simulation, solver state, draping, the target-neutral `DrapeTarget`, stale-state guards, diagnostics, quality/material lifecycle, commands, and simulation GUI.
 
-Prefer this dependency direction:
+`freecad_cloth.common` and `freecad_cloth.shared` contain only genuinely shared contracts/utilities. They must not become alternate homes for workbench-specific behavior.
+
+## Dependency direction
 
 ```text
-pattern ─┐
-sewing  ─┼──> common
-avatar  ──┘
-simulation ──> common
+Pattern ───┐
+Sewing ────┼──> common/shared
+Avatar ────┤
+Simulation ┘
+
+PatternPiece → PatternIR/SewingGraph → SimulationScene/DrapeTarget → derived solver state
 ```
 
-and avoid `common -> pattern/sewing/avatar` and unnecessary cycles between workbench packages.
+Do not create reciprocal imports between unrelated workbench packages, and do not duplicate a shared module in another workbench package.
 
-## FreeCAD compatibility
+## FreeCAD bootstrap
 
-The root `Init.py` and `InitGui.py` remain the FreeCAD entry points. They become thin adapters that import the appropriate workbench implementation from `freecad_cloth`. `__init__.py` is a normal Python package initializer and does **not** replace FreeCAD's bootstrap files.
-
-The installed Addon Manager/`Mod` layout therefore remains conceptually:
+The installed `Mod/freecad-cloth/` layout remains:
 
 ```text
 Mod/freecad-cloth/
@@ -109,41 +60,22 @@ Mod/freecad-cloth/
 └── freecad_cloth/
 ```
 
-This permits normal Python package imports while retaining the established FreeCAD discovery mechanism. A migration should be validated with an actual FreeCAD startup and Addon Manager installation before changing any loader behavior.
+`InitGui.py` imports the package-owned workbench registration classes. It does not own Pattern, Sewing, Avatar, or Simulation implementation logic.
 
-## GUI and domain separation
+## Import policy
 
-GUI code should depend on domain code, not contain the domain implementation itself. A workbench may therefore evolve toward:
+Internal code and tests use fully qualified package imports:
 
-```text
-pattern/
-├── model.py
-├── geometry.py
-├── objects.py
-├── commands.py
-└── gui/
-    ├── panels.py
-    ├── views.py
-    └── commands.py
+```python
+from freecad_cloth.pattern.PatternCommands import create_pattern_piece
+from freecad_cloth.sewing.SewingNetworkCommands import create_sewing_network
+from freecad_cloth.simulation.DrapeTarget import target_status
 ```
 
-The same principle applies to Sewing and Avatar. This enables headless unit tests for host-independent algorithms and limits FreeCAD/PySide imports to integration boundaries where practical.
+Do not add top-level compatibility modules such as `PatternCommands.py` or `SewingNetworkCommands.py`. A historical import is migrated at its call site rather than restored as a second import surface.
 
 ## Packaging direction
 
-Once the namespace migration exists, `pyproject.toml` should use PEP 621 metadata with setuptools package discovery for `freecad_cloth*`. FreeCAD should not be declared as a PyPI runtime dependency because it is provided by the host application.
+`pyproject.toml` should discover `freecad_cloth*` packages with setuptools. FreeCAD remains a host-provided runtime and is not a PyPI dependency.
 
-Until the namespace migration is implemented, the current `py-modules = []` configuration is intentionally only a packaging guard. It should not be interpreted as the desired final packaging model.
-
-## Migration sequence
-
-1. Introduce `freecad_cloth/` and the three workbench packages without changing FreeCAD discovery.
-2. Add thin compatibility imports in root `Init.py`/`InitGui.py`.
-3. Move one domain at a time, preserving behavior and imports at each step.
-4. Extract genuinely shared code into `common`; do not move workbench-specific code there merely for convenience.
-5. Separate GUI/integration code from domain algorithms where practical.
-6. Add headless tests for host-independent code and FreeCAD smoke tests for registration/loading.
-7. Switch setuptools from the temporary guard to normal package discovery only after the namespace layout is working in FreeCAD.
-8. Consider wheel/pip installation only after Addon Manager and `Mod` installation have been validated.
-
-This is intentionally an architecture proposal rather than a mass file move, so it can be reviewed independently of active workbench implementation PRs.
+The canonical CI workflow validates both the Python package namespace and real FreeCAD/Xvfb startup. Do not add a second workflow or weaken the existing acceptance path.
