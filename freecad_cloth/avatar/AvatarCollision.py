@@ -4,7 +4,6 @@ The model layer deliberately does not import FreeCAD.  ``surface_from_freecad``
 is the small GUI/runtime bridge used by the document workbench.
 """
 from dataclasses import dataclass
-from math import sqrt
 from typing import Tuple
 
 
@@ -59,23 +58,25 @@ class AvatarSpec:
 def surface_from_freecad(obj, deflection: float = 1.0, thickness: float = 0.0) -> CollisionSurface:
     """Convert a FreeCAD shape/mesh object into a deterministic triangle surface.
 
-    The import is intentionally lazy so headless model tests never require a
-    FreeCAD installation.  Part shapes use OCC tessellation; Mesh::Feature
-    objects are consumed through their mesh topology when no Shape is exposed.
+    Mesh::Feature is consumed from its authored topology first. This avoids
+    depending on transient OCC Shape generation for native mesh avatars and
+    keeps the collision source identical to the visible mesh.
     """
     if deflection <= 0:
         raise ValueError("deflection must be positive")
-    if hasattr(obj, "Shape") and not obj.Shape.isNull():
+    mesh = getattr(obj, "Mesh", None)
+    topology = getattr(mesh, "Topology", None) if mesh is not None else None
+    if topology is not None:
+        try:
+            raw_vertices, raw_faces = topology
+            points = tuple((float(v.x), float(v.y), float(v.z)) for v in raw_vertices)
+            triangles = tuple(tuple(int(i) for i in face) for face in raw_faces)
+        except (TypeError, ValueError, AttributeError) as exc:
+            raise ValueError("FreeCAD object has unusable Mesh topology") from exc
+    elif hasattr(obj, "Shape") and not obj.Shape.isNull():
         vertices, faces = obj.Shape.tessellate(float(deflection))
         points = tuple((float(v.x), float(v.y), float(v.z)) for v in vertices)
         triangles = tuple(tuple(int(i) for i in face) for face in faces)
-    elif hasattr(obj, "Mesh"):
-        topology = getattr(obj.Mesh, "Topology", None)
-        if topology is None:
-            raise ValueError("FreeCAD object has no usable Shape or Mesh topology")
-        raw_vertices, raw_faces = topology
-        points = tuple((float(v.x), float(v.y), float(v.z)) for v in raw_vertices)
-        triangles = tuple(tuple(int(i) for i in face) for face in raw_faces)
     else:
         raise TypeError("expected a FreeCAD shape or mesh object")
     surface = CollisionSurface(points, triangles, getattr(obj, "Label", "body") or "body", float(thickness))
