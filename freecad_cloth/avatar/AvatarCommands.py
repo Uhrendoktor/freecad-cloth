@@ -34,37 +34,27 @@ def _parameters(obj):
     return AvatarParameters(values, float(obj.SkinOffset), pose)
 
 
-def _mesh_shape(vertices, triangles):
-    """Convert a triangle mesh to a FreeCAD Shape without primitive solids."""
+def _mesh_data(vertices, triangles):
+    """Build the native FreeCAD mesh directly from the humanoid topology.
+
+    A high-resolution humanoid should remain a mesh in FreeCAD. Converting the
+    full MakeHuman surface to an OCC Part shape is unnecessarily expensive and
+    can block the GUI for tens of seconds while providing no benefit for cloth
+    collision, which already consumes triangle meshes.
+    """
     import FreeCAD as App
     import Mesh
+
     native = Mesh.Mesh()
     vectors = [App.Vector(*point) for point in vertices]
-    for a, b, c in triangles:
-        native.addFacet(vectors[a], vectors[b], vectors[c])
-    try:
-        import ArchCommands
-        shape = ArchCommands.meshToShape(native, mark=False, fast=True, tol=0.05, flat=False, cut=False)
-        if hasattr(shape, "Shape"):
-            shape = shape.Shape
-        if shape is not None and not shape.isNull():
-            return shape
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        pass
-    # The fallback is still a faceted mesh surface: each face is derived from
-    # the supplied humanoid topology, never a cylinder/sphere/cone primitive.
-    import Part
-    faces = []
-    for a, b, c in triangles:
-        wire = Part.makePolygon([vectors[a], vectors[b], vectors[c], vectors[a]])
-        faces.append(Part.Face(wire))
-    return Part.makeCompound(faces)
+    native.addFacets([(vectors[a], vectors[b], vectors[c]) for a, b, c in triangles])
+    return native
 
 
 def _rebuild(obj):
     params = _parameters(obj)
     vertices, triangles, landmarks = generate_mesh(params)
-    obj.Shape = _mesh_shape(vertices, triangles)
+    obj.Mesh = _mesh_data(vertices, triangles)
     obj.ParametersJSON = params.to_json()
     obj.AvatarStatus = "Valid"
     obj.AvatarMeshProvider = "makehuman-hm08"
@@ -110,7 +100,7 @@ def create_avatar():
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
     obj = _avatar(doc)
     if obj is None:
-        obj = doc.addObject("Part::Feature", "ClothAvatar")
+        obj = doc.addObject("Mesh::Feature", "ClothAvatar")
         obj.Label = "Cloth Human Avatar"
         _set_prop(obj, "App::PropertyString", "AvatarType", "Avatar", "ClothAvatar")
         _set_prop(obj, "App::PropertyString", "SchemaVersion", "Avatar", "1")
