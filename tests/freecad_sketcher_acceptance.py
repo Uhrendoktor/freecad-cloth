@@ -95,6 +95,8 @@ def _exercise_constraint_families(doc, reference_sketch):
         Part.LineSegment(App.Vector(20, -15, 0), App.Vector(20, 45, 0)),
         Part.Point(App.Vector(10, 0, 0)),
         Part.Point(App.Vector(30, 0, 0)),
+        Part.LineSegment(App.Vector(0, 70, 0), App.Vector(40, 70, 0)),
+        Part.LineSegment(App.Vector(0, 80, 0), App.Vector(20, 80, 0)),
     ]
     audit.addGeometry(lines, False)
     audit.toggleConstruction(2)
@@ -104,10 +106,11 @@ def _exercise_constraint_families(doc, reference_sketch):
     equal_index = audit.addConstraint(Sketcher.Constraint("Equal", 0, 1))
     audit.addConstraint(Sketcher.Constraint("Horizontal", 0))
     audit.addConstraint(Sketcher.Constraint("Horizontal", 1))
+    audit.addConstraint(Sketcher.Constraint("Vertical", 2))
     point_on_object_index = audit.addConstraint(Sketcher.Constraint("PointOnObject", 3, 1, 0))
     symmetric_index = audit.addConstraint(Sketcher.Constraint("Symmetric", 3, 1, 4, 1, 2, 1))
-    audit_span = audit.addConstraint(Sketcher.Constraint("Distance", 0, 40.0))
-    audit_scaled = audit.addConstraint(Sketcher.Constraint("Distance", 1, 40.0))
+    audit_span = audit.addConstraint(Sketcher.Constraint("Distance", 5, 40.0))
+    audit_scaled = audit.addConstraint(Sketcher.Constraint("Distance", 6, 20.0))
     audit.renameConstraint(audit_span, "AuditSpan")
     audit.renameConstraint(audit_scaled, "AuditScaled")
     audit.setExpression("Constraints[%d]" % audit_scaled, "Constraints[%d] / 2" % audit_span)
@@ -146,7 +149,7 @@ def run_acceptance():
         reference = mate.Sketch
         if reference is None:
             raise RuntimeError("second PatternPiece has no native Sketcher source")
-        audit, audit_span, audit_scaled = _exercise_constraint_families(doc, reference)
+        _exercise_constraint_families(doc, reference)
 
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(curved)
@@ -193,15 +196,13 @@ def run_acceptance():
                 raise RuntimeError("external Sketcher reference did not survive save/reload")
             if not bool(audit.GeometryFacadeList[2].Construction):
                 raise RuntimeError("construction geometry state did not survive save/reload")
-            audit_span_live = audit.getConstraintByName("AuditSpan")
-            audit_scaled_live = audit.getConstraintByName("AuditScaled")
-            if audit_span_live < 0 or audit_scaled_live < 0:
+            if audit.Constraints[audit_span].Name != "AuditSpan" or audit.Constraints[audit_scaled].Name != "AuditScaled":
                 raise RuntimeError("named expression driver constraints did not survive save/reload")
-            if abs(float(audit.getDatum(audit_scaled_live)) - 20.0) > 1e-6:
+            if abs(float(audit.getDatum(audit_scaled)) - 20.0) > 1e-6:
                 raise RuntimeError("native Sketcher expression result did not survive save/reload")
-            audit.setDatum(audit_span_live, App.Units.Quantity("60 mm"))
+            audit.setDatum(audit_span, App.Units.Quantity("60 mm"))
             reloaded.recompute()
-            if abs(float(audit.getDatum(audit_scaled_live)) - 30.0) > 1e-6:
+            if abs(float(audit.getDatum(audit_scaled)) - 30.0) > 1e-6:
                 raise RuntimeError("native Sketcher expression did not propagate after save/reload")
 
             sketch.setDatum(height_index, App.Units.Quantity("60 mm"))
