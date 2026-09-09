@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from freecad_cloth.pattern import PatternCommands
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.pattern.PatternSketch import create_sketch_for_piece
 from freecad_cloth.pattern.PatternDrafting import parse_points, serialize_points, add_point, remove_point, bounds
@@ -26,8 +27,6 @@ def test_pattern_sketch_requires_freecad_when_called():
 
 
 def test_one_step_pattern_piece_command_is_registered_and_creates_native_sketch():
-    import PatternCommands
-
     class Document:
         def __init__(self):
             self.recompute_calls = 0
@@ -83,8 +82,6 @@ def test_one_step_pattern_piece_command_is_registered_and_creates_native_sketch(
 
 
 def test_edit_sketch_enters_native_editor_for_selected_piece():
-    import PatternCommands
-
     class SketchObject:
         Name = "PatternSketch_front"
 
