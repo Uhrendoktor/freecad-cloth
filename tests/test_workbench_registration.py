@@ -6,7 +6,6 @@ from freecad_cloth.pattern.workbench import ClothPatternWorkbench
 from freecad_cloth.sewing.workbench import COMMAND_GROUPS as SEWING_COMMAND_GROUPS, ClothSewingWorkbench
 from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
 
-
 ROOT = Path(__file__).resolve().parents[1]
 ICON_DIR = ROOT / "resources" / "icons"
 EXPECTED_WORKBENCHES = {
@@ -51,7 +50,7 @@ def test_initialize_is_idempotent_and_preserves_registered_command_order():
 def test_sewing_groups_cover_fitting_and_avatar_without_duplicates():
     wb = ClothSewingWorkbench()
     wb.Initialize()
-    fitting = importlib.import_module("freecad_cloth.simulation.FittingCommands")
+    fitting = importlib.import_module("freecad_cloth.avatar.FittingCommands")
     avatar = importlib.import_module("freecad_cloth.avatar.AvatarCommands")
     assert set(wb.commands) == set(
         command
