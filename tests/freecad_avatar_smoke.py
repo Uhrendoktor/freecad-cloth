@@ -1,4 +1,4 @@
-"""Real FreeCAD runtime smoke coverage for the parametric mannequin."""
+"""Real FreeCAD runtime smoke coverage for the production humanoid mesh avatar."""
 import sys
 from pathlib import Path
 import tempfile
@@ -14,6 +14,11 @@ def main():
     assert avatar.AvatarType == "ClothAvatar"
     assert avatar.Shape.Volume > 0
     assert avatar.AvatarStatus == "Valid"
+    assert avatar.AvatarMeshProvider == "makehuman-hm08"
+    assert "MakeHuman HM08" in avatar.AvatarMeshSource
+    assert avatar.AvatarMeshLicense == "CC0"
+    assert int(avatar.MeshVertexCount) > 0
+    assert int(avatar.MeshTriangleCount) > 0
     assert avatar.ArrangementPoints
     expected_arrangement = list(avatar.ArrangementPoints)
     arrangement_names = [str(item).split("|", 1)[0] for item in expected_arrangement]
@@ -27,12 +32,15 @@ def main():
     original_volume = avatar.Shape.Volume
     set_avatar_measurements(chest=1100)
     assert avatar.Shape.Volume != original_volume
+    assert avatar.AvatarMeshProvider == "makehuman-hm08"
+    assert int(avatar.MeshVertexCount) > 0
     assert list(avatar.ArrangementPoints) == expected_arrangement
     assert target_status(avatar.DrapeTarget)["state"] == "ready"
     set_avatar_pose("sewing")
     set_avatar_skin_offset(6.0)
     assert avatar.PosePreset == "sewing"
     assert abs(float(avatar.SkinOffset) - 6.0) < 1e-9
+    assert avatar.AvatarMeshProvider == "makehuman-hm08"
     assert avatar.CollisionProxy is not None
     assert avatar.DrapeTarget is not None
     assert target_status(avatar.DrapeTarget)["state"] == "ready"
@@ -45,6 +53,11 @@ def main():
         restored = reopened.getObject("ClothAvatar")
         assert restored is not None
         assert restored.AvatarStatus == "Valid"
+        assert restored.AvatarMeshProvider == "makehuman-hm08"
+        assert "MakeHuman HM08" in restored.AvatarMeshSource
+        assert restored.AvatarMeshLicense == "CC0"
+        assert int(restored.MeshVertexCount) > 0
+        assert int(restored.MeshTriangleCount) > 0
         assert restored.PosePreset == "sewing"
         assert abs(float(restored.Chest) - 1100.0) < 1e-9
         assert abs(float(restored.SkinOffset) - 6.0) < 1e-9
@@ -54,7 +67,7 @@ def main():
         assert restored.DrapeTarget.TargetType == "Mannequin"
         assert target_status(restored.DrapeTarget)["state"] == "ready"
         App.closeDocument(reopened.Name)
-    print("FreeCAD parametric avatar smoke test passed")
+    print("FreeCAD humanoid mesh avatar smoke test passed")
 
 
 if __name__ == "__main__":
