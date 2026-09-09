@@ -13,7 +13,6 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from freecad_cloth.pattern.PatternCommands import create_pattern_piece_with_sketch
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.pattern.PatternObjects import add_pattern_piece, add_seam
 from freecad_cloth.pattern.PatternIR import PatternIR
@@ -98,15 +97,22 @@ def _assert_ir_preserves_native_curves(sketch, piece_id, document):
 
 
 def main():
-    Gui.activateWorkbench("Cloth Pattern")
+    init_gui = os.path.join(ROOT, "InitGui.py")
+    exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
+    Gui.updateGui()
     assert "Cloth Pattern" in [str(name) for name in Gui.listWorkbenches()]
+    Gui.activateWorkbench("Cloth Pattern")
+    Gui.updateGui()
 
     doc = App.newDocument("PatternConstraintAcceptance")
-    piece = create_pattern_piece_with_sketch()
+    assert "ClothPattern_CreatePieceWithSketch" in Gui.listCommands()
+    Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
+    doc.recompute()
+    piece = doc.getObject("PatternPiece")
+    assert piece is not None and piece.Sketch is not None
     piece_name = piece.Name
     piece_id = str(piece.PieceId)
     sketch = piece.Sketch
-    assert sketch is not None
     _add_curved_sketch(piece)
     doc.recompute()
     assert list(sketch.SemanticEdgeIds) == [f"{piece_id}:edge:{i}" for i in range(4)]
