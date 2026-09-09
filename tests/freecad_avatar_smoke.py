@@ -19,6 +19,9 @@ def main():
     avatar = create_avatar()
     assert avatar.AvatarType == "ClothAvatar"
     assert avatar.AvatarMeshProvider == "makehuman-hm08"
+    assert "garment-free mannequin" in avatar.AvatarMeshSource
+    assert avatar.GarmentState == "Bare mannequin / no garment geometry"
+    assert abs(float(avatar.SkinOffset)) < 1e-9
     assert avatar.Mesh.CountPoints > 100
     assert avatar.Mesh.CountFacets > 100
     assert avatar.AvatarStatus == "Valid"
