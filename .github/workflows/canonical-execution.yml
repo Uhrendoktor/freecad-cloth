@@ -85,6 +85,7 @@ jobs:
             for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
             xdpyinfo -display :99 >/dev/null 2>&1
             timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun tests/freecad_screenshot.py
+            timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun tests/freecad_pattern_constraints_smoke.py
             test -s docs/images/generated/cloth-pattern-design.png
             test -s docs/images/generated/cloth-sewing.png
             test -s docs/images/generated/cloth-simulation-arranged.png
