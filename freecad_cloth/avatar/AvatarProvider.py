@@ -1,10 +1,9 @@
 """Replaceable avatar-provider contract for the Cloth fitting/simulation stack.
 
-The provider boundary deliberately knows nothing about FreeCAD document objects
-or solver implementation details.  A provider supplies an authoritative
-parameter/identity snapshot, a visual surface, a collision surface, and stable
-landmarks.  The parametric mannequin is the built-in provider; a CAD provider
-adapts an existing FreeCAD object through the target-neutral DrapeTarget API.
+The provider boundary knows nothing about FreeCAD document implementation or
+solver details. A provider supplies authoritative parameters, a visual/collision
+surface and stable landmarks. The built-in human provider uses a real MakeHuman
+HM08 polygon mesh; a CAD provider adapts an existing FreeCAD object.
 """
 from dataclasses import dataclass
 
@@ -40,9 +39,9 @@ class AvatarProvider:
 
 
 class ParametricAvatarProvider(AvatarProvider):
-    """Built-in deterministic human mannequin provider."""
+    """Built-in anthropometric provider backed by the real MakeHuman mesh."""
 
-    info = AvatarProviderInfo("parametric-mannequin", "Parametric human mannequin", "baseline")
+    info = AvatarProviderInfo("makehuman-hm08", "MakeHuman HM08 humanoid mesh", "high")
 
     def __init__(self, parameters=None):
         self._service = AvatarService(parameters)
@@ -60,13 +59,16 @@ class ParametricAvatarProvider(AvatarProvider):
         return self._service.landmarks()
 
 
+# Descriptive alias for callers that should not depend on the legacy class name.
+HumanoidMeshAvatarProvider = ParametricAvatarProvider
+
+
 class FreeCADGeometryAvatarProvider(AvatarProvider):
     """Adapter for an imported/native FreeCAD body without a hard dependency.
 
-    The object is intentionally opaque to the provider contract.  Collision
-    tessellation is delegated to the existing DrapeTarget surface adapter, so
-    Sewing and Simulation do not need to know whether the body came from the
-    native mannequin, Part, PartDesign, or Mesh workbench.
+    Collision tessellation is delegated to the existing DrapeTarget surface
+    adapter, so Sewing and Simulation do not need to know whether the body came
+    from Part, PartDesign, or Mesh.
     """
 
     info = AvatarProviderInfo("freecad-geometry", "FreeCAD body", "external")
@@ -83,11 +85,9 @@ class FreeCADGeometryAvatarProvider(AvatarProvider):
             raise ValueError("thickness must not be negative")
 
     def parameters(self):
-        """CAD providers have no anthropometric authority."""
         return None
 
     def surface(self):
-        """Return the target-neutral collision surface as the visual fallback."""
         surface = collision_surface(self.source, self.deflection, self.thickness)
         return surface.vertices, surface.triangles
 
@@ -100,13 +100,7 @@ class FreeCADGeometryAvatarProvider(AvatarProvider):
 
 def provider_from_target(source, target_type="FreeCAD Geometry", parameters=None,
                          deflection=1.0, thickness=0.0):
-    """Build the appropriate provider without coupling callers to a class.
-
-    ``Mannequin`` remains the deterministic built-in provider.  Any other
-    accepted target type currently resolves to the generic FreeCAD adapter.
-    This keeps provider selection replaceable while preserving the public
-    DrapeTarget/Sewing APIs.
-    """
+    """Build the appropriate provider without coupling callers to a class."""
     kind = str(target_type)
     if kind == "Mannequin":
         return ParametricAvatarProvider(parameters)
