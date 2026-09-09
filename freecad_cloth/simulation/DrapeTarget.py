@@ -29,8 +29,6 @@ def collision_surface(target, deflection=1.0, thickness=0.0) -> CollisionSurface
 
 
 def _mesh_signature(target):
-    # The production humanoid mesh owns its rebuild state. Use authored avatar
-    # properties instead of FreeCAD's transient Mesh/Shape bookkeeping.
     if str(getattr(target, "AvatarType", "")) == "ClothAvatar":
         return (
             "ClothAvatar",
@@ -139,7 +137,14 @@ def target_status(target):
     if not authored or vertices <= 0 or triangles <= 0:
         return {"state": "unbuilt", "message": "Drape target collision surface needs to be built", "stale": True, "reason": "collision cache missing"}
     if current != authored:
-        return {"state": "stale", "message": "Drape target changed; rebuild collision surface before simulation", "stale": True, "reason": "source, placement, tessellation or collision thickness changed"}
+        return {
+            "state": "stale",
+            "message": "Drape target changed; rebuild collision surface before simulation",
+            "stale": True,
+            "reason": "source, placement, tessellation or collision thickness changed",
+            "signature_current": current,
+            "signature_authored": authored,
+        }
     return {"state": "ready", "message": "Drape target collision surface is current", "stale": False, "reason": ""}
 
 
