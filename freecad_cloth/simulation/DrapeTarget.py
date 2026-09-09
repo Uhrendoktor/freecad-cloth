@@ -50,13 +50,12 @@ def _mesh_signature(target):
         xs = [float(v.x) for v in vertices]
         ys = [float(v.y) for v in vertices]
         zs = [float(v.z) for v in vertices]
-        descriptor = (
-            len(vertices), len(triangles),
+        return (
+            "Mesh", len(vertices), len(triangles),
             tuple(round(value, 6) for value in (min(xs), max(xs), min(ys), max(ys), min(zs), max(zs))),
             tuple(round(sum(values), 6) for values in (xs, ys, zs)),
             tuple(round(sum(value * value for value in values), 6) for values in (xs, ys, zs)),
         )
-        return ("Mesh",) + descriptor
     except (TypeError, ValueError, AttributeError):
         return None
 
@@ -67,31 +66,29 @@ def _geometry_signature(target):
         return mesh_signature
     shape = getattr(target, "Shape", None)
     if shape is not None:
-        hash_code = getattr(shape, "hashCode", None)
-        if callable(hash_code):
-            try:
-                return ("ShapeHash", int(hash_code()))
-            except (TypeError, ValueError):
-                pass
-        tessellate = getattr(shape, "tessellate", None)
-        if callable(tessellate):
-            try:
-                if not shape.isNull():
-                    box = shape.BoundBox
-                    return (
-                        "Shape",
-                        int(len(getattr(shape, "Solids", ()))),
-                        int(len(getattr(shape, "Faces", ()))),
-                        int(len(getattr(shape, "Edges", ()))),
-                        int(len(getattr(shape, "Vertexes", ()))),
-                        round(float(shape.Volume), 6),
-                        round(float(shape.Area), 6),
-                        round(float(box.XMin), 6), round(float(box.XMax), 6),
-                        round(float(box.YMin), 6), round(float(box.YMax), 6),
-                        round(float(box.ZMin), 6), round(float(box.ZMax), 6),
-                    )
-            except (AttributeError, TypeError, ValueError):
-                pass
+        try:
+            if not shape.isNull():
+                box = shape.BoundBox
+                return (
+                    "Shape",
+                    int(len(getattr(shape, "Solids", ()))),
+                    int(len(getattr(shape, "Faces", ()))),
+                    int(len(getattr(shape, "Edges", ()))),
+                    int(len(getattr(shape, "Vertexes", ()))),
+                    round(float(shape.Volume), 6),
+                    round(float(shape.Area), 6),
+                    round(float(box.XMin), 6), round(float(box.XMax), 6),
+                    round(float(box.YMin), 6), round(float(box.YMax), 6),
+                    round(float(box.ZMin), 6), round(float(box.ZMax), 6),
+                )
+        except (AttributeError, TypeError, ValueError):
+            pass
+    hash_code = getattr(shape, "hashCode", None) if shape is not None else None
+    if callable(hash_code):
+        try:
+            return ("ShapeHash", int(hash_code()))
+        except (TypeError, ValueError):
+            pass
     return ("Unknown",)
 
 
@@ -144,21 +141,11 @@ def target_status(target):
     if not authored or vertices <= 0 or triangles <= 0:
         return {"state": "unbuilt", "message": "Drape target collision surface needs to be built", "stale": True, "reason": "collision cache missing"}
     if current != authored:
-        managed_avatar = (
-            target_type == "Mannequin"
-            and str(getattr(source, "AvatarType", "")) == "ClothAvatar"
-            and str(getattr(source, "AvatarMeshProvider", "")) == "makehuman-hm08"
-            and str(getattr(source, "AvatarStatus", "")) == "Valid"
-        )
-        if managed_avatar:
-            return {"state": "ready", "message": "Drape target collision surface is current", "stale": False, "reason": "managed MakeHuman avatar owns mesh rebuild state"}
         return {
             "state": "stale",
-            "message": "Drape target changed; rebuild collision surface before simulation (current=%s authored=%s)" % (current, authored),
+            "message": "Drape target changed; rebuild collision surface before simulation",
             "stale": True,
             "reason": "source, placement, tessellation or collision thickness changed",
-            "signature_current": current,
-            "signature_authored": authored,
         }
     return {"state": "ready", "message": "Drape target collision surface is current", "stale": False, "reason": ""}
 
