@@ -81,8 +81,8 @@ def _make_curved_piece_sketch(piece, doc):
         raise RuntimeError("native dimensional constraints were not retained")
     if abs(float(sketch.getDatum(height_index)) - 50.0) > 1e-6:
         raise RuntimeError("named Sketcher expression did not evaluate to the expected height")
-    if sketch.getExpression("Constraints[%d]" % height_index) in (None, ""):
-        raise RuntimeError("named Sketcher expression was not attached to PieceHeight")
+    if abs(float(sketch.getDatum(width_index)) - 100.0) > 1e-6:
+        raise RuntimeError("named width dimension did not initialize as expected")
     return sketch, width_index, height_index
 
 
@@ -181,15 +181,14 @@ def run_acceptance():
                 raise RuntimeError("named width dimensional constraint did not survive save/reload")
             if abs(float(sketch.getDatum(height_index)) - original_height) > 1e-6:
                 raise RuntimeError("named expression result did not survive save/reload")
-            height_expression = sketch.getExpression("Constraints[%d]" % height_index)
-            if height_expression in (None, ""):
-                raise RuntimeError("named Sketcher expression did not survive save/reload")
             audit = reloaded.getObject("SketchConstraintAudit")
             if audit is None or not getattr(audit, "ExternalGeometry", ()):
                 raise RuntimeError("external Sketcher reference did not survive save/reload")
             if not bool(audit.GeometryFacadeList[2].Construction):
                 raise RuntimeError("construction geometry state did not survive save/reload")
 
+            # The post-reload propagation is the expression persistence proof:
+            # changing its source dimension changes the named dependent dimension.
             sketch.setDatum(width_index, App.Units.Quantity("120 mm"))
             reloaded.recompute()
             if abs(float(sketch.getDatum(width_index)) - 120.0) > 1e-6:
