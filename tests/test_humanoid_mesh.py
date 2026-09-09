@@ -7,8 +7,12 @@ from freecad_cloth.avatar.HumanoidMesh import (
     MAKEHUMAN_BASE_URL,
     MAKEHUMAN_BASE_SHA256,
     MeshData,
+    _ellipse_perimeter,
     _map_makehuman_axes,
+    _section_extents,
+    ensure_makehuman_base,
     fit_makehuman_mesh,
+    load_makehuman_mesh,
     parse_obj,
 )
 
@@ -42,7 +46,7 @@ class HumanoidMeshTests(unittest.TestCase):
         f 1 2 3 4
         f -4 -2 -1
         """)
-        self.assertEqual(data.triangles, ((0, 1, 2), (0, 2, 3), (0, 2, 3)))
+        self.assertEqual(data.triangles, ((0, 1, 2), (0, 2, 3)))
 
     def test_mesh_data_rejects_invalid_indices(self):
         with self.assertRaises(Exception):
@@ -101,8 +105,59 @@ class HumanoidMeshTests(unittest.TestCase):
         self.assertAlmostEqual(max(zs), 1750.0, places=6)
         self.assertGreater(max(zs) - min(zs), 5.0 * (max(xs) - min(xs)))
 
+    def test_real_hm08_geometry_diagnostics(self):
+        path = ensure_makehuman_base()
+        raw_vertices = []
+        raw_triangles = []
+        for raw in path.read_text(encoding="utf-8").splitlines():
+            fields = raw.split()
+            if not fields:
+                continue
+            if fields[0] == "v" and len(fields) >= 4:
+                raw_vertices.append((float(fields[1]), float(fields[2]), float(fields[3])))
+            elif fields[0] == "f" and len(fields) >= 4:
+                indices = []
+                for token in fields[1:]:
+                    index = int(token.split("/", 1)[0])
+                    indices.append(len(raw_vertices) + index if index < 0 else index - 1)
+                for i in range(1, len(indices) - 1):
+                    raw_triangles.append((indices[0], indices[i], indices[i + 1]))
+        parent = list(range(len(raw_vertices)))
+        size = [1] * len(raw_vertices)
+        def find(i):
+            while parent[i] != i:
+                parent[i] = parent[parent[i]]
+                i = parent[i]
+            return i
+        def union(a, b):
+            a, b = find(a), find(b)
+            if a == b:
+                return
+            if size[a] < size[b]:
+                a, b = b, a
+            parent[b] = a
+            size[a] += size[b]
+        for a, b, c in raw_triangles:
+            union(a, b); union(b, c); union(c, a)
+        components = {}
+        for a, _, _ in raw_triangles:
+            root = find(a)
+            components[root] = components.get(root, 0) + 1
+        selected = load_makehuman_mesh(str(path))
+        params = AvatarParameters()
+        fitted = fit_makehuman_mesh(selected, params)
+        source = _map_makehuman_axes(selected.vertices)
+        print("HM08_RAW", "vertices", len(raw_vertices), "triangles", len(raw_triangles), "components", sorted(components.values(), reverse=True)[:12])
+        print("HM08_SELECTED", "vertices", len(selected.vertices), "triangles", len(selected.triangles))
+        print("HM08_SOURCE_BBOX", tuple(round(v, 4) for v in (min(p[0] for p in source), max(p[0] for p in source), min(p[1] for p in source), max(p[1] for p in source), min(p[2] for p in source), max(p[2] for p in source))))
+        print("HM08_FITTED_BBOX", tuple(round(v, 2) for v in (min(p[0] for p in fitted.vertices), max(p[0] for p in fitted.vertices), min(p[1] for p in fitted.vertices), max(p[1] for p in fitted.vertices), min(p[2] for p in fitted.vertices), max(p[2] for p in fitted.vertices))))
+        for z in (0.25, 0.40, 0.50, 0.54, 0.58, 0.64, 0.69, 0.76, 0.85):
+            section = [p for p in source if abs(p[2] - z) <= 0.025]
+            if section:
+                width, depth = _section_extents(section, z)
+                print("HM08_SECTION", z, "width", round(width, 5), "depth", round(depth, 5), "perim", round(_ellipse_perimeter(width, depth), 5))
+
     def test_explicit_local_source_does_not_require_network(self):
-        from freecad_cloth.avatar.HumanoidMesh import load_makehuman_mesh
         fd, path = tempfile.mkstemp(prefix="cloth-humanoid-", suffix=".obj")
         os.close(fd)
         try:
