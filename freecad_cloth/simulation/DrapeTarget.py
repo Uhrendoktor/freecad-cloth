@@ -121,7 +121,7 @@ def target_status(target):
     triangles = int(getattr(target, "CollisionTriangleCount", 0))
     if not getattr(target, "SourceSignature", "") or vertices <= 0 or triangles <= 0:
         return {"state": "unbuilt", "message": "Drape target collision surface needs to be built", "stale": True, "reason": "collision cache missing"}
-    if target_type == "Mannequin":
+    if target_type == "Mannequin" and str(getattr(source, "AvatarType", "")) == "ClothAvatar":
         return {"state": "ready", "message": "Managed humanoid drape target is ready", "stale": False, "reason": "managed mannequin collision is rebuilt from authored mesh"}
     try:
         current = repr(source_signature(source, float(getattr(target, "CollisionDeflection", 1.0)), float(getattr(target, "CollisionThickness", 0.0))))
