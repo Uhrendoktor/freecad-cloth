@@ -65,9 +65,9 @@ def test_drape_target_contract_tracks_source_changes():
         CollisionThickness = 2.0
     DrapeTargetSpec("Mannequin", "ClothAvatar", 1.0, 2.0).validate()
     DrapeTargetSpec("FreeCAD Geometry", "Target", 1.0, 2.0).validate()
-    target = Target(); baseline = source_signature(target.Shape, 1.0, 2.0)
+    target = Target(); baseline = source_signature(target, 1.0, 2.0)
     target.Shape.value = 2
-    assert source_signature(target.Shape, 1.0, 2.0) != baseline
+    assert source_signature(target, 1.0, 2.0) != baseline
 
 
 def test_disabled_drape_target_is_explicitly_blocked():
