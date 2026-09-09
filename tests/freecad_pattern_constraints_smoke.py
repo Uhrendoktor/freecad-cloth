@@ -113,10 +113,9 @@ def _assert_ir_preserves_native_curves(sketch, piece_id, document):
 
 def main():
     mark("start")
-    # InitGui.py has already been executed by the canonical GUI runner. Avoid
-    # re-entering any GUI workbench discovery/initialization here; the command
-    # is already registered by the shared session.
+    mark("newdocument-start")
     doc = App.newDocument("PatternConstraintAcceptance")
+    mark("newdocument-returned")
     assert "ClothPattern_CreatePieceWithSketch" in Gui.listCommands()
     mark("creating-piece-command")
     Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
