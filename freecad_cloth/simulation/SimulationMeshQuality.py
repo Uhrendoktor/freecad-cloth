@@ -21,11 +21,7 @@ def _outline_points(piece):
 
 
 def _centroid_refine(vertices, triangles):
-    """Split each triangle into three using an interior centroid.
-
-    No new boundary vertices are introduced, so existing seam edge indices
-    continue to address the same authored pattern boundary.
-    """
+    """Split each triangle into three using an interior centroid."""
     result_vertices = list(vertices)
     result_triangles = []
     for a, b, c in triangles:
@@ -80,12 +76,17 @@ def quality_piece_mesh(piece, start_height, particle_distance):
 
 
 def install_quality_mesh_patch():
-    """Patch the existing QualitySimulationProxy without duplicating solver code."""
+    """Patch the authoritative SimulationProxy pattern builder once."""
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy
-    if getattr(QualitySimulationProxy, "_cloth_quality_mesh_patched", False):
+    from freecad_cloth.simulation import SimulationObjects
+
+    base_proxy = SimulationObjects.SimulationProxy
+    if getattr(base_proxy, "_cloth_quality_mesh_patched", False):
         return
-    import freecad_cloth.simulation.SimulationObjects
-    original = QualitySimulationProxy._build_pattern_scene
+
+    original = getattr(base_proxy, "_build_pattern_scene", None)
+    if original is None:
+        return
 
     def build_pattern_scene(self, obj, pieces, signature):
         previous = SimulationObjects._piece_mesh
@@ -97,5 +98,6 @@ def install_quality_mesh_patch():
         finally:
             SimulationObjects._piece_mesh = previous
 
-    QualitySimulationProxy._build_pattern_scene = build_pattern_scene
+    base_proxy._build_pattern_scene = build_pattern_scene
+    base_proxy._cloth_quality_mesh_patched = True
     QualitySimulationProxy._cloth_quality_mesh_patched = True
