@@ -1,11 +1,12 @@
 # Project structure
 
-The repository is both a normal Python project and a directly installable FreeCAD workbench. FreeCAD bootstrap files are the only Python implementation entry points kept at repository root.
+The repository is both a normal Python project and a directly installable FreeCAD workbench. The package tree is the canonical home of implementation code.
 
 ```text
 .
 ├── Init.py                         # FreeCAD Mod package marker; root by requirement
 ├── InitGui.py                      # FreeCAD GUI bootstrap; root by requirement
+├── sitecustomize.py                # interpreter/CI hook; root by Python convention
 ├── pyproject.toml                  # standard Python packaging metadata
 ├── freecad_cloth/
 │   ├── __init__.py
@@ -24,7 +25,7 @@ The repository is both a normal Python project and a directly installable FreeCA
 
 ## Module-tree rule
 
-All implementation modules belong under `freecad_cloth/<domain>/`. There are no top-level `Pattern*.py`, `Sewing*.py`, `Avatar*.py`, `Drape*.py`, `Simulation*.py`, or other implementation modules.
+All implementation modules belong under `freecad_cloth/<domain>/`. There are no top-level `Pattern*.py`, `Sewing*.py`, `Avatar*.py`, `Drape*.py`, `Simulation*.py`, or other domain implementation modules.
 
 Use fully qualified imports such as:
 
@@ -34,7 +35,7 @@ from freecad_cloth.sewing.SewingNetworkCommands import create_sewing_network
 from freecad_cloth.simulation.DrapeTarget import create_drape_target
 ```
 
-The root is reserved for FreeCAD bootstrap files (`Init.py` and `InitGui.py`) and project metadata/documentation.
+The root is reserved for FreeCAD bootstrap files, the Python `sitecustomize.py` interpreter hook, and project metadata/documentation. `sitecustomize.py` is infrastructure rather than a domain implementation module.
 
 ## Workbench ownership
 
@@ -45,6 +46,8 @@ The target-neutral drape contract is owned by `freecad_cloth.simulation.DrapeTar
 ## FreeCAD rule
 
 `Init.py` and `InitGui.py` remain at the repository root because FreeCAD discovers a workbench installed directly into a `Mod` directory through those filenames. They are thin bootstrap adapters; domain behavior lives in `freecad_cloth/`.
+
+The Python `sitecustomize.py` hook remains at root because Python loads that conventional module from the interpreter search path. It contains only CI/Qt compatibility behavior and is not part of the Cloth domain module tree.
 
 The package must not import FreeCAD at module import time unless the module is explicitly a GUI/host integration boundary.
 
