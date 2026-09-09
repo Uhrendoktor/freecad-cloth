@@ -1,6 +1,5 @@
 """FreeCAD-facing humanoid mesh avatar commands."""
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose, generate_mesh
-from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
 from freecad_cloth.avatar.AvatarArrangement import arrangement_points_from_landmarks
 
 PROPERTY_MAP = {
