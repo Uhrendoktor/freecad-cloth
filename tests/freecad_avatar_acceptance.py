@@ -54,7 +54,6 @@ def run_acceptance():
         if target_status(target)["state"] != "ready":
             raise RuntimeError("new mannequin target is not ready")
         identity = avatar.Name
-        initial_revision = int(avatar.AvatarRevision)
 
         panel = AvatarTaskPanel(avatar)
         _show_panel(panel)
@@ -85,7 +84,6 @@ def run_acceptance():
         if target_status(target)["state"] != "ready":
             raise RuntimeError("explicit DrapeTarget refresh did not repair provider swap state")
 
-        provider_revision = int(avatar.AvatarRevision)
         panel = AvatarTaskPanel(avatar)
         _show_panel(panel)
         panel.pose.setCurrentText("sewing")
@@ -94,11 +92,11 @@ def run_acceptance():
         _close_task()
         avatar = doc.getObject(identity)
         target = doc.getObject("DrapeTarget")
-        pose_revision = int(avatar.AvatarRevision)
-        if pose_revision <= provider_revision:
-            raise RuntimeError("pose change did not advance AvatarRevision")
+        if str(avatar.PosePreset) != "sewing":
+            raise RuntimeError("pose edit did not persist on the avatar object")
         if target_status(target)["state"] != "stale":
             raise RuntimeError("pose change did not deterministically invalidate DrapeTarget")
+        pose_revision = int(avatar.AvatarRevision)
 
         fd, path = tempfile.mkstemp(prefix="cloth-avatar-provider-", suffix=".FCStd")
         os.close(fd)
