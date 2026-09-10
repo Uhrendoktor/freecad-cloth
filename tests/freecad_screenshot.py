@@ -267,8 +267,8 @@ def simulation():
 
     # Size the fixture from the production mannequin instead of using a tiny
     # hard-coded panel that disappears at mannequin scale.
-    garment_width = max(900.0, 0.16 * plane_span)
-    garment_height = max(1200.0, 0.23 * plane_span)
+    garment_width = max(900.0, 0.55 * plane_span)
+    garment_height = max(1200.0, 0.80 * plane_span)
     outline = _tunic_outline(garment_width, garment_height)
     garment = create_pattern_piece_from_parameters("VisualTunic", garment_width, garment_height, 10.0, 0.0)
     garment.Label = "Simple Tunic Panel"
@@ -385,7 +385,7 @@ try:
     Gui.getMainWindow().show()
     events()
     if not Gui.getMainWindow().isVisible():
-        raise RuntimeError("FreeCAD GUI main window failed to become visible")
+        raise RuntimeError("FreeCAD main window failed to become visible")
     log("gui-launch-ok window=%sx%s" % (Gui.getMainWindow().width(), Gui.getMainWindow().height()))
     init_gui = os.path.join(ROOT, "InitGui.py")
     exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
