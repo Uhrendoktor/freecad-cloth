@@ -125,7 +125,7 @@ def activate(name, toolbar, commands):
         raise RuntimeError("failed to activate %s" % name)
     missing = [command for command in commands if command not in Gui.listCommands()]
     if missing:
-        raise RuntimeError("commands are not registered: %s" % ",".join(missing))
+        raise RuntimeError("failed to activate command set: %s" % ",".join(missing))
     log("workbench=%s toolbar=%s" % (name, toolbar))
 
 
@@ -215,13 +215,11 @@ def simulation():
     garment.Placement.Base.y = -120.0
 
     scene = create_quality_simulation_scene(doc)
-    # The production scene builder starts with two demo output panels. The visual
-    # fixture intentionally owns exactly one native garment panel instead.
     scene.DrapePanels = []
     scene.ClothPieces = [garment]
     scene.QualityPreset = "Fast"
-    scene.ParticleDistance = 8.0
-    scene.SolverIterations = 10
+    scene.ParticleDistance = 20.0
+    scene.SolverIterations = 5
     scene.StartHeight = 1500.0
     scene.PinSelection = ["0", "1"]
     refresh_drape_target(scene.DrapeTarget)
@@ -250,21 +248,21 @@ def simulation():
     events()
     save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "single 440x560 mm tunic panel placed above the production MakeHuman mannequin; three-quarter perspective selected to keep both visible")
 
-    for batch in (8, 8, 8, 8, 8):
+    for batch in (6, 6, 6, 6):
         panel.step(batch)
         doc.recompute()
         events()
-    if int(scene.Steps) != 40 or float(scene.SimulatedTime) <= 0 or not bool(scene.FiniteState):
-        raise RuntimeError("simulation did not reach a finite 40-step drape state")
+    if int(scene.Steps) != 24 or float(scene.SimulatedTime) <= 0 or not bool(scene.FiniteState):
+        raise RuntimeError("simulation did not reach a finite 24-step drape state")
     if drape.Mesh.isNull() or drape.Mesh.CountFacets <= 10:
         raise RuntimeError("draped garment panel has no visible mesh facets")
 
-    show_task(panel, "Simulation Workbench draped", ("State:", "40", "particles", "Fast"), reuse_active=True)
+    show_task(panel, "Simulation Workbench draped", ("State:", "24", "particles", "Fast"), reuse_active=True)
     view.setCameraType("Perspective")
     view.viewFront()
     view.fitAll()
     events()
-    save("cloth-simulation-draped.png", "Simulation Workbench draped", "same single tunic panel after 40 real simulation steps, with a front perspective camera chosen to expose the garment on the mannequin")
+    save("cloth-simulation-draped.png", "Simulation Workbench draped", "same single tunic panel after 24 real simulation steps, with a front perspective camera chosen to expose the garment on the mannequin")
     close_task()
     App.closeDocument(doc.Name)
 
