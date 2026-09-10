@@ -225,8 +225,11 @@ def simulation():
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
     panel = SimulationQualityTaskPanel(scene)
     show_task(panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset"))
-    Gui.activeDocument().activeView().viewAxonometric(); Gui.activeDocument().activeView().fitAll(); events()
-    save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "production MakeHuman humanoid mesh and arranged garment panels with ready task state")
+    view = Gui.activeDocument().activeView()
+    view.viewAxonometric()
+    view.setCameraType("Perspective")
+    view.fitAll(); events()
+    save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "production MakeHuman humanoid mesh and arranged garment panels with a perspective axonometric camera")
     for batch in (6, 6, 6, 6):
         panel.step(batch)
         doc.recompute()
@@ -234,8 +237,8 @@ def simulation():
     if int(scene.Steps) != 24 or float(scene.SimulatedTime) <= 0 or not bool(scene.FiniteState):
         raise RuntimeError("simulation did not reach a finite 24-step state")
     show_task(panel, "Simulation Workbench draped", ("State:", "24", "particles", "Fast"), reuse_active=True)
-    Gui.activeDocument().activeView().fitAll(); events()
-    save("cloth-simulation-draped.png", "Simulation Workbench draped", "same MakeHuman-backed scene after 24 real task-panel simulation steps")
+    view.fitAll(); events()
+    save("cloth-simulation-draped.png", "Simulation Workbench draped", "same MakeHuman-backed scene after 24 real task-panel simulation steps using the same perspective axonometric camera")
     close_task()
     App.closeDocument(doc.Name)
 
