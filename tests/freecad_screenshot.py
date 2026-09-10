@@ -199,16 +199,17 @@ def simulation():
     y_span = box.YMax - box.YMin
     z_span = box.ZMax - box.ZMin
 
-    # The avatar is Z-up.  X is lateral garment width and Y is front/back depth.
+    # One front or back pattern piece spans about half the torso circumference when flat.
+    # Treating it as a chord and subtracting body depth undersizes the sewn shell.
     chest = 980.0
     hip = 1020.0
-    ease = 60.0
-    body_depth = max(120.0, min(260.0, y_span))
-    panel_width = max(260.0, 0.50 * chest - body_depth + ease)
-    hem_width = max(300.0, 0.50 * hip - body_depth + ease)
+    ease = 55.0
+    panel_width = max(420.0, 0.50 * chest + ease)
+    hem_width = max(450.0, 0.50 * hip + ease)
     shoulder_z = box.ZMin + 0.76 * z_span
-    hem_z = box.ZMin + 0.42 * z_span
-    garment_height = max(520.0, shoulder_z - hem_z)
+    hem_z = box.ZMin + 0.40 * z_span
+    garment_height = max(560.0, shoulder_z - hem_z)
+    body_depth = max(120.0, min(260.0, y_span))
     clearance = max(6.0, 0.02 * body_depth)
     front_y = box.YMin - clearance
     back_y = box.YMax + clearance
