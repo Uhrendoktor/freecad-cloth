@@ -115,7 +115,7 @@ def ensure_makehuman_base(path: str | os.PathLike[str] | None = None) -> Path:
 def parse_obj(text: str) -> MeshData:
     """Parse Wavefront vertices/faces; triangulate quads and n-gons.
 
-    Keep the source topology intact.  The MakeHuman base mesh is one canonical
+    Keep the source topology intact. The MakeHuman base mesh is one canonical
     surface; choosing an arbitrary connected component can silently discard
     legitimate anatomy or produce a visibly incomplete mannequin.
     """
@@ -209,12 +209,50 @@ def _measurement_profile(parameters):
     return profile
 
 
-def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
-    """Fit HM08 without rewriting its canonical silhouette.
+def _estimate_rest_arm_angles(vertices, shoulder_half, shoulder_z, height_mm):
+    """Estimate each HM08 arm's unposed angle from its actual A-pose geometry."""
+    result = {}
+    for side in (-1.0, 1.0):
+        samples = [
+            (x, z)
+            for x, _, z in vertices
+            if side * x > shoulder_half * 1.05 and 0.50 <= z / max(1.0, height_mm) <= 0.78
+        ]
+        if not samples:
+            result[side] = 0.0
+            continue
+        weighted_x = 0.0
+        weighted_z = 0.0
+        total = 0.0
+        for x, z in samples:
+            weight = max(0.1, side * x - shoulder_half)
+            weighted_x += x * weight
+            weighted_z += z * weight
+            total += weight
+        center_x = weighted_x / total
+        center_z = weighted_z / total
+        radial_x = max(1e-6, side * (center_x - side * shoulder_half))
+        downward = max(0.0, shoulder_z - center_z)
+        result[side] = math.degrees(math.atan2(downward, radial_x))
+    return result
 
-    The default mannequin gets one global height normalization and the selected
-    pose.  Custom measurements are applied only as proportional deltas from that
-    canonical shape, avoiding a five-band reconstruction of the human body.
+
+def _arm_pose_weight(x, z, shoulder_half, height_mm):
+    """Return a smooth 0..1 influence that keeps the whole lateral arm attached."""
+    lateral = _smoothstep(shoulder_half * 0.88, shoulder_half * 1.02, abs(x))
+    nz = z / max(1.0, height_mm)
+    vertical = _smoothstep(0.34, 0.40, nz) * (1.0 - _smoothstep(0.88, 0.96, nz))
+    return lateral * vertical
+
+
+def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
+    """Fit HM08 while preserving its canonical silhouette and articulated limbs.
+
+    The default mannequin receives only global height normalization. Body shape
+    changes remain bounded proportional deltas, and arm posing is expressed as a
+    rotation from the mesh's native A-pose instead of assuming a horizontal rest
+    pose. A smooth arm influence prevents triangles, hands and fingers from being
+    split by a hard spatial cutoff.
     """
     mesh.validate()
     source = _map_makehuman_axes(mesh.vertices)
@@ -234,7 +272,8 @@ def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
 
     skin_offset = float(parameters.skin_offset)
     fitted = []
-    body_half = float(parameters.measurement("shoulder")) * 0.36
+    shoulder_half = float(parameters.measurement("shoulder")) / 2.0
+    body_half = shoulder_half * 0.90
     for x, y, z in source:
         torso_scale = _profile_scale(z, torso_profile)
         shoulder_blend = _smoothstep(0.67, 0.79, z)
@@ -249,25 +288,30 @@ def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
 
     pose = parameters.pose
     shoulder_z = height_mm * 0.76
-    shoulder_half = float(parameters.measurement("shoulder")) / 2.0
+    rest_angles = _estimate_rest_arm_angles(fitted, shoulder_half, shoulder_z, height_mm)
     default_angle = {"standing": 12.0, "sewing": 55.0, "sitting": 25.0}.get(pose.preset, 12.0)
     left_angle = default_angle if pose.preset != "standing" and float(pose.left_arm_angle) == 12.0 else float(pose.left_arm_angle)
     right_angle = default_angle if pose.preset != "standing" and float(pose.right_arm_angle) == 12.0 else float(pose.right_arm_angle)
     posed = []
     for x, y, z in fitted:
-        nz = z / max(1.0, height_mm)
-        if 0.58 <= nz <= 0.90 and abs(x) > body_half:
-            side = -1.0 if x < 0.0 else 1.0
-            angle = left_angle if side < 0 else right_angle
-            if angle:
-                radians = side * math.radians(angle)
-                pivot_x = side * shoulder_half
-                dx = x - pivot_x
-                dz = z - shoulder_z
-                x, z = (
-                    pivot_x + math.cos(radians) * dx + math.sin(radians) * dz,
-                    shoulder_z - math.sin(radians) * dx + math.cos(radians) * dz,
-                )
+        weight = _arm_pose_weight(x, z, shoulder_half, height_mm)
+        if weight <= 1e-9:
+            posed.append((x, y, z))
+            continue
+        side = -1.0 if x < 0.0 else 1.0
+        desired = left_angle if side < 0 else right_angle
+        delta = desired - rest_angles.get(side, 0.0)
+        if abs(delta) <= 1e-9:
+            posed.append((x, y, z))
+            continue
+        radians = side * math.radians(delta) * weight
+        pivot_x = side * shoulder_half
+        dx = x - pivot_x
+        dz = z - shoulder_z
+        x, z = (
+            pivot_x + math.cos(radians) * dx + math.sin(radians) * dz,
+            shoulder_z - math.sin(radians) * dx + math.cos(radians) * dz,
+        )
         posed.append((x, y, z))
     return MeshData(tuple(posed), mesh.triangles)
 
