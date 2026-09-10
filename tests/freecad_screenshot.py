@@ -125,7 +125,7 @@ def activate(name, toolbar, commands):
         raise RuntimeError("failed to activate %s" % name)
     missing = [command for command in commands if command not in Gui.listCommands()]
     if missing:
-        raise RuntimeError("failed to activate command set: %s" % ",".join(missing))
+        raise RuntimeError("commands are not registered: %s" % ",".join(missing))
     log("workbench=%s toolbar=%s" % (name, toolbar))
 
 
@@ -254,7 +254,7 @@ def simulation():
         events()
     if int(scene.Steps) != 24 or float(scene.SimulatedTime) <= 0 or not bool(scene.FiniteState):
         raise RuntimeError("simulation did not reach a finite 24-step drape state")
-    if drape.Mesh.isNull() or drape.Mesh.CountFacets <= 10:
+    if drape.Mesh.CountFacets <= 10:
         raise RuntimeError("draped garment panel has no visible mesh facets")
 
     show_task(panel, "Simulation Workbench draped", ("State:", "24", "particles", "Fast"), reuse_active=True)
