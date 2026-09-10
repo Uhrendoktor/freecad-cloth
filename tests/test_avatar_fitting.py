@@ -66,13 +66,13 @@ class AvatarFittingTests(unittest.TestCase):
 
     def test_default_mannequin_preserves_source_shape_after_height_normalization(self):
         source = MeshData(
-            ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 1.0, 1.0)),
+            ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 10.0, 0.0), (0.0, 10.0, 2.0)),
             ((0, 1, 2), (1, 3, 2), (0, 2, 3)),
         )
         params = AvatarParameters(pose=Pose("standing", 0.0, 0.0))
         fitted = fit_makehuman_mesh(source, params)
         self.assertEqual(fitted.triangles, source.triangles)
-        self.assertEqual(fitted.vertices, ((0.0, 0.0, 0.0), (1750.0, 0.0, 0.0), (0.0, 0.0, 1750.0), (0.0, -1750.0, 1750.0)))
+        self.assertEqual(fitted.vertices, ((0.0, 0.0, 0.0), (175.0, 0.0, 0.0), (0.0, 0.0, 1750.0), (0.0, -350.0, 1750.0)))
 
     def test_mannequin_is_deterministic_and_landmarked(self):
         params = AvatarParameters()
