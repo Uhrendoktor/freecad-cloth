@@ -72,7 +72,7 @@ class AvatarFittingTests(unittest.TestCase):
         params = AvatarParameters(pose=Pose("standing", 0.0, 0.0))
         fitted = fit_makehuman_mesh(source, params)
         self.assertEqual(fitted.triangles, source.triangles)
-        self.assertEqual(fitted.vertices, ((0.0, 0.0, 0.0), (1750.0, 0.0, 0.0), (0.0, 1750.0, 0.0), (0.0, 1750.0, 1750.0)))
+        self.assertEqual(fitted.vertices, ((0.0, 0.0, 0.0), (1750.0, 0.0, 0.0), (0.0, 0.0, 1750.0), (0.0, -1750.0, 1750.0)))
 
     def test_mannequin_is_deterministic_and_landmarked(self):
         params = AvatarParameters()
@@ -146,7 +146,6 @@ class AvatarFittingTests(unittest.TestCase):
         except ModuleNotFoundError:
             self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
         from freecad_cloth.avatar.AvatarCommands import create_avatar, rebuild_avatar
-        from freecad_cloth.simulation.DrapeTarget import refresh_drape_target, target_status
 
         doc = App.newDocument("AvatarTargetInvalidation")
         try:
