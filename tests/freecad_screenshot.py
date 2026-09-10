@@ -150,7 +150,7 @@ def pattern_and_sewing():
         raise RuntimeError("pattern fixture produced empty geometry")
     activate("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D"])
     panel = PatternPieceTaskPanel(front)
-    dock = show_task(panel, "Pattern Workbench", ("Piece name", "Width", "Height", "Seam allowance", "Grainline angle"))
+    show_task(panel, "Pattern Workbench", ("Piece name", "Width", "Height", "Seam allowance", "Grainline angle"))
     Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll(); events()
     save("cloth-pattern-design.png", "Pattern Workbench", "native pattern task panel with two pieces")
     close_task()
@@ -178,7 +178,6 @@ def style_mesh(obj, label, color=(0.86, 0.20, 0.10)):
 
 
 def _tunic_outline(width, height):
-    # One wearable front/back panel: open neck, shaped shoulder, straight side and hem.
     return [
         (0.00, 0.00), (width, 0.00),
         (width, height), (0.68 * width, 0.86 * height),
@@ -208,11 +207,8 @@ def simulation():
     box = avatar.Mesh.BoundBox
     x_mid = (box.XMin + box.XMax) / 2.0
     y_mid = (box.YMin + box.YMax) / 2.0
-    x_span = box.XMax - box.XMin
     y_span = box.YMax - box.YMin
     z_span = box.ZMax - box.ZMin
-
-    # MakeHuman is Z-up here: X is lateral garment width, Y is front/back depth.
     chest = 980.0
     hip = 1020.0
     shoulder = 440.0
@@ -228,34 +224,21 @@ def simulation():
     rot = App.Rotation(App.Vector(1, 0, 0), 90.0)
 
     def make_piece(name, y, neckline_ratio):
-        outline = _tunic_outline(panel_width, garment_height)
-        if neckline_ratio != 0.68:
-            outline = [
-                (0.00, 0.00), (panel_width, 0.00),
-                (panel_width, garment_height), (neckline_ratio * panel_width, 0.86 * garment_height),
-                ((1.0 - neckline_ratio) * panel_width, 0.86 * garment_height), (0.00, garment_height),
-            ]
+        outline = [
+            (0.00, 0.00), (hem_width, 0.00),
+            (panel_width, garment_height),
+            (neckline_ratio * panel_width, 0.86 * garment_height),
+            ((1.0 - neckline_ratio) * panel_width, 0.86 * garment_height),
+            (0.00, garment_height),
+        ]
         piece = create_pattern_piece_from_parameters(name, panel_width, garment_height, 10.0, 0.0)
-        piece.Label = name
         piece.DraftingBoundary = repr(outline)
         piece.SewingOutline = repr(outline)
-        piece.Placement = App.Placement(
-            App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot
-        )
+        piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
         return piece, outline
 
     front, front_outline = make_piece("VisualTunicFront", front_y, 0.68)
     back, back_outline = make_piece("VisualTunicBack", back_y, 0.74)
-
-    # Match hem width in local x by adding a controlled outward ease to the side corners.
-    # The top is narrower to represent shoulders while the hem remains relaxed.
-    front.DraftingBoundary = repr([(0.00, 0.00), (hem_width, 0.00), (panel_width, garment_height), (0.68 * panel_width, 0.86 * garment_height), (0.32 * panel_width, 0.86 * garment_height), (0.00, garment_height)])
-    front.SewingOutline = front.DraftingBoundary
-    back.DraftingBoundary = repr([(0.00, 0.00), (hem_width, 0.00), (panel_width, garment_height), (0.74 * panel_width, 0.86 * garment_height), (0.26 * panel_width, 0.86 * garment_height), (0.00, garment_height)])
-    back.SewingOutline = back.DraftingBoundary
-    doc.recompute()
-
-    # Side seams and shoulder seams form one real tunic shell; neckline and hem stay open.
     for edge_a, edge_b, seam_id in (
         (1, 1, "TunicRightSide"),
         (5, 5, "TunicLeftSide"),
@@ -264,8 +247,6 @@ def simulation():
     ):
         add_seam(doc, Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))
 
-    # Refresh collision after the production target is resolved, and use the vertical panel pose.
-    refresh_drape_target(target)
     scene.StartHeight = 0.0
     scene.QualityPreset = "Fast"
     scene.ParticleDistance = 22.0
@@ -276,33 +257,23 @@ def simulation():
     scene.GravityY = 0.0
     scene.GravityZ = -9810.0
     scene.ClothPieces = [front, back]
+    refresh_drape_target(target)
     doc.recompute()
 
-    # Derive pin indices from the actual triangulated outline. Only shoulder regions are pinned.
-    def shoulder_pins(piece, outline):
+    def local_boundary(piece, outline):
         points = [(float(x), float(y)) for x, y in outline]
         segments = [LineSegment("%s:edge:%d" % (piece.PieceId, i), points[i], points[(i + 1) % len(points)]) for i in range(len(points))]
         mesh = triangulate(ParametricPattern(segments))
         h = max(y for _, y in points)
-        return tuple(i for i in mesh.boundary_vertex_indices if float(mesh.vertices[i][1]) >= 0.86 * h - 1e-6 and (float(mesh.vertices[i][0]) <= 0.32 * panel_width + 1e-6 or float(mesh.vertices[i][0]) >= 0.68 * panel_width - 1e-6))
+        return mesh, tuple(i for i in mesh.boundary_vertex_indices if float(mesh.vertices[i][1]) >= 0.86 * h - 1e-6 and (float(mesh.vertices[i][0]) <= 0.32 * panel_width + 1e-6 or float(mesh.vertices[i][0]) >= 0.68 * panel_width - 1e-6))
 
-    front_pins = shoulder_pins(front, eval(front.DraftingBoundary))
-    back_pins_local = shoulder_pins(back, eval(back.DraftingBoundary))
-    # SimulationObjects concatenates panel particles in piece order.
-    from freecad_cloth.pattern.PatternGeometry import ParametricPattern
-    from freecad_cloth.pattern.PatternMesh import triangulate
-    fp = [(float(x), float(y)) for x, y in eval(front.DraftingBoundary)]
-    bp = [(float(x), float(y)) for x, y in eval(back.DraftingBoundary)]
-    fv = triangulate(ParametricPattern([LineSegment("fp:%d" % i, fp[i], fp[(i + 1) % len(fp)]) for i in range(len(fp))]))
-    bv = triangulate(ParametricPattern([LineSegment("bp:%d" % i, bp[i], bp[(i + 1) % len(bp)]) for i in range(len(bp))]))
-    front_pins = tuple(front_pins)
-    back_pins = tuple(len(fv.vertices) + i for i in back_pins_local)
-    scene.PinSelection = [str(i) for i in (front_pins + back_pins)]
+    fmesh, front_pins = local_boundary(front, front_outline)
+    bmesh, back_pins_local = local_boundary(back, back_outline)
+    back_pins = tuple(len(fmesh.vertices) + i for i in back_pins_local)
+    scene.PinSelection = [str(i) for i in front_pins + back_pins]
     doc.recompute()
 
-    source_front = doc.getObject("VisualTunicFront")
-    source_back = doc.getObject("VisualTunicBack")
-    for source in (source_front, source_back):
+    for source in (doc.getObject("VisualTunicFront"), doc.getObject("VisualTunicBack")):
         if source is not None:
             source.ViewObject.Visibility = False
     panels = list(scene.DrapePanels)
@@ -320,7 +291,8 @@ def simulation():
         raise RuntimeError("visual fixture does not contain a real humanoid mesh")
 
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
-    task_dock = show_task(SimulationQualityTaskPanel(scene), "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset"))
+    simulation_panel = SimulationQualityTaskPanel(scene)
+    task_dock = show_task(simulation_panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset"))
     view = Gui.activeDocument().activeView()
     view.setCameraType("Orthographic")
     view.viewFront(); view.fitAll(); events()
@@ -328,27 +300,8 @@ def simulation():
     save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical two-panel tunic on production mannequin before simulation")
     task_dock.show(); task_dock.raise_(); events()
 
-    panel_task = SimulationQualityTaskPanel(scene)
-    # Re-use the active task dialog rather than opening a second one.
-    panel_task.form = Gui.Control.activeDialog() if False else panel_task.form
-    for _ in range(4):
-        # 4 x 15 steps = 60 frames; the fixed first-step state prevents artificial launch velocity.
-        show = panel_task
-        if show.form is not None:
-            pass
-        # Call the public task-panel operation against the active scene.
-        # The existing panel already exposes step(); create one only if needed.
-        try:
-            from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel as _Panel
-            active_panel = _Panel(scene)
-            active_panel.form = active_panel.form
-            active_panel.step(15)
-        except Exception:
-            panel = Gui.Control.activeDialog()
-            if hasattr(panel, "step"):
-                panel.step(15)
-            else:
-                raise
+    for batch in (15, 15, 15, 15):
+        simulation_panel.step(batch)
         doc.recompute(); events()
 
     if int(scene.Steps) != 60 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
@@ -362,13 +315,7 @@ def simulation():
         bounds.append((b.XMin, b.XMax, b.YMin, b.YMax, b.ZMin, b.ZMax))
     log("drape-bounds=%s" % (bounds,))
 
-    # Hide every unrelated demo panel; only the two tunic panels and the mannequin remain.
-    keep = {panel.Name for panel in scene.DrapePanels}
-    for obj in doc.Objects:
-        if getattr(obj, "Name", "") in ("DrapePanelA", "DrapePanelB") and obj.Name not in keep:
-            obj.ViewObject.Visibility = False
-    doc.recompute()
-
+    task_dock.hide(); events()
     final_views = (
         ("front", "viewFront"),
         ("rear", "viewRear"),
@@ -377,15 +324,13 @@ def simulation():
         ("top", "viewTop"),
         ("bottom", "viewBottom"),
     )
-    task_dock.hide(); events()
     for direction, method_name in final_views:
         getattr(view, method_name)(); view.fitAll(); events()
-        save("cloth-simulation-draped-%s.png" % direction, "Simulation Workbench draped %s" % direction, "same sewn tunic after 60 real steps; six-side audit" )
+        save("cloth-simulation-draped-%s.png" % direction, "Simulation Workbench draped %s" % direction, "same sewn tunic after 60 real steps; six-side audit")
         if direction == "front":
             save("cloth-simulation-draped.png", "Simulation Workbench draped front", "legacy front screenshot alias")
     task_dock.show(); task_dock.raise_(); events()
-    close_task()
-    App.closeDocument(doc.Name)
+    close_task(); App.closeDocument(doc.Name)
 
 
 def main():
