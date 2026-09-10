@@ -172,35 +172,10 @@ def _axis_bounds(vertices, axis):
 
 
 def _map_makehuman_axes(vertices):
-    """Map the dominant source height axis into FreeCAD's RH-Z-up frame.
-
-    MakeHuman exports are normally Y-up/Z-depth, but OBJ assets can be
-    transformed by upstream tooling. The humanoid's anatomical height is the
-    only source extent expected to dominate the other two extents, so infer it
-    from the measured spans and then keep the larger remaining span as body
-    width and the smaller as front/back depth. For the canonical Y-up/Z-depth
-    source this reduces to X, -Z, Y as used by the MakeHuman ecosystem.
-    """
-    spans = tuple(_axis_bounds(vertices, axis)[1] - _axis_bounds(vertices, axis)[0] for axis in range(3))
-    height_axis = max(range(3), key=lambda axis: spans[axis])
-    remaining = [axis for axis in range(3) if axis != height_axis]
-    width_axis, depth_axis = sorted(remaining, key=lambda axis: spans[axis], reverse=True)
-    bounds = {axis: _axis_bounds(vertices, axis) for axis in range(3)}
-    hmin, hmax = bounds[height_axis]
-    hspan = max(1e-9, hmax - hmin)
-
-    def coordinate(vertex, axis):
-        return float(vertex[axis])
-
-    # Preserve a conventional right-handed frame while allowing mirrored CAD
-    # assets to retain their source handedness in the width/depth axes.
-    output = []
-    for vertex in vertices:
-        width = coordinate(vertex, width_axis)
-        depth = -coordinate(vertex, depth_axis)
-        height = (coordinate(vertex, height_axis) - hmin) / hspan
-        output.append((width, depth, height))
-    return output
+    """Convert MakeHuman's Y-up coordinates to FreeCAD's Z-up frame."""
+    ymin, ymax = _axis_bounds(vertices, 1)
+    span = max(1e-9, ymax - ymin)
+    return [(float(x), float(-z), float(y - ymin) / span) for x, y, z in vertices]
 
 
 def _profile_scale(z, profile):
