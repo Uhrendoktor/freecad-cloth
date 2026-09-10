@@ -207,25 +207,19 @@ def _make_preview_from_mesh(doc, drape, fallback):
 
 def _hide_tasks_for_visual_capture(dock):
     if dock is not None:
-        dock.hide()
-        events()
+        dock.hide(); events()
 
 
 def _restore_tasks_after_visual_capture(dock):
     if dock is not None:
-        dock.show()
-        dock.raise_()
-        events()
+        dock.show(); dock.raise_(); events()
 
 
 def _visual_fit(view):
-    """Fit visible mannequin and cloth after helpers/collision geometry are hidden."""
-    view.fitAll()
-    events()
+    view.fitAll(); events()
 
 
 def _tunic_outline(width, height):
-    """Simple sleeveless tunic: top edge is the pinned edge (points 0 and 1)."""
     return [
         (0.10 * width, height),
         (0.90 * width, height),
@@ -271,8 +265,10 @@ def simulation():
     plane_span = min(x_span, y_span)
     flat_avatar = z_span < 0.35 * max(x_span, y_span)
 
-    garment_width = max(800.0, 0.20 * plane_span)
-    garment_height = max(1200.0, 0.28 * plane_span)
+    # Size the fixture from the production mannequin instead of using a tiny
+    # hard-coded panel that disappears at mannequin scale.
+    garment_width = max(900.0, 0.16 * plane_span)
+    garment_height = max(1200.0, 0.23 * plane_span)
     outline = _tunic_outline(garment_width, garment_height)
     garment = create_pattern_piece_from_parameters("VisualTunic", garment_width, garment_height, 10.0, 0.0)
     garment.Label = "Simple Tunic Panel"
@@ -286,8 +282,8 @@ def simulation():
     else:
         scene.StartHeight = ab.ZMin + 0.55 * z_span
     scene.QualityPreset = "Fast"
-    scene.ParticleDistance = 20.0
-    scene.SolverIterations = 5
+    scene.ParticleDistance = 35.0
+    scene.SolverIterations = 4
     scene.PinSelection = ["0", "1"]
     scene.ClothPieces = [garment]
     refresh_drape_target(scene.DrapeTarget)
@@ -325,15 +321,15 @@ def simulation():
     _visual_fit(view)
     _hide_tasks_for_visual_capture(task_dock)
     save("cloth-simulation-arranged.png", "Simulation Workbench arranged",
-         "simple %.0fx%.0f mm tunic with a shoulder-to-shoulder top edge pinned over the production MakeHuman mannequin; top perspective selected for the current mannequin coordinate frame" % (garment_width, garment_height))
+         "simple %.0fx%.0f mm tunic with a pinned shoulder edge over the production MakeHuman mannequin; top perspective selected for the current mannequin coordinate frame" % (garment_width, garment_height))
     _restore_tasks_after_visual_capture(task_dock)
 
-    for batch in (6, 6, 6, 6):
+    for batch in (6, 6):
         panel.step(batch)
         doc.recompute()
         events()
-    if int(scene.Steps) != 24 or float(scene.SimulatedTime) <= 0 or not bool(scene.FiniteState):
-        raise RuntimeError("simulation did not reach a finite 24-step drape state")
+    if int(scene.Steps) != 12 or float(scene.SimulatedTime) <= 0 or not bool(scene.FiniteState):
+        raise RuntimeError("simulation did not reach a finite 12-step drape state")
     if drape.Mesh.CountFacets <= 10:
         raise RuntimeError("draped garment panel has no visible mesh facets")
     log("drape-bounds X=%.1f..%.1f Y=%.1f..%.1f Z=%.1f..%.1f facets=%d" % (
@@ -342,13 +338,13 @@ def simulation():
     _make_preview_from_mesh(doc, drape, preview)
     doc.recompute()
 
-    show_task(panel, "Simulation Workbench draped", ("State:", "24", "particles", "Fast"), reuse_active=True)
+    show_task(panel, "Simulation Workbench draped", ("State:", "12", "particles", "Fast"), reuse_active=True)
     view.setCameraType("Perspective")
     view.viewTop()
     _visual_fit(view)
     _hide_tasks_for_visual_capture(task_dock)
     save("cloth-simulation-draped.png", "Simulation Workbench draped",
-         "same %.0fx%.0f mm tunic after 24 real simulation steps; top perspective keeps the garment silhouette on the mannequin in view" % (garment_width, garment_height))
+         "same %.0fx%.0f mm tunic after 12 real simulation steps; top perspective keeps the garment silhouette on the mannequin in view" % (garment_width, garment_height))
     _restore_tasks_after_visual_capture(task_dock)
     close_task()
     App.closeDocument(doc.Name)
