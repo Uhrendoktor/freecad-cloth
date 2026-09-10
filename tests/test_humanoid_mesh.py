@@ -57,6 +57,28 @@ class HumanoidMeshTests(unittest.TestCase):
         self.assertAlmostEqual(max(v[2] for v in fitted.vertices), 1750.0)
         self.assertAlmostEqual(max(v[1] for v in fitted.vertices) - min(v[1] for v in fitted.vertices), 175.0)
 
+    def test_fit_maps_x_up_transformed_assets_without_laying_them_down(self):
+        source = parse_obj("""
+        v 0 -1 -0.5
+        v 10 -1 -0.5
+        v 10 1 -0.5
+        v 0 1 -0.5
+        v 0 -1 0.5
+        v 10 -1 0.5
+        v 10 1 0.5
+        v 0 1 0.5
+        f 1 2 3 4
+        f 5 8 7 6
+        f 1 5 6 2
+        f 2 6 7 3
+        f 3 7 8 4
+        f 4 8 5 1
+        """)
+        fitted = fit_makehuman_mesh(source, AvatarParameters(skin_offset=0))
+        self.assertAlmostEqual(min(v[2] for v in fitted.vertices), 0.0)
+        self.assertAlmostEqual(max(v[2] for v in fitted.vertices), 1750.0)
+        self.assertAlmostEqual(max(v[0] for v in fitted.vertices) - min(v[0] for v in fitted.vertices), 350.0)
+
     def test_fit_preserves_topology_and_applies_height_and_skin_offset(self):
         source = parse_obj("""
         v -1 -1 -1
