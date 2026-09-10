@@ -93,11 +93,13 @@ class PatternPieceProxy:
         if width <= 0 or height <= 0: raise ValueError("pattern piece dimensions must be positive")
         if allowance < 0: raise ValueError("seam allowance cannot be negative")
         mode = str(getattr(obj, "GeometryMode", "Rectangle"))
-        if mode == "Custom":
-            points = _parse_points(getattr(obj, "DraftingBoundary", ""))
+        drafting = _parse_points(getattr(obj, "DraftingBoundary", ""))
+        if mode == "Custom" or (mode == "Rectangle" and len(drafting) > 4):
+            points = drafting
             if len(points) < 3: raise ValueError("custom pattern outline needs at least three points")
             obj.Width = max(x for x, _ in points) - min(x for x, _ in points)
             obj.Height = max(y for _, y in points) - min(y for _, y in points)
+            obj.GeometryMode = "Custom"
         else:
             points = _rectangle_points(width, height); obj.GeometryMode = "Rectangle"
         obj.DraftingBoundary = repr(points); obj.SewingOutline = repr(points)
