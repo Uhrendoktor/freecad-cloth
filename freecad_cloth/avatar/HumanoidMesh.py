@@ -22,6 +22,7 @@ MAKEHUMAN_BASE_URL = (
     + "/makehuman/data/3dobjs/base.obj"
 )
 MAKEHUMAN_BASE_SHA256 = "8e761e6624b8f54536409135d1636da63b32486a90d4897f84e121d144f6fb4c"
+MAKEHUMAN_BODY_VERTEX_COUNT = 13380
 CACHE_ENV = "FREECAD_CLOTH_AVATAR_MESH"
 CACHE_DIR_ENV = "FREECAD_CLOTH_AVATAR_CACHE"
 DEFAULT_CACHE_NAME = "makehuman-hm08-base.obj"
@@ -37,7 +38,7 @@ class MeshData:
     triangles: tuple[tuple[int, int, int], ...]
 
     def validate(self):
-        if len(self.vertices) < 3 or len(self.triangles) < 1:
+        if len(self.vertices) < 3 or not self.triangles:
             raise HumanoidMeshError("humanoid mesh is empty")
         count = len(self.vertices)
         for tri in self.triangles:
@@ -113,11 +114,11 @@ def ensure_makehuman_base(path: str | os.PathLike[str] | None = None) -> Path:
 
 
 def parse_obj(text: str) -> MeshData:
-    """Parse Wavefront vertices/faces; triangulate quads and n-gons.
+    """Parse HM08 and retain only its canonical visible body surface.
 
-    Keep the source topology intact. The MakeHuman base mesh is one canonical
-    surface; choosing an arbitrary connected component can silently discard
-    legitimate anatomy or produce a visibly incomplete mannequin.
+    HM08 stores the visible body first (vertices 0..13379), followed by helper
+    geometry used internally by MakeHuman for joints, clothing and weighting.
+    The helpers must not become visible FreeCAD anatomy.
     """
     vertices = []
     triangles = []
@@ -136,7 +137,13 @@ def parse_obj(text: str) -> MeshData:
                 indices.append(index)
             for i in range(1, len(indices) - 1):
                 triangles.append((indices[0], indices[i], indices[i + 1]))
-    return MeshData(tuple(vertices), tuple(triangles)).validate()
+
+    body_vertices = tuple(vertices[:MAKEHUMAN_BODY_VERTEX_COUNT])
+    body_triangles = tuple(
+        tri for tri in triangles
+        if all(0 <= index < MAKEHUMAN_BODY_VERTEX_COUNT for index in tri)
+    )
+    return MeshData(body_vertices, body_triangles).validate()
 
 
 @lru_cache(maxsize=4)
@@ -273,7 +280,6 @@ def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
     skin_offset = float(parameters.skin_offset)
     fitted = []
     shoulder_half = float(parameters.measurement("shoulder")) / 2.0
-    body_half = shoulder_half * 0.90
     for x, y, z in source:
         torso_scale = _profile_scale(z, torso_profile)
         shoulder_blend = _smoothstep(0.67, 0.79, z)

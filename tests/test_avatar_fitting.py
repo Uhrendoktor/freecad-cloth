@@ -7,7 +7,7 @@ from freecad_cloth.avatar.AvatarFitting import ArrangementPoint, BodyMeasurement
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose, generate_mesh
 from freecad_cloth.avatar.AvatarService import AvatarService
 from freecad_cloth.avatar.AvatarArrangement import ARRANGEMENT_POINT_NAMES, arrangement_point_map, arrangement_points_from_landmarks
-from freecad_cloth.avatar.HumanoidMesh import MeshData, fit_makehuman_mesh, parse_obj
+from freecad_cloth.avatar.HumanoidMesh import MeshData, MAKEHUMAN_BODY_VERTEX_COUNT, fit_makehuman_mesh, parse_obj
 
 
 class AvatarFittingTests(unittest.TestCase):
@@ -54,19 +54,15 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertFalse(restored.symmetry_enabled)
         self.assertEqual(restored.arrangement_map()["chest"].position(), (10.0, 20.0, 5.0))
 
-    def test_obj_parser_preserves_disconnected_source_geometry(self):
-        mesh = parse_obj("""
-            v 0 0 0
-            v 1 0 0
-            v 0 1 0
-            f 1 2 3
-            v 10 0 0
-            v 11 0 0
-            v 10 1 0
-            f 4 5 6
-        """)
-        self.assertEqual(len(mesh.vertices), 6)
-        self.assertEqual(mesh.triangles, ((0, 1, 2), (3, 4, 5)))
+    def test_obj_parser_excludes_hm08_helper_faces(self):
+        lines = ["v 0 0 0"] * MAKEHUMAN_BODY_VERTEX_COUNT
+        lines[1] = "v 1 0 0"
+        lines[2] = "v 0 1 0"
+        lines.append("v 10 0 0")
+        lines.extend(("f 1 2 3", "f 1 2 %d" % (MAKEHUMAN_BODY_VERTEX_COUNT + 1)))
+        mesh = parse_obj("\n".join(lines))
+        self.assertEqual(len(mesh.vertices), MAKEHUMAN_BODY_VERTEX_COUNT)
+        self.assertEqual(mesh.triangles, ((0, 1, 2),))
 
     def test_default_mannequin_preserves_source_shape_after_height_normalization(self):
         source = MeshData(
