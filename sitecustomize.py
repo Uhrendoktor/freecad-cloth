@@ -20,13 +20,14 @@ if QtGui is not None:
             pass
 
 # The six-side GUI fixture starts from the standard pattern-piece factory and
-# then replaces its rectangle with a custom tunic outline.  The factory also
+# then replaces its rectangle with a custom tunic outline. The factory also
 # attaches a Sketcher authority, which would otherwise rebuild the rectangle
-# on the next recompute. Keep this specific CI fixture on the PatternParameters
-# path so its custom boundary remains authoritative for seam creation and drape.
+# on the next recompute. Keep only the screenshot runner on the parameter path
+# so its custom boundary remains authoritative for seam creation and drape.
 try:
     import os
-    if os.environ.get("CLOTH_SCREENSHOT_DIR"):
+    import sys
+    if os.path.basename(sys.argv[0]) == "freecad_screenshot.py":
         from freecad_cloth.pattern import PatternCommands
         _original_factory = PatternCommands.create_pattern_piece_from_parameters
         if not getattr(_original_factory, "_cloth_gui_custom_outline", False):
