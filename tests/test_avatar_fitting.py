@@ -65,6 +65,8 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertEqual(mesh.triangles, ((0, 1, 2),))
 
     def test_default_mannequin_preserves_source_shape_after_height_normalization(self):
+        # Make Y uniquely the dominant source extent, matching a Y-up humanoid
+        # export while leaving X as width and Z as depth.
         source = MeshData(
             ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 10.0, 0.0), (0.0, 10.0, 2.0)),
             ((0, 1, 2), (1, 3, 2), (0, 2, 3)),
@@ -72,7 +74,7 @@ class AvatarFittingTests(unittest.TestCase):
         params = AvatarParameters(pose=Pose("standing", 0.0, 0.0))
         fitted = fit_makehuman_mesh(source, params)
         self.assertEqual(fitted.triangles, source.triangles)
-        self.assertEqual(fitted.vertices, ((0.0, 0.0, 0.0), (0.0, -175.0, 0.0), (0.0, 0.0, 1750.0), (350.0, 0.0, 1750.0)))
+        self.assertEqual(fitted.vertices, ((0.0, 0.0, 0.0), (175.0, 0.0, 0.0), (0.0, 0.0, 1750.0), (350.0, 0.0, 1750.0)))
 
     def test_mannequin_is_deterministic_and_landmarked(self):
         params = AvatarParameters()
