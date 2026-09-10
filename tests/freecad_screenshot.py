@@ -379,7 +379,7 @@ def simulation():
         save(
             name,
             "Simulation Workbench draped %s" % direction,
-            "same tunic after 24 real simulation steps; six-side orthographic audit" % direction,
+            "same tunic after 24 real simulation steps; six-side orthographic audit: %s" % direction,
         )
         if direction == "front":
             save(
