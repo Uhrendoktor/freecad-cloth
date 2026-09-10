@@ -165,13 +165,17 @@ def simulation():
     garment.Placement.Base.x = cx - garment_width / 2.0; garment.Placement.Base.y = cy - garment_height / 2.0
     if flat_avatar: scene.StartHeight = ab.ZMax + max(30.0, 0.025 * plane_span)
     else: scene.StartHeight = ab.ZMin + 0.55 * z_span
-    scene.QualityPreset = "Fast"; scene.ParticleDistance = 35.0; scene.SolverIterations = 4; scene.TimeStep = 0.08
-    # Pin the two actual top-edge boundary vertices, not mesh indices 0/1.
+    scene.QualityPreset = "Fast"; scene.ParticleDistance = 35.0; scene.SolverIterations = 4; scene.TimeStep = 0.008
     points = [(float(x), float(y)) for x, y in outline]
     segments = [LineSegment("VisualTunic:edge:%d" % i, points[i], points[(i + 1) % len(points)]) for i in range(len(points))]
     probe = triangulate(ParametricPattern(segments))
-    top_pins = (probe.boundary_vertex_indices[0], probe.boundary_vertex_indices[1])
-    scene.PinSelection = [str(top_pins[0]), str(top_pins[1])]
+    # Pin every boundary vertex along the actual top edge, rather than assuming
+    # mesh vertex 0/1 are the garment's shoulder points.
+    top_y = max(float(y) for x, y in points)
+    top_pins = tuple(i for i in probe.boundary_vertex_indices if abs(float(probe.vertices[i][1]) - top_y) <= 1e-6)
+    if len(top_pins) < 2:
+        raise RuntimeError("visual tunic top edge could not be resolved to boundary mesh vertices")
+    scene.PinSelection = [str(i) for i in top_pins]
     scene.ClothPieces = [garment]; refresh_drape_target(scene.DrapeTarget); doc.recompute()
     source_sketch = doc.getObject("VisualTunic")
     if source_sketch is not None: source_sketch.ViewObject.Visibility = False
@@ -183,14 +187,14 @@ def simulation():
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
     panel = SimulationQualityTaskPanel(scene); task_dock = show_task(panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset"))
     view = Gui.activeDocument().activeView(); view.setCameraType("Perspective"); view.viewTop(); _visual_fit(view); _hide_tasks_for_visual_capture(task_dock)
-    save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "simple %.0fx%.0f mm tunic with an actual top-edge pin pair over the production MakeHuman mannequin; top perspective selected for the current mannequin coordinate frame" % (garment_width, garment_height)); _restore_tasks_after_visual_capture(task_dock)
+    save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "simple %.0fx%.0f mm tunic with the full actual top boundary pinned over the production MakeHuman mannequin; top perspective selected for the current mannequin coordinate frame" % (garment_width, garment_height)); _restore_tasks_after_visual_capture(task_dock)
     for batch in (6, 6, 6, 6): panel.step(batch); doc.recompute(); events()
     if int(scene.Steps) != 24 or float(scene.SimulatedTime) <= 0 or not bool(scene.FiniteState): raise RuntimeError("simulation did not reach a finite 24-step drape state")
     if drape.Mesh.CountFacets <= 10: raise RuntimeError("draped garment panel has no visible mesh facets")
     log("drape-bounds X=%.1f..%.1f Y=%.1f..%.1f Z=%.1f..%.1f facets=%d" % (drape.Mesh.BoundBox.XMin, drape.Mesh.BoundBox.XMax, drape.Mesh.BoundBox.YMin, drape.Mesh.BoundBox.YMax, drape.Mesh.BoundBox.ZMin, drape.Mesh.BoundBox.ZMax, drape.Mesh.CountFacets))
     _make_preview_from_mesh(doc, drape, preview); preview.ViewObject.Visibility = False; doc.recompute()
     show_task(panel, "Simulation Workbench draped", ("State:", "24", "particles", "Fast"), reuse_active=True); view.setCameraType("Perspective"); view.viewTop(); _visual_fit(view); _hide_tasks_for_visual_capture(task_dock)
-    save("cloth-simulation-draped.png", "Simulation Workbench draped", "same %.0fx%.0f mm tunic after 24 real simulation steps; top perspective keeps the simulated garment on the mannequin in view" % (garment_width, garment_height)); _restore_tasks_after_visual_capture(task_dock); close_task(); App.closeDocument(doc.Name)
+    save("cloth-simulation-draped.png", "Simulation Workbench draped", "same %.0fx%.0f mm tunic after 24 real simulation steps with the helper preview hidden; top perspective keeps the simulated garment and mannequin silhouette together" % (garment_width, garment_height)); _restore_tasks_after_visual_capture(task_dock); close_task(); App.closeDocument(doc.Name)
 
 def load_and_run(path, module_name):
     spec = importlib.util.spec_from_file_location(module_name, path)
@@ -210,7 +214,7 @@ exit_code = 0; log("script-start")
 try:
     if Gui.getMainWindow() is None: raise RuntimeError("FreeCAD GUI main window did not launch")
     Gui.getMainWindow().show(); events()
-    if not Gui.getMainWindow().isVisible(): raise RuntimeError("FreeCAD main window failed to become visible")
+    if not Gui.getMainWindow().isVisible(): raise RuntimeError("FreeCAD GUI main window is not visible")
     log("gui-launch-ok window=%sx%s" % (Gui.getMainWindow().width(), Gui.getMainWindow().height()))
     init_gui = os.path.join(ROOT, "InitGui.py")
     exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals()); events()
