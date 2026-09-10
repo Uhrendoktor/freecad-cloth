@@ -161,18 +161,25 @@ def simulation():
     if scene.DrapeTarget is None or not scene.DrapePanels: raise RuntimeError("visual garment fixture did not create drape target/panel")
     drape = scene.DrapePanels[0]; _style_garment(drape, "Drape: Simple Tunic Panel"); avatar.ViewObject.Visibility = True; doc.recompute()
     if int(getattr(avatar, "MeshVertexCount", 0)) <= 100 or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100: raise RuntimeError("visual fixture does not contain a real humanoid mesh")
+    bounds = avatar.Mesh.BoundBox
+    log("avatar-bounds X=%.1f..%.1f Y=%.1f..%.1f Z=%.1f..%.1f" % (bounds.XMin, bounds.XMax, bounds.YMin, bounds.YMax, bounds.ZMin, bounds.ZMax))
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
     panel = SimulationQualityTaskPanel(scene)
     task_dock = show_task(panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset"))
-    view = Gui.activeDocument().activeView(); view.setCameraType("Perspective"); view.viewFront(); view.fitAll(); events()
-    _hide_tasks_for_visual_capture(task_dock); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "single 440x560 mm tunic panel placed against the production MakeHuman mannequin; front perspective used for a direct garment view"); _restore_tasks_after_visual_capture(task_dock)
+    view = Gui.activeDocument().activeView(); _hide_tasks_for_visual_capture(task_dock)
+    for tag, fn in (("front", "viewFront"), ("rear", "viewRear"), ("left", "viewLeft"), ("right", "viewRight"), ("top", "viewTop")):
+        getattr(view, fn)(); view.fitAll(); events(); save("debug-%s.png" % tag, "Debug %s" % tag, "diagnostic camera orientation")
+    view.viewFront(); view.fitAll(); events(); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "single 440x560 mm tunic panel placed against the production MakeHuman mannequin; front perspective used for a direct garment view")
+    _restore_tasks_after_visual_capture(task_dock)
     for batch in (6, 6, 6, 6): panel.step(batch); doc.recompute(); events()
     if int(scene.Steps) != 24 or float(scene.SimulatedTime) <= 0 or not bool(scene.FiniteState): raise RuntimeError("simulation did not reach a finite 24-step drape state")
     if drape.Mesh.CountFacets <= 10: raise RuntimeError("draped garment panel has no visible mesh facets")
     show_task(panel, "Simulation Workbench draped", ("State:", "24", "particles", "Fast"), reuse_active=True)
-    view.setCameraType("Perspective"); view.viewFront(); view.fitAll(); events()
-    _hide_tasks_for_visual_capture(task_dock); save("cloth-simulation-draped.png", "Simulation Workbench draped", "same single tunic panel after 24 real simulation steps; front perspective isolates the garment silhouette on the mannequin"); _restore_tasks_after_visual_capture(task_dock)
-    close_task(); App.closeDocument(doc.Name)
+    view.setCameraType("Perspective"); _hide_tasks_for_visual_capture(task_dock)
+    for tag, fn in (("draped-front", "viewFront"), ("draped-rear", "viewRear"), ("draped-left", "viewLeft"), ("draped-right", "viewRight"), ("draped-top", "viewTop")):
+        getattr(view, fn)(); view.fitAll(); events(); save("debug-%s.png" % tag, "Debug %s" % tag, "diagnostic draped camera orientation")
+    view.viewFront(); view.fitAll(); events(); save("cloth-simulation-draped.png", "Simulation Workbench draped", "same single tunic panel after 24 real simulation steps; front perspective isolates the garment silhouette on the mannequin")
+    _restore_tasks_after_visual_capture(task_dock); close_task(); App.closeDocument(doc.Name)
 
 
 def load_and_run(path, module_name):
