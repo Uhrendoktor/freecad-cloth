@@ -202,38 +202,11 @@ def _style_garment(panel, label):
         pass
 
 
-def _prepare_garment_camera(view, avatar, garment):
-    """Use a torso-focused three-quarter view so the cloth/Mannequin relation dominates the export."""
-    view.setCameraType("Perspective")
-    view.viewFront()
-    # A slight model-space offset keeps the garment visually separated from the task panel.
-    view.setCameraOrientation(App.Rotation(App.Vector(1, 0, 0), -8))
-    view.fitAll()
-    # Re-fit around the actual avatar + cloth instead of the whole document's helper geometry.
-    try:
-        bounds = avatar.Mesh.BoundBox
-        cloth_bounds = garment.Mesh.BoundBox
-        xmin = min(bounds.XMin, cloth_bounds.XMin)
-        xmax = max(bounds.XMax, cloth_bounds.XMax)
-        ymin = min(bounds.YMin, cloth_bounds.YMin)
-        ymax = max(bounds.YMax, cloth_bounds.YMax)
-        zmin = min(bounds.ZMin, cloth_bounds.ZMin)
-        zmax = max(bounds.ZMax, cloth_bounds.ZMax)
-        center = App.Vector((xmin + xmax) / 2.0, (ymin + ymax) / 2.0, (zmin + zmax) / 2.0)
-        view.setCameraOrientation(App.Rotation(App.Vector(0, 0, 1), 24).multiply(App.Rotation(App.Vector(1, 0, 0), -10)))
-        view.fitAll()
-        view.saveImage(os.path.join(OUT, "_unused.png"), 1, 1, "Current")
-    except Exception:
-        pass
-    events()
-
-
 def simulation():
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_parameters
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
     from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
     from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
-    from freecad_cloth.avatar.AvatarCommands import create_avatar
 
     doc = App.newDocument("ClothSimulationVisualRegression")
     garment = create_pattern_piece_from_parameters("VisualTunic", 440.0, 560.0, 10.0, 0.0)
@@ -242,9 +215,9 @@ def simulation():
     garment.Placement.Base.y = -120.0
 
     scene = create_quality_simulation_scene(doc)
-    avatar = getattr(scene.AvatarProxy, "SourceObject", None)
-    if avatar is None or str(getattr(avatar, "AvatarType", "")) != "ClothAvatar":
-        raise RuntimeError("visual fixture did not create the production ClothAvatar")
+    # The production scene builder starts with two demo output panels. The visual
+    # fixture intentionally owns exactly one native garment panel instead.
+    scene.DrapePanels = []
     scene.ClothPieces = [garment]
     scene.QualityPreset = "Fast"
     scene.ParticleDistance = 8.0
@@ -253,6 +226,10 @@ def simulation():
     scene.PinSelection = ["0", "1"]
     refresh_drape_target(scene.DrapeTarget)
     doc.recompute()
+
+    avatar = getattr(scene.AvatarProxy, "SourceObject", None)
+    if avatar is None or str(getattr(avatar, "AvatarType", "")) != "ClothAvatar":
+        raise RuntimeError("visual fixture did not create the production ClothAvatar")
     if scene.DrapeTarget is None or not scene.DrapePanels:
         raise RuntimeError("visual garment fixture did not create drape target/panel")
     drape = scene.DrapePanels[0]
@@ -267,7 +244,6 @@ def simulation():
     panel = SimulationQualityTaskPanel(scene)
     show_task(panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset"))
     view = Gui.activeDocument().activeView()
-    # Front-right perspective exposes the mannequin chest and the cloth edge together.
     view.setCameraType("Perspective")
     view.viewAxonometric()
     view.fitAll()
@@ -285,7 +261,6 @@ def simulation():
 
     show_task(panel, "Simulation Workbench draped", ("State:", "40", "particles", "Fast"), reuse_active=True)
     view.setCameraType("Perspective")
-    # Front view after draping: the cloth is intentionally centred on the mannequin torso.
     view.viewFront()
     view.fitAll()
     events()
