@@ -137,6 +137,28 @@ def _visual_fit(view):
     view.fitAll(); events()
 
 
+def _style_preview(preview):
+    preview.ViewObject.DisplayMode = "Flat Lines"
+    preview.ViewObject.ShapeColor = (0.92, 0.18, 0.10)
+    preview.ViewObject.LineColor = (0.35, 0.02, 0.01)
+    preview.ViewObject.LineWidth = 2.0
+
+
+def _make_preview_from_mesh(doc, drape, fallback):
+    import Part
+    try:
+        shape = Part.Shape()
+        shape.makeShapeFromMesh(drape.Mesh.Topology, 0.05)
+        if not shape.isNull():
+            fallback.Shape = shape
+            fallback.Placement = App.Placement()
+            log("garment-preview-source=drape-mesh")
+            return
+    except Exception as error:
+        log("garment-preview-mesh-fallback=%r" % (error,))
+    log("garment-preview-source=arranged-pattern")
+
+
 def simulation():
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_parameters
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
@@ -145,32 +167,49 @@ def simulation():
 
     doc = App.newDocument("ClothSimulationVisualRegression")
     garment = create_pattern_piece_from_parameters("VisualTunic", 440.0, 560.0, 10.0, 0.0)
-    garment.Label = "Simple Tunic Panel"; garment.Placement.Base.x = -220.0; garment.Placement.Base.y = -120.0
+    garment.Label = "Simple Tunic Panel"
     scene = create_quality_simulation_scene(doc); scene.DrapePanels = []
     unused_panel = doc.getObject("DrapePanelB")
     if unused_panel is not None: unused_panel.ViewObject.Visibility = False
     source_sketch = doc.getObject("VisualTunic")
     if source_sketch is not None: source_sketch.ViewObject.Visibility = False
-    scene.ClothPieces = [garment]; scene.QualityPreset = "Fast"; scene.ParticleDistance = 20.0; scene.SolverIterations = 5; scene.StartHeight = 1500.0; scene.PinSelection = ["0", "1"]
+    scene.ClothPieces = [garment]; scene.QualityPreset = "Fast"; scene.ParticleDistance = 20.0; scene.SolverIterations = 5; scene.PinSelection = ["0", "1"]
     refresh_drape_target(scene.DrapeTarget); doc.recompute()
     avatar = getattr(scene.AvatarProxy, "SourceObject", None)
     if avatar is None or str(getattr(avatar, "AvatarType", "")) != "ClothAvatar": raise RuntimeError("visual fixture did not create the production ClothAvatar")
     if scene.DrapeTarget is None or not scene.DrapePanels: raise RuntimeError("visual garment fixture did not create drape target/panel")
-    drape = scene.DrapePanels[0]; _style_garment(drape, "Drape: Simple Tunic Panel"); avatar.ViewObject.Visibility = True; doc.recompute()
+    ab = avatar.Mesh.BoundBox
+    cx = (ab.XMin + ab.XMax) / 2.0; cy = (ab.YMin + ab.YMax) / 2.0
+    z_span = ab.ZMax - ab.ZMin
+    xy_span = max(ab.XMax - ab.XMin, ab.YMax - ab.YMin)
+    flat_avatar = z_span < 0.35 * xy_span
+    garment.Placement.Base.x = cx - 220.0
+    garment.Placement.Base.y = cy - 280.0
+    scene.StartHeight = (ab.ZMax + max(20.0, 0.08 * xy_span)) if flat_avatar else (ab.ZMin + 0.55 * z_span)
+    log("avatar-bounds X=%.1f..%.1f Y=%.1f..%.1f Z=%.1f..%.1f flat=%s start-height=%.1f" % (ab.XMin, ab.XMax, ab.YMin, ab.YMax, ab.ZMin, ab.ZMax, flat_avatar, scene.StartHeight))
+    drape = scene.DrapePanels[0]
+    preview = doc.addObject("Part::Feature", "GarmentVisualPreview")
+    preview.Label = "Garment Preview: Simple Tunic"
+    preview.Shape = garment.Shape.copy()
+    preview.Placement = App.Placement(App.Vector(garment.Placement.Base.x, garment.Placement.Base.y, scene.StartHeight), App.Rotation())
+    _style_preview(preview)
+    _style_garment(drape, "Drape: Simple Tunic Panel"); avatar.ViewObject.Visibility = True; doc.recompute()
     if int(getattr(avatar, "MeshVertexCount", 0)) <= 100 or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100: raise RuntimeError("visual fixture does not contain a real humanoid mesh")
-    log("avatar-bounds X=%.1f..%.1f Y=%.1f..%.1f Z=%.1f..%.1f" % (avatar.Mesh.BoundBox.XMin, avatar.Mesh.BoundBox.XMax, avatar.Mesh.BoundBox.YMin, avatar.Mesh.BoundBox.YMax, avatar.Mesh.BoundBox.ZMin, avatar.Mesh.BoundBox.ZMax))
+
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
     panel = SimulationQualityTaskPanel(scene)
     task_dock = show_task(panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset"))
-    view = Gui.activeDocument().activeView(); view.setCameraType("Perspective"); view.viewAxonometric(); _visual_fit(view)
-    _hide_tasks_for_visual_capture(task_dock); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "single 440x560 mm tunic panel placed against the production MakeHuman mannequin; three-quarter perspective with only mannequin/cloth visible"); _restore_tasks_after_visual_capture(task_dock)
+    view = Gui.activeDocument().activeView(); view.setCameraType("Perspective"); view.viewTop(); _visual_fit(view)
+    _hide_tasks_for_visual_capture(task_dock); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "simple 440x560 mm tunic panel positioned directly above the production MakeHuman mannequin; top perspective chosen because the current mannequin coordinate frame presents the full torso silhouette")
+    _restore_tasks_after_visual_capture(task_dock)
     for batch in (6, 6, 6, 6): panel.step(batch); doc.recompute(); events()
     if int(scene.Steps) != 24 or float(scene.SimulatedTime) <= 0 or not bool(scene.FiniteState): raise RuntimeError("simulation did not reach a finite 24-step drape state")
     if drape.Mesh.CountFacets <= 10: raise RuntimeError("draped garment panel has no visible mesh facets")
     log("drape-bounds X=%.1f..%.1f Y=%.1f..%.1f Z=%.1f..%.1f facets=%d" % (drape.Mesh.BoundBox.XMin, drape.Mesh.BoundBox.XMax, drape.Mesh.BoundBox.YMin, drape.Mesh.BoundBox.YMax, drape.Mesh.BoundBox.ZMin, drape.Mesh.BoundBox.ZMax, drape.Mesh.CountFacets))
+    _make_preview_from_mesh(doc, drape, preview); doc.recompute()
     show_task(panel, "Simulation Workbench draped", ("State:", "24", "particles", "Fast"), reuse_active=True)
-    view.setCameraType("Perspective"); view.viewAxonometric(); _visual_fit(view)
-    _hide_tasks_for_visual_capture(task_dock); save("cloth-simulation-draped.png", "Simulation Workbench draped", "same single tunic panel after 24 real simulation steps; three-quarter perspective with only mannequin/drape visible"); _restore_tasks_after_visual_capture(task_dock)
+    view.setCameraType("Perspective"); view.viewTop(); _visual_fit(view)
+    _hide_tasks_for_visual_capture(task_dock); save("cloth-simulation-draped.png", "Simulation Workbench draped", "same single tunic panel after 24 real simulation steps; top perspective keeps the garment and mannequin silhouette in the same view"); _restore_tasks_after_visual_capture(task_dock)
     close_task(); App.closeDocument(doc.Name)
 
 
