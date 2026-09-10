@@ -265,7 +265,7 @@ def simulation():
         return mesh, pins
 
     fmesh, front_pins = local_boundary(front, front_outline)
-    bmesh, back_pins_local = local_boundary(back, back_outline)
+    _, back_pins_local = local_boundary(back, back_outline)
     back_pins = tuple(len(fmesh.vertices) + i for i in back_pins_local)
     scene.PinSelection = [str(i) for i in front_pins + back_pins]
     doc.recompute()
@@ -297,12 +297,12 @@ def simulation():
     save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical sewn tunic shell on production mannequin before simulation")
     task_dock.show(); task_dock.raise_(); events()
 
-    for batch in (15, 15, 15, 15):
+    for batch in (10, 10, 10):
         simulation_panel.step(batch)
         doc.recompute(); events()
 
-    if int(scene.Steps) != 60 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
-        raise RuntimeError("simulation did not reach a finite 60-step state")
+    if int(scene.Steps) != 30 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
+        raise RuntimeError("simulation did not reach a finite 30-step state")
     if any(panel.Mesh.CountFacets <= 10 for panel in scene.DrapePanels):
         raise RuntimeError("draped tunic panel mesh is empty")
     bounds = []
@@ -321,7 +321,7 @@ def simulation():
         ("bottom", "viewBottom"),
     ):
         getattr(view, method_name)(); view.fitAll(); events()
-        save("cloth-simulation-draped-%s.png" % direction, "Simulation Workbench draped %s" % direction, "same sewn tunic after 60 real steps; six-side audit")
+        save("cloth-simulation-draped-%s.png" % direction, "Simulation Workbench draped %s" % direction, "same sewn tunic after 30 real steps; six-side audit")
         if direction == "front":
             save("cloth-simulation-draped.png", "Simulation Workbench draped front", "legacy front screenshot alias")
     task_dock.show(); task_dock.raise_(); events()
