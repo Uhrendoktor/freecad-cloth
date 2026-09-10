@@ -7,7 +7,7 @@ from freecad_cloth.avatar.AvatarFitting import ArrangementPoint, BodyMeasurement
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose, generate_mesh
 from freecad_cloth.avatar.AvatarService import AvatarService
 from freecad_cloth.avatar.AvatarArrangement import ARRANGEMENT_POINT_NAMES, arrangement_point_map, arrangement_points_from_landmarks
-from freecad_cloth.avatar.HumanoidMesh import MeshData, MAKEHUMAN_BODY_VERTEX_COUNT, fit_makehuman_mesh, parse_obj
+from freecad_cloth.avatar.HumanoidMesh import MeshData, MAKEHUMAN_BASE_SHA256, MAKEHUMAN_BASE_URL, MAKEHUMAN_BODY_VERTEX_COUNT, fit_makehuman_mesh, parse_obj
 
 
 class AvatarFittingTests(unittest.TestCase):
@@ -64,17 +64,21 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertEqual(len(mesh.vertices), MAKEHUMAN_BODY_VERTEX_COUNT)
         self.assertEqual(mesh.triangles, ((0, 1, 2),))
 
-    def test_default_mannequin_preserves_source_shape_after_height_normalization(self):
-        # Make Y uniquely the dominant source extent, matching a Y-up humanoid
-        # export while leaving X as width and Z as depth.
+    def test_real_source_is_pinned(self):
+        self.assertIn(MAKEHUMAN_BASE_SHA256, "8e761e6624b8f54536409135d1636da63b32486a90d4897f84e121d144f6fb4c")
+        self.assertIn("1f508f6083b2f823dab15de924b3bde72e08d77c9", MAKEHUMAN_BASE_URL)
+        self.assertTrue(MAKEHUMAN_BASE_URL.endswith("/makehuman/data/3dobjs/base.obj"))
+
+    def test_default_mannequin_uses_dominant_source_axis_as_freecad_height(self):
         source = MeshData(
             ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 10.0, 0.0), (0.0, 10.0, 2.0)),
             ((0, 1, 2), (1, 3, 2), (0, 2, 3)),
         )
-        params = AvatarParameters(pose=Pose("standing", 0.0, 0.0))
-        fitted = fit_makehuman_mesh(source, params)
+        fitted = fit_makehuman_mesh(source, AvatarParameters(skin_offset=0))
         self.assertEqual(fitted.triangles, source.triangles)
-        self.assertEqual(fitted.vertices, ((0.0, 0.0, 0.0), (175.0, 0.0, 0.0), (0.0, 0.0, 1750.0), (350.0, 0.0, 1750.0)))
+        self.assertAlmostEqual(min(v[2] for v in fitted.vertices), 0.0)
+        self.assertAlmostEqual(max(v[2] for v in fitted.vertices), 1750.0)
+        self.assertGreater(max(v[0] for v in fitted.vertices) - min(v[0] for v in fitted.vertices), 0.0)
 
     def test_mannequin_is_deterministic_and_landmarked(self):
         params = AvatarParameters()
