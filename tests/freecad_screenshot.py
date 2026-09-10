@@ -216,6 +216,9 @@ def simulation():
 
     scene = create_quality_simulation_scene(doc)
     scene.DrapePanels = []
+    unused_panel = doc.getObject("DrapePanelB")
+    if unused_panel is not None:
+        unused_panel.ViewObject.Visibility = False
     scene.ClothPieces = [garment]
     scene.QualityPreset = "Fast"
     scene.ParticleDistance = 20.0
