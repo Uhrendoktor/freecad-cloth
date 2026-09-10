@@ -65,11 +65,10 @@ def validate_task(panel, name, required):
     return dock
 
 
-def show_task(panel, name, required=(), reuse_active=False):
-    if not reuse_active:
-        if Gui.Control.activeDialog():
-            Gui.Control.closeDialog(); events()
-        Gui.Control.showDialog(panel)
+def show_task(panel, name, required=()):
+    if Gui.Control.activeDialog():
+        Gui.Control.closeDialog(); events()
+    Gui.Control.showDialog(panel)
     return validate_task(panel, name, required)
 
 
@@ -99,8 +98,7 @@ def save(name, state, proof):
     if window is None or not window.isVisible():
         raise RuntimeError("FreeCAD main window unavailable for screenshot")
     window.show(); window.raise_(); window.activateWindow(); window.resize(1280, 720); events()
-    image = window.grab()
-    path = os.path.join(OUT, name)
+    image = window.grab(); path = os.path.join(OUT, name)
     if image.isNull() or (image.width(), image.height()) != (1280, 720):
         raise RuntimeError("invalid GUI capture for %s" % state)
     if not image.save(path) or os.path.getsize(path) < 20000:
@@ -166,23 +164,15 @@ def pattern_and_sewing():
     close_task(); App.closeDocument(doc.Name)
 
 
-def style_mesh(obj, label, color=(0.86, 0.20, 0.10)):
+def style_mesh(obj, label):
     obj.Label = label
     try:
         obj.ViewObject.DisplayMode = "Flat Lines"
-        obj.ViewObject.ShapeColor = color
+        obj.ViewObject.ShapeColor = (0.86, 0.20, 0.10)
         obj.ViewObject.LineColor = (0.20, 0.02, 0.01)
         obj.ViewObject.LineWidth = 1.5
     except (AttributeError, TypeError, ValueError):
         pass
-
-
-def _tunic_outline(width, height):
-    return [
-        (0.00, 0.00), (width, 0.00),
-        (width, height), (0.68 * width, 0.86 * height),
-        (0.32 * width, 0.86 * height), (0.00, height),
-    ]
 
 
 def simulation():
@@ -206,19 +196,20 @@ def simulation():
 
     box = avatar.Mesh.BoundBox
     x_mid = (box.XMin + box.XMax) / 2.0
-    y_mid = (box.YMin + box.YMax) / 2.0
     y_span = box.YMax - box.YMin
     z_span = box.ZMax - box.ZMin
+
+    # The avatar is Z-up.  X is lateral garment width and Y is front/back depth.
     chest = 980.0
     hip = 1020.0
-    shoulder = 440.0
-    ease = 70.0
-    panel_width = max(420.0, 0.50 * chest + 0.5 * ease, 0.55 * shoulder + 120.0)
-    hem_width = max(470.0, 0.50 * hip + ease)
+    ease = 60.0
+    body_depth = max(120.0, min(260.0, y_span))
+    panel_width = max(260.0, 0.50 * chest - body_depth + ease)
+    hem_width = max(300.0, 0.50 * hip - body_depth + ease)
     shoulder_z = box.ZMin + 0.76 * z_span
     hem_z = box.ZMin + 0.42 * z_span
     garment_height = max(520.0, shoulder_z - hem_z)
-    clearance = max(8.0, 0.025 * max(1.0, y_span))
+    clearance = max(6.0, 0.02 * body_depth)
     front_y = box.YMin - clearance
     back_y = box.YMax + clearance
     rot = App.Rotation(App.Vector(1, 0, 0), 90.0)
@@ -232,6 +223,7 @@ def simulation():
             (0.00, garment_height),
         ]
         piece = create_pattern_piece_from_parameters(name, panel_width, garment_height, 10.0, 0.0)
+        piece.Label = name
         piece.DraftingBoundary = repr(outline)
         piece.SewingOutline = repr(outline)
         piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
@@ -265,7 +257,12 @@ def simulation():
         segments = [LineSegment("%s:edge:%d" % (piece.PieceId, i), points[i], points[(i + 1) % len(points)]) for i in range(len(points))]
         mesh = triangulate(ParametricPattern(segments))
         h = max(y for _, y in points)
-        return mesh, tuple(i for i in mesh.boundary_vertex_indices if float(mesh.vertices[i][1]) >= 0.86 * h - 1e-6 and (float(mesh.vertices[i][0]) <= 0.32 * panel_width + 1e-6 or float(mesh.vertices[i][0]) >= 0.68 * panel_width - 1e-6))
+        pins = tuple(
+            i for i in mesh.boundary_vertex_indices
+            if float(mesh.vertices[i][1]) >= 0.86 * h - 1e-6
+            and (float(mesh.vertices[i][0]) <= 0.32 * panel_width + 1e-6 or float(mesh.vertices[i][0]) >= 0.68 * panel_width - 1e-6)
+        )
+        return mesh, pins
 
     fmesh, front_pins = local_boundary(front, front_outline)
     bmesh, back_pins_local = local_boundary(back, back_outline)
@@ -286,7 +283,7 @@ def simulation():
     doc.recompute()
 
     log("avatar-bounds x=%.1f..%.1f y=%.1f..%.1f z=%.1f..%.1f" % (box.XMin, box.XMax, box.YMin, box.YMax, box.ZMin, box.ZMax))
-    log("tunic panel-width=%.1f hem-width=%.1f height=%.1f front-y=%.1f back-y=%.1f pins=%s" % (panel_width, hem_width, garment_height, front_y, back_y, scene.PinSelection))
+    log("tunic panel-width=%.1f hem-width=%.1f height=%.1f body-depth=%.1f front-y=%.1f back-y=%.1f pins=%s" % (panel_width, hem_width, garment_height, body_depth, front_y, back_y, scene.PinSelection))
     if int(getattr(avatar, "MeshVertexCount", 0)) <= 100 or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100:
         raise RuntimeError("visual fixture does not contain a real humanoid mesh")
 
@@ -297,7 +294,7 @@ def simulation():
     view.setCameraType("Orthographic")
     view.viewFront(); view.fitAll(); events()
     task_dock.hide(); events()
-    save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical two-panel tunic on production mannequin before simulation")
+    save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical sewn tunic shell on production mannequin before simulation")
     task_dock.show(); task_dock.raise_(); events()
 
     for batch in (15, 15, 15, 15):
@@ -308,7 +305,6 @@ def simulation():
         raise RuntimeError("simulation did not reach a finite 60-step state")
     if any(panel.Mesh.CountFacets <= 10 for panel in scene.DrapePanels):
         raise RuntimeError("draped tunic panel mesh is empty")
-
     bounds = []
     for panel in scene.DrapePanels:
         b = panel.Mesh.BoundBox
@@ -316,15 +312,14 @@ def simulation():
     log("drape-bounds=%s" % (bounds,))
 
     task_dock.hide(); events()
-    final_views = (
+    for direction, method_name in (
         ("front", "viewFront"),
         ("rear", "viewRear"),
         ("left", "viewLeft"),
         ("right", "viewRight"),
         ("top", "viewTop"),
         ("bottom", "viewBottom"),
-    )
-    for direction, method_name in final_views:
+    ):
         getattr(view, method_name)(); view.fitAll(); events()
         save("cloth-simulation-draped-%s.png" % direction, "Simulation Workbench draped %s" % direction, "same sewn tunic after 60 real steps; six-side audit")
         if direction == "front":
