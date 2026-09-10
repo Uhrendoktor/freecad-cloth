@@ -54,16 +54,14 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertFalse(restored.symmetry_enabled)
         self.assertEqual(restored.arrangement_map()["chest"].position(), (10.0, 20.0, 5.0))
 
-    def test_obj_parser_filters_hm08_helper_geometry(self):
-        mesh = parse_obj("""
-            v 0 0 0
-            v 1 0 0
-            v 0 1 0
-            v 2 2 2
-            f 1 2 3
-            f 1 2 4
-        """)
-        self.assertEqual(len(mesh.vertices), MAKEHUMAN_BODY_VERTEX_COUNT if len(mesh.vertices) == MAKEHUMAN_BODY_VERTEX_COUNT else 3)
+    def test_obj_parser_excludes_hm08_helper_faces(self):
+        lines = ["v 0 0 0"] * MAKEHUMAN_BODY_VERTEX_COUNT
+        lines[1] = "v 1 0 0"
+        lines[2] = "v 0 1 0"
+        lines.append("v 10 0 0")
+        lines.extend(("f 1 2 3", "f 1 2 %d" % (MAKEHUMAN_BODY_VERTEX_COUNT + 1)))
+        mesh = parse_obj("\n".join(lines))
+        self.assertEqual(len(mesh.vertices), MAKEHUMAN_BODY_VERTEX_COUNT)
         self.assertEqual(mesh.triangles, ((0, 1, 2),))
 
     def test_default_mannequin_preserves_source_shape_after_height_normalization(self):
