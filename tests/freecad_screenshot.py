@@ -284,6 +284,7 @@ def simulation():
     scene.QualityPreset = "Fast"
     scene.ParticleDistance = 35.0
     scene.SolverIterations = 4
+    scene.TimeStep = 0.08
     scene.PinSelection = ["0", "1"]
     scene.ClothPieces = [garment]
     refresh_drape_target(scene.DrapeTarget)
@@ -324,12 +325,12 @@ def simulation():
          "simple %.0fx%.0f mm tunic with a pinned shoulder edge over the production MakeHuman mannequin; top perspective selected for the current mannequin coordinate frame" % (garment_width, garment_height))
     _restore_tasks_after_visual_capture(task_dock)
 
-    for batch in (6, 6):
+    for batch in (6, 6, 6, 6):
         panel.step(batch)
         doc.recompute()
         events()
-    if int(scene.Steps) != 12 or float(scene.SimulatedTime) <= 0 or not bool(scene.FiniteState):
-        raise RuntimeError("simulation did not reach a finite 12-step drape state")
+    if int(scene.Steps) != 24 or float(scene.SimulatedTime) <= 0 or not bool(scene.FiniteState):
+        raise RuntimeError("simulation did not reach a finite 24-step drape state")
     if drape.Mesh.CountFacets <= 10:
         raise RuntimeError("draped garment panel has no visible mesh facets")
     log("drape-bounds X=%.1f..%.1f Y=%.1f..%.1f Z=%.1f..%.1f facets=%d" % (
@@ -338,13 +339,13 @@ def simulation():
     _make_preview_from_mesh(doc, drape, preview)
     doc.recompute()
 
-    show_task(panel, "Simulation Workbench draped", ("State:", "12", "particles", "Fast"), reuse_active=True)
+    show_task(panel, "Simulation Workbench draped", ("State:", "24", "particles", "Fast"), reuse_active=True)
     view.setCameraType("Perspective")
     view.viewTop()
     _visual_fit(view)
     _hide_tasks_for_visual_capture(task_dock)
     save("cloth-simulation-draped.png", "Simulation Workbench draped",
-         "same %.0fx%.0f mm tunic after 12 real simulation steps; top perspective keeps the garment silhouette on the mannequin in view" % (garment_width, garment_height))
+         "same %.0fx%.0f mm tunic after 24 real simulation steps; top perspective keeps the garment silhouette on the mannequin in view" % (garment_width, garment_height))
     _restore_tasks_after_visual_capture(task_dock)
     close_task()
     App.closeDocument(doc.Name)
@@ -420,8 +421,7 @@ finally:
             app.quit()
     except Exception:
         log("shutdown-error")
-        log(traceback.format_exc())
-        exit_code = 1
+        log(traceback.format_exc()); exit_code = 1
 sys.stdout.flush()
 sys.stderr.flush()
 sys.exit(exit_code)
