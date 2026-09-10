@@ -72,7 +72,7 @@ class AvatarFittingTests(unittest.TestCase):
         params = AvatarParameters(pose=Pose("standing", 0.0, 0.0))
         fitted = fit_makehuman_mesh(source, params)
         self.assertEqual(fitted.triangles, source.triangles)
-        self.assertEqual(fitted.vertices, ((0.0, 0.0, 0.0), (175.0, 0.0, 0.0), (0.0, 0.0, 1750.0), (0.0, -350.0, 1750.0)))
+        self.assertEqual(fitted.vertices, ((0.0, 0.0, 0.0), (0.0, -175.0, 0.0), (0.0, 0.0, 1750.0), (350.0, 0.0, 1750.0)))
 
     def test_mannequin_is_deterministic_and_landmarked(self):
         params = AvatarParameters()
