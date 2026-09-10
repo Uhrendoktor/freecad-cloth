@@ -1,0 +1,58 @@
+name: Disposable hosted GUI verification
+
+on:
+  push:
+    branches: [temp/hosted-gui-verify-20260910]
+
+permissions:
+  contents: read
+  actions: write
+
+env:
+  FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.3-r1
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Prepare FreeCAD image
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
+        run: |
+          set -euo pipefail
+          printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1 || true
+          docker pull "$IMAGE"
+      - name: Run canonical tests and GUI screenshots
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
+        run: |
+          set -euo pipefail
+          rm -rf docs/images/generated
+          mkdir -p docs/images/generated
+          docker run --rm --security-opt seccomp=unconfined --shm-size=1g \
+            -v "$PWD:/workspace" -w /workspace \
+            -e PYTHONPATH=/workspace -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            --entrypoint /bin/bash "$IMAGE" -euo pipefail -c '
+              set -e
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              python3 -m compileall -q .
+              for test in tests/test_simulation_scene.py tests/test_simulation_quality.py tests/test_avatar_fitting.py tests/test_drape_quality.py; do python3 "$test"; done
+              timeout --signal=TERM --kill-after=10s 120s /opt/freecad/AppRun tests/freecad_screenshot.py
+              for image in docs/images/generated/*.png; do
+                python3 -c '"'"'import os,struct,sys; p=sys.argv[1]; d=open(p,"rb").read(24); assert d[:8]==b"\\x89PNG\\r\\n\\x1a\\n"; w,h=struct.unpack(">II",d[16:24]); assert (w,h)==(1280,720); assert os.path.getsize(p)>=20000'"'"' "$image"
+              done
+            '
+      - uses: actions/upload-artifact@v6
+        with:
+          name: hosted-gui-verification
+          path: docs/images/generated/*.png
+          if-no-files-found: error
+          compression-level: 1
