@@ -8,6 +8,7 @@ from freecad_cloth.avatar.HumanoidMesh import (
     MAKEHUMAN_BASE_SHA256,
     MeshData,
     fit_makehuman_mesh,
+    load_makehuman_mesh,
     parse_obj,
 )
 
@@ -35,38 +36,22 @@ class HumanoidMeshTests(unittest.TestCase):
         self.assertIn("1f508f6083b2f823dab15de924b3bde72e08d77c9", MAKEHUMAN_BASE_URL)
         self.assertTrue(MAKEHUMAN_BASE_URL.endswith("/makehuman/data/3dobjs/base.obj"))
 
-    def test_fit_maps_makehuman_y_up_to_freecad_z_up(self):
-        source = parse_obj("""
-        v -1 0 -0.5
-        v 1 0 -0.5
-        v 1 10 0.5
-        v -1 10 0.5
-        v -1 0 0.5
-        v 1 0 0.5
-        v 1 10 -0.5
-        v -1 10 -0.5
-        f 1 2 3 4
-        f 5 8 7 6
-        f 1 5 6 2
-        f 2 6 7 3
-        f 3 7 8 4
-        f 4 8 5 1
-        """)
-        fitted = fit_makehuman_mesh(source, AvatarParameters(skin_offset=0))
-        self.assertAlmostEqual(min(v[2] for v in fitted.vertices), 0.0)
-        self.assertAlmostEqual(max(v[2] for v in fitted.vertices), 1750.0)
-        self.assertAlmostEqual(max(v[1] for v in fitted.vertices) - min(v[1] for v in fitted.vertices), 175.0)
+    def test_real_source_height_axis_is_z(self):
+        source = load_makehuman_mesh()
+        spans = tuple(max(vertex[axis] for vertex in source.vertices) - min(vertex[axis] for vertex in source.vertices) for axis in range(3))
+        self.assertGreater(spans[2], spans[0] * 2.0)
+        self.assertGreater(spans[2], spans[1] * 2.0)
 
-    def test_fit_maps_x_up_transformed_assets_without_laying_them_down(self):
+    def test_fit_preserves_z_up_makehuman_orientation(self):
         source = parse_obj("""
-        v 0 -1 -0.5
-        v 10 -1 -0.5
-        v 10 1 -0.5
-        v 0 1 -0.5
-        v 0 -1 0.5
-        v 10 -1 0.5
-        v 10 1 0.5
-        v 0 1 0.5
+        v -1 -0.5 0
+        v 1 -0.5 0
+        v 1 0.5 10
+        v -1 0.5 10
+        v -1 -0.5 5
+        v 1 -0.5 5
+        v 1 0.5 10
+        v -1 0.5 10
         f 1 2 3 4
         f 5 8 7 6
         f 1 5 6 2
@@ -106,7 +91,6 @@ class HumanoidMeshTests(unittest.TestCase):
         self.assertNotEqual(fitted.vertices, fitted_padded.vertices)
 
     def test_explicit_local_source_does_not_require_network(self):
-        from freecad_cloth.avatar.HumanoidMesh import load_makehuman_mesh
         fd, path = tempfile.mkstemp(prefix="cloth-humanoid-", suffix=".obj")
         os.close(fd)
         try:
