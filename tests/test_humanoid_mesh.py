@@ -35,16 +35,16 @@ class HumanoidMeshTests(unittest.TestCase):
         self.assertIn("1f508f6083b2f823dab15de924b3bde72e08d77c9", MAKEHUMAN_BASE_URL)
         self.assertTrue(MAKEHUMAN_BASE_URL.endswith("/makehuman/data/3dobjs/base.obj"))
 
-    def test_fit_uses_source_z_as_anatomical_height(self):
+    def test_fit_maps_makehuman_y_up_to_freecad_z_up(self):
         source = parse_obj("""
-        v -1 -0.5 0
-        v 1 -0.5 0
-        v 1 0.5 0
-        v -1 0.5 0
-        v -1 -0.5 10
-        v 1 -0.5 10
-        v 1 0.5 10
-        v -1 0.5 10
+        v -1 0 -0.5
+        v 1 0 -0.5
+        v 1 10 0.5
+        v -1 10 0.5
+        v -1 0 0.5
+        v 1 0 0.5
+        v 1 10 -0.5
+        v -1 10 -0.5
         f 1 2 3 4
         f 5 8 7 6
         f 1 5 6 2
@@ -55,16 +55,16 @@ class HumanoidMeshTests(unittest.TestCase):
         fitted = fit_makehuman_mesh(source, AvatarParameters(skin_offset=0))
         self.assertAlmostEqual(min(v[2] for v in fitted.vertices), 0.0)
         self.assertAlmostEqual(max(v[2] for v in fitted.vertices), 1750.0)
-        self.assertAlmostEqual(max(v[1] for v in fitted.vertices) - min(v[1] for v in fitted.vertices), 350.0)
+        self.assertAlmostEqual(max(v[1] for v in fitted.vertices) - min(v[1] for v in fitted.vertices), 175.0)
 
     def test_fit_preserves_topology_and_applies_height_and_skin_offset(self):
         source = parse_obj("""
-        v -1 0 -1
-        v 1 0 -1
+        v -1 -1 -1
+        v 1 -1 -1
         v 1 1 -1
         v -1 1 -1
-        v -1 0 1
-        v 1 0 1
+        v -1 -1 1
+        v 1 -1 1
         v 1 1 1
         v -1 1 1
         f 1 2 3 4
