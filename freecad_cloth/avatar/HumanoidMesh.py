@@ -172,10 +172,19 @@ def _axis_bounds(vertices, axis):
 
 
 def _map_makehuman_axes(vertices):
-    """Convert MakeHuman's Y-up coordinates to RH-Z-up normalized coordinates."""
-    ymin, ymax = _axis_bounds(vertices, 1)
-    span = max(1e-9, ymax - ymin)
-    return [(float(x), float(-z), float(y - ymin) / span) for x, y, z in vertices]
+    """Normalize the pinned HM08 mesh into FreeCAD's right-handed Z-up frame.
+
+    The pinned ``base.obj`` is already exported with its anatomical height on
+    the Z axis. The former implementation treated it as Y-up and swapped Y/Z,
+    which laid the production mannequin on its back in FreeCAD. Keep the source
+    X/Y/Z axes intact and normalize the source height onto FreeCAD Z.
+    """
+    zmin, zmax = _axis_bounds(vertices, 2)
+    span = max(1e-9, zmax - zmin)
+    return [
+        (float(x), float(y), float(z - zmin) / span)
+        for x, y, z in vertices
+    ]
 
 
 def _profile_scale(z, profile):
