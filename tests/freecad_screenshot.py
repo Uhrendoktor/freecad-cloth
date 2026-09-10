@@ -139,7 +139,7 @@ def _fit_visual_selection(view, *objects):
         if obj is not None: Gui.Selection.addSelection(obj)
     events()
     try:
-        view.fitSelection()
+        Gui.SendMsgToActiveView("ViewSelection")
     finally:
         Gui.Selection.clearSelection()
     events()
@@ -166,16 +166,17 @@ def simulation():
     if scene.DrapeTarget is None or not scene.DrapePanels: raise RuntimeError("visual garment fixture did not create drape target/panel")
     drape = scene.DrapePanels[0]; _style_garment(drape, "Drape: Simple Tunic Panel"); avatar.ViewObject.Visibility = True; doc.recompute()
     if int(getattr(avatar, "MeshVertexCount", 0)) <= 100 or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100: raise RuntimeError("visual fixture does not contain a real humanoid mesh")
-
+    bounds = avatar.Mesh.BoundBox
+    log("avatar-bounds X=%.1f..%.1f Y=%.1f..%.1f Z=%.1f..%.1f" % (bounds.XMin, bounds.XMax, bounds.YMin, bounds.YMax, bounds.ZMin, bounds.ZMax))
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
     panel = SimulationQualityTaskPanel(scene)
     task_dock = show_task(panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset"))
     view = Gui.activeDocument().activeView(); view.setCameraType("Perspective"); view.viewAxonometric(); _fit_visual_selection(view, avatar, drape)
     _hide_tasks_for_visual_capture(task_dock); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "single 440x560 mm tunic panel placed against the production MakeHuman mannequin; three-quarter perspective framed to the mannequin and cloth only"); _restore_tasks_after_visual_capture(task_dock)
-
     for batch in (6, 6, 6, 6): panel.step(batch); doc.recompute(); events()
     if int(scene.Steps) != 24 or float(scene.SimulatedTime) <= 0 or not bool(scene.FiniteState): raise RuntimeError("simulation did not reach a finite 24-step drape state")
     if drape.Mesh.CountFacets <= 10: raise RuntimeError("draped garment panel has no visible mesh facets")
+    log("drape-bounds X=%.1f..%.1f Y=%.1f..%.1f Z=%.1f..%.1f facets=%d" % (drape.Mesh.BoundBox.XMin, drape.Mesh.BoundBox.XMax, drape.Mesh.BoundBox.YMin, drape.Mesh.BoundBox.YMax, drape.Mesh.BoundBox.ZMin, drape.Mesh.BoundBox.ZMax, drape.Mesh.CountFacets))
     show_task(panel, "Simulation Workbench draped", ("State:", "24", "particles", "Fast"), reuse_active=True)
     view.setCameraType("Perspective"); view.viewAxonometric(); _fit_visual_selection(view, avatar, drape)
     _hide_tasks_for_visual_capture(task_dock); save("cloth-simulation-draped.png", "Simulation Workbench draped", "same single tunic panel after 24 real simulation steps; three-quarter perspective framed to the mannequin and drape only"); _restore_tasks_after_visual_capture(task_dock)
