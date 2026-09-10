@@ -69,6 +69,12 @@ def _edge_records(piece):
 def _seam_edge_id(piece, edge, prefix):
     """Return the semantic edge id and captured signature for a seam side."""
     records = _edge_records(piece)
+    if isinstance(edge, int) and (edge < 0 or edge >= len(records)):
+        proxy = getattr(piece, "Proxy", None)
+        execute = getattr(proxy, "execute", None)
+        if callable(execute):
+            execute(piece)
+            records = _edge_records(piece)
     if isinstance(edge, int):
         if edge < 0 or edge >= len(records):
             raise MissingEdgeReference(f"seam edge {edge} is outside pattern piece {piece.PieceId}")
