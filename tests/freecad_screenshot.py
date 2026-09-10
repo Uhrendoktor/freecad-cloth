@@ -219,6 +219,9 @@ def simulation():
     unused_panel = doc.getObject("DrapePanelB")
     if unused_panel is not None:
         unused_panel.ViewObject.Visibility = False
+    source_sketch = doc.getObject("VisualTunic")
+    if source_sketch is not None:
+        source_sketch.ViewObject.Visibility = False
     scene.ClothPieces = [garment]
     scene.QualityPreset = "Fast"
     scene.ParticleDistance = 20.0
@@ -246,10 +249,10 @@ def simulation():
     show_task(panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset"))
     view = Gui.activeDocument().activeView()
     view.setCameraType("Perspective")
-    view.viewAxonometric()
+    view.viewTop()
     view.fitAll()
     events()
-    save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "single 440x560 mm tunic panel placed above the production MakeHuman mannequin; three-quarter perspective selected to keep both visible")
+    save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "single 440x560 mm tunic panel placed above the production MakeHuman mannequin; top view selected to show the cloth footprint and body silhouette")
 
     for batch in (6, 6, 6, 6):
         panel.step(batch)
@@ -262,10 +265,10 @@ def simulation():
 
     show_task(panel, "Simulation Workbench draped", ("State:", "24", "particles", "Fast"), reuse_active=True)
     view.setCameraType("Perspective")
-    view.viewFront()
+    view.viewTop()
     view.fitAll()
     events()
-    save("cloth-simulation-draped.png", "Simulation Workbench draped", "same single tunic panel after 24 real simulation steps, with a front perspective camera chosen to expose the garment on the mannequin")
+    save("cloth-simulation-draped.png", "Simulation Workbench draped", "same single tunic panel after 24 real simulation steps, top perspective showing the garment and mannequin silhouette")
     close_task()
     App.closeDocument(doc.Name)
 
@@ -280,21 +283,18 @@ def load_and_run(path, module_name):
 
 
 def canonical_garment_e2e():
-    """Run the P0 multi-workbench garment lifecycle in this GUI process."""
     path = os.path.join(ROOT, "tests", "freecad_garment_e2e_smoke.py")
     load_and_run(path, "freecad_garment_e2e_smoke")
     log("canonical-garment-e2e=passed")
 
 
 def simulation_quality_acceptance():
-    """Run the P0 simulation quality/material lifecycle in this GUI process."""
     path = os.path.join(ROOT, "tests", "freecad_simulation_quality_acceptance.py")
     load_and_run(path, "freecad_simulation_quality_acceptance")
     log("simulation-quality-acceptance=passed")
 
 
 def avatar_provider_acceptance():
-    """Run the production avatar provider/task-panel/save-reload lifecycle."""
     path = os.path.join(ROOT, "tests", "freecad_avatar_acceptance.py")
     load_and_run(path, "freecad_avatar_acceptance")
     log("avatar-provider-acceptance=passed")
