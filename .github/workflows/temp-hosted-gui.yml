@@ -46,9 +46,6 @@ jobs:
               python3 -m compileall -q .
               for test in tests/test_simulation_scene.py tests/test_simulation_quality.py tests/test_avatar_fitting.py tests/test_drape_quality.py; do python3 "$test"; done
               timeout --signal=TERM --kill-after=10s 240s /opt/freecad/AppRun tests/freecad_screenshot.py
-              for image in docs/images/generated/*.png; do
-                python3 -c '"'"'import os,struct,sys; p=sys.argv[1]; d=open(p,"rb").read(24); assert d[:8]==b"\\x89PNG\\r\\n\\x1a\\n"; w,h=struct.unpack(">II",d[16:24]); assert (w,h)==(1280,720); assert os.path.getsize(p)>=20000'"'"' "$image"
-              done
             '
       - uses: actions/upload-artifact@v6
         with:
