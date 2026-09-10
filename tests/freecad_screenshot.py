@@ -47,16 +47,7 @@ def ensure_task_view_visible():
         action = task_dock.toggleViewAction()
         if not action.isChecked():
             action.trigger()
-        task_dock.show()
-        task_dock.raise_()
-        events()
-        if not task_dock.isVisible():
-            window.removeDockWidget(task_dock)
-            window.addDockWidget(QtCore.Qt.RightDockWidgetArea, task_dock)
-            task_dock.show()
-            task_dock.raise_()
-            events()
-        log("task-dock=Tasks checked=%s visible=%s" % (action.isChecked(), task_dock.isVisible()))
+        task_dock.show(); task_dock.raise_(); events()
         if task_dock.isVisible():
             return task_dock
     combo = window.findChild(QtWidgets.QDockWidget, "Model")
@@ -66,30 +57,16 @@ def ensure_task_view_visible():
         if tabs is not None:
             for index in range(tabs.count()):
                 if tabs.tabText(index).strip().lower() == "tasks":
-                    tabs.setCurrentIndex(index)
-                    combo.raise_()
-                    events()
-                    log("task-tab=Tasks visible=%s" % combo.isVisible())
+                    tabs.setCurrentIndex(index); combo.raise_(); events()
                     return combo
     raise RuntimeError("FreeCAD Tasks dock/tab is unavailable or could not be made visible")
 
 
 def validate_task(panel, name, required):
-    events()
-    ensure_task_view_visible()
-    events()
+    events(); ensure_task_view_visible(); events()
     if not panel.form.isVisible():
-        log("task-panel-hidden name=%s active=%s parent=%s; retrying form.show()" % (
-            name, bool(Gui.Control.activeDialog()), type(panel.form.parentWidget()).__name__ if panel.form.parentWidget() else "None"))
-        panel.form.show()
-        panel.form.setVisible(True)
-        panel.form.raise_()
-        panel.form.activateWindow()
-        events()
-    visible = panel.form.isVisible() or panel.form.isVisibleTo(Gui.getMainWindow())
-    log("task-panel-state name=%s isVisible=%s isVisibleToMain=%s active=%s" % (
-        name, panel.form.isVisible(), panel.form.isVisibleTo(Gui.getMainWindow()), bool(Gui.Control.activeDialog())))
-    if not visible:
+        panel.form.show(); panel.form.setVisible(True); panel.form.raise_(); panel.form.activateWindow(); events()
+    if not (panel.form.isVisible() or panel.form.isVisibleTo(Gui.getMainWindow())):
         raise RuntimeError("task panel did not become visible: %s" % name)
     text = " | ".join(str(w.text() if callable(getattr(w, "text", None)) else getattr(w, "text", ""))
                       for w in [panel.form] + panel.form.findChildren(QtWidgets.QWidget)
@@ -103,8 +80,7 @@ def validate_task(panel, name, required):
 def show_task(panel, name, required=(), reuse_active=False):
     if not reuse_active:
         if Gui.Control.activeDialog():
-            Gui.Control.closeDialog()
-            events()
+            Gui.Control.closeDialog(); events()
         Gui.Control.showDialog(panel)
     validate_task(panel, name, required)
 
@@ -112,8 +88,7 @@ def show_task(panel, name, required=(), reuse_active=False):
 def activate(name, toolbar, commands):
     if name not in Gui.listWorkbenches():
         raise RuntimeError("workbench is not registered: %s" % name)
-    Gui.activateWorkbench(name)
-    events()
+    Gui.activateWorkbench(name); events()
     window = Gui.getMainWindow()
     if window is None or not window.isVisible():
         raise RuntimeError("FreeCAD main window is not visible after workbench activation")
@@ -125,7 +100,7 @@ def activate(name, toolbar, commands):
         raise RuntimeError("failed to activate %s" % name)
     missing = [command for command in commands if command not in Gui.listCommands()]
     if missing:
-        raise RuntimeError("commands are not registered: %s" % ",".join(missing))
+        raise RuntimeError("commands are not registered: " + ",".join(missing))
     log("workbench=%s toolbar=%s" % (name, toolbar))
 
 
@@ -133,10 +108,8 @@ def save(name, state, proof):
     window = Gui.getMainWindow()
     if window is None or not window.isVisible():
         raise RuntimeError("FreeCAD main window unavailable for screenshot")
-    window.show(); window.raise_(); window.activateWindow(); window.resize(1280, 720)
-    events()
-    image = window.grab()
-    path = os.path.join(OUT, name)
+    window.show(); window.raise_(); window.activateWindow(); window.resize(1280, 720); events()
+    image = window.grab(); path = os.path.join(OUT, name)
     if image.isNull() or image.width() != 1280 or image.height() != 720:
         raise RuntimeError("invalid GUI capture for %s: %sx%s" % (state, image.width(), image.height()))
     if not image.save(path) or os.path.getsize(path) < 20000:
@@ -148,8 +121,7 @@ def save(name, state, proof):
 
 def close_task():
     if Gui.Control.activeDialog():
-        Gui.Control.closeDialog()
-        events()
+        Gui.Control.closeDialog(); events()
 
 
 def pattern_and_sewing():
@@ -163,43 +135,40 @@ def pattern_and_sewing():
     doc = App.newDocument("ClothVisualRegression")
     front = create_pattern_piece_from_parameters("Front", 140.0, 90.0, 10.0, 0.0)
     back = create_pattern_piece_from_parameters("Back", 140.0, 90.0, 10.0, 0.0)
-    front.Placement.Base.x = -160
-    back.Placement.Base.x = 20
+    front.Placement.Base.x = -160; back.Placement.Base.x = 20
     marker = doc.addObject("Part::Feature", "GrainlineMarker")
-    marker.Shape = Part.makeLine(App.Vector(-90, 10, 1), App.Vector(-90, 80, 1))
-    doc.recompute()
-    if front.Shape.isNull() or back.Shape.isNull():
-        raise RuntimeError("pattern fixture produced empty geometry")
+    marker.Shape = Part.makeLine(App.Vector(-90, 10, 1), App.Vector(-90, 80, 1)); doc.recompute()
+    if front.Shape.isNull() or back.Shape.isNull(): raise RuntimeError("pattern fixture produced empty geometry")
     activate("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D"])
-    panel = PatternPieceTaskPanel(front)
-    show_task(panel, "Pattern Workbench", ("Piece name", "Width", "Height", "Seam allowance", "Grainline angle"))
+    panel = PatternPieceTaskPanel(front); show_task(panel, "Pattern Workbench", ("Piece name", "Width", "Height", "Seam allowance", "Grainline angle"))
     Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll(); events()
     save("cloth-pattern-design.png", "Pattern Workbench", "two 140x90 mm pieces with native 10 mm seam allowance and task-panel dimensions")
     close_task()
     seam = add_seam(doc, Seam(str(front.PieceId), 1, str(back.PieceId), 3, id="FrontBack", alignment="uniform", stitch_group="MainSeam"))
-    sewing = create_sewing_operation()
-    doc.recompute()
-    if str(seam.Status) != "Valid" or seam.Shape.isNull() or str(sewing.Status) != "Valid" or sewing.Shape.isNull():
-        raise RuntimeError("sewing fixture is invalid")
+    sewing = create_sewing_operation(); doc.recompute()
+    if str(seam.Status) != "Valid" or seam.Shape.isNull() or str(sewing.Status) != "Valid" or sewing.Shape.isNull(): raise RuntimeError("sewing fixture is invalid")
     activate("ClothSewingWorkbench", "Cloth Sewing", ["ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_Validate"])
-    panel = SewingTaskPanel(sewing)
-    show_task(panel, "Sewing Workbench", ("Seam", "Alignment", "Validation tolerance", "Stitch samples", "Status"))
+    panel = SewingTaskPanel(sewing); show_task(panel, "Sewing Workbench", ("Seam", "Alignment", "Validation tolerance", "Stitch samples", "Status"))
     Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll(); events()
     save("cloth-sewing.png", "Sewing Workbench", "real semantic seam and sewing operation with native diagnostics")
-    close_task()
-    App.closeDocument(doc.Name)
+    close_task(); App.closeDocument(doc.Name)
 
 
 def _style_garment(panel, label):
     panel.Label = label
     try:
-        view = panel.ViewObject
-        view.DisplayMode = "Flat Lines"
-        view.ShapeColor = (0.78, 0.34, 0.22)
-        view.LineColor = (0.18, 0.08, 0.04)
-        view.LineWidth = 1.0
-    except (AttributeError, TypeError, ValueError):
-        pass
+        view = panel.ViewObject; view.DisplayMode = "Flat Lines"; view.ShapeColor = (0.78, 0.34, 0.22); view.LineColor = (0.18, 0.08, 0.04); view.LineWidth = 1.0
+    except (AttributeError, TypeError, ValueError): pass
+
+
+def _hide_tasks_for_visual_capture(dock):
+    if dock is not None:
+        dock.hide(); events()
+
+
+def _restore_tasks_after_visual_capture(dock):
+    if dock is not None:
+        dock.show(); dock.raise_(); events()
 
 
 def simulation():
@@ -210,141 +179,85 @@ def simulation():
 
     doc = App.newDocument("ClothSimulationVisualRegression")
     garment = create_pattern_piece_from_parameters("VisualTunic", 440.0, 560.0, 10.0, 0.0)
-    garment.Label = "Simple Tunic Panel"
-    garment.Placement.Base.x = -220.0
-    garment.Placement.Base.y = -120.0
+    garment.Label = "Simple Tunic Panel"; garment.Placement.Base.x = -220.0; garment.Placement.Base.y = -120.0
 
     scene = create_quality_simulation_scene(doc)
     scene.DrapePanels = []
     unused_panel = doc.getObject("DrapePanelB")
-    if unused_panel is not None:
-        unused_panel.ViewObject.Visibility = False
+    if unused_panel is not None: unused_panel.ViewObject.Visibility = False
     source_sketch = doc.getObject("VisualTunic")
-    if source_sketch is not None:
-        source_sketch.ViewObject.Visibility = False
-    scene.ClothPieces = [garment]
-    scene.QualityPreset = "Fast"
-    scene.ParticleDistance = 20.0
-    scene.SolverIterations = 5
-    scene.StartHeight = 1500.0
-    scene.PinSelection = ["0", "1"]
-    refresh_drape_target(scene.DrapeTarget)
-    doc.recompute()
+    if source_sketch is not None: source_sketch.ViewObject.Visibility = False
+    scene.ClothPieces = [garment]; scene.QualityPreset = "Fast"; scene.ParticleDistance = 20.0; scene.SolverIterations = 5; scene.StartHeight = 1500.0; scene.PinSelection = ["0", "1"]
+    refresh_drape_target(scene.DrapeTarget); doc.recompute()
 
     avatar = getattr(scene.AvatarProxy, "SourceObject", None)
-    if avatar is None or str(getattr(avatar, "AvatarType", "")) != "ClothAvatar":
-        raise RuntimeError("visual fixture did not create the production ClothAvatar")
-    if scene.DrapeTarget is None or not scene.DrapePanels:
-        raise RuntimeError("visual garment fixture did not create drape target/panel")
-    drape = scene.DrapePanels[0]
-    _style_garment(drape, "Drape: Simple Tunic Panel")
-    avatar.ViewObject.Visibility = True
-    doc.recompute()
-
-    if int(getattr(avatar, "MeshVertexCount", 0)) <= 100 or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100:
-        raise RuntimeError("visual fixture does not contain a real humanoid mesh")
+    if avatar is None or str(getattr(avatar, "AvatarType", "")) != "ClothAvatar": raise RuntimeError("visual fixture did not create the production ClothAvatar")
+    if scene.DrapeTarget is None or not scene.DrapePanels: raise RuntimeError("visual garment fixture did not create drape target/panel")
+    drape = scene.DrapePanels[0]; _style_garment(drape, "Drape: Simple Tunic Panel"); avatar.ViewObject.Visibility = True; doc.recompute()
+    if int(getattr(avatar, "MeshVertexCount", 0)) <= 100 or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100: raise RuntimeError("visual fixture does not contain a real humanoid mesh")
 
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
     panel = SimulationQualityTaskPanel(scene)
-    show_task(panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset"))
-    view = Gui.activeDocument().activeView()
-    view.setCameraType("Perspective")
-    view.viewTop()
-    view.fitAll()
-    events()
-    save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "single 440x560 mm tunic panel placed above the production MakeHuman mannequin; top view selected to show the cloth footprint and body silhouette")
+    task_dock = show_task(panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset"))
+    view = Gui.activeDocument().activeView(); view.setCameraType("Perspective"); view.viewFront(); view.fitAll(); events()
+    _hide_tasks_for_visual_capture(task_dock)
+    save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "single 440x560 mm tunic panel placed against the production MakeHuman mannequin; front perspective used for a direct garment view")
+    _restore_tasks_after_visual_capture(task_dock)
 
     for batch in (6, 6, 6, 6):
-        panel.step(batch)
-        doc.recompute()
-        events()
-    if int(scene.Steps) != 24 or float(scene.SimulatedTime) <= 0 or not bool(scene.FiniteState):
-        raise RuntimeError("simulation did not reach a finite 24-step drape state")
-    if drape.Mesh.CountFacets <= 10:
-        raise RuntimeError("draped garment panel has no visible mesh facets")
+        panel.step(batch); doc.recompute(); events()
+    if int(scene.Steps) != 24 or float(scene.SimulatedTime) <= 0 or not bool(scene.FiniteState): raise RuntimeError("simulation did not reach a finite 24-step drape state")
+    if drape.Mesh.CountFacets <= 10: raise RuntimeError("draped garment panel has no visible mesh facets")
 
     show_task(panel, "Simulation Workbench draped", ("State:", "24", "particles", "Fast"), reuse_active=True)
-    view.setCameraType("Perspective")
-    view.viewTop()
-    view.fitAll()
-    events()
-    save("cloth-simulation-draped.png", "Simulation Workbench draped", "same single tunic panel after 24 real simulation steps, top perspective showing the garment and mannequin silhouette")
-    close_task()
-    App.closeDocument(doc.Name)
+    view.setCameraType("Perspective"); view.viewFront(); view.fitAll(); events()
+    _hide_tasks_for_visual_capture(task_dock)
+    save("cloth-simulation-draped.png", "Simulation Workbench draped", "same single tunic panel after 24 real simulation steps; front perspective isolates the garment silhouette on the mannequin")
+    _restore_tasks_after_visual_capture(task_dock)
+    close_task(); App.closeDocument(doc.Name)
 
 
 def load_and_run(path, module_name):
     spec = importlib.util.spec_from_file_location(module_name, path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("cannot load acceptance module: %s" % path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    module.run_acceptance()
+    if spec is None or spec.loader is None: raise RuntimeError("cannot load acceptance module: %s" % path)
+    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module); module.run_acceptance()
 
 
 def canonical_garment_e2e():
-    path = os.path.join(ROOT, "tests", "freecad_garment_e2e_smoke.py")
-    load_and_run(path, "freecad_garment_e2e_smoke")
-    log("canonical-garment-e2e=passed")
+    load_and_run(os.path.join(ROOT, "tests", "freecad_garment_e2e_smoke.py"), "freecad_garment_e2e_smoke"); log("canonical-garment-e2e=passed")
 
 
 def simulation_quality_acceptance():
-    path = os.path.join(ROOT, "tests", "freecad_simulation_quality_acceptance.py")
-    load_and_run(path, "freecad_simulation_quality_acceptance")
-    log("simulation-quality-acceptance=passed")
+    load_and_run(os.path.join(ROOT, "tests", "freecad_simulation_quality_acceptance.py"), "freecad_simulation_quality_acceptance"); log("simulation-quality-acceptance=passed")
 
 
 def avatar_provider_acceptance():
-    path = os.path.join(ROOT, "tests", "freecad_avatar_acceptance.py")
-    load_and_run(path, "freecad_avatar_acceptance")
-    log("avatar-provider-acceptance=passed")
+    load_and_run(os.path.join(ROOT, "tests", "freecad_avatar_acceptance.py"), "freecad_avatar_acceptance"); log("avatar-provider-acceptance=passed")
 
 
 exit_code = 0
 log("script-start")
 try:
-    if Gui.getMainWindow() is None:
-        raise RuntimeError("FreeCAD GUI main window did not launch")
-    Gui.getMainWindow().show()
-    events()
-    if not Gui.getMainWindow().isVisible():
-        raise RuntimeError("FreeCAD GUI main window failed to become visible")
+    if Gui.getMainWindow() is None: raise RuntimeError("FreeCAD GUI main window did not launch")
+    Gui.getMainWindow().show(); events()
+    if not Gui.getMainWindow().isVisible(): raise RuntimeError("FreeCAD GUI main window failed to become visible")
     log("gui-launch-ok window=%sx%s" % (Gui.getMainWindow().width(), Gui.getMainWindow().height()))
     init_gui = os.path.join(ROOT, "InitGui.py")
-    exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
-    events()
-    avatar_provider_acceptance()
-    canonical_garment_e2e()
-    simulation_quality_acceptance()
-    pattern_and_sewing()
-    simulation()
-    log("scenario-pass")
+    exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals()); events()
+    avatar_provider_acceptance(); canonical_garment_e2e(); simulation_quality_acceptance(); pattern_and_sewing(); simulation(); log("scenario-pass")
 except BaseException as error:
-    exit_code = 1
-    print("SCENARIO FAILURE: %r" % (error,), flush=True)
-    print(traceback.format_exc(), flush=True)
-    log("scenario-fail exception=%r" % (error,))
-    log(traceback.format_exc())
+    exit_code = 1; print("SCENARIO FAILURE: %r" % (error,), flush=True); print(traceback.format_exc(), flush=True); log("scenario-fail exception=%r" % (error,)); log(traceback.format_exc())
 finally:
     try:
         close_task()
         for document in list(App.listDocuments().values()):
-            try:
-                App.closeDocument(document.Name)
-            except Exception:
-                pass
-        events()
-        log("script-end exit-code=%d" % exit_code)
+            try: App.closeDocument(document.Name)
+            except Exception: pass
+        events(); log("script-end exit-code=%d" % exit_code)
         window = Gui.getMainWindow()
-        if window is not None:
-            window.close()
+        if window is not None: window.close()
         app = QtWidgets.QApplication.instance()
-        if app is not None:
-            app.quit()
+        if app is not None: app.quit()
     except Exception:
-        log("shutdown-error")
-        log(traceback.format_exc())
-        exit_code = 1
-sys.stdout.flush()
-sys.stderr.flush()
-sys.exit(exit_code)
+        log("shutdown-error"); log(traceback.format_exc()); exit_code = 1
+sys.stdout.flush(); sys.stderr.flush(); sys.exit(exit_code)
