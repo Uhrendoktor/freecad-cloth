@@ -7,6 +7,7 @@ from freecad_cloth.avatar.HumanoidMesh import (
     MAKEHUMAN_BASE_URL,
     MAKEHUMAN_BASE_SHA256,
     MeshData,
+    _map_makehuman_axes,
     fit_makehuman_mesh,
     load_makehuman_mesh,
     parse_obj,
@@ -41,6 +42,12 @@ class HumanoidMeshTests(unittest.TestCase):
         spans = tuple(max(vertex[axis] for vertex in source.vertices) - min(vertex[axis] for vertex in source.vertices) for axis in range(3))
         self.assertGreater(spans[2], spans[0] * 2.0)
         self.assertGreater(spans[2], spans[1] * 2.0)
+
+    def test_map_preserves_z_up_orientation_and_normalizes_height(self):
+        source = ((-2.0, 3.0, 5.0), (2.0, -3.0, 15.0))
+        mapped = _map_makehuman_axes(source)
+        self.assertEqual(mapped[0], (-2.0, 3.0, 0.0))
+        self.assertEqual(mapped[1], (2.0, -3.0, 1.0))
 
     def test_fit_preserves_z_up_makehuman_orientation(self):
         source = parse_obj("""
