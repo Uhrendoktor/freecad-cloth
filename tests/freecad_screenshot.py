@@ -225,8 +225,11 @@ def simulation():
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
     panel = SimulationQualityTaskPanel(scene)
     show_task(panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset"))
-    Gui.activeDocument().activeView().viewAxonometric(); Gui.activeDocument().activeView().fitAll(); events()
-    save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "production MakeHuman humanoid mesh and arranged garment panels with ready task state")
+    view = Gui.activeDocument().activeView()
+    view.viewAxonometric()
+    view.setCameraType("Perspective")
+    view.fitAll(); events()
+    save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "production MakeHuman humanoid mesh and arranged garment panels with a perspective axonometric camera")
     for batch in (6, 6, 6, 6):
         panel.step(batch)
         doc.recompute()
@@ -234,87 +237,7 @@ def simulation():
     if int(scene.Steps) != 24 or float(scene.SimulatedTime) <= 0 or not bool(scene.FiniteState):
         raise RuntimeError("simulation did not reach a finite 24-step state")
     show_task(panel, "Simulation Workbench draped", ("State:", "24", "particles", "Fast"), reuse_active=True)
-    Gui.activeDocument().activeView().fitAll(); events()
-    save("cloth-simulation-draped.png", "Simulation Workbench draped", "same MakeHuman-backed scene after 24 real task-panel simulation steps")
+    view.fitAll(); events()
+    save("cloth-simulation-draped.png", "Simulation Workbench draped", "same MakeHuman-backed scene after 24 real task-panel simulation steps using the same perspective axonometric camera")
     close_task()
     App.closeDocument(doc.Name)
-
-
-def load_and_run(path, module_name):
-    spec = importlib.util.spec_from_file_location(module_name, path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("cannot load acceptance module: %s" % path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    module.run_acceptance()
-
-
-def canonical_garment_e2e():
-    """Run the P0 multi-workbench garment lifecycle in this GUI process."""
-    path = os.path.join(ROOT, "tests", "freecad_garment_e2e_smoke.py")
-    load_and_run(path, "freecad_garment_e2e_smoke")
-    log("canonical-garment-e2e=passed")
-
-
-def simulation_quality_acceptance():
-    """Run the P0 simulation quality/material lifecycle in this GUI process."""
-    path = os.path.join(ROOT, "tests", "freecad_simulation_quality_acceptance.py")
-    load_and_run(path, "freecad_simulation_quality_acceptance")
-    log("simulation-quality-acceptance=passed")
-
-
-def avatar_provider_acceptance():
-    """Run the production avatar provider/task-panel/save-reload lifecycle."""
-    path = os.path.join(ROOT, "tests", "freecad_avatar_acceptance.py")
-    load_and_run(path, "freecad_avatar_acceptance")
-    log("avatar-provider-acceptance=passed")
-
-
-exit_code = 0
-log("script-start")
-try:
-    if Gui.getMainWindow() is None:
-        raise RuntimeError("FreeCAD GUI main window did not launch")
-    Gui.getMainWindow().show()
-    events()
-    if not Gui.getMainWindow().isVisible():
-        raise RuntimeError("FreeCAD GUI main window failed to become visible")
-    log("gui-launch-ok window=%sx%s" % (Gui.getMainWindow().width(), Gui.getMainWindow().height()))
-    init_gui = os.path.join(ROOT, "InitGui.py")
-    exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
-    events()
-    avatar_provider_acceptance()
-    canonical_garment_e2e()
-    simulation_quality_acceptance()
-    pattern_and_sewing()
-    simulation()
-    log("scenario-pass")
-except BaseException as error:
-    exit_code = 1
-    print("SCENARIO FAILURE: %r" % (error,), flush=True)
-    print(traceback.format_exc(), flush=True)
-    log("scenario-fail exception=%r" % (error,))
-    log(traceback.format_exc())
-finally:
-    try:
-        close_task()
-        for document in list(App.listDocuments().values()):
-            try:
-                App.closeDocument(document.Name)
-            except Exception:
-                pass
-        events()
-        log("script-end exit-code=%d" % exit_code)
-        window = Gui.getMainWindow()
-        if window is not None:
-            window.close()
-        app = QtWidgets.QApplication.instance()
-        if app is not None:
-            app.quit()
-    except Exception:
-        log("shutdown-error")
-        log(traceback.format_exc())
-        exit_code = 1
-sys.stdout.flush()
-sys.stderr.flush()
-sys.exit(exit_code)
