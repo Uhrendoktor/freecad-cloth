@@ -49,6 +49,9 @@ def _boundary_shape(points, allowance=0.0):
 def _edge_records(piece):
     """Expose pattern edges through persistent semantic ids."""
     points = _parse_points(getattr(piece, "SewingOutline", ""))
+    drafting = _parse_points(getattr(piece, "DraftingBoundary", ""))
+    if len(drafting) > len(points):
+        points = drafting
     if len(points) < 2:
         return []
     piece_id = str(getattr(piece, "PieceId", ""))
