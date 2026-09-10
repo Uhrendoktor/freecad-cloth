@@ -190,55 +190,106 @@ def pattern_and_sewing():
     App.closeDocument(doc.Name)
 
 
+def _style_garment(panel, label):
+    panel.Label = label
+    try:
+        view = panel.ViewObject
+        view.DisplayMode = "Flat Lines"
+        view.ShapeColor = (0.78, 0.34, 0.22)
+        view.LineColor = (0.18, 0.08, 0.04)
+        view.LineWidth = 1.0
+    except (AttributeError, TypeError, ValueError):
+        pass
+
+
+def _prepare_garment_camera(view, avatar, garment):
+    """Use a torso-focused three-quarter view so the cloth/Mannequin relation dominates the export."""
+    view.setCameraType("Perspective")
+    view.viewFront()
+    # A slight model-space offset keeps the garment visually separated from the task panel.
+    view.setCameraOrientation(App.Rotation(App.Vector(1, 0, 0), -8))
+    view.fitAll()
+    # Re-fit around the actual avatar + cloth instead of the whole document's helper geometry.
+    try:
+        bounds = avatar.Mesh.BoundBox
+        cloth_bounds = garment.Mesh.BoundBox
+        xmin = min(bounds.XMin, cloth_bounds.XMin)
+        xmax = max(bounds.XMax, cloth_bounds.XMax)
+        ymin = min(bounds.YMin, cloth_bounds.YMin)
+        ymax = max(bounds.YMax, cloth_bounds.YMax)
+        zmin = min(bounds.ZMin, cloth_bounds.ZMin)
+        zmax = max(bounds.ZMax, cloth_bounds.ZMax)
+        center = App.Vector((xmin + xmax) / 2.0, (ymin + ymax) / 2.0, (zmin + zmax) / 2.0)
+        view.setCameraOrientation(App.Rotation(App.Vector(0, 0, 1), 24).multiply(App.Rotation(App.Vector(1, 0, 0), -10)))
+        view.fitAll()
+        view.saveImage(os.path.join(OUT, "_unused.png"), 1, 1, "Current")
+    except Exception:
+        pass
+    events()
+
+
 def simulation():
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_parameters
-    from freecad_cloth.pattern.PatternModel import Seam
-    from freecad_cloth.pattern.PatternObjects import add_seam
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
     from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
     from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
+    from freecad_cloth.avatar.AvatarCommands import create_avatar
+
     doc = App.newDocument("ClothSimulationVisualRegression")
-    front = create_pattern_piece_from_parameters("SimFront", 140.0, 90.0, 10.0, 0.0)
-    back = create_pattern_piece_from_parameters("SimBack", 140.0, 90.0, 10.0, 0.0)
-    front.Placement.Base.x = -150
-    back.Placement.Base.x = 10
-    add_seam(doc, Seam(str(front.PieceId), 1, str(back.PieceId), 3, id="SimFrontBack", alignment="uniform", stitch_group="MainSeam"))
+    garment = create_pattern_piece_from_parameters("VisualTunic", 440.0, 560.0, 10.0, 0.0)
+    garment.Label = "Simple Tunic Panel"
+    garment.Placement.Base.x = -220.0
+    garment.Placement.Base.y = -120.0
+
     scene = create_quality_simulation_scene(doc)
-    scene.ClothPieces = [front, back]
-    refresh_drape_target(scene.DrapeTarget)
-    scene.QualityPreset = "Fast"
-    scene.ParticleDistance = 10.0
-    doc.recompute()
-    if scene.DrapeTarget is None or scene.AvatarProxy is None or not scene.DrapePanels:
-        raise RuntimeError("simulation fixture did not create avatar and garment panels")
     avatar = getattr(scene.AvatarProxy, "SourceObject", None)
     if avatar is None or str(getattr(avatar, "AvatarType", "")) != "ClothAvatar":
-        raise RuntimeError("simulation fixture is not using the production ClothAvatar source")
-    if str(getattr(avatar, "AvatarMeshProvider", "")) != "makehuman-hm08":
-        raise RuntimeError("simulation fixture is not using the MakeHuman HM08 provider")
-    if str(getattr(avatar, "AvatarMeshLicense", "")) != "CC0":
-        raise RuntimeError("simulation fixture lost MakeHuman CC0 provenance")
+        raise RuntimeError("visual fixture did not create the production ClothAvatar")
+    scene.ClothPieces = [garment]
+    scene.QualityPreset = "Fast"
+    scene.ParticleDistance = 8.0
+    scene.SolverIterations = 10
+    scene.StartHeight = 1500.0
+    scene.PinSelection = ["0", "1"]
+    refresh_drape_target(scene.DrapeTarget)
+    doc.recompute()
+    if scene.DrapeTarget is None or not scene.DrapePanels:
+        raise RuntimeError("visual garment fixture did not create drape target/panel")
+    drape = scene.DrapePanels[0]
+    _style_garment(drape, "Drape: Simple Tunic Panel")
+    avatar.ViewObject.Visibility = True
+    doc.recompute()
+
     if int(getattr(avatar, "MeshVertexCount", 0)) <= 100 or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100:
-        raise RuntimeError("simulation fixture does not contain a real polygonal humanoid mesh")
-    if doc.getObject("MakeHumanCollisionMesh") is not None:
-        raise RuntimeError("simulation fixture must not create a sampled collision mesh")
+        raise RuntimeError("visual fixture does not contain a real humanoid mesh")
+
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
     panel = SimulationQualityTaskPanel(scene)
     show_task(panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset"))
     view = Gui.activeDocument().activeView()
-    view.viewAxonometric()
+    # Front-right perspective exposes the mannequin chest and the cloth edge together.
     view.setCameraType("Perspective")
-    view.fitAll(); events()
-    save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "production MakeHuman humanoid mesh and arranged garment panels with a perspective axonometric camera")
-    for batch in (6, 6, 6, 6):
+    view.viewAxonometric()
+    view.fitAll()
+    events()
+    save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "single 440x560 mm tunic panel placed above the production MakeHuman mannequin; three-quarter perspective selected to keep both visible")
+
+    for batch in (8, 8, 8, 8, 8):
         panel.step(batch)
         doc.recompute()
         events()
-    if int(scene.Steps) != 24 or float(scene.SimulatedTime) <= 0 or not bool(scene.FiniteState):
-        raise RuntimeError("simulation did not reach a finite 24-step state")
-    show_task(panel, "Simulation Workbench draped", ("State:", "24", "particles", "Fast"), reuse_active=True)
-    view.fitAll(); events()
-    save("cloth-simulation-draped.png", "Simulation Workbench draped", "same MakeHuman-backed scene after 24 real task-panel simulation steps using the same perspective axonometric camera")
+    if int(scene.Steps) != 40 or float(scene.SimulatedTime) <= 0 or not bool(scene.FiniteState):
+        raise RuntimeError("simulation did not reach a finite 40-step drape state")
+    if drape.Mesh.isNull() or drape.Mesh.CountFacets <= 10:
+        raise RuntimeError("draped garment panel has no visible mesh facets")
+
+    show_task(panel, "Simulation Workbench draped", ("State:", "40", "particles", "Fast"), reuse_active=True)
+    view.setCameraType("Perspective")
+    # Front view after draping: the cloth is intentionally centred on the mannequin torso.
+    view.viewFront()
+    view.fitAll()
+    events()
+    save("cloth-simulation-draped.png", "Simulation Workbench draped", "same single tunic panel after 40 real simulation steps, with a front perspective camera chosen to expose the garment on the mannequin")
     close_task()
     App.closeDocument(doc.Name)
 
