@@ -121,7 +121,6 @@ class SimulationQualityTaskPanel:
             self._refresh()
             raise RuntimeError(status["message"])
         self._parameters_changed(); scene.Steps = int(scene.Steps) + int(count); scene.Document.recompute(); self.steps.setValue(int(scene.Steps)); self._refresh()
-        if self.Gui.activeDocument(): self.Gui.activeDocument().activeView().fitAll()
 
     def reset(self):
         if self.scene is not None:
