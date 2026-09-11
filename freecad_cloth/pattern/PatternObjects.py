@@ -49,6 +49,9 @@ def _boundary_shape(points, allowance=0.0):
 def _edge_records(piece):
     """Expose pattern edges through persistent semantic ids."""
     points = _parse_points(getattr(piece, "SewingOutline", ""))
+    drafting = _parse_points(getattr(piece, "DraftingBoundary", ""))
+    if len(drafting) > len(points):
+        points = drafting
     if len(points) < 2:
         return []
     piece_id = str(getattr(piece, "PieceId", ""))
@@ -66,6 +69,12 @@ def _edge_records(piece):
 def _seam_edge_id(piece, edge, prefix):
     """Return the semantic edge id and captured signature for a seam side."""
     records = _edge_records(piece)
+    if isinstance(edge, int) and (edge < 0 or edge >= len(records)):
+        proxy = getattr(piece, "Proxy", None)
+        execute = getattr(proxy, "execute", None)
+        if callable(execute):
+            execute(piece)
+            records = _edge_records(piece)
     if isinstance(edge, int):
         if edge < 0 or edge >= len(records):
             raise MissingEdgeReference(f"seam edge {edge} is outside pattern piece {piece.PieceId}")
@@ -93,11 +102,13 @@ class PatternPieceProxy:
         if width <= 0 or height <= 0: raise ValueError("pattern piece dimensions must be positive")
         if allowance < 0: raise ValueError("seam allowance cannot be negative")
         mode = str(getattr(obj, "GeometryMode", "Rectangle"))
-        if mode == "Custom":
-            points = _parse_points(getattr(obj, "DraftingBoundary", ""))
+        drafting = _parse_points(getattr(obj, "DraftingBoundary", ""))
+        if mode == "Custom" or (mode == "Rectangle" and len(drafting) > 4):
+            points = drafting
             if len(points) < 3: raise ValueError("custom pattern outline needs at least three points")
             obj.Width = max(x for x, _ in points) - min(x for x, _ in points)
             obj.Height = max(y for _, y in points) - min(y for _, y in points)
+            obj.GeometryMode = "Custom"
         else:
             points = _rectangle_points(width, height); obj.GeometryMode = "Rectangle"
         obj.DraftingBoundary = repr(points); obj.SewingOutline = repr(points)

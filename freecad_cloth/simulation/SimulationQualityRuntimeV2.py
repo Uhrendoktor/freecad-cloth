@@ -1,9 +1,11 @@
 """FreeCAD boundary integration for simulation quality and fabric controls."""
 from math import ceil
+import weakref
 
 from freecad_cloth.simulation.SimulationQuality import FabricMaterial, QUALITY_PRESETS, preset
 
 QUALITY_NAMES = tuple(QUALITY_PRESETS)
+_RUNTIME_BASES = weakref.WeakKeyDictionary()
 
 
 def ensure_quality_properties(scene):
@@ -85,11 +87,12 @@ class QualitySimulationProxy:
         return SimulationProxy()
 
     def _restore_base(self):
-        self.__dict__["_base"] = self._new_base()
-        return self.__dict__["_base"]
+        base = self._new_base()
+        _RUNTIME_BASES[self] = base
+        return base
 
     def _base_or_restore(self):
-        base = self.__dict__.get("_base")
+        base = _RUNTIME_BASES.get(self)
         if base is None:
             base = self._restore_base()
         return base
