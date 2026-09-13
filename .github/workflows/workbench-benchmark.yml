@@ -43,7 +43,12 @@ jobs:
           mkdir -p artifacts/workbench-benchmark
           CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e PYTHONPATH=/workspace -w /workspace "$IMAGE" -euo pipefail -c '
             set -e
-            python3 tools/benchmark_workbenches.py --output artifacts/workbench-benchmark/benchmark.json --repeats 7
+            FREECAD_BIN="$(command -v freecadcmd || command -v FreeCADCmd || true)"
+            if [ -z "$FREECAD_BIN" ]; then
+              echo "FreeCAD command-line interpreter not found in CI image" >&2
+              exit 1
+            fi
+            "$FREECAD_BIN" tools/benchmark_workbenches.py --output artifacts/workbench-benchmark/benchmark.json --repeats 7
           ')"
           cleanup() {
             set +e
