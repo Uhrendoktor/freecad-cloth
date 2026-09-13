@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
+import os
 import pathlib
 import statistics
 import time
@@ -60,6 +61,7 @@ def runtime_metrics(name: str, repeats: int) -> dict:
     # Workbench Initialize() registers toolbars/menus globally. Repeating it on
     # fresh objects in one GUI process creates duplicate UI state, so measure
     # construction repeatedly but initialize exactly once per fresh workbench.
+    print(f"benchmark: {name}: importing and constructing", flush=True)
     module = importlib.import_module(module_name)
     lookup_samples = []
     construct_samples = []
@@ -71,10 +73,12 @@ def runtime_metrics(name: str, repeats: int) -> dict:
         t0 = time.perf_counter()
         wb = wb_cls()
         construct_samples.append(time.perf_counter() - t0)
+    print(f"benchmark: {name}: initializing", flush=True)
     wb = wb_cls()
     t0 = time.perf_counter()
     wb.Initialize()
     initialize_ms = median_ms([time.perf_counter() - t0])
+    print(f"benchmark: {name}: initialized ({initialize_ms} ms)", flush=True)
     return {
         "class_lookup_ms": median_ms(lookup_samples),
         "construct_ms": median_ms(construct_samples),
@@ -125,8 +129,12 @@ def main() -> None:
     out = ROOT / args.output
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(json.dumps(result, indent=2, sort_keys=True))
+    print(json.dumps(result, indent=2, sort_keys=True), flush=True)
     close_gui()
+    # The benchmark process is disposable. FreeCAD/Qt can keep background
+    # threads alive after QApplication.quit(); terminate after the JSON is
+    # durable so the CI job cannot hang after producing valid measurements.
+    os._exit(0)
 
 
 if __name__ == "__main__":
