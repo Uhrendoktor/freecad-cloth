@@ -2,6 +2,7 @@
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose, generate_mesh
 from freecad_cloth.avatar.AvatarArrangement import arrangement_points_from_landmarks
 from freecad_cloth.avatar.AvatarProvider import FreeCADGeometryAvatarProvider
+from freecad_cloth.avatar.MeshSanity import compact_mesh
 
 PROPERTY_MAP = {
     "height": "Height", "neck": "Neck", "shoulder": "Shoulder",
@@ -61,6 +62,10 @@ def _provider_geometry(obj, params):
     provider_id = str(getattr(obj, "AvatarProviderId", "makehuman-hm08"))
     if provider_id == "makehuman-hm08":
         vertices, triangles, landmarks = generate_mesh(params)
+        # AvatarModel is imported directly by this module, so package-level
+        # wrappers cannot reliably alter this local function binding. Normalize
+        # the actual production provider path before building FreeCAD geometry.
+        vertices, triangles = compact_mesh(vertices, triangles)
         source = "MakeHuman HM08 base mesh @ %s" % __import__("freecad_cloth.avatar.HumanoidMesh", fromlist=["MAKEHUMAN_COMMIT"]).MAKEHUMAN_COMMIT
         return vertices, triangles, landmarks, provider_id, source, "CC0"
     if provider_id == "freecad-geometry":
