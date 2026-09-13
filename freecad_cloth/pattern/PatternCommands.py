@@ -1,5 +1,6 @@
 """Commands for the Cloth Pattern workbench."""
 import ast
+from freecad_cloth.common.CommandAdapter import icon_for_command
 
 
 def create_pattern_piece_from_parameters(name, width, height, allowance, grainline):
@@ -20,10 +21,7 @@ def create_pattern_piece_from_parameters(name, width, height, allowance, grainli
     obj.GeometryMode = "Rectangle"
     obj.Label = name
     doc.recompute()
-    in_six_side_screenshot = any(
-        frame.function == "simulation" and frame.filename.endswith("/tests/freecad_screenshot.py")
-        for frame in inspect.stack(context=0)
-    )
+    in_six_side_screenshot = any(frame.function == "simulation" and frame.filename.endswith("/tests/freecad_screenshot.py") for frame in inspect.stack(context=0))
     if not in_six_side_screenshot:
         _create_native_sketch_for_piece(obj)
         doc.recompute()
@@ -193,10 +191,12 @@ def repair_pattern_topology():
 
 
 class _FunctionCommand:
-    def __init__(self, function): self.function = function
+    def __init__(self, function, command_name):
+        self.function = function
+        self.command_name = command_name
     def Activated(self): return self.function()
     def GetResources(self):
-        return {"MenuText": self.function.__name__.replace("_", " ").title(), "ToolTip": self.function.__doc__ or "Cloth pattern command"}
+        return {"MenuText": self.function.__name__.replace("_", " ").title(), "ToolTip": self.function.__doc__ or "Cloth pattern command", "Pixmap": icon_for_command(self.command_name)}
 
 
 COMMANDS = [
@@ -229,6 +229,6 @@ try:
             "ClothPattern_AddSeam": add_seam,
             "ClothPattern_RepairTopology": repair_pattern_topology,
         }.items():
-            Gui.addCommand(name, _FunctionCommand(handler))
+            Gui.addCommand(name, _FunctionCommand(handler, name))
 except (ImportError, AttributeError):
     pass
