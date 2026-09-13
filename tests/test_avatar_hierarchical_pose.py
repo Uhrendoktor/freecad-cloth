@@ -6,6 +6,7 @@ from pathlib import Path
 
 from freecad_cloth.avatar.HierarchicalPose import (
     _blend_weighted_pose,
+    _distal_attachment_weights,
     _group_weights,
     _hand_roll_angle,
     _map_weight_groups_to_geometry,
@@ -116,19 +117,37 @@ class AvatarHierarchicalPoseTests(unittest.TestCase):
         self.assertAlmostEqual(rotated[1], 1.0, places=6)
         self.assertAlmostEqual(rotated[2], 0.0, places=6)
 
+    def test_distal_attachment_includes_wrist_weight_near_palm(self):
+        vertices = (
+            (0.0, 0.0, 0.0),
+            (0.0, 0.0, 8.0),
+            (0.0, 0.0, 40.0),
+        )
+        wrist_weights = (1.0, 1.0, 0.0)
+        hand_weights = (0.0, 0.2, 1.0)
+        result = _distal_attachment_weights(
+            vertices,
+            wrist_weights,
+            hand_weights,
+            (0.0, 0.0, 0.0),
+            radius=35.0,
+        )
+        self.assertGreater(result[1], 0.2)
+        self.assertAlmostEqual(result[2], 1.0, places=6)
+
     def test_straighten_hands_reduces_large_wrist_kink(self):
         vertices = (
-            (200.0, 0.0, 1200.0),  # lower-arm center
-            (220.0, 0.0, 1100.0),  # wrist
-            (270.0, 0.0, 1130.0),  # near-wrist hand vertices
-            (274.0, 0.0, 1148.0),  # distal finger vertices
+            (200.0, 0.0, 1200.0),
+            (220.0, 0.0, 1100.0),
+            (270.0, 0.0, 1130.0),
+            (274.0, 0.0, 1148.0),
             (278.0, 0.0, 1165.0),
         )
         posed = list(vertices)
         weights = {
             "lowerarm_l": (1.0, 0.0, 0.0, 0.0, 0.0),
-            "wrist_l": (0.0, 1.0, 0.0, 0.0, 0.0),
-            "hand_l": (0.0, 0.0, 1.0, 0.45, 0.20),
+            "wrist_l": (0.0, 1.0, 0.6, 0.2, 0.0),
+            "hand_l": (0.0, 0.0, 0.6, 0.45, 0.20),
             "lowerarm_r": (0.0, 0.0, 0.0, 0.0, 0.0),
             "wrist_r": (0.0, 0.0, 0.0, 0.0, 0.0),
             "hand_r": (0.0, 0.0, 0.0, 0.0, 0.0),
