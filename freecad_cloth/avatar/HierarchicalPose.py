@@ -139,6 +139,63 @@ def _rotate_xz(point, pivot, radians):
     return (pivot[0] + c * dx + s * dz, y, pivot[1] - s * dx + c * dz)
 
 
+def _normalize(vector):
+    length = math.sqrt(sum(component * component for component in vector))
+    if length <= 1e-12:
+        return None
+    return tuple(component / length for component in vector)
+
+
+def _dot(a, b):
+    return sum(x * y for x, y in zip(a, b))
+
+
+def _cross(a, b):
+    return (
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    )
+
+
+def _rotate_about_axis(point, pivot, axis, radians):
+    axis = _normalize(axis)
+    if axis is None:
+        return point
+    vector = tuple(point[i] - pivot[i] for i in range(3))
+    c = math.cos(radians)
+    s = math.sin(radians)
+    cross = _cross(axis, vector)
+    parallel = _dot(axis, vector)
+    return tuple(
+        pivot[i]
+        + vector[i] * c
+        + cross[i] * s
+        + axis[i] * parallel * (1.0 - c)
+        for i in range(3)
+    )
+
+
+def _hand_roll_angle(forearm_axis):
+    """Return the roll that turns the authored palm edge into a front-facing palm.
+
+    In the MakeHuman source pose the hand plane is carried by the forearm axis
+    and the global Y direction, so its normal is axis × Y. The avatar views are
+    front/back along Y; rotating that normal onto +Y removes the persistent
+    90-degree edge-on palm seen in the front and side renders.
+    """
+    axis = _normalize(forearm_axis)
+    if axis is None:
+        return 0.0
+    target_normal = (0.0, 1.0, 0.0)
+    current_normal = _normalize(_cross(axis, target_normal))
+    if current_normal is None:
+        return 0.0
+    sine = _dot(axis, _cross(current_normal, target_normal))
+    cosine = max(-1.0, min(1.0, _dot(current_normal, target_normal)))
+    return math.atan2(sine, cosine)
+
+
 def _blend_weighted_pose(point, arm_weight, clavicle_weight, arm_pivot, clavicle_pivot, arm_radians, clavicle_radians):
     arm_weight = max(0.0, min(1.0, float(arm_weight)))
     clavicle_weight = max(0.0, min(1.0, float(clavicle_weight)))
@@ -164,7 +221,7 @@ def _shortest_angle(target, current):
 
 
 def _straighten_hands(vertices, posed, weights):
-    """Align the authored finger direction with the posed forearm at the wrist."""
+    """Align the fingers with the forearm and roll the palms to face front/back."""
     result = list(posed)
     for side in (-1.0, 1.0):
         suffix = "l" if side < 0 else "r"
@@ -189,17 +246,29 @@ def _straighten_hands(vertices, posed, weights):
             _signed_angle_xz(hand_dx, hand_dz),
         )
         correction = max(-math.radians(150.0), min(math.radians(150.0), correction))
-        if abs(correction) <= math.radians(0.5):
-            continue
-        pivot = (wrist[0], wrist[2])
-        for index, point in enumerate(result):
-            influence = max(0.0, min(1.0, float(weights[f"hand_{suffix}"][index])))
-            if influence <= 1e-6:
-                continue
-            # _rotate_xz uses a clockwise-positive convention in the XZ plane,
-            # while correction is computed as target_angle - current_angle.
-            rotated = _rotate_xz(point, pivot, -correction)
-            result[index] = tuple(point[i] * (1.0 - influence) + rotated[i] * influence for i in range(3))
+        hand_roll = _hand_roll_angle((forearm_dx, 0.0, forearm_dz))
+        hand_weights = weights[f"hand_{suffix}"]
+        if abs(correction) > math.radians(0.5) or abs(hand_roll) > math.radians(0.5):
+            pivot = wrist
+            for index, point in enumerate(result):
+                influence = max(0.0, min(1.0, float(hand_weights[index])))
+                if influence <= 1e-6:
+                    continue
+                if abs(correction) > math.radians(0.5):
+                    # _rotate_xz uses a clockwise-positive convention in the XZ plane,
+                    # while correction is computed as target_angle - current_angle.
+                    point = _rotate_xz(point, (pivot[0], pivot[2]), -correction)
+                if abs(hand_roll) > math.radians(0.5):
+                    point = _rotate_about_axis(
+                        point,
+                        pivot,
+                        (forearm_dx, 0.0, forearm_dz),
+                        hand_roll,
+                    )
+                result[index] = tuple(
+                    posed[index][i] * (1.0 - influence) + point[i] * influence
+                    for i in range(3)
+                )
     return result
 
 
