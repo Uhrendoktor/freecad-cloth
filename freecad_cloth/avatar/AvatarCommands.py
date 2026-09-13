@@ -191,11 +191,10 @@ def rebuild_avatar():
     if obj is None:
         raise ValueError("create a Cloth Avatar first")
     _rebuild(obj)
-    obj.CollisionProxy = _ensure_collision(obj)
+    _ensure_collision(obj)
     target = doc.getObject("DrapeTarget")
     if target is None:
         target = _ensure_drape_target(obj)
-    obj.DrapeTarget = target
     return obj
 
 
