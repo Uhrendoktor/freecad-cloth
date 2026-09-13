@@ -34,9 +34,18 @@ def _show_panel(panel):
         raise RuntimeError("avatar task panel did not become visible")
 
 
+def _mesh_topology(mesh):
+    topology = getattr(mesh, "Topology", None)
+    if topology is None:
+        raise RuntimeError("avatar mesh topology is unavailable")
+    vertices, triangles = topology
+    return tuple(tuple(float(c) for c in vertex) for vertex in vertices), tuple(tuple(int(i) for i in tri) for tri in triangles)
+
+
 def run_acceptance():
     from freecad_cloth.avatar.AvatarCommands import create_avatar
     from freecad_cloth.avatar.AvatarGui import AvatarTaskPanel
+    from freecad_cloth.avatar.AvatarVisualSanity import inspect_avatar_mesh
     from freecad_cloth.simulation.DrapeTarget import refresh_drape_target, target_status
 
     doc = App.newDocument("AvatarProviderAcceptance")
@@ -53,6 +62,13 @@ def run_acceptance():
             raise RuntimeError("avatar creation did not create a persistent DrapeTarget")
         if target_status(target)["state"] != "ready":
             raise RuntimeError("new mannequin target is not ready")
+        avatar_mesh = getattr(avatar, "Mesh", None)
+        if avatar_mesh is None:
+            raise RuntimeError("generated mannequin has no mesh")
+        vertices, triangles = _mesh_topology(avatar_mesh)
+        sanity = inspect_avatar_mesh(vertices, triangles)
+        if sanity.triangle_count < 100:
+            raise RuntimeError("generated mannequin mesh is implausibly small")
         identity = avatar.Name
 
         panel = AvatarTaskPanel(avatar)
