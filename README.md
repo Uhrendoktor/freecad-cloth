@@ -14,7 +14,7 @@ FreeCAD/Sketcher owns editable geometry and document persistence; Cloth owns gar
 
 ## Screenshots
 
-The canonical FreeCAD/Xvfb workflow publishes the latest four validated 1280×720 GUI states to a stable `docs/screenshots` branch. They are refreshed on every successful `main` run.
+The canonical FreeCAD/Xvfb workflow publishes the validated GUI states to a stable `docs/screenshots` branch. The avatar audit additionally captures the production mannequin from every orthographic direction so the shoulder joints and overall body silhouette can be checked visually.
 
 ### Pattern design
 
@@ -32,6 +32,30 @@ The canonical FreeCAD/Xvfb workflow publishes the latest four validated 1280×72
 
 ![Cloth Simulation draped](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped.png)
 
+### Avatar — front
+
+![Cloth Avatar front](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-front.png)
+
+### Avatar — rear
+
+![Cloth Avatar rear](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-rear.png)
+
+### Avatar — left
+
+![Cloth Avatar left](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-left.png)
+
+### Avatar — right
+
+![Cloth Avatar right](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-right.png)
+
+### Avatar — top
+
+![Cloth Avatar top](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-top.png)
+
+### Avatar — bottom
+
+![Cloth Avatar bottom](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-bottom.png)
+
 ## Module architecture
 
 The implementation is organized exclusively as a Python package tree under `freecad_cloth/`, with domain ownership split across `pattern`, `sewing`, `avatar`, `simulation`, `common`, and `shared`. Repository-root Python files are limited to the FreeCAD bootstrap files `Init.py`/`InitGui.py` and the interpreter-level `sitecustomize.py` CI hook. Domain modules are never restored as root-level compatibility shims.
@@ -44,7 +68,7 @@ The Pattern workbench creates native, recomputable PatternPieces with semantic I
 
 ## Development
 
-There is one canonical GitHub Actions workflow: `.github/workflows/canonical-execution.yml`. It runs Python/core checks and real FreeCAD/Xvfb GUI coverage. The GUI path deliberately preserves four 1280×720 PNG states and the `cloth-gui-screenshots` artifact; do not replace or duplicate this path.
+There is one canonical GitHub Actions workflow: `.github/workflows/canonical-execution.yml`. It runs Python/core checks and real FreeCAD/Xvfb GUI coverage. The GUI path preserves the existing workflow screenshots plus a six-direction avatar audit and the `cloth-gui-screenshots` artifact.
 
 ## Documentation
 

@@ -48,7 +48,7 @@ jobs:
           CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e PYTHONPATH=/workspace -w /workspace "$IMAGE" -euo pipefail -c '
             set -e
             python3 -m compileall -q .
-            for test in tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_mesh_validation.py tests/test_avatar_visual_sanity.py tests/test_drape_visual_sanity.py tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py tests/test_collisions.py tests/test_pattern_sketch.py tests/test_pattern_ir.py tests/test_pattern_export_semantics.py tests/test_sketch_authority.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_sewing_network_gui_contract.py tests/test_gui_structure.py tests/test_simulation_scene.py tests/test_simulation_quality.py tests/test_avatar_fitting.py tests/test_drape_quality.py tests/test_freecad_objects.py tests/test_project_structure.py; do python3 "$test"; done
+            for test in tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_mesh_validation.py tests/test_avatar_visual_sanity.py tests/test_drape_visual_sanity.py tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py tests/test_collisions.py tests/test_pattern_sketch.py tests/test_pattern_ir.py tests/test_pattern_export_semantics.py tests/test_sketch_authority.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_sewing_network_gui_contract.py tests/test_gui_structure.py tests/test_simulation_scene.py tests/test_simulation_quality.py tests/test_avatar_fitting.py tests/test_avatar_shoulder_pose.py tests/test_drape_quality.py tests/test_freecad_objects.py tests/test_project_structure.py; do python3 "$test"; done
           ')"
           trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
           docker cp "$PWD/." "$CID:/workspace/"
@@ -57,7 +57,7 @@ jobs:
   gui-screenshot:
     name: FreeCAD GUI screenshots
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
       - name: Prepare FreeCAD image
@@ -85,15 +85,23 @@ jobs:
             for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
             xdpyinfo -display :99 >/dev/null 2>&1
             timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun tests/freecad_screenshot.py
+            timeout --signal=TERM --kill-after=10s 180s /opt/freecad/AppRun tests/freecad_avatar_screenshot.py
             test -s docs/images/generated/cloth-pattern-design.png
             test -s docs/images/generated/cloth-sewing.png
             test -s docs/images/generated/cloth-simulation-arranged.png
             test -s docs/images/generated/cloth-simulation-draped.png
+            test -s docs/images/generated/cloth-avatar-front.png
+            test -s docs/images/generated/cloth-avatar-rear.png
+            test -s docs/images/generated/cloth-avatar-left.png
+            test -s docs/images/generated/cloth-avatar-right.png
+            test -s docs/images/generated/cloth-avatar-top.png
+            test -s docs/images/generated/cloth-avatar-bottom.png
           ')"
           cleanup() {
             set +e
             docker cp "$CID:/workspace/docs/images/generated/." docs/images/generated/ 2>/dev/null || true
             docker cp "$CID:/workspace/docs/images/generated/gui-progress.log" artifacts/freecad-gui/gui-progress.log 2>/dev/null || true
+            docker cp "$CID:/workspace/docs/images/generated/avatar-gui-progress.log" artifacts/freecad-gui/avatar-gui-progress.log 2>/dev/null || true
             docker cp "$CID:/workspace/docs/images/generated/drape-visual-metrics.json" artifacts/freecad-gui/drape-visual-metrics.json 2>/dev/null || true
             docker cp "$CID:/tmp/xvfb.log" artifacts/freecad-gui/xvfb.log 2>/dev/null || true
             docker cp "$CID:/tmp/openbox.log" artifacts/freecad-gui/openbox.log 2>/dev/null || true
@@ -154,7 +162,7 @@ jobs:
         if: ${{ steps.pr.outputs.number != '' }}
         run: |
           set -euo pipefail
-          for image in cloth-pattern-design.png cloth-sewing.png cloth-simulation-arranged.png cloth-simulation-draped.png; do
+          for image in cloth-pattern-design.png cloth-sewing.png cloth-simulation-arranged.png cloth-simulation-draped.png cloth-avatar-front.png cloth-avatar-rear.png cloth-avatar-left.png cloth-avatar-right.png cloth-avatar-top.png cloth-avatar-bottom.png; do
             test -s "gui-screenshots/$image"
           done
       - name: Publish screenshots to PR-specific branch
@@ -211,6 +219,24 @@ jobs:
 
           ### Simulation draped
           ![cloth-simulation-draped.png]($raw_base/cloth-simulation-draped.png)
+
+          ### Avatar — front
+          ![cloth-avatar-front.png]($raw_base/cloth-avatar-front.png)
+
+          ### Avatar — rear
+          ![cloth-avatar-rear.png]($raw_base/cloth-avatar-rear.png)
+
+          ### Avatar — left
+          ![cloth-avatar-left.png]($raw_base/cloth-avatar-left.png)
+
+          ### Avatar — right
+          ![cloth-avatar-right.png]($raw_base/cloth-avatar-right.png)
+
+          ### Avatar — top
+          ![cloth-avatar-top.png]($raw_base/cloth-avatar-top.png)
+
+          ### Avatar — bottom
+          ![cloth-avatar-bottom.png]($raw_base/cloth-avatar-bottom.png)
           EOF
           )
           existing="$(gh pr view "$PR_NUMBER" --repo "$REPO" --json comments --jq '.comments[].body' | grep -F "$marker" || true)"

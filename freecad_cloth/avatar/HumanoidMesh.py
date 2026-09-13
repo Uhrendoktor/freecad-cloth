@@ -221,14 +221,43 @@ def _measurement_profile(parameters):
     return profile
 
 
-def _estimate_rest_arm_angles(vertices, shoulder_half, shoulder_z, height_mm):
+def _estimate_shoulder_pivots(vertices, shoulder_half, shoulder_z, height_mm):
+    """Infer the shoulder rotation pivots from the fitted body surface.
+
+    The authoritative shoulder measurement describes shoulder width, while the
+    lateral fit also reserves space for the upper arm. Using ``shoulder/2`` as
+    the pose pivot therefore moves the joint outward on the final mesh. The
+    fitted surface itself is a better source of truth: in a narrow band around
+    shoulder height, the medial edge of each lateral arm is the shoulder root.
+    """
+    pivots = {}
+    for side in (-1.0, 1.0):
+        lateral = sorted(
+            side * x
+            for x, _y, z in vertices
+            if side * x >= shoulder_half * 0.55
+            and 0.68 <= z / max(1.0, height_mm) <= 0.82
+        )
+        if not lateral:
+            pivots[side] = side * shoulder_half
+            continue
+        count = max(1, int(math.ceil(len(lateral) * 0.15)))
+        medial = sum(lateral[:count]) / float(count)
+        medial = max(shoulder_half * 0.70, min(shoulder_half * 0.99, medial))
+        pivots[side] = side * medial
+    return pivots
+
+
+def _estimate_rest_arm_angles(vertices, shoulder_pivots, shoulder_z, height_mm):
     """Estimate each HM08 arm's unposed angle from its actual A-pose geometry."""
     result = {}
     for side in (-1.0, 1.0):
+        pivot_x = shoulder_pivots.get(side, side * 0.0)
         samples = [
             (x, z)
             for x, _, z in vertices
-            if side * x > shoulder_half * 1.05 and 0.50 <= z / max(1.0, height_mm) <= 0.78
+            if side * x > side * pivot_x * 1.05
+            and 0.50 <= z / max(1.0, height_mm) <= 0.78
         ]
         if not samples:
             result[side] = 0.0
@@ -237,21 +266,22 @@ def _estimate_rest_arm_angles(vertices, shoulder_half, shoulder_z, height_mm):
         weighted_z = 0.0
         total = 0.0
         for x, z in samples:
-            weight = max(0.1, side * x - shoulder_half)
+            weight = max(0.1, side * (x - pivot_x))
             weighted_x += x * weight
             weighted_z += z * weight
             total += weight
         center_x = weighted_x / total
         center_z = weighted_z / total
-        radial_x = max(1e-6, side * (center_x - side * shoulder_half))
+        radial_x = max(1e-6, side * (center_x - pivot_x))
         downward = max(0.0, shoulder_z - center_z)
         result[side] = math.degrees(math.atan2(downward, radial_x))
     return result
 
 
-def _arm_pose_weight(x, z, shoulder_half, height_mm):
-    """Return a smooth 0..1 influence that keeps the whole lateral arm attached."""
-    lateral = _smoothstep(shoulder_half * 0.88, shoulder_half * 1.02, abs(x))
+def _arm_pose_weight(x, z, shoulder_pivot_x, height_mm):
+    """Return a smooth 0..1 influence that begins at the actual shoulder joint."""
+    pivot = abs(shoulder_pivot_x)
+    lateral = _smoothstep(pivot * 0.98, pivot * 1.12, abs(x))
     nz = z / max(1.0, height_mm)
     vertical = _smoothstep(0.34, 0.40, nz) * (1.0 - _smoothstep(0.88, 0.96, nz))
     return lateral * vertical
@@ -300,8 +330,8 @@ def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
     The default mannequin receives only global height normalization. Body shape
     changes remain bounded proportional deltas, and arm posing is expressed as a
     rotation from the mesh's native A-pose instead of assuming a horizontal rest
-    pose. A smooth arm influence prevents triangles, hands and fingers from being
-    split by a hard spatial cutoff.
+    pose. A smooth arm influence begins at the inferred shoulder joint, preventing
+    the shoulder attachment from sliding outward with the width normalization.
     """
     mesh.validate()
     source = _map_makehuman_axes(mesh.vertices)
@@ -321,7 +351,6 @@ def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
 
     skin_offset = float(parameters.skin_offset)
     fitted = []
-    shoulder_half = float(parameters.measurement("shoulder")) / 2.0
     for x, y, z in source:
         torso_scale = _profile_scale(z, torso_profile)
         shoulder_blend = _smoothstep(0.67, 0.79, z)
@@ -337,25 +366,27 @@ def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
     fitted = _normalize_fit_axes(tuple(fitted), parameters)
 
     pose = parameters.pose
+    shoulder_half = float(parameters.measurement("shoulder")) / 2.0
     shoulder_z = height_mm * 0.76
-    rest_angles = _estimate_rest_arm_angles(fitted, shoulder_half, shoulder_z, height_mm)
+    shoulder_pivots = _estimate_shoulder_pivots(fitted, shoulder_half, shoulder_z, height_mm)
+    rest_angles = _estimate_rest_arm_angles(fitted, shoulder_pivots, shoulder_z, height_mm)
     default_angle = {"standing": 12.0, "sewing": 55.0, "sitting": 25.0}.get(pose.preset, 12.0)
     left_angle = default_angle if pose.preset != "standing" and float(pose.left_arm_angle) == 12.0 else float(pose.left_arm_angle)
     right_angle = default_angle if pose.preset != "standing" and float(pose.right_arm_angle) == 12.0 else float(pose.right_arm_angle)
     posed = []
     for x, y, z in fitted:
-        weight = _arm_pose_weight(x, z, shoulder_half, height_mm)
+        side = -1.0 if x < 0.0 else 1.0
+        pivot_x = shoulder_pivots.get(side, side * shoulder_half)
+        weight = _arm_pose_weight(x, z, pivot_x, height_mm)
         if weight <= 1e-9:
             posed.append((x, y, z))
             continue
-        side = -1.0 if x < 0.0 else 1.0
         desired = left_angle if side < 0 else right_angle
         delta = desired - rest_angles.get(side, 0.0)
         if abs(delta) <= 1e-9:
             posed.append((x, y, z))
             continue
         radians = side * math.radians(delta) * weight
-        pivot_x = side * shoulder_half
         dx = x - pivot_x
         dz = z - shoulder_z
         x, z = (
