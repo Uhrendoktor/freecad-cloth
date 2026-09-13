@@ -1,0 +1,16 @@
+name: Agent apply avatar cycle fix
+on:
+  push:
+    branches:
+      - agent/fix-avatar-recompute-cycle-pr-20260913
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Apply focused source fix
+        run: |
+          git cherry-pick 040596ccee1eb7dcacab6ec8aaaaeb6970b4b474
+          git push
