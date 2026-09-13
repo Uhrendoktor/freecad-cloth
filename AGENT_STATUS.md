@@ -6,8 +6,8 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `57b02085e7898977047d25fbcee21a88a3d3ec8b` (supervisor integration: structured drape visual metrics).
-- Recent merged work: avatar face-winding correction (#482), deterministic avatar visual sanity (#483), mesh validation/proximity metrics, backend/library evaluation documents.
+- Current main: `4dcaca7b4bf4b99df58fd6d49c5f1ca522cbc548` (supervisor status update; canonical CI run pending).
+- Recent merged work: avatar face-winding correction (#482), deterministic avatar visual sanity (#483), mesh validation/proximity metrics, backend/library evaluation documents, and structured drape visual metrics from canonical GUI acceptance.
 - Open implementation PRs requiring supervisor gates: #469 (HM08 avatar topology sanity), #453 (collision-surface cache; do not merge until visual evidence is release-quality), #438 (diagnostic-only; must not merge).
 - Python package boundary: `freecad_cloth/` with `avatar`, `pattern`, `sewing`, `simulation`, `common`, `shared` subpackages
 - Root Python files: `Init.py`, `InitGui.py`, and interpreter-level `sitecustomize.py` only
@@ -17,11 +17,18 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 ## Supervisor epic / milestones
 
 - Epic: #471 — release-grade CLO-style garment workflow hardening.
-- M0 — baseline / unblock visual truth: #472 plus #484/#501 for solver-neutral drape metrics (keep #484 as the active metric task).
+- M0 — baseline / unblock visual truth: #472 plus active metric implementation #484 (structured drape sanity metrics).
 - M1 — release vertical slice: #473, #474.
 - M2 — production parity foundations: #475, #476.
 - M3 — fit/analysis layer: #477.
 - M4 — evidence-led scale/performance: #478.
+
+## Active research / integration tracks
+
+- #479 — consolidated optional backend/library evaluation: Tissu + PositionBasedDynamics; CPU reference remains correctness baseline.
+- #480/#481 — DXF and trimesh adapter candidates; keep dependencies optional/lazy until packaging and parity are demonstrated.
+- #487/#488/#489/#491/#492/#493/#494 — deferred library candidates/compatibility gates; do not start without a demonstrated capability gap.
+- Duplicate historical backend issues #148/#404 are closed/superseded.
 
 ## Release gates
 
@@ -31,7 +38,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - P0 simulation quality/material lifecycle: #145; execution focus is #474.
 - P1 sewing completion/correspondence: #275; execution focus is #475.
 - P1 pattern production parity: #162, #360; export execution focus is #476.
-- Later: production avatar fidelity #374; diagnostics/manufacturing #362; optional backend evaluation is consolidated in #479 (Tissu + PositionBasedDynamics). Duplicate backend issues #148/#404 are closed/superseded.
+- Later: production avatar fidelity #374; diagnostics/manufacturing #362.
 
 ## Active focused work
 
