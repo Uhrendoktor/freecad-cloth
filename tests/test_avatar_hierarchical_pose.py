@@ -6,6 +6,7 @@ from pathlib import Path
 from freecad_cloth.avatar.HierarchicalPose import (
     _blend_weighted_pose,
     _group_weights,
+    _map_weight_groups_to_geometry,
 )
 
 
@@ -24,13 +25,29 @@ class AvatarHierarchicalPoseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "weights.mhw"
             path.write_text(json.dumps(payload), encoding="utf-8")
-            from freecad_cloth.avatar.HierarchicalPose import _group_weights as load
-            groups = load(4, str(path))
+            groups = _group_weights(4, str(path))
 
         self.assertAlmostEqual(groups["clavicle_l"][1], 0.40)
         self.assertAlmostEqual(groups["arm_l"][1], 0.70)
         self.assertAlmostEqual(groups["arm_r"][2], 0.70)
         self.assertEqual(groups["clavicle_r"][2], 0.0)
+
+    def test_weight_groups_follow_physical_x_side_not_rig_label(self):
+        vertices = (
+            (-220.0, 0.0, 1330.0),
+            (220.0, 0.0, 1330.0),
+        )
+        groups = {
+            "arm_l": (0.0, 1.0),
+            "arm_r": (1.0, 0.0),
+            "clavicle_l": (0.0, 1.0),
+            "clavicle_r": (1.0, 0.0),
+        }
+        mapped = _map_weight_groups_to_geometry(vertices, groups)
+        self.assertEqual(mapped["arm_l"], (1.0, 0.0))
+        self.assertEqual(mapped["arm_r"], (0.0, 1.0))
+        self.assertEqual(mapped["clavicle_l"], (1.0, 0.0))
+        self.assertEqual(mapped["clavicle_r"], (0.0, 1.0))
 
     def test_rigid_arm_transform_preserves_distance_to_shoulder(self):
         point = (300.0, 0.0, 1300.0)

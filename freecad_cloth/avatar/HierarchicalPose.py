@@ -46,6 +46,32 @@ def _group_weights(vertex_count: int, path: str | None = None):
     return {key: tuple(value) for key, value in groups.items()}
 
 
+def _weight_center_x(vertices, weights):
+    total = sum(max(0.0, float(weight)) for weight in weights)
+    if total <= 1e-12:
+        return 0.0
+    return sum(vertex[0] * max(0.0, float(weight)) for vertex, weight in zip(vertices, weights)) / total
+
+
+def _map_weight_groups_to_geometry(vertices, groups):
+    """Map MakeHuman .L/.R groups to the actual negative/positive X sides.
+
+    MakeHuman's semantic left/right labels are source-rig metadata; the Cloth
+    mesh's physical side is the post-fit X coordinate. Determine the mapping
+    from the weighted geometry so the shoulder/clavicle weights cannot be
+    attached to the opposite shoulder when coordinate conventions differ.
+    """
+    mapped = dict(groups)
+    for prefix in ("arm", "clavicle"):
+        left_key = f"{prefix}_l"
+        right_key = f"{prefix}_r"
+        left_x = _weight_center_x(vertices, groups[left_key])
+        right_x = _weight_center_x(vertices, groups[right_key])
+        if left_x > right_x:
+            mapped[left_key], mapped[right_key] = groups[right_key], groups[left_key]
+    return mapped
+
+
 def _rotate_xz(point, pivot, radians):
     x, y, z = point
     dx = x - pivot[0]
@@ -119,7 +145,7 @@ def build_hierarchical_avatar_mesh(parameters) -> MeshData:
             y_mm += y_mm / radius * skin_offset
         fitted.append((x_mm, y_mm, z * height_mm))
     fitted = _normalize_fit_axes(tuple(fitted), parameters)
-    weights = _group_weights(len(fitted))
+    weights = _map_weight_groups_to_geometry(fitted, _group_weights(len(fitted)))
     shoulder_half = float(parameters.measurement("shoulder")) / 2.0
     shoulder_z = height_mm * 0.76
     shoulder_pivots = _estimate_shoulder_pivots(fitted, shoulder_half, shoulder_z, height_mm)
