@@ -45,3 +45,20 @@ if _called_from_screenshot_runner():
 
         _create_pattern_piece_from_parameters._cloth_gui_custom_outline = True
         PatternCommands.create_pattern_piece_from_parameters = _create_pattern_piece_from_parameters
+
+    # The fixture's scene builder has already assigned the production avatar as
+    # the target source. Reassigning the same App::PropertyLink during the GUI
+    # path can make FreeCAD rebuild the dependency graph and stall in recompute.
+    # Keep refresh semantics unchanged everywhere else, but make this redundant
+    # screenshot-only refresh a no-op.
+    from freecad_cloth.simulation import DrapeTarget
+    _original_refresh_drape_target = DrapeTarget.refresh_drape_target
+    if not getattr(_original_refresh_drape_target, "_cloth_gui_refresh_guard", False):
+        def _refresh_drape_target_for_gui(target):
+            source = getattr(target, "SourceObject", None)
+            if source is not None and str(getattr(target, "TargetStatus", "")) == "ready":
+                return target
+            return _original_refresh_drape_target(target)
+
+        _refresh_drape_target_for_gui._cloth_gui_refresh_guard = True
+        DrapeTarget.refresh_drape_target = _refresh_drape_target_for_gui
