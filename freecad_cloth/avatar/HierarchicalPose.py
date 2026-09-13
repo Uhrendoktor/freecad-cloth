@@ -241,9 +241,9 @@ def _straighten_hands(vertices, posed, weights):
         )
         correction = max(-math.radians(150.0), min(math.radians(150.0), correction))
         # A full 90-degree roll fixes the edge-on palm, but is too strong for
-        # the multi-view mannequin. Use two thirds (60 degrees) as a neutral
-        # wrist twist that keeps both front and top/side views natural.
-        hand_roll = _hand_roll_angle((forearm_dx, 0.0, forearm_dz)) * (2.0 / 3.0)
+        # the multi-view mannequin. Use half (45 degrees) as a neutral wrist
+        # twist that balances front, top, and side views.
+        hand_roll = _hand_roll_angle((forearm_dx, 0.0, forearm_dz)) * 0.5
         hand_weights = weights[f"hand_{suffix}"]
         if abs(correction) > math.radians(0.5) or abs(hand_roll) > math.radians(0.5):
             pivot = wrist
