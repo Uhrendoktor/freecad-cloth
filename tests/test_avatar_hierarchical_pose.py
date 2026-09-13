@@ -7,7 +7,9 @@ from pathlib import Path
 from freecad_cloth.avatar.HierarchicalPose import (
     _blend_weighted_pose,
     _group_weights,
+    _hand_roll_angle,
     _map_weight_groups_to_geometry,
+    _rotate_about_axis,
     _signed_angle_xz,
     _shortest_angle,
     _straighten_hands,
@@ -104,6 +106,15 @@ class AvatarHierarchicalPoseTests(unittest.TestCase):
         dx, dz = direction
         self.assertAlmostEqual(dx, 0.0, places=6)
         self.assertGreater(dz, 15.0)
+
+    def test_hand_roll_turns_edge_on_palm_normal_to_front(self):
+        forearm_axis = (0.7, 0.0, -0.7)
+        angle = _hand_roll_angle(forearm_axis)
+        current_normal = (0.70710678118, 0.0, 0.70710678118)
+        rotated = _rotate_about_axis((current_normal[0], current_normal[1], current_normal[2]), (0.0, 0.0, 0.0), forearm_axis, angle)
+        self.assertAlmostEqual(rotated[0], 0.0, places=6)
+        self.assertAlmostEqual(rotated[1], 1.0, places=6)
+        self.assertAlmostEqual(rotated[2], 0.0, places=6)
 
     def test_straighten_hands_reduces_large_wrist_kink(self):
         vertices = (
