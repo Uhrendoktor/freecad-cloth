@@ -34,11 +34,11 @@ jobs:
           if printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1 && timeout 90s docker pull "$IMAGE"; then exit 0; fi
           docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
           docker buildx build --progress=plain --load --tag "$IMAGE" docker/freecad-ci
-      - name: Run measured benchmark in FreeCAD image
+      - name: Run isolated FreeCAD workbench measurements
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           rm -rf artifacts/workbench-benchmark
           mkdir -p artifacts/workbench-benchmark
           CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 -w /workspace "$IMAGE" -euo pipefail -c '
@@ -49,8 +49,11 @@ jobs:
             trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
             for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
             xdpyinfo -display :99 >/dev/null 2>&1
-            timeout --signal=TERM --kill-after=10s 180s /opt/freecad/AppRun tools/benchmark_workbenches.py --output artifacts/workbench-benchmark/benchmark.json --repeats 7
-            test -s artifacts/workbench-benchmark/benchmark.json
+            for wb in Pattern Sewing Simulation; do
+              echo "=== benchmark: $wb ==="
+              timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun tools/benchmark_workbenches.py --workbench "$wb" --output "artifacts/workbench-benchmark/$wb.json" --repeats 7
+              test -s "artifacts/workbench-benchmark/$wb.json"
+            done
           ')"
           cleanup() {
             set +e
@@ -62,14 +65,37 @@ jobs:
           trap cleanup EXIT
           docker cp "$PWD/." "$CID:/workspace/"
           docker start -a "$CID"
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "FreeCAD benchmark failed with status $status"
+            exit "$status"
+          fi
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("artifacts/workbench-benchmark")
+          names = ["Pattern", "Sewing", "Simulation"]
+          data = [json.loads((root / f"{name}.json").read_text()) for name in names]
+          merged = {
+              "schema": data[0]["schema"],
+              "python": data[0]["python"],
+              "freecad_version": data[0]["freecad_version"],
+              "repeats": data[0]["repeats"],
+              "workbenches": {},
+          }
+          for item in data:
+              merged["workbenches"].update(item["workbenches"])
+          (root / "benchmark.json").write_text(json.dumps(merged, indent=2, sort_keys=True) + "\n")
+          PY
       - name: Install plotting dependency
         run: python3 -m pip install --disable-pip-version-check matplotlib
       - name: Generate benchmark plots
         run: python3 tools/plot_workbench_benchmark.py artifacts/workbench-benchmark/benchmark.json artifacts/workbench-benchmark/plots
       - name: Upload benchmark measurements and plots
+        if: always()
         uses: actions/upload-artifact@v6
         with:
           name: workbench-benchmark
           path: artifacts/workbench-benchmark
-          if-no-files-found: error
+          if-no-files-found: warn
           compression-level: 1
