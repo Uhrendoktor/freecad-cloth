@@ -41,7 +41,7 @@ jobs:
           mkdir -p artifacts/workbench-benchmark
           CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e PYTHONPATH=/workspace -w /workspace "$IMAGE" -euo pipefail -c '
             set -e
-            /opt/freecad/AppRun -c "import sys; sys.path.insert(0, \"/workspace\"); exec(open(\"tools/benchmark_workbenches.py\").read())" --output artifacts/workbench-benchmark/benchmark.json --repeats 7
+            python3 tools/benchmark_workbenches.py --output artifacts/workbench-benchmark/benchmark.json --repeats 7
           ')"
           cleanup() {
             set +e
