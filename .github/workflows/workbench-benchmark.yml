@@ -71,6 +71,9 @@ jobs:
             echo "FreeCAD benchmark failed with status $status"
             exit "$status"
           fi
+          docker cp "$CID:/workspace/artifacts/workbench-benchmark/." artifacts/workbench-benchmark/
+          docker cp "$CID:/tmp/cloth-benchmark-trace.log" artifacts/workbench-benchmark/cloth-benchmark-trace.log 2>/dev/null || true
+          docker cp "$CID:/tmp/xvfb.log" artifacts/workbench-benchmark/xvfb.log 2>/dev/null || true
           python3 - <<'PY'
           import json
           from pathlib import Path
