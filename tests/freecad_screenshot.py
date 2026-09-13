@@ -1,5 +1,6 @@
 """Deterministic FreeCAD GUI acceptance and six-side cloth visual audit."""
 import importlib.util
+import json
 import os
 import sys
 import traceback
@@ -18,6 +19,7 @@ OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 os.makedirs(OUT, exist_ok=True)
 LOG = os.path.join(OUT, "gui-progress.log")
 MANIFEST = os.path.join(OUT, "gui-screenshot-manifest.txt")
+METRICS = os.path.join(OUT, "drape-visual-metrics.json")
 
 
 def log(message):
@@ -127,6 +129,36 @@ def run_canonical_acceptance():
         log(marker + "=passed")
 
 
+def _mesh_points(mesh):
+    topology = getattr(mesh, "Topology", None)
+    if topology is None:
+        return ()
+    vertices, _triangles = topology
+    return tuple((float(p.x), float(p.y), float(p.z)) for p in vertices)
+
+
+def write_drape_metrics(panels, avatar):
+    from freecad_cloth.common.DrapeVisualSanity import inspect_drape, summarize
+
+    avatar_vertices = _mesh_points(getattr(avatar, "Mesh", None))
+    box = avatar.Mesh.BoundBox
+    target_height = float(box.ZMax - box.ZMin)
+    target_width = float(max(box.XMax - box.XMin, box.YMax - box.YMin))
+    records = []
+    for panel in panels:
+        vertices = _mesh_points(getattr(panel, "Mesh", None))
+        metrics = inspect_drape(vertices, avatar_vertices, target_height=target_height, target_width=target_width)
+        record = {"panel": str(getattr(panel, "Label", getattr(panel, "Name", ""))), **summarize(metrics)}
+        records.append(record)
+        log("drape-metrics=%s" % json.dumps(record, sort_keys=True))
+    with open(METRICS, "w", encoding="utf-8") as handle:
+        json.dump({
+            "target_height": target_height,
+            "target_width": target_width,
+            "panels": records,
+        }, handle, indent=2, sort_keys=True)
+
+
 def pattern_and_sewing():
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_parameters
     from freecad_cloth.pattern.PatternModel import Seam
@@ -198,9 +230,6 @@ def simulation():
     x_mid = (box.XMin + box.XMax) / 2.0
     y_span = box.YMax - box.YMin
     z_span = box.ZMax - box.ZMin
-
-    # One front or back pattern piece spans about half the torso circumference when flat.
-    # Treating it as a chord and subtracting body depth undersizes the sewn shell.
     chest = 980.0
     hip = 1020.0
     ease = 55.0
@@ -306,6 +335,7 @@ def simulation():
         raise RuntimeError("simulation did not reach a finite 30-step state")
     if any(panel.Mesh.CountFacets <= 10 for panel in scene.DrapePanels):
         raise RuntimeError("draped tunic panel mesh is empty")
+    write_drape_metrics(panels, avatar)
     bounds = []
     for panel in scene.DrapePanels:
         b = panel.Mesh.BoundBox
