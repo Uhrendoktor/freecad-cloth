@@ -2,12 +2,14 @@ import os
 import tempfile
 import unittest
 
-from freecad_cloth.avatar.AvatarModel import AvatarParameters, Pose
+from freecad_cloth.avatar.AvatarModel import AvatarParameters
 from freecad_cloth.avatar.HumanoidMesh import (
     MAKEHUMAN_BASE_URL,
     MAKEHUMAN_BASE_SHA256,
     MeshData,
+    _map_makehuman_axes,
     fit_makehuman_mesh,
+    load_makehuman_mesh,
     parse_obj,
 )
 
@@ -32,17 +34,55 @@ class HumanoidMeshTests(unittest.TestCase):
 
     def test_real_source_is_pinned(self):
         self.assertIn(MAKEHUMAN_BASE_SHA256, "8e761e6624b8f54536409135d1636da63b32486a90d4897f84e121d144f6fb4c")
-        self.assertIn("1f508f6083b2f823dab15de924b3bde72e08d77c", MAKEHUMAN_BASE_URL)
+        self.assertIn("1f508f6083b2f823dab15de924b3bde72e08d77c9", MAKEHUMAN_BASE_URL)
         self.assertTrue(MAKEHUMAN_BASE_URL.endswith("/makehuman/data/3dobjs/base.obj"))
+
+    def test_real_source_height_axis_is_z(self):
+        source = load_makehuman_mesh()
+        spans = tuple(max(vertex[axis] for vertex in source.vertices) - min(vertex[axis] for vertex in source.vertices) for axis in range(3))
+        fitted = fit_makehuman_mesh(source, AvatarParameters(skin_offset=0))
+        fitted_spans = tuple(max(vertex[axis] for vertex in fitted.vertices) - min(vertex[axis] for vertex in fitted.vertices) for axis in range(3))
+        print("HM08_ORIENTATION source_spans=%s fitted_spans=%s" % (spans, fitted_spans), flush=True)
+        self.assertGreater(spans[2], spans[0] * 2.0)
+        self.assertGreater(spans[2], spans[1] * 2.0)
+        self.assertAlmostEqual(fitted_spans[2], 1750.0, places=6)
+
+    def test_map_preserves_z_up_orientation_and_normalizes_height(self):
+        source = ((-2.0, 3.0, 5.0), (2.0, -3.0, 15.0))
+        mapped = _map_makehuman_axes(source)
+        self.assertEqual(mapped[0], (-2.0, 3.0, 0.0))
+        self.assertEqual(mapped[1], (2.0, -3.0, 1.0))
+
+    def test_fit_preserves_z_up_makehuman_orientation(self):
+        source = parse_obj("""
+        v -1 -0.5 0
+        v 1 -0.5 0
+        v 1 0.5 10
+        v -1 0.5 10
+        v -1 -0.5 5
+        v 1 -0.5 5
+        v 1 0.5 10
+        v -1 0.5 10
+        f 1 2 3 4
+        f 5 8 7 6
+        f 1 5 6 2
+        f 2 6 7 3
+        f 3 7 8 4
+        f 4 8 5 1
+        """)
+        fitted = fit_makehuman_mesh(source, AvatarParameters(skin_offset=0))
+        self.assertAlmostEqual(min(v[2] for v in fitted.vertices), 0.0)
+        self.assertAlmostEqual(max(v[2] for v in fitted.vertices), 1750.0)
+        self.assertAlmostEqual(max(v[0] for v in fitted.vertices) - min(v[0] for v in fitted.vertices), 350.0)
 
     def test_fit_preserves_topology_and_applies_height_and_skin_offset(self):
         source = parse_obj("""
-        v -1 0 -1
-        v 1 0 -1
+        v -1 -1 -1
+        v 1 -1 -1
         v 1 1 -1
         v -1 1 -1
-        v -1 0 1
-        v 1 0 1
+        v -1 -1 1
+        v 1 -1 1
         v 1 1 1
         v -1 1 1
         f 1 2 3 4
@@ -62,7 +102,6 @@ class HumanoidMeshTests(unittest.TestCase):
         self.assertNotEqual(fitted.vertices, fitted_padded.vertices)
 
     def test_explicit_local_source_does_not_require_network(self):
-        from freecad_cloth.avatar.HumanoidMesh import load_makehuman_mesh
         fd, path = tempfile.mkstemp(prefix="cloth-humanoid-", suffix=".obj")
         os.close(fd)
         try:

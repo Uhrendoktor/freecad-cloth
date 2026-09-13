@@ -1,4 +1,4 @@
-from freecad_cloth.simulation.ClothSolver import ClothSystem
+from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
 
 
 def test_deterministic_step_and_pins():
@@ -11,6 +11,13 @@ def test_deterministic_step_and_pins():
     assert [p.position() for p in a.particles] == [p.position() for p in b.particles]
     assert a.particles[0].position() == (0, 0, 50)
     assert a.particles[-1].z < 50
+
+
+def test_first_step_has_no_artificial_velocity():
+    particle = Particle(120.0, -35.0, 800.0)
+    system = ClothSystem([particle])
+    system.step(dt=1/60, iterations=1, gravity=(0.0, 0.0, 0.0))
+    assert particle.position() == (120.0, -35.0, 800.0)
 
 
 def test_sewing_reduces_gap():

@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.simulation.SimulationQuality import FabricMaterial, QUALITY_PRESETS, preset, solver_parameters
-from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, quality_discretization
+from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, _RUNTIME_BASES, quality_discretization
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 
 
@@ -75,17 +75,17 @@ class SimulationQualityTests(unittest.TestCase):
         self.assertEqual([positions[i][:2] for i in boundary], piece.outline)
         self.assertGreater(len(positions), len(boundary))
 
-    def test_quality_proxy_recreates_nonserializable_solver_state(self):
-        """Guard the reload path where FreeCAD drops transient solver state."""
+    def test_quality_proxy_keeps_solver_state_outside_serialized_object_dict(self):
+        """Guard the reload path without placing the non-serializable solver in __dict__."""
         proxy = QualitySimulationProxy()
-        original = proxy.__dict__["_base"]
-        del proxy.__dict__["_base"]
+        original = _RUNTIME_BASES[proxy]
+        self.assertNotIn("_base", proxy.__dict__)
         self.assertEqual(proxy.last_steps, 0)
-        restored = proxy.__dict__["_base"]
-        self.assertIsNot(restored, original)
-        self.assertEqual(restored.last_steps, 0)
+        restored = proxy._base_or_restore()
+        self.assertIs(restored, original)
         proxy.onDocumentRestored(None)
-        self.assertIsNot(proxy.__dict__["_base"], restored)
+        self.assertIsNot(_RUNTIME_BASES[proxy], restored)
+        self.assertEqual(proxy.last_steps, 0)
 
 
 if __name__ == "__main__":

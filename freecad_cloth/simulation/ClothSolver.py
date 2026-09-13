@@ -123,6 +123,9 @@ class ClothSystem:
         if dt <= 0 or iterations < 1:
             raise ValueError("dt and iterations must be positive")
         gx, gy, gz = gravity
+        if self.time == 0.0:
+            for p in self.particles:
+                p.px, p.py, p.pz = p.x, p.y, p.z
         old = [(p.x, p.y, p.z) for p in self.particles]
         for i, p in enumerate(self.particles):
             if p.inv_mass == 0.0 or i in self.pins:
