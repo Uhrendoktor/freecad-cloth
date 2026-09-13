@@ -51,12 +51,17 @@ class AvatarHierarchicalPoseTests(unittest.TestCase):
             "arm_r": (1.0, 0.0),
             "clavicle_l": (0.0, 1.0),
             "clavicle_r": (1.0, 0.0),
+            "lowerarm_l": (0.0, 1.0),
+            "lowerarm_r": (1.0, 0.0),
+            "wrist_l": (0.0, 1.0),
+            "wrist_r": (1.0, 0.0),
+            "hand_l": (0.0, 1.0),
+            "hand_r": (1.0, 0.0),
         }
         mapped = _map_weight_groups_to_geometry(vertices, groups)
-        self.assertEqual(mapped["arm_l"], (1.0, 0.0))
-        self.assertEqual(mapped["arm_r"], (0.0, 1.0))
-        self.assertEqual(mapped["clavicle_l"], (1.0, 0.0))
-        self.assertEqual(mapped["clavicle_r"], (0.0, 1.0))
+        for prefix in ("arm", "clavicle", "lowerarm", "wrist", "hand"):
+            self.assertEqual(mapped[f"{prefix}_l"], (1.0, 0.0))
+            self.assertEqual(mapped[f"{prefix}_r"], (0.0, 1.0))
 
     def test_rigid_arm_transform_preserves_distance_to_shoulder(self):
         point = (300.0, 0.0, 1300.0)
