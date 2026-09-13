@@ -90,15 +90,9 @@ def _weighted_center(vertices, weights, threshold=0.0):
 
 
 def _map_weight_groups_to_geometry(vertices, groups):
-    """Map MakeHuman .L/.R groups to the actual negative/positive X sides.
-
-    MakeHuman's semantic left/right labels are source-rig metadata; the Cloth
-    mesh's physical side is the post-fit X coordinate. Determine the mapping
-    from the weighted geometry so the shoulder/clavicle weights cannot be
-    attached to the opposite shoulder when coordinate conventions differ.
-    """
+    """Map all MakeHuman .L/.R groups to the actual physical X sides."""
     mapped = dict(groups)
-    for prefix in ("arm", "clavicle"):
+    for prefix in ("arm", "clavicle", "lowerarm", "wrist", "hand"):
         left_key = f"{prefix}_l"
         right_key = f"{prefix}_r"
         left_x = _weight_center_x(vertices, groups[left_key])
@@ -142,13 +136,7 @@ def _shortest_angle(target, current):
 
 
 def _straighten_hands(vertices, posed, weights):
-    """Neutralize large source wrist kinks while preserving authored hand shape.
-
-    The previous poser rotated the complete arm chain from the shoulder, leaving
-    the hand's source wrist orientation untouched. On HM08 that creates a visible
-    sharp kink at the wrist. Keep the shoulder/arm pose, then make each weighted
-    hand continue the posed forearm direction around its authored wrist pivot.
-    """
+    """Neutralize large source wrist kinks while preserving authored hand shape."""
     result = list(posed)
     for side in (-1.0, 1.0):
         suffix = "l" if side < 0 else "r"
