@@ -279,11 +279,16 @@ def _estimate_rest_arm_angles(vertices, shoulder_pivots, shoulder_z, height_mm):
 
 
 def _arm_pose_weight(x, z, shoulder_pivot_x, height_mm):
-    """Return a smooth 0..1 influence that begins at the actual shoulder joint."""
+    """Return a smooth influence for actual arm vertices only.
+
+    The influence must begin above the pelvis. A lower vertical gate lets
+    lateral hip vertices rotate around the shoulder pivot, producing large
+    triangular hip artifacts in orthographic validation views.
+    """
     pivot = abs(shoulder_pivot_x)
     lateral = _smoothstep(pivot * 0.98, pivot * 1.12, abs(x))
     nz = z / max(1.0, height_mm)
-    vertical = _smoothstep(0.34, 0.40, nz) * (1.0 - _smoothstep(0.88, 0.96, nz))
+    vertical = _smoothstep(0.56, 0.62, nz) * (1.0 - _smoothstep(0.88, 0.96, nz))
     return lateral * vertical
 
 
