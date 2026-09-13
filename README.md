@@ -12,6 +12,26 @@ Open-source FreeCAD workbenches for parametric sewing-pattern design and 3D clot
 
 FreeCAD/Sketcher owns editable geometry and document persistence; Cloth owns garment semantics; the solver owns physics. Simulation meshes and collision data are derived and rebuildable. A native human mannequin and generic FreeCAD Shape/PartDesign/Body/Mesh are interchangeable providers of the same target-neutral `DrapeTarget` contract.
 
+## Screenshots
+
+The canonical FreeCAD/Xvfb workflow publishes the latest four validated 1280×720 GUI states to a stable `docs/screenshots` branch. They are refreshed on every successful `main` run.
+
+### Pattern design
+
+![Cloth Pattern](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-pattern-design.png)
+
+### Sewing
+
+![Cloth Sewing](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-sewing.png)
+
+### Simulation arranged
+
+![Cloth Simulation arranged](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged.png)
+
+### Simulation draped
+
+![Cloth Simulation draped](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped.png)
+
 ## Module architecture
 
 The implementation is organized exclusively as a Python package tree under `freecad_cloth/`, with domain ownership split across `pattern`, `sewing`, `avatar`, `simulation`, `common`, and `shared`. Repository-root Python files are limited to the FreeCAD bootstrap files `Init.py`/`InitGui.py` and the interpreter-level `sitecustomize.py` CI hook. Domain modules are never restored as root-level compatibility shims.
