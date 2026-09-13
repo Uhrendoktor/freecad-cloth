@@ -26,23 +26,43 @@ def _group_weights(vertex_count: int, path: str | None = None):
     source = ensure_makehuman_weights(path)
     payload = json.loads(source.read_text(encoding="utf-8", errors="strict"))
     raw = payload["weights"]
-    groups = {key: [0.0] * vertex_count for key in ("clavicle_l", "clavicle_r", "arm_l", "arm_r")}
+    groups = {
+        key: [0.0] * vertex_count
+        for key in (
+            "clavicle_l", "clavicle_r", "arm_l", "arm_r",
+            "lowerarm_l", "lowerarm_r", "wrist_l", "wrist_r",
+            "hand_l", "hand_r",
+        )
+    }
     for bone_name, entries in raw.items():
         if not bone_name.endswith((".L", ".R")):
             continue
         base = bone_name[:-2]
         if base == "clavicle":
-            group = "clavicle"
-        elif base.startswith(("upperarm", "lowerarm", "wrist", "hand", "finger", "thumb")):
-            group = "arm"
+            detail_group = "clavicle"
+        elif base.startswith("upperarm"):
+            detail_group = None
+        elif base.startswith("lowerarm"):
+            detail_group = "lowerarm"
+        elif base.startswith("wrist"):
+            detail_group = "wrist"
+        elif base.startswith(("hand", "finger", "thumb")):
+            detail_group = "hand"
         else:
             continue
         side = "l" if bone_name.endswith(".L") else "r"
-        target = groups[f"{group}_{side}"]
+        targets = [f"arm_{side}"] if detail_group != "clavicle" else []
+        if detail_group:
+            targets.append(f"{detail_group}_{side}")
+            if detail_group == "clavicle":
+                targets = [f"clavicle_{side}"]
         for index, weight in entries:
             index = int(index)
-            if 0 <= index < vertex_count:
-                target[index] = min(1.0, target[index] + max(0.0, float(weight)))
+            if not (0 <= index < vertex_count):
+                continue
+            value = max(0.0, float(weight))
+            for target_name in targets:
+                groups[target_name][index] = min(1.0, groups[target_name][index] + value)
     return {key: tuple(value) for key, value in groups.items()}
 
 
@@ -51,6 +71,22 @@ def _weight_center_x(vertices, weights):
     if total <= 1e-12:
         return 0.0
     return sum(vertex[0] * max(0.0, float(weight)) for vertex, weight in zip(vertices, weights)) / total
+
+
+def _weighted_center(vertices, weights, threshold=0.0):
+    total = 0.0
+    x = y = z = 0.0
+    for vertex, weight in zip(vertices, weights):
+        weight = max(0.0, float(weight))
+        if weight <= threshold:
+            continue
+        x += vertex[0] * weight
+        y += vertex[1] * weight
+        z += vertex[2] * weight
+        total += weight
+    if total <= 1e-12:
+        return None
+    return (x / total, y / total, z / total)
 
 
 def _map_weight_groups_to_geometry(vertices, groups):
@@ -95,6 +131,54 @@ def _blend_weighted_pose(point, arm_weight, clavicle_weight, arm_pivot, clavicle
         torso_weight * point[i] + arm_weight * arm_point[i] + clavicle_weight * clavicle_point[i]
         for i in range(3)
     )
+
+
+def _signed_angle_xz(dx, dz):
+    return math.atan2(dz, dx)
+
+
+def _shortest_angle(target, current):
+    return (target - current + math.pi) % (2.0 * math.pi) - math.pi
+
+
+def _straighten_hands(vertices, posed, weights):
+    """Neutralize large source wrist kinks while preserving authored hand shape.
+
+    The previous poser rotated the complete arm chain from the shoulder, leaving
+    the hand's source wrist orientation untouched. On HM08 that creates a visible
+    sharp kink at the wrist. Keep the shoulder/arm pose, then make each weighted
+    hand continue the posed forearm direction around its authored wrist pivot.
+    """
+    result = list(posed)
+    for side in (-1.0, 1.0):
+        suffix = "l" if side < 0 else "r"
+        wrist = _weighted_center(result, weights[f"wrist_{suffix}"], threshold=0.20)
+        hand = _weighted_center(result, weights[f"hand_{suffix}"], threshold=0.20)
+        lowerarm = _weighted_center(result, weights[f"lowerarm_{suffix}"], threshold=0.20)
+        if wrist is None or hand is None or lowerarm is None:
+            continue
+        forearm_dx = wrist[0] - lowerarm[0]
+        forearm_dz = wrist[2] - lowerarm[2]
+        hand_dx = hand[0] - wrist[0]
+        hand_dz = hand[2] - wrist[2]
+        if (forearm_dx * forearm_dx + forearm_dz * forearm_dz) < 1e-8:
+            continue
+        if (hand_dx * hand_dx + hand_dz * hand_dz) < 1e-8:
+            continue
+        correction = _shortest_angle(
+            _signed_angle_xz(forearm_dx, forearm_dz),
+            _signed_angle_xz(hand_dx, hand_dz),
+        )
+        correction = max(-math.radians(55.0), min(math.radians(55.0), correction))
+        if abs(correction) <= math.radians(0.5):
+            continue
+        for index, point in enumerate(result):
+            influence = max(0.0, min(1.0, float(weights[f"hand_{suffix}"][index])))
+            if influence <= 1e-6:
+                continue
+            rotated = _rotate_xz(point, (wrist[0], wrist[2]), correction)
+            result[index] = tuple(point[i] * (1.0 - influence) + rotated[i] * influence for i in range(3))
+    return result
 
 
 def _estimate_clavicle_pivots(vertices, weights, shoulder_pivots, shoulder_z, height_mm):
@@ -175,6 +259,7 @@ def build_hierarchical_avatar_mesh(parameters) -> MeshData:
             delta,
             delta * 0.35,
         ))
+    posed = _straighten_hands(fitted, posed, weights)
     return MeshData(tuple(posed), _reoriented_triangles(mesh.triangles))
 
 
