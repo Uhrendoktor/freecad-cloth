@@ -80,7 +80,7 @@ def inspect_drape(
         state = "flat-or-collapsed"
     elif target_height and vertical_span_ratio < 0.15:
         state = "short-drape-candidate"
-    elif clearance is not None and target_width and clearance > max(float(target_width) * 0.25, 1.0):
+    elif clearance is not None and target_width and clearance > max(float(target_width) * 0.30, 1.0):
         state = "detached-candidate"
 
     return DrapeVisualMetrics(
