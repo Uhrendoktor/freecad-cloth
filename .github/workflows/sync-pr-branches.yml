@@ -1,0 +1,30 @@
+name: Sync PR branches
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+  pull-requests: read
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+      - name: Sync open PR branches with main
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          for branch in agent/six-side-cloth-debug-20260910 agent/fix-drape-refresh-hang-20260913; do
+            git fetch origin "main:$branch"
+            git checkout "$branch"
+            git merge --no-edit -X theirs origin/main || { git merge --abort; exit 1; }
+            git push origin "$branch"
+          done
+          git checkout main
+          git rm .github/workflows/sync-pr-branches.yml
+          git commit -m 'ci: remove one-shot PR branch sync'
+          git push origin main
