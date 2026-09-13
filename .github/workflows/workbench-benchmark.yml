@@ -22,7 +22,7 @@ jobs:
   benchmark:
     name: Measured FreeCAD workbench benchmark
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v5
       - name: Prepare FreeCAD image
@@ -49,7 +49,7 @@ jobs:
             trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
             for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
             xdpyinfo -display :99 >/dev/null 2>&1
-            /opt/freecad/AppRun tools/benchmark_workbenches.py --output artifacts/workbench-benchmark/benchmark.json --repeats 7
+            timeout --signal=TERM --kill-after=10s 180s /opt/freecad/AppRun tools/benchmark_workbenches.py --output artifacts/workbench-benchmark/benchmark.json --repeats 7
             test -s artifacts/workbench-benchmark/benchmark.json
           ')"
           cleanup() {
