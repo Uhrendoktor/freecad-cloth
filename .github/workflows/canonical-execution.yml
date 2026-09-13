@@ -57,7 +57,7 @@ jobs:
   gui-screenshot:
     name: FreeCAD GUI screenshots
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - name: Prepare FreeCAD image
@@ -84,13 +84,20 @@ jobs:
             trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
             for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
             xdpyinfo -display :99 >/dev/null 2>&1
-            timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun tests/freecad_screenshot.py
+            timeout --signal=TERM --kill-after=10s 180s /opt/freecad/AppRun tests/freecad_screenshot.py
             test -s docs/images/generated/cloth-pattern-design.png
             test -s docs/images/generated/cloth-sewing.png
             test -s docs/images/generated/cloth-simulation-arranged.png
             test -s docs/images/generated/cloth-simulation-draped.png
           ')"
-          cleanup() { set +e; docker cp "$CID:/workspace/docs/images/generated/." docs/images/generated/ 2>/dev/null || true; docker rm -f "$CID" >/dev/null 2>&1 || true; }
+          cleanup() {
+            set +e
+            docker cp "$CID:/workspace/docs/images/generated/." docs/images/generated/ 2>/dev/null || true
+            docker cp "$CID:/workspace/docs/images/generated/gui-progress.log" artifacts/freecad-gui/gui-progress.log 2>/dev/null || true
+            docker cp "$CID:/tmp/xvfb.log" artifacts/freecad-gui/xvfb.log 2>/dev/null || true
+            docker cp "$CID:/tmp/openbox.log" artifacts/freecad-gui/openbox.log 2>/dev/null || true
+            docker rm -f "$CID" >/dev/null 2>&1 || true
+          }
           trap cleanup EXIT
           docker cp "$PWD/." "$CID:/workspace/"
           docker start -a "$CID"
