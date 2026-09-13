@@ -101,15 +101,20 @@ def runtime_metrics(name: str, repeats: int) -> dict:
         import FreeCADGui as Gui
         for sample in range(repeats):
             wb = wb_cls()
+            existing = set(Gui.listWorkbenches())
             t0 = time.perf_counter()
             Gui.addWorkbench(wb)
-            backend = Gui.getWorkbench(wb.MenuText)
+            added = set(Gui.listWorkbenches()) - existing
+            if len(added) != 1:
+                raise RuntimeError(f"expected one registered workbench, got {sorted(added)!r}")
+            registered_name = next(iter(added))
+            backend = Gui.getWorkbench(registered_name)
             wb.__dict__["__Workbench__"] = backend
             wb.Initialize()
             initialize_samples.append(time.perf_counter() - t0)
             command_counts.append(len(getattr(wb, "commands", ())))
             try:
-                Gui.removeWorkbench(wb.MenuText)
+                Gui.removeWorkbench(registered_name)
             except BaseException:
                 pass
             trace(f"benchmark: {name}: initialize sample {sample + 1}/{repeats}")
