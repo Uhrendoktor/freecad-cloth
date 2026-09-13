@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Rewrite avatar posing to use MakeHuman arm weights
-        shell: python
+        shell: python {0}
         run: |
           from pathlib import Path
 
