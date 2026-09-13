@@ -51,7 +51,7 @@ jobs:
             xdpyinfo -display :99 >/dev/null 2>&1
             for wb in Pattern Sewing Simulation; do
               echo "=== benchmark: $wb ==="
-              CLOTH_BENCHMARK_WORKBENCH="$wb" CLOTH_BENCHMARK_OUTPUT="artifacts/workbench-benchmark/$wb.json" CLOTH_BENCHMARK_REPEATS=7 timeout --signal=TERM --kill-after=10s 180s /opt/freecad/AppRun tools/benchmark_workbenches.py
+              CLOTH_BENCHMARK_WORKBENCH="$wb" CLOTH_BENCHMARK_OUTPUT="artifacts/workbench-benchmark/$wb.json" CLOTH_BENCHMARK_REPEATS=7 timeout --signal=TERM --kill-after=10s 180s /opt/freecad/AppRun tests/freecad_workbench_benchmark.py
               test -s "artifacts/workbench-benchmark/$wb.json"
             done
           ')"
