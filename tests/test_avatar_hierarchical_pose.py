@@ -129,7 +129,7 @@ class AvatarHierarchicalPoseTests(unittest.TestCase):
         hand_after = _weighted_distal_direction(result, weights["hand_l"], (220.0, 1100.0), min_distance=4.0)
         after = abs(_shortest_angle(forearm_angle, _signed_angle_xz(hand_after[0], hand_after[1])))
         self.assertLess(after, before)
-        self.assertLessEqual(after, math.radians(150.0) + 1e-6)
+        self.assertLess(after, math.radians(5.0))
 
 
 if __name__ == "__main__":
