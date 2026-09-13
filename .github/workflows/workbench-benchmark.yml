@@ -49,7 +49,7 @@ jobs:
             trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
             for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
             xdpyinfo -display :99 >/dev/null 2>&1
-            printf "%s\\n" "import sys; sys.path.insert(0,\"/workspace\"); sys.argv=[\"tools/benchmark_workbenches.py\",\"--output\",\"artifacts/workbench-benchmark/benchmark.json\",\"--repeats\",\"7\"]; g={\"__file__\":\"tools/benchmark_workbenches.py\",\"__name__\":\"__main__\"}; exec(compile(open(\"tools/benchmark_workbenches.py\", encoding=\"utf-8\").read(), \"tools/benchmark_workbenches.py\", \"exec\"), g, g)" | /opt/freecad/AppRun -c
+            /opt/freecad/AppRun tools/benchmark_workbenches.py --output artifacts/workbench-benchmark/benchmark.json --repeats 7
             test -s artifacts/workbench-benchmark/benchmark.json
           ')"
           cleanup() {
