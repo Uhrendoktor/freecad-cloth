@@ -1,4 +1,5 @@
 import json
+import math
 import tempfile
 import unittest
 from pathlib import Path
@@ -7,6 +8,9 @@ from freecad_cloth.avatar.HierarchicalPose import (
     _blend_weighted_pose,
     _group_weights,
     _map_weight_groups_to_geometry,
+    _signed_angle_xz,
+    _shortest_angle,
+    _straighten_hands,
 )
 
 
@@ -17,6 +21,8 @@ class AvatarHierarchicalPoseTests(unittest.TestCase):
                 "clavicle.L": [[1, 0.40]],
                 "upperarm01.L": [[1, 0.25]],
                 "lowerarm01.L": [[1, 0.35]],
+                "wrist.L": [[1, 0.20]],
+                "hand.L": [[1, 0.30]],
                 "finger2-1.L": [[1, 0.10]],
                 "spine03": [[1, 1.0]],
                 "upperarm01.R": [[2, 0.70]],
@@ -28,7 +34,10 @@ class AvatarHierarchicalPoseTests(unittest.TestCase):
             groups = _group_weights(4, str(path))
 
         self.assertAlmostEqual(groups["clavicle_l"][1], 0.40)
-        self.assertAlmostEqual(groups["arm_l"][1], 0.70)
+        self.assertAlmostEqual(groups["arm_l"][1], 1.0)
+        self.assertAlmostEqual(groups["lowerarm_l"][1], 0.35)
+        self.assertAlmostEqual(groups["wrist_l"][1], 0.20)
+        self.assertAlmostEqual(groups["hand_l"][1], 0.40)
         self.assertAlmostEqual(groups["arm_r"][2], 0.70)
         self.assertEqual(groups["clavicle_r"][2], 0.0)
 
@@ -76,6 +85,34 @@ class AvatarHierarchicalPoseTests(unittest.TestCase):
             0.07,
         )
         self.assertTrue(all(abs(value) < 5000.0 for value in posed))
+
+    def test_straighten_hands_reduces_large_wrist_kink(self):
+        vertices = (
+            (200.0, 0.0, 1200.0),  # lower-arm center
+            (220.0, 0.0, 1100.0),  # wrist
+            (270.0, 0.0, 1130.0),  # hand center
+        )
+        posed = list(vertices)
+        weights = {
+            "lowerarm_l": (1.0, 0.0, 0.0),
+            "wrist_l": (0.0, 1.0, 0.0),
+            "hand_l": (0.0, 0.0, 1.0),
+            "lowerarm_r": (0.0, 0.0, 0.0),
+            "wrist_r": (0.0, 0.0, 0.0),
+            "hand_r": (0.0, 0.0, 0.0),
+        }
+        before = abs(_shortest_angle(
+            _signed_angle_xz(20.0, -100.0),
+            _signed_angle_xz(50.0, 30.0),
+        ))
+        result = _straighten_hands(vertices, posed, weights)
+        hand = result[2]
+        after = abs(_shortest_angle(
+            _signed_angle_xz(20.0, -100.0),
+            _signed_angle_xz(hand[0] - 220.0, hand[2] - 1100.0),
+        ))
+        self.assertLess(after, before)
+        self.assertLessEqual(after, math.radians(55.0) + 1e-6)
 
 
 if __name__ == "__main__":
