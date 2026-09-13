@@ -178,6 +178,11 @@ def _map_makehuman_axes(vertices):
     return [(float(x), float(z), float(y - ymin) / span) for x, y, z in vertices]
 
 
+def _reoriented_triangles(triangles):
+    """Reverse winding after the handedness-flipping Y/Z axis permutation."""
+    return tuple((int(a), int(c), int(b)) for a, b, c in triangles)
+
+
 def _profile_scale(z, profile):
     for i in range(len(profile) - 1):
         z0, s0 = profile[i]
@@ -319,7 +324,7 @@ def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
             shoulder_z - math.sin(radians) * dx + math.cos(radians) * dz,
         )
         posed.append((x, y, z))
-    return MeshData(tuple(posed), mesh.triangles)
+    return MeshData(tuple(posed), _reoriented_triangles(mesh.triangles))
 
 
 def build_humanoid_mesh(parameters, source_path=None) -> MeshData:
