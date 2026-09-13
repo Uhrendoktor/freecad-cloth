@@ -1,0 +1,64 @@
+name: Workbench benchmark
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workbench-benchmark-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.3-r1
+  PYTHONPATH: /workspace
+
+jobs:
+  benchmark:
+    name: Measured FreeCAD workbench benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Prepare FreeCAD image
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
+        run: |
+          set -euo pipefail
+          if docker image inspect "$IMAGE" >/dev/null 2>&1; then exit 0; fi
+          if printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1 && timeout 90s docker pull "$IMAGE"; then exit 0; fi
+          docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
+          docker buildx build --progress=plain --load --tag "$IMAGE" docker/freecad-ci
+      - name: Run measured benchmark in FreeCAD image
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/workbench-benchmark
+          mkdir -p artifacts/workbench-benchmark
+          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e PYTHONPATH=/workspace -w /workspace "$IMAGE" -euo pipefail -c '
+            set -e
+            python3 tools/benchmark_workbenches.py --output artifacts/workbench-benchmark/benchmark.json --repeats 7
+          ')"
+          cleanup() {
+            set +e
+            docker cp "$CID:/workspace/artifacts/workbench-benchmark/." artifacts/workbench-benchmark/ 2>/dev/null || true
+            docker rm -f "$CID" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          docker cp "$PWD/." "$CID:/workspace/"
+          docker start -a "$CID"
+      - name: Install plotting dependency
+        run: python3 -m pip install --disable-pip-version-check matplotlib
+      - name: Generate benchmark plots
+        run: python3 tools/plot_workbench_benchmark.py artifacts/workbench-benchmark/benchmark.json artifacts/workbench-benchmark/plots
+      - name: Upload benchmark measurements and plots
+        uses: actions/upload-artifact@v6
+        with:
+          name: workbench-benchmark
+          path: artifacts/workbench-benchmark
+          if-no-files-found: error
+          compression-level: 1
