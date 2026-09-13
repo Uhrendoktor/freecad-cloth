@@ -125,7 +125,6 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertEqual(service.pose(), params.pose)
         self.assertEqual(service.skin_offset(), params.skin_offset)
         self.assertIn(("waist", params.measurement("waist")), service.measurements())
-        self.assertIn(("waist", params.measurement("waist")), service.measurements())
         self.assertEqual(service.surface(), service.collision_mesh())
         self.assertGreater(len(service.surface()[0]), 100)
         self.assertEqual(service.landmark("chest").name, "chest")
@@ -234,3 +233,32 @@ class AvatarFittingTests(unittest.TestCase):
             self.assertEqual(avatar.AvatarStatus, "Valid")
             self.assertEqual(int(avatar.AvatarRevision), original_revision + 1)
             self.assertTrue(avatar.ParametersJSON)
+
+            fd, path = tempfile.mkstemp(prefix="cloth-avatar-", suffix=".FCStd")
+            os.close(fd)
+            doc.recompute()
+            doc.saveAs(path)
+            App.closeDocument(doc.Name)
+            doc = App.openDocument(path)
+            doc.recompute()
+            restored = doc.getObject("ClothAvatar")
+            self.assertIsNotNone(restored)
+            self.assertEqual(restored.AvatarType, "ClothAvatar")
+            self.assertEqual(restored.AvatarMeshProvider, "makehuman-hm08")
+            self.assertEqual(restored.AvatarStatus, "Valid")
+            self.assertAlmostEqual(float(restored.Chest), original_chest + 40.0)
+            self.assertEqual(int(restored.AvatarRevision), original_revision + 1)
+            self.assertEqual(len(restored.ArrangementPoints), len(restored.Landmarks))
+            self.assertGreater(int(restored.Mesh.CountPoints), 100)
+            self.assertGreater(int(restored.Mesh.CountFacets), 100)
+        finally:
+            if doc is not None and doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
+            if path:
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
+
+
+if __name__ == "__main__": unittest.main()
