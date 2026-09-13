@@ -90,13 +90,7 @@ def _weighted_center(vertices, weights, threshold=0.0):
 
 
 def _weighted_distal_direction(vertices, weights, pivot, min_distance=1.0):
-    """Find a distal hand axis while down-weighting wrist/base vertices.
-
-    MakeHuman finger weights contain substantial mass on vertices close to the
-    wrist. A plain weighted centroid therefore does not describe the direction
-    of the actual fingers. Weight by squared distance from the wrist so distal
-    finger vertices dominate the recovered hand axis.
-    """
+    """Find a distal hand axis while down-weighting wrist/base vertices."""
     total = 0.0
     dx = dz = 0.0
     for vertex, weight in zip(vertices, weights):
@@ -190,6 +184,49 @@ def _hand_roll_angle(forearm_axis):
     return math.atan2(sine, cosine)
 
 
+def _relax_distal_splay(vertices, wrist, hand_weights, forearm_axis):
+    """Reduce claw-like distal finger spread without collapsing the palm."""
+    axis = _normalize(forearm_axis)
+    if axis is None:
+        return list(vertices)
+    distances = []
+    for point, weight in zip(vertices, hand_weights):
+        weight = max(0.0, float(weight))
+        if weight <= 1e-6:
+            continue
+        vector = tuple(point[i] - wrist[i] for i in range(3))
+        distances.append(math.sqrt(_dot(vector, vector)))
+    if not distances:
+        return list(vertices)
+    max_distance = max(distances)
+    if max_distance <= 1e-6:
+        return list(vertices)
+    start = max_distance * 0.45
+    result = list(vertices)
+    for index, point in enumerate(vertices):
+        influence = max(0.0, min(1.0, float(hand_weights[index])))
+        if influence <= 1e-6:
+            continue
+        vector = tuple(point[i] - wrist[i] for i in range(3))
+        distance = math.sqrt(_dot(vector, vector))
+        if distance <= start:
+            continue
+        t = max(0.0, min(1.0, (distance - start) / max(1e-6, max_distance - start)))
+        splay_scale = 1.0 - 0.30 * _smoothstep(0.0, 1.0, t)
+        longitudinal = _dot(vector, axis)
+        longitudinal_vector = tuple(axis[i] * longitudinal for i in range(3))
+        lateral = tuple(vector[i] - longitudinal_vector[i] for i in range(3))
+        target = tuple(
+            wrist[i] + longitudinal_vector[i] + lateral[i] * splay_scale
+            for i in range(3)
+        )
+        result[index] = tuple(
+            point[i] * (1.0 - influence) + target[i] * influence
+            for i in range(3)
+        )
+    return result
+
+
 def _blend_weighted_pose(point, arm_weight, clavicle_weight, arm_pivot, clavicle_pivot, arm_radians, clavicle_radians):
     arm_weight = max(0.0, min(1.0, float(arm_weight)))
     clavicle_weight = max(0.0, min(1.0, float(clavicle_weight)))
@@ -215,7 +252,7 @@ def _shortest_angle(target, current):
 
 
 def _straighten_hands(vertices, posed, weights):
-    """Align the fingers with the forearm and roll the palms to a neutral orientation."""
+    """Align fingers with the forearm, neutralize palm roll, and relax splay."""
     result = list(posed)
     for side in (-1.0, 1.0):
         suffix = "l" if side < 0 else "r"
@@ -240,9 +277,6 @@ def _straighten_hands(vertices, posed, weights):
             _signed_angle_xz(hand_dx, hand_dz),
         )
         correction = max(-math.radians(150.0), min(math.radians(150.0), correction))
-        # A full 90-degree roll fixes the edge-on palm, but is too strong for
-        # the multi-view mannequin. Use half (45 degrees) as a neutral wrist
-        # twist that balances front, top, and side views.
         hand_roll = _hand_roll_angle((forearm_dx, 0.0, forearm_dz)) * 0.5
         hand_weights = weights[f"hand_{suffix}"]
         if abs(correction) > math.radians(0.5) or abs(hand_roll) > math.radians(0.5):
@@ -264,6 +298,12 @@ def _straighten_hands(vertices, posed, weights):
                     posed[index][i] * (1.0 - influence) + point[i] * influence
                     for i in range(3)
                 )
+        result = _relax_distal_splay(
+            result,
+            wrist,
+            hand_weights,
+            (forearm_dx, 0.0, forearm_dz),
+        )
     return result
 
 
