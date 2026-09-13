@@ -95,8 +95,10 @@ def runtime_metrics(name: str, repeats: int) -> dict:
         construct_samples.append(time.perf_counter() - t0)
     trace(f"benchmark: {name}: initializing")
     try:
+        import FreeCADGui as Gui
         wb = wb_cls()
         t0 = time.perf_counter()
+        Gui.addWorkbench(wb)
         wb.Initialize()
     except BaseException as exc:
         fail(f"{name} initialization", exc)
