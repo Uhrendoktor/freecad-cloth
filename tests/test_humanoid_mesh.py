@@ -8,6 +8,7 @@ from freecad_cloth.avatar.HumanoidMesh import (
     MAKEHUMAN_BASE_SHA256,
     MeshData,
     _map_makehuman_axes,
+    _reoriented_triangles,
     fit_makehuman_mesh,
     load_makehuman_mesh,
     parse_obj,
@@ -53,6 +54,9 @@ class HumanoidMeshTests(unittest.TestCase):
         self.assertEqual(mapped[0], (-2.0, 3.0, 0.0))
         self.assertEqual(mapped[1], (2.0, -3.0, 1.0))
 
+    def test_axis_conversion_reverses_triangle_winding(self):
+        self.assertEqual(_reoriented_triangles(((0, 1, 2), (2, 3, 0))), ((0, 2, 1), (2, 0, 3)))
+
     def test_fit_preserves_z_up_makehuman_orientation(self):
         source = parse_obj("""
         v -1 -0.5 0
@@ -74,6 +78,7 @@ class HumanoidMeshTests(unittest.TestCase):
         self.assertAlmostEqual(min(v[2] for v in fitted.vertices), 0.0)
         self.assertAlmostEqual(max(v[2] for v in fitted.vertices), 1750.0)
         self.assertAlmostEqual(max(v[0] for v in fitted.vertices) - min(v[0] for v in fitted.vertices), 350.0)
+        self.assertEqual(fitted.triangles, _reoriented_triangles(source.triangles))
 
     def test_fit_preserves_topology_and_applies_height_and_skin_offset(self):
         source = parse_obj("""
@@ -96,7 +101,7 @@ class HumanoidMeshTests(unittest.TestCase):
         padded = AvatarParameters(skin_offset=8)
         fitted = fit_makehuman_mesh(source, base)
         fitted_padded = fit_makehuman_mesh(source, padded)
-        self.assertEqual(fitted.triangles, source.triangles)
+        self.assertEqual(fitted.triangles, _reoriented_triangles(source.triangles))
         self.assertEqual(len(fitted.vertices), len(source.vertices))
         self.assertAlmostEqual(max(v[2] for v in fitted.vertices), 1750.0)
         self.assertNotEqual(fitted.vertices, fitted_padded.vertices)
