@@ -29,7 +29,7 @@ DEFAULT_CACHE_NAME = "makehuman-hm08-base.obj"
 
 
 class HumanoidMeshError(RuntimeError):
-    """Raised when the real humanoid asset cannot be loaded or fitted."""
+    """Raised when the real humanoid mesh cannot be loaded or fitted."""
 
 
 @dataclass(frozen=True)
@@ -258,7 +258,7 @@ def _arm_pose_weight(x, z, shoulder_half, height_mm):
 
 
 def _normalize_fit_axes(vertices, parameters):
-    """Normalize horizontal source scale to the authoritative body measurements.
+    """Normalize horizontal source scale to authoritative body measurements.
 
     The pinned HM08 source can carry a source-specific aspect ratio unrelated to
     the Cloth millimetre measurement schema. Width follows shoulder/upper-arm
@@ -268,22 +268,21 @@ def _normalize_fit_axes(vertices, parameters):
     """
     from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
 
-    x_span = _axis_bounds(vertices, 0)[1] - _axis_bounds(vertices, 0)[0]
-    y_span = _axis_bounds(vertices, 1)[1] - _axis_bounds(vertices, 1)[0]
+    x_min, x_max = _axis_bounds(vertices, 0)
+    y_min, y_max = _axis_bounds(vertices, 1)
+    x_span = x_max - x_min
+    y_span = y_max - y_min
     if x_span <= 1e-9 or y_span <= 1e-9:
         return vertices
 
     shoulder = float(parameters.measurement("shoulder"))
     upper_arm = float(parameters.measurement("upper_arm"))
     chest = float(parameters.measurement("chest"))
-    default_shoulder = float(DEFAULT_MEASUREMENTS["shoulder"])
     default_upper_arm = float(DEFAULT_MEASUREMENTS["upper_arm"])
     default_chest = float(DEFAULT_MEASUREMENTS["chest"])
 
     target_width = shoulder + 1.5 * upper_arm
     target_depth = chest / math.pi
-    default_width = default_shoulder + 1.5 * default_upper_arm
-    default_depth = default_chest / math.pi
 
     # Keep anthropometric changes proportional while correcting the source mesh
     # aspect ratio. Small padding preserves arm/body silhouette at the extremes.
