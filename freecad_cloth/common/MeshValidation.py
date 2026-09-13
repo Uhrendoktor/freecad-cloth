@@ -57,14 +57,11 @@ def validate_mesh(
 ) -> MeshValidationResult:
     """Return mesh-health metrics without mutating the source arrays.
 
-    ``trimesh`` is imported lazily and remains optional.  A small deterministic
+    ``trimesh`` is imported lazily and remains optional. A deterministic
     Python fallback keeps the validator useful in the core test environment.
     """
     _validate_arrays(vertices, triangles)
-    degenerate = 0
-    for a, b, c in triangles:
-        if len({int(a), int(b), int(c)}) < 3:
-            degenerate += 1
+    degenerate = sum(1 for a, b, c in triangles if len({int(a), int(b), int(c)}) < 3)
 
     if prefer_trimesh:
         try:
@@ -76,12 +73,16 @@ def validate_mesh(
                 faces=np.asarray(triangles, dtype=int),
                 process=False,
             )
-            bounds = tuple(float(value) for pair in mesh.bounds for value in pair)
+            bounds = mesh.bounds
             return MeshValidationResult(
                 vertices=len(vertices),
                 faces=len(triangles),
                 components=len(mesh.split(only_watertight=False)),
-                bounds=(bounds[0], bounds[1], bounds[2], bounds[3], bounds[4], bounds[5]),
+                bounds=(
+                    float(bounds[0][0]), float(bounds[1][0]),
+                    float(bounds[0][1]), float(bounds[1][1]),
+                    float(bounds[0][2]), float(bounds[1][2]),
+                ),
                 surface_area=float(mesh.area),
                 watertight=bool(mesh.is_watertight),
                 finite=bool(np.isfinite(mesh.vertices).all()),
@@ -106,12 +107,7 @@ def nearest_target_clearance(
     garment_vertices: Sequence[Point3],
     target_vertices: Sequence[Point3],
 ) -> float:
-    """Return minimum garment-to-target vertex distance.
-
-    This intentionally uses target vertices only.  It is a conservative,
-    backend-neutral screening metric for visual acceptance; exact triangle
-    proximity can be supplied by the optional trimesh adapter when available.
-    """
+    """Return minimum garment-to-target vertex distance."""
     if not garment_vertices or not target_vertices:
         raise ValueError("garment and target vertices are required")
     best = float("inf")
