@@ -1,8 +1,5 @@
-"""Persisted semantic marks for the Cloth Pattern workbench.
-
-The model helpers do not require FreeCAD. GUI command registration is lazy so
-headless imports remain safe.
-"""
+"""Persisted semantic marks for the Cloth Pattern workbench."""
+from freecad_cloth.common.CommandAdapter import icon_for_command
 
 
 def _pieces(doc):
@@ -24,24 +21,14 @@ def _selected_piece(doc):
 
 
 def _has_selected_piece():
-    """Return whether the active FreeCAD selection contains a pattern piece."""
     try:
         import FreeCADGui as Gui
-        return any(getattr(obj, "PatternType", "") == "PatternPiece"
-                   for obj in Gui.Selection.getSelection())
+        return any(getattr(obj, "PatternType", "") == "PatternPiece" for obj in Gui.Selection.getSelection())
     except (ImportError, AttributeError):
-        # Keep command registration/imports safe outside a FreeCAD GUI process.
         return True
 
 
-def add_mark(doc, mark_type, piece_id, segment_id="", position=0.5, depth=3.0,
-             angle=0.0, length=40.0, text=""):
-    """Create a persisted semantic mark object in *doc*.
-
-    Mark objects deliberately store semantic references rather than embedding
-    geometry, allowing a future drafting view to render them from the current
-    pattern boundary after recompute.
-    """
+def add_mark(doc, mark_type, piece_id, segment_id="", position=0.5, depth=3.0, angle=0.0, length=40.0, text=""):
     if not mark_type.strip():
         raise ValueError("mark type must not be empty")
     if not piece_id.strip():
@@ -52,11 +39,7 @@ def add_mark(doc, mark_type, piece_id, segment_id="", position=0.5, depth=3.0,
         raise ValueError("mark depth must be positive")
     if float(length) <= 0:
         raise ValueError("mark length must be positive")
-
-    name = "%s_%d" % (
-        mark_type,
-        1 + len([o for o in doc.Objects if getattr(o, "PatternMarkType", "") == mark_type]),
-    )
+    name = "%s_%d" % (mark_type, 1 + len([o for o in doc.Objects if getattr(o, "PatternMarkType", "") == mark_type]))
     obj = doc.addObject("App::FeaturePython", name)
     obj.Label = text.strip() or name
     obj.addProperty("App::PropertyString", "PatternMarkType", "Pattern Mark").PatternMarkType = mark_type
@@ -93,8 +76,9 @@ def add_internal_mark():
 
 
 class _FunctionCommand:
-    def __init__(self, function):
+    def __init__(self, function, command_name):
         self.function = function
+        self.command_name = command_name
 
     def Activated(self):
         obj = self.function()
@@ -102,27 +86,23 @@ class _FunctionCommand:
             obj.Document.recompute()
 
     def IsActive(self):
-        """Enable mark commands only when a pattern piece is selected."""
         return _has_selected_piece()
 
     def GetResources(self):
         return {
             "MenuText": self.function.__name__.replace("_", " ").title(),
             "ToolTip": self.function.__doc__ or "Cloth pattern mark command",
+            "Pixmap": icon_for_command(self.command_name),
         }
 
 
-COMMANDS = [
-    "ClothPattern_AddNotch",
-    "ClothPattern_AddGrainline",
-    "ClothPattern_AddInternalMark",
-]
+COMMANDS = ["ClothPattern_AddNotch", "ClothPattern_AddGrainline", "ClothPattern_AddInternalMark"]
 
 try:
     import FreeCADGui as Gui
     if hasattr(Gui, "addCommand"):
-        Gui.addCommand("ClothPattern_AddNotch", _FunctionCommand(add_notch))
-        Gui.addCommand("ClothPattern_AddGrainline", _FunctionCommand(add_grainline))
-        Gui.addCommand("ClothPattern_AddInternalMark", _FunctionCommand(add_internal_mark))
+        Gui.addCommand("ClothPattern_AddNotch", _FunctionCommand(add_notch, "ClothPattern_AddNotch"))
+        Gui.addCommand("ClothPattern_AddGrainline", _FunctionCommand(add_grainline, "ClothPattern_AddGrainline"))
+        Gui.addCommand("ClothPattern_AddInternalMark", _FunctionCommand(add_internal_mark, "ClothPattern_AddInternalMark"))
 except (ImportError, AttributeError):
     pass
