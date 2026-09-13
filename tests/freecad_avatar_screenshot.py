@@ -29,6 +29,19 @@ def events():
         app.processEvents()
 
 
+def hide_task_docks(window):
+    """Keep GUI chrome that validates the model, but do not obscure the avatar."""
+    hidden = []
+    for dock in window.findChildren(QtWidgets.QDockWidget):
+        title = str(dock.windowTitle()).strip().lower()
+        if "task" in title:
+            dock.hide()
+            hidden.append(str(dock.windowTitle()))
+    if hidden:
+        log("hidden-task-docks=%s" % ",".join(hidden))
+    events()
+
+
 def save(window, name, state):
     window.show(); window.raise_(); window.activateWindow(); window.resize(1280, 720); events()
     image = window.grab()
@@ -50,6 +63,7 @@ def main():
     init_gui = os.path.join(ROOT, "InitGui.py")
     exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
     events()
+    hide_task_docks(window)
 
     from freecad_cloth.avatar.AvatarCommands import create_avatar
 
