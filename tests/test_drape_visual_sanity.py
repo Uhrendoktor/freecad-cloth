@@ -12,10 +12,10 @@ class DrapeVisualSanityTests(unittest.TestCase):
 
     def test_reports_structurally_plausible_drape(self):
         garment = (
-            (-220.0, -120.0, 300.0), (220.0, -120.0, 300.0),
-            (-210.0, 120.0, 1500.0), (210.0, 120.0, 1500.0),
+            (-140.0, -90.0, 250.0), (140.0, -90.0, 250.0),
+            (-140.0, 90.0, 1500.0), (140.0, 90.0, 1500.0),
         )
-        result = inspect_drape(garment, self.target, target_height=1750.0, target_width=200.0)
+        result = inspect_drape(garment, self.target, target_height=1750.0, target_width=1000.0)
         self.assertTrue(result.finite)
         self.assertEqual(result.state, "structurally-plausible")
         self.assertGreater(result.vertical_span_ratio, 0.6)
