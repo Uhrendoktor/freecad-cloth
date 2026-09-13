@@ -108,7 +108,14 @@ def main() -> None:
     parser.add_argument("--output", default="artifacts/workbench-benchmark/benchmark.json")
     parser.add_argument("--repeats", type=int, default=7)
     parser.add_argument("--workbench", choices=tuple(WORKBENCHES), help="Measure only this workbench")
-    args = parser.parse_args()
+    if os.environ.get("CLOTH_BENCHMARK_WORKBENCH"):
+        args = parser.parse_args([
+            "--workbench", os.environ["CLOTH_BENCHMARK_WORKBENCH"],
+            "--output", os.environ.get("CLOTH_BENCHMARK_OUTPUT", "artifacts/workbench-benchmark/benchmark.json"),
+            "--repeats", os.environ.get("CLOTH_BENCHMARK_REPEATS", "7"),
+        ])
+    else:
+        args = parser.parse_args()
     if args.repeats < 3:
         raise SystemExit("--repeats must be >= 3")
 
