@@ -217,3 +217,39 @@ jobs:
             exit 0
           fi
           gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$body"
+
+  publish-readme-screenshots:
+    name: Publish stable README screenshots
+    needs: gui-screenshot
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download canonical GUI screenshots
+        uses: actions/download-artifact@v6
+        with:
+          name: cloth-gui-screenshots
+          path: gui-screenshots
+      - name: Publish stable screenshot branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --no-checkout "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" screenshot-repo
+          cd screenshot-repo
+          branch="docs/screenshots"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            git fetch origin "$branch"
+            git checkout -B "$branch" "origin/$branch"
+          else
+            git checkout --orphan "$branch"
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
+          mkdir -p docs/images/generated
+          cp ../gui-screenshots/*.png docs/images/generated/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/images/generated/*.png
+          git commit -m "ci: publish stable README screenshots" || true
+          git push --force origin "HEAD:$branch"
