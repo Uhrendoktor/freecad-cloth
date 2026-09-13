@@ -103,7 +103,7 @@ def runtime_metrics(name: str, repeats: int) -> dict:
             wb = wb_cls()
             t0 = time.perf_counter()
             Gui.addWorkbench(wb)
-            wb.Initialize()
+            Gui.activateWorkbench(wb.name())
             initialize_samples.append(time.perf_counter() - t0)
             command_counts.append(len(getattr(wb, "commands", ())))
             try:
