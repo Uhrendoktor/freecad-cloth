@@ -30,6 +30,19 @@ TEST_HINTS = {
 }
 
 
+class BenchmarkWorkbenchBackend:
+    """No-op GUI backend used only to isolate Python Initialize() work."""
+
+    def appendToolbar(self, _name, _commands):
+        return None
+
+    def appendMenu(self, _name, _commands):
+        return None
+
+    def appendContextMenu(self, _name, _commands):
+        return None
+
+
 def trace(message: str) -> None:
     try:
         pathlib.Path("/tmp/cloth-benchmark-trace.log").open("a", encoding="utf-8").write(message + "\n")
@@ -108,8 +121,7 @@ def runtime_metrics(name: str, repeats: int) -> dict:
             if len(added) != 1:
                 raise RuntimeError(f"expected one registered workbench, got {sorted(added)!r}")
             registered_name = next(iter(added))
-            backend = Gui.getWorkbench(registered_name)
-            wb.__dict__["__Workbench__"] = backend
+            wb.__dict__["__Workbench__"] = BenchmarkWorkbenchBackend()
             wb.Initialize()
             initialize_samples.append(time.perf_counter() - t0)
             command_counts.append(len(getattr(wb, "commands", ())))
