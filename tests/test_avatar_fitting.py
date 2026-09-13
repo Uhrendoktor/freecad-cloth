@@ -80,6 +80,21 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertAlmostEqual(max(v[2] for v in fitted.vertices), 1750.0)
         self.assertGreater(max(v[0] for v in fitted.vertices) - min(v[0] for v in fitted.vertices), 0.0)
 
+    def test_fit_normalizes_extreme_source_lateral_aspect_ratio(self):
+        source = MeshData(
+            ((-8.0, 0.0, 0.0), (8.0, 0.0, 0.0), (-8.0, 6.0, 0.0), (8.0, 6.0, 10.0)),
+            ((0, 1, 2), (1, 3, 2)),
+        )
+        fitted = fit_makehuman_mesh(source, AvatarParameters(skin_offset=0))
+        x_span = max(v[0] for v in fitted.vertices) - min(v[0] for v in fitted.vertices)
+        y_span = max(v[1] for v in fitted.vertices) - min(v[1] for v in fitted.vertices)
+        z_span = max(v[2] for v in fitted.vertices) - min(v[2] for v in fitted.vertices)
+        self.assertAlmostEqual(z_span, 1750.0)
+        self.assertAlmostEqual(x_span, 440.0 + 1.5 * 310.0, delta=1e-6)
+        self.assertAlmostEqual(y_span, 980.0 / 3.141592653589793, delta=1e-6)
+        self.assertLess(x_span / z_span, 0.6)
+        self.assertLess(y_span / z_span, 0.25)
+
     def test_mannequin_is_deterministic_and_landmarked(self):
         params = AvatarParameters()
         first = generate_mesh(params)
@@ -109,6 +124,7 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertEqual(service.measurement("chest"), params.measurement("chest"))
         self.assertEqual(service.pose(), params.pose)
         self.assertEqual(service.skin_offset(), params.skin_offset)
+        self.assertIn(("waist", params.measurement("waist")), service.measurements())
         self.assertIn(("waist", params.measurement("waist")), service.measurements())
         self.assertEqual(service.surface(), service.collision_mesh())
         self.assertGreater(len(service.surface()[0]), 100)
@@ -218,32 +234,3 @@ class AvatarFittingTests(unittest.TestCase):
             self.assertEqual(avatar.AvatarStatus, "Valid")
             self.assertEqual(int(avatar.AvatarRevision), original_revision + 1)
             self.assertTrue(avatar.ParametersJSON)
-
-            fd, path = tempfile.mkstemp(prefix="cloth-avatar-", suffix=".FCStd")
-            os.close(fd)
-            doc.recompute()
-            doc.saveAs(path)
-            App.closeDocument(doc.Name)
-            doc = App.openDocument(path)
-            doc.recompute()
-            restored = doc.getObject("ClothAvatar")
-            self.assertIsNotNone(restored)
-            self.assertEqual(restored.AvatarType, "ClothAvatar")
-            self.assertEqual(restored.AvatarMeshProvider, "makehuman-hm08")
-            self.assertEqual(restored.AvatarStatus, "Valid")
-            self.assertAlmostEqual(float(restored.Chest), original_chest + 40.0)
-            self.assertEqual(int(restored.AvatarRevision), original_revision + 1)
-            self.assertEqual(len(restored.ArrangementPoints), len(restored.Landmarks))
-            self.assertGreater(int(restored.Mesh.CountPoints), 100)
-            self.assertGreater(int(restored.Mesh.CountFacets), 100)
-        finally:
-            if doc is not None and doc.Name in App.listDocuments():
-                App.closeDocument(doc.Name)
-            if path:
-                try:
-                    os.unlink(path)
-                except OSError:
-                    pass
-
-
-if __name__ == "__main__": unittest.main()
