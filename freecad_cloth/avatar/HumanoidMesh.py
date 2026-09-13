@@ -172,10 +172,10 @@ def _axis_bounds(vertices, axis):
 
 
 def _map_makehuman_axes(vertices):
-    """Convert MakeHuman's Y-up coordinates to RH-Z-up normalized coordinates."""
+    """Convert MakeHuman's Y-up coordinates to FreeCAD RH-Z-up coordinates."""
     ymin, ymax = _axis_bounds(vertices, 1)
     span = max(1e-9, ymax - ymin)
-    return [(float(x), float(-z), float(y - ymin) / span) for x, y, z in vertices]
+    return [(float(x), float(z), float(y - ymin) / span) for x, y, z in vertices]
 
 
 def _profile_scale(z, profile):
