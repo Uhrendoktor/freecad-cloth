@@ -177,13 +177,7 @@ def _rotate_about_axis(point, pivot, axis, radians):
 
 
 def _hand_roll_angle(forearm_axis):
-    """Return the roll that turns the authored palm edge into a front-facing palm.
-
-    In the MakeHuman source pose the hand plane is carried by the forearm axis
-    and the global Y direction, so its normal is axis × Y. The avatar views are
-    front/back along Y; rotating that normal onto +Y removes the persistent
-    90-degree edge-on palm seen in the front and side renders.
-    """
+    """Return the full roll from the authored palm edge to a front-facing palm."""
     axis = _normalize(forearm_axis)
     if axis is None:
         return 0.0
@@ -221,7 +215,7 @@ def _shortest_angle(target, current):
 
 
 def _straighten_hands(vertices, posed, weights):
-    """Align the fingers with the forearm and roll the palms to face front/back."""
+    """Align the fingers with the forearm and roll the palms to a neutral orientation."""
     result = list(posed)
     for side in (-1.0, 1.0):
         suffix = "l" if side < 0 else "r"
@@ -246,7 +240,10 @@ def _straighten_hands(vertices, posed, weights):
             _signed_angle_xz(hand_dx, hand_dz),
         )
         correction = max(-math.radians(150.0), min(math.radians(150.0), correction))
-        hand_roll = _hand_roll_angle((forearm_dx, 0.0, forearm_dz))
+        # A full 90-degree roll fixes the edge-on palm, but is too strong for
+        # the multi-view mannequin. Use two thirds (60 degrees) as a neutral
+        # wrist twist that keeps both front and top/side views natural.
+        hand_roll = _hand_roll_angle((forearm_dx, 0.0, forearm_dz)) * (2.0 / 3.0)
         hand_weights = weights[f"hand_{suffix}"]
         if abs(correction) > math.radians(0.5) or abs(hand_roll) > math.radians(0.5):
             pivot = wrist
@@ -255,8 +252,6 @@ def _straighten_hands(vertices, posed, weights):
                 if influence <= 1e-6:
                     continue
                 if abs(correction) > math.radians(0.5):
-                    # _rotate_xz uses a clockwise-positive convention in the XZ plane,
-                    # while correction is computed as target_angle - current_angle.
                     point = _rotate_xz(point, (pivot[0], pivot[2]), -correction)
                 if abs(hand_roll) > math.radians(0.5):
                     point = _rotate_about_axis(
