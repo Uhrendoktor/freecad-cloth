@@ -69,3 +69,5 @@ jobs:
           path: artifacts/workbench-benchmark
           if-no-files-found: error
           compression-level: 1
+
+# Keep this workflow triggerable through a normal PR merge as well as manual dispatch.
