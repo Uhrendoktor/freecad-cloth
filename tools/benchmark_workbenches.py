@@ -112,7 +112,9 @@ def main() -> None:
     if args.repeats < 3:
         raise SystemExit("--repeats must be >= 3")
 
+    print("benchmark: FreeCAD import starting", flush=True)
     import FreeCAD
+    print("benchmark: FreeCAD import complete", flush=True)
 
     names = [args.workbench] if args.workbench else list(WORKBENCHES)
     result = {
