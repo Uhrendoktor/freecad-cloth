@@ -30,7 +30,7 @@ def events():
 
 
 def hide_task_docks(window):
-    """Keep GUI chrome that validates the model, but do not obscure the avatar."""
+    """Keep GUI chrome available for the audit but do not rely on it for captures."""
     hidden = []
     for dock in window.findChildren(QtWidgets.QDockWidget):
         title = str(dock.windowTitle()).strip().lower()
@@ -42,14 +42,20 @@ def hide_task_docks(window):
     events()
 
 
-def save(window, name, state):
-    window.show(); window.raise_(); window.activateWindow(); window.resize(1280, 720); events()
-    image = window.grab()
+def save(view, name, state):
+    """Render only the 3D view so README images are unobstructed model evidence."""
     path = os.path.join(OUT, name)
-    if image.isNull() or (image.width(), image.height()) != (1280, 720):
-        raise RuntimeError("invalid GUI capture for %s" % state)
-    if not image.save(path) or os.path.getsize(path) < 20000:
+    view.saveImage(path, 1280, 720, "White")
+    if not os.path.isfile(path) or os.path.getsize(path) < 20000:
         raise RuntimeError("failed or suspiciously small screenshot: %s" % path)
+    with open(path, "rb") as handle:
+        header = handle.read(24)
+    if header[:8] != b"\x89PNG\r\n\x1a\n":
+        raise RuntimeError("invalid PNG capture for %s" % state)
+    width = int.from_bytes(header[16:20], "big")
+    height = int.from_bytes(header[20:24], "big")
+    if (width, height) != (1280, 720):
+        raise RuntimeError("invalid rendered dimensions for %s: %sx%s" % (state, width, height))
     log("screenshot=%s state=%s bytes=%d" % (path, state, os.path.getsize(path)))
 
 
@@ -81,6 +87,7 @@ def main():
         doc.recompute()
 
         view = Gui.activeDocument().activeView()
+        view.setAnimationEnabled(False)
         view.setCameraType("Orthographic")
         directions = (
             ("front", "viewFront"),
@@ -94,7 +101,7 @@ def main():
             getattr(view, method_name)()
             view.fitAll()
             events()
-            save(window, "cloth-avatar-%s.png" % direction, "Avatar audit %s" % direction)
+            save(view, "cloth-avatar-%s.png" % direction, "Avatar audit %s" % direction)
         log("avatar-script-pass")
     finally:
         if doc.Name in App.listDocuments():
