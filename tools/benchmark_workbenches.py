@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Measure the three public Cloth workbench boundaries.
-
-Runtime measurements are collected inside the canonical FreeCAD CI image;
-static counts make the result explainable and reproducible from the checkout.
-"""
+"""Measure the three public Cloth workbench boundaries."""
 from __future__ import annotations
 
 import argparse
@@ -32,6 +28,16 @@ TEST_HINTS = {
 }
 
 
+def trace(message: str) -> None:
+    try:
+        path = pathlib.Path("/tmp/cloth-benchmark-trace.log")
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(message + "\n")
+    except OSError:
+        pass
+    print(message, flush=True)
+
+
 def source_lines(path: pathlib.Path) -> int:
     try:
         return sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
@@ -58,8 +64,9 @@ def median_ms(samples: list[float]) -> float:
 
 def runtime_metrics(name: str, repeats: int) -> dict:
     module_name, class_name = WORKBENCHES[name]
-    print(f"benchmark: {name}: importing and constructing", flush=True)
+    trace(f"benchmark: {name}: importing and constructing")
     module = importlib.import_module(module_name)
+    trace(f"benchmark: {name}: module imported")
     lookup_samples = []
     construct_samples = []
     wb_cls = getattr(module, class_name)
@@ -70,12 +77,12 @@ def runtime_metrics(name: str, repeats: int) -> dict:
         t0 = time.perf_counter()
         wb_cls()
         construct_samples.append(time.perf_counter() - t0)
-    print(f"benchmark: {name}: initializing", flush=True)
+    trace(f"benchmark: {name}: initializing")
     wb = wb_cls()
     t0 = time.perf_counter()
     wb.Initialize()
     initialize_ms = median_ms([time.perf_counter() - t0])
-    print(f"benchmark: {name}: initialized ({initialize_ms} ms)", flush=True)
+    trace(f"benchmark: {name}: initialized ({initialize_ms} ms)")
     return {
         "class_lookup_ms": median_ms(lookup_samples),
         "construct_ms": median_ms(construct_samples),
@@ -104,6 +111,7 @@ def close_gui():
 
 
 def main() -> None:
+    trace("benchmark: script entered")
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", default="artifacts/workbench-benchmark/benchmark.json")
     parser.add_argument("--repeats", type=int, default=7)
@@ -118,10 +126,11 @@ def main() -> None:
         args = parser.parse_args()
     if args.repeats < 3:
         raise SystemExit("--repeats must be >= 3")
+    trace("benchmark: arguments parsed")
 
-    print("benchmark: FreeCAD import starting", flush=True)
+    trace("benchmark: FreeCAD import starting")
     import FreeCAD
-    print("benchmark: FreeCAD import complete", flush=True)
+    trace("benchmark: FreeCAD import complete")
 
     names = [args.workbench] if args.workbench else list(WORKBENCHES)
     result = {
@@ -137,6 +146,7 @@ def main() -> None:
     out = ROOT / args.output
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    trace("benchmark: JSON written")
     print(json.dumps(result, indent=2, sort_keys=True), flush=True)
     close_gui()
     os._exit(0)
