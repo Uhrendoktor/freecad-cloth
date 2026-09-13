@@ -93,23 +93,33 @@ def runtime_metrics(name: str, repeats: int) -> dict:
         except BaseException as exc:
             fail(f"{name} construction", exc)
         construct_samples.append(time.perf_counter() - t0)
-    trace(f"benchmark: {name}: initializing")
+
+    trace(f"benchmark: {name}: initializing ({repeats} samples)")
+    initialize_samples = []
+    command_counts = []
     try:
         import FreeCADGui as Gui
-        wb = wb_cls()
-        t0 = time.perf_counter()
-        Gui.addWorkbench(wb)
-        wb.Initialize()
+        for sample in range(repeats):
+            wb = wb_cls()
+            t0 = time.perf_counter()
+            Gui.addWorkbench(wb)
+            wb.Initialize()
+            initialize_samples.append(time.perf_counter() - t0)
+            command_counts.append(len(getattr(wb, "commands", ())))
+            try:
+                Gui.removeWorkbench(wb.name())
+            except BaseException:
+                pass
+            trace(f"benchmark: {name}: initialize sample {sample + 1}/{repeats}")
     except BaseException as exc:
         fail(f"{name} initialization", exc)
-    initialize_ms = median_ms([time.perf_counter() - t0])
-    trace(f"benchmark: {name}: initialized ({initialize_ms} ms)")
+
     return {
         "class_lookup_ms": median_ms(lookup_samples),
         "construct_ms": median_ms(construct_samples),
-        "initialize_ms": initialize_ms,
-        "initialize_samples": 1,
-        "registered_commands": len(getattr(wb, "commands", ())),
+        "initialize_ms": median_ms(initialize_samples),
+        "initialize_samples": len(initialize_samples),
+        "registered_commands": statistics.median(command_counts),
     }
 
 
@@ -177,4 +187,11 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    # FreeCAD loads Python files through its delayed-startup event. Defer the
+    # benchmark one event-loop turn so addWorkbench is not called re-entrantly
+    # from the file-import machinery (which can crash FreeCAD/Qt).
+    try:
+        from PySide import QtCore
+    except ImportError:
+        from PySide2 import QtCore
+    QtCore.QTimer.singleShot(0, main)
