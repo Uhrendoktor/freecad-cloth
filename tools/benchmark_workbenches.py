@@ -103,11 +103,13 @@ def runtime_metrics(name: str, repeats: int) -> dict:
             wb = wb_cls()
             t0 = time.perf_counter()
             Gui.addWorkbench(wb)
-            Gui.activateWorkbench(wb.name())
+            backend = Gui.getWorkbench(wb.MenuText)
+            wb.__dict__["__Workbench__"] = backend
+            wb.Initialize()
             initialize_samples.append(time.perf_counter() - t0)
             command_counts.append(len(getattr(wb, "commands", ())))
             try:
-                Gui.removeWorkbench(wb.name())
+                Gui.removeWorkbench(wb.MenuText)
             except BaseException:
                 pass
             trace(f"benchmark: {name}: initialize sample {sample + 1}/{repeats}")
