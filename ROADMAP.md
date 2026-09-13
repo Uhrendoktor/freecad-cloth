@@ -1,177 +1,91 @@
-# FreeCAD Cloth Roadmap — 2026 Supervisor Replan v2
+# FreeCAD Cloth Roadmap — 2026 Supervisor Replan v3
 
-## Decision
+## Supervisor decision
 
-The roadmap is being reworked again because the project has moved from capability accumulation to release integration. M:N/free sewing, fitting arrangement, semantic export metadata, native workbench registration, deterministic CPU simulation, and a simulation-quality contract now exist. The remaining risk is no longer “missing feature count”; it is whether the three native workbenches form one reliable, manufacturable workflow.
+The project is now in **release integration mode**. The next unit of progress is a trustworthy vertical slice, not another collection of isolated capabilities.
 
-The release criterion is therefore a **vertical slice**, not a checklist:
+The target workflow remains:
 
-`Author curved parametric pieces -> mark/grain/seam allowance -> sew 1:1 and M:N -> arrange on humanoid -> choose simulation quality/material -> simulate -> inspect -> edit upstream pattern -> automatic downstream invalidation -> save/reload -> deterministic re-simulation -> production 2D export.`
+`Author pattern → sew semantically → arrange/fit → choose simulation quality/material → simulate → inspect → edit upstream → invalidate downstream → save/reload → deterministic re-simulation → production output`
 
-No utility script, isolated model class, or green unit-test-only implementation is a milestone exit.
+CLO is used as a workflow benchmark, not as a cloning target. Public CLO documentation confirms several high-value concepts that should guide our UX: explicit Free/1:N/M:N sewing, property-editor simulation controls, particle distance as a mesh-quality/performance control, persistent arrangement points/bounding volumes for fitting, and fit/stress/strain/pressure diagnostics. See the existing research summary and the primary vendor references below.
 
-## Research findings that change priorities
+## Current repository state
 
-### CLO / Marvelous Designer behavior
+- `main` is at `12bcede65c2f5f3d6e414ab8d01d10e23cd357dc` after the README/GUI screenshot publication work.
+- Open PR #469 addresses unreferenced HM08 avatar vertices that distort bounds and visual acceptance.
+- Open PR #453 improves collision preprocessing but must not be treated as release-complete until the drape is visually trustworthy.
+- PR #438 remains diagnostic-only.
+- Benchmark issue #454 provides reproducible workbench measurements and should drive measured improvements rather than more benchmark infrastructure.
 
-- Sewing is a semantic relationship, not merely two selected edges. Segment sewing, free sewing, 1:N and M:N sewing, directional correspondence and reversal are central workflows. CLO exposes these relationships in both 2D and 3D. Sources: CLO Free Sewing and M:N Sewing documentation; Marvelous Designer Sewing manual.
-- Particle Distance directly controls garment mesh density, simulation speed and visual quality. Authoring commonly uses coarse values and final simulation uses finer values. This must be a behavioral control in our solver lifecycle, not a stored preference.
-- The Property Editor is a major workflow surface: pattern, sewing, fabric, avatar and simulation properties are edited there. Our equivalent must expose important controls through native FreeCAD properties/task panels, not require Python commands.
-- Avatar fitting is a reproducible arrangement layer: bounding volumes, arrangement points, X/Y/offset, wrap direction, symmetry and reset/save behavior matter before simulation.
-- The product model separates authoritative pattern/sewing data from generated 3D simulation topology. We retain this separation.
+## New supervisor milestone ladder
 
-### Open-source and FreeCAD research
+### M0 — Baseline / unblock visual truth
+**Epic #471 / task #472**
 
-- Sketcher already provides geometric/dimensional constraints, tangent/arc support, auto-constraints, snapping and symmetry. It should be used as an editing adapter instead of recreating a constraint solver.
-- Part/OCCT provides robust curves and 2D offsets; MeshPart can provide conversion to simulation topology. Semantic edge IDs must remain independent of generated topology ordering.
-- TechDraw/Draft provide native 2D drawing/export infrastructure and should be preferred for production output where practical.
-- Tissu and PositionBasedDynamics remain optional backend candidates. The deterministic CPU backend remains the reference until an actual benchmark proves an external backend is worth its dependency/ABI cost.
+Prove avatar topology, scale/orientation, arrangement and collision targeting are sane enough that the canonical garment is visibly worn rather than merely simulated.
+
+**Exit:** canonical FreeCAD/Xvfb evidence shows a sane target and a convincing multi-piece drape; structural assertions reject edge-on/detached outcomes where feasible.
+
+### M1 — Release vertical slice
+**Tasks #473 + #474**
+
+Lock one public-workbench scenario covering native Pattern → Sewing → Arrange → Simulation → Save/Reload → Upstream invalidation → deterministic re-simulation.
+
+Simulation quality/material controls become lifecycle controls, not passive properties: quality changes alter mesh/solver configuration, material/collision values invalidate appropriate derived state, and stale/ready reasons are visible.
+
+**Exit:** a clean run completes the full vertical slice without private helper APIs.
+
+### M2 — Production parity foundations
+**Tasks #475 + #476**
+
+Bring sewing correspondence and diagnostics to a robust semantic baseline, with explicit ranges, orientation/reversal, curved arc-length mapping, mismatch diagnostics and staged commit/cancel behavior.
+
+Complete a production-oriented 2D export contract using authoritative Pattern/Sewing data and native FreeCAD output paths where practical. Preserve units, scale, piece identity, seam allowance, notches, grainlines, internal marks and sewing metadata.
+
+**Exit:** canonical garment sewing and export are machine-checkable and survive save/reload/invalidation.
+
+### M3 — Fit/analysis layer
+**Task #477**
+
+Add result-consuming stress/strain/fit/contact-style diagnostics as a read-only layer over the existing solver output. No second solver and no second scene graph.
+
+**Exit:** at least two deterministic analysis quantities have numerical regression coverage and a useful GUI presentation on the canonical drape.
+
+### M4 — Evidence-led scale/performance
+**Task #478**
+
+Use the existing benchmark artifact to derive at least three measured improvements, prioritizing thin test coverage and disproportionate command surfaces before speculative micro-optimization.
+
+**Exit:** every adopted performance/UX improvement has before/after measurements and a clear regression boundary.
+
+## Parallel work policy
+
+Agents may work in parallel on M1/M2 once M0's visual-truth contract is stable enough for their fixture inputs, but no task may invent a competing canonical garment scenario. The same canonical fixture, target-neutral DrapeTarget contract, and canonical CI workflow remain authoritative.
+
+## Deferred
+
+Keep production avatar fidelity (#374), advanced manufacturing/diagnostics (#362), and optional native solver evaluation (#148/#404) behind the M0–M3 gates. Do not make an external solver, second project database, second drafting engine, or second scene graph a release dependency.
 
 ## Architecture invariants
 
-1. **Pattern model is authoritative.** FreeCAD document objects persist semantic IDs, parameters and marks.
-2. **Sketcher/Part/MeshPart are adapters.** Never make generated edge/face indices the semantic source of truth.
-3. **Sewing is semantic assembly.** Ranges, reversal, correspondence, construction kind and stitch groups persist independently of simulation topology.
-4. **Simulation topology is disposable.** Any change to pattern/seam/quality/material/collision inputs invalidates derived simulation state.
-5. **Simulation backend is replaceable.** The deterministic CPU implementation is the reference contract; optional native solvers sit behind the same adapter.
-6. **FreeCAD is the project container.** Do not introduce a mandatory second project database.
-
-## Native workbench contracts
-
-### Cloth Pattern — 2D authoring
-
-**Must ship:**
-- Create/Edit Pattern Piece
-- point/edge selection and editing
-- line, arc and curved-boundary authoring
-- dimensional/geometric constraints or a Sketcher-backed equivalent
-- seam allowance with robust offset behavior
-- notches, grainline and internal/construction marks
-- mirror/symmetry and transform/duplicate
-- validation/measurement diagnostics
-- simulation-resolution hint
-- stable semantic IDs across recompute/save/reload
-
-**UI:** Pattern toolbar + context menu + task panel + native property editor + 2D Sketcher adapter. Mark tools are context-sensitive. Numeric dimensions belong in properties/constraints rather than modal script dialogs.
-
-### Cloth Sewing — semantic assembly
-
-**Must ship:**
-- Segment Sewing
-- Free Sewing
-- 1:N/M:N Sewing
-- range editing
-- sewing direction/reversal
-- arc-length correspondence
-- mismatch diagnostics
-- stitch groups/construction kind
-- validate/delete/edit/show relationships
-- fitting-scene creation and arrangement controls
-- simulation-scene creation
-
-**UI:** a selection-driven task panel with 2D/3D relationship feedback. Invalid selections must be visibly rejected. Editing a sewing relationship must update every consumer through the canonical semantic object.
-
-### Cloth Simulation — 3D fitting/draping
-
-**Must ship:**
-- generate/refresh simulation mesh
-- Fast/Balanced/Final quality presets
-- particle distance
-- fabric density/thickness/stretch/shear/bend/friction
-- solver iterations/substeps
-- collision thickness and avatar skin offset
-- avatar/collision selection
-- arrangement placement/reset
-- pin selection
-- Simulate/Step/Pause/Reset
-- seam/stitch visualization
-- simulation status, diagnostics and reproducibility information
-- saved fitting/simulation scene
-
-**UI:** a native task panel and property editor that expose the lifecycle without scripting. Quality/material changes must visibly invalidate the derived result and trigger deterministic regeneration.
-
-## Revised milestones and gates
-
-### P0-A — Native end-to-end workflow gate
-
-**Issues #143 + #155 / PR #160**
-
-Prove one canonical four-piece garment entirely through public FreeCAD workbench commands and task panels. It must include a curved contour, real sewing relationships, simulation, save/reload, upstream edit, downstream invalidation and repeatable re-simulation.
-
-**Exit:** the GUI scenario passes on a real FreeCAD runtime under Xvfb and leaves diagnostics on failure.
-
-### P0-B — Simulation behavior gate
-
-**Issues #145 + #159 + #161**
-
-Turn the existing simulation-quality/fabric contract into native behavior. Fast/Balanced/Final must change particle density and solver settings; fabric/collision values must affect the backend; all changes must invalidate caches; values must survive save/reload.
-
-**Exit:** a GUI test demonstrates quality switch -> different particle count/solver configuration -> simulation -> save/reload -> identical repeatable result.
-
-### P0-C — Release UX and persistence audit
-
-After P0-A/P0-B, audit all three workbenches as a user would: toolbar/menu registration, selection state, task-panel lifecycle, undo/recompute behavior, save/reload, errors and cancellation. Remove any path that requires internal helper imports or scripting.
-
-**Exit:** the canonical tutorial can be executed by clicking the workbench UI alone.
-
-### P1-A — Pattern authoring parity audit
-
-**Issue #162**
-
-Audit and then implement only the concrete authoring blockers: curved edges, real constraints, robust seam allowance/offsets, marks, symmetry, diagnostics and semantic preservation. Reuse Sketcher/Part/OCCT.
-
-**Exit:** a non-rectangular curved garment piece can be authored and edited natively and still drives sewing/simulation correctly.
-
-### P1-B — Production 2D export contract
-
-**Issues #147 + #163**
-
-Complete DXF/SVG/TechDraw-oriented export and validate units/scale, piece identity, seam allowance, notches, grainlines, internal marks and sewing metadata. Export is never authoritative over the FreeCAD model.
-
-**Exit:** canonical garment export passes machine-checkable geometry/metadata regression tests.
-
-### P1-C — Packaging, examples and documentation
-
-Provide an example garment, installation instructions, click-by-click workflow, supported FreeCAD/Python matrix, troubleshooting and screenshots generated by CI. Verify icons, workbench registration and clean installation from the packaged repository.
-
-**Exit:** a fresh FreeCAD installation can open the example and reproduce the complete workflow without developer-only setup.
-
-### P2 — Optional native solver benchmark
-
-**Issue #148**
-
-Benchmark Tissu/PositionBasedDynamics-style backends only after P0/P1 release gates are stable. Compare speed, stability, collision quality, determinism, dependency burden and ABI compatibility. Do not replace the reference backend on speculation.
-
-**Exit:** evidence-based decision: keep CPU reference or add an optional backend behind the existing adapter.
-
-## Explicitly deferred from the first release
-
-- photorealistic fabric rendering
-- topstitch/puckering as simulation-critical behavior
-- buttons/buttonholes/trims as simulation-critical objects
-- full avatar soft-body/animation simulation
-- automated grading/nesting
-- cloud collaboration/marketplace services
-- mandatory external solver dependencies
-
-These are post-release enhancements unless the end-to-end audit unexpectedly makes one a hard correctness dependency.
+1. Pattern model is authoritative.
+2. Sketcher/Part/MeshPart are adapters; generated edge/face ordering is not semantic identity.
+3. Sewing is semantic assembly independent of simulation topology.
+4. Simulation topology and numerical state are derived/rebuildable.
+5. Solver backends sit behind one stable adapter; deterministic CPU remains the reference.
+6. FreeCAD remains the project container.
+7. There is one canonical GitHub Actions workflow.
 
 ## Verification policy
 
-Every implementation task requires:
+Every implementation task requires the appropriate combination of headless model tests, real FreeCAD runtime coverage, GUI/Xvfb coverage, save/reload persistence checks and deterministic simulation evidence. PRs must be inspected, CI must become terminal-green, and merged-main behavior must be verified before dependent work proceeds.
 
-1. headless model/unit tests;
-2. real FreeCAD runtime smoke coverage;
-3. GUI/Xvfb coverage for UI changes;
-4. save/reload coverage for persistent properties;
-5. deterministic simulation evidence for solver changes;
-6. supervisor review of the PR diff and issue state;
-7. a terminal green CI run before merge;
-8. merged-main verification after merge.
+## Existing research basis
 
-There is one canonical GitHub Actions workflow. Never create a second workflow to bypass a failing gate. If CI fails, diagnose, repair, rerun and wait for terminal results before progressing dependent work.
+The earlier roadmap and `docs/RESEARCH.md` remain the detailed architecture reference. Current CLO sources consulted for this replan include the public Free Sewing, 1:N/M:N Sewing, Particle Distance, Property Editor, Avatar/Arrangement and Garment Fit Maps documentation.
 
-## Research sources
+## Research references
 
 - CLO Help Center: https://support.clo3d.com/
 - Marvelous Designer Manual: https://support.marvelousdesigner.com/hc/en-us/categories/51985515993625-Manual
