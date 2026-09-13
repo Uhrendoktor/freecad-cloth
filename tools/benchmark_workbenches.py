@@ -8,7 +8,9 @@ import json
 import os
 import pathlib
 import statistics
+import sys
 import time
+import traceback
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 WORKBENCHES = {
@@ -30,12 +32,20 @@ TEST_HINTS = {
 
 def trace(message: str) -> None:
     try:
-        path = pathlib.Path("/tmp/cloth-benchmark-trace.log")
-        with path.open("a", encoding="utf-8") as handle:
-            handle.write(message + "\n")
+        pathlib.Path("/tmp/cloth-benchmark-trace.log").open("a", encoding="utf-8").write(message + "\n")
     except OSError:
         pass
     print(message, flush=True)
+
+
+def fail(context: str, exc: BaseException) -> None:
+    detail = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    trace(f"benchmark: FAILURE: {context}: {exc!r}")
+    try:
+        pathlib.Path("/tmp/cloth-benchmark-traceback.log").write_text(detail, encoding="utf-8")
+    except OSError:
+        pass
+    raise SystemExit(1)
 
 
 def source_lines(path: pathlib.Path) -> int:
@@ -65,7 +75,10 @@ def median_ms(samples: list[float]) -> float:
 def runtime_metrics(name: str, repeats: int) -> dict:
     module_name, class_name = WORKBENCHES[name]
     trace(f"benchmark: {name}: importing and constructing")
-    module = importlib.import_module(module_name)
+    try:
+        module = importlib.import_module(module_name)
+    except BaseException as exc:
+        fail(f"{name} import", exc)
     trace(f"benchmark: {name}: module imported")
     lookup_samples = []
     construct_samples = []
@@ -75,12 +88,18 @@ def runtime_metrics(name: str, repeats: int) -> dict:
         getattr(module, class_name)
         lookup_samples.append(time.perf_counter() - t0)
         t0 = time.perf_counter()
-        wb_cls()
+        try:
+            wb_cls()
+        except BaseException as exc:
+            fail(f"{name} construction", exc)
         construct_samples.append(time.perf_counter() - t0)
     trace(f"benchmark: {name}: initializing")
-    wb = wb_cls()
-    t0 = time.perf_counter()
-    wb.Initialize()
+    try:
+        wb = wb_cls()
+        t0 = time.perf_counter()
+        wb.Initialize()
+    except BaseException as exc:
+        fail(f"{name} initialization", exc)
     initialize_ms = median_ms([time.perf_counter() - t0])
     trace(f"benchmark: {name}: initialized ({initialize_ms} ms)")
     return {
@@ -129,13 +148,16 @@ def main() -> None:
     trace("benchmark: arguments parsed")
 
     trace("benchmark: FreeCAD import starting")
-    import FreeCAD
+    try:
+        import FreeCAD
+    except BaseException as exc:
+        fail("FreeCAD import", exc)
     trace("benchmark: FreeCAD import complete")
 
     names = [args.workbench] if args.workbench else list(WORKBENCHES)
     result = {
         "schema": 2,
-        "python": __import__("sys").version.split()[0],
+        "python": sys.version.split()[0],
         "freecad_version": getattr(FreeCAD, "Version", lambda: ())(),
         "repeats": args.repeats,
         "workbenches": {},
