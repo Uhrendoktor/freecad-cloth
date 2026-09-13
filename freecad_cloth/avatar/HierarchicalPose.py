@@ -89,6 +89,34 @@ def _weighted_center(vertices, weights, threshold=0.0):
     return (x / total, y / total, z / total)
 
 
+def _weighted_distal_direction(vertices, weights, pivot, min_distance=1.0):
+    """Find a distal hand axis while down-weighting wrist/base vertices.
+
+    MakeHuman finger weights contain substantial mass on vertices close to the
+    wrist. A plain weighted centroid therefore does not describe the direction
+    of the actual fingers. Weight by squared distance from the wrist so distal
+    finger vertices dominate the recovered hand axis.
+    """
+    total = 0.0
+    dx = dz = 0.0
+    for vertex, weight in zip(vertices, weights):
+        weight = max(0.0, float(weight))
+        if weight <= 1e-6:
+            continue
+        vx = vertex[0] - pivot[0]
+        vz = vertex[2] - pivot[1]
+        distance_sq = vx * vx + vz * vz
+        if distance_sq < min_distance * min_distance:
+            continue
+        influence = weight * distance_sq
+        dx += vx * influence
+        dz += vz * influence
+        total += influence
+    if total <= 1e-12:
+        return None
+    return (dx / total, dz / total)
+
+
 def _map_weight_groups_to_geometry(vertices, groups):
     """Map all MakeHuman .L/.R groups to the actual physical X sides."""
     mapped = dict(groups)
@@ -136,19 +164,22 @@ def _shortest_angle(target, current):
 
 
 def _straighten_hands(vertices, posed, weights):
-    """Align the authored hand direction with the posed forearm at the wrist."""
+    """Align the authored finger direction with the posed forearm at the wrist."""
     result = list(posed)
     for side in (-1.0, 1.0):
         suffix = "l" if side < 0 else "r"
         wrist = _weighted_center(result, weights[f"wrist_{suffix}"], threshold=0.20)
-        hand = _weighted_center(result, weights[f"hand_{suffix}"], threshold=0.20)
         lowerarm = _weighted_center(result, weights[f"lowerarm_{suffix}"], threshold=0.20)
-        if wrist is None or hand is None or lowerarm is None:
+        if wrist is None or lowerarm is None:
             continue
         forearm_dx = wrist[0] - lowerarm[0]
         forearm_dz = wrist[2] - lowerarm[2]
-        hand_dx = hand[0] - wrist[0]
-        hand_dz = hand[2] - wrist[2]
+        hand_direction = _weighted_distal_direction(
+            result, weights[f"hand_{suffix}"], (wrist[0], wrist[2]), min_distance=4.0
+        )
+        if hand_direction is None:
+            continue
+        hand_dx, hand_dz = hand_direction
         if (forearm_dx * forearm_dx + forearm_dz * forearm_dz) < 1e-8:
             continue
         if (hand_dx * hand_dx + hand_dz * hand_dz) < 1e-8:
@@ -160,11 +191,12 @@ def _straighten_hands(vertices, posed, weights):
         correction = max(-math.radians(150.0), min(math.radians(150.0), correction))
         if abs(correction) <= math.radians(0.5):
             continue
+        pivot = (wrist[0], wrist[2])
         for index, point in enumerate(result):
             influence = max(0.0, min(1.0, float(weights[f"hand_{suffix}"][index])))
             if influence <= 1e-6:
                 continue
-            rotated = _rotate_xz(point, (wrist[0], wrist[2]), correction)
+            rotated = _rotate_xz(point, pivot, correction)
             result[index] = tuple(point[i] * (1.0 - influence) + rotated[i] * influence for i in range(3))
     return result
 
