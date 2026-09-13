@@ -25,31 +25,9 @@ env:
   XDG_RUNTIME_DIR: /tmp/runtime-cloth
 
 jobs:
-  runner_selection:
-    name: Select available runner
-    runs-on: ubuntu-latest
-    outputs:
-      runner: ${{ steps.select.outputs.runner }}
-    steps:
-      - name: Prefer an online idle local runner, otherwise GitHub-hosted
-        id: select
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          labels="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/runners?per_page=100" --jq '.runners[] | select(.status == "online" and .busy == false) | [.labels[].name] | @json')"
-          if printf '%s\n' "$labels" | jq -e 'select(index("self-hosted") != null and index("linux") != null and index("x64") != null and index("docker") != null)' >/dev/null; then
-            echo 'runner=["self-hosted","linux","x64","docker"]' >> "$GITHUB_OUTPUT"
-            echo "Using an online idle local Docker runner."
-          else
-            echo 'runner=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
-            echo "No online idle local Docker runner found; using GitHub-hosted ubuntu-latest."
-          fi
-
   python:
     name: Python and FreeCAD non-GUI tests
-    needs: runner_selection
-    runs-on: ${{ fromJSON(needs.runner_selection.outputs.runner) }}
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
@@ -78,8 +56,7 @@ jobs:
 
   gui-screenshot:
     name: FreeCAD GUI screenshots
-    needs: runner_selection
-    runs-on: ${{ fromJSON(needs.runner_selection.outputs.runner) }}
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
@@ -140,9 +117,9 @@ jobs:
 
   publish-merged-pr-screenshots:
     name: Publish merged PR GUI screenshots
-    needs: [runner_selection, gui-screenshot]
+    needs: gui-screenshot
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    runs-on: ${{ fromJSON(needs.runner_selection.outputs.runner) }}
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Locate merged PR for main commit
