@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Measure the three public Cloth workbench boundaries.
 
-The benchmark deliberately mixes runtime measurements with repository-derived
-counts. Runtime numbers are collected inside the canonical FreeCAD CI image;
+Runtime measurements are collected inside the canonical FreeCAD CI image;
 static counts make the result explainable and reproducible from the checkout.
 """
 from __future__ import annotations
@@ -15,7 +14,6 @@ import statistics
 import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-
 WORKBENCHES = {
     "Pattern": ("freecad_cloth.pattern.workbench", "ClothPatternWorkbench"),
     "Sewing": ("freecad_cloth.sewing.workbench", "ClothSewingWorkbench"),
@@ -43,22 +41,13 @@ def source_lines(path: pathlib.Path) -> int:
 def static_metrics(name: str) -> dict:
     directory = PACKAGE_DIRS[name]
     py_files = sorted(directory.glob("*.py"))
-    loc = sum(source_lines(p) for p in py_files)
-    tests = []
-    for p in (ROOT / "tests").glob("test_*.py"):
-        stem = p.stem.lower()
-        if any(hint in stem for hint in TEST_HINTS[name]):
-            tests.append(p.name)
-    command_tokens = 0
-    for p in py_files:
-        text = p.read_text(encoding="utf-8")
-        command_tokens += text.count('"Cloth')
+    tests = [p.name for p in (ROOT / "tests").glob("test_*.py") if any(h in p.stem.lower() for h in TEST_HINTS[name])]
     return {
         "python_files": len(py_files),
-        "nonblank_loc": loc,
+        "nonblank_loc": sum(source_lines(p) for p in py_files),
         "related_test_files": len(set(tests)),
         "related_tests": sorted(set(tests)),
-        "cloth_command_tokens": command_tokens,
+        "cloth_command_tokens": sum(p.read_text(encoding="utf-8").count('"Cloth') for p in py_files),
     }
 
 
@@ -68,62 +57,34 @@ def median_ms(samples: list[float]) -> float:
 
 def runtime_metrics(name: str, repeats: int) -> dict:
     module_name, class_name = WORKBENCHES[name]
-    import_times = []
-    construct_times = []
-    init_times = []
-    command_counts = []
+    # Workbench Initialize() registers toolbars/menus globally. Repeating it on
+    # fresh objects in one GUI process creates duplicate UI state, so measure
+    # construction repeatedly but initialize exactly once per fresh workbench.
+    module = importlib.import_module(module_name)
+    lookup_samples = []
+    construct_samples = []
+    wb_cls = getattr(module, class_name)
     for _ in range(repeats):
-        module = importlib.import_module(module_name)
         t0 = time.perf_counter()
-        wb_cls = getattr(module, class_name)
-        import_times.append(time.perf_counter() - t0)
+        getattr(module, class_name)
+        lookup_samples.append(time.perf_counter() - t0)
         t0 = time.perf_counter()
         wb = wb_cls()
-        construct_times.append(time.perf_counter() - t0)
-        t0 = time.perf_counter()
-        wb.Initialize()
-        init_times.append(time.perf_counter() - t0)
-        command_counts.append(len(getattr(wb, "commands", ())))
+        construct_samples.append(time.perf_counter() - t0)
+    wb = wb_cls()
+    t0 = time.perf_counter()
+    wb.Initialize()
+    initialize_ms = median_ms([time.perf_counter() - t0])
     return {
-        "class_lookup_ms": median_ms(import_times),
-        "construct_ms": median_ms(construct_times),
-        "initialize_ms": median_ms(init_times),
-        "registered_commands": max(command_counts),
+        "class_lookup_ms": median_ms(lookup_samples),
+        "construct_ms": median_ms(construct_samples),
+        "initialize_ms": initialize_ms,
+        "initialize_samples": 1,
+        "registered_commands": len(getattr(wb, "commands", ())),
     }
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--output", default="artifacts/workbench-benchmark/benchmark.json")
-    parser.add_argument("--repeats", type=int, default=7)
-    args = parser.parse_args()
-    if args.repeats < 3:
-        raise SystemExit("--repeats must be >= 3")
-
-    # Import FreeCAD explicitly so the benchmark cannot silently run outside the
-    # intended FreeCAD environment.
-    import FreeCAD
-
-    result = {
-        "schema": 1,
-        "python": __import__("sys").version.split()[0],
-        "freecad_version": getattr(FreeCAD, "Version", lambda: ())(),
-        "repeats": args.repeats,
-        "workbenches": {},
-    }
-    for name in WORKBENCHES:
-        result["workbenches"][name] = {
-            **static_metrics(name),
-            **runtime_metrics(name, args.repeats),
-        }
-
-    out = ROOT / args.output
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(json.dumps(result, indent=2, sort_keys=True))
-
-    # AppRun launches a full GUI process for this benchmark. Close it explicitly
-    # so CI does not remain in the Qt event loop after the measurements finish.
+def close_gui():
     try:
         import FreeCADGui as Gui
         from PySide import QtWidgets
@@ -139,6 +100,33 @@ def main() -> None:
     app = QtWidgets.QApplication.instance()
     if app is not None:
         app.quit()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output", default="artifacts/workbench-benchmark/benchmark.json")
+    parser.add_argument("--repeats", type=int, default=7)
+    args = parser.parse_args()
+    if args.repeats < 3:
+        raise SystemExit("--repeats must be >= 3")
+
+    import FreeCAD
+
+    result = {
+        "schema": 2,
+        "python": __import__("sys").version.split()[0],
+        "freecad_version": getattr(FreeCAD, "Version", lambda: ())(),
+        "repeats": args.repeats,
+        "workbenches": {},
+    }
+    for name in WORKBENCHES:
+        result["workbenches"][name] = {**static_metrics(name), **runtime_metrics(name, args.repeats)}
+
+    out = ROOT / args.output
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(json.dumps(result, indent=2, sort_keys=True))
+    close_gui()
 
 
 if __name__ == "__main__":
