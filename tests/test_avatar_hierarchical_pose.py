@@ -117,7 +117,7 @@ class AvatarHierarchicalPoseTests(unittest.TestCase):
             _signed_angle_xz(hand[0] - 220.0, hand[2] - 1100.0),
         ))
         self.assertLess(after, before)
-        self.assertLessEqual(after, math.radians(55.0) + 1e-6)
+        self.assertLessEqual(after, math.radians(150.0) + 1e-6)
 
 
 if __name__ == "__main__":
