@@ -1,4 +1,5 @@
 """FreeCAD commands for selecting and editing a persistent draping/collision target."""
+from freecad_cloth.common.CommandAdapter import icon_for_command
 
 
 def _selected_source():
@@ -9,19 +10,14 @@ def _selected_source():
     raise ValueError("select a FreeCAD shape or mesh as the drape target")
 
 
-def _target(doc):
-    return doc.getObject("DrapeTarget")
-
+def _target(doc): return doc.getObject("DrapeTarget")
 
 def _is_simulation_scene(obj):
-    return (getattr(obj, "Name", "") == "ClothSimulation"
-            or getattr(getattr(obj, "Proxy", None), "Type", "") == "ClothSimulation")
-
+    return getattr(obj, "Name", "") == "ClothSimulation" or getattr(getattr(obj, "Proxy", None), "Type", "") == "ClothSimulation"
 
 def _attach_to_simulation(doc, source, target):
     from freecad_cloth.simulation.SimulationObjects import set_avatar_collision_source
-    scenes = [o for o in doc.Objects if _is_simulation_scene(o)]
-    for scene in scenes:
+    for scene in [o for o in doc.Objects if _is_simulation_scene(o)]:
         proxy = set_avatar_collision_source(scene, source, float(target.CollisionThickness), float(target.CollisionDeflection))
         scene.AvatarProxy = proxy
         scene.DrapeTarget = target
@@ -37,12 +33,8 @@ def create_drape_target_from_selection(deflection=1.0, thickness=2.0):
     if target is None:
         target = create_drape_target(doc, source, "FreeCAD Geometry", deflection, thickness)
     else:
-        target.CollisionDeflection = float(deflection)
-        target.CollisionThickness = float(thickness)
-        assign_drape_target(target, source, "FreeCAD Geometry")
-    _attach_to_simulation(doc, source, target)
-    doc.recompute()
-    return target
+        target.CollisionDeflection = float(deflection); target.CollisionThickness = float(thickness); assign_drape_target(target, source, "FreeCAD Geometry")
+    _attach_to_simulation(doc, source, target); doc.recompute(); return target
 
 
 def create_mannequin_drape_target():
@@ -52,14 +44,9 @@ def create_mannequin_drape_target():
     doc = App.ActiveDocument or App.newDocument("ClothDrape")
     mannequin = doc.getObject("ClothAvatar") or create_avatar()
     target = _target(doc)
-    if target is None:
-        target = create_drape_target(doc, mannequin, "Mannequin", 1.0, 2.0)
-    else:
-        assign_drape_target(target, mannequin, "Mannequin")
-    target.Label = "Drape Target (Mannequin)"
-    _attach_to_simulation(doc, mannequin, target)
-    doc.recompute()
-    return target
+    if target is None: target = create_drape_target(doc, mannequin, "Mannequin", 1.0, 2.0)
+    else: assign_drape_target(target, mannequin, "Mannequin")
+    target.Label = "Drape Target (Mannequin)"; _attach_to_simulation(doc, mannequin, target); doc.recompute(); return target
 
 
 def edit_drape_target():
@@ -67,11 +54,9 @@ def edit_drape_target():
     import FreeCAD as App
     from freecad_cloth.simulation.DrapeGui import show_drape_target_task
     doc = App.ActiveDocument
-    if doc is None:
-        raise ValueError("create a document before editing the drape target")
+    if doc is None: raise ValueError("create a document before editing the drape target")
     target = _target(doc)
-    if target is None:
-        raise ValueError("create a drape target first")
+    if target is None: raise ValueError("create a drape target first")
     return show_drape_target_task(target)
 
 
@@ -80,22 +65,15 @@ def refresh_drape_target():
     import FreeCAD as App
     from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
     doc = App.ActiveDocument
-    if doc is None or _target(doc) is None:
-        raise ValueError("create a drape target first")
-    target = refresh_drape_target(_target(doc))
-    doc.recompute()
-    return target
+    if doc is None or _target(doc) is None: raise ValueError("create a drape target first")
+    target = refresh_drape_target(_target(doc)); doc.recompute(); return target
 
 
 def set_drape_target_enabled(enabled=True):
     import FreeCAD as App
     doc = App.ActiveDocument
-    if doc is None or _target(doc) is None:
-        raise ValueError("create a drape target first")
-    target = _target(doc)
-    target.Enabled = bool(enabled)
-    doc.recompute()
-    return target
+    if doc is None or _target(doc) is None: raise ValueError("create a drape target first")
+    target = _target(doc); target.Enabled = bool(enabled); doc.recompute(); return target
 
 
 def show_diagnostics():
@@ -103,8 +81,7 @@ def show_diagnostics():
     import FreeCAD as App
     from freecad_cloth.common.ClothDiagnosticsGui import show_diagnostics as show_panel
     doc = App.ActiveDocument
-    if doc is None:
-        raise ValueError("create a simulation before opening diagnostics")
+    if doc is None: raise ValueError("create a simulation before opening diagnostics")
     return show_panel()
 
 
@@ -112,71 +89,31 @@ def _has_document():
     try:
         import FreeCAD as App
         return App.ActiveDocument is not None
-    except ImportError:
-        return False
+    except ImportError: return False
 
 
 def _has_source_selection():
-    try:
-        _selected_source()
-        return True
-    except (ImportError, ValueError):
-        return False
+    try: _selected_source(); return True
+    except (ImportError, ValueError): return False
 
 
-COMMANDS = [
-    "ClothDrape_CreateTarget",
-    "ClothDrape_CreateMannequinTarget",
-    "ClothDrape_EditTarget",
-    "ClothDrape_RefreshTarget",
-    "ClothDrape_EnableTarget",
-    "ClothDrape_DisableTarget",
-    "ClothDrape_Diagnostics",
-]
-_HANDLERS = {
-    "ClothDrape_CreateTarget": create_drape_target_from_selection,
-    "ClothDrape_CreateMannequinTarget": create_mannequin_drape_target,
-    "ClothDrape_EditTarget": edit_drape_target,
-    "ClothDrape_RefreshTarget": refresh_drape_target,
-    "ClothDrape_EnableTarget": lambda: set_drape_target_enabled(True),
-    "ClothDrape_DisableTarget": lambda: set_drape_target_enabled(False),
-    "ClothDrape_Diagnostics": show_diagnostics,
-}
-_TOOLTIPS = {
-    "ClothDrape_CreateTarget": "Use the selected FreeCAD shape or mesh as the persistent drape target",
-    "ClothDrape_CreateMannequinTarget": "Create or select the Cloth mannequin as the drape target",
-    "ClothDrape_EditTarget": "Edit the persistent drape target and collision quality settings",
-    "ClothDrape_RefreshTarget": "Rebuild collision geometry from the current drape target source",
-    "ClothDrape_EnableTarget": "Enable the persistent drape target",
-    "ClothDrape_DisableTarget": "Disable the persistent drape target without clearing its source",
-    "ClothDrape_Diagnostics": "Analyze simulated cloth with stress, strain, fit, and pressure maps",
-}
+COMMANDS = ["ClothDrape_CreateTarget", "ClothDrape_CreateMannequinTarget", "ClothDrape_EditTarget", "ClothDrape_RefreshTarget", "ClothDrape_EnableTarget", "ClothDrape_DisableTarget", "ClothDrape_Diagnostics"]
+_HANDLERS = {"ClothDrape_CreateTarget": create_drape_target_from_selection, "ClothDrape_CreateMannequinTarget": create_mannequin_drape_target, "ClothDrape_EditTarget": edit_drape_target, "ClothDrape_RefreshTarget": refresh_drape_target, "ClothDrape_EnableTarget": lambda: set_drape_target_enabled(True), "ClothDrape_DisableTarget": lambda: set_drape_target_enabled(False), "ClothDrape_Diagnostics": show_diagnostics}
+_TOOLTIPS = {"ClothDrape_CreateTarget": "Use the selected FreeCAD shape or mesh as the persistent drape target", "ClothDrape_CreateMannequinTarget": "Create or select the Cloth mannequin as the drape target", "ClothDrape_EditTarget": "Edit the persistent drape target and collision quality settings", "ClothDrape_RefreshTarget": "Rebuild collision geometry from the current drape target source", "ClothDrape_EnableTarget": "Enable the persistent drape target", "ClothDrape_DisableTarget": "Disable the persistent drape target without clearing its source", "ClothDrape_Diagnostics": "Analyze simulated cloth with stress, strain, fit, and pressure maps"}
 
 
 class _DrapeCommand:
-    def __init__(self, function, active, tooltip):
-        self.function, self.active, self.tooltip = function, active, tooltip
-
-    def Activated(self):
-        return self.function()
-
-    def IsActive(self):
-        return bool(self.active())
-
+    def __init__(self, name, function, active, tooltip): self.name, self.function, self.active, self.tooltip = name, function, active, tooltip
+    def Activated(self): return self.function()
+    def IsActive(self): return bool(self.active())
     def GetResources(self):
-        labels = {
-            "edit_drape_target": "Edit Drape Target",
-            "refresh_drape_target": "Refresh Drape Target",
-            "show_diagnostics": "Cloth Diagnostics",
-        }
-        label = labels.get(self.function.__name__, self.function.__name__.replace("_", " ").title())
-        return {"MenuText": label, "ToolTip": self.tooltip}
+        labels = {"ClothDrape_EditTarget": "Edit Drape Target", "ClothDrape_RefreshTarget": "Refresh Drape Target", "ClothDrape_Diagnostics": "Cloth Diagnostics"}
+        return {"MenuText": labels.get(self.name, self.name.replace("ClothDrape_", "").replace("_", " ").title()), "ToolTip": self.tooltip, "Pixmap": icon_for_command(self.name)}
 
 
 try:
     import FreeCADGui as Gui
     for name, function in _HANDLERS.items():
         active = _has_source_selection if name == "ClothDrape_CreateTarget" else _has_document
-        Gui.addCommand(name, _DrapeCommand(function, active, _TOOLTIPS[name]))
-except (ImportError, AttributeError):
-    pass
+        Gui.addCommand(name, _DrapeCommand(name, function, active, _TOOLTIPS[name]))
+except (ImportError, AttributeError): pass
