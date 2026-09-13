@@ -196,7 +196,9 @@ def _straighten_hands(vertices, posed, weights):
             influence = max(0.0, min(1.0, float(weights[f"hand_{suffix}"][index])))
             if influence <= 1e-6:
                 continue
-            rotated = _rotate_xz(point, pivot, correction)
+            # _rotate_xz uses a clockwise-positive convention in the XZ plane,
+            # while correction is computed as target_angle - current_angle.
+            rotated = _rotate_xz(point, pivot, -correction)
             result[index] = tuple(point[i] * (1.0 - influence) + rotated[i] * influence for i in range(3))
     return result
 
