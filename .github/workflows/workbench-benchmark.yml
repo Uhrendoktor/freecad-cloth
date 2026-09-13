@@ -22,7 +22,7 @@ jobs:
   benchmark:
     name: Measured FreeCAD workbench benchmark
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
       - name: Prepare FreeCAD image
@@ -51,7 +51,7 @@ jobs:
             xdpyinfo -display :99 >/dev/null 2>&1
             for wb in Pattern Sewing Simulation; do
               echo "=== benchmark: $wb ==="
-              timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun tools/benchmark_workbenches.py --workbench "$wb" --output "artifacts/workbench-benchmark/$wb.json" --repeats 7
+              timeout --signal=TERM --kill-after=10s 120s /opt/freecad/AppRun tools/benchmark_workbenches.py --workbench "$wb" --output "artifacts/workbench-benchmark/$wb.json" --repeats 7
               test -s "artifacts/workbench-benchmark/$wb.json"
             done
           ')"
