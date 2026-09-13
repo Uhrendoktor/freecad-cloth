@@ -1,10 +1,25 @@
 import unittest
 
+from freecad_cloth.avatar import _weighted_medial_root
 from freecad_cloth.avatar.AvatarModel import AvatarParameters
 from freecad_cloth.avatar.HumanoidMesh import _estimate_shoulder_pivots
 
 
 class AvatarShoulderPoseTests(unittest.TestCase):
+    def test_weighted_medial_root_tracks_proximal_upper_arm(self):
+        shoulder_half = 220.0
+        samples = [
+            (148.0, 1335.0, 0.95),
+            (154.0, 1340.0, 0.90),
+            (176.0, 1342.0, 0.70),
+            (210.0, 1320.0, 0.55),
+            (280.0, 1280.0, 0.90),
+        ]
+        root = _weighted_medial_root(samples, shoulder_half)
+        self.assertIsNotNone(root)
+        self.assertGreater(root, shoulder_half * 0.55)
+        self.assertLess(root, shoulder_half * 0.80)
+
     def test_shoulder_pivot_follows_medial_arm_root_not_measurement_width(self):
         height = 1750.0
         shoulder_half = 220.0
