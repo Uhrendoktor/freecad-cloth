@@ -18,12 +18,13 @@ __all__ = [
 ]
 
 from . import AvatarModel as _AvatarModel
+from .HierarchicalPose import generate_hierarchical_mesh as _generate_hierarchical_mesh
 from .MeshSanity import compact_mesh as _compact_mesh
 
 _original_generate_mesh = _AvatarModel.generate_mesh
 if not getattr(_original_generate_mesh, "_cloth_avatar_mesh_sane", False):
     def _generate_mesh_sane(params):
-        vertices, triangles, landmarks = _original_generate_mesh(params)
+        vertices, triangles, landmarks = _generate_hierarchical_mesh(params)
         vertices, triangles = _compact_mesh(vertices, triangles)
         return vertices, triangles, landmarks
 

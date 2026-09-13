@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import lru_cache
 import hashlib
+import json
 import math
 import os
 from pathlib import Path
@@ -22,10 +23,18 @@ MAKEHUMAN_BASE_URL = (
     + "/makehuman/data/3dobjs/base.obj"
 )
 MAKEHUMAN_BASE_SHA256 = "8e761e6624b8f54536409135d1636da63b32486a90d4897f84e121d144f6fb4c"
+MAKEHUMAN_WEIGHTS_URL = (
+    "https://raw.githubusercontent.com/makehumancommunity/makehuman/"
+    + MAKEHUMAN_COMMIT
+    + "/makehuman/data/rigs/default_weights.mhw"
+)
+MAKEHUMAN_WEIGHTS_SIZE = 897521
 MAKEHUMAN_BODY_VERTEX_COUNT = 13380
 CACHE_ENV = "FREECAD_CLOTH_AVATAR_MESH"
 CACHE_DIR_ENV = "FREECAD_CLOTH_AVATAR_CACHE"
+WEIGHTS_ENV = "FREECAD_CLOTH_AVATAR_WEIGHTS"
 DEFAULT_CACHE_NAME = "makehuman-hm08-base.obj"
+DEFAULT_WEIGHTS_NAME = "makehuman-default-weights.mhw"
 
 
 class HumanoidMeshError(RuntimeError):
@@ -54,6 +63,13 @@ def _default_cache_path() -> Path:
     return Path.home() / ".cache" / "freecad-cloth" / DEFAULT_CACHE_NAME
 
 
+def _weights_cache_path() -> Path:
+    configured = os.environ.get(CACHE_DIR_ENV, "").strip()
+    if configured:
+        return Path(configured).expanduser() / DEFAULT_WEIGHTS_NAME
+    return Path.home() / ".cache" / "freecad-cloth" / DEFAULT_WEIGHTS_NAME
+
+
 def _verified(path: Path) -> bool:
     if not path.is_file() or path.stat().st_size <= 1024:
         return False
@@ -63,9 +79,19 @@ def _verified(path: Path) -> bool:
         return False
 
 
-def _download(url: str, destination: Path) -> None:
+def _verified_weights(path: Path) -> bool:
+    if not path.is_file() or path.stat().st_size != MAKEHUMAN_WEIGHTS_SIZE:
+        return False
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8", errors="strict"))
+        return isinstance(payload.get("weights"), dict)
+    except (OSError, UnicodeError, ValueError):
+        return False
+
+
+def _download(url: str, destination: Path, verifier) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(prefix=".makehuman-", suffix=".obj", dir=str(destination.parent))
+    fd, temporary = tempfile.mkstemp(prefix=".makehuman-", suffix=destination.suffix, dir=str(destination.parent))
     try:
         with os.fdopen(fd, "wb") as handle:
             request = Request(url, headers={"User-Agent": "freecad-cloth/1"})
@@ -75,8 +101,8 @@ def _download(url: str, destination: Path) -> None:
                     if not chunk:
                         break
                     handle.write(chunk)
-        if not _verified(Path(temporary)):
-            raise HumanoidMeshError("downloaded MakeHuman base mesh failed SHA-256 verification")
+        if not verifier(Path(temporary)):
+            raise HumanoidMeshError("downloaded MakeHuman asset failed verification")
         os.replace(temporary, destination)
     except Exception:
         try:
@@ -104,11 +130,38 @@ def ensure_makehuman_base(path: str | os.PathLike[str] | None = None) -> Path:
     if _verified(destination):
         return destination
     try:
-        _download(MAKEHUMAN_BASE_URL, destination)
+        _download(MAKEHUMAN_BASE_URL, destination, _verified)
     except Exception as exc:
         raise HumanoidMeshError(
             "unable to obtain the pinned MakeHuman HM08 base mesh; "
             "set %s to a local OBJ file or allow network access (%s)" % (CACHE_ENV, exc)
+        ) from exc
+    return destination
+
+
+def ensure_makehuman_weights(path: str | os.PathLike[str] | None = None) -> Path:
+    """Return the pinned MakeHuman default skinning weights."""
+    override = os.environ.get(WEIGHTS_ENV, "").strip()
+    if path is not None:
+        destination = Path(path).expanduser()
+        if not destination.is_file():
+            raise HumanoidMeshError("explicit MakeHuman weights path does not exist: %s" % destination)
+        return destination
+    if override:
+        destination = Path(override).expanduser()
+        if not destination.is_file():
+            raise HumanoidMeshError("%s points to missing MakeHuman weights: %s" % (WEIGHTS_ENV, destination))
+        return destination
+
+    destination = _weights_cache_path()
+    if _verified_weights(destination):
+        return destination
+    try:
+        _download(MAKEHUMAN_WEIGHTS_URL, destination, _verified_weights)
+    except Exception as exc:
+        raise HumanoidMeshError(
+            "unable to obtain the pinned MakeHuman default weights; "
+            "set %s to a local MHW file or allow network access (%s)" % (WEIGHTS_ENV, exc)
         ) from exc
     return destination
 
@@ -222,14 +275,7 @@ def _measurement_profile(parameters):
 
 
 def _estimate_shoulder_pivots(vertices, shoulder_half, shoulder_z, height_mm):
-    """Infer the shoulder rotation pivots from the fitted body surface.
-
-    The authoritative shoulder measurement describes shoulder width, while the
-    lateral fit also reserves space for the upper arm. Using ``shoulder/2`` as
-    the pose pivot therefore moves the joint outward on the final mesh. The
-    fitted surface itself is a better source of truth: in a narrow band around
-    shoulder height, the medial edge of each lateral arm is the shoulder root.
-    """
+    """Infer the shoulder rotation pivots from the fitted body surface."""
     pivots = {}
     for side in (-1.0, 1.0):
         lateral = sorted(
@@ -248,25 +294,30 @@ def _estimate_shoulder_pivots(vertices, shoulder_half, shoulder_z, height_mm):
     return pivots
 
 
-def _estimate_rest_arm_angles(vertices, shoulder_pivots, shoulder_z, height_mm):
+def _estimate_rest_arm_angles(vertices, shoulder_pivots, shoulder_z, height_mm, arm_weights=None):
     """Estimate each HM08 arm's unposed angle from its actual A-pose geometry."""
     result = {}
-    for side in (-1.0, 1.0):
+    for side_index, side in enumerate((-1.0, 1.0)):
         pivot_x = shoulder_pivots.get(side, side * 0.0)
-        samples = [
-            (x, z)
-            for x, _, z in vertices
-            if side * x > side * pivot_x * 1.05
-            and 0.50 <= z / max(1.0, height_mm) <= 0.78
-        ]
+        weights = None if arm_weights is None else arm_weights[side_index]
+        samples = []
+        for index, (x, _y, z) in enumerate(vertices):
+            if side * x <= side * pivot_x * 1.05:
+                continue
+            if not 0.50 <= z / max(1.0, height_mm) <= 0.78:
+                continue
+            influence = 1.0 if weights is None else weights[index]
+            if influence <= 0.05:
+                continue
+            samples.append((x, z, influence))
         if not samples:
             result[side] = 0.0
             continue
         weighted_x = 0.0
         weighted_z = 0.0
         total = 0.0
-        for x, z in samples:
-            weight = max(0.1, side * (x - pivot_x))
+        for x, z, influence in samples:
+            weight = influence * max(0.1, side * (x - pivot_x))
             weighted_x += x * weight
             weighted_z += z * weight
             total += weight
@@ -278,18 +329,41 @@ def _estimate_rest_arm_angles(vertices, shoulder_pivots, shoulder_z, height_mm):
     return result
 
 
-def _arm_pose_weight(x, z, shoulder_pivot_x, height_mm):
-    """Return a smooth influence for actual arm vertices only.
+def _is_arm_bone(name: str, side: str) -> bool:
+    if not name.endswith(side):
+        return False
+    base = name[:-2]
+    return base.startswith(("upperarm", "lowerarm", "wrist", "hand", "finger", "thumb"))
 
-    The influence must begin above the pelvis. A lower vertical gate lets
-    lateral hip vertices rotate around the shoulder pivot, producing large
-    triangular hip artifacts in orthographic validation views.
+
+@lru_cache(maxsize=4)
+def load_makehuman_arm_weights(vertex_count: int, path: str | None = None) -> tuple[tuple[float, ...], tuple[float, ...]]:
+    """Load the source mesh's arm-chain weights, mapped onto visible vertices.
+
+    These are authored by MakeHuman rather than inferred from lateral distance
+    and height. Distal arms and fingers therefore retain full arm influence,
+    while the shoulder transition follows the source skinning field.
     """
-    pivot = abs(shoulder_pivot_x)
-    lateral = _smoothstep(pivot * 0.98, pivot * 1.12, abs(x))
-    nz = z / max(1.0, height_mm)
-    vertical = _smoothstep(0.56, 0.62, nz) * (1.0 - _smoothstep(0.88, 0.96, nz))
-    return lateral * vertical
+    source = ensure_makehuman_weights(path)
+    try:
+        payload = json.loads(source.read_text(encoding="utf-8", errors="strict"))
+        raw = payload["weights"]
+        left = [0.0] * vertex_count
+        right = [0.0] * vertex_count
+        for bone_name, entries in raw.items():
+            if _is_arm_bone(bone_name, ".L"):
+                target = left
+            elif _is_arm_bone(bone_name, ".R"):
+                target = right
+            else:
+                continue
+            for index, weight in entries:
+                index = int(index)
+                if 0 <= index < vertex_count:
+                    target[index] = min(1.0, target[index] + max(0.0, float(weight)))
+        return tuple(left), tuple(right)
+    except (KeyError, OSError, UnicodeError, ValueError, TypeError) as exc:
+        raise HumanoidMeshError("unable to parse MakeHuman arm weights %s: %s" % (source, exc)) from exc
 
 
 def _normalize_fit_axes(vertices, parameters):
@@ -319,8 +393,6 @@ def _normalize_fit_axes(vertices, parameters):
     target_width = shoulder + 1.5 * upper_arm
     target_depth = chest / math.pi
 
-    # Keep anthropometric changes proportional while correcting the source mesh
-    # aspect ratio. Small padding preserves arm/body silhouette at the extremes.
     target_width *= 1.0 + 0.05 * max(0.0, (upper_arm / default_upper_arm) - 1.0)
     target_depth *= 1.0 + 0.05 * max(0.0, (chest / default_chest) - 1.0)
     scale_x = target_width / x_span
@@ -329,15 +401,8 @@ def _normalize_fit_axes(vertices, parameters):
     return tuple((x * scale_x, y * scale_y, z) for x, y, z in vertices)
 
 
-def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
-    """Fit HM08 while preserving its canonical silhouette and articulated limbs.
-
-    The default mannequin receives only global height normalization. Body shape
-    changes remain bounded proportional deltas, and arm posing is expressed as a
-    rotation from the mesh's native A-pose instead of assuming a horizontal rest
-    pose. A smooth arm influence begins at the inferred shoulder joint, preventing
-    the shoulder attachment from sliding outward with the width normalization.
-    """
+def fit_makehuman_mesh(mesh: MeshData, parameters, arm_weights=None) -> MeshData:
+    """Fit HM08 and pose arms using source-authored linear skinning weights."""
     mesh.validate()
     source = _map_makehuman_axes(mesh.vertices)
     height_mm = float(parameters.measurement("height"))
@@ -374,15 +439,31 @@ def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
     shoulder_half = float(parameters.measurement("shoulder")) / 2.0
     shoulder_z = height_mm * 0.76
     shoulder_pivots = _estimate_shoulder_pivots(fitted, shoulder_half, shoulder_z, height_mm)
-    rest_angles = _estimate_rest_arm_angles(fitted, shoulder_pivots, shoulder_z, height_mm)
+    if arm_weights is not None:
+        for side_index, side in enumerate((-1.0, 1.0)):
+            weights = arm_weights[side_index]
+            lateral = sorted(
+                side * x
+                for index, (x, _y, z) in enumerate(fitted)
+                if weights[index] >= 0.50
+                and side * x > 0.0
+                and 0.66 <= z / max(1.0, height_mm) <= 0.82
+            )
+            if lateral:
+                pivot = lateral[max(0, int(len(lateral) * 0.05))]
+                pivot = max(shoulder_half * 0.70, min(shoulder_half * 1.05, pivot))
+                shoulder_pivots[side] = side * pivot
+    rest_angles = _estimate_rest_arm_angles(fitted, shoulder_pivots, shoulder_z, height_mm, arm_weights)
+
     default_angle = {"standing": 12.0, "sewing": 55.0, "sitting": 25.0}.get(pose.preset, 12.0)
     left_angle = default_angle if pose.preset != "standing" and float(pose.left_arm_angle) == 12.0 else float(pose.left_arm_angle)
     right_angle = default_angle if pose.preset != "standing" and float(pose.right_arm_angle) == 12.0 else float(pose.right_arm_angle)
     posed = []
-    for x, y, z in fitted:
+    for index, (x, y, z) in enumerate(fitted):
         side = -1.0 if x < 0.0 else 1.0
         pivot_x = shoulder_pivots.get(side, side * shoulder_half)
-        weight = _arm_pose_weight(x, z, pivot_x, height_mm)
+        source_weight = None if arm_weights is None else arm_weights[0 if side < 0 else 1][index]
+        weight = _arm_pose_weight(x, z, pivot_x, height_mm, source_weight)
         if weight <= 1e-9:
             posed.append((x, y, z))
             continue
@@ -391,17 +472,32 @@ def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
         if abs(delta) <= 1e-9:
             posed.append((x, y, z))
             continue
-        radians = side * math.radians(delta) * weight
+        radians = side * math.radians(delta)
         dx = x - pivot_x
         dz = z - shoulder_z
-        x, z = (
-            pivot_x + math.cos(radians) * dx + math.sin(radians) * dz,
-            shoulder_z - math.sin(radians) * dx + math.cos(radians) * dz,
-        )
+        cosine = math.cos(radians)
+        sine = math.sin(radians)
+        rotated_x = pivot_x + cosine * dx + sine * dz
+        rotated_z = shoulder_z - sine * dx + cosine * dz
+        x = x + weight * (rotated_x - x)
+        z = z + weight * (rotated_z - z)
         posed.append((x, y, z))
     return MeshData(tuple(posed), _reoriented_triangles(mesh.triangles))
 
 
+def _arm_pose_weight(x, z, shoulder_pivot_x, height_mm, source_weight=None):
+    """Return source-authored arm influence, with a geometric legacy fallback."""
+    if source_weight is not None:
+        return max(0.0, min(1.0, float(source_weight)))
+    pivot = abs(shoulder_pivot_x)
+    lateral = _smoothstep(pivot * 0.98, pivot * 1.12, abs(x))
+    nz = z / max(1.0, height_mm)
+    vertical = _smoothstep(0.56, 0.62, nz) * (1.0 - _smoothstep(0.88, 0.96, nz))
+    return lateral * vertical
+
+
 def build_humanoid_mesh(parameters, source_path=None) -> MeshData:
     """Load, fit and return the real MakeHuman mannequin mesh for Cloth."""
-    return fit_makehuman_mesh(load_makehuman_mesh(str(source_path) if source_path is not None else None), parameters)
+    source = load_makehuman_mesh(str(source_path) if source_path is not None else None)
+    arm_weights = None if source_path is not None else load_makehuman_arm_weights(len(source.vertices))
+    return fit_makehuman_mesh(source, parameters, arm_weights=arm_weights)
