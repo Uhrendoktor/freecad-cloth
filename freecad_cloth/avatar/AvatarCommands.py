@@ -176,10 +176,8 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
         _set_prop(obj, "App::PropertyInteger", "AvatarRevision", "Avatar", int(getattr(obj, "AvatarRevision", 0)))
     _rebuild(obj)
     if attach_collision:
-        collision = _ensure_collision(obj)
-        target = _ensure_drape_target(obj)
-        obj.CollisionProxy = collision
-        obj.DrapeTarget = target
+        _ensure_collision(obj)
+        _ensure_drape_target(obj)
     doc.recompute()
     return obj
 
@@ -193,11 +191,10 @@ def rebuild_avatar():
     if obj is None:
         raise ValueError("create a Cloth Avatar first")
     _rebuild(obj)
-    obj.CollisionProxy = _ensure_collision(obj)
+    _ensure_collision(obj)
     target = doc.getObject("DrapeTarget")
     if target is None:
         target = _ensure_drape_target(obj)
-    obj.DrapeTarget = target
     return obj
 
 
