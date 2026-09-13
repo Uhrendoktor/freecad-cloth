@@ -184,6 +184,20 @@ def _hand_roll_angle(forearm_axis):
     return math.atan2(sine, cosine)
 
 
+def _distal_attachment_weights(vertices, wrist_weights, hand_weights, pivot, radius=35.0):
+    """Blend wrist influence into the hand correction near the palm attachment."""
+    result = []
+    radius = max(1e-6, float(radius))
+    for point, wrist_weight, hand_weight in zip(vertices, wrist_weights, hand_weights):
+        vector = tuple(point[i] - pivot[i] for i in range(3))
+        distance = math.sqrt(_dot(vector, vector))
+        falloff = 1.0 - _smoothstep(radius * 0.25, radius, distance)
+        wrist_influence = max(0.0, float(wrist_weight)) * falloff
+        hand_influence = max(0.0, float(hand_weight))
+        result.append(max(0.0, min(1.0, max(hand_influence, wrist_influence))))
+    return tuple(result)
+
+
 def _relax_distal_splay(vertices, wrist, hand_weights, forearm_axis):
     """Reduce claw-like distal finger spread without collapsing the palm."""
     axis = _normalize(forearm_axis)
@@ -252,7 +266,7 @@ def _shortest_angle(target, current):
 
 
 def _straighten_hands(vertices, posed, weights):
-    """Align fingers with the forearm, neutralize palm roll, and relax splay."""
+    """Align fingers with forearm and neutralize the whole wrist-to-hand attachment."""
     result = list(posed)
     for side in (-1.0, 1.0):
         suffix = "l" if side < 0 else "r"
@@ -278,11 +292,16 @@ def _straighten_hands(vertices, posed, weights):
         )
         correction = max(-math.radians(150.0), min(math.radians(150.0), correction))
         hand_roll = _hand_roll_angle((forearm_dx, 0.0, forearm_dz)) * 0.5
-        hand_weights = weights[f"hand_{suffix}"]
+        attachment_weights = _distal_attachment_weights(
+            result,
+            weights[f"wrist_{suffix}"],
+            weights[f"hand_{suffix}"],
+            wrist,
+        )
         if abs(correction) > math.radians(0.5) or abs(hand_roll) > math.radians(0.5):
             pivot = wrist
             for index, point in enumerate(result):
-                influence = max(0.0, min(1.0, float(hand_weights[index])))
+                influence = attachment_weights[index]
                 if influence <= 1e-6:
                     continue
                 if abs(correction) > math.radians(0.5):
@@ -301,7 +320,7 @@ def _straighten_hands(vertices, posed, weights):
         result = _relax_distal_splay(
             result,
             wrist,
-            hand_weights,
+            weights[f"hand_{suffix}"],
             (forearm_dx, 0.0, forearm_dz),
         )
     return result
