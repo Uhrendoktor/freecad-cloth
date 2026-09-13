@@ -19,6 +19,7 @@ __all__ = [
 
 import json
 import math
+from dataclasses import replace as _replace
 
 from . import AvatarModel as _AvatarModel
 from . import HumanoidMesh as _HumanoidMesh
@@ -89,10 +90,30 @@ _HumanoidMesh._estimate_shoulder_pivots = _estimate_shoulder_pivots_from_upperar
 from .HierarchicalPose import generate_hierarchical_mesh as _generate_hierarchical_mesh
 from .MeshSanity import compact_mesh as _compact_mesh
 
+
+def _standing_visual_parameters(params):
+    """Convert the legacy 12° standing sentinel into a neutral arm-down pose.
+
+    The pose fields predate the current avatar provider and use 12° as their
+    serialized default. In the FreeCAD coordinate convention, 0° is horizontal
+    and 90° is vertical/down. Keeping the serialized value preserves preset
+    compatibility while preventing the production standing mannequin from
+    rendering with nearly horizontal arms.
+    """
+    pose = params.pose
+    if pose.preset != "standing":
+        return params
+    if float(pose.left_arm_angle) != 12.0 or float(pose.right_arm_angle) != 12.0:
+        return params
+    neutral_pose = _replace(pose, left_arm_angle=70.0, right_arm_angle=70.0)
+    return _replace(params, pose=neutral_pose)
+
+
 _original_generate_mesh = _AvatarModel.generate_mesh
 if not getattr(_original_generate_mesh, "_cloth_avatar_mesh_sane", False):
     def _generate_mesh_sane(params):
-        vertices, triangles, landmarks = _generate_hierarchical_mesh(params)
+        visual_params = _standing_visual_parameters(params)
+        vertices, triangles, landmarks = _generate_hierarchical_mesh(visual_params)
         vertices, triangles = _compact_mesh(vertices, triangles)
         return vertices, triangles, landmarks
 
