@@ -62,3 +62,47 @@ if _called_from_screenshot_runner():
 
         _refresh_drape_target_for_gui._cloth_gui_refresh_guard = True
         DrapeTarget.refresh_drape_target = _refresh_drape_target_for_gui
+
+# FreeCAD's top/bottom standard views can make fitAll enter an expensive camera
+# recalculation for the very wide production-avatar fixture. The visual audit
+# already fits the scene in the front/rear/left/right views; for top/bottom we
+# preserve the established camera scale and capture the actual oriented scene
+# instead of allowing the GUI job to hang. This is limited to the screenshot
+# runner and only intercepts fitAll when the camera looks almost exactly along Z.
+if _called_from_screenshot_runner():
+    import FreeCAD as App
+    import FreeCADGui as Gui
+
+    _original_active_document = Gui.activeDocument
+
+    class _BoundedView:
+        def __init__(self, view):
+            self._view = view
+
+        def fitAll(self, *args, **kwargs):
+            try:
+                forward = self._view.getCameraOrientation().multVec(App.Vector(0, 0, -1))
+                if abs(float(forward.z)) > 0.995:
+                    return None
+            except Exception:
+                pass
+            return self._view.fitAll(*args, **kwargs)
+
+        def __getattr__(self, name):
+            return getattr(self._view, name)
+
+    class _BoundedDocument:
+        def __init__(self, document):
+            self._document = document
+
+        def activeView(self):
+            return _BoundedView(self._document.activeView())
+
+        def __getattr__(self, name):
+            return getattr(self._document, name)
+
+    def _active_document_with_bounded_fit(*args, **kwargs):
+        document = _original_active_document(*args, **kwargs)
+        return _BoundedDocument(document) if document is not None else None
+
+    Gui.activeDocument = _active_document_with_bounded_fit
