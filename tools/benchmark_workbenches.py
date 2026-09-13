@@ -102,7 +102,7 @@ def main() -> None:
 
     # Import FreeCAD explicitly so the benchmark cannot silently run outside the
     # intended FreeCAD environment.
-    import FreeCAD  # noqa: F401
+    import FreeCAD
 
     result = {
         "schema": 1,
@@ -121,6 +121,24 @@ def main() -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(result, indent=2, sort_keys=True))
+
+    # AppRun launches a full GUI process for this benchmark. Close it explicitly
+    # so CI does not remain in the Qt event loop after the measurements finish.
+    try:
+        import FreeCADGui as Gui
+        from PySide import QtWidgets
+    except ImportError:
+        try:
+            import FreeCADGui as Gui
+            from PySide2 import QtWidgets
+        except ImportError:
+            return
+    window = Gui.getMainWindow()
+    if window is not None:
+        window.close()
+    app = QtWidgets.QApplication.instance()
+    if app is not None:
+        app.quit()
 
 
 if __name__ == "__main__":
