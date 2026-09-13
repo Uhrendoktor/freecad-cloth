@@ -1,4 +1,5 @@
 """Commands for the Cloth Simulation workbench."""
+from freecad_cloth.common.CommandAdapter import icon_for_command
 
 
 def _drape_target_guard(target):
@@ -7,8 +8,7 @@ def _drape_target_guard(target):
         from freecad_cloth.simulation.DrapeTarget import target_status
         status = target_status(target)
     except (ImportError, AttributeError, TypeError, ValueError) as exc:
-        return {"blocked": True, "state": "invalid", "message": "Cannot inspect drape target: %s" % exc,
-                "stale": True, "reason": "target inspection failed"}
+        return {"blocked": True, "state": "invalid", "message": "Cannot inspect drape target: %s" % exc, "stale": True, "reason": "target inspection failed"}
     blocked_states = {"stale", "unbuilt", "unassigned", "invalid", "missing", "disabled"}
     return {"blocked": status["state"] in blocked_states, **status}
 
@@ -25,15 +25,12 @@ def create_simulation():
 def create_drape_scene():
     import FreeCAD as App
     from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
-    # Creation is intentionally side-effect-light. Simulation advances only
-    # through explicit Step/Run/Reset controls so command invocation is predictable.
     doc = App.ActiveDocument or App.newDocument("ClothDrape")
     return create_simulation_scene(doc)
 
 
 def _is_simulation_scene(obj):
-    return (getattr(obj, "Name", "") == "ClothSimulation"
-            or getattr(getattr(obj, "Proxy", None), "Type", "") == "ClothSimulation")
+    return (getattr(obj, "Name", "") == "ClothSimulation" or getattr(getattr(obj, "Proxy", None), "Type", "") == "ClothSimulation")
 
 
 def _find_simulation(doc):
@@ -41,12 +38,10 @@ def _find_simulation(doc):
 
 
 def _find_drape_target(doc):
-    return next((obj for obj in doc.Objects if getattr(obj, "Name", "") == "DrapeTarget"
-                 or getattr(obj, "TargetType", None) is not None), None)
+    return next((obj for obj in doc.Objects if getattr(obj, "Name", "") == "DrapeTarget" or getattr(obj, "TargetType", None) is not None), None)
 
 
 def _require_drape_target_ready(doc):
-    """Refuse solver advancement until the persistent collision target is current and enabled."""
     target = _find_drape_target(doc)
     status = _drape_target_guard(target)
     if status["state"] != "ready":
@@ -109,37 +104,20 @@ def simulation_status():
     try:
         doc, scene = _require_simulation()
     except RuntimeError as exc:
-        return {"state": "unavailable", "message": str(exc), "steps": 0, "particles": 0, "time": 0.0,
-                "target_state": "missing", "target_message": "No drape target selected", "target_stale": True,
-                "target_reason": "target missing"}
+        return {"state": "unavailable", "message": str(exc), "steps": 0, "particles": 0, "time": 0.0, "target_state": "missing", "target_message": "No drape target selected", "target_stale": True, "target_reason": "target missing"}
     finite = bool(getattr(scene, "FiniteState", True))
     target = _find_drape_target(doc)
     target_info = _drape_target_guard(target)
-    return {
-        "state": "ready" if finite and not target_info["blocked"] else "invalid/stale",
-        "message": "Cloth Simulation ready" if finite and not target_info["blocked"] else target_info["message"],
-        "steps": int(getattr(scene, "Steps", 0)),
-        "particles": int(getattr(scene, "ParticleCount", 0)),
-        "time": float(getattr(scene, "SimulatedTime", 0.0)),
-        "target_state": target_info["state"],
-        "target_message": target_info["message"],
-        "target_stale": bool(target_info["stale"]),
-        "target_reason": target_info["reason"],
-    }
+    return {"state": "ready" if finite and not target_info["blocked"] else "invalid/stale", "message": "Cloth Simulation ready" if finite and not target_info["blocked"] else target_info["message"], "steps": int(getattr(scene, "Steps", 0)), "particles": int(getattr(scene, "ParticleCount", 0)), "time": float(getattr(scene, "SimulatedTime", 0.0)), "target_state": target_info["state"], "target_message": target_info["message"], "target_stale": bool(target_info["stale"]), "target_reason": target_info["reason"]}
 
 
 class _FunctionCommand:
-    def __init__(self, fn, text, tip, active=None):
-        self.fn, self.text, self.tip, self.active = fn, text, tip, active
+    def __init__(self, fn, text, tip, command_name, active=None):
+        self.fn, self.text, self.tip, self.command_name, self.active = fn, text, tip, command_name, active
 
-    def Activated(self):
-        return self.fn()
-
-    def GetResources(self):
-        return {"MenuText": self.text, "ToolTip": self.tip}
-
-    def IsActive(self):
-        return bool(self.active()) if self.active is not None else True
+    def Activated(self): return self.fn()
+    def GetResources(self): return {"MenuText": self.text, "ToolTip": self.tip, "Pixmap": icon_for_command(self.command_name)}
+    def IsActive(self): return bool(self.active()) if self.active is not None else True
 
 
 def _has_simulation():
@@ -150,25 +128,18 @@ def _has_simulation():
         return False
 
 
-COMMANDS = [
-    "ClothSimulation_Create",
-    "ClothSimulation_CreateDrape",
-    "ClothSimulation_Edit",
-    "ClothSimulation_Step",
-    "ClothSimulation_Run",
-    "ClothSimulation_Reset",
-]
+COMMANDS = ["ClothSimulation_Create", "ClothSimulation_CreateDrape", "ClothSimulation_Edit", "ClothSimulation_Step", "ClothSimulation_Run", "ClothSimulation_Reset"]
 
 try:
     from freecad_cloth.simulation.SimulationStaleGuard import install as _install_drape_target_recompute_guard
     _install_drape_target_recompute_guard()
     import FreeCADGui as Gui
     if hasattr(Gui, "addCommand"):
-        Gui.addCommand("ClothSimulation_Create", _FunctionCommand(create_simulation, "Create Simulation", "Create a quality-aware cloth simulation object"))
-        Gui.addCommand("ClothSimulation_CreateDrape", _FunctionCommand(create_drape_scene, "Create Drape Scene", "Create a deterministic cloth drape scene without implicit solver steps"))
-        Gui.addCommand("ClothSimulation_Edit", _FunctionCommand(edit_simulation, "Simulation Controls", "Open the cloth simulation quality task panel"))
-        Gui.addCommand("ClothSimulation_Step", _FunctionCommand(lambda: simulate_selected(), "Step Simulation", "Advance the quality-aware CPU cloth simulation", _has_simulation))
-        Gui.addCommand("ClothSimulation_Run", _FunctionCommand(run_simulation, "Run Simulation", "Run 30 steps of the quality-aware CPU cloth simulation", _has_simulation))
-        Gui.addCommand("ClothSimulation_Reset", _FunctionCommand(reset_simulation, "Reset Simulation", "Reset simulation state while retaining authored settings", _has_simulation))
+        Gui.addCommand("ClothSimulation_Create", _FunctionCommand(create_simulation, "Create Simulation", "Create a quality-aware cloth simulation object", "ClothSimulation_Create"))
+        Gui.addCommand("ClothSimulation_CreateDrape", _FunctionCommand(create_drape_scene, "Create Drape Scene", "Create a deterministic cloth drape scene without implicit solver steps", "ClothSimulation_CreateDrape"))
+        Gui.addCommand("ClothSimulation_Edit", _FunctionCommand(edit_simulation, "Simulation Controls", "Open the cloth simulation quality task panel", "ClothSimulation_Edit"))
+        Gui.addCommand("ClothSimulation_Step", _FunctionCommand(lambda: simulate_selected(), "Step Simulation", "Advance the quality-aware CPU cloth simulation", "ClothSimulation_Step", _has_simulation))
+        Gui.addCommand("ClothSimulation_Run", _FunctionCommand(run_simulation, "Run Simulation", "Run 30 steps of the quality-aware CPU cloth simulation", "ClothSimulation_Run", _has_simulation))
+        Gui.addCommand("ClothSimulation_Reset", _FunctionCommand(reset_simulation, "Reset Simulation", "Reset simulation state while retaining authored settings", "ClothSimulation_Reset", _has_simulation))
 except (ImportError, AttributeError):
     pass
