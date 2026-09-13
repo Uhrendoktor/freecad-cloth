@@ -58,9 +58,6 @@ def median_ms(samples: list[float]) -> float:
 
 def runtime_metrics(name: str, repeats: int) -> dict:
     module_name, class_name = WORKBENCHES[name]
-    # Workbench Initialize() registers toolbars/menus globally. Repeating it on
-    # fresh objects in one GUI process creates duplicate UI state, so measure
-    # construction repeatedly but initialize exactly once per fresh workbench.
     print(f"benchmark: {name}: importing and constructing", flush=True)
     module = importlib.import_module(module_name)
     lookup_samples = []
@@ -71,7 +68,7 @@ def runtime_metrics(name: str, repeats: int) -> dict:
         getattr(module, class_name)
         lookup_samples.append(time.perf_counter() - t0)
         t0 = time.perf_counter()
-        wb = wb_cls()
+        wb_cls()
         construct_samples.append(time.perf_counter() - t0)
     print(f"benchmark: {name}: initializing", flush=True)
     wb = wb_cls()
@@ -110,12 +107,14 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", default="artifacts/workbench-benchmark/benchmark.json")
     parser.add_argument("--repeats", type=int, default=7)
+    parser.add_argument("--workbench", choices=tuple(WORKBENCHES), help="Measure only this workbench")
     args = parser.parse_args()
     if args.repeats < 3:
         raise SystemExit("--repeats must be >= 3")
 
     import FreeCAD
 
+    names = [args.workbench] if args.workbench else list(WORKBENCHES)
     result = {
         "schema": 2,
         "python": __import__("sys").version.split()[0],
@@ -123,7 +122,7 @@ def main() -> None:
         "repeats": args.repeats,
         "workbenches": {},
     }
-    for name in WORKBENCHES:
+    for name in names:
         result["workbenches"][name] = {**static_metrics(name), **runtime_metrics(name, args.repeats)}
 
     out = ROOT / args.output
@@ -131,9 +130,6 @@ def main() -> None:
     out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(result, indent=2, sort_keys=True), flush=True)
     close_gui()
-    # The benchmark process is disposable. FreeCAD/Qt can keep background
-    # threads alive after QApplication.quit(); terminate after the JSON is
-    # durable so the CI job cannot hang after producing valid measurements.
     os._exit(0)
 
 
