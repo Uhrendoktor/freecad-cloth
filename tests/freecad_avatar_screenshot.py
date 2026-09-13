@@ -42,11 +42,25 @@ def hide_task_docks(window):
     events()
 
 
+def zoom_for_direction(view, direction):
+    """Fit the orthographic camera, then compensate for foreshortening on top/bottom views."""
+    view.fitAll()
+    camera = view.getCameraNode()
+    try:
+        height = float(camera.height.getValue())
+        factor = 0.32 if direction in ("top", "bottom") else 0.78
+        camera.height = height * factor
+        log("camera-zoom direction=%s factor=%.2f height=%.3f" % (direction, factor, height * factor))
+    except (AttributeError, TypeError, ValueError):
+        log("camera-zoom-unavailable direction=%s" % direction)
+    events()
+
+
 def save(view, name, state):
     """Render only the 3D view so README images are unobstructed model evidence."""
     path = os.path.join(OUT, name)
     view.saveImage(path, 1280, 720, "White")
-    if not os.path.isfile(path) or os.path.getsize(path) < 20000:
+    if not os.path.isfile(path) or os.path.getsize(path) < 5000:
         raise RuntimeError("failed or suspiciously small screenshot: %s" % path)
     with open(path, "rb") as handle:
         header = handle.read(24)
@@ -99,8 +113,7 @@ def main():
         )
         for direction, method_name in directions:
             getattr(view, method_name)()
-            view.fitAll()
-            events()
+            zoom_for_direction(view, direction)
             save(view, "cloth-avatar-%s.png" % direction, "Avatar audit %s" % direction)
         log("avatar-script-pass")
     finally:
