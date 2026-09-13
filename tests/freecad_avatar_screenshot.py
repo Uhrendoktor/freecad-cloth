@@ -99,9 +99,11 @@ def main():
         view = Gui.activeDocument().activeView()
         view.setAnimationEnabled(False)
         view.setCameraType("Orthographic")
+        # FreeCAD's named front/rear views are opposite the mannequin's
+        # anatomical front/rear convention for this Y-oriented HM08 mesh.
         directions = (
-            ("front", "viewFront"),
-            ("rear", "viewRear"),
+            ("front", "viewRear"),
+            ("rear", "viewFront"),
             ("left", "viewLeft"),
             ("right", "viewRight"),
             ("top", "viewTop"),
