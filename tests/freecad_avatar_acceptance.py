@@ -66,7 +66,7 @@ def run_acceptance():
         if avatar_mesh is None:
             raise RuntimeError("generated mannequin has no mesh")
         vertices, triangles = _mesh_topology(avatar_mesh)
-        sanity = inspect_avatar_mesh(vertices, triangles)
+        sanity = inspect_avatar_mesh(vertices, triangles, expected_height=float(getattr(avatar, "Height", 1750.0)))
         if sanity.triangle_count < 100:
             raise RuntimeError("generated mannequin mesh is implausibly small")
         identity = avatar.Name
