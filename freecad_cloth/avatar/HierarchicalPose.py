@@ -136,7 +136,7 @@ def _shortest_angle(target, current):
 
 
 def _straighten_hands(vertices, posed, weights):
-    """Neutralize large source wrist kinks while preserving authored hand shape."""
+    """Align the authored hand direction with the posed forearm at the wrist."""
     result = list(posed)
     for side in (-1.0, 1.0):
         suffix = "l" if side < 0 else "r"
@@ -157,7 +157,7 @@ def _straighten_hands(vertices, posed, weights):
             _signed_angle_xz(forearm_dx, forearm_dz),
             _signed_angle_xz(hand_dx, hand_dz),
         )
-        correction = max(-math.radians(55.0), min(math.radians(55.0), correction))
+        correction = max(-math.radians(150.0), min(math.radians(150.0), correction))
         if abs(correction) <= math.radians(0.5):
             continue
         for index, point in enumerate(result):
