@@ -42,6 +42,7 @@ freecad_cloth/
 - Keep DrapeTarget source signatures topology-sensitive; use complete mesh topology where available and `hashCode()` only for lightweight test doubles.
 - Do not add provider-specific readiness exceptions that bypass target invalidation.
 - PR #438 remains diagnostic-only and must not be merged.
+- Issue #451: publish canonical GUI screenshots to a stable documentation branch and expose them from the README.
 
 ## Architecture / UX
 
