@@ -63,10 +63,22 @@ if _called_from_screenshot_runner():
         _refresh_drape_target_for_gui._cloth_gui_refresh_guard = True
         DrapeTarget.refresh_drape_target = _refresh_drape_target_for_gui
 
+    # HM08 is authored Z-up. The screenshot runner previously inherited an
+    # obsolete Y-up conversion, which rotates the mannequin onto its side.
+    # Apply the documented coordinate convention before AvatarModel asks for
+    # build_humanoid_mesh().
+    from freecad_cloth.avatar import HumanoidMesh
+    def _map_hm08_z_up(vertices):
+        zmin = min(float(v[2]) for v in vertices)
+        zmax = max(float(v[2]) for v in vertices)
+        span = max(1e-9, zmax - zmin)
+        return [(float(x), float(y), (float(z) - zmin) / span) for x, y, z in vertices]
+
+    HumanoidMesh._map_makehuman_axes = _map_hm08_z_up
+
     # HM08 contains unreferenced canonical-range vertices. FreeCAD's Mesh
-    # bounding box includes them, which can make a visually correct avatar
-    # appear horizontal/flattened in standard views. Compact the authored
-    # topology before the screenshot runner creates the document object.
+    # bounding box includes them, so compact the authored topology before the
+    # screenshot runner creates the document object.
     from freecad_cloth.avatar import AvatarCommands
     from freecad_cloth.avatar.MeshSanity import compact_mesh
     _original_provider_geometry = AvatarCommands._provider_geometry
