@@ -30,6 +30,9 @@ class AvatarVisualSanity:
 def inspect_avatar_mesh(vertices, triangles, *, expected_height=None, max_lateral_height_ratio=0.9):
     """Return machine-checkable bounds/scale facts for an avatar mesh.
 
+    FreeCAD cloth geometry is Z-up, so Z is the authoritative body-height
+    axis. The two horizontal spans are treated as width/depth independently;
+    this prevents an oversized lateral axis from being mistaken for height.
     ``max_lateral_height_ratio`` rejects edge-on/collapsed captures where the
     widest horizontal span is implausibly close to the body height.
     """
@@ -44,12 +47,10 @@ def inspect_avatar_mesh(vertices, triangles, *, expected_height=None, max_latera
     mins = tuple(min(float(point[axis]) for point in vertices) for axis in range(3))
     maxs = tuple(max(float(point[axis]) for point in vertices) for axis in range(3))
     spans = tuple(maxs[axis] - mins[axis] for axis in range(3))
-    height = max(spans)
-    lateral = sorted(spans)[:2]
-    width = lateral[1]
-    depth = lateral[0]
+    height = spans[2]
+    width, depth = max(spans[0], spans[1]), min(spans[0], spans[1])
     if not math.isfinite(height) or height <= 0.0:
-        raise AvatarVisualSanityError("avatar bounds do not contain a positive dimension")
+        raise AvatarVisualSanityError("avatar Z bounds do not contain a positive height")
     if expected_height is not None:
         expected_height = float(expected_height)
         if expected_height <= 0.0:
