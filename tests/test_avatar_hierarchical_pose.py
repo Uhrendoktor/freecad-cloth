@@ -11,6 +11,7 @@ from freecad_cloth.avatar.HierarchicalPose import (
     _signed_angle_xz,
     _shortest_angle,
     _straighten_hands,
+    _weighted_distal_direction,
 )
 
 
@@ -91,31 +92,42 @@ class AvatarHierarchicalPoseTests(unittest.TestCase):
         )
         self.assertTrue(all(abs(value) < 5000.0 for value in posed))
 
+    def test_distal_hand_direction_favors_fingers_over_wrist_base(self):
+        vertices = (
+            (0.0, 0.0, 0.0),
+            (0.0, 0.0, 6.0),
+            (0.0, 0.0, 24.0),
+        )
+        weights = (1.0, 1.0, 0.05)
+        direction = _weighted_distal_direction(vertices, weights, (0.0, 0.0), min_distance=2.0)
+        self.assertIsNotNone(direction)
+        dx, dz = direction
+        self.assertAlmostEqual(dx, 0.0, places=6)
+        self.assertGreater(dz, 15.0)
+
     def test_straighten_hands_reduces_large_wrist_kink(self):
         vertices = (
             (200.0, 0.0, 1200.0),  # lower-arm center
             (220.0, 0.0, 1100.0),  # wrist
-            (270.0, 0.0, 1130.0),  # hand center
+            (270.0, 0.0, 1130.0),  # near-wrist hand vertices
+            (274.0, 0.0, 1148.0),  # distal finger vertices
+            (278.0, 0.0, 1165.0),
         )
         posed = list(vertices)
         weights = {
-            "lowerarm_l": (1.0, 0.0, 0.0),
-            "wrist_l": (0.0, 1.0, 0.0),
-            "hand_l": (0.0, 0.0, 1.0),
-            "lowerarm_r": (0.0, 0.0, 0.0),
-            "wrist_r": (0.0, 0.0, 0.0),
-            "hand_r": (0.0, 0.0, 0.0),
+            "lowerarm_l": (1.0, 0.0, 0.0, 0.0, 0.0),
+            "wrist_l": (0.0, 1.0, 0.0, 0.0, 0.0),
+            "hand_l": (0.0, 0.0, 1.0, 0.45, 0.20),
+            "lowerarm_r": (0.0, 0.0, 0.0, 0.0, 0.0),
+            "wrist_r": (0.0, 0.0, 0.0, 0.0, 0.0),
+            "hand_r": (0.0, 0.0, 0.0, 0.0, 0.0),
         }
-        before = abs(_shortest_angle(
-            _signed_angle_xz(20.0, -100.0),
-            _signed_angle_xz(50.0, 30.0),
-        ))
+        forearm_angle = _signed_angle_xz(20.0, -100.0)
+        hand_before = _weighted_distal_direction(vertices, weights["hand_l"], (220.0, 1100.0), min_distance=4.0)
+        before = abs(_shortest_angle(forearm_angle, _signed_angle_xz(hand_before[0], hand_before[1])))
         result = _straighten_hands(vertices, posed, weights)
-        hand = result[2]
-        after = abs(_shortest_angle(
-            _signed_angle_xz(20.0, -100.0),
-            _signed_angle_xz(hand[0] - 220.0, hand[2] - 1100.0),
-        ))
+        hand_after = _weighted_distal_direction(result, weights["hand_l"], (220.0, 1100.0), min_distance=4.0)
+        after = abs(_shortest_angle(forearm_angle, _signed_angle_xz(hand_after[0], hand_after[1])))
         self.assertLess(after, before)
         self.assertLessEqual(after, math.radians(150.0) + 1e-6)
 
