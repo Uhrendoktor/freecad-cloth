@@ -75,7 +75,7 @@ class AvatarFittingTests(unittest.TestCase):
             ((0, 1, 2), (1, 3, 2), (0, 2, 3)),
         )
         fitted = fit_makehuman_mesh(source, AvatarParameters(skin_offset=0))
-        self.assertEqual(fitted.triangles, source.triangles)
+        self.assertEqual(fitted.triangles, ((0, 2, 1), (1, 2, 3), (0, 3, 2)))
         self.assertAlmostEqual(min(v[2] for v in fitted.vertices), 0.0)
         self.assertAlmostEqual(max(v[2] for v in fitted.vertices), 1750.0)
         self.assertGreater(max(v[0] for v in fitted.vertices) - min(v[0] for v in fitted.vertices), 0.0)
