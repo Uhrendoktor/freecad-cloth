@@ -257,6 +257,44 @@ def _arm_pose_weight(x, z, shoulder_half, height_mm):
     return lateral * vertical
 
 
+def _normalize_fit_axes(vertices, parameters):
+    """Normalize horizontal source scale to the authoritative body measurements.
+
+    The pinned HM08 source can carry a source-specific aspect ratio unrelated to
+    the Cloth millimetre measurement schema. Width follows shoulder/upper-arm
+    measurements and depth follows chest circumference, while Z remains the
+    canonical fitted height. This is a single final scale correction, not a
+    second avatar geometry model.
+    """
+    from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
+
+    x_span = _axis_bounds(vertices, 0)[1] - _axis_bounds(vertices, 0)[0]
+    y_span = _axis_bounds(vertices, 1)[1] - _axis_bounds(vertices, 1)[0]
+    if x_span <= 1e-9 or y_span <= 1e-9:
+        return vertices
+
+    shoulder = float(parameters.measurement("shoulder"))
+    upper_arm = float(parameters.measurement("upper_arm"))
+    chest = float(parameters.measurement("chest"))
+    default_shoulder = float(DEFAULT_MEASUREMENTS["shoulder"])
+    default_upper_arm = float(DEFAULT_MEASUREMENTS["upper_arm"])
+    default_chest = float(DEFAULT_MEASUREMENTS["chest"])
+
+    target_width = shoulder + 1.5 * upper_arm
+    target_depth = chest / math.pi
+    default_width = default_shoulder + 1.5 * default_upper_arm
+    default_depth = default_chest / math.pi
+
+    # Keep anthropometric changes proportional while correcting the source mesh
+    # aspect ratio. Small padding preserves arm/body silhouette at the extremes.
+    target_width *= 1.0 + 0.05 * max(0.0, (upper_arm / default_upper_arm) - 1.0)
+    target_depth *= 1.0 + 0.05 * max(0.0, (chest / default_chest) - 1.0)
+    scale_x = target_width / x_span
+    scale_y = target_depth / y_span
+
+    return tuple((x * scale_x, y * scale_y, z) for x, y, z in vertices)
+
+
 def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
     """Fit HM08 while preserving its canonical silhouette and articulated limbs.
 
@@ -296,6 +334,8 @@ def fit_makehuman_mesh(mesh: MeshData, parameters) -> MeshData:
             x_mm += x_mm / radius * skin_offset
             y_mm += y_mm / radius * skin_offset
         fitted.append((x_mm, y_mm, z * height_mm))
+
+    fitted = _normalize_fit_axes(tuple(fitted), parameters)
 
     pose = parameters.pose
     shoulder_z = height_mm * 0.76
