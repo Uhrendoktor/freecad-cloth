@@ -1,0 +1,101 @@
+"""Deterministic six-direction visual audit of the production avatar mesh."""
+import os
+import traceback
+
+import FreeCAD as App
+import FreeCADGui as Gui
+try:
+    from PySide import QtWidgets
+except ImportError:
+    from PySide2 import QtWidgets
+
+ROOT = "/workspace"
+if ROOT not in __import__("sys").path:
+    __import__("sys").path.insert(0, ROOT)
+OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
+os.makedirs(OUT, exist_ok=True)
+LOG = os.path.join(OUT, "avatar-gui-progress.log")
+
+
+def log(message):
+    with open(LOG, "a", encoding="utf-8") as handle:
+        handle.write(message + "\n")
+
+
+def events():
+    Gui.updateGui()
+    app = QtWidgets.QApplication.instance()
+    if app is not None:
+        app.processEvents()
+
+
+def save(window, name, state):
+    window.show(); window.raise_(); window.activateWindow(); window.resize(1280, 720); events()
+    image = window.grab()
+    path = os.path.join(OUT, name)
+    if image.isNull() or (image.width(), image.height()) != (1280, 720):
+        raise RuntimeError("invalid GUI capture for %s" % state)
+    if not image.save(path) or os.path.getsize(path) < 20000:
+        raise RuntimeError("failed or suspiciously small screenshot: %s" % path)
+    log("screenshot=%s state=%s bytes=%d" % (path, state, os.path.getsize(path)))
+
+
+def main():
+    log("avatar-script-start")
+    window = Gui.getMainWindow()
+    if window is None or not window.isVisible():
+        raise RuntimeError("FreeCAD GUI did not launch")
+    window.show(); events()
+
+    init_gui = os.path.join(ROOT, "InitGui.py")
+    exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
+    events()
+
+    from freecad_cloth.avatar.AvatarCommands import create_avatar
+
+    doc = App.newDocument("ClothAvatarVisualAudit")
+    try:
+        avatar = create_avatar(attach_collision=False, doc=doc)
+        if str(getattr(avatar, "AvatarStatus", "")) != "Valid":
+            raise RuntimeError("avatar provider did not produce a valid mesh")
+        if int(getattr(avatar, "MeshVertexCount", 0)) <= 100 or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100:
+            raise RuntimeError("avatar visual fixture does not contain a real humanoid mesh")
+        avatar.ViewObject.DisplayMode = "Flat Lines"
+        avatar.ViewObject.ShapeColor = (0.72, 0.72, 0.72)
+        avatar.ViewObject.LineColor = (0.20, 0.20, 0.20)
+        avatar.ViewObject.LineWidth = 1.0
+        doc.recompute()
+
+        view = Gui.activeDocument().activeView()
+        view.setCameraType("Orthographic")
+        directions = (
+            ("front", "viewFront"),
+            ("rear", "viewRear"),
+            ("left", "viewLeft"),
+            ("right", "viewRight"),
+            ("top", "viewTop"),
+            ("bottom", "viewBottom"),
+        )
+        for direction, method_name in directions:
+            getattr(view, method_name)()
+            view.fitAll()
+            events()
+            save(window, "cloth-avatar-%s.png" % direction, "Avatar audit %s" % direction)
+        log("avatar-script-pass")
+    finally:
+        if doc.Name in App.listDocuments():
+            App.closeDocument(doc.Name)
+        events()
+        window.close()
+        app = QtWidgets.QApplication.instance()
+        if app is not None:
+            app.quit()
+
+
+try:
+    main()
+except BaseException as error:
+    print("AVATAR SCREENSHOT FAILURE: %r" % (error,), flush=True)
+    print(traceback.format_exc(), flush=True)
+    log("avatar-script-fail exception=%r" % (error,))
+    raise
