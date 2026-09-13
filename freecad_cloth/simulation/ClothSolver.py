@@ -92,6 +92,8 @@ class ClothSystem:
         self.stitches = list(stitches)
         self.pins = {int(i): tuple(p) for i, p in pins}
         self.time = 0.0
+        self._prepared_surface = None
+        self._prepared_surface_id = None
 
     @classmethod
     def grid(cls, width, height, nx=8, ny=5, origin=(0.0, 0.0, 0.0)):
@@ -166,8 +168,12 @@ class ClothSystem:
             b.y -= dy * correction * b.inv_mass
             b.z -= dz * correction * b.inv_mass
 
-    def _collide_surface(self, surface):
+    def _prepare_surface(self, surface):
+        """Precompute immutable triangle data once per collision surface."""
         surface.validate()
+        surface_id = id(surface)
+        if surface_id == self._prepared_surface_id:
+            return self._prepared_surface
         center = surface.center
         prepared = []
         for ia, ib, ic in surface.triangles:
@@ -179,6 +185,12 @@ class ClothSystem:
             if sum(normal[i] * (center[i] - face_center[i]) for i in range(3)) > 0.0:
                 normal = tuple(-c for c in normal)
             prepared.append((a, b, c, normal))
+        self._prepared_surface_id = surface_id
+        self._prepared_surface = tuple(prepared)
+        return self._prepared_surface
+
+    def _collide_surface(self, surface):
+        prepared = self._prepare_surface(surface)
         for p in self.particles:
             if p.inv_mass == 0.0 or not prepared:
                 continue
