@@ -43,16 +43,12 @@ def hide_task_docks(window):
 
 
 def zoom_for_direction(view, direction):
-    """Fit the orthographic camera, then compensate for foreshortening on top/bottom views."""
+    """Fit the orthographic camera and compensate for the small top/bottom projection."""
     view.fitAll()
-    camera = view.getCameraNode()
-    try:
-        height = float(camera.height.getValue())
-        factor = 0.32 if direction in ("top", "bottom") else 0.78
-        camera.height = height * factor
-        log("camera-zoom direction=%s factor=%.2f height=%.3f" % (direction, factor, height * factor))
-    except (AttributeError, TypeError, ValueError):
-        log("camera-zoom-unavailable direction=%s" % direction)
+    steps = 3 if direction in ("top", "bottom") else 1
+    for _ in range(steps):
+        view.zoomIn()
+    log("camera-zoom direction=%s steps=%d" % (direction, steps))
     events()
 
 
