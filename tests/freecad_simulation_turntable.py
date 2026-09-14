@@ -217,9 +217,10 @@ def build_simulation_state(doc):
 
     front, front_outline = make_piece("VisualTunicFront", front_y, 0.64)
     back, back_outline = make_piece("VisualTunicBack", back_y, 0.68)
+    # Keep only the authored shoulder seams in the coarse visual fixture. The side
+    # stitches cross the avatar volume and can inject a non-physical upward impulse
+    # into the back panel during the low-resolution XPBD turntable solve.
     for edge_a, edge_b, seam_id in (
-        (1, 7, "TunicRightSide"),
-        (7, 1, "TunicLeftSide"),
         (2, 6, "TunicRightShoulder"),
         (6, 2, "TunicLeftShoulder"),
     ):
