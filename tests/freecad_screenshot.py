@@ -58,7 +58,6 @@ if old_pin_block not in source:
     raise RuntimeError("GUI fixture pin block no longer matches expected source; refusing silent no-op")
 source = source.replace(old_pin_block, new_pin_block)
 
-# Keep the GUI audit collision surface cheap enough for CI while making collision direction independent of mesh winding.
 audit_patch = r'''
 from freecad_cloth.simulation.ClothSolver import _cross, _normalize, _closest_point_triangle
 import freecad_cloth.simulation.ClothSolver as _cloth_solver
@@ -76,6 +75,9 @@ def _audit_prepare_surface(system, surface):
         normal = _normalize(_cross(tuple(b[i] - a[i] for i in range(3)), tuple(c[i] - a[i] for i in range(3))))
         if normal is None:
             continue
+        face_center = tuple((a[i] + b[i] + c[i]) / 3.0 for i in range(3))
+        if sum(normal[i] * (center[i] - face_center[i]) for i in range(3)) > 0.0:
+            normal = tuple(-v for v in normal)
         prepared.append((a, b, c, normal, min(a[0], b[0], c[0]), min(a[1], b[1], c[1]), min(a[2], b[2], c[2]), max(a[0], b[0], c[0]), max(a[1], b[1], c[1]), max(a[2], b[2], c[2])))
     prepared = tuple(prepared)
     system._audit_surface_cache = (surface, prepared)
@@ -83,14 +85,13 @@ def _audit_prepare_surface(system, surface):
 
 def _audit_collide_surface(self, surface):
     prepared = _audit_prepare_surface(self, surface)
-    center = surface.center
     for p in self.particles:
         if p.inv_mass == 0.0 or not prepared:
             continue
         position = p.position()
         best = None
         best_distance_sq = None
-        for a, b, c, fallback_normal, xmin, ymin, zmin, xmax, ymax, zmax in prepared:
+        for a, b, c, normal, xmin, ymin, zmin, xmax, ymax, zmax in prepared:
             if best_distance_sq is not None:
                 dx = xmin - position[0] if position[0] < xmin else (position[0] - xmax if position[0] > xmax else 0.0)
                 dy = ymin - position[1] if position[1] < ymin else (position[1] - ymax if position[1] > ymax else 0.0)
@@ -98,13 +99,12 @@ def _audit_collide_surface(self, surface):
                 if dx * dx + dy * dy + dz * dz > best_distance_sq:
                     continue
             closest = _closest_point_triangle(position, a, b, c)
-            radial = _normalize(tuple(closest[i] - center[i] for i in range(3))) or fallback_normal
             delta = tuple(position[i] - closest[i] for i in range(3))
-            signed = sum(delta[i] * radial[i] for i in range(3))
+            signed = sum(delta[i] * normal[i] for i in range(3))
             if signed < surface.thickness:
                 distance_sq = sum(d * d for d in delta)
                 if best is None or distance_sq < best_distance_sq:
-                    best = (distance_sq, radial, signed)
+                    best = (distance_sq, normal, signed)
                     best_distance_sq = distance_sq
         if best is not None:
             _, normal, signed = best
@@ -124,7 +124,7 @@ def _audit_apply_collision(self, obj):
     from freecad_cloth.avatar.AvatarCollision import coarsen_collision_surface, surface_from_freecad
     thickness = float(getattr(avatar, "CollisionThickness", 0.0)) + float(obj.FabricThickness) + float(obj.AvatarSkinOffset)
     full_surface = surface_from_freecad(source, float(getattr(avatar, "CollisionDeflection", 1.0)), thickness)
-    base.collision_surface = coarsen_collision_surface(full_surface, 256)
+    base.collision_surface = coarsen_collision_surface(full_surface, 2048)
 QualitySimulationProxy._apply_collision = _audit_apply_collision
 '''
 source = source.replace('OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")', audit_patch + '\nOUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")')
