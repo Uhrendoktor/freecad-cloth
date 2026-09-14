@@ -2,7 +2,7 @@
 from pathlib import Path
 
 source = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
-source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(20.0, 0.02 * body_depth);')
+source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(6.0, 0.02 * body_depth);')
 # Fast visual-regression profile: coarse particles with the stable turntable solver settings.
 source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 28.0;')
 source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 6;')
