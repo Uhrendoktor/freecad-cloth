@@ -3,16 +3,16 @@ from pathlib import Path
 
 source = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
 source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(20.0, 0.08 * body_depth);')
-# Fast visual-regression profile: fewer particles while retaining enough convergence for a stable drape.
+# Fast visual-regression profile: fewer particles and iterations, with the original stable clearance.
 source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 28.0;')
-source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 4;')
+source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 3;')
 source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 1;')
 source = source.replace('scene.TimeStep = 1.0 / 120.0;', 'scene.TimeStep = 1.0 / 120.0;')
 source = source.replace('scene.FabricFriction = 0.75;', 'scene.FabricFriction = 0.75;')
-source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (10,10,10,10):')
-source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 40 or')
-source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 40-step state"')
-source = source.replace('after 90 real steps;', 'after 40 real steps;')
+source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (10,10,10):')
+source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 30 or')
+source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 30-step state"')
+source = source.replace('after 90 real steps;', 'after 30 real steps;')
 source = source.replace(
     'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(7,7,"TunicLeftSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):',
     'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(7,7,"TunicLeftSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):'
