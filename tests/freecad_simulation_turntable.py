@@ -257,7 +257,8 @@ def build_simulation_state(doc):
 
     fmesh, front_pins = local_boundary(front, front_outline)
     _, back_pins_local = local_boundary(back, back_outline)
-    back_pins = tuple(len(fmesh.vertices) + i for i in back_pins_local)
+    front_positions, _front_triangles, _front_boundary = __import__("freecad_cloth.simulation.SimulationMeshQuality", fromlist=["quality_piece_mesh"]).quality_piece_mesh(front, 0.0, scene.ParticleDistance)
+    back_pins = tuple(len(front_positions) + i for i in back_pins_local)
     scene.PinSelection = [str(i) for i in front_pins + back_pins]
     doc.recompute()
 
