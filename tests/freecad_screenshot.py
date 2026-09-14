@@ -15,9 +15,11 @@ source = source.replace('"simulation did not reach a finite 90-step state"', '"s
 source = source.replace('after 90 real steps;', 'after 30 real steps;')
 # The fast profile converges less completely than the full 8-iteration run; allow a small, explicit upper-margin adjustment in the visual sanity check.
 source = source.replace('upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))', 'upper_margin = 0.15 * max(1.0, float(shoulder_z) - float(hem_z))')
+# Side seams in this deliberately coarse visual fixture cross the avatar volume and can inject an upward constraint impulse.
+# Keep the authored shoulder seams for the garment silhouette while avoiding that unstable cross-body stitch pair.
 source = source.replace(
     'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(7,7,"TunicLeftSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):',
-    'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(7,7,"TunicLeftSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):'
+    'for edge_a, edge_b, seam_id in ((3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):'
 )
 source = source.replace(
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)',
@@ -83,4 +85,32 @@ source = source.replace(
     'self.backend = _canonical_backend(system, triangles_global, tuple(system.pins), tuple((c.a, c.b) for c in system.stitches), _collision_for_scene(obj))',
     1,
 )
+
+# Exercise the actual registered GUI command through its public command path, then verify
+# the preview timer advances the simulation and stopping restores the authoritative settings.
+preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
+    if "ClothRealtimePreview" not in Gui.listCommands():
+        raise RuntimeError("Realtime Cloth Preview GUI command is not registered")
+    preview_saved = {name: getattr(scene, name) for name in ("ParticleDistance", "SolverIterations", "SolverSubsteps", "TimeStep", "QualityPreset")}
+    Gui.runCommand("ClothRealtimePreview")
+    for _ in range(12):
+        events()
+    preview_steps = int(scene.Steps)
+    if preview_steps <= 0:
+        RealtimePreview.stop_realtime_preview()
+        raise RuntimeError("Realtime Cloth Preview timer did not advance the simulation")
+    Gui.runCommand("ClothRealtimePreview")
+    if int(scene.Steps) != 0:
+        RealtimePreview.stop_realtime_preview()
+        raise RuntimeError("Realtime Cloth Preview did not reset steps on stop")
+    for name, value in preview_saved.items():
+        if getattr(scene, name) != value:
+            raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
+    log("realtime-preview=passed steps=%d" % preview_steps)
+'''
+anchor = '    task_dock.hide(); events(); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical sewn tunic generated from native Sketcher pattern sources on production mannequin"); task_dock.show(); task_dock.raise_(); events()'
+if anchor not in source:
+    raise RuntimeError("GUI fixture arranged screenshot anchor no longer matches expected source; refusing silent no-op")
+source = source.replace(anchor, anchor + '\n' + preview_probe, 1)
+
 exec(compile(source, str(Path(__file__).with_name("freecad_screenshot_source.py")), "exec"), globals(), globals())
