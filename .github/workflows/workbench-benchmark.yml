@@ -8,7 +8,6 @@ on:
   workflow_dispatch:
 
 permissions:
-  actions: write
   contents: read
 
 concurrency:
@@ -34,16 +33,15 @@ jobs:
           if docker image inspect "$IMAGE" >/dev/null 2>&1; then exit 0; fi
           if printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1 && timeout 90s docker pull "$IMAGE"; then exit 0; fi
           docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
-          docker buildx build --progress=plain --cache-from type=gha,scope=freecad-ci --cache-to type=gha,scope=freecad-ci,mode=max --load --tag "$IMAGE" docker/freecad-ci
+          docker buildx build --progress=plain --load --tag "$IMAGE" docker/freecad-ci
       - name: Run isolated FreeCAD workbench measurements
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
-          REPEATS: ${{ github.event_name == 'pull_request' && '3' || '5' }}
         run: |
           set -uo pipefail
           rm -rf artifacts/workbench-benchmark
           mkdir -p artifacts/workbench-benchmark
-          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e REPEATS="$REPEATS" -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 -w /workspace "$IMAGE" -euo pipefail -c '
+          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 -w /workspace "$IMAGE" -euo pipefail -c '
             set -e
             mkdir -p "$XDG_RUNTIME_DIR"
             Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
@@ -54,7 +52,7 @@ jobs:
             for wb in Pattern Sewing Simulation; do
               echo "=== benchmark: $wb ==="
               rm -f /tmp/cloth-benchmark-trace.log
-              CLOTH_BENCHMARK_WORKBENCH="$wb" CLOTH_BENCHMARK_OUTPUT="artifacts/workbench-benchmark/$wb.json" CLOTH_BENCHMARK_REPEATS="$REPEATS" timeout --signal=TERM --kill-after=10s 180s /opt/freecad/AppRun tests/freecad_workbench_benchmark.py
+              CLOTH_BENCHMARK_WORKBENCH="$wb" CLOTH_BENCHMARK_OUTPUT="artifacts/workbench-benchmark/$wb.json" CLOTH_BENCHMARK_REPEATS=7 timeout --signal=TERM --kill-after=10s 180s /opt/freecad/AppRun tests/freecad_workbench_benchmark.py
               test -s "artifacts/workbench-benchmark/$wb.json"
             done
           ')"
@@ -94,7 +92,7 @@ jobs:
           (root / "benchmark.json").write_text(json.dumps(merged, indent=2, sort_keys=True) + "\n")
           PY
       - name: Install plotting dependency
-        run: python3 -m pip install --disable-pip-version-check --cache-dir "$HOME/.cache/pip" matplotlib
+        run: python3 -m pip install --disable-pip-version-check matplotlib
       - name: Generate benchmark plots
         run: python3 tools/plot_workbench_benchmark.py artifacts/workbench-benchmark/benchmark.json artifacts/workbench-benchmark/plots
       - name: Upload benchmark measurements and plots

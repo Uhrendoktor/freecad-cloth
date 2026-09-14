@@ -21,5 +21,4 @@ class ClothSimulationWorkbench(ClothWorkbenchBase):
             return
         import freecad_cloth.simulation.SimulationCommands as SimulationCommands
         import freecad_cloth.simulation.DrapeCommands as DrapeCommands
-        import freecad_cloth.simulation.RealtimePreview as RealtimePreview
-        self.register((("Simulation", SimulationCommands.COMMANDS + ["ClothRealtimePreview"] + DrapeCommands.COMMANDS),))
+        self.register((("Simulation", SimulationCommands.COMMANDS + DrapeCommands.COMMANDS),))
