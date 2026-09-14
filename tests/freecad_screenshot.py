@@ -1,3 +1,4 @@
+# Canonical GUI validation trigger for the bounded drape stabilization.
 """CI entry point for the tunic visual regression.
 
 Uses the previously authored native-Sketcher fixture as the source of truth, while
