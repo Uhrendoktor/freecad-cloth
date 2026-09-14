@@ -37,6 +37,20 @@ def test_validation_fallback_is_deterministic():
     assert result.watertight is None
 
 
+def test_validation_fallback_counts_disconnected_components():
+    vertices = (
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (0.0, 1.0, 0.0),
+        (10.0, 0.0, 0.0),
+        (11.0, 0.0, 0.0),
+        (10.0, 1.0, 0.0),
+    )
+    triangles = ((0, 1, 2), (3, 4, 5))
+    result = validate_mesh(vertices, triangles, prefer_trimesh=False)
+    assert result.components == 2
+
+
 def test_validation_rejects_bad_indices():
     _raises(
         ValueError,
