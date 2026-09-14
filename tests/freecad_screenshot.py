@@ -108,9 +108,9 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
     log("realtime-preview=passed steps=%d" % preview_steps)
 '''
-anchor = '    task_dock.hide(); events(); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical sewn tunic generated from native Sketcher pattern sources on production mannequin"); task_dock.show(); task_dock.raise_(); events()'
+anchor = '    for batch in (10,10,10):'
 if anchor not in source:
-    raise RuntimeError("GUI fixture arranged screenshot anchor no longer matches expected source; refusing silent no-op")
-source = source.replace(anchor, anchor + '\n' + preview_probe, 1)
+    raise RuntimeError("GUI fixture simulation batch anchor no longer matches expected source; refusing silent no-op")
+source = source.replace(anchor, preview_probe + '\n' + anchor, 1)
 
 exec(compile(source, str(Path(__file__).with_name("freecad_screenshot_source.py")), "exec"), globals(), globals())
