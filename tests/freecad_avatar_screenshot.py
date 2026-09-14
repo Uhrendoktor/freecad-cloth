@@ -75,7 +75,7 @@ def save_png(view, path, width=1280, height=720, state="capture"):
 
 def avatar_center(avatar):
     """Return a stable center point for orbiting the camera around the mesh."""
-    bbox = avatar.Shape.BoundBox
+    bbox = avatar.Mesh.BoundBox
     return App.Vector(
         0.5 * (bbox.XMin + bbox.XMax),
         0.5 * (bbox.YMin + bbox.YMax),
