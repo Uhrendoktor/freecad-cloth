@@ -29,11 +29,13 @@ def _scene():
 def _prepare(scene):
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import ensure_quality_properties
     ensure_quality_properties(scene)
-    # Interactive profile: coarse cloth + one solver iteration. The full-quality
-    # properties are restored when playback stops, so the preview is disposable.
-    ensure_quality_properties(scene)
-    scene.QualityPreset = "Fast" if "Fast" in tuple(scene.QualityPreset) else scene.QualityPreset
-    scene.ParticleDistance = max(24.0, float(scene.ParticleDistance))
+    # Interactive profile: coarse cloth + two solver iterations. The normal
+    # quality settings are restored on stop, without replaying the preview.
+    try:
+        scene.QualityPreset = "Fast"
+    except (AttributeError, ValueError):
+        pass
+    scene.ParticleDistance = max(28.0, float(scene.ParticleDistance))
     scene.SolverIterations = 2
     scene.SolverSubsteps = 1
     scene.TimeStep = 1.0 / 60.0
@@ -67,10 +69,15 @@ class _Preview:
         was_running = self.running
         self.running = False
         if restore and was_running:
+            # Do not restore a non-zero step count before recomputing: doing so
+            # would replay the whole preview at final quality on the GUI thread.
+            self.scene.Steps = 0
             for name, value in self._saved.items():
-                if hasattr(self.scene, name):
+                if name != "Steps" and hasattr(self.scene, name):
                     setattr(self.scene, name, value)
             self.scene.Document.recompute()
+            if "Steps" in self._saved:
+                self.scene.Steps = self._saved["Steps"]
         self._message("Realtime preview stopped")
 
     def tick(self):
@@ -80,9 +87,9 @@ class _Preview:
         try:
             self.scene.Steps = int(self.scene.Steps) + 1
             self.scene.Document.recompute()
-            gui = __import__("FreeCADGui")
-            if gui.activeDocument():
-                gui.activeDocument().activeView().redraw()
+            import FreeCADGui as Gui
+            if Gui.activeDocument():
+                Gui.activeDocument().activeView().redraw()
         except Exception as exc:
             self.stop(False)
             self._message("Realtime preview stopped: %s" % exc)
@@ -99,14 +106,6 @@ class _Preview:
 def toggle_realtime_preview():
     global _PREVIEW
     scene = _scene()
-    if scene is None:
-        try:
-            import FreeCADGui as Gui
-            Gui.doCommand("from freecad_cloth.simulation.SimulationCommands import create_simulation")
-            Gui.doCommand("create_simulation()")
-        except Exception:
-            pass
-        scene = _scene()
     if scene is None:
         raise RuntimeError("Create a ClothSimulation scene first")
     if _PREVIEW is not None and _PREVIEW.running:
