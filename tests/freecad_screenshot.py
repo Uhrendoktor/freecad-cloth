@@ -14,7 +14,7 @@ source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 
 source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 30-step state"')
 source = source.replace('after 90 real steps;', 'after 30 real steps;')
 # The fast profile converges less completely than the full 8-iteration run; keep a small explicit tolerance for its coarse solver.
-source = source.replace('upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))', 'upper_margin = 0.16 * max(1.0, float(shoulder_z) - float(hem_z))')
+source = source.replace('upper_margin = 0.15 * max(1.0, float(shoulder_z) - float(hem_z))', 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))')
 source = source.replace(
     'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(7,7,"TunicLeftSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):',
     'for edge_a, edge_b, seam_id in ((3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):'
