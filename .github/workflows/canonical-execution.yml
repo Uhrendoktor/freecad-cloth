@@ -38,14 +38,15 @@ jobs:
         run: |
           set -euo pipefail
           if docker image inspect "$IMAGE" >/dev/null 2>&1; then exit 0; fi
-          if printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1 && timeout 90s docker pull "$IMAGE"; then exit 0; fi
-          docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
+          if printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1 && timeout 180s docker pull "$IMAGE"; then exit 0; fi
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+            docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
             printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin
             docker buildx build --progress=plain --cache-from type=gha,scope=freecad-ci --cache-to type=gha,scope=freecad-ci,mode=max --push --tag "$IMAGE" docker/freecad-ci
             docker pull "$IMAGE"
           else
-            docker buildx build --progress=plain --cache-from type=gha,scope=freecad-ci --cache-to type=gha,scope=freecad-ci,mode=max --load --tag "$IMAGE" docker/freecad-ci
+            echo "Prebuilt FreeCAD CI image could not be pulled; refusing an expensive PR image rebuild." >&2
+            exit 1
           fi
       - name: Run Python tests in Docker
         env:
@@ -74,14 +75,15 @@ jobs:
         run: |
           set -euo pipefail
           if docker image inspect "$IMAGE" >/dev/null 2>&1; then exit 0; fi
-          if printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1 && timeout 90s docker pull "$IMAGE"; then exit 0; fi
-          docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
+          if printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1 && timeout 180s docker pull "$IMAGE"; then exit 0; fi
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+            docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
             printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin
             docker buildx build --progress=plain --cache-from type=gha,scope=freecad-ci --cache-to type=gha,scope=freecad-ci,mode=max --push --tag "$IMAGE" docker/freecad-ci
             docker pull "$IMAGE"
           else
-            docker buildx build --progress=plain --cache-from type=gha,scope=freecad-ci --cache-to type=gha,scope=freecad-ci,mode=max --load --tag "$IMAGE" docker/freecad-ci
+            echo "Prebuilt FreeCAD CI image could not be pulled; refusing an expensive PR image rebuild." >&2
+            exit 1
           fi
       - name: Launch FreeCAD GUI and export screenshots in Docker
         env:
