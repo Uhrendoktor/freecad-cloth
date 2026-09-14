@@ -3,19 +3,19 @@ from pathlib import Path
 
 source = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
 source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(6.0, 0.02 * body_depth);')
-source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 8;')
+source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 22.0;')
+source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 6;')
 source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 1;')
-source = source.replace('scene.TimeStep = 1.0 / 120.0;', 'scene.TimeStep = 1.0 / 120.0;')
-source = source.replace('scene.FabricFriction = 0.75;', 'scene.FabricFriction = 1.0;')
-source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (10,5):')
-source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 15 or')
-source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 15-step state"')
-source = source.replace('after 90 real steps;', 'after 15 real steps;')
+source = source.replace('scene.TimeStep = 1.0 / 120.0;', 'scene.TimeStep = 1.0 / 90.0;')
+source = source.replace('scene.FabricFriction = 0.75;', 'scene.FabricFriction = 0.75;')
+source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (15,15):')
+source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 30 or')
+source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 30-step state"')
+source = source.replace('after 90 real steps;', 'after 30 real steps;')
 source = source.replace(
-    'piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot); piece.Sketch.Placement = piece.Placement;',
-    'piece_rot = rot if name.endswith("Front") else App.Rotation(App.Vector(1,0,0), -90.0); piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), piece_rot); piece.Sketch.Placement = piece.Placement;',
+    'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(7,7,"TunicLeftSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):',
+    'for edge_a, edge_b, seam_id in ((1,7,"TunicRightSide"),(7,1,"TunicLeftSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder")):'
 )
-
 old_pin_block = '''    def authored_shoulder_pins(piece, positions):
         targets = (
             (0.14 * panel_width, 0.97 * garment_height),
@@ -35,14 +35,11 @@ old_pin_block = '''    def authored_shoulder_pins(piece, positions):
     back_pins_local = authored_shoulder_pins(back, back_positions)
     back_pins = tuple(len(front_positions) + i for i in back_pins_local)'''
 new_pin_block = '''    def authored_shoulder_pins(piece, positions):
-        back_facing = str(getattr(piece, "Name", "")).endswith("Back")
-        top_y = 0.03 if back_facing else 0.97
-        lower_y = 0.10 if back_facing else 0.90
         targets = (
-            (0.14 * panel_width, top_y * garment_height),
-            (0.86 * panel_width, top_y * garment_height),
-            (0.26 * panel_width, lower_y * garment_height),
-            (0.74 * panel_width, lower_y * garment_height),
+            (0.14 * panel_width, 0.97 * garment_height),
+            (0.86 * panel_width, 0.97 * garment_height),
+            (0.26 * panel_width, 0.90 * garment_height),
+            (0.74 * panel_width, 0.90 * garment_height),
         )
         available = list(range(len(positions)))
         result = []
@@ -60,5 +57,4 @@ new_pin_block = '''    def authored_shoulder_pins(piece, positions):
 if old_pin_block not in source:
     raise RuntimeError("GUI fixture pin block no longer matches expected source; refusing silent no-op")
 source = source.replace(old_pin_block, new_pin_block)
-
 exec(compile(source, str(Path(__file__).with_name("freecad_screenshot_source.py")), "exec"), globals(), globals())
