@@ -14,4 +14,8 @@ source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (15,1
 source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 45 or')
 source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 45-step state"')
 source = source.replace('after 90 real steps;', 'after 45 real steps;')
+source = source.replace(
+    '''targets = (\n            (0.14 * panel_width, 0.97 * garment_height),\n            (0.86 * panel_width, 0.97 * garment_height),\n        )''',
+    '''targets = (\n            (0.08 * panel_width, 0.97 * garment_height),\n            (0.92 * panel_width, 0.97 * garment_height),\n            (0.20 * panel_width, 0.90 * garment_height),\n            (0.80 * panel_width, 0.90 * garment_height),\n        )''',
+)
 exec(compile(source, str(Path(__file__).with_name("freecad_screenshot_source.py")), "exec"), globals(), globals())
