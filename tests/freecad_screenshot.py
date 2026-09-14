@@ -20,10 +20,11 @@ source = source.replace(
 required_pin_code = '    back_pins = tuple(len(front_positions) + i for i in back_pins_local)'
 if required_pin_code not in source:
     raise RuntimeError("GUI fixture pin mapping no longer uses refined front-position count; refusing silent no-op")
-old_targets = '''        targets = (\n            (0.10 * panel_width, 0.97 * garment_height),\n            (0.90 * panel_width, 0.97 * garment_height),\n        )'''
-new_targets = '''        targets = (\n            (0.14 * panel_width, 0.97 * garment_height),\n            (0.86 * panel_width, 0.97 * garment_height),\n        )'''
+old_targets = '''            (0.14 * panel_width, 0.97 * garment_height),\n            (0.86 * panel_width, 0.97 * garment_height),'''
+new_targets = '''            (0.14 * panel_width, 0.97 * garment_height),\n            (0.86 * panel_width, 0.97 * garment_height),'''
 if old_targets not in source:
     raise RuntimeError("GUI fixture authored shoulder target block no longer matches expected source")
+# Keep the authored source targets unchanged; this guard makes the patch explicit.
 source = source.replace(old_targets, new_targets, 1)
 
 backend_patch = r'''
