@@ -8,10 +8,10 @@ source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations =
 source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 1;')
 source = source.replace('scene.TimeStep = 1.0 / 120.0;', 'scene.TimeStep = 1.0 / 120.0;')
 source = source.replace('scene.FabricFriction = 0.75;', 'scene.FabricFriction = 0.75;')
-source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (15,15,15,15,15,15):')
-source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 90 or')
-source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 90-step state"')
-source = source.replace('after 90 real steps;', 'after 90 real steps;')
+source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (15,15,15,15):')
+source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 60 or')
+source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 60-step state"')
+source = source.replace('after 90 real steps;', 'after 60 real steps;')
 source = source.replace(
     'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(7,7,"TunicLeftSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):',
     'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(7,7,"TunicLeftSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):'
