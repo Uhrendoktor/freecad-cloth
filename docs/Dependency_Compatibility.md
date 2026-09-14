@@ -1,6 +1,6 @@
 # Optional dependency compatibility matrix
 
-Updated 2026-09-14. The project currently declares Python `>=3.9` and the canonical CI image is `freecad-1.1.3-r1`. External libraries remain optional adapters or developer tooling; none is promoted to a core runtime dependency by this matrix.
+Updated 2026-09-14. The project currently declares Python `>=3.9` and the canonical CI image is `freecad-1.1.0-py312-r1`. External libraries remain optional adapters or developer tooling; none is promoted to a core runtime dependency by this matrix.
 
 ## Current matrix
 
@@ -38,7 +38,7 @@ Any candidate with compiled dependencies must pass an isolated packaging probe f
 ## Sources checked
 
 - Project baseline: `pyproject.toml` (`requires-python = ">=3.9"`).
-- Canonical CI: `.github/workflows/canonical-execution.yml` uses `ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.3-r1`.
+- Canonical CI: `.github/workflows/canonical-execution.yml` uses `ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r1`.
 - `trimesh` PyPI metadata: current 5.1.0 release, Python >=3.10, MIT, `py3-none-any`, NumPy hard dependency.
 - `ezdxf` PyPI metadata: current 1.4.4 release, Python >=3.10, MIT, `py3-none-any` plus platform wheels, `typing_extensions`/`pyparsing`/`numpy` core dependencies.
 - `meshio` PyPI metadata: current 5.3.5 release, Python >=3.8, MIT, `py3-none-any`, NumPy default dependency.
