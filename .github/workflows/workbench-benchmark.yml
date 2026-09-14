@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.3-r1
+  FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r2
   PYTHONPATH: /workspace
 
 jobs:
