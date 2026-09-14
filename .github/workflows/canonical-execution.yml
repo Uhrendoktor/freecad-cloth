@@ -17,7 +17,7 @@ permissions:
   pull-requests: write
 
 env:
-  FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r1
+  FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r2
   QT_X11_NO_MITSHM: 1
   QT_QPA_PLATFORM: xcb
   LIBGL_ALWAYS_SOFTWARE: 1
@@ -39,7 +39,7 @@ jobs:
           if docker image inspect "$IMAGE" >/dev/null 2>&1; then exit 0; fi
           if printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1 && timeout 90s docker pull "$IMAGE"; then exit 0; fi
           docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
-          docker buildx build --progress=plain --load --tag "$IMAGE" docker/freecad-ci
+          docker buildx build --progress=plain --cache-from type=gha,scope=freecad-ci --cache-to type=gha,scope=freecad-ci,mode=max --load --tag "$IMAGE" docker/freecad-ci
       - name: Run Python tests in Docker
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
@@ -69,7 +69,7 @@ jobs:
           if docker image inspect "$IMAGE" >/dev/null 2>&1; then exit 0; fi
           if printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1 && timeout 90s docker pull "$IMAGE"; then exit 0; fi
           docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
-          docker buildx build --progress=plain --load --tag "$IMAGE" docker/freecad-ci
+          docker buildx build --progress=plain --cache-from type=gha,scope=freecad-ci --cache-to type=gha,scope=freecad-ci,mode=max --load --tag "$IMAGE" docker/freecad-ci
       - name: Launch FreeCAD GUI and export screenshots in Docker
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
