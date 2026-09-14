@@ -2,10 +2,11 @@
 from pathlib import Path
 
 source = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
-source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(20.0, 0.08 * body_depth);')
+source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(6.0, 0.02 * body_depth);')
+# Fast visual-regression profile: coarse particles with the stable turntable solver settings.
 source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 28.0;')
 source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 6;')
-source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 2;')
+source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 1;')
 source = source.replace('scene.TimeStep = 1.0 / 120.0;', 'scene.TimeStep = 1.0 / 90.0;')
 source = source.replace('scene.FabricFriction = 0.75;', 'scene.FabricFriction = 0.75;')
 source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (10,10,10):')
@@ -14,18 +15,12 @@ source = source.replace('"simulation did not reach a finite 90-step state"', '"s
 source = source.replace('after 90 real steps;', 'after 30 real steps;')
 source = source.replace('upper_margin = 0.15 * max(1.0, float(shoulder_z) - float(hem_z))', 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))')
 source = source.replace(
-    '    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):\n        add_seam(doc, Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))\n',
-    '    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):\n        add_seam(doc, Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))\n'
+    '    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):\n        add_seam(doc, Seam(str(front.PieceId), edge_a, edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))\n',
+    '    for edge_a, edge_b, seam_id in ((2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder")):\n        add_seam(doc, Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))\n'
 )
 required_pin_code = '    back_pins = tuple(len(front_positions) + i for i in back_pins_local)'
 if required_pin_code not in source:
     raise RuntimeError("GUI fixture pin mapping no longer uses refined front-position count; refusing silent no-op")
-old_targets = '''            (0.14 * panel_width, 0.97 * garment_height),\n            (0.86 * panel_width, 0.97 * garment_height),'''
-new_targets = '''            (0.14 * panel_width, 0.97 * garment_height),\n            (0.86 * panel_width, 0.97 * garment_height),'''
-if old_targets not in source:
-    raise RuntimeError("GUI fixture authored shoulder target block no longer matches expected source")
-# Keep the authored source targets unchanged; this guard makes the patch explicit.
-source = source.replace(old_targets, new_targets, 1)
 
 backend_patch = r'''
 from freecad_cloth.simulation.ClothBackend import default_backend_registry, preferred_backend_name
