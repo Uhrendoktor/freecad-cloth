@@ -53,7 +53,6 @@ new_pin_block = '''    def authored_shoulder_pins(piece, positions, boundary):
     back_pins_local = authored_shoulder_pins(back, back_positions, back_boundary)'''
 source = source.replace(old_pin_block, new_pin_block)
 
-# Keep the GUI audit collision surface cheap enough for CI while retaining the real physical gates.
 audit_patch = r'''
 from freecad_cloth.simulation.ClothSolver import _cross, _normalize, _closest_point_triangle
 import freecad_cloth.simulation.ClothSolver as _cloth_solver
