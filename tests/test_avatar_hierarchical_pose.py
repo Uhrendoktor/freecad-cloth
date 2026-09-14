@@ -46,9 +46,9 @@ class AvatarHierarchicalPoseTests(unittest.TestCase):
         self.assertEqual(skeleton["bones"]["wrist.R"]["parent"], "lowerarm02.R")
 
     def test_hierarchical_builder_uses_real_mesh_provider(self):
-        vertices, triangles, _ = build_hierarchical_avatar_mesh(AvatarParameters(skin_offset=0)).vertices, None, None
-        self.assertEqual(len(vertices.vertices), 13380)
-        self.assertTrue(vertices.triangles)
+        mesh = build_hierarchical_avatar_mesh(AvatarParameters(skin_offset=0))
+        self.assertEqual(len(mesh.vertices), 13380)
+        self.assertTrue(mesh.triangles)
 
     def test_weight_fixture_is_structurally_authored(self):
         payload = {"weights": {"upperarm01.L": [[0, 0.4]], "wrist.L": [[1, 0.6]], "finger2-1.L": [[1, 0.2]]}}
