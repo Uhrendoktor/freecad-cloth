@@ -21,6 +21,23 @@ class _App:
         self.ActiveDocument = _Document()
 
 
+def test_sketch_authority_predicate_requires_linked_sketch():
+    obj = type("Pattern", (), {})()
+    obj.GeometryAuthority = "Sketcher"
+    obj.Sketch = object()
+    assert PatternGui._is_sketch_authoritative(obj) is True
+
+    obj.Sketch = None
+    assert PatternGui._is_sketch_authoritative(obj) is False
+
+
+def test_sketch_authority_predicate_rejects_parameter_geometry():
+    obj = type("Pattern", (), {})()
+    obj.GeometryAuthority = "PatternParameters"
+    obj.Sketch = object()
+    assert PatternGui._is_sketch_authoritative(obj) is False
+
+
 def test_pattern_piece_reject_restores_original_properties():
     obj = type("Pattern", (), {})()
     obj.Label = "Original"
