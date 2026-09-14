@@ -28,6 +28,14 @@ source = source.replace(
 required_pin_code = '    back_pins = tuple(len(front_positions) + i for i in back_pins_local)'
 if required_pin_code not in source:
     raise RuntimeError("GUI fixture pin mapping no longer uses refined front-position count; refusing silent no-op")
+# The native tunic boundary is authored in this fixed eight-edge order: bottom,
+# right hem/side, right shoulder, right neckline, neckline, left neckline,
+# left shoulder, left side. Pin the authored shoulder vertices directly rather
+# than relying on a nearest-point search through the refined solver mesh.
+source = source.replace(
+    '    def authored_shoulder_pins(piece, positions):\n        targets = (\n            (0.14 * panel_width, 0.97 * garment_height),\n            (0.86 * panel_width, 0.97 * garment_height),\n        )\n        available = list(range(len(positions)))\n        result = []\n        for local_x, local_y in targets:\n            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))\n            index = min(available, key=lambda i: (positions[i][0] - target_point.x) ** 2 + (positions[i][1] - target_point.y) ** 2 + (positions[i][2] - target_point.z) ** 2)\n            result.append(index)\n            available.remove(index)\n        return tuple(result)\n',
+    '    def authored_shoulder_pins(piece, positions):\n        if len(positions) < 8:\n            raise RuntimeError("refined tunic mesh does not preserve the authored eight-edge boundary")\n        return (6, 3)\n'
+)
 
 backend_patch = r'''
 from freecad_cloth.simulation.ClothBackend import default_backend_registry, preferred_backend_name
