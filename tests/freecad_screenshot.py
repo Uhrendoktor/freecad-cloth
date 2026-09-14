@@ -23,6 +23,31 @@ source = source.replace(
 required_pin_code = '    back_pins = tuple(len(front_positions) + i for i in back_pins_local)'
 if required_pin_code not in source:
     raise RuntimeError("GUI fixture pin mapping no longer uses refined front-position count; refusing silent no-op")
+# Keep pins authored by the shoulder zones, but stabilize the low-resolution solve by
+# pinning the refined boundary vertices in those authored shoulder regions. This is
+# coordinate/geometry based and remains independent of topology-dependent indices.
+shoulder_pin_patch = '''    shoulder_pin_code = """
+    front_pins = tuple(
+        i for i in _front_boundary
+        if float(front_positions[i][1]) >= 0.86 * garment_height - 1e-6
+        and (float(front_positions[i][0]) <= 0.32 * panel_width + 1e-6 or float(front_positions[i][0]) >= 0.68 * panel_width - 1e-6)
+    )
+    back_pins_local = tuple(
+        i for i in _back_boundary
+        if float(back_positions[i][1]) >= 0.86 * garment_height - 1e-6
+        and (float(back_positions[i][0]) <= 0.32 * panel_width + 1e-6 or float(back_positions[i][0]) >= 0.68 * panel_width - 1e-6)
+    )
+    back_pins = tuple(len(front_positions) + i for i in back_pins_local)
+"""
+    source = source.replace(
+        '    front_pins = authored_shoulder_pins(front, front_positions)\n    back_pins_local = authored_shoulder_pins(back, back_positions)\n    back_pins = tuple(len(front_positions) + i for i in back_pins_local)\n',
+        shoulder_pin_code,
+        1,
+    )
+    if shoulder_pin_code not in source:
+        raise RuntimeError("failed to apply authored shoulder-zone pin patch")
+'''
+source = source.replace('required_pin_code = \'    back_pins = tuple(len(front_positions) + i for i in back_pins_local)\'', 'required_pin_code = \'    back_pins = tuple(len(front_positions) + i for i in back_pins_local)\'\n' + shoulder_pin_patch, 1)
 # Keep the source fixture's authored shoulder selection: choose the two boundary
 # vertices nearest the intended shoulder coordinates on the actual refined mesh.
 # This avoids relying on topology-dependent numeric indices.
