@@ -6,14 +6,14 @@ source = source.replace(
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", back_y, 0.76, 0.12)',
 )
-source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 16;')
-source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 4;')
-source = source.replace('scene.TimeStep = 1.0 / 120.0;', 'scene.TimeStep = 1.0 / 480.0;')
-source = source.replace('scene.FabricFriction = 0.75;', 'scene.FabricFriction = 1.0;')
-source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (10,5):')
-source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 15 or')
+source = source.replace('scene.SolverIterations = 6;', 'scene.SolverIterations = 6;')
+source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 1;')
+source = source.replace('scene.TimeStep = 1.0 / 90.0;', 'scene.TimeStep = 1.0 / 90.0;')
+source = source.replace('scene.FabricFriction = 0.75;', 'scene.FabricFriction = 0.75;')
+source = source.replace('for batch in (10,10,10):', 'for batch in (10,10,10):')
+source = source.replace('if int(scene.Steps) != 30 or', 'if int(scene.Steps) != 30 or')
 source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 15-step state"')
-source = source.replace('after 90 real steps;', 'after 15 real steps;')
+source = source.replace('after 30 real steps;', 'after 30 real steps;')
 
 old_pin_block = '''    def authored_shoulder_pins(piece, positions):
         targets = (
