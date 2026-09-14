@@ -58,6 +58,12 @@ def inspect_drape(
 
     This is deliberately diagnostic rather than prescriptive: it does not
     claim that a geometrically plausible drape is physically correct.
+
+    Coordinates follow the FreeCAD garment convention used by the canonical
+    visual fixture: X/Y form the garment footprint and Z is vertical. The
+    ratios therefore intentionally use Z for vertical coverage and the larger
+    of X/Y for lateral coverage; using the largest or second-smallest axis can
+    make a wide, flattened or side-on garment look healthy by mistake.
     """
     if not garment_vertices:
         return DrapeVisualMetrics(0, (0.0,) * 6, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), 0.0, 0.0, None, False, "empty")
@@ -67,9 +73,8 @@ def inspect_drape(
 
     b = _bounds(garment_vertices)
     spans = (b[1] - b[0], b[3] - b[2], b[5] - b[4])
-    vertical = max(spans)
-    lateral = sorted(spans)[:2]
-    lateral_width = lateral[1]
+    vertical = spans[2]
+    lateral_width = max(spans[0], spans[1])
     vertical_span_ratio = vertical / float(target_height) if target_height and target_height > 0 else 0.0
     lateral_span_ratio = lateral_width / float(target_width) if target_width and target_width > 0 else 0.0
     clearance = minimum_vertex_distance(garment_vertices, target_vertices)
