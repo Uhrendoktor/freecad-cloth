@@ -2,6 +2,8 @@
 
 Uses the previously authored native-Sketcher fixture as the source of truth, while
 making only the bounded CI parameter changes needed for the final visual audit.
+The CI audit horizon is deliberately capped at 15 solver steps after longer GUI
+runs exposed physical instability rather than timing failures.
 """
 from pathlib import Path
 
