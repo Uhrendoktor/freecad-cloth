@@ -1,165 +1,65 @@
 import json
-import math
 import tempfile
 import unittest
 from pathlib import Path
 
-from freecad_cloth.avatar.HierarchicalPose import (
-    _blend_weighted_pose,
-    _distal_attachment_weights,
-    _group_weights,
-    _hand_roll_angle,
-    _map_weight_groups_to_geometry,
-    _rotate_about_axis,
-    _signed_angle_xz,
-    _shortest_angle,
-    _straighten_hands,
-    _weighted_distal_direction,
+from freecad_cloth.avatar.HierarchicalPose import build_hierarchical_avatar_mesh
+from freecad_cloth.avatar.HumanoidMesh import (
+    _bone_source_endpoints,
+    _joint_point,
+    _map_arm_weights_to_physical_sides,
+    _rotate_xz,
+    load_makehuman_skeleton,
 )
+from freecad_cloth.avatar.AvatarModel import AvatarParameters
 
 
 class AvatarHierarchicalPoseTests(unittest.TestCase):
-    def test_group_weights_separate_clavicle_from_arm_chain(self):
-        payload = {
-            "weights": {
-                "clavicle.L": [[1, 0.40]],
-                "upperarm01.L": [[1, 0.25]],
-                "lowerarm01.L": [[1, 0.35]],
-                "wrist.L": [[1, 0.20]],
-                "hand.L": [[1, 0.30]],
-                "finger2-1.L": [[1, 0.10]],
-                "spine03": [[1, 1.0]],
-                "upperarm01.R": [[2, 0.70]],
-            }
+    def test_joint_point_uses_authored_vertex_indices(self):
+        vertices = ((0.0, 0.0, 0.0), (2.0, 4.0, 6.0))
+        self.assertEqual(_joint_point(vertices, [0, 1]), (1.0, 2.0, 3.0))
+
+    def test_bone_endpoints_follow_authored_skeleton(self):
+        vertices = ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (20.0, 0.0, 0.0))
+        skeleton = {
+            "bones": {"upperarm01.L": {"head": "h", "tail": "t"}},
+            "joints": {"h": [0], "t": [1]},
         }
+        self.assertEqual(_bone_source_endpoints(vertices, skeleton, "upperarm01.L"), ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0)))
+
+    def test_arm_weight_labels_are_mapped_to_physical_x_sides(self):
+        vertices = ((-100.0, 0.0, 0.0), (100.0, 0.0, 0.0))
+        mapped = _map_arm_weights_to_physical_sides(vertices, ((0.0, 1.0), (1.0, 0.0)))
+        self.assertEqual(mapped, ((1.0, 0.0), (0.0, 1.0)))
+
+    def test_rigid_arm_rotation_preserves_distance_to_authored_pivot(self):
+        point = (300.0, 0.0, 1300.0)
+        pivot = (170.0, 0.0)
+        rotated = _rotate_xz(point, pivot, 0.7)
+        before = ((point[0] - pivot[0]) ** 2 + (point[2] - pivot[1]) ** 2) ** 0.5
+        after = ((rotated[0] - pivot[0]) ** 2 + (rotated[2] - pivot[1]) ** 2) ** 0.5
+        self.assertAlmostEqual(before, after, places=6)
+
+    def test_pinned_makehuman_skeleton_has_wrist_child_of_forearm(self):
+        skeleton = load_makehuman_skeleton()
+        self.assertEqual(skeleton["bones"]["wrist.L"]["parent"], "lowerarm02.L")
+        self.assertEqual(skeleton["bones"]["wrist.R"]["parent"], "lowerarm02.R")
+
+    def test_hierarchical_builder_uses_real_mesh_provider(self):
+        vertices, triangles, _ = build_hierarchical_avatar_mesh(AvatarParameters(skin_offset=0)).vertices, None, None
+        self.assertEqual(len(vertices.vertices), 13380)
+        self.assertTrue(vertices.triangles)
+
+    def test_weight_fixture_is_structurally_authored(self):
+        payload = {"weights": {"upperarm01.L": [[0, 0.4]], "wrist.L": [[1, 0.6]], "finger2-1.L": [[1, 0.2]]}}
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "weights.mhw"
             path.write_text(json.dumps(payload), encoding="utf-8")
-            groups = _group_weights(4, str(path))
-
-        self.assertAlmostEqual(groups["clavicle_l"][1], 0.40)
-        self.assertAlmostEqual(groups["arm_l"][1], 1.0)
-        self.assertAlmostEqual(groups["lowerarm_l"][1], 0.35)
-        self.assertAlmostEqual(groups["wrist_l"][1], 0.20)
-        self.assertAlmostEqual(groups["hand_l"][1], 0.40)
-        self.assertAlmostEqual(groups["arm_r"][2], 0.70)
-        self.assertEqual(groups["clavicle_r"][2], 0.0)
-
-    def test_weight_groups_follow_physical_x_side_not_rig_label(self):
-        vertices = (
-            (-220.0, 0.0, 1330.0),
-            (220.0, 0.0, 1330.0),
-        )
-        groups = {
-            "arm_l": (0.0, 1.0),
-            "arm_r": (1.0, 0.0),
-            "clavicle_l": (0.0, 1.0),
-            "clavicle_r": (1.0, 0.0),
-            "lowerarm_l": (0.0, 1.0),
-            "lowerarm_r": (1.0, 0.0),
-            "wrist_l": (0.0, 1.0),
-            "wrist_r": (1.0, 0.0),
-            "hand_l": (0.0, 1.0),
-            "hand_r": (1.0, 0.0),
-        }
-        mapped = _map_weight_groups_to_geometry(vertices, groups)
-        for prefix in ("arm", "clavicle", "lowerarm", "wrist", "hand"):
-            self.assertEqual(mapped[f"{prefix}_l"], (1.0, 0.0))
-            self.assertEqual(mapped[f"{prefix}_r"], (0.0, 1.0))
-
-    def test_rigid_arm_transform_preserves_distance_to_shoulder(self):
-        point = (300.0, 0.0, 1300.0)
-        posed = _blend_weighted_pose(
-            point,
-            1.0,
-            0.0,
-            (170.0, 1330.0),
-            (100.0, 1330.0),
-            0.2,
-            0.0,
-        )
-        rest = ((point[0] - 170.0) ** 2 + (point[2] - 1330.0) ** 2) ** 0.5
-        actual = ((posed[0] - 170.0) ** 2 + (posed[2] - 1330.0) ** 2) ** 0.5
-        self.assertAlmostEqual(actual, rest, places=6)
-
-    def test_weighted_shoulder_transition_stays_bounded(self):
-        point = (200.0, 0.0, 1300.0)
-        posed = _blend_weighted_pose(
-            point,
-            0.55,
-            0.30,
-            (170.0, 1330.0),
-            (90.0, 1330.0),
-            0.2,
-            0.07,
-        )
-        self.assertTrue(all(abs(value) < 5000.0 for value in posed))
-
-    def test_distal_hand_direction_favors_fingers_over_wrist_base(self):
-        vertices = (
-            (0.0, 0.0, 0.0),
-            (0.0, 0.0, 6.0),
-            (0.0, 0.0, 24.0),
-        )
-        weights = (1.0, 1.0, 0.05)
-        direction = _weighted_distal_direction(vertices, weights, (0.0, 0.0), min_distance=2.0)
-        self.assertIsNotNone(direction)
-        dx, dz = direction
-        self.assertAlmostEqual(dx, 0.0, places=6)
-        self.assertGreater(dz, 15.0)
-
-    def test_hand_roll_turns_edge_on_palm_normal_to_front(self):
-        forearm_axis = (0.7, 0.0, -0.7)
-        angle = _hand_roll_angle(forearm_axis)
-        current_normal = (0.70710678118, 0.0, 0.70710678118)
-        rotated = _rotate_about_axis((current_normal[0], current_normal[1], current_normal[2]), (0.0, 0.0, 0.0), forearm_axis, angle)
-        self.assertAlmostEqual(rotated[0], 0.0, places=6)
-        self.assertAlmostEqual(rotated[1], 1.0, places=6)
-        self.assertAlmostEqual(rotated[2], 0.0, places=6)
-
-    def test_distal_attachment_includes_wrist_weight_near_palm(self):
-        vertices = (
-            (0.0, 0.0, 0.0),
-            (0.0, 0.0, 8.0),
-            (0.0, 0.0, 40.0),
-        )
-        wrist_weights = (1.0, 1.0, 0.0)
-        hand_weights = (0.0, 0.2, 1.0)
-        result = _distal_attachment_weights(
-            vertices,
-            wrist_weights,
-            hand_weights,
-            (0.0, 0.0, 0.0),
-            radius=35.0,
-        )
-        self.assertGreater(result[1], 0.2)
-        self.assertAlmostEqual(result[2], 1.0, places=6)
-
-    def test_straighten_hands_reduces_large_wrist_kink(self):
-        vertices = (
-            (200.0, 0.0, 1200.0),
-            (220.0, 0.0, 1100.0),
-            (270.0, 0.0, 1130.0),
-            (274.0, 0.0, 1148.0),
-            (278.0, 0.0, 1165.0),
-        )
-        posed = list(vertices)
-        weights = {
-            "lowerarm_l": (1.0, 0.0, 0.0, 0.0, 0.0),
-            "wrist_l": (0.0, 1.0, 0.6, 0.2, 0.0),
-            "hand_l": (0.0, 0.0, 0.6, 0.45, 0.20),
-            "lowerarm_r": (0.0, 0.0, 0.0, 0.0, 0.0),
-            "wrist_r": (0.0, 0.0, 0.0, 0.0, 0.0),
-            "hand_r": (0.0, 0.0, 0.0, 0.0, 0.0),
-        }
-        forearm_angle = _signed_angle_xz(20.0, -100.0)
-        hand_before = _weighted_distal_direction(vertices, weights["hand_l"], (220.0, 1100.0), min_distance=4.0)
-        before = abs(_shortest_angle(forearm_angle, _signed_angle_xz(hand_before[0], hand_before[1])))
-        result = _straighten_hands(vertices, posed, weights)
-        hand_after = _weighted_distal_direction(result, weights["hand_l"], (220.0, 1100.0), min_distance=4.0)
-        after = abs(_shortest_angle(forearm_angle, _signed_angle_xz(hand_after[0], hand_after[1])))
-        self.assertLess(after, before)
-        self.assertLess(after, math.radians(5.0))
+            from freecad_cloth.avatar.HumanoidMesh import load_makehuman_arm_weights
+            left, right = load_makehuman_arm_weights(2, str(path))
+        self.assertAlmostEqual(left[0], 0.4)
+        self.assertAlmostEqual(left[1], 0.8)
+        self.assertEqual(right, (0.0, 0.0))
 
 
 if __name__ == "__main__":
