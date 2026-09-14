@@ -4,7 +4,7 @@ LABEL org.opencontainers.image.source="https://github.com/Uhrendoktor/freecad-cl
 LABEL org.opencontainers.image.description="FreeCAD 1.1.0 conda-forge CI image using Python 3.12 for freecad-cloth and optional Tissu backends"
 
 RUN apt-get update -qq \
-    && apt-get install -y --no-install-recommends xvfb openbox \
+    && apt-get install -y --no-install-recommends xvfb openbox x11-utils \
     && rm -rf /var/lib/apt/lists/* \
     && mamba install -y -c conda-forge python=3.12 freecad=1.1.0 \
     && mamba clean --all --yes \
