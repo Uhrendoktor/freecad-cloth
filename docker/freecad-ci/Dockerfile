@@ -6,16 +6,16 @@ LABEL org.opencontainers.image.description="FreeCAD 1.1.0 conda-forge CI image u
 RUN apt-get update -qq \
     && apt-get install -y --no-install-recommends xvfb openbox \
     && rm -rf /var/lib/apt/lists/* \
-    && mamba install -y -c conda-forge python=3.12 freecad=1.1.0 \
+    && mamba create -y -n freecad -c conda-forge python=3.12 freecad=1.1.0 \
     && mamba clean --all --yes \
     && mkdir -p /opt/freecad \
-    && printf '%s\n' '#!/bin/sh' 'exec freecad "$@"' > /opt/freecad/AppRun \
+    && printf '%s\n' '#!/bin/sh' 'exec /opt/conda/envs/freecad/bin/freecad "$@"' > /opt/freecad/AppRun \
     && chmod +x /opt/freecad/AppRun
 
 ENV DISPLAY=:99 \
     QT_X11_NO_MITSHM=1 \
     QT_QPA_PLATFORM=xcb \
     LIBGL_ALWAYS_SOFTWARE=1 \
-    PATH=/opt/conda/bin:$PATH
+    PATH=/opt/conda/envs/freecad/bin:/opt/conda/bin:$PATH
 
 WORKDIR /workspace
