@@ -2,7 +2,7 @@
 from pathlib import Path
 
 source = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
-source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(6.0, 0.02 * body_depth);')
+source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(12.0, 0.05 * body_depth);')
 source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 22.0;')
 source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 8;')
 source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 1;')
@@ -14,7 +14,7 @@ source = source.replace('"simulation did not reach a finite 90-step state"', '"s
 source = source.replace('after 90 real steps;', 'after 30 real steps;')
 source = source.replace(
     'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(7,7,"TunicLeftSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):',
-    'for edge_a, edge_b, seam_id in ((1,7,"TunicRightSide"),(7,1,"TunicLeftSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder")):'
+    'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(7,7,"TunicLeftSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):'
 )
 source = source.replace(
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)',
