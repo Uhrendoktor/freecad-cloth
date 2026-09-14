@@ -1,0 +1,49 @@
+name: apply tunic orientation fix
+on:
+  pull_request:
+    types: [synchronize]
+jobs:
+  patch:
+    if: github.event.pull_request.head.ref == 'fix/pr537-tunic-visual-validation'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: Patch tunic orientations
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('tests/freecad_screenshot_source.py')
+          s = p.read_text()
+          old = 'shoulder_z = box.ZMin + 0.76 * z_span; hem_z = box.ZMin + 0.40 * z_span; garment_height = max(560.0, shoulder_z - hem_z); body_depth = max(120.0, min(260.0, y_span)); clearance = max(6.0, 0.02 * body_depth); front_y = box.YMin - clearance; back_y = box.YMax + clearance; rot = App.Rotation(App.Vector(1,0,0), 90.0)'
+          new = 'shoulder_z = box.ZMin + 0.76 * z_span; hem_z = box.ZMin + 0.40 * z_span; garment_height = max(560.0, shoulder_z - hem_z); body_depth = max(120.0, min(260.0, y_span)); clearance = max(6.0, 0.02 * body_depth); front_y = box.YMin - clearance; back_y = box.YMax + clearance; front_rot = App.Rotation(App.Vector(1,0,0), -90.0); back_rot = App.Rotation(App.Vector(1,0,0), 90.0)'
+          if old not in s: raise SystemExit('rotation declaration not found')
+          s = s.replace(old, new, 1)
+          old = '    def make_piece(name, y, neckline_ratio, neckline_drop):\n        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot); piece.Sketch.Placement = piece.Placement; return piece, outline\n    front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)'
+          new = '    def make_piece(name, y, neckline_ratio, neckline_drop, rotation):\n        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rotation); piece.Sketch.Placement = piece.Placement; return piece, outline\n    front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08, front_rot); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08, back_rot)'
+          if old not in s: raise SystemExit('make_piece block not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add tests/freecad_screenshot_source.py
+          git commit -m 'fix: orient tunic panels toward avatar'
+          git push origin HEAD:fix/pr537-tunic-visual-validation
+      - name: Remove patch workflow
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          rm -f .github/workflows/apply-tunic-orientation-fix.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m 'ci: remove one-shot tunic orientation workflow' || true
+          git push origin HEAD:fix/pr537-tunic-visual-validation || true
