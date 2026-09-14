@@ -29,14 +29,14 @@ def _scene():
 def _prepare(scene):
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import ensure_quality_properties
     ensure_quality_properties(scene)
-    # Interactive profile: coarse cloth + two solver iterations. The normal
-    # quality settings are restored on stop, without replaying the preview.
+    # Interactive profile: very coarse cloth + one solver iteration. This is
+    # deliberately game-style preview quality; final-quality solves are separate.
     try:
         scene.QualityPreset = "Fast"
     except (AttributeError, ValueError):
         pass
-    scene.ParticleDistance = max(28.0, float(scene.ParticleDistance))
-    scene.SolverIterations = 2
+    scene.ParticleDistance = max(40.0, float(scene.ParticleDistance))
+    scene.SolverIterations = 1
     scene.SolverSubsteps = 1
     scene.TimeStep = 1.0 / 60.0
     scene.Steps = 0
