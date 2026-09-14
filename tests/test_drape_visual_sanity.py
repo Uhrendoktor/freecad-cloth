@@ -1,5 +1,6 @@
 import unittest
 
+from freecad_cloth.common.DrapeFailureClassifier import classify_drape, summarize_classification
 from freecad_cloth.common.DrapeVisualSanity import inspect_drape, summarize
 
 
@@ -43,6 +44,36 @@ class DrapeVisualSanityTests(unittest.TestCase):
         self.assertIn("state", data)
         self.assertIn("bounds", data)
         self.assertTrue(data["finite"])
+
+    def test_failure_classifier_reports_fragmentation(self):
+        garment = ((0.0, 0.0, 100.0), (100.0, 0.0, 100.0), (0.0, 0.0, 1000.0))
+        metrics = inspect_drape(garment, self.target, target_height=1750.0, target_width=1000.0)
+        result = classify_drape(metrics, components=2, target_width=1000.0)
+        self.assertEqual(result.state, "fragmented")
+        self.assertIn("multiple connected components", result.reasons[0])
+
+    def test_failure_classifier_reports_edge_on_candidate(self):
+        garment = ((0.0, 0.0, 700.0), (0.0, 10.0, 700.0), (0.0, 0.0, 710.0))
+        metrics = inspect_drape(garment, self.target, target_height=1750.0, target_width=1000.0)
+        result = classify_drape(metrics, target_width=1000.0)
+        self.assertEqual(result.state, "edge-on-candidate")
+
+    def test_failure_classifier_normalizes_detachment(self):
+        garment = ((1000.0, 1000.0, 300.0), (1100.0, 1000.0, 300.0), (1000.0, 1000.0, 1500.0))
+        metrics = inspect_drape(garment, self.target, target_height=1750.0, target_width=1000.0)
+        result = classify_drape(metrics, target_width=200.0)
+        self.assertEqual(result.state, "detached-candidate")
+
+    def test_failure_classifier_summary_is_json_ready(self):
+        garment = (
+            (-140.0, -90.0, 250.0), (140.0, -90.0, 250.0),
+            (-140.0, 90.0, 1500.0), (140.0, 90.0, 1500.0),
+        )
+        metrics = inspect_drape(garment, self.target, target_height=1750.0, target_width=1000.0)
+        result = classify_drape(metrics, target_width=1000.0)
+        data = summarize_classification(result)
+        self.assertEqual(data["state"], "structurally-plausible")
+        self.assertIsInstance(data["reasons"], list)
 
 
 if __name__ == "__main__":
