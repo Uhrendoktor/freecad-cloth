@@ -1,0 +1,86 @@
+name: Temporary repository maintenance cleanup
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Clean stale branches and old Actions runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, subprocess, time
+          from datetime import datetime
+          repo = __import__('os').environ['REPO']
+          def run(cmd):
+              p = subprocess.run(cmd, text=True, capture_output=True)
+              if p.returncode:
+                  raise SystemExit(p.stderr.strip() or p.stdout.strip() or f'failed: {cmd}')
+              return p.stdout
+          def api_json(path):
+              return json.loads(run(['gh','api',path]))
+          def epoch(s):
+              return datetime.fromisoformat(s.replace('Z','+00:00')).timestamp()
+          default = api_json(f'repos/{repo}')['default_branch']
+          open_prs = api_json(f'repos/{repo}/pulls?state=open&per_page=100')
+          open_heads = {p['head']['ref'] for p in open_prs if p.get('head',{}).get('ref')}
+          raw = run(['gh','api','--paginate',f'repos/{repo}/branches?per_page=100'])
+          branches=[]
+          for line in raw.splitlines():
+              if line.strip(): branches.extend(json.loads(line))
+          cutoff = time.time() - 7*86400
+          deleted_branches=[]
+          for b in branches:
+              name=b['name']
+              if name == default or b.get('protected') or name in open_heads:
+                  continue
+              info = api_json(f'repos/{repo}/commits/{name}')
+              if epoch(info['commit']['committer']['date']) < cutoff:
+                  run(['gh','api','--method','DELETE',f'repos/{repo}/git/refs/heads/{name}'])
+                  deleted_branches.append(name)
+          raw = run(['gh','api','--paginate',f'repos/{repo}/actions/runs?per_page=100','--jq','.workflow_runs[] | @json'])
+          runs=[json.loads(line) for line in raw.splitlines() if line.strip()]
+          active=[r for r in runs if r.get('status') in {'queued','in_progress','waiting','requested','pending'}]
+          completed=sorted((r for r in runs if r.get('status')=='completed'), key=lambda r:r.get('created_at',''), reverse=True)
+          keep={r['id'] for r in completed[:10]}
+          deleted_runs=[]
+          for r in completed[10:]:
+              run(['gh','api','--method','DELETE',f"repos/{repo}/actions/runs/{r['id']}"])
+              deleted_runs.append(r['id'])
+          api_json(f'repos/{repo}/git/ref/heads/{default}')
+          print(json.dumps({
+              'default_branch': default,
+              'open_pr_branches_preserved': len(open_heads),
+              'branches_before': len(branches),
+              'branches_deleted': len(deleted_branches),
+              'actions_before': len(runs),
+              'active_runs_preserved': len(active),
+              'completed_runs_kept': len(keep),
+              'completed_runs_deleted': len(deleted_runs)
+          }, indent=2))
+          PY
+      - name: Remove temporary maintenance workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -f .github/workflows/maintenance-cleanup-temp.yml
+          git commit -m 'chore: remove temporary maintenance cleanup workflow [skip ci]'
+          git push
