@@ -3,8 +3,9 @@ from pathlib import Path
 
 source = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
 source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(6.0, 0.02 * body_depth);')
-# Fast visual-regression profile: coarse particles with the stable turntable solver settings.
-source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 28.0;')
+# Match the dedicated stable turntable fixture exactly for geometry and coarse solve.
+source = source.replace('front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)', 'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)')
+source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 22.0;')
 source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 6;')
 source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 1;')
 source = source.replace('scene.TimeStep = 1.0 / 120.0;', 'scene.TimeStep = 1.0 / 90.0;')
@@ -18,6 +19,10 @@ source = source.replace(
     '    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):\n        add_seam(doc, Seam(str(front.PieceId), edge_a, edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))\n',
     '    for edge_a, edge_b, seam_id in ((2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder")):\n        add_seam(doc, Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))\n'
 )
+if 'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)' not in source:
+    raise RuntimeError("canonical tunic neckline patch did not match fixture source")
+if 'scene.ParticleDistance = 22.0;' not in source:
+    raise RuntimeError("canonical tunic particle-distance patch did not match fixture source")
 required_pin_code = '    back_pins = tuple(len(front_positions) + i for i in back_pins_local)'
 if required_pin_code not in source:
     raise RuntimeError("GUI fixture pin mapping no longer uses refined front-position count; refusing silent no-op")
