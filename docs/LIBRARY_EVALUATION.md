@@ -2,11 +2,15 @@
 
 Supervisor evaluation for `freecad-cloth`. External libraries are adapters/tools, never replacements for the authoritative FreeCAD/Cloth document model.
 
+## Python baseline
+
+The project-wide supported Python baseline is **3.12 or newer**. This is reflected in packaging and the canonical FreeCAD CI runtime so optional Tissu integration can execute inside the same FreeCAD Python environment. Current upstream Tissu documentation requires Python >=3.12.
+
 ## Ranked candidates
 
 | Candidate | Capability | Proposed use | License / risk | Decision |
 |---|---|---|---|---|
-| Tissu | XPBD cloth, stitches, mesh/kinematic collision, self-collision, Python API | Optional simulation backend | Apache? Verify repository license before packaging; backend parity and dependency risk are high | **Benchmark / P2** |
+| Tissu | XPBD cloth, stitches, mesh/kinematic collision, self-collision, Python API | Optional simulation backend | Apache-2.0; Python >=3.12; backend parity and packaging risk remain high | **Benchmark / P2** |
 | PositionBasedDynamics | PBD/XPBD constraints, arbitrary-mesh collision, SDF collision, Python bindings, substeps | Backend comparator / research | C++ dependency + ABI/build burden | **Benchmark / P2** |
 | ezdxf | DXF read/write, broad version support | Production DXF adapter | MIT; relatively low integration risk | **Candidate / P2** |
 | trimesh | Mesh processing, topology/proximity/closest-point queries | Non-authoritative diagnostics and benchmark metrics | Python dependency; keep optional | **Candidate / P2** |
@@ -29,7 +33,8 @@ Supervisor evaluation for `freecad-cloth`. External libraries are adapters/tools
 6. Compare repeatability for identical inputs.
 7. Compare simulation time and memory at Fast/Balanced/Final resolutions.
 8. Compare canonical garment visual output.
-9. Keep Tissu optional until parity and packaging are demonstrated.
+9. Run the backend inside the same Python 3.12 FreeCAD runtime used by CI before calling it runtime-compatible.
+10. Keep Tissu optional until parity and packaging are demonstrated.
 
 ## First low-risk implementation targets
 
@@ -49,7 +54,7 @@ Supervisor evaluation for `freecad-cloth`. External libraries are adapters/tools
 
 ## Evidence reviewed
 
-- Tissu documents distance, bending, pin, stitch, mesh/kinematic collision, self-collision, spatial-hash broad phase, and a Python API.
+- Tissu documents distance, bending, pin, stitch, mesh/kinematic collision, self-collision, spatial-hash broad phase, and a Python API; its current upstream README requires Python >=3.12 and Apache-2.0 licensing.
 - PositionBasedDynamics documents Python bindings, XPBD constraints, arbitrary-mesh and SDF collision, substepping, and parallelized solving.
 - libigl provides NumPy-native geometry processing and optional Triangle/CGAL-related modules.
 - pygalmesh provides a Python frontend to CGAL mesh generation.
