@@ -6,7 +6,7 @@ repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_task: cloth-sewing-workbench-structure-and-roadmap
-current_main: 65599603a394505f7bc4ab6d83ff7c5bb84123f2
+current_main: 2c22f0a981a582f3b6c51b61ecda284d7498c2d1
 open_prs: []
 active_release_gates: [155, 278, 284, 298, 297, 145]
 queued_release_gates: [275, 162, 360]
@@ -65,5 +65,6 @@ policy:
 current_focus:
   imports: package-qualified module namespace is authoritative
   structure: package-tree cleanup in PR 414
-  ci_status: canonical FreeCAD r2 image and three README turntables verified on main
+  ci_status: latest verified main run is 34839362851; commits after it still require canonical verification
+  visual_regression: tunic fixture is now bounded to 30 solver steps pending canonical confirmation
 ```
