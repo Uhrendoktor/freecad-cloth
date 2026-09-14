@@ -49,6 +49,38 @@ def _fallback_bounds(vertices: Sequence[Point3]) -> Tuple[float, float, float, f
     return (min(xs), max(xs), min(ys), max(ys), min(zs), max(zs))
 
 
+def _fallback_components(triangles: Sequence[Triangle]) -> int:
+    """Count face-connected components without optional dependencies."""
+    if not triangles:
+        return 0
+
+    parent = list(range(len(triangles)))
+
+    def find(index: int) -> int:
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        return index
+
+    def union(left: int, right: int) -> None:
+        left_root = find(left)
+        right_root = find(right)
+        if left_root != right_root:
+            parent[right_root] = left_root
+
+    first_face_by_vertex: dict[int, int] = {}
+    for face_index, triangle in enumerate(triangles):
+        for vertex_index in triangle:
+            vertex_index = int(vertex_index)
+            previous_face = first_face_by_vertex.get(vertex_index)
+            if previous_face is None:
+                first_face_by_vertex[vertex_index] = face_index
+            else:
+                union(face_index, previous_face)
+
+    return len({find(index) for index in range(len(triangles))})
+
+
 def validate_mesh(
     vertices: Sequence[Point3],
     triangles: Sequence[Triangle],
@@ -94,7 +126,7 @@ def validate_mesh(
     return MeshValidationResult(
         vertices=len(vertices),
         faces=len(triangles),
-        components=1 if triangles else 0,
+        components=_fallback_components(triangles),
         bounds=_fallback_bounds(vertices),
         surface_area=0.0,
         watertight=None,
