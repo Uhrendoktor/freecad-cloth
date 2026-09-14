@@ -2,10 +2,6 @@
 from pathlib import Path
 
 source = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
-source = source.replace(
-    'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)',
-    'front, front_outline = make_piece("VisualTunicFront", front_y, 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", back_y, 0.76, 0.12)',
-)
 source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(6.0, 0.02 * body_depth);')
 source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 8;')
 source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 1;')
@@ -36,10 +32,10 @@ old_pin_block = '''    def authored_shoulder_pins(piece, positions):
     back_pins = tuple(len(front_positions) + i for i in back_pins_local)'''
 new_pin_block = '''    def authored_shoulder_pins(piece, positions, boundary):
         targets = (
-            (0.08 * panel_width, 0.97 * garment_height),
-            (0.92 * panel_width, 0.97 * garment_height),
-            (0.20 * panel_width, 0.90 * garment_height),
-            (0.80 * panel_width, 0.90 * garment_height),
+            (0.14 * panel_width, 0.97 * garment_height),
+            (0.86 * panel_width, 0.97 * garment_height),
+            (0.26 * panel_width, 0.90 * garment_height),
+            (0.74 * panel_width, 0.90 * garment_height),
         )
         available = [int(i) for i in boundary]
         result = []
