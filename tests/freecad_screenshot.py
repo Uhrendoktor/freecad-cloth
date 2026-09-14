@@ -34,14 +34,17 @@ old_pin_block = '''    def authored_shoulder_pins(piece, positions):
     front_pins = authored_shoulder_pins(front, front_positions)
     back_pins_local = authored_shoulder_pins(back, back_positions)
     back_pins = tuple(len(front_positions) + i for i in back_pins_local)'''
-new_pin_block = '''    def authored_shoulder_pins(piece, positions, boundary):
+new_pin_block = '''    def authored_shoulder_pins(piece, positions):
+        back_facing = str(getattr(piece, "Name", "")).endswith("Back")
+        top_y = 0.03 if back_facing else 0.97
+        lower_y = 0.10 if back_facing else 0.90
         targets = (
-            (0.14 * panel_width, 0.97 * garment_height),
-            (0.86 * panel_width, 0.97 * garment_height),
-            (0.26 * panel_width, 0.90 * garment_height),
-            (0.74 * panel_width, 0.90 * garment_height),
+            (0.14 * panel_width, top_y * garment_height),
+            (0.86 * panel_width, top_y * garment_height),
+            (0.26 * panel_width, lower_y * garment_height),
+            (0.74 * panel_width, lower_y * garment_height),
         )
-        available = [int(i) for i in boundary]
+        available = list(range(len(positions)))
         result = []
         for local_x, local_y in targets:
             target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
@@ -49,10 +52,10 @@ new_pin_block = '''    def authored_shoulder_pins(piece, positions, boundary):
             result.append(index)
             available.remove(index)
         return tuple(result)
-    front_positions, _front_triangles, front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
-    back_positions, _back_triangles, back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
-    front_pins = authored_shoulder_pins(front, front_positions, front_boundary)
-    back_pins_local = authored_shoulder_pins(back, back_positions, back_boundary)
+    front_positions, _front_triangles, _front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
+    back_positions, _back_triangles, _back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
+    front_pins = authored_shoulder_pins(front, front_positions)
+    back_pins_local = authored_shoulder_pins(back, back_positions)
     back_pins = tuple(len(front_positions) + i for i in back_pins_local)'''
 if old_pin_block not in source:
     raise RuntimeError("GUI fixture pin block no longer matches expected source; refusing silent no-op")
