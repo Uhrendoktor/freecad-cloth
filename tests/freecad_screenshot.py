@@ -12,6 +12,8 @@ source = source.replace(
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", back_y, 0.76, 0.12)',
 )
+source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 16;')
+source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 4;')
 source = source.replace('scene.TimeStep = 1.0 / 120.0;', 'scene.TimeStep = 1.0 / 240.0;')
 source = source.replace('scene.FabricFriction = 0.75;', 'scene.FabricFriction = 1.0;')
 source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (10,5):')
