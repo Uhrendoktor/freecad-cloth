@@ -1,6 +1,7 @@
-"""Deterministic six-direction visual audit of the production avatar mesh."""
+"""Deterministic avatar visual audit plus a full 360-degree turntable render."""
 import os
 import traceback
+from math import pi
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -8,6 +9,7 @@ try:
     from PySide import QtWidgets
 except ImportError:
     from PySide2 import QtWidgets
+from pivy import coin
 
 ROOT = "/workspace"
 if ROOT not in __import__("sys").path:
@@ -52,21 +54,73 @@ def zoom_for_direction(view, direction):
     events()
 
 
-def save(view, name, state):
+def save_png(view, path, width=1280, height=720, state="capture"):
     """Render only the 3D view so README images are unobstructed model evidence."""
-    path = os.path.join(OUT, name)
-    view.saveImage(path, 1280, 720, "White")
+    view.saveImage(path, width, height, "White")
     if not os.path.isfile(path) or os.path.getsize(path) < 5000:
         raise RuntimeError("failed or suspiciously small screenshot: %s" % path)
     with open(path, "rb") as handle:
         header = handle.read(24)
     if header[:8] != b"\x89PNG\r\n\x1a\n":
         raise RuntimeError("invalid PNG capture for %s" % state)
-    width = int.from_bytes(header[16:20], "big")
-    height = int.from_bytes(header[20:24], "big")
-    if (width, height) != (1280, 720):
-        raise RuntimeError("invalid rendered dimensions for %s: %sx%s" % (state, width, height))
+    rendered_width = int.from_bytes(header[16:20], "big")
+    rendered_height = int.from_bytes(header[20:24], "big")
+    if (rendered_width, rendered_height) != (width, height):
+        raise RuntimeError(
+            "invalid rendered dimensions for %s: %sx%s"
+            % (state, rendered_width, rendered_height)
+        )
     log("screenshot=%s state=%s bytes=%d" % (path, state, os.path.getsize(path)))
+
+
+def avatar_center(avatar):
+    """Return a stable center point for orbiting the camera around the mesh."""
+    bbox = avatar.Mesh.BoundBox
+    return App.Vector(
+        0.5 * (bbox.XMin + bbox.XMax),
+        0.5 * (bbox.YMin + bbox.YMax),
+        0.5 * (bbox.ZMin + bbox.ZMax),
+    )
+
+
+def render_turntable(view, center, frame_dir, frame_count=72):
+    """Render a complete 360-degree horizontal camera orbit around the avatar."""
+    os.makedirs(frame_dir, exist_ok=True)
+    view.setCameraType("Orthographic")
+    view.viewRear()
+    view.fitAll()
+    view.zoomIn()
+    events()
+
+    camera = view.getCameraNode()
+    center_coin = coin.SbVec3f(center.x, center.y, center.z)
+    base_position = coin.SbVec3f(camera.position.getValue())
+    base_offset = base_position - center_coin
+    radius = base_offset.length()
+    if radius <= 0:
+        raise RuntimeError("avatar turntable camera radius is zero")
+
+    up = coin.SbVec3f(0.0, 0.0, 1.0)
+    camera.pointAt(center_coin, up)
+    log("turntable-start frames=%d radius=%.4f" % (frame_count, radius))
+
+    for frame in range(frame_count):
+        angle = 2.0 * pi * frame / frame_count
+        rotation = coin.SbRotation(coin.SbVec3f(0.0, 0.0, 1.0), angle)
+        camera.position = rotation.multVec(base_offset) + center_coin
+        camera.pointAt(center_coin, up)
+        events()
+        path = os.path.join(frame_dir, "frame-%03d.png" % frame)
+        save_png(view, path, 640, 480, "Avatar turntable frame %03d" % frame)
+
+    # Render the first frame once more as the final frame so the GIF loops cleanly
+    # without a visible half-step at the seam.
+    camera.position = base_position
+    camera.pointAt(center_coin, up)
+    events()
+    closing_path = os.path.join(frame_dir, "frame-%03d.png" % frame_count)
+    save_png(view, closing_path, 640, 480, "Avatar turntable closing frame")
+    log("turntable-pass frames=%d" % (frame_count + 1))
 
 
 def main():
@@ -98,9 +152,7 @@ def main():
 
         view = Gui.activeDocument().activeView()
         view.setAnimationEnabled(False)
-        view.setCameraType("Orthographic")
-        # FreeCAD's named front/rear views are opposite the mannequin's
-        # anatomical front/rear convention for this Y-oriented HM08 mesh.
+
         directions = (
             ("front", "viewRear"),
             ("rear", "viewFront"),
@@ -112,7 +164,21 @@ def main():
         for direction, method_name in directions:
             getattr(view, method_name)()
             zoom_for_direction(view, direction)
-            save(view, "cloth-avatar-%s.png" % direction, "Avatar audit %s" % direction)
+            save_png(
+                view,
+                os.path.join(OUT, "cloth-avatar-%s.png" % direction),
+                1280,
+                720,
+                "Avatar audit %s" % direction,
+            )
+
+        center = avatar_center(avatar)
+        render_turntable(
+            view,
+            center,
+            os.path.join(OUT, "cloth-avatar-turntable-frames"),
+            frame_count=72,
+        )
         log("avatar-script-pass")
     finally:
         if doc.Name in App.listDocuments():

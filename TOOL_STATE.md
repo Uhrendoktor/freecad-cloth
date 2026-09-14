@@ -33,8 +33,9 @@ workflow_contract:
     - docs/images/generated/cloth-sewing.png
     - docs/images/generated/cloth-simulation-arranged.png
     - docs/images/generated/cloth-simulation-draped.png
+    - docs/images/generated/cloth-avatar-turntable.gif
   screenshot_artifacts: [cloth-gui-screenshots, cloth-gui-diagnostics]
-  policy: preserve_existing_Docker_Xvfb_PNG_path; no_second_workflow
+  policy: preserve_existing_Docker_Xvfb_PNG_path; avatar_turntable_is_72_position_full_360_camera_orbit_plus_closing_frame; no_second_workflow
 
 latest_verified_ci:
   run_id: 34389227217
