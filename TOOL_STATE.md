@@ -6,8 +6,8 @@ repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_task: cloth-sewing-workbench-structure-and-roadmap
-current_main: 910c8fd76f4a442aa62318973b3cff1d5c43294c
-open_prs: [526, 524, 523, 522, 519]
+current_main: 65599603a394505f7bc4ab6d83ff7c5bb84123f2
+open_prs: []
 active_release_gates: [155, 278, 284, 298, 297, 145]
 queued_release_gates: [275, 162, 360]
 non_blocking: [148]
@@ -27,6 +27,8 @@ architecture:
 workflow_contract:
   workflow_count: 1
   workflow: .github/workflows/canonical-execution.yml
+  image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r2
+  image_policy: publish_on_main_when_missing; PR validation may build locally with the same tag
   screenshot_display: 1280x720
   screenshot_outputs:
     - docs/images/generated/cloth-pattern-design.png
@@ -40,16 +42,16 @@ workflow_contract:
   policy: preserve_existing_Docker_Xvfb_PNG_path; simulation_and_avatar_turntables_are_72_position_full_360_camera_orbits_plus_closing_frame; no_second_workflow
 
 latest_verified_ci:
-  run_id: 34829901181
-  run_number: 1687
-  commit: 6625e575455ebe8ac526862a791b02963df3509c
+  run_id: 34839362851
+  run_number: 1710
+  commit: 65599603a394505f7bc4ab6d83ff7c5bb84123f2
   status: completed
   conclusion: success
   python_job: success
   gui_job: success
   publish_merged_pr_screenshots: success
   publish_readme_screenshots: success
-  note: The canonical GUI workflow now publishes both arranged and draped simulation turntables alongside the avatar turntable.
+  note: Main CI successfully published the FreeCAD r2 image to GHCR and refreshed the stable README screenshot branch with arranged, draped, and avatar turntables.
 
 policy:
   - inspect_open_prs_and_issues_before_changes
@@ -63,5 +65,5 @@ policy:
 current_focus:
   imports: package-qualified module namespace is authoritative
   structure: package-tree cleanup in PR 414
-  ci_status: simulation turntable README change under validation
+  ci_status: canonical FreeCAD r2 image and three README turntables verified on main
 ```
