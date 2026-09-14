@@ -2,7 +2,7 @@
 from pathlib import Path
 
 source = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
-source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(12.0, 0.05 * body_depth);')
+source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(20.0, 0.08 * body_depth);')
 # Fast visual-regression profile: fewer particles while retaining enough convergence for a stable drape.
 source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 28.0;')
 source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 4;')
