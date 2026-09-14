@@ -7,9 +7,9 @@ source = source.replace(
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", back_y, 0.76, 0.12)',
 )
 source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(6.0, 0.02 * body_depth);')
-source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 16;')
-source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 4;')
-source = source.replace('scene.TimeStep = 1.0 / 120.0;', 'scene.TimeStep = 1.0 / 480.0;')
+source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 8;')
+source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 1;')
+source = source.replace('scene.TimeStep = 1.0 / 120.0;', 'scene.TimeStep = 1.0 / 120.0;')
 source = source.replace('scene.FabricFriction = 0.75;', 'scene.FabricFriction = 1.0;')
 source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (10,5):')
 source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 15 or')
