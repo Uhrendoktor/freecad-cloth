@@ -23,7 +23,22 @@ source = source.replace(
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)'
 )
-old_pin_block = '''    def authored_shoulder_pins(piece, positions):
+old_pin_block = '''    from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
+    from freecad_cloth.pattern.PatternMesh import triangulate
+    def local_boundary(piece, outline):
+        points = [(float(x), float(y)) for x, y in outline]
+        segments = [LineSegment("%s:edge:%d" % (piece.PieceId, i), points[i], points[(i + 1) % len(points)]) for i in range(len(points))]
+        mesh = triangulate(ParametricPattern(segments))
+        h = max(y for _, y in points)
+        pins = tuple(i for i in mesh.boundary_vertex_indices if float(mesh.vertices[i][1]) >= 0.86 * h - 1e-6 and (float(mesh.vertices[i][0]) <= 0.32 * panel_width + 1e-6 or float(mesh.vertices[i][0]) >= 0.68 * panel_width - 1e-6))
+        return mesh, pins
+    front_positions, _front_triangles, _front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
+    back_positions, _back_triangles, _back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
+    front_mesh, front_pins_local = local_boundary(front, front_outline)
+    _back_mesh, back_pins_local = local_boundary(back, back_outline)
+    front_pins = tuple(int(i) for i in front_pins_local)
+    back_pins = tuple(len(front_positions) + int(i) for i in back_pins_local)'''
+new_pin_block = '''    def authored_shoulder_pins(piece, positions):
         targets = (
             (0.14 * panel_width, 0.97 * garment_height),
             (0.86 * panel_width, 0.97 * garment_height),
@@ -41,21 +56,6 @@ old_pin_block = '''    def authored_shoulder_pins(piece, positions):
     front_pins = authored_shoulder_pins(front, front_positions)
     back_pins_local = authored_shoulder_pins(back, back_positions)
     back_pins = tuple(len(front_positions) + i for i in back_pins_local)'''
-new_pin_block = '''    from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
-    from freecad_cloth.pattern.PatternMesh import triangulate
-    def local_boundary(piece, outline):
-        points = [(float(x), float(y)) for x, y in outline]
-        segments = [LineSegment("%s:edge:%d" % (piece.PieceId, i), points[i], points[(i + 1) % len(points)]) for i in range(len(points))]
-        mesh = triangulate(ParametricPattern(segments))
-        h = max(y for _, y in points)
-        pins = tuple(i for i in mesh.boundary_vertex_indices if float(mesh.vertices[i][1]) >= 0.86 * h - 1e-6 and (float(mesh.vertices[i][0]) <= 0.32 * panel_width + 1e-6 or float(mesh.vertices[i][0]) >= 0.68 * panel_width - 1e-6))
-        return mesh, pins
-    front_positions, _front_triangles, _front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
-    back_positions, _back_triangles, _back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
-    front_mesh, front_pins_local = local_boundary(front, front_outline)
-    _back_mesh, back_pins_local = local_boundary(back, back_outline)
-    front_pins = tuple(int(i) for i in front_pins_local)
-    back_pins = tuple(len(front_positions) + int(i) for i in back_pins_local)'''
 if old_pin_block not in source:
     raise RuntimeError("GUI fixture pin block no longer matches expected source; refusing silent no-op")
 source = source.replace(old_pin_block, new_pin_block)
@@ -101,7 +101,7 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
         raise RuntimeError("Realtime Cloth Preview did not reset steps on stop")
     for name, value in preview_saved.items():
         if getattr(scene, name) != value:
-            raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
+            raise RuntimeError("Realtime Cloth Preview did not restore %s" name)
     log("realtime-preview=passed steps=%d" % preview_steps)
 '''
 anchor = '    for batch in (10,10,10):'
