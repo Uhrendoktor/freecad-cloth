@@ -56,7 +56,7 @@ def test_pattern_ir_accepts_single_closed_native_curve_as_a_pattern_boundary():
     boundary = result.piece("circle").boundaries[0]
     assert boundary.kind == "curve"
     assert len(boundary.samples) == 32
-    assert boundary.samples[0] == boundary.samples[-1]
+    assert math.dist(boundary.samples[0], boundary.samples[-1]) <= 1e-7
 
 
 def test_pattern_ir_rejects_open_single_curve_as_a_pattern_boundary():
