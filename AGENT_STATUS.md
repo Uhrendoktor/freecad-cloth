@@ -6,9 +6,11 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `4dcaca7b4bf4b99df58fd6d49c5f1ca522cbc548` (supervisor status update; canonical CI run pending).
-- Recent merged work: avatar face-winding correction (#482), deterministic avatar visual sanity (#483), mesh validation/proximity metrics, backend/library evaluation documents, and structured drape visual metrics from canonical GUI acceptance.
-- Open implementation PRs requiring supervisor gates: #469 (HM08 avatar topology sanity), #453 (collision-surface cache; do not merge until visual evidence is release-quality), #438 (diagnostic-only; must not merge).
+- Current main: `2c22f0a981a582f3b6c51b61ecda284d7498c2d1` (latest tunic visual-regression runtime bound to 30 solver steps; canonical CI verification still required for commits after the last recorded green run).
+- Recent merged work: Python 3.12 / FreeCAD 1.1.0 CI baseline, restored GUI screenshot/GIF export, avatar and simulation turntables, Sketcher-authoritative pattern import, sewing command-surface coverage, simulation-signature regression, and MeshValidation disconnected-component fallback.
+- Open implementation PRs requiring supervisor gates: none currently open.
+- PR #453 was closed without merge because its validated screenshots remained collapsed/edge-on and not production-ready.
+- PR #438 remains diagnostic-only and must not merge.
 - Python package boundary: `freecad_cloth/` with `avatar`, `pattern`, `sewing`, `simulation`, `common`, `shared` subpackages
 - Root Python files: `Init.py`, `InitGui.py`, and interpreter-level `sitecustomize.py` only
 - Canonical CI: `.github/workflows/canonical-execution.yml`
@@ -23,45 +25,15 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - M3 — fit/analysis layer: #477.
 - M4 — evidence-led scale/performance: #478.
 
-## Active research / integration tracks
-
-- #479 — consolidated optional backend/library evaluation: Tissu + PositionBasedDynamics; CPU reference remains correctness baseline.
-- #480/#481 — DXF and trimesh adapter candidates; keep dependencies optional/lazy until packaging and parity are demonstrated.
-- #487/#488/#489/#491/#492/#493/#494 — deferred library candidates/compatibility gates; do not start without a demonstrated capability gap.
-- Duplicate historical backend issues #148/#404 are closed/superseded.
-
-## Release gates
-
-- P0 end-to-end garment fixture: #143, #155, #278; reused by #473 rather than duplicated.
-- P0 DrapeTarget-authoritative acceptance: #284.
-- P0 native Sketcher acceptance/topology repair: #297, #298.
-- P0 simulation quality/material lifecycle: #145; execution focus is #474.
-- P1 sewing completion/correspondence: #275; execution focus is #475.
-- P1 pattern production parity: #162, #360; export execution focus is #476.
-- Later: production avatar fidelity #374; diagnostics/manufacturing #362.
-
 ## Active focused work
 
 - Keep DrapeTarget source signatures topology-sensitive; use complete mesh topology where available and `hashCode()` only for lightweight test doubles.
 - Do not add provider-specific readiness exceptions that bypass target invalidation.
 - Treat CI-green screenshot capture as necessary but insufficient: visual validity must show a sane avatar and a convincingly worn garment (#472).
-- Canonical GUI acceptance now emits `drape-visual-metrics.json` with deterministic bounds, centroid, span ratios, finite-state and target-proximity evidence. Do not turn these observations into hard pass/fail thresholds until baseline measurements are reviewed.
+- Canonical GUI acceptance emits `drape-visual-metrics.json` with deterministic bounds, centroid, span ratios, finite-state and target-proximity evidence. Do not turn these observations into hard pass/fail thresholds until baseline measurements are reviewed.
 - `trimesh` remains optional/lazy; CPU reference remains correctness baseline.
 - Tissu remains sandbox-only until runtime compatibility, constraint/collision parity, determinism, visual parity and performance are demonstrated.
-- Do not merge #438.
 - Re-cut implementation branches from current `main`; one focused concern per PR.
-
-## Architecture / UX
-
-`Sketcher → PatternPiece → PatternIR/SewingGraph → SimulationScene/DrapeTarget → derived solver state`.
-
-FreeCAD owns geometry/document state; Cloth owns garment semantics; solver owns physics. Human mannequin and generic FreeCAD geometry are providers of one target-neutral DrapeTarget contract.
-
-Task panels use Context → Primary action → Secondary actions → Parameters → Recovery. Stale state exposes a reason and recovery action. Sewing retains explicit staged interactions and Simulation retains Run/Step/Reset recovery.
-
-## Research posture
-
-CLO comparison is a workflow benchmark, not a cloning target. High-value observed concepts include explicit Free/M:N sewing, property-editor-driven simulation controls, particle distance as a mesh-quality/performance control, arrangement points/bounding volumes for fitting, and fit/stress/strain/pressure diagnostics. These concepts map to existing Cloth semantic contracts rather than proprietary internals.
 
 ## Agent rules
 
