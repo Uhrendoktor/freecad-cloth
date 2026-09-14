@@ -179,8 +179,6 @@ def _make_tunic_sketch(doc, name, panel_width, garment_height, hem_width, neckli
         for i in range(len(points))
     ]
     sketch.addGeometry(geometry, False)
-    sketch.SemanticEdgeIds = [f"{name}:edge:{i}" for i in range(len(geometry))]
-    sketch.GeometryAuthority = "Sketcher" if "GeometryAuthority" in sketch.PropertiesList else None
     sketch.addConstraint([
         Sketcher.Constraint("Coincident", 0, 2, 1, 1),
         Sketcher.Constraint("Coincident", 1, 2, 2, 1),
