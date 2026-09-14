@@ -11,6 +11,10 @@ source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (10,5
 source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 15 or')
 source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 15-step state"')
 source = source.replace('after 90 real steps;', 'after 15 real steps;')
+source = source.replace(
+    'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(7,7,"TunicLeftSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):',
+    'for edge_a, edge_b, seam_id in ((1,7,"TunicRightSide"),(7,1,"TunicLeftSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder")):',
+)
 
 old_pin_block = '''    def authored_shoulder_pins(piece, positions):
         targets = (
