@@ -8,13 +8,17 @@ source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations =
 source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 1;')
 source = source.replace('scene.TimeStep = 1.0 / 120.0;', 'scene.TimeStep = 1.0 / 90.0;')
 source = source.replace('scene.FabricFriction = 0.75;', 'scene.FabricFriction = 0.75;')
-source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (15,15):')
+source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (10,10,10):')
 source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 30 or')
 source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 30-step state"')
 source = source.replace('after 90 real steps;', 'after 30 real steps;')
 source = source.replace(
     'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(7,7,"TunicLeftSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):',
     'for edge_a, edge_b, seam_id in ((1,7,"TunicRightSide"),(7,1,"TunicLeftSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder")):'
+)
+source = source.replace(
+    'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)',
+    'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)'
 )
 old_pin_block = '''    def authored_shoulder_pins(piece, positions):
         targets = (
@@ -34,26 +38,21 @@ old_pin_block = '''    def authored_shoulder_pins(piece, positions):
     front_pins = authored_shoulder_pins(front, front_positions)
     back_pins_local = authored_shoulder_pins(back, back_positions)
     back_pins = tuple(len(front_positions) + i for i in back_pins_local)'''
-new_pin_block = '''    def authored_shoulder_pins(piece, positions, boundary):
-        targets = (
-            (0.14 * panel_width, 0.97 * garment_height),
-            (0.86 * panel_width, 0.97 * garment_height),
-            (0.26 * panel_width, 0.90 * garment_height),
-            (0.74 * panel_width, 0.90 * garment_height),
-        )
-        available = [int(i) for i in boundary]
-        result = []
-        for local_x, local_y in targets:
-            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
-            index = min(available, key=lambda i: (positions[i][0] - target_point.x) ** 2 + (positions[i][1] - target_point.y) ** 2 + (positions[i][2] - target_point.z) ** 2)
-            result.append(index)
-            available.remove(index)
-        return tuple(result)
-    front_positions, _front_triangles, front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
-    back_positions, _back_triangles, back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
-    front_pins = authored_shoulder_pins(front, front_positions, front_boundary)
-    back_pins_local = authored_shoulder_pins(back, back_positions, back_boundary)
-    back_pins = tuple(len(front_positions) + i for i in back_pins_local)'''
+new_pin_block = '''    from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
+    from freecad_cloth.pattern.PatternMesh import triangulate
+    def local_boundary(piece, outline):
+        points = [(float(x), float(y)) for x, y in outline]
+        segments = [LineSegment("%s:edge:%d" % (piece.PieceId, i), points[i], points[(i + 1) % len(points)]) for i in range(len(points))]
+        mesh = triangulate(ParametricPattern(segments))
+        h = max(y for _, y in points)
+        pins = tuple(i for i in mesh.boundary_vertex_indices if float(mesh.vertices[i][1]) >= 0.86 * h - 1e-6 and (float(mesh.vertices[i][0]) <= 0.32 * panel_width + 1e-6 or float(mesh.vertices[i][0]) >= 0.68 * panel_width - 1e-6))
+        return mesh, pins
+    front_positions, _front_triangles, _front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
+    back_positions, _back_triangles, _back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
+    front_mesh, front_pins_local = local_boundary(front, front_outline)
+    _back_mesh, back_pins_local = local_boundary(back, back_outline)
+    front_pins = tuple(int(i) for i in front_pins_local)
+    back_pins = tuple(len(front_mesh.vertices) + int(i) for i in back_pins_local)'''
 if old_pin_block not in source:
     raise RuntimeError("GUI fixture pin block no longer matches expected source; refusing silent no-op")
 source = source.replace(old_pin_block, new_pin_block)
