@@ -101,7 +101,7 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
         raise RuntimeError("Realtime Cloth Preview did not reset steps on stop")
     for name, value in preview_saved.items():
         if getattr(scene, name) != value:
-            raise RuntimeError("Realtime Cloth Preview did not restore %s" name)
+            raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
     log("realtime-preview=passed steps=%d" % preview_steps)
 '''
 anchor = '    for batch in (10,10,10):'
