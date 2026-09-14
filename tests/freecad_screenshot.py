@@ -207,8 +207,8 @@ def pattern_and_sewing():
     from freecad_cloth.sewing.SewingGui import SewingTaskPanel
     import Part
     doc = App.newDocument("ClothVisualPattern")
-    front_sketch, _front_outline = _make_tunic_sketch(doc, "VisualFront", 520.0, 720.0, 600.0, 0.64, 0.10)
-    back_sketch, _back_outline = _make_tunic_sketch(doc, "VisualBack", 520.0, 720.0, 600.0, 0.64, 0.07)
+    front_sketch, _front_outline = _make_tunic_sketch(doc, "VisualFront", 520.0, 720.0, 600.0, 0.78, 0.18)
+    back_sketch, _back_outline = _make_tunic_sketch(doc, "VisualBack", 520.0, 720.0, 600.0, 0.76, 0.12)
     doc.recompute(); front = _adopt_sketch(front_sketch, "Front Tunic", 10.0, 0.0); back = _adopt_sketch(back_sketch, "Back Tunic", 10.0, 0.0)
     front.Placement.Base.x = -660; back.Placement.Base.x = 40; front.Sketch.Placement = front.Placement; back.Sketch.Placement = back.Placement
     marker = doc.addObject("Part::Feature", "GrainlineMarker"); marker.Shape = Part.makeLine(App.Vector(-400,90,1), App.Vector(-400,640,1))
@@ -250,7 +250,7 @@ def simulation():
     shoulder_z = box.ZMin + 0.76 * z_span; hem_z = box.ZMin + 0.40 * z_span; garment_height = max(560.0, shoulder_z - hem_z); body_depth = max(120.0, min(260.0, y_span)); clearance = max(20.0, 0.08 * body_depth); front_y = box.YMin - clearance; back_y = box.YMax + clearance; rot = App.Rotation(App.Vector(1,0,0), 90.0)
     def make_piece(name, y, neckline_ratio, neckline_drop):
         sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot); piece.Sketch.Placement = piece.Placement; return piece, outline
-    front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)
+    front, front_outline = make_piece("VisualTunicFront", front_y, 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", back_y, 0.76, 0.12)
     for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(7,7,"TunicLeftSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
         add_seam(doc, Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 28.0; scene.SolverIterations = 4; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 100.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
