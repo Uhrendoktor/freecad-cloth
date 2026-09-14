@@ -38,21 +38,21 @@ class HumanoidMeshTests(unittest.TestCase):
         self.assertIn("1f508f6083b2f823dab15de924b3bde72e08d77c9", MAKEHUMAN_BASE_URL)
         self.assertTrue(MAKEHUMAN_BASE_URL.endswith("/makehuman/data/3dobjs/base.obj"))
 
-    def test_real_source_height_axis_is_z(self):
+    def test_real_source_height_axis_is_makehuman_y_up_and_fits_to_z(self):
         source = load_makehuman_mesh()
         spans = tuple(max(vertex[axis] for vertex in source.vertices) - min(vertex[axis] for vertex in source.vertices) for axis in range(3))
         fitted = fit_makehuman_mesh(source, AvatarParameters(skin_offset=0))
         fitted_spans = tuple(max(vertex[axis] for vertex in fitted.vertices) - min(vertex[axis] for vertex in fitted.vertices) for axis in range(3))
         print("HM08_ORIENTATION source_spans=%s fitted_spans=%s" % (spans, fitted_spans), flush=True)
-        self.assertGreater(spans[2], spans[0] * 2.0)
-        self.assertGreater(spans[2], spans[1] * 2.0)
+        self.assertGreater(spans[1], spans[0] * 1.5)
+        self.assertGreater(spans[1], spans[2] * 2.0)
         self.assertAlmostEqual(fitted_spans[2], 1750.0, places=6)
 
     def test_map_preserves_z_up_orientation_and_normalizes_height(self):
         source = ((-2.0, 3.0, 5.0), (2.0, -3.0, 15.0))
         mapped = _map_makehuman_axes(source)
-        self.assertEqual(mapped[0], (-2.0, 3.0, 0.0))
-        self.assertEqual(mapped[1], (2.0, -3.0, 1.0))
+        self.assertEqual(mapped[0], (-2.0, 5.0, 1.0))
+        self.assertEqual(mapped[1], (2.0, 15.0, 0.0))
 
     def test_axis_conversion_reverses_triangle_winding(self):
         self.assertEqual(_reoriented_triangles(((0, 1, 2), (2, 3, 0))), ((0, 2, 1), (2, 0, 3)))
@@ -77,7 +77,7 @@ class HumanoidMeshTests(unittest.TestCase):
         fitted = fit_makehuman_mesh(source, AvatarParameters(skin_offset=0))
         self.assertAlmostEqual(min(v[2] for v in fitted.vertices), 0.0)
         self.assertAlmostEqual(max(v[2] for v in fitted.vertices), 1750.0)
-        self.assertAlmostEqual(max(v[0] for v in fitted.vertices) - min(v[0] for v in fitted.vertices), 350.0)
+        self.assertAlmostEqual(max(v[0] for v in fitted.vertices) - min(v[0] for v in fitted.vertices), 905.0)
         self.assertEqual(fitted.triangles, _reoriented_triangles(source.triangles))
 
     def test_fit_preserves_topology_and_applies_height_and_skin_offset(self):

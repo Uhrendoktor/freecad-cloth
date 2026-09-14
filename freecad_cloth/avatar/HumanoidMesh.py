@@ -29,12 +29,20 @@ MAKEHUMAN_WEIGHTS_URL = (
     + "/makehuman/data/rigs/default_weights.mhw"
 )
 MAKEHUMAN_WEIGHTS_SIZE = 897521
+MAKEHUMAN_SKELETON_URL = (
+    "https://raw.githubusercontent.com/makehumancommunity/makehuman/"
+    + MAKEHUMAN_COMMIT
+    + "/makehuman/data/rigs/default.mhskel"
+)
+MAKEHUMAN_SKELETON_SIZE = 117790
 MAKEHUMAN_BODY_VERTEX_COUNT = 13380
 CACHE_ENV = "FREECAD_CLOTH_AVATAR_MESH"
 CACHE_DIR_ENV = "FREECAD_CLOTH_AVATAR_CACHE"
 WEIGHTS_ENV = "FREECAD_CLOTH_AVATAR_WEIGHTS"
+SKELETON_ENV = "FREECAD_CLOTH_AVATAR_SKELETON"
 DEFAULT_CACHE_NAME = "makehuman-hm08-base.obj"
 DEFAULT_WEIGHTS_NAME = "makehuman-default-weights.mhw"
+DEFAULT_SKELETON_NAME = "makehuman-default.mhskel"
 
 
 class HumanoidMeshError(RuntimeError):
@@ -70,6 +78,13 @@ def _weights_cache_path() -> Path:
     return Path.home() / ".cache" / "freecad-cloth" / DEFAULT_WEIGHTS_NAME
 
 
+def _skeleton_cache_path() -> Path:
+    configured = os.environ.get(CACHE_DIR_ENV, "").strip()
+    if configured:
+        return Path(configured).expanduser() / DEFAULT_SKELETON_NAME
+    return Path.home() / ".cache" / "freecad-cloth" / DEFAULT_SKELETON_NAME
+
+
 def _verified(path: Path) -> bool:
     if not path.is_file() or path.stat().st_size <= 1024:
         return False
@@ -85,6 +100,16 @@ def _verified_weights(path: Path) -> bool:
     try:
         payload = json.loads(path.read_text(encoding="utf-8", errors="strict"))
         return isinstance(payload.get("weights"), dict)
+    except (OSError, UnicodeError, ValueError):
+        return False
+
+
+def _verified_skeleton(path: Path) -> bool:
+    if not path.is_file() or path.stat().st_size != MAKEHUMAN_SKELETON_SIZE:
+        return False
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8", errors="strict"))
+        return isinstance(payload.get("bones"), dict) and isinstance(payload.get("joints"), dict)
     except (OSError, UnicodeError, ValueError):
         return False
 
@@ -164,6 +189,77 @@ def ensure_makehuman_weights(path: str | os.PathLike[str] | None = None) -> Path
             "set %s to a local MHW file or allow network access (%s)" % (WEIGHTS_ENV, exc)
         ) from exc
     return destination
+
+
+def ensure_makehuman_skeleton(path: str | os.PathLike[str] | None = None) -> Path:
+    """Return the pinned MakeHuman default authored skeleton."""
+    override = os.environ.get(SKELETON_ENV, "").strip()
+    if path is not None:
+        destination = Path(path).expanduser()
+        if not destination.is_file():
+            raise HumanoidMeshError("explicit MakeHuman skeleton path does not exist: %s" % destination)
+        return destination
+    if override:
+        destination = Path(override).expanduser()
+        if not destination.is_file():
+            raise HumanoidMeshError("%s points to missing MakeHuman skeleton: %s" % (SKELETON_ENV, destination))
+        return destination
+
+    destination = _skeleton_cache_path()
+    if _verified_skeleton(destination):
+        return destination
+    try:
+        _download(MAKEHUMAN_SKELETON_URL, destination, _verified_skeleton)
+    except Exception as exc:
+        raise HumanoidMeshError(
+            "unable to obtain the pinned MakeHuman default skeleton; "
+            "set %s to a local MHSkel file or allow network access (%s)" % (SKELETON_ENV, exc)
+        ) from exc
+    return destination
+
+
+
+def _load_source_vertices(path: str | None = None) -> tuple[tuple[float, float, float], ...]:
+    source = ensure_makehuman_base(path)
+    try:
+        vertices = []
+        for raw in source.read_text(encoding="utf-8", errors="strict").splitlines():
+            fields = raw.split()
+            if fields and fields[0] == "v" and len(fields) >= 4:
+                vertices.append((float(fields[1]), float(fields[2]), float(fields[3])))
+        return tuple(vertices)
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise HumanoidMeshError("unable to parse MakeHuman source vertices %s: %s" % (source, exc)) from exc
+
+
+@lru_cache(maxsize=4)
+def load_makehuman_skeleton(path: str | None = None) -> dict:
+    source = ensure_makehuman_skeleton(path)
+    try:
+        payload = json.loads(source.read_text(encoding="utf-8", errors="strict"))
+        if not isinstance(payload.get("bones"), dict) or not isinstance(payload.get("joints"), dict):
+            raise HumanoidMeshError("MakeHuman skeleton is missing bones or joints")
+        return payload
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise HumanoidMeshError("unable to parse MakeHuman skeleton %s: %s" % (source, exc)) from exc
+
+
+def _joint_point(source_vertices, indices):
+    points = [source_vertices[int(index)] for index in indices if 0 <= int(index) < len(source_vertices)]
+    if not points:
+        raise HumanoidMeshError("MakeHuman skeleton references missing joint vertices")
+    count = float(len(points))
+    return tuple(sum(point[axis] for point in points) / count for axis in range(3))
+
+
+def _bone_source_endpoints(source_vertices, skeleton, bone_name):
+    bone = skeleton["bones"].get(bone_name)
+    if not bone:
+        raise HumanoidMeshError("MakeHuman skeleton has no bone %s" % bone_name)
+    return (
+        _joint_point(source_vertices, skeleton["joints"][bone["head"]]),
+        _joint_point(source_vertices, skeleton["joints"][bone["tail"]]),
+    )
 
 
 def parse_obj(text: str) -> MeshData:
@@ -401,8 +497,74 @@ def _normalize_fit_axes(vertices, parameters):
     return tuple((x * scale_x, y * scale_y, z) for x, y, z in vertices)
 
 
+def _make_source_fitted_mapper(source_vertices, parameters, skin_offset):
+    body = tuple(source_vertices[:MAKEHUMAN_BODY_VERTEX_COUNT])
+    ymin, ymax = _axis_bounds(body, 1)
+    y_span = max(1e-9, ymax - ymin)
+    height_mm = float(parameters.measurement("height"))
+    torso_profile = [(0.0, 1.0), (1.0, 1.0)] if _is_default_measurement_shape(parameters) else _measurement_profile(parameters)
+    if _is_default_measurement_shape(parameters):
+        shoulder_scale = 1.0
+    else:
+        from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
+        shoulder_scale = max(0.80, min(1.25, parameters.measurement("shoulder") / float(DEFAULT_MEASUREMENTS["shoulder"])))
+
+    body_fitted = []
+    for point in body:
+        x, y, z = point
+        normalized_z = (y - ymin) / y_span
+        torso_scale = _profile_scale(normalized_z, torso_profile)
+        shoulder_blend = _smoothstep(0.67, 0.79, normalized_z)
+        lateral_scale = _lerp(1.0, shoulder_scale, shoulder_blend)
+        x_mm = x * height_mm / y_span * torso_scale * lateral_scale
+        y_mm = z * height_mm / y_span * torso_scale
+        radius = math.hypot(x_mm, y_mm)
+        if radius > 1e-9 and skin_offset:
+            x_mm += x_mm / radius * skin_offset
+            y_mm += y_mm / radius * skin_offset
+        body_fitted.append((x_mm, y_mm, normalized_z * height_mm))
+    normalized = _normalize_fit_axes(tuple(body_fitted), parameters)
+    pre_x_span = max(v[0] for v in body_fitted) - min(v[0] for v in body_fitted)
+    pre_y_span = max(v[1] for v in body_fitted) - min(v[1] for v in body_fitted)
+    norm_x_span = max(v[0] for v in normalized) - min(v[0] for v in normalized)
+    norm_y_span = max(v[1] for v in normalized) - min(v[1] for v in normalized)
+    scale_x = norm_x_span / max(1e-9, pre_x_span)
+    scale_y = norm_y_span / max(1e-9, pre_y_span)
+
+    def transform(point):
+        x, y, z = point
+        normalized_z = (y - ymin) / y_span
+        torso_scale = _profile_scale(normalized_z, torso_profile)
+        shoulder_blend = _smoothstep(0.67, 0.79, normalized_z)
+        lateral_scale = _lerp(1.0, shoulder_scale, shoulder_blend)
+        x_mm = x * height_mm / y_span * torso_scale * lateral_scale
+        y_mm = z * height_mm / y_span * torso_scale
+        radius = math.hypot(x_mm, y_mm)
+        if radius > 1e-9 and skin_offset:
+            x_mm += x_mm / radius * skin_offset
+            y_mm += y_mm / radius * skin_offset
+        return (x_mm * scale_x, y_mm * scale_y, normalized_z * height_mm)
+
+    return transform
+
+
+def _authored_arm_rig_points(parameters):
+    source = _load_source_vertices()
+    skeleton = load_makehuman_skeleton()
+    transform = _make_source_fitted_mapper(source, parameters, float(parameters.skin_offset))
+    points = {}
+    for physical_side, suffix in ((-1.0, ".L"), (1.0, ".R")):
+        shoulder = _bone_source_endpoints(source, skeleton, "upperarm01" + suffix)[0]
+        wrist = _bone_source_endpoints(source, skeleton, "wrist" + suffix)[0]
+        points[physical_side] = {"shoulder": transform(shoulder), "wrist": transform(wrist)}
+
+    if points[-1.0]["shoulder"][0] > points[1.0]["shoulder"][0]:
+        points[-1.0], points[1.0] = points[1.0], points[-1.0]
+    return points
+
+
 def fit_makehuman_mesh(mesh: MeshData, parameters, arm_weights=None) -> MeshData:
-    """Fit HM08 and pose arms using source-authored linear skinning weights."""
+    """Fit HM08 and pose arms using source-authored bones and skinning weights."""
     mesh.validate()
     source = _map_makehuman_axes(mesh.vertices)
     height_mm = float(parameters.measurement("height"))
@@ -440,20 +602,20 @@ def fit_makehuman_mesh(mesh: MeshData, parameters, arm_weights=None) -> MeshData
     shoulder_z = height_mm * 0.76
     shoulder_pivots = _estimate_shoulder_pivots(fitted, shoulder_half, shoulder_z, height_mm)
     if arm_weights is not None:
-        for side_index, side in enumerate((-1.0, 1.0)):
-            weights = arm_weights[side_index]
-            lateral = sorted(
-                side * x
-                for index, (x, _y, z) in enumerate(fitted)
-                if weights[index] >= 0.50
-                and side * x > 0.0
-                and 0.66 <= z / max(1.0, height_mm) <= 0.82
-            )
-            if lateral:
-                pivot = lateral[max(0, int(len(lateral) * 0.05))]
-                pivot = max(shoulder_half * 0.70, min(shoulder_half * 1.05, pivot))
-                shoulder_pivots[side] = side * pivot
-    rest_angles = _estimate_rest_arm_angles(fitted, shoulder_pivots, shoulder_z, height_mm, arm_weights)
+        try:
+            authored = _authored_arm_rig_points(parameters)
+            shoulder_pivots = {side: authored[side]["shoulder"][0] for side in (-1.0, 1.0)}
+            rest_angles = {}
+            for side in (-1.0, 1.0):
+                shoulder = authored[side]["shoulder"]
+                wrist = authored[side]["wrist"]
+                radial = max(1e-9, side * (wrist[0] - shoulder[0]))
+                downward = max(0.0, shoulder[2] - wrist[2])
+                rest_angles[side] = math.degrees(math.atan2(downward, radial))
+        except (HumanoidMeshError, KeyError, OSError, UnicodeError, ValueError, TypeError):
+            rest_angles = _estimate_rest_arm_angles(fitted, shoulder_pivots, shoulder_z, height_mm, arm_weights)
+    else:
+        rest_angles = _estimate_rest_arm_angles(fitted, shoulder_pivots, shoulder_z, height_mm, arm_weights)
 
     default_angle = {"standing": 12.0, "sewing": 55.0, "sitting": 25.0}.get(pose.preset, 12.0)
     left_angle = default_angle if pose.preset != "standing" and float(pose.left_arm_angle) == 12.0 else float(pose.left_arm_angle)
