@@ -14,7 +14,7 @@ FreeCAD/Sketcher owns editable geometry and document persistence; Cloth owns gar
 
 ## Screenshots
 
-The canonical FreeCAD/Xvfb workflow publishes the validated GUI states to a stable `docs/screenshots` branch. The avatar audit additionally captures the production mannequin from every orthographic direction so the shoulder joints and overall body silhouette can be checked visually.
+The canonical FreeCAD/Xvfb workflow publishes the validated GUI states to a stable `docs/screenshots` branch. The avatar audit additionally captures the production mannequin from every orthographic direction so the shoulder joints and overall body silhouette can be checked visually. The avatar images below are pinned to the post-#516 screenshot publication so the README renders the corrected mannequin rather than a stale branch revision.
 
 ### Pattern design
 
@@ -34,27 +34,27 @@ The canonical FreeCAD/Xvfb workflow publishes the validated GUI states to a stab
 
 ### Avatar — front
 
-![Cloth Avatar front](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-front.png)
+![Cloth Avatar front](https://github.com/Uhrendoktor/freecad-cloth/raw/ddfe4cac1202bf7acc341c1f5044c42b2eed8aae/docs/images/generated/cloth-avatar-front.png)
 
 ### Avatar — rear
 
-![Cloth Avatar rear](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-rear.png)
+![Cloth Avatar rear](https://github.com/Uhrendoktor/freecad-cloth/raw/ddfe4cac1202bf7acc341c1f5044c42b2eed8aae/docs/images/generated/cloth-avatar-rear.png)
 
 ### Avatar — left
 
-![Cloth Avatar left](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-left.png)
+![Cloth Avatar left](https://github.com/Uhrendoktor/freecad-cloth/raw/ddfe4cac1202bf7acc341c1f5044c42b2eed8aae/docs/images/generated/cloth-avatar-left.png)
 
 ### Avatar — right
 
-![Cloth Avatar right](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-right.png)
+![Cloth Avatar right](https://github.com/Uhrendoktor/freecad-cloth/raw/ddfe4cac1202bf7acc341c1f5044c42b2eed8aae/docs/images/generated/cloth-avatar-right.png)
 
 ### Avatar — top
 
-![Cloth Avatar top](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-top.png)
+![Cloth Avatar top](https://github.com/Uhrendoktor/freecad-cloth/raw/ddfe4cac1202bf7acc341c1f5044c42b2eed8aae/docs/images/generated/cloth-avatar-top.png)
 
 ### Avatar — bottom
 
-![Cloth Avatar bottom](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-bottom.png)
+![Cloth Avatar bottom](https://github.com/Uhrendoktor/freecad-cloth/raw/ddfe4cac1202bf7acc341c1f5044c42b2eed8aae/docs/images/generated/cloth-avatar-bottom.png)
 
 ## Module architecture
 
