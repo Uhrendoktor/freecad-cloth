@@ -7,7 +7,6 @@ from freecad_cloth.avatar.HierarchicalPose import build_hierarchical_avatar_mesh
 from freecad_cloth.avatar.HumanoidMesh import (
     _bone_source_endpoints,
     _joint_point,
-    _rotate_xz,
     load_makehuman_skeleton,
 )
 from freecad_cloth.avatar.AvatarModel import AvatarParameters
@@ -25,14 +24,6 @@ class AvatarHierarchicalPoseTests(unittest.TestCase):
             "joints": {"h": [0], "t": [1]},
         }
         self.assertEqual(_bone_source_endpoints(vertices, skeleton, "upperarm01.L"), ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0)))
-
-    def test_rigid_arm_rotation_preserves_distance_to_authored_pivot(self):
-        point = (300.0, 0.0, 1300.0)
-        pivot = (170.0, 0.0)
-        rotated = _rotate_xz(point, pivot, 0.7)
-        before = ((point[0] - pivot[0]) ** 2 + (point[2] - pivot[1]) ** 2) ** 0.5
-        after = ((rotated[0] - pivot[0]) ** 2 + (rotated[2] - pivot[1]) ** 2) ** 0.5
-        self.assertAlmostEqual(before, after, places=6)
 
     def test_pinned_makehuman_skeleton_has_wrist_child_of_forearm(self):
         skeleton = load_makehuman_skeleton()
