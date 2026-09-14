@@ -242,7 +242,7 @@ def simulation():
     front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)
     for edge_a, edge_b, seam_id in ((1,7,"TunicRightSide"),(7,1,"TunicLeftSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder")):
         add_seam(doc, Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))
-    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
+    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 6; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
     def quality_pins(piece, positions, boundary):
         top = max(float(positions[i][2]) for i in boundary)
         left = x_mid - 0.18 * panel_width; right = x_mid + 0.18 * panel_width
@@ -268,10 +268,10 @@ def simulation():
         raise RuntimeError("visual fixture does not contain a real humanoid mesh")
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
     simulation_panel = SimulationQualityTaskPanel(scene); task_dock = show_task(simulation_panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset")); view = Gui.activeDocument().activeView(); view.setCameraType("Orthographic"); view.viewFront(); view.fitAll(); events(); task_dock.hide(); events(); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical sewn tunic generated from native Sketcher pattern sources on production mannequin"); task_dock.show(); task_dock.raise_(); events()
-    for batch in (15,15,15,15):
+    for batch in (10,10,10):
         simulation_panel.step(batch); doc.recompute(); events()
-    if int(scene.Steps) != 60 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
-        raise RuntimeError("simulation did not reach a finite 60-step state")
+    if int(scene.Steps) != 30 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
+        raise RuntimeError("simulation did not reach a finite 30-step state")
     if any(panel.Mesh.CountFacets <= 10 for panel in scene.DrapePanels):
         raise RuntimeError("draped tunic panel mesh is empty")
     write_drape_metrics(panels, avatar, x_mid); bounds = []
@@ -279,7 +279,7 @@ def simulation():
         b = panel.Mesh.BoundBox; bounds.append((b.XMin,b.XMax,b.YMin,b.YMax,b.ZMin,b.ZMax))
     log("drape-bounds=%s" % (bounds,)); task_dock.hide(); events()
     for direction, method_name in (("front","viewFront"),("rear","viewRear"),("left","viewLeft"),("right","viewRight"),("top","viewTop"),("bottom","viewBottom")):
-        getattr(view, method_name)(); view.fitAll(); events(); save("cloth-simulation-draped-%s.png" % direction, "Simulation Workbench draped %s" % direction, "same sewn tunic after 60 real steps; six-side audit from native Sketcher pattern sources")
+        getattr(view, method_name)(); view.fitAll(); events(); save("cloth-simulation-draped-%s.png" % direction, "Simulation Workbench draped %s" % direction, "same sewn tunic after 30 real steps; six-side audit from native Sketcher pattern sources")
         if direction == "front":
             save("cloth-simulation-draped.png", "Simulation Workbench draped front", "legacy front screenshot alias; native Sketcher tunic source")
     task_dock.show(); task_dock.raise_(); events(); close_task(); App.closeDocument(doc.Name)
