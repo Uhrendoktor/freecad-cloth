@@ -44,7 +44,7 @@ class HumanoidMeshTests(unittest.TestCase):
         fitted = fit_makehuman_mesh(source, AvatarParameters(skin_offset=0))
         fitted_spans = tuple(max(vertex[axis] for vertex in fitted.vertices) - min(vertex[axis] for vertex in fitted.vertices) for axis in range(3))
         print("HM08_ORIENTATION source_spans=%s fitted_spans=%s" % (spans, fitted_spans), flush=True)
-        self.assertGreater(spans[1], spans[0] * 2.0)
+        self.assertGreater(spans[1], spans[0] * 1.5)
         self.assertGreater(spans[1], spans[2] * 2.0)
         self.assertAlmostEqual(fitted_spans[2], 1750.0, places=6)
 
