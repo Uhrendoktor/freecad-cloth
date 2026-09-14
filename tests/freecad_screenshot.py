@@ -56,4 +56,28 @@ new_pin_block = '''    from freecad_cloth.pattern.PatternGeometry import LineSeg
 if old_pin_block not in source:
     raise RuntimeError("GUI fixture pin block no longer matches expected source; refusing silent no-op")
 source = source.replace(old_pin_block, new_pin_block)
+
+backend_patch = r'''
+from freecad_cloth.simulation.ClothBackend import default_backend_registry, preferred_backend_name
+
+def _canonical_backend(system, triangles, pins, stitches, collision_surface):
+    registry = default_backend_registry()
+    name = preferred_backend_name(registry)
+    if name == "tissu":
+        return registry.create(
+            name,
+            system,
+            triangles=triangles,
+            pins=pins,
+            stitches=stitches,
+            collision_surface=collision_surface,
+        )
+    return registry.create(name, system)
+'''
+source = source.replace('OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")', backend_patch + '\nOUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")')
+source = source.replace(
+    'self.backend = default_backend_registry().create("xpbd-cpu", system)',
+    'self.backend = _canonical_backend(system, triangles_global, tuple(system.pins), tuple((c.a, c.b) for c in system.stitches), _collision_for_scene(obj))',
+    1,
+)
 exec(compile(source, str(Path(__file__).with_name("freecad_screenshot_source.py")), "exec"), globals(), globals())
