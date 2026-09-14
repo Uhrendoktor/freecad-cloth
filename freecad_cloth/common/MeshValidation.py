@@ -7,7 +7,7 @@ for acceptance diagnostics, backend comparisons, and developer tooling.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import isfinite
+from math import isfinite, sqrt
 from typing import Sequence, Tuple
 
 Point3 = Tuple[float, float, float]
@@ -26,6 +26,21 @@ class MeshValidationResult:
     watertight: bool | None
     finite: bool
     degenerate_faces: int
+
+
+@dataclass(frozen=True)
+class DrapeVisualMetrics:
+    """Solver-neutral garment-vs-target visual sanity measurements."""
+
+    vertices: int
+    bounds: Tuple[float, float, float, float, float, float]
+    spans: Tuple[float, float, float]
+    centroid: Point3
+    vertical_span_ratio: float
+    lateral_span_ratio: float
+    target_vertex_clearance: float | None
+    finite: bool
+    state: str
 
 
 def _validate_arrays(vertices: Sequence[Point3], triangles: Sequence[Triangle]) -> None:
@@ -140,3 +155,93 @@ def nearest_surface_clearance(
     )
     _, distances, _ = mesh.nearest.on_surface(np.asarray(garment_vertices, dtype=float))
     return float(np.min(distances)) if len(distances) else float("inf")
+
+
+def _centroid(vertices: Sequence[Point3]) -> Point3:
+    count = float(len(vertices))
+    return tuple(sum(float(v[i]) for v in vertices) / count for i in range(3))  # type: ignore[return-value]
+
+
+def measure_drape_visual_sanity(
+    garment_vertices: Sequence[Point3],
+    target_vertices: Sequence[Point3],
+    *,
+    target_height: float | None = None,
+    target_width: float | None = None,
+) -> DrapeVisualMetrics:
+    """Measure deterministic garment-vs-target evidence without mutation.
+
+    ``state`` is an evidence label only. It must not be interpreted as proof
+    of physical correctness or solver quality.
+    """
+    if not garment_vertices:
+        return DrapeVisualMetrics(
+            0,
+            (0.0,) * 6,
+            (0.0, 0.0, 0.0),
+            (0.0, 0.0, 0.0),
+            0.0,
+            0.0,
+            None,
+            False,
+            "empty",
+        )
+
+    finite = all(isfinite(float(c)) for v in garment_vertices for c in v)
+    if not finite:
+        return DrapeVisualMetrics(
+            len(garment_vertices),
+            _fallback_bounds(garment_vertices),
+            (0.0, 0.0, 0.0),
+            (0.0, 0.0, 0.0),
+            0.0,
+            0.0,
+            None,
+            False,
+            "nonfinite",
+        )
+
+    bounds = _fallback_bounds(garment_vertices)
+    spans = (bounds[1] - bounds[0], bounds[3] - bounds[2], bounds[5] - bounds[4])
+    vertical = max(spans)
+    lateral_width = sorted(spans)[:2][1]
+    vertical_ratio = vertical / float(target_height) if target_height and target_height > 0 else 0.0
+    lateral_ratio = lateral_width / float(target_width) if target_width and target_width > 0 else 0.0
+    clearance = None
+    if target_vertices:
+        clearance = nearest_target_clearance(garment_vertices, target_vertices)
+
+    state = "structurally-plausible"
+    if vertical <= 1e-9:
+        state = "flat-or-collapsed"
+    elif target_height and vertical_ratio < 0.15:
+        state = "short-drape-candidate"
+    elif clearance is not None and target_width and clearance > max(float(target_width) * 0.30, 1.0):
+        state = "detached-candidate"
+
+    return DrapeVisualMetrics(
+        len(garment_vertices),
+        bounds,
+        spans,
+        _centroid(garment_vertices),
+        vertical_ratio,
+        lateral_ratio,
+        clearance,
+        True,
+        state,
+    )
+
+
+def summarize_drape_visual_metrics(metrics: DrapeVisualMetrics) -> dict:
+    """Return a stable JSON-ready representation of drape metrics."""
+    return {
+        "state": metrics.state,
+        "vertices": metrics.vertices,
+        "bounds": metrics.bounds,
+        "spans": metrics.spans,
+        "centroid": metrics.centroid,
+        "vertical_span_ratio": metrics.vertical_span_ratio,
+        "lateral_span_ratio": metrics.lateral_span_ratio,
+        "target_vertex_clearance": metrics.target_vertex_clearance,
+        "finite": metrics.finite,
+    }
