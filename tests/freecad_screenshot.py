@@ -23,6 +23,10 @@ source = source.replace(
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)'
 )
+# The coarse visual fixture uses slightly inset shoulder attachment targets to reduce lateral
+# impulse while retaining the authored shoulder attachment regions.
+source = source.replace('(0.14 * panel_width, 0.97 * garment_height),', '(0.18 * panel_width, 0.97 * garment_height),')
+source = source.replace('(0.86 * panel_width, 0.97 * garment_height),', '(0.82 * panel_width, 0.97 * garment_height),')
 # The source fixture already owns the refined-position pin mapping. Do not duplicate or
 # rewrite that implementation here; assert the critical global back-panel offset remains present.
 required_pin_code = '    back_pins = tuple(len(front_positions) + i for i in back_pins_local)'
