@@ -159,8 +159,57 @@ def write_drape_metrics(panels, avatar):
         }, handle, indent=2, sort_keys=True)
 
 
+def _make_tunic_sketch(doc, name, panel_width, garment_height, hem_width, neckline_ratio):
+    import Part
+    import Sketcher
+
+    sketch = doc.addObject("Sketcher::SketchObject", name + "Sketch")
+    points = [
+        (0.00, 0.00),
+        (hem_width, 0.00),
+        (panel_width, 0.82 * garment_height),
+        (0.86 * panel_width, 0.97 * garment_height),
+        (neckline_ratio * panel_width, garment_height),
+        ((1.0 - neckline_ratio) * panel_width, garment_height),
+        (0.14 * panel_width, 0.97 * garment_height),
+        (0.00, 0.82 * garment_height),
+    ]
+    geometry = [
+        Part.LineSegment(App.Vector(points[i][0], points[i][1], 0), App.Vector(points[(i + 1) % len(points)][0], points[(i + 1) % len(points)][1], 0))
+        for i in range(len(points))
+    ]
+    sketch.addGeometry(geometry, False)
+    sketch.SemanticEdgeIds = [f"{name}:edge:{i}" for i in range(len(geometry))]
+    sketch.GeometryAuthority = "Sketcher" if "GeometryAuthority" in sketch.PropertiesList else None
+    sketch.addConstraint([
+        Sketcher.Constraint("Coincident", 0, 2, 1, 1),
+        Sketcher.Constraint("Coincident", 1, 2, 2, 1),
+        Sketcher.Constraint("Coincident", 2, 2, 3, 1),
+        Sketcher.Constraint("Coincident", 3, 2, 4, 1),
+        Sketcher.Constraint("Coincident", 4, 2, 5, 1),
+        Sketcher.Constraint("Coincident", 5, 2, 6, 1),
+        Sketcher.Constraint("Coincident", 6, 2, 7, 1),
+        Sketcher.Constraint("Coincident", 7, 2, 0, 1),
+    ])
+    doc.recompute()
+    return sketch, points
+
+
+def _adopt_sketch(sketch, name, allowance, grainline):
+    from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
+
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(sketch)
+    piece = create_pattern_piece_from_selected_sketch(name=name, allowance=allowance, grainline=grainline)
+    piece.Label = name
+    doc = App.ActiveDocument
+    doc.recompute()
+    if piece.Sketch is not sketch:
+        raise RuntimeError("Cloth PatternPiece did not retain the selected native Sketcher source")
+    return piece
+
+
 def pattern_and_sewing():
-    from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_parameters
     from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternObjects import add_seam
     from freecad_cloth.pattern.PatternGui import PatternPieceTaskPanel
@@ -169,22 +218,31 @@ def pattern_and_sewing():
     import Part
 
     doc = App.newDocument("ClothVisualPattern")
-    front = create_pattern_piece_from_parameters("Front", 140.0, 90.0, 10.0, 0.0)
-    back = create_pattern_piece_from_parameters("Back", 140.0, 90.0, 10.0, 0.0)
-    front.Placement.Base.x = -160
-    back.Placement.Base.x = 20
+    front_sketch, front_outline = _make_tunic_sketch(doc, "VisualFront", 520.0, 720.0, 600.0, 0.64)
+    back_sketch, back_outline = _make_tunic_sketch(doc, "VisualBack", 520.0, 720.0, 600.0, 0.68)
+    doc.recompute()
+    front = _adopt_sketch(front_sketch, "Front Tunic", 10.0, 0.0)
+    back = _adopt_sketch(back_sketch, "Back Tunic", 10.0, 0.0)
+    front.Placement.Base.x = -660
+    back.Placement.Base.x = 40
+    front.Sketch.Placement = front.Placement
+    back.Sketch.Placement = back.Placement
     marker = doc.addObject("Part::Feature", "GrainlineMarker")
-    marker.Shape = Part.makeLine(App.Vector(-90, 10, 1), App.Vector(-90, 80, 1))
+    marker.Shape = Part.makeLine(App.Vector(-400, 90, 1), App.Vector(-400, 640, 1))
+    front.ViewObject.Visibility = False
+    back.ViewObject.Visibility = False
+    front.Sketch.ViewObject.Visibility = True
+    back.Sketch.ViewObject.Visibility = True
     doc.recompute()
     if front.Shape.isNull() or back.Shape.isNull():
-        raise RuntimeError("pattern fixture produced empty geometry")
-    activate("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D"])
+        raise RuntimeError("pattern fixture produced empty geometry from native sketches")
+    activate("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D", "ClothPattern_CreateFromSketch"])
     panel = PatternPieceTaskPanel(front)
     show_task(panel, "Pattern Workbench", ("Piece name", "Width", "Height", "Seam allowance", "Grainline angle"))
     Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll(); events()
-    save("cloth-pattern-design.png", "Pattern Workbench", "native pattern task panel with two pieces")
+    save("cloth-pattern-design.png", "Pattern Workbench", "native Sketcher tunic pattern adopted into Cloth PatternPiece")
     close_task()
-    seam = add_seam(doc, Seam(str(front.PieceId), 1, str(back.PieceId), 3, id="FrontBack", alignment="uniform", stitch_group="MainSeam"))
+    seam = add_seam(doc, Seam(str(front.PieceId), 1, str(back.PieceId), 7, id="FrontBack", alignment="uniform", stitch_group="MainSeam"))
     sewing = create_sewing_operation(); doc.recompute()
     if str(seam.Status) != "Valid" or seam.Shape.isNull() or str(sewing.Status) != "Valid" or sewing.Shape.isNull():
         raise RuntimeError("sewing fixture is invalid")
@@ -192,7 +250,7 @@ def pattern_and_sewing():
     panel = SewingTaskPanel(sewing)
     show_task(panel, "Sewing Workbench", ("Seam", "Alignment", "Validation tolerance", "Stitch samples", "Status"))
     Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll(); events()
-    save("cloth-sewing.png", "Sewing Workbench", "native seam and sewing diagnostics")
+    save("cloth-sewing.png", "Sewing Workbench", "native tunic Sketcher boundary and semantic seam")
     close_task(); App.closeDocument(doc.Name)
 
 
@@ -208,7 +266,6 @@ def style_mesh(obj, label):
 
 
 def simulation():
-    from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_parameters
     from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
     from freecad_cloth.pattern.PatternMesh import triangulate
     from freecad_cloth.pattern.PatternModel import Seam
@@ -245,27 +302,21 @@ def simulation():
     rot = App.Rotation(App.Vector(1, 0, 0), 90.0)
 
     def make_piece(name, y, neckline_ratio):
-        outline = [
-            (0.00, 0.00), (hem_width, 0.00),
-            (panel_width, garment_height),
-            (neckline_ratio * panel_width, 0.86 * garment_height),
-            ((1.0 - neckline_ratio) * panel_width, 0.86 * garment_height),
-            (0.00, garment_height),
-        ]
-        piece = create_pattern_piece_from_parameters(name, panel_width, garment_height, 10.0, 0.0)
+        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio)
+        doc.recompute()
+        piece = _adopt_sketch(sketch, name, 10.0, 0.0)
         piece.Label = name
-        piece.DraftingBoundary = repr(outline)
-        piece.SewingOutline = repr(outline)
         piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
+        piece.Sketch.Placement = piece.Placement
         return piece, outline
 
-    front, front_outline = make_piece("VisualTunicFront", front_y, 0.68)
-    back, back_outline = make_piece("VisualTunicBack", back_y, 0.74)
+    front, front_outline = make_piece("VisualTunicFront", front_y, 0.64)
+    back, back_outline = make_piece("VisualTunicBack", back_y, 0.68)
     for edge_a, edge_b, seam_id in (
-        (1, 1, "TunicRightSide"),
-        (5, 5, "TunicLeftSide"),
-        (2, 2, "TunicRightShoulder"),
-        (4, 4, "TunicLeftShoulder"),
+        (1, 7, "TunicRightSide"),
+        (7, 1, "TunicLeftSide"),
+        (2, 6, "TunicRightShoulder"),
+        (6, 2, "TunicLeftShoulder"),
     ):
         add_seam(doc, Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))
 
@@ -303,6 +354,9 @@ def simulation():
     for source in (doc.getObject("VisualTunicFront"), doc.getObject("VisualTunicBack")):
         if source is not None:
             source.ViewObject.Visibility = False
+        sketch = getattr(source, "Sketch", None) if source is not None else None
+        if sketch is not None:
+            sketch.ViewObject.Visibility = False
     panels = list(scene.DrapePanels)
     if len(panels) != 2:
         raise RuntimeError("expected two drape panels, got %d" % len(panels))
@@ -314,6 +368,7 @@ def simulation():
 
     log("avatar-bounds x=%.1f..%.1f y=%.1f..%.1f z=%.1f..%.1f" % (box.XMin, box.XMax, box.YMin, box.YMax, box.ZMin, box.ZMax))
     log("tunic panel-width=%.1f hem-width=%.1f height=%.1f body-depth=%.1f front-y=%.1f back-y=%.1f pins=%s" % (panel_width, hem_width, garment_height, body_depth, front_y, back_y, scene.PinSelection))
+    log("tunic-source=freecad-native-sketcher edges=%d front=%s back=%s" % (len(front.Sketch.Geometry), front.Sketch.Name, back.Sketch.Name))
     if int(getattr(avatar, "MeshVertexCount", 0)) <= 100 or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100:
         raise RuntimeError("visual fixture does not contain a real humanoid mesh")
 
@@ -324,7 +379,7 @@ def simulation():
     view.setCameraType("Orthographic")
     view.viewFront(); view.fitAll(); events()
     task_dock.hide(); events()
-    save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical sewn tunic shell on production mannequin before simulation")
+    save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical sewn tunic generated from native Sketcher pattern sources on production mannequin")
     task_dock.show(); task_dock.raise_(); events()
 
     for batch in (10, 10, 10):
@@ -352,9 +407,9 @@ def simulation():
         ("bottom", "viewBottom"),
     ):
         getattr(view, method_name)(); view.fitAll(); events()
-        save("cloth-simulation-draped-%s.png" % direction, "Simulation Workbench draped %s" % direction, "same sewn tunic after 30 real steps; six-side audit")
+        save("cloth-simulation-draped-%s.png" % direction, "Simulation Workbench draped %s" % direction, "same sewn tunic after 30 real steps; six-side audit from native Sketcher pattern sources")
         if direction == "front":
-            save("cloth-simulation-draped.png", "Simulation Workbench draped front", "legacy front screenshot alias")
+            save("cloth-simulation-draped.png", "Simulation Workbench draped front", "legacy front screenshot alias; native Sketcher tunic source")
     task_dock.show(); task_dock.raise_(); events()
     close_task(); App.closeDocument(doc.Name)
 
