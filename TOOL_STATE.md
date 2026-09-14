@@ -6,8 +6,8 @@ repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_task: cloth-sewing-workbench-structure-and-roadmap
-current_main: 86eea3e33518dc82048d44677331d93407a0fe89
-open_prs: [414]
+current_main: 6625e575455ebe8ac526862a791b02963df3509c
+open_prs: [526, 524, 523, 522, 519]
 active_release_gates: [155, 278, 284, 298, 297, 145]
 queued_release_gates: [275, 162, 360]
 non_blocking: [148]
@@ -33,20 +33,23 @@ workflow_contract:
     - docs/images/generated/cloth-sewing.png
     - docs/images/generated/cloth-simulation-arranged.png
     - docs/images/generated/cloth-simulation-draped.png
+    - docs/images/generated/cloth-simulation-arranged-turntable.gif
+    - docs/images/generated/cloth-simulation-draped-turntable.gif
     - docs/images/generated/cloth-avatar-turntable.gif
   screenshot_artifacts: [cloth-gui-screenshots, cloth-gui-diagnostics]
-  policy: preserve_existing_Docker_Xvfb_PNG_path; avatar_turntable_is_72_position_full_360_camera_orbit_plus_closing_frame; no_second_workflow
+  policy: preserve_existing_Docker_Xvfb_PNG_path; simulation_and_avatar_turntables_are_72_position_full_360_camera_orbits_plus_closing_frame; no_second_workflow
 
 latest_verified_ci:
-  run_id: 34389227217
-  run_number: 1159
-  commit: 86eea3e33518dc82048d44677331d93407a0fe89
+  run_id: 34829901181
+  run_number: 1687
+  commit: 6625e575455ebe8ac526862a791b02963df3509c
   status: completed
   conclusion: success
   python_job: success
   gui_job: success
   publish_merged_pr_screenshots: success
-  note: Main was green immediately before the module-tree cleanup. PR #414 is the follow-up that makes the package tree authoritative and removes remaining root/domain duplicates.
+  publish_readme_screenshots: success
+  note: The canonical GUI workflow now publishes both arranged and draped simulation turntables alongside the avatar turntable.
 
 policy:
   - inspect_open_prs_and_issues_before_changes
@@ -60,5 +63,5 @@ policy:
 current_focus:
   imports: package-qualified module namespace is authoritative
   structure: package-tree cleanup in PR 414
-  ci_status: PR checks running
+  ci_status: simulation turntable README change under validation
 ```
