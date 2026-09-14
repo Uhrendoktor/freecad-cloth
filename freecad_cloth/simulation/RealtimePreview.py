@@ -54,7 +54,7 @@ class _Preview:
         self.running = False
         self._saved = {
             name: getattr(scene, name)
-            for name in ("ParticleDistance", "SolverIterations", "SolverSubsteps", "TimeStep", "QualityPreset", "Steps")
+            for name in ("ParticleDistance", "SolverIterations", "SolverSubsteps", "TimeStep", "QualityPreset")
             if hasattr(scene, name)
         }
 
@@ -69,15 +69,13 @@ class _Preview:
         was_running = self.running
         self.running = False
         if restore and was_running:
-            # Do not restore a non-zero step count before recomputing: doing so
-            # would replay the whole preview at final quality on the GUI thread.
+            # Recompute at zero steps so stopping never replays the preview at
+            # final quality on the GUI thread.
             self.scene.Steps = 0
             for name, value in self._saved.items():
-                if name != "Steps" and hasattr(self.scene, name):
+                if hasattr(self.scene, name):
                     setattr(self.scene, name, value)
             self.scene.Document.recompute()
-            if "Steps" in self._saved:
-                self.scene.Steps = self._saved["Steps"]
         self._message("Realtime preview stopped")
 
     def tick(self):
@@ -111,8 +109,8 @@ def toggle_realtime_preview():
     if _PREVIEW is not None and _PREVIEW.running:
         _PREVIEW.stop()
         return False
-    _prepare(scene)
     _PREVIEW = _Preview(scene)
+    _prepare(scene)
     _PREVIEW.start()
     return True
 
