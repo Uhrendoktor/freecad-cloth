@@ -20,8 +20,6 @@ old_pin_block = '''    def authored_shoulder_pins(piece, positions):
         targets = (
             (0.14 * panel_width, 0.97 * garment_height),
             (0.86 * panel_width, 0.97 * garment_height),
-            (0.26 * panel_width, 0.90 * garment_height),
-            (0.74 * panel_width, 0.90 * garment_height),
         )
         available = list(range(len(positions)))
         result = []
