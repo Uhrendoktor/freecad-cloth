@@ -42,16 +42,14 @@ workflow_contract:
   policy: preserve_existing_Docker_Xvfb_PNG_path; simulation_and_avatar_turntables_are_72_position_full_360_camera_orbits_plus_closing_frame; no_second_workflow
 
 latest_verified_ci:
-  run_id: 34839362851
-  run_number: 1710
-  commit: 65599603a394505f7bc4ab6d83ff7c5bb84123f2
+  run_id: 34884755463
+  run_number: 1814
+  commit: 42fa627bfab22c903d80251307c5376183121480
   status: completed
-  conclusion: success
+  conclusion: failure
   python_job: success
-  gui_job: success
-  publish_merged_pr_screenshots: success
-  publish_readme_screenshots: success
-  note: Main CI successfully published the FreeCAD r2 image to GHCR and refreshed the stable README screenshot branch with arranged, draped, and avatar turntables.
+  gui_job: failure
+  note: Realtime preview exercised successfully; visual fixture then failed on lateral centroid sanity. Follow-up repair removed unstable side-seam constraints, leaving only shoulder seams.
 
 policy:
   - inspect_open_prs_and_issues_before_changes
@@ -65,6 +63,6 @@ policy:
 current_focus:
   imports: package-qualified module namespace is authoritative
   structure: package-tree cleanup in PR 414
-  ci_status: commits after 34839362851 still require canonical verification
-  visual_regression: PR 537 realtime preview exercised in FreeCAD GUI; visual tunic seam mapping corrected; canonical screenshot/turntable validation pending
+  ci_status: latest canonical run 1814 failed only on visual drape centroid sanity; repaired fixture requires new canonical run
+  visual_regression: PR 537 realtime preview runs and stops in FreeCAD GUI; screenshot/turntable validation pending
 ```
