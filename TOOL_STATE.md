@@ -65,6 +65,6 @@ policy:
 current_focus:
   imports: package-qualified module namespace is authoritative
   structure: package-tree cleanup in PR 414
-  ci_status: latest verified main run is 34839362851; commits after it still require canonical verification
-  visual_regression: tunic fixture is now bounded to 30 solver steps pending canonical confirmation
+  ci_status: commits after 34839362851 still require canonical verification
+  visual_regression: PR 537 realtime preview exercised in FreeCAD GUI; visual tunic seam mapping corrected; canonical screenshot/turntable validation pending
 ```
