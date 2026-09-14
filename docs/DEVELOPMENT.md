@@ -1,5 +1,11 @@
 # Development and agent guide
 
+## Python runtime baseline
+
+The project-wide Python baseline is **3.12 or newer**. Use Python 3.12 for local development, packaging, tests, and the canonical FreeCAD CI image. This baseline is intentional: current upstream Tissu requires Python >=3.12, so keeping the workbench and optional solver backend on the same interpreter family avoids an unsupported embedded-runtime split.
+
+FreeCAD remains a host-provided runtime for installations, but the supported development/CI FreeCAD environment must itself run Python 3.12 or newer.
+
 ## Canonical module architecture
 
 The package tree under `freecad_cloth/` is the authoritative implementation tree.
@@ -14,7 +20,9 @@ Workbench ownership is explicit: `pattern`, `sewing`, `avatar`, and `simulation`
 
 There is exactly one workflow: `.github/workflows/canonical-execution.yml`.
 
-Do not replace, duplicate, or casually refactor it. In particular, preserve the existing Docker/Xvfb path that launches real FreeCAD, captures four 1280×720 PNGs, validates their PNG signature/dimensions/size, and uploads `cloth-gui-screenshots` on `main` pushes. GUI diagnostics remain available as `cloth-gui-diagnostics`.
+Do not replace, duplicate, or casually refactor it. In particular, preserve the existing Docker/Xvfb path that launches real FreeCAD and captures the validated GUI states and avatar audit artifacts. GUI diagnostics remain available as `cloth-gui-diagnostics`.
+
+The canonical FreeCAD test image is Python 3.12-based; a CI run that starts FreeCAD under Python <3.12 is unsupported.
 
 Any UI or workflow-facing change must use the canonical workflow as its acceptance path. Never weaken screenshot assertions to make CI green.
 
@@ -27,7 +35,8 @@ Choose the smallest evidence set that proves the change:
 - task-panel/UI change → real FreeCAD/Xvfb scenario;
 - persistent data change → save/reload test;
 - simulation change → deterministic reference-solver regression;
-- screenshot-facing change → all four screenshot states remain valid.
+- screenshot-facing change → all canonical screenshot states remain valid;
+- backend/dependency change → import the dependency in the same Python 3.12 FreeCAD runtime used by CI.
 
 A passing utility script is not a substitute for public workbench acceptance.
 
