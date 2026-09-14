@@ -10,6 +10,15 @@ def _gui_modules():
     return App, Gui, QtWidgets, QtGui, QtCore
 
 
+def _is_sketch_authoritative(obj):
+    """Return whether a PatternPiece's linked native Sketch owns its geometry."""
+    return bool(
+        obj is not None
+        and str(getattr(obj, "GeometryAuthority", "")) == "Sketcher"
+        and getattr(obj, "Sketch", None) is not None
+    )
+
+
 class PatternPieceTaskPanel:
     def __init__(self, obj=None):
         App, Gui, QtWidgets, _, _ = _gui_modules()
@@ -19,11 +28,7 @@ class PatternPieceTaskPanel:
         layout = QtWidgets.QFormLayout(self.form)
         self.name = QtWidgets.QLineEdit()
         self.mode = QtWidgets.QComboBox()
-        self._sketch_authoritative = bool(
-            obj is not None
-            and str(getattr(obj, "GeometryAuthority", "")) == "Sketcher"
-            and getattr(obj, "Sketch", None) is not None
-        )
+        self._sketch_authoritative = _is_sketch_authoritative(obj)
         if self._sketch_authoritative:
             # A Sketch-authoritative piece must not present parameter-driven
             # geometry choices that would suggest the rectangle is editable.
