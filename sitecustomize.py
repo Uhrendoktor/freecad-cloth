@@ -16,10 +16,10 @@ if QtGui is not None:
 
         QPixmap.pixel = _pixel
 
-# The six-side GUI fixture starts from native Sketcher geometry. Keep this
-# compatibility shim limited to the screenshot runner: raw Sketcher objects
-# used by that fixture need the same semantic property contract that the Cloth
-# adoption command adds when importing an existing sketch.
+# The six-side GUI fixture starts from the standard pattern-piece factory and
+# then replaces its rectangle with a custom tunic outline. Keep this workaround
+# limited to the screenshot runner; initialization failures elsewhere must be
+# visible rather than silently ignored.
 import inspect
 
 
@@ -45,27 +45,6 @@ if _called_from_screenshot_runner():
 
         _create_pattern_piece_from_parameters._cloth_gui_custom_outline = True
         PatternCommands.create_pattern_piece_from_parameters = _create_pattern_piece_from_parameters
-
-    # Raw screenshot fixture sketches need semantic IDs and authority metadata
-    # before the fixture passes them to the real native Sketcher adoption path.
-    try:
-        from FreeCAD import Document
-        _original_add_object = Document.addObject
-    except (ImportError, AttributeError):
-        _original_add_object = None
-
-    if _original_add_object is not None and not getattr(_original_add_object, "_cloth_gui_sketch_contract", False):
-        def _add_object_with_cloth_sketch_contract(document, type_id, name, *args):
-            obj = _original_add_object(document, type_id, name, *args)
-            if str(type_id) == "Sketcher::SketchObject":
-                if "SemanticEdgeIds" not in obj.PropertiesList:
-                    obj.addProperty("App::PropertyStringList", "SemanticEdgeIds", "Cloth Pattern")
-                if "GeometryAuthority" not in obj.PropertiesList:
-                    obj.addProperty("App::PropertyString", "GeometryAuthority", "Cloth Pattern")
-            return obj
-
-        _add_object_with_cloth_sketch_contract._cloth_gui_sketch_contract = True
-        Document.addObject = _add_object_with_cloth_sketch_contract
 
     # The fixture's scene builder has already assigned the production avatar as
     # the target source. Reassigning the same App::PropertyLink during the GUI
