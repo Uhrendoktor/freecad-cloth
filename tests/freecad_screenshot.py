@@ -14,59 +14,46 @@ source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (10,5
 source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 15 or')
 source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 15-step state"')
 source = source.replace('after 90 real steps;', 'after 15 real steps;')
-source = source.replace(
-    '''targets = (\
-            (0.14 * panel_width, 0.97 * garment_height),\
-            (0.86 * panel_width, 0.97 * garment_height),\
-        )''',
-    '''targets = (\
-            (0.08 * panel_width, 0.97 * garment_height),\
-            (0.92 * panel_width, 0.97 * garment_height),\
-            (0.20 * panel_width, 0.90 * garment_height),\
-            (0.80 * panel_width, 0.90 * garment_height),\
-        )''',
-)
-source = source.replace(
-    '''    def authored_shoulder_pins(piece, positions):\
-        targets = (\
-            (0.08 * panel_width, 0.97 * garment_height),\
-            (0.92 * panel_width, 0.97 * garment_height),\
-            (0.20 * panel_width, 0.90 * garment_height),\
-            (0.80 * panel_width, 0.90 * garment_height),\
-        )\
-        available = list(range(len(positions)))\
-        result = []\
-        for local_x, local_y in targets:\
-            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))\
-            index = min(available, key=lambda i: (positions[i][0] - target_point.x) ** 2 + (positions[i][1] - target_point.y) ** 2 + (positions[i][2] - target_point.z) ** 2)\
-            result.append(index)\
-            available.remove(index)\
-        return tuple(result)\
-    front_positions, _front_triangles, _front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)\
-    back_positions, _back_triangles, _back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)\
-    front_pins = authored_shoulder_pins(front, front_positions)\
-    back_pins_local = authored_shoulder_pins(back, back_positions)''',
-    '''    def authored_shoulder_pins(piece, positions, boundary):\
-        targets = (\
-            (0.08 * panel_width, 0.97 * garment_height),\
-            (0.92 * panel_width, 0.97 * garment_height),\
-            (0.20 * panel_width, 0.90 * garment_height),\
-            (0.80 * panel_width, 0.90 * garment_height),\
-        )\
-        available = [int(i) for i in boundary]\
-        result = []\
-        for local_x, local_y in targets:\
-            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))\
-            index = min(available, key=lambda i: (positions[i][0] - target_point.x) ** 2 + (positions[i][1] - target_point.y) ** 2 + (positions[i][2] - target_point.z) ** 2)\
-            result.append(index)\
-            available.remove(index)\
-        return tuple(result)\
-    front_positions, _front_triangles, front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)\
-    back_positions, _back_triangles, back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)\
-    front_pins = authored_shoulder_pins(front, front_positions, front_boundary)\
-    back_pins_local = authored_shoulder_pins(back, back_positions, back_boundary)''',
-)
 
+old_pin_block = '''    def authored_shoulder_pins(piece, positions):
+        targets = (
+            (0.14 * panel_width, 0.97 * garment_height),
+            (0.86 * panel_width, 0.97 * garment_height),
+        )
+        available = list(range(len(positions)))
+        result = []
+        for local_x, local_y in targets:
+            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
+            index = min(available, key=lambda i: (positions[i][0] - target_point.x) ** 2 + (positions[i][1] - target_point.y) ** 2 + (positions[i][2] - target_point.z) ** 2)
+            result.append(index)
+            available.remove(index)
+        return tuple(result)
+    front_positions, _front_triangles, _front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
+    back_positions, _back_triangles, _back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
+    front_pins = authored_shoulder_pins(front, front_positions)
+    back_pins_local = authored_shoulder_pins(back, back_positions)'''
+new_pin_block = '''    def authored_shoulder_pins(piece, positions, boundary):
+        targets = (
+            (0.08 * panel_width, 0.97 * garment_height),
+            (0.92 * panel_width, 0.97 * garment_height),
+            (0.20 * panel_width, 0.90 * garment_height),
+            (0.80 * panel_width, 0.90 * garment_height),
+        )
+        available = [int(i) for i in boundary]
+        result = []
+        for local_x, local_y in targets:
+            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
+            index = min(available, key=lambda i: (positions[i][0] - target_point.x) ** 2 + (positions[i][1] - target_point.y) ** 2 + (positions[i][2] - target_point.z) ** 2)
+            result.append(index)
+            available.remove(index)
+        return tuple(result)
+    front_positions, _front_triangles, front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
+    back_positions, _back_triangles, back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
+    front_pins = authored_shoulder_pins(front, front_positions, front_boundary)
+    back_pins_local = authored_shoulder_pins(back, back_positions, back_boundary)'''
+source = source.replace(old_pin_block, new_pin_block)
+
+# Keep the GUI audit collision surface cheap enough for CI while retaining the real physical gates.
 audit_patch = r'''
 from freecad_cloth.simulation.ClothSolver import _cross, _normalize, _closest_point_triangle
 import freecad_cloth.simulation.ClothSolver as _cloth_solver
