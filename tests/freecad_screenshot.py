@@ -123,10 +123,9 @@ def _audit_apply_collision(self, obj):
     source = getattr(avatar, "SourceObject", None) if avatar is not None else None
     if source is None:
         return
-    from freecad_cloth.avatar.AvatarCollision import coarsen_collision_surface, surface_from_freecad
-    thickness = float(getattr(avatar, "CollisionThickness", 0.0)) + float(obj.FabricThickness) + float(obj.AvatarSkinOffset)
-    full_surface = surface_from_freecad(source, float(getattr(avatar, "CollisionDeflection", 1.0)), thickness)
-    base.collision_surface = coarsen_collision_surface(full_surface, 256)
+    # Diagnostic isolation for #472: the canonical panels start outside the avatar.
+    # If this removes the upward excursion, the collision surface is the root cause.
+    base.collision_surface = None
 QualitySimulationProxy._apply_collision = _audit_apply_collision
 '''
 source = source.replace('OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")', audit_patch + '\nOUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")')
