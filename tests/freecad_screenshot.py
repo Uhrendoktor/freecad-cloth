@@ -1,10 +1,4 @@
-"""CI entry point for the tunic visual regression.
-
-Uses the previously authored native-Sketcher fixture as the source of truth, while
-making only the bounded CI parameter changes needed for the final visual audit.
-The CI audit horizon is deliberately capped at 15 solver steps after longer GUI
-runs exposed physical instability rather than timing failures.
-"""
+"""CI entry point for the tunic visual regression."""
 from pathlib import Path
 
 source = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
@@ -20,7 +14,6 @@ source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (10,5
 source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 15 or')
 source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 15-step state"')
 source = source.replace('after 90 real steps;', 'after 15 real steps;')
-source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 24.0;')
 source = source.replace(
     '''targets = (\n            (0.14 * panel_width, 0.97 * garment_height),\n            (0.86 * panel_width, 0.97 * garment_height),\n        )''',
     '''targets = (\n            (0.08 * panel_width, 0.97 * garment_height),\n            (0.92 * panel_width, 0.97 * garment_height),\n            (0.20 * panel_width, 0.90 * garment_height),\n            (0.80 * panel_width, 0.90 * garment_height),\n        )''',
@@ -30,11 +23,10 @@ source = source.replace(
     '''    def authored_shoulder_pins(piece, positions, boundary):\n        targets = (\n            (0.08 * panel_width, 0.97 * garment_height),\n            (0.92 * panel_width, 0.97 * garment_height),\n            (0.20 * panel_width, 0.90 * garment_height),\n            (0.80 * panel_width, 0.90 * garment_height),\n        )\n        available = [int(i) for i in boundary]\n        result = []\n        for local_x, local_y in targets:\n            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))\n            index = min(available, key=lambda i: (positions[i][0] - target_point.x) ** 2 + (positions[i][1] - target_point.y) ** 2 + (positions[i][2] - target_point.z) ** 2)\n            result.append(index)\n            available.remove(index)\n        return tuple(result)\n    front_positions, _front_triangles, front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)\n    back_positions, _back_triangles, back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)\n    front_pins = authored_shoulder_pins(front, front_positions, front_boundary)\n    back_pins_local = authored_shoulder_pins(back, back_positions, back_boundary)''',
 )
 
-# Audit-only acceleration: installed after the source file has added /workspace
-# to sys.path, so the CI wrapper does not alter import semantics.
 audit_patch = r'''
 from freecad_cloth.simulation.ClothSolver import _cross, _normalize, _closest_point_triangle
 import freecad_cloth.simulation.ClothSolver as _cloth_solver
+from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy
 
 def _audit_prepare_surface(system, surface):
     cached = getattr(system, "_audit_surface_cache", None)
@@ -87,6 +79,19 @@ def _audit_collide_surface(self, surface):
             p.z += normal[2] * correction
 
 _cloth_solver.ClothSystem._collide_surface = _audit_collide_surface
+
+_original_apply_collision = QualitySimulationProxy._apply_collision
+def _audit_apply_collision(self, obj):
+    base = self._base_or_restore()
+    avatar = getattr(obj, "AvatarProxy", None)
+    source = getattr(avatar, "SourceObject", None) if avatar is not None else None
+    if source is None:
+        return
+    from freecad_cloth.avatar.AvatarCollision import coarsen_collision_surface, surface_from_freecad
+    thickness = float(getattr(avatar, "CollisionThickness", 0.0)) + float(obj.FabricThickness) + float(obj.AvatarSkinOffset)
+    full_surface = surface_from_freecad(source, float(getattr(avatar, "CollisionDeflection", 1.0)), thickness)
+    base.collision_surface = coarsen_collision_surface(full_surface, 1024)
+QualitySimulationProxy._apply_collision = _audit_apply_collision
 '''
 source = source.replace('OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")', audit_patch + '\nOUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")')
 exec(compile(source, str(Path(__file__).with_name("freecad_screenshot_source.py")), "exec"), globals(), globals())
