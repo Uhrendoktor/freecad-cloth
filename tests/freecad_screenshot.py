@@ -3,7 +3,6 @@ from pathlib import Path
 
 source = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
 source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(6.0, 0.02 * body_depth);')
-# Fast visual-regression profile: coarse particles with the stable turntable solver settings.
 source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 28.0;')
 source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 6;')
 source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 1;')
@@ -14,8 +13,6 @@ source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 
 source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 30-step state"')
 source = source.replace('after 90 real steps;', 'after 30 real steps;')
 source = source.replace('upper_margin = 0.15 * max(1.0, float(shoulder_z) - float(hem_z))', 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))')
-# Match the stable turntable's authored shoulder stitching, with reversed correspondence
-# so the two physical shoulder slopes meet instead of crossing the torso.
 source = source.replace(
     '    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):\n        add_seam(doc, Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))\n',
     '    for edge_a, edge_b, seam_id in ((2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder")):\n        add_seam(doc, Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))\n'
@@ -23,10 +20,10 @@ source = source.replace(
 required_pin_code = '    back_pins = tuple(len(front_positions) + i for i in back_pins_local)'
 if required_pin_code not in source:
     raise RuntimeError("GUI fixture pin mapping no longer uses refined front-position count; refusing silent no-op")
-# Keep pins authored by the shoulder zones, but stabilize the low-resolution solve by
-# pinning the refined boundary vertices in those authored shoulder regions. This is
-# coordinate/geometry based and remains independent of topology-dependent indices.
-shoulder_pin_patch = '''    shoulder_pin_code = """
+old_pin_block = '''    front_pins = authored_shoulder_pins(front, front_positions)\n    back_pins_local = authored_shoulder_pins(back, back_positions)\n    back_pins = tuple(len(front_positions) + i for i in back_pins_local)\n'''
+new_pin_block = '''    # Pin the authored shoulder zones on the actual refined boundary. This remains
+    # coordinate/geometry based and avoids topology-dependent numeric indices while
+    # giving the coarse visual solve a stable shoulder attachment.
     front_pins = tuple(
         i for i in _front_boundary
         if float(front_positions[i][1]) >= 0.86 * garment_height - 1e-6
@@ -38,19 +35,12 @@ shoulder_pin_patch = '''    shoulder_pin_code = """
         and (float(back_positions[i][0]) <= 0.32 * panel_width + 1e-6 or float(back_positions[i][0]) >= 0.68 * panel_width - 1e-6)
     )
     back_pins = tuple(len(front_positions) + i for i in back_pins_local)
-"""
-    source = source.replace(
-        '    front_pins = authored_shoulder_pins(front, front_positions)\n    back_pins_local = authored_shoulder_pins(back, back_positions)\n    back_pins = tuple(len(front_positions) + i for i in back_pins_local)\n',
-        shoulder_pin_code,
-        1,
-    )
-    if shoulder_pin_code not in source:
-        raise RuntimeError("failed to apply authored shoulder-zone pin patch")
 '''
-source = source.replace('required_pin_code = \'    back_pins = tuple(len(front_positions) + i for i in back_pins_local)\'', 'required_pin_code = \'    back_pins = tuple(len(front_positions) + i for i in back_pins_local)\'\n' + shoulder_pin_patch, 1)
-# Keep the source fixture's authored shoulder selection: choose the two boundary
-# vertices nearest the intended shoulder coordinates on the actual refined mesh.
-# This avoids relying on topology-dependent numeric indices.
+if old_pin_block not in source:
+    raise RuntimeError("GUI fixture shoulder pin block no longer matches expected source; refusing silent no-op")
+source = source.replace(old_pin_block, new_pin_block, 1)
+if old_pin_block in source:
+    raise RuntimeError("GUI fixture retained topology-dependent shoulder pin block")
 
 backend_patch = r'''
 from freecad_cloth.simulation.ClothBackend import default_backend_registry, preferred_backend_name
