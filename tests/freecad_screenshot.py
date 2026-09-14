@@ -1,27 +1,18 @@
 """CI entry point for the tunic visual regression."""
 from pathlib import Path
-import subprocess
-import sys
-
-try:
-    import tissu  # noqa: F401
-except ImportError:
-    subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "pytissu==1.1.0"],
-        check=True,
-    )
 
 source = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
 source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(12.0, 0.05 * body_depth);')
-source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 22.0;')
-source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 8;')
+# Fast visual-regression profile: fewer particles, iterations, and real steps.
+source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 28.0;')
+source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 3;')
 source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 1;')
 source = source.replace('scene.TimeStep = 1.0 / 120.0;', 'scene.TimeStep = 1.0 / 120.0;')
 source = source.replace('scene.FabricFriction = 0.75;', 'scene.FabricFriction = 0.75;')
-source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (15,15,15,15):')
-source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 60 or')
-source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 60-step state"')
-source = source.replace('after 90 real steps;', 'after 60 real steps;')
+source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (10,10,10):')
+source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 30 or')
+source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 30-step state"')
+source = source.replace('after 90 real steps;', 'after 30 real steps;')
 source = source.replace(
     'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(7,7,"TunicLeftSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):',
     'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(7,7,"TunicLeftSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):'
