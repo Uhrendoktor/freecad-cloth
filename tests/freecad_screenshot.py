@@ -31,10 +31,10 @@ old_pin_block = '''    def authored_shoulder_pins(piece, positions):
     back_pins_local = authored_shoulder_pins(back, back_positions)'''
 new_pin_block = '''    def authored_shoulder_pins(piece, positions, boundary):
         targets = (
-            (0.14 * panel_width, 0.97 * garment_height),
-            (0.86 * panel_width, 0.97 * garment_height),
-            (0.26 * panel_width, 0.90 * garment_height),
-            (0.74 * panel_width, 0.90 * garment_height),
+            (0.08 * panel_width, 0.97 * garment_height),
+            (0.92 * panel_width, 0.97 * garment_height),
+            (0.20 * panel_width, 0.90 * garment_height),
+            (0.80 * panel_width, 0.90 * garment_height),
         )
         available = [int(i) for i in boundary]
         result = []
