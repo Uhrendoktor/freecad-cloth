@@ -22,6 +22,25 @@ class DrapeVisualSanityTests(unittest.TestCase):
         self.assertGreater(result.vertical_span_ratio, 0.6)
         self.assertEqual(result.vertices, 4)
 
+    def test_vertical_ratio_uses_z_not_largest_footprint_axis(self):
+        garment = (
+            (-1500.0, -40.0, 100.0), (1500.0, -40.0, 100.0),
+            (-1500.0, 40.0, 200.0), (1500.0, 40.0, 200.0),
+        )
+        result = inspect_drape(garment, self.target, target_height=1750.0, target_width=3000.0)
+        self.assertAlmostEqual(result.vertical_span_ratio, 100.0 / 1750.0)
+        self.assertAlmostEqual(result.lateral_span_ratio, 3000.0 / 3000.0)
+        self.assertEqual(result.state, "short-drape-candidate")
+
+    def test_lateral_ratio_uses_larger_footprint_axis(self):
+        garment = (
+            (-20.0, -900.0, 300.0), (20.0, -900.0, 300.0),
+            (-20.0, 900.0, 1500.0), (20.0, 900.0, 1500.0),
+        )
+        result = inspect_drape(garment, self.target, target_height=1750.0, target_width=2000.0)
+        self.assertAlmostEqual(result.vertical_span_ratio, 1200.0 / 1750.0)
+        self.assertAlmostEqual(result.lateral_span_ratio, 1800.0 / 2000.0)
+
     def test_empty_mesh_is_classified(self):
         result = inspect_drape((), self.target, target_height=1750.0, target_width=200.0)
         self.assertEqual(result.state, "empty")
