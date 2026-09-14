@@ -19,17 +19,37 @@ class PatternPieceTaskPanel:
         layout = QtWidgets.QFormLayout(self.form)
         self.name = QtWidgets.QLineEdit()
         self.mode = QtWidgets.QComboBox()
-        self.mode.addItems(["Rectangle", "Custom"])
+        self._sketch_authoritative = bool(
+            obj is not None
+            and str(getattr(obj, "GeometryAuthority", "")) == "Sketcher"
+            and getattr(obj, "Sketch", None) is not None
+        )
+        if self._sketch_authoritative:
+            # A Sketch-authoritative piece must not present parameter-driven
+            # geometry choices that would suggest the rectangle is editable.
+            self.mode.addItem("Sketch")
+            self.mode.setEnabled(False)
+        else:
+            self.mode.addItems(["Rectangle", "Custom"])
         self.width = QtWidgets.QDoubleSpinBox(); self.width.setRange(.1, 100000); self.width.setDecimals(2); self.width.setSuffix(" mm")
         self.height = QtWidgets.QDoubleSpinBox(); self.height.setRange(.1, 100000); self.height.setDecimals(2); self.height.setSuffix(" mm")
+        self.width.setEnabled(not self._sketch_authoritative)
+        self.height.setEnabled(not self._sketch_authoritative)
         self.allowance = QtWidgets.QDoubleSpinBox(); self.allowance.setRange(0, 1000); self.allowance.setDecimals(2); self.allowance.setSuffix(" mm")
         self.grain = QtWidgets.QDoubleSpinBox(); self.grain.setRange(-360, 360); self.grain.setDecimals(1); self.grain.setSuffix(" deg")
-        for label, widget in (("Piece name", self.name), ("Geometry", self.mode), ("Width", self.width), ("Height", self.height), ("Seam allowance", self.allowance), ("Grainline angle", self.grain)):
+        for label, widget in (("Piece name", self.name), ("Geometry source", self.mode), ("Width (derived)", self.width), ("Height (derived)", self.height), ("Seam allowance", self.allowance), ("Grainline angle", self.grain)):
             layout.addRow(label, widget)
+        self.edit_sketch = None
+        if self._sketch_authoritative:
+            self.edit_sketch = QtWidgets.QPushButton("Edit native Sketch…")
+            self.edit_sketch.clicked.connect(self._edit_sketch)
+            layout.addRow("Geometry editor", self.edit_sketch)
         self.mode.currentTextChanged.connect(self._mode_changed)
         if obj:
             self.name.setText(obj.Label)
-            self.mode.setCurrentText(str(getattr(obj, "GeometryMode", "Rectangle")))
+            current_mode = "Sketch" if self._sketch_authoritative else str(getattr(obj, "GeometryMode", "Rectangle"))
+            if self.mode.findText(current_mode) >= 0:
+                self.mode.setCurrentText(current_mode)
             self.width.setValue(float(obj.Width)); self.height.setValue(float(obj.Height))
             self.allowance.setValue(float(obj.SeamAllowance)); self.grain.setValue(float(obj.GrainlineAngle))
             self._original = {
@@ -45,7 +65,22 @@ class PatternPieceTaskPanel:
             self._original = None
         self._mode_changed(self.mode.currentText())
 
+    def _edit_sketch(self):
+        if not self._sketch_authoritative or self.obj is None:
+            return
+        sketch = getattr(self.obj, "Sketch", None)
+        if sketch is None:
+            raise ValueError("pattern piece has no native Sketcher representation")
+        active = self.Gui.activeDocument()
+        if active is None:
+            raise RuntimeError("no active FreeCAD document")
+        active.setEdit(sketch.Name)
+
     def _mode_changed(self, mode):
+        if self._sketch_authoritative:
+            self.width.setEnabled(False)
+            self.height.setEnabled(False)
+            return
         custom = mode == "Custom"
         self.width.setEnabled(not custom)
         self.height.setEnabled(not custom)
@@ -54,7 +89,7 @@ class PatternPieceTaskPanel:
         name = self.name.text().strip()
         if not name:
             raise ValueError("pattern piece name must not be empty")
-        if self.mode.currentText() == "Rectangle" and (self.width.value() <= 0 or self.height.value() <= 0):
+        if not self._sketch_authoritative and self.mode.currentText() == "Rectangle" and (self.width.value() <= 0 or self.height.value() <= 0):
             raise ValueError("pattern piece dimensions must be positive")
         if self.allowance.value() < 0:
             raise ValueError("seam allowance cannot be negative")
@@ -67,11 +102,15 @@ class PatternPieceTaskPanel:
             self.obj = create_pattern_piece_from_parameters(
                 self.name.text().strip() or "PatternPiece", self.width.value(), self.height.value(),
                 self.allowance.value(), self.grain.value())
-        if mode == "Rectangle":
-            self.obj.GeometryMode = "Rectangle"
-            self.obj.Width = self.width.value(); self.obj.Height = self.height.value()
+        if not self._sketch_authoritative:
+            if mode == "Rectangle":
+                self.obj.GeometryMode = "Rectangle"
+                self.obj.Width = self.width.value(); self.obj.Height = self.height.value()
+            else:
+                self.obj.GeometryMode = "Custom"
         else:
-            self.obj.GeometryMode = "Custom"
+            # Geometry and dimensions remain owned by the linked Sketcher source.
+            self.obj.GeometryMode = "Sketch"
         self.obj.SeamAllowance = self.allowance.value()
         self.obj.GrainlineAngle = self.grain.value()
         self.obj.Label = self.name.text().strip() or self.obj.Label
