@@ -81,6 +81,11 @@ def test_one_step_pattern_piece_command_is_registered_and_creates_native_sketch(
     assert document.recompute_calls == 1
 
 
+def test_native_sketch_adoption_command_is_public():
+    assert "ClothPattern_CreateFromSketch" in PatternCommands.COMMANDS
+    assert callable(PatternCommands.create_pattern_piece_from_selected_sketch)
+
+
 def test_edit_sketch_enters_native_editor_for_selected_piece():
     class SketchObject:
         Name = "PatternSketch_front"
@@ -123,6 +128,7 @@ if __name__ == "__main__":
     test_pattern_sketch_module_is_headless_safe()
     test_pattern_sketch_requires_freecad_when_called()
     test_one_step_pattern_piece_command_is_registered_and_creates_native_sketch()
+    test_native_sketch_adoption_command_is_public()
     test_edit_sketch_enters_native_editor_for_selected_piece()
     test_polygon_drafting_round_trip_and_editing()
     print("pattern sketch tests passed")

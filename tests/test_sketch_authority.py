@@ -1,3 +1,4 @@
+import math
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -37,6 +38,51 @@ def test_pattern_ir_accepts_fake_sketcher_lines_in_shuffled_insertion_order():
         assert current.samples[-1] == following.samples[0]
 
 
+def test_pattern_ir_accepts_single_closed_native_curve_as_a_pattern_boundary():
+    piece = PatternPiece("Circle", [(0, 0), (100, 0), (100, 100)], id="circle")
+    graph = SeamGraph(); graph.add_piece(piece)
+
+    class Circle:
+        FirstParameter = 0.0
+        LastParameter = 2.0 * math.pi
+
+        def valueAt(self, parameter):
+            return Point(50.0 + 50.0 * math.cos(parameter), 50.0 + 50.0 * math.sin(parameter))
+
+    class Sketch:
+        Geometry = [Circle()]
+
+    result = PatternIR.from_sketches(graph, {"circle": Sketch()}, curve_samples=32)
+    boundary = result.piece("circle").boundaries[0]
+    assert boundary.kind == "curve"
+    assert len(boundary.samples) == 32
+    assert math.dist(boundary.samples[0], boundary.samples[-1]) <= 1e-7
+
+
+def test_pattern_ir_rejects_open_single_curve_as_a_pattern_boundary():
+    piece = PatternPiece("Open", [(0, 0), (100, 0), (100, 100)], id="open")
+    graph = SeamGraph(); graph.add_piece(piece)
+
+    class Curve:
+        FirstParameter = 0.0
+        LastParameter = 1.0
+
+        def valueAt(self, parameter):
+            return Point(100.0 * parameter, 40.0 * parameter)
+
+    class Sketch:
+        Geometry = [Curve()]
+
+    try:
+        PatternIR.from_sketches(graph, {"open": Sketch()})
+    except ValueError as exc:
+        assert "single boundary does not close" in str(exc)
+    else:
+        raise AssertionError("an open single Sketcher curve must not be a cloth pattern")
+
+
 if __name__ == "__main__":
     test_pattern_ir_accepts_fake_sketcher_lines_in_shuffled_insertion_order()
+    test_pattern_ir_accepts_single_closed_native_curve_as_a_pattern_boundary()
+    test_pattern_ir_rejects_open_single_curve_as_a_pattern_boundary()
     print("sketch authority adapter tests passed")

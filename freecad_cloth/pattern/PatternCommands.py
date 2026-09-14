@@ -55,6 +55,92 @@ def create_pattern_piece_with_sketch():
     return obj
 
 
+def _selected_sketch():
+    import FreeCADGui as Gui
+    return next(
+        (obj for obj in Gui.Selection.getSelection()
+         if str(getattr(obj, "TypeId", "")) == "Sketcher::SketchObject"),
+        None,
+    )
+
+
+def create_pattern_piece_from_selected_sketch(name=None, allowance=0.0, grainline=0.0):
+    """Adopt a selected native Sketcher object as a Cloth PatternPiece.
+
+    The Sketch remains the editable geometry authority. The Cloth object adds
+    only semantic identity and garment metadata; no sketch geometry is copied
+    into a competing drafting model.
+    """
+    import FreeCAD as App
+    import FreeCADGui as Gui
+    from freecad_cloth.pattern.PatternModel import PatternPiece
+    from freecad_cloth.pattern.PatternObjects import add_pattern_piece
+    from freecad_cloth.pattern.PatternIR import PatternIR
+    from freecad_cloth.sewing.SeamGraph import SeamGraph
+    from freecad_cloth.common.SketchAuthority import attach
+
+    sketch = _selected_sketch()
+    if sketch is None:
+        raise ValueError("select a native Sketcher object before creating a Cloth PatternPiece")
+    doc = App.ActiveDocument
+    if doc is None or sketch.Document is not doc:
+        raise ValueError("selected Sketcher object must belong to the active FreeCAD document")
+    if getattr(sketch, "GeometryAuthority", "") == "Sketcher" and getattr(sketch, "PatternPieceId", ""):
+        existing = next((obj for obj in doc.Objects if getattr(obj, "PieceId", "") == str(sketch.PatternPieceId)), None)
+        if existing is not None:
+            return existing
+
+    geometry = tuple(getattr(sketch, "Geometry", ()) or ())
+    if not geometry:
+        raise ValueError("selected Sketcher object contains no geometry")
+
+    box = sketch.Shape.BoundBox
+    x0, y0 = float(box.XMin), float(box.YMin)
+    x1, y1 = float(box.XMax), float(box.YMax)
+    if not x1 > x0 or not y1 > y0:
+        raise ValueError("selected Sketcher pattern has no usable 2D extent")
+
+    piece_id = "pattern-piece-" + str(
+        len([o for o in doc.Objects if getattr(o, "PatternType", "") == "PatternPiece"]) + 1
+    )
+    piece_name = str(name or getattr(sketch, "Label", "SketchPattern") or "SketchPattern").strip()
+    seed_outline = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+    piece = PatternPiece(
+        piece_name,
+        seed_outline,
+        id=piece_id,
+        seam_allowance=float(allowance),
+        grainline_angle=float(grainline),
+    )
+    graph = SeamGraph()
+    graph.add_piece(piece)
+    PatternIR.from_sketches(graph, {piece.id: sketch}, curve_samples=64)
+
+    obj = add_pattern_piece(doc, piece)
+    obj.Label = piece_name
+    if "PatternPieceId" not in sketch.PropertiesList:
+        sketch.addProperty("App::PropertyString", "PatternPieceId", "Cloth Pattern")
+    sketch.PatternPieceId = piece.id
+    if "SemanticEdgeIds" not in sketch.PropertiesList:
+        sketch.addProperty("App::PropertyStringList", "SemanticEdgeIds", "Cloth Pattern")
+        sketch.SemanticEdgeIds = [
+            "" if callable(getattr(sketch, "getConstruction", None)) and sketch.getConstruction(index)
+            else f"{piece.id}:edge:{index}"
+            for index, _native in enumerate(geometry)
+        ]
+    if "GeometryAuthority" not in sketch.PropertiesList:
+        sketch.addProperty("App::PropertyString", "GeometryAuthority", "Cloth Pattern")
+    sketch.GeometryAuthority = "Sketcher"
+    if "GeometrySource" not in sketch.PropertiesList:
+        sketch.addProperty("App::PropertyString", "GeometrySource", "Cloth Pattern")
+    sketch.GeometrySource = "FreeCAD Sketcher"
+    attach(obj, sketch)
+    doc.recompute()
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(obj)
+    return obj
+
+
 def edit_pattern_piece():
     """Open the Pattern Piece task panel for the selected piece."""
     import FreeCADGui as Gui
@@ -201,8 +287,8 @@ class _FunctionCommand:
 
 COMMANDS = [
     "ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_EditSketch",
-    "ClothPattern_CreateSketch", "ClothPattern_CreatePieceWithSketch", "ClothPattern_CreateDrafting",
-    "ClothPattern_Show2D", "ClothPattern_CreatePiece", "ClothPattern_CreateCustomPiece",
+    "ClothPattern_CreateSketch", "ClothPattern_CreatePieceWithSketch", "ClothPattern_CreateFromSketch",
+    "ClothPattern_CreateDrafting", "ClothPattern_Show2D", "ClothPattern_CreatePiece", "ClothPattern_CreateCustomPiece",
     "ClothPattern_CreateMesh", "ClothPattern_AddSeam", "ClothPattern_RepairTopology",
 ]
 
@@ -221,6 +307,7 @@ try:
             "ClothPattern_EditSketch": edit_pattern_sketch,
             "ClothPattern_CreateSketch": create_pattern_sketch,
             "ClothPattern_CreatePieceWithSketch": create_pattern_piece_with_sketch,
+            "ClothPattern_CreateFromSketch": create_pattern_piece_from_selected_sketch,
             "ClothPattern_CreateDrafting": create_pattern_drafting,
             "ClothPattern_Show2D": show_pattern_2d,
             "ClothPattern_CreatePiece": create_pattern_piece_with_sketch,

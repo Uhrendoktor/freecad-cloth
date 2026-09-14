@@ -267,8 +267,8 @@ def _boundary_ir(segment, curve_samples: int) -> BoundaryIR:
 
 def _sketch_boundaries(sketch, piece_id: str, curve_samples: int):
     geometry = tuple(getattr(sketch, "Geometry", ()) or ())
-    if len(geometry) < 3:
-        raise ValueError(f"Sketcher pattern needs at least three boundary geometries: {piece_id}")
+    if len(geometry) < 1:
+        raise ValueError(f"Sketcher pattern needs at least one boundary geometry: {piece_id}")
 
     semantic_ids = tuple(getattr(sketch, "SemanticEdgeIds", ()) or ())
     boundaries = []
@@ -284,8 +284,8 @@ def _sketch_boundaries(sketch, piece_id: str, curve_samples: int):
         edge_index_map[index] = edge_id
         boundaries.append(_native_boundary(native, edge_id, curve_samples))
 
-    if len(boundaries) < 3:
-        raise ValueError(f"Sketcher pattern needs at least three non-construction boundaries: {piece_id}")
+    if not boundaries:
+        raise ValueError(f"Sketcher pattern has no non-construction boundary geometries: {piece_id}")
     return _order_sketch_boundary(boundaries, piece_id), edge_index_map
 
 
@@ -296,9 +296,17 @@ def _order_sketch_boundary(boundaries: Sequence[BoundaryIR], piece_id: str) -> T
     endpoint must therefore belong to exactly two distinct boundary edges;
     after that invariant is established, the cycle is traversed from the
     lexicographically smallest semantic ID with a deterministic direction.
+    A single closed curve (for example a circle or closed B-spline) is already
+    a complete boundary and does not need endpoint graph traversal.
     """
     if len({boundary.id for boundary in boundaries}) != len(boundaries):
         raise ValueError(f"Sketcher boundary has duplicate semantic IDs: {piece_id}")
+
+    if len(boundaries) == 1:
+        boundary = boundaries[0]
+        if _distance3(boundary.samples[0], boundary.samples[-1]) <= 1e-7:
+            return tuple(boundaries)
+        raise ValueError(f"Sketcher boundary is open: the single boundary does not close ({piece_id})")
 
     vertices = []
     edge_vertices = []
@@ -306,7 +314,9 @@ def _order_sketch_boundary(boundaries: Sequence[BoundaryIR], piece_id: str) -> T
         start = boundary.samples[0]
         end = boundary.samples[-1]
         if _distance3(start, end) <= 1e-7:
-            raise ValueError(f"Sketcher boundary has a zero-length/self-loop edge: {boundary.id}")
+            raise ValueError(
+                f"Sketcher boundary contains a closed curve alongside other boundary edges: {boundary.id}"
+            )
         start_vertex = _find_vertex(vertices, start)
         end_vertex = _find_vertex(vertices, end)
         if start_vertex is None:
@@ -440,7 +450,14 @@ def _native_boundary(native, edge_id: str, curve_samples: int) -> BoundaryIR:
         "arcofcircle": "arc",
         "bsplinecurve": "bspline",
         "beziercurve": "bezier",
+        "circle": "curve",
+        "ellipse": "curve",
+        "arcofellipse": "curve",
+        "arcofhyperbola": "curve",
+        "arcofparabola": "curve",
     }.get(type_name)
+    if kind is None and callable(getattr(native, "valueAt", None)):
+        kind = "curve"
     if kind is None:
         raise ValueError(f"unsupported Sketcher boundary geometry: {type(native).__name__}")
 
