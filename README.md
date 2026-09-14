@@ -6,6 +6,12 @@ Open-source FreeCAD workbenches for parametric sewing-pattern design and 3D clot
 - **Cloth Sewing** — semantic seam operations, correspondence, fitting-scene preparation and validation.
 - **Cloth Simulation** — meshing, target selection, body collision and cloth simulation.
 
+## Python runtime
+
+The project targets **Python 3.12 or newer**. This is the supported development, packaging, test, and canonical FreeCAD CI baseline and keeps the optional Tissu backend on a compatible interpreter. Tissu's current upstream repository requires Python >=3.12.
+
+For local FreeCAD development, use a FreeCAD build whose embedded Python runtime is 3.12 or newer. The canonical CI image uses FreeCAD 1.1.0 from conda-forge with Python 3.12; the upstream FreeCAD 1.1.3 AppImage still embeds Python 3.11, so it is not the supported Tissu-capable CI runtime.
+
 ## Workflow
 
 `Pattern → Sewing → Arrange/Fit → Simulate → Diagnose → Output`
