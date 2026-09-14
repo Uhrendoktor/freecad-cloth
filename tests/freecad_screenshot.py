@@ -10,10 +10,10 @@ source = source.replace('scene.SolverIterations = 6;', 'scene.SolverIterations =
 source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 1;')
 source = source.replace('scene.TimeStep = 1.0 / 90.0;', 'scene.TimeStep = 1.0 / 90.0;')
 source = source.replace('scene.FabricFriction = 0.75;', 'scene.FabricFriction = 0.75;')
-source = source.replace('for batch in (10,10,10):', 'for batch in (10,10,10):')
-source = source.replace('if int(scene.Steps) != 30 or', 'if int(scene.Steps) != 30 or')
-source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 15-step state"')
-source = source.replace('after 30 real steps;', 'after 30 real steps;')
+source = source.replace('for batch in (10,10,10):', 'for batch in (8,8,8):')
+source = source.replace('if int(scene.Steps) != 30 or', 'if int(scene.Steps) != 24 or')
+source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 24-step state"')
+source = source.replace('after 30 real steps;', 'after 24 real steps;')
 
 old_pin_block = '''    def authored_shoulder_pins(piece, positions):
         targets = (
