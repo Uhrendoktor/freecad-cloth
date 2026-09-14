@@ -2,39 +2,34 @@
 from pathlib import Path
 
 source = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
-source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(20.0, 0.08 * body_depth);')
-# Fast visual-regression profile: fewer particles and iterations, with the original stable clearance.
+source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(20.0, 0.02 * body_depth);')
+# Fast visual-regression profile: coarse particles with the stable turntable solver settings.
 source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 28.0;')
-source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 4;')
+source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 6;')
 source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 1;')
-source = source.replace('scene.TimeStep = 1.0 / 120.0;', 'scene.TimeStep = 1.0 / 120.0;')
+source = source.replace('scene.TimeStep = 1.0 / 120.0;', 'scene.TimeStep = 1.0 / 90.0;')
 source = source.replace('scene.FabricFriction = 0.75;', 'scene.FabricFriction = 0.75;')
 source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (10,10,10):')
 source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 30 or')
 source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 30-step state"')
 source = source.replace('after 90 real steps;', 'after 30 real steps;')
-# The fast profile converges less completely than the full 8-iteration run; keep a small explicit tolerance for its coarse solver.
 source = source.replace('upper_margin = 0.15 * max(1.0, float(shoulder_z) - float(hem_z))', 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))')
-# The authored shoulder seams are retained by the source fixture, but this fast visual
-# profile intentionally omits the stitch constraints because the coarse solver pulls
-# the two separately pinned panels laterally off the mannequin before visual capture.
+# Match the stable turntable's authored shoulder stitching, with reversed correspondence
+# so the two physical shoulder slopes meet instead of crossing the torso.
 source = source.replace(
     '    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):\n        add_seam(doc, Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))\n',
-    ''
+    '    for edge_a, edge_b, seam_id in ((2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder")):\n        add_seam(doc, Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))\n'
 )
 source = source.replace(
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)'
 )
-# The source fixture already owns the refined-position pin mapping. Do not duplicate or
-# rewrite that implementation here; assert the critical global back-panel offset remains present.
 required_pin_code = '    back_pins = tuple(len(front_positions) + i for i in back_pins_local)'
 if required_pin_code not in source:
     raise RuntimeError("GUI fixture pin mapping no longer uses refined front-position count; refusing silent no-op")
-# The native tunic boundary is authored in this fixed eight-edge order: bottom,
-# right hem/side, right shoulder, right neckline, neckline, left neckline,
-# left shoulder, left side. Pin the authored shoulder vertices directly rather
-# than relying on a nearest-point search through the refined solver mesh.
+# Pin the authored shoulder boundary vertices directly. This is the same stable
+# shoulder selection used by the turntable fixture, expressed in the eight-edge
+# tunic boundary order (left shoulder, right shoulder).
 source = source.replace(
     '    def authored_shoulder_pins(piece, positions):\n        targets = (\n            (0.14 * panel_width, 0.97 * garment_height),\n            (0.86 * panel_width, 0.97 * garment_height),\n        )\n        available = list(range(len(positions)))\n        result = []\n        for local_x, local_y in targets:\n            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))\n            index = min(available, key=lambda i: (positions[i][0] - target_point.x) ** 2 + (positions[i][1] - target_point.y) ** 2 + (positions[i][2] - target_point.z) ** 2)\n            result.append(index)\n            available.remove(index)\n        return tuple(result)\n',
     '    def authored_shoulder_pins(piece, positions):\n        if len(positions) < 8:\n            raise RuntimeError("refined tunic mesh does not preserve the authored eight-edge boundary")\n        return (6, 3)\n'
