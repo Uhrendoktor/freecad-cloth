@@ -1,5 +1,15 @@
 """CI entry point for the tunic visual regression."""
 from pathlib import Path
+import subprocess
+import sys
+
+try:
+    import tissu  # noqa: F401
+except ImportError:
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "pytissu==1.1.0"],
+        check=True,
+    )
 
 source = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
 source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(12.0, 0.05 * body_depth);')
