@@ -18,7 +18,7 @@ source = source.replace(
 )
 source = source.replace(
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)',
-    'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)'
+    'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.0); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.0)'
 )
 old_pin_block = '''    def authored_shoulder_pins(piece, positions):
         targets = (
