@@ -57,7 +57,7 @@ new_pin_block = '''    from freecad_cloth.pattern.PatternGeometry import LineSeg
     front_mesh, front_pins_local = local_boundary(front, front_outline)
     _back_mesh, back_pins_local = local_boundary(back, back_outline)
     front_pins = tuple(int(i) for i in front_pins_local)
-    back_pins = tuple(len(front_mesh.vertices) + int(i) for i in back_pins_local)'''
+    back_pins = tuple(len(front_positions) + int(i) for i in back_pins_local)'''
 if old_pin_block not in source:
     raise RuntimeError("GUI fixture pin block no longer matches expected source; refusing silent no-op")
 source = source.replace(old_pin_block, new_pin_block)
