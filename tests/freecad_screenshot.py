@@ -222,13 +222,12 @@ def style_mesh(obj, label):
 
 
 def simulation():
-    from freecad_cloth.pattern.PatternGeometry import LineSegment
-    from freecad_cloth.pattern.PatternModel import Seam
-    from freecad_cloth.pattern.PatternObjects import add_seam
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
     from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
     from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
     from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
+    from freecad_cloth.pattern.PatternModel import Seam
+    from freecad_cloth.pattern.PatternObjects import add_seam
     doc = App.newDocument("ClothSimulationVisualRegression"); scene = create_quality_simulation_scene(doc); avatar = getattr(scene.AvatarProxy, "SourceObject", None); target = scene.DrapeTarget
     if avatar is None or str(getattr(avatar, "AvatarType", "")) != "ClothAvatar":
         raise RuntimeError("visual fixture did not create the production ClothAvatar")
@@ -240,7 +239,8 @@ def simulation():
     def make_piece(name, y, neckline_ratio, neckline_drop):
         sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot); piece.Sketch.Placement = piece.Placement; return piece, outline
     front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)
-    for edge_a, edge_b, seam_id in ((1,7,"TunicRightSide"),(7,1,"TunicLeftSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder")):
+    # Same-side seams keep the front/back panels aligned instead of twisting the tunic.
+    for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(7,7,"TunicLeftSide"),(2,2,"TunicRightShoulder"),(6,6,"TunicLeftShoulder")):
         add_seam(doc, Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 6; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
     def quality_pins(piece, positions, boundary):
