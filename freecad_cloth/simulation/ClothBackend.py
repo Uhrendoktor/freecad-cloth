@@ -125,6 +125,7 @@ def default_backend_registry() -> BackendRegistry:
     registry = BackendRegistry()
     registry.register(XPBDBackend.name, XPBDBackend)
     try:
+        import tissu  # noqa: F401
         from freecad_cloth.simulation.TissuBackend import TissuBackend
     except ImportError:
         pass
