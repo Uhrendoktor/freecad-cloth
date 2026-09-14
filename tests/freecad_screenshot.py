@@ -20,20 +20,12 @@ source = source.replace(
     '    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):\n        add_seam(doc, Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))\n',
     '    for edge_a, edge_b, seam_id in ((2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder")):\n        add_seam(doc, Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))\n'
 )
-source = source.replace(
-    'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)',
-    'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)'
-)
 required_pin_code = '    back_pins = tuple(len(front_positions) + i for i in back_pins_local)'
 if required_pin_code not in source:
     raise RuntimeError("GUI fixture pin mapping no longer uses refined front-position count; refusing silent no-op")
-# Pin the authored shoulder boundary vertices directly. This is the same stable
-# shoulder selection used by the turntable fixture, expressed in the eight-edge
-# tunic boundary order (left shoulder, right shoulder).
-source = source.replace(
-    '    def authored_shoulder_pins(piece, positions):\n        targets = (\n            (0.14 * panel_width, 0.97 * garment_height),\n            (0.86 * panel_width, 0.97 * garment_height),\n        )\n        available = list(range(len(positions)))\n        result = []\n        for local_x, local_y in targets:\n            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))\n            index = min(available, key=lambda i: (positions[i][0] - target_point.x) ** 2 + (positions[i][1] - target_point.y) ** 2 + (positions[i][2] - target_point.z) ** 2)\n            result.append(index)\n            available.remove(index)\n        return tuple(result)\n',
-    '    def authored_shoulder_pins(piece, positions):\n        if len(positions) < 8:\n            raise RuntimeError("refined tunic mesh does not preserve the authored eight-edge boundary")\n        return (6, 3)\n'
-)
+# Keep the source fixture's authored shoulder selection: choose the two boundary
+# vertices nearest the intended shoulder coordinates on the actual refined mesh.
+# This avoids relying on topology-dependent numeric indices.
 
 backend_patch = r'''
 from freecad_cloth.simulation.ClothBackend import default_backend_registry, preferred_backend_name
