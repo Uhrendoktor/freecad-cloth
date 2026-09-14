@@ -1,6 +1,8 @@
 from freecad_cloth.common.MeshValidation import (
+    measure_drape_visual_sanity,
     nearest_surface_clearance,
     nearest_target_clearance,
+    summarize_drape_visual_metrics,
     validate_mesh,
 )
 
@@ -66,6 +68,29 @@ def test_degenerate_face_is_reported_without_trimesh():
         prefer_trimesh=False,
     )
     assert result.degenerate_faces == 1
+
+
+def test_drape_metrics_are_available_from_mesh_validation_boundary():
+    target = ((-100.0, -50.0, 0.0), (100.0, -50.0, 0.0), (-100.0, 50.0, 1750.0), (100.0, 50.0, 1750.0))
+    garment = ((-140.0, -90.0, 250.0), (140.0, -90.0, 250.0), (-140.0, 90.0, 1500.0), (140.0, 90.0, 1500.0))
+    metrics = measure_drape_visual_sanity(garment, target, target_height=1750.0, target_width=1000.0)
+    assert metrics.finite
+    assert metrics.state == "structurally-plausible"
+    assert metrics.vertices == 4
+    assert metrics.bounds == (-140.0, 140.0, -90.0, 90.0, 250.0, 1500.0)
+    assert metrics.vertical_span_ratio > 0.6
+    assert metrics.lateral_span_ratio > 0.1
+    data = summarize_drape_visual_metrics(metrics)
+    assert data["state"] == metrics.state
+    assert data["centroid"] == metrics.centroid
+
+
+def test_drape_metrics_classify_empty_and_nonfinite_meshes():
+    target = ((0.0, 0.0, 0.0),)
+    assert measure_drape_visual_sanity((), target).state == "empty"
+    nonfinite = measure_drape_visual_sanity(((0.0, 0.0, float("nan")),), target)
+    assert nonfinite.state == "nonfinite"
+    assert not nonfinite.finite
 
 
 if __name__ == "__main__":
