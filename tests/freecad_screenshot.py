@@ -5,7 +5,7 @@ source = Path(__file__).with_name("freecad_screenshot_source.py").read_text(enco
 source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(20.0, 0.08 * body_depth);')
 # Fast visual-regression profile: fewer particles and iterations, with the original stable clearance.
 source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 28.0;')
-source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 3;')
+source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 4;')
 source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 1;')
 source = source.replace('scene.TimeStep = 1.0 / 120.0;', 'scene.TimeStep = 1.0 / 120.0;')
 source = source.replace('scene.FabricFriction = 0.75;', 'scene.FabricFriction = 0.75;')
@@ -23,10 +23,6 @@ source = source.replace(
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)'
 )
-# The coarse visual fixture uses slightly inset shoulder attachment targets to reduce lateral
-# impulse while retaining the authored shoulder attachment regions.
-source = source.replace('(0.14 * panel_width, 0.97 * garment_height),', '(0.18 * panel_width, 0.97 * garment_height),')
-source = source.replace('(0.86 * panel_width, 0.97 * garment_height),', '(0.82 * panel_width, 0.97 * garment_height),')
 # The source fixture already owns the refined-position pin mapping. Do not duplicate or
 # rewrite that implementation here; assert the critical global back-panel offset remains present.
 required_pin_code = '    back_pins = tuple(len(front_positions) + i for i in back_pins_local)'
