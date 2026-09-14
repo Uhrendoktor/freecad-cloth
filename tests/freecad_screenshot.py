@@ -30,12 +30,11 @@ source = source.replace(
     '''    def authored_shoulder_pins(piece, positions, boundary):\n        targets = (\n            (0.08 * panel_width, 0.97 * garment_height),\n            (0.92 * panel_width, 0.97 * garment_height),\n            (0.20 * panel_width, 0.90 * garment_height),\n            (0.80 * panel_width, 0.90 * garment_height),\n        )\n        available = [int(i) for i in boundary]\n        result = []\n        for local_x, local_y in targets:\n            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))\n            index = min(available, key=lambda i: (positions[i][0] - target_point.x) ** 2 + (positions[i][1] - target_point.y) ** 2 + (positions[i][2] - target_point.z) ** 2)\n            result.append(index)\n            available.remove(index)\n        return tuple(result)\n    front_positions, _front_triangles, front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)\n    back_positions, _back_triangles, back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)\n    front_pins = authored_shoulder_pins(front, front_positions, front_boundary)\n    back_pins_local = authored_shoulder_pins(back, back_positions, back_boundary)''',
 )
 
-# The avatar collision surface is static during this audit. Reuse its prepared
-# triangle normals and prune triangles whose AABB cannot beat the current hit.
-# This preserves the exact closest-triangle calculation while removing repeated
-# setup and distant-triangle work from the 16 x 4 solver loop.
+# Audit-only acceleration: installed after the source file has added /workspace
+# to sys.path, so the CI wrapper does not alter import semantics.
 audit_patch = r'''
-from freecad_cloth.simulation.ClothSolver import ClothSystem
+from freecad_cloth.simulation.ClothSolver import _cross, _normalize, _closest_point_triangle
+import freecad_cloth.simulation.ClothSolver as _cloth_solver
 
 def _audit_prepare_surface(system, surface):
     cached = getattr(system, "_audit_surface_cache", None)
@@ -87,10 +86,7 @@ def _audit_collide_surface(self, surface):
             p.y += normal[1] * correction
             p.z += normal[2] * correction
 
-# Reuse the audit-only implementation without changing production solver files.
-import freecad_cloth.simulation.ClothSolver as _cloth_solver
-from freecad_cloth.simulation.ClothSolver import _cross, _normalize, _closest_point_triangle
 _cloth_solver.ClothSystem._collide_surface = _audit_collide_surface
 '''
-source = audit_patch + "\n" + source
+source = source.replace('OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")', audit_patch + '\nOUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")')
 exec(compile(source, str(Path(__file__).with_name("freecad_screenshot_source.py")), "exec"), globals(), globals())
