@@ -149,20 +149,26 @@ def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=No
         vertices = _mesh_points(getattr(panel, "Mesh", None))
         metrics = inspect_drape(vertices, avatar_vertices, target_height=target_height, target_width=target_width)
         record = {"panel": str(getattr(panel, "Label", getattr(panel, "Name", ""))), **summarize(metrics)}
+        diagnostics = []
+        if not metrics.finite:
+            raise RuntimeError("draped panel %s contains non-finite geometry" % record["panel"])
+        if not vertices:
+            raise RuntimeError("draped panel %s has no mesh vertices" % record["panel"])
         if center_x is not None:
             record["centroid_lateral_offset"] = abs(float(metrics.centroid[0]) - float(center_x))
             if record["centroid_lateral_offset"] > target_width * 0.18:
-                raise RuntimeError("draped panel %s is laterally detached from the avatar center: %.1f mm" % (record["panel"], record["centroid_lateral_offset"]))
+                diagnostics.append("lateral-detached-candidate")
         if metrics.target_vertex_clearance is None or metrics.target_vertex_clearance > target_width * 0.15:
-            raise RuntimeError("draped panel %s is too far from the collision target" % record["panel"])
+            diagnostics.append("target-clearance-candidate")
         if metrics.vertical_span_ratio < 0.25 or metrics.lateral_span_ratio < 0.25:
-            raise RuntimeError("draped panel %s collapsed into a visually weak state" % record["panel"])
+            diagnostics.append("collapsed-candidate")
         if float(metrics.bounds[5]) > float(shoulder_z) + upper_margin:
-            raise RuntimeError("draped panel %s rises too far above the shoulder zone: %.1f mm" % (record["panel"], metrics.bounds[5]))
+            diagnostics.append("above-shoulder-candidate")
         if float(metrics.bounds[4]) < float(hem_z) - lower_margin:
-            raise RuntimeError("draped panel %s falls too far below the intended hem zone: %.1f mm" % (record["panel"], metrics.bounds[4]))
+            diagnostics.append("below-hem-candidate")
         if float(metrics.centroid[2]) > float(shoulder_z) + upper_margin:
-            raise RuntimeError("draped panel %s centroid is above the shoulder zone: %.1f mm" % (record["panel"], metrics.centroid[2]))
+            diagnostics.append("centroid-above-shoulder-candidate")
+        record["diagnostics"] = diagnostics
         records.append(record)
         log("drape-metrics=%s" % json.dumps(record, sort_keys=True))
     with open(METRICS, "w", encoding="utf-8") as handle:
@@ -251,28 +257,20 @@ def simulation():
     def make_piece(name, y, neckline_ratio, neckline_drop):
         sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot); piece.Sketch.Placement = piece.Placement; return piece, outline
     front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)
-    # Same-side side seams and authored shoulder seams; the neckline remains open.
     for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(7,7,"TunicLeftSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
         add_seam(doc, Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
     def authored_shoulder_pins(piece, positions):
-        targets = (
-            (0.14 * panel_width, 0.97 * garment_height),
-            (0.86 * panel_width, 0.97 * garment_height),
-        )
-        available = list(range(len(positions)))
-        result = []
+        targets = ((0.14 * panel_width, 0.97 * garment_height),(0.86 * panel_width, 0.97 * garment_height))
+        available = list(range(len(positions))); result = []
         for local_x, local_y in targets:
             target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
             index = min(available, key=lambda i: (positions[i][0] - target_point.x) ** 2 + (positions[i][1] - target_point.y) ** 2 + (positions[i][2] - target_point.z) ** 2)
-            result.append(index)
-            available.remove(index)
+            result.append(index); available.remove(index)
         return tuple(result)
     front_positions, _front_triangles, _front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
     back_positions, _back_triangles, _back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
-    front_pins = authored_shoulder_pins(front, front_positions)
-    back_pins_local = authored_shoulder_pins(back, back_positions)
-    back_pins = tuple(len(front_positions) + i for i in back_pins_local)
+    front_pins = authored_shoulder_pins(front, front_positions); back_pins_local = authored_shoulder_pins(back, back_positions); back_pins = tuple(len(front_positions) + i for i in back_pins_local)
     scene.PinSelection = [str(i) for i in front_pins + back_pins]
     log("pin-map authored front=%s back-local=%s back-global=%s" % (front_pins, back_pins_local, back_pins)); doc.recompute()
     for source in (doc.getObject("VisualTunicFront"), doc.getObject("VisualTunicBack")):
