@@ -2,12 +2,10 @@
 from pathlib import Path
 
 source = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
-# Keep the established fixture separation while testing a more lateral authored
-# shoulder attachment; inward targets previously drove the panel upward.
 source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(20.0, 0.08 * body_depth);')
 source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 28.0;')
 source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 6;')
-source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 1;')
+source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 2;')
 source = source.replace('scene.TimeStep = 1.0 / 120.0;', 'scene.TimeStep = 1.0 / 90.0;')
 source = source.replace('scene.FabricFriction = 0.75;', 'scene.FabricFriction = 0.75;')
 source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (10,10,10):')
@@ -22,8 +20,8 @@ source = source.replace(
 required_pin_code = '    back_pins = tuple(len(front_positions) + i for i in back_pins_local)'
 if required_pin_code not in source:
     raise RuntimeError("GUI fixture pin mapping no longer uses refined front-position count; refusing silent no-op")
-old_targets = '''        targets = (\n            (0.14 * panel_width, 0.97 * garment_height),\n            (0.86 * panel_width, 0.97 * garment_height),\n        )'''
-new_targets = '''        targets = (\n            (0.10 * panel_width, 0.97 * garment_height),\n            (0.90 * panel_width, 0.97 * garment_height),\n        )'''
+old_targets = '''        targets = (\n            (0.10 * panel_width, 0.97 * garment_height),\n            (0.90 * panel_width, 0.97 * garment_height),\n        )'''
+new_targets = '''        targets = (\n            (0.14 * panel_width, 0.97 * garment_height),\n            (0.86 * panel_width, 0.97 * garment_height),\n        )'''
 if old_targets not in source:
     raise RuntimeError("GUI fixture authored shoulder target block no longer matches expected source")
 source = source.replace(old_targets, new_targets, 1)
