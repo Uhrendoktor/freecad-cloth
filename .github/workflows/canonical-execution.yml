@@ -14,6 +14,7 @@ concurrency:
 permissions:
   actions: read
   contents: write
+  packages: write
   pull-requests: write
 
 env:
@@ -39,7 +40,13 @@ jobs:
           if docker image inspect "$IMAGE" >/dev/null 2>&1; then exit 0; fi
           if printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1 && timeout 90s docker pull "$IMAGE"; then exit 0; fi
           docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
-          docker buildx build --progress=plain --cache-from type=gha,scope=freecad-ci --cache-to type=gha,scope=freecad-ci,mode=max --load --tag "$IMAGE" docker/freecad-ci
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+            printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin
+            docker buildx build --progress=plain --cache-from type=gha,scope=freecad-ci --cache-to type=gha,scope=freecad-ci,mode=max --push --tag "$IMAGE" docker/freecad-ci
+            docker pull "$IMAGE"
+          else
+            docker buildx build --progress=plain --cache-from type=gha,scope=freecad-ci --cache-to type=gha,scope=freecad-ci,mode=max --load --tag "$IMAGE" docker/freecad-ci
+          fi
       - name: Run Python tests in Docker
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
@@ -69,7 +76,13 @@ jobs:
           if docker image inspect "$IMAGE" >/dev/null 2>&1; then exit 0; fi
           if printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1 && timeout 90s docker pull "$IMAGE"; then exit 0; fi
           docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
-          docker buildx build --progress=plain --cache-from type=gha,scope=freecad-ci --cache-to type=gha,scope=freecad-ci,mode=max --load --tag "$IMAGE" docker/freecad-ci
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+            printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin
+            docker buildx build --progress=plain --cache-from type=gha,scope=freecad-ci --cache-to type=gha,scope=freecad-ci,mode=max --push --tag "$IMAGE" docker/freecad-ci
+            docker pull "$IMAGE"
+          else
+            docker buildx build --progress=plain --cache-from type=gha,scope=freecad-ci --cache-to type=gha,scope=freecad-ci,mode=max --load --tag "$IMAGE" docker/freecad-ci
+          fi
       - name: Launch FreeCAD GUI and export screenshots in Docker
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
@@ -295,6 +308,15 @@ jobs:
         with:
           name: cloth-gui-screenshots
           path: gui-screenshots
+      - name: Validate stable README asset set
+        run: |
+          set -euo pipefail
+          for image in cloth-pattern-design.png cloth-sewing.png cloth-simulation-arranged.png cloth-simulation-draped.png cloth-avatar-front.png cloth-avatar-rear.png cloth-avatar-left.png cloth-avatar-right.png cloth-avatar-top.png cloth-avatar-bottom.png; do
+            test -s "gui-screenshots/$image"
+          done
+          for gif in cloth-avatar-turntable.gif cloth-simulation-arranged-turntable.gif cloth-simulation-draped-turntable.gif; do
+            test -s "gui-screenshots/$gif"
+          done
       - name: Publish stable screenshot branch
         env:
           GH_TOKEN: ${{ github.token }}
