@@ -7,7 +7,7 @@ source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance 
 source = source.replace('front_y = box.YMin - clearance; back_y = box.YMax + clearance;', 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;')
 source = source.replace(
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)',
-    'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)',
+    'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.08)',
 )
 source = source.replace(
     'chest = 980.0; hip = 1020.0; ease = 55.0; panel_width = max(420.0, 0.50 * chest + ease); hem_width = max(450.0, 0.50 * hip + ease)',
@@ -130,6 +130,7 @@ source = source.replace(anchor, preview_probe + '\n' + anchor, 1)
 required = (
     'clearance = max(6.0, 0.02 * body_depth);',
     'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
+    'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.08)',
     'torso_width = float(box.XMax - box.XMin); panel_width = max(760.0, min(980.0, 0.94 * torso_width + ease));',
     'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
     'scene.ParticleDistance = 22.0;',
