@@ -1,7 +1,7 @@
 """Realtime viewport preview for cloth simulation.
 
-The preview deliberately uses a coarse simulation mesh and a small XPBD iteration
-budget. It is an interactive preview, not the authoritative final-quality solve.
+The preview uses the selected cloth backend with a coarse interactive
+simulation budget. It is an interactive preview, not the authoritative final-quality solve.
 """
 
 _PREVIEW = None
@@ -39,6 +39,55 @@ def _prepare(scene):
     scene.TimeStep = 1.0 / 60.0
     scene.Steps = 0
     scene.Document.recompute()
+    _select_preview_backend(scene)
+
+
+def _select_preview_backend(scene):
+    """Replace the legacy XPBD backend with the explicitly selected backend.
+
+    The base scene builder remains responsible for constructing the authoritative
+    ClothSystem, panel topology, stitches, pins, and collision surface. The
+    preview then wraps that exact state in Tissu when it is the preferred backend.
+    """
+    from freecad_cloth.simulation.ClothBackend import default_backend_registry, preferred_backend_name
+
+    proxy = getattr(scene, "Proxy", None)
+    base = proxy._base_or_restore() if proxy is not None and hasattr(proxy, "_base_or_restore") else proxy
+    if base is None or getattr(base, "backend", None) is None:
+        raise RuntimeError("Realtime Cloth Preview did not build a simulation backend")
+
+    registry = default_backend_registry()
+    backend_name = preferred_backend_name(registry)
+    if backend_name == getattr(base.backend, "name", None):
+        return base.backend
+    if backend_name != "tissu":
+        return base.backend
+
+    system = getattr(base.backend, "system", None)
+    if system is None:
+        raise RuntimeError("Realtime Cloth Preview cannot transfer the simulation state to Tissu")
+    triangles = tuple(
+        tri
+        for panel_triangles in getattr(base, "panel_triangles", {}).values()
+        for tri in panel_triangles
+    )
+    pins = tuple(getattr(system, "pins", {}).keys())
+    stitches = tuple((int(c.a), int(c.b)) for c in getattr(system, "stitches", ()))
+    collision_surface = getattr(base, "collision_surface", None)
+    if not triangles:
+        raise RuntimeError("Realtime Cloth Preview did not build panel triangles")
+
+    backend = registry.create(
+        backend_name,
+        system,
+        triangles=triangles,
+        pins=pins,
+        stitches=stitches,
+        collision_surface=collision_surface,
+    )
+    base.backend = backend
+    base.last_steps = 0
+    return backend
 
 
 class _Preview:
@@ -67,23 +116,31 @@ class _Preview:
         was_running = self.running
         self.running = False
         if restore and was_running:
-            self.scene.Steps = 0
-            for name, value in self._saved.items():
-                if hasattr(self.scene, name):
-                    setattr(self.scene, name, value)
-            self.scene.Document.recompute()
+            try:
+                self.scene.Steps = 0
+                for name, value in self._saved.items():
+                    if hasattr(self.scene, name):
+                        setattr(self.scene, name, value)
+                self.scene.Document.recompute()
+            except ReferenceError:
+                pass
         self._message("Realtime preview stopped")
 
     def tick(self):
-        if not self.scene or getattr(self.scene, "Document", None) is None:
-            self.stop(False)
-            return
+        scene = self.scene
         try:
-            self.scene.Steps = int(self.scene.Steps) + 1
-            self.scene.Document.recompute()
+            doc = getattr(scene, "Document", None)
+            if doc is None:
+                self.stop(False)
+                return
+            scene.Steps = int(scene.Steps) + 1
+            doc.recompute()
             import FreeCADGui as Gui
             if Gui.activeDocument():
                 Gui.activeDocument().activeView().redraw()
+        except (ReferenceError, RuntimeError) as exc:
+            self.stop(False)
+            self._message("Realtime preview stopped: %s" % exc)
         except Exception as exc:
             self.stop(False)
             self._message("Realtime preview stopped: %s" % exc)
