@@ -30,7 +30,8 @@ source = source.replace(
     'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
 )
 
-# Replace unrestricted pin selection with four authored boundary pins.
+# Use the authored boundary shoulder region from the stable turntable fixture,
+# rather than choosing arbitrary nearest interior vertices.
 old_pin_calls = '''    front_positions, _front_triangles, _front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
     back_positions, _back_triangles, _back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
     front_pins = authored_shoulder_pins(front, front_positions)
@@ -38,34 +39,31 @@ old_pin_calls = '''    front_positions, _front_triangles, _front_boundary = qual
     back_pins = tuple(len(front_positions) + i for i in back_pins_local)
     scene.PinSelection = [str(i) for i in front_pins + back_pins]
 '''
-new_pin_calls = '''    front_positions, _front_triangles, front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
-    back_positions, _back_triangles, back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
+new_pin_calls = '''    front_positions, _front_triangles, _front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
+    back_positions, _back_triangles, _back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
 
-    def authored_boundary_pins(piece, positions, boundary_indices):
-        targets = (
-            (0.08 * panel_width, 0.97 * garment_height),
-            (0.92 * panel_width, 0.97 * garment_height),
-            (0.20 * panel_width, 0.90 * garment_height),
-            (0.80 * panel_width, 0.90 * garment_height),
+    from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
+    from freecad_cloth.pattern.PatternMesh import triangulate
+
+    def authored_boundary_pins(piece, outline):
+        points = [(float(x), float(y)) for x, y in outline]
+        segments = [
+            LineSegment("%s:edge:%d" % (piece.PieceId, i), points[i], points[(i + 1) % len(points)])
+            for i in range(len(points))
+        ]
+        mesh = triangulate(ParametricPattern(segments))
+        h = max(y for _, y in points)
+        return tuple(
+            int(i)
+            for i in mesh.boundary_vertex_indices
+            if float(mesh.vertices[i][1]) >= 0.86 * h - 1e-6
+            and (float(mesh.vertices[i][0]) <= 0.32 * panel_width + 1e-6 or float(mesh.vertices[i][0]) >= 0.68 * panel_width - 1e-6)
         )
-        available = list(dict.fromkeys(int(i) for i in boundary_indices))
-        if len(available) < len(targets):
-            raise RuntimeError("insufficient boundary vertices for authored shoulder pins")
-        result = []
-        for local_x, local_y in targets:
-            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
-            index = min(
-                available,
-                key=lambda i: (positions[i][0] - target_point.x) ** 2
-                + (positions[i][1] - target_point.y) ** 2
-                + (positions[i][2] - target_point.z) ** 2,
-            )
-            result.append(index)
-            available.remove(index)
-        return tuple(result)
 
-    front_pins = authored_boundary_pins(front, front_positions, front_boundary)
-    back_pins_local = authored_boundary_pins(back, back_positions, back_boundary)
+    front_pins = authored_boundary_pins(front, front_outline)
+    back_pins_local = authored_boundary_pins(back, back_outline)
+    if len(front_pins) < 4 or len(back_pins_local) < 4:
+        raise RuntimeError("insufficient authored shoulder boundary pins")
     back_pins = tuple(len(front_positions) + i for i in back_pins_local)
     scene.PinSelection = [str(i) for i in front_pins + back_pins]
 '''
@@ -145,7 +143,7 @@ required = (
     'scene.TimeStep = 1.0 / 90.0;',
     'for batch in (10,10,10):',
     'if int(scene.Steps) != 30 or',
-    'front_pins = authored_boundary_pins(front, front_positions, front_boundary)',
+    'front_pins = authored_boundary_pins(front, front_outline)',
 )
 missing = [needle for needle in required if needle not in source]
 if missing:
