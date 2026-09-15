@@ -11,8 +11,6 @@ concurrency:
   group: canonical-${{ github.ref }}
   cancel-in-progress: true
 
-# PR validation uses the already-published dependency image. The image is rebuilt
-# only on main/manual runs, so source changes are mounted into an immutable runtime.
 env:
   FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
   QT_X11_NO_MITSHM: 1
@@ -147,33 +145,11 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-
               set +e
               timeout --signal=TERM --kill-after=15s 600s /opt/freecad/AppRun tests/freecad_screenshot.py
-              rc_screenshot=$?
               timeout --signal=TERM --kill-after=15s 300s /opt/freecad/AppRun tests/freecad_avatar_screenshot.py
-              rc_avatar=$?
               timeout --signal=TERM --kill-after=15s 600s /opt/freecad/AppRun tests/freecad_simulation_turntable.py
-              rc_turntable=$?
               set -e
-
-              test -s docs/images/generated/cloth-pattern-design.png
-              test -s docs/images/generated/cloth-sewing.png
-              test -s docs/images/generated/cloth-simulation-arranged.png
-              test -s docs/images/generated/cloth-simulation-draped.png
-              test -s docs/images/generated/cloth-avatar-front.png
-              test -s docs/images/generated/cloth-avatar-rear.png
-              test -s docs/images/generated/cloth-avatar-left.png
-              test -s docs/images/generated/cloth-avatar-right.png
-              test -s docs/images/generated/cloth-avatar-top.png
-              test -s docs/images/generated/cloth-avatar-bottom.png
-              test "$(find docs/images/generated/cloth-avatar-turntable-frames -maxdepth 1 -name \"frame-*.png\" | wc -l)" -eq 73
-              test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name \"frame-*.png\" | wc -l)" -eq 73
-              test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name \"frame-*.png\" | wc -l)" -eq 73
-
-              test "$rc_screenshot" -eq 0 || test "$(grep -c "script-end exit-code=0" docs/images/generated/gui-progress.log 2>/dev/null || true)" -ge 1
-              test "$rc_avatar" -eq 0 || test "$(grep -c "avatar-script-pass" docs/images/generated/avatar-gui-progress.log 2>/dev/null || true)" -ge 1
-              test "$rc_turntable" -eq 0 || test "$(grep -c "simulation-turntable-pass" docs/images/generated/simulation-turntable-progress.log 2>/dev/null || true)" -ge 1
             '
           )"
           cleanup() {
@@ -189,7 +165,26 @@ jobs:
           }
           trap cleanup EXIT
           docker cp "$PWD/." "$CID:/workspace/"
-          docker start -a "$CID"
+          docker start -a "$CID" || true
+          test -s artifacts/freecad-gui/gui-progress.log
+          test -s artifacts/freecad-gui/avatar-gui-progress.log
+          test -s artifacts/freecad-gui/simulation-turntable-progress.log
+          grep -q 'script-end exit-code=0' artifacts/freecad-gui/gui-progress.log
+          grep -q 'avatar-script-pass' artifacts/freecad-gui/avatar-gui-progress.log
+          grep -q 'simulation-turntable-pass' artifacts/freecad-gui/simulation-turntable-progress.log
+          test -s docs/images/generated/cloth-pattern-design.png
+          test -s docs/images/generated/cloth-sewing.png
+          test -s docs/images/generated/cloth-simulation-arranged.png
+          test -s docs/images/generated/cloth-simulation-draped.png
+          test -s docs/images/generated/cloth-avatar-front.png
+          test -s docs/images/generated/cloth-avatar-rear.png
+          test -s docs/images/generated/cloth-avatar-left.png
+          test -s docs/images/generated/cloth-avatar-right.png
+          test -s docs/images/generated/cloth-avatar-top.png
+          test -s docs/images/generated/cloth-avatar-bottom.png
+          test "$(find docs/images/generated/cloth-avatar-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
+          test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
+          test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
       - name: Build turntable GIFs
         run: |
           set -euo pipefail
