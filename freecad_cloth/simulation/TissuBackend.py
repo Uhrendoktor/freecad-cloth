@@ -24,8 +24,14 @@ def _from_tissu_position(position):
 
 
 def _to_tissu_mesh(surface):
-    vertices = [_to_tissu_position(v) for v in surface.vertices]
-    triangles = [int(i) for tri in surface.triangles for i in tri]
+    """Convert FreeCAD collision data to Tissu's pybind-friendly containers."""
+    import numpy as np
+
+    vertices = [np.asarray(_to_tissu_position(v), dtype=np.float64) for v in surface.vertices]
+    triangles = [
+        [int(a), int(b), int(c)]
+        for a, b, c in surface.triangles
+    ]
     return vertices, triangles
 
 
@@ -77,8 +83,8 @@ class TissuBackend(ClothSimulationBackend):
             vtx, idx = _to_tissu_mesh(self._collision_surface)
             self._sim.add_mesh_from_arrays(
                 "drape-target",
-                np.asarray(vtx, dtype=np.float64),
-                np.asarray(idx, dtype=np.int32),
+                vtx,
+                idx,
                 friction=0.5,
             )
 
