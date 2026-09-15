@@ -29,6 +29,12 @@ source = source.replace(
     'radius = max(120.0, min(240.0, 0.245 * width, 0.70 * depth))',
     'radius = max(90.0, min(170.0, 0.16 * width, 0.48 * depth))',
 )
+# FreeCAD's camera convention makes the physically front-facing garment side appear
+# under viewRear(), so keep the artifact labels aligned with the visible garment.
+source = source.replace(
+    'for direction, method_name in (("front","viewFront"),("rear","viewRear"),("left","viewLeft"),("right","viewRight"),("top","viewTop"),("bottom","viewBottom")):',
+    'for direction, method_name in (("front","viewRear"),("rear","viewFront"),("left","viewLeft"),("right","viewRight"),("top","viewTop"),("bottom","viewBottom")):',
+)
 
 old_pin_calls = '''    front_positions, _front_triangles, _front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
     back_positions, _back_triangles, _back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
@@ -125,6 +131,7 @@ required = (
     'if int(scene.Steps) != 30 or',
     'front_pins = authored_boundary_pins(front, front_outline)',
     'canonical-backend=xpbd-cpu visual-regression',
+    '(("front","viewRear"),("rear","viewFront")',
 )
 missing = [needle for needle in required if needle not in source]
 if missing:
