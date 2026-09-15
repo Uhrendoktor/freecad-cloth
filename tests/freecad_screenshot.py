@@ -3,33 +3,15 @@ from pathlib import Path
 
 source = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
 
-# Keep the visual garment close enough to the production avatar for stable
-# collision, and orient the authored front/back pieces on opposite sides.
-source = source.replace(
-    'clearance = max(20.0, 0.08 * body_depth);',
-    'clearance = max(6.0, 0.02 * body_depth);',
-)
-source = source.replace(
-    'front_y = box.YMin - clearance; back_y = box.YMax + clearance;',
-    'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
-)
+source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(6.0, 0.02 * body_depth);')
+source = source.replace('front_y = box.YMin - clearance; back_y = box.YMax + clearance;', 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;')
 source = source.replace(
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)',
 )
-
-# The two-panel tunic must span the mannequin torso. A half-chest-wide panel
-# gets pushed around the avatar instead of forming the front/back shell.
 source = source.replace(
     'chest = 980.0; hip = 1020.0; ease = 55.0; panel_width = max(420.0, 0.50 * chest + ease); hem_width = max(450.0, 0.50 * hip + ease)',
     'chest = 980.0; hip = 1020.0; ease = 55.0; torso_width = float(box.XMax - box.XMin); panel_width = max(760.0, min(980.0, 0.94 * torso_width + ease)); hem_width = max(760.0, min(1000.0, 0.98 * torso_width + ease))',
-)
-
-# Close both side seams and both shoulders; these seams are the physical
-# constraints that turn the two flat panels into one tunic shell.
-source = source.replace(
-    'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")): ',
-    'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")): ',
 )
 source = source.replace(
     'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):',
@@ -48,8 +30,6 @@ source = source.replace(
     'radius = max(120.0, min(240.0, 0.245 * width, 0.70 * depth))',
     'radius = max(90.0, min(170.0, 0.16 * width, 0.48 * depth))',
 )
-
-# Keep artifact names aligned with the physically front-facing FreeCAD view.
 source = source.replace(
     'for direction, method_name in (("front","viewFront"),("rear","viewRear"),("left","viewLeft"),("right","viewRight"),("top","viewTop"),("bottom","viewBottom")):',
     'for direction, method_name in (("front","viewRear"),("rear","viewFront"),("left","viewLeft"),("right","viewRight"),("top","viewTop"),("bottom","viewBottom")):',
@@ -75,16 +55,20 @@ new_pin_calls = '''    front_positions, _front_triangles, _front_boundary = qual
         ]
         mesh = triangulate(ParametricPattern(segments))
         h = max(y for _, y in points)
-        return tuple(
-            int(i)
-            for i in mesh.boundary_vertex_indices
-            if float(mesh.vertices[i][1]) >= 0.90 * h - 1e-6
-        )
+        edge_x = (hem_width, 0.0)
+        result = []
+        for i in mesh.boundary_vertex_indices:
+            x, y = mesh.vertices[i]
+            side = min(abs(float(x) - edge_x[0]), abs(float(x) - edge_x[1])) <= 1e-6
+            upper = float(y) >= 0.90 * h - 1e-6
+            if side or upper:
+                result.append(int(i))
+        return tuple(dict.fromkeys(result))
 
     front_pins = authored_boundary_pins(front, front_outline)
     back_pins_local = authored_boundary_pins(back, back_outline)
     if not front_pins or not back_pins_local:
-        raise RuntimeError("authored upper boundary pin selection is empty")
+        raise RuntimeError("authored side/upper boundary pin selection is empty")
     back_pins = tuple(len(front_positions) + i for i in back_pins_local)
     scene.PinSelection = [str(i) for i in front_pins + back_pins]
 '''
@@ -99,7 +83,7 @@ def _canonical_backend(system, triangles, pins, stitches, collision_surface):
     backend = XPBDBackend(system)
     backend.pin(pins)
     backend.set_stitches(stitches, compliance=0.0)
-    log("canonical-backend=xpbd-cpu visual-regression sewn")
+    log("canonical-backend=xpbd-cpu visual-regression sewn-side-stable")
     return backend
 '''
 source = source.replace(
@@ -151,10 +135,8 @@ required = (
     'scene.ParticleDistance = 22.0;',
     'scene.SolverIterations = 12;',
     'scene.SolverSubsteps = 2;',
-    'for batch in (10,10,10):',
-    'if int(scene.Steps) != 30 or',
     'front_pins = authored_boundary_pins(front, front_outline)',
-    'canonical-backend=xpbd-cpu visual-regression sewn',
+    'canonical-backend=xpbd-cpu visual-regression sewn-side-stable',
     '(("front","viewRear"),("rear","viewFront")',
 )
 missing = [needle for needle in required if needle not in source]
