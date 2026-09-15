@@ -17,6 +17,7 @@ permissions:
   packages: write
 
 # Canonical visual validation deliberately uses the production Tissu backend.
+# final canonical run trigger
 env:
   FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
   QT_X11_NO_MITSHM: 1
