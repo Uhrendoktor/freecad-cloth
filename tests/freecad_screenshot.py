@@ -5,6 +5,11 @@ import re
 source = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
 source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(30.0, 0.10 * body_depth);')
 source = source.replace('front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)', 'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)')
+# Close the tunic body at the two side seams in addition to the authored shoulders.
+source = source.replace(
+    'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):',
+    'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):'
+)
 # Conservative solver profile for collision stability; keep the recovered 30-step gate.
 source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 24.0;')
 source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 8;')
@@ -16,10 +21,7 @@ source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 
 source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 30-step state"')
 source = source.replace('after 90 real steps;', 'after 30 real steps;')
 source = source.replace('upper_margin = 0.15 * max(1.0, float(shoulder_z) - float(hem_z))', 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))')
-source = source.replace(
-    '    def authored_shoulder_pins(piece, positions):\n        targets = (\n            (0.14 * panel_width, 0.97 * garment_height),\n            (0.86 * panel_width, 0.97 * garment_height),\n        )\n        available = list(range(len(positions)))\n        result = []\n        for local_x, local_y in targets:\n            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))\n            index = min(\n                available,\n                key=lambda i: (positions[i][0] - target_point.x) ** 2\n                + (positions[i][1] - target_point.y) ** 2\n                + (positions[i][2] - target_point.z) ** 2,\n            )\n            result.append(index)\n            available.remove(index)\n        return tuple(result)\n\n',
-    ''
-)
+
 # Boundary-restricted four-point shoulder pins: preserve stable anchors while refusing arbitrary interior vertices.
 pin_pattern = re.compile(r'    def authored_shoulder_pins\(piece, positions\):.*?    for source in \(doc\.getObject', re.S)
 pin_replacement = '''    def authored_shoulder_pins(piece, positions, boundary_indices):
@@ -64,6 +66,8 @@ if 'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); 
     raise RuntimeError("canonical tunic neckline patch did not match fixture source")
 if 'front_pins = authored_shoulder_pins(front, front_positions, front_boundary)' not in source:
     raise RuntimeError("canonical four-point boundary pin patch did not install")
+if 'TunicRightSide' not in source or 'TunicLeftSide' not in source:
+    raise RuntimeError("canonical tunic side-seam patch did not install")
 
 backend_patch = r'''
 from freecad_cloth.simulation.ClothBackend import default_backend_registry, preferred_backend_name
