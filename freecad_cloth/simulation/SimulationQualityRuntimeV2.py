@@ -151,10 +151,7 @@ class QualitySimulationProxy:
             for _ in range(steps - base.last_steps):
                 for _ in range(int(obj.SolverSubsteps)):
                     sphere = None if base.collision_surface is not None else (
-                        float(obj.CollisionX),
-                        float(obj.CollisionY),
-                        float(obj.CollisionZ),
-                        float(obj.CollisionRadius),
+                        float(obj.CollisionX), float(obj.CollisionY), float(obj.CollisionZ), float(obj.CollisionRadius)
                     )
                     base.backend.step(
                         dt, int(obj.SolverIterations),
@@ -180,12 +177,9 @@ class QualitySimulationProxy:
         """Use the authoritative base scene builder with quality tessellation."""
         from freecad_cloth.simulation import SimulationObjects
         from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
-
         base = self._base_or_restore()
         previous = SimulationObjects._piece_mesh
-        SimulationObjects._piece_mesh = lambda piece, start_height: quality_piece_mesh(
-            piece, start_height, float(obj.ParticleDistance)
-        )
+        SimulationObjects._piece_mesh = lambda piece, start_height: quality_piece_mesh(piece, start_height, float(obj.ParticleDistance))
         try:
             return base._build_pattern_scene(obj, pieces, signature)
         finally:
@@ -245,7 +239,13 @@ class QualitySimulationProxy:
         from freecad_cloth.avatar.AvatarCollision import coarsen_collision_surface, surface_from_freecad
         thickness = float(getattr(avatar, "CollisionThickness", 0.0)) + float(obj.FabricThickness) + float(obj.AvatarSkinOffset)
         full_surface = surface_from_freecad(source, float(getattr(avatar, "CollisionDeflection", 1.0)), thickness)
-        base.collision_surface = coarsen_collision_surface(full_surface, 512)
+        if getattr(base.backend, "name", "") == "tissu":
+            # Tissu's mesh collider uses a BVH nearest-triangle query. Feeding it
+            # the full authored avatar mesh avoids holes introduced by coarse
+            # triangle decimation that can let cloth tunnel through the body.
+            base.collision_surface = full_surface
+        else:
+            base.collision_surface = coarsen_collision_surface(full_surface, 512)
 
     def reset(self, obj):
         self._base_or_restore().reset(obj)
@@ -254,22 +254,14 @@ class QualitySimulationProxy:
 def create_quality_simulation_scene(doc):
     from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
     from freecad_cloth.avatar.AvatarCommands import create_avatar
-
     scene = create_simulation_scene(doc)
     legacy = doc.getObject("HumanoidAvatar")
     if legacy is not None and hasattr(legacy, "ViewObject"):
         legacy.ViewObject.Visibility = False
-
     avatar = create_avatar(attach_collision=False, doc=doc)
     avatar.Label = "Cloth Human Avatar (MakeHuman)"
     avatar.ViewObject.Visibility = True
-
-    set_avatar_collision_source(
-        scene,
-        avatar,
-        float(getattr(avatar, "SkinOffset", 3.0)),
-        1.0,
-    )
+    set_avatar_collision_source(scene, avatar, float(getattr(avatar, "SkinOffset", 3.0)), 1.0)
     scene.AvatarProxy.SourceObject = avatar
     scene.DrapeTarget = doc.getObject("DrapeTarget")
     ensure_quality_properties(scene)
