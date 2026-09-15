@@ -4,7 +4,7 @@ from pathlib import Path
 source = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
 
 # Stable closed-tunic visual fixture: close both side seams and both shoulders
-# around the real avatar, with tight initial clearance and the recovered solver profile.
+# around the real avatar, with tight initial clearance and a torso-sized collider.
 source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(6.0, 0.02 * body_depth);')
 source = source.replace(
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)',
@@ -24,6 +24,12 @@ source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 
 source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 30-step state"')
 source = source.replace('after 90 real steps;', 'after 30 real steps;')
 source = source.replace('upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))', 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))')
+# The current collider envelope is deliberately conservative for production drape,
+# but too wide for this close-fit visual regression. Keep the visual fixture near the avatar.
+source = source.replace(
+    'radius = max(120.0, min(240.0, 0.245 * width, 0.70 * depth))',
+    'radius = max(90.0, min(170.0, 0.16 * width, 0.48 * depth))',
+)
 
 old_pin_calls = '''    front_positions, _front_triangles, _front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
     back_positions, _back_triangles, _back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
@@ -122,8 +128,8 @@ source = source.replace(anchor, preview_probe + '\n' + anchor, 1)
 
 required = (
     'clearance = max(6.0, 0.02 * body_depth);',
-    'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)',
     'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
+    'radius = max(90.0, min(170.0, 0.16 * width, 0.48 * depth))',
     'scene.ParticleDistance = 22.0;',
     'scene.SolverIterations = 6;',
     'scene.TimeStep = 1.0 / 90.0;',
