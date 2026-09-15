@@ -3,8 +3,6 @@ name: Workbench benchmark
 on:
   push:
     branches: [main]
-  pull_request:
-    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 permissions:
@@ -33,7 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1
-          docker pull "$IMAGE"
+          timeout --signal=TERM --kill-after=30s 10m docker pull "$IMAGE"
       - name: Run isolated FreeCAD workbench measurements
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
