@@ -1,5 +1,6 @@
 """CI entry point for the tunic visual regression."""
 from pathlib import Path
+import textwrap
 
 source = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
 
@@ -143,4 +144,6 @@ missing = [needle for needle in required if needle not in source]
 if missing:
     raise RuntimeError("canonical tunic visual patch did not install: " + ", ".join(missing))
 
+# Keep generated source indentation stable across the FreeCAD launcher wrapper.
+source = textwrap.dedent(source)
 exec(compile(source, str(Path(__file__).with_name("freecad_screenshot_source.py")), "exec"), globals(), globals())
