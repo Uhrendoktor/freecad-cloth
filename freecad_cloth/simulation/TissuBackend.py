@@ -11,6 +11,7 @@ from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 
 _MM = 1000.0
+_TISSU_SUBSTEPS = 4
 
 
 def _to_tissu_position(position):
@@ -83,7 +84,7 @@ class TissuBackend(ClothSimulationBackend):
         positions = [_to_tissu_position(p.position()) for p in self._initial.particles]
         triangles = np.asarray(self._triangles, dtype=np.int32)
         vertices = np.asarray(positions, dtype=np.float64)
-        self._sim = Simulation(substeps=1, iterations=self._iterations, gravity=-9.81, thickness=0.002)
+        self._sim = Simulation(substeps=_TISSU_SUBSTEPS, iterations=self._iterations, gravity=-9.81, thickness=0.002)
         self._fabric = self._sim.create_from_arrays("cloth", vertices, triangles, material="cotton")
         global_ids = np.asarray(self._fabric.instance.get_particle_indices(), dtype=np.int32)
         if len(global_ids) != len(positions) or not np.array_equal(global_ids, np.arange(len(positions))):
@@ -124,7 +125,7 @@ class TissuBackend(ClothSimulationBackend):
         import numpy as np
         self._pin_indices = tuple(dict.fromkeys(int(i) for i in indices))
         for index in self._pin_indices:
-            position = np.asarray(self.positions()[index], dtype=np.float64)
+            position = self.positions()[index]
             self._sim.solver.add_pin(int(index), np.asarray(_to_tissu_position(position), dtype=np.float64), 0.0)
 
     def set_stitches(self, pairs: Iterable[Tuple[int, int]], compliance=0.0):
