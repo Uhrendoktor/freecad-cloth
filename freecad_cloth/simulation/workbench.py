@@ -3,6 +3,7 @@
 Command implementations remain in the package tree; this module owns the
 FreeCAD workbench boundary and resolves its icon to the installed root resource.
 """
+import os
 from pathlib import Path
 
 from freecad_cloth.gui import ClothWorkbenchBase
@@ -19,6 +20,8 @@ class ClothSimulationWorkbench(ClothWorkbenchBase):
     def Initialize(self):
         if self.commands:
             return
+        os.environ.setdefault("CLOTH_SIMULATION_BACKEND", "tissu")
         import freecad_cloth.simulation.SimulationCommands as SimulationCommands
         import freecad_cloth.simulation.DrapeCommands as DrapeCommands
-        self.register((("Simulation", SimulationCommands.COMMANDS + DrapeCommands.COMMANDS),))
+        import freecad_cloth.simulation.RealtimePreview as RealtimePreview
+        self.register((("Simulation", SimulationCommands.COMMANDS + ["ClothRealtimePreview"] + DrapeCommands.COMMANDS),))
