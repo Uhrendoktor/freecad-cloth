@@ -20,13 +20,14 @@ source = source.replace(
     '    def authored_shoulder_pins(piece, positions):\n        targets = (\n            (0.14 * panel_width, 0.97 * garment_height),\n            (0.86 * panel_width, 0.97 * garment_height),\n        )\n        available = list(range(len(positions)))\n        result = []\n        for local_x, local_y in targets:\n            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))\n            index = min(\n                available,\n                key=lambda i: (positions[i][0] - target_point.x) ** 2\n                + (positions[i][1] - target_point.y) ** 2\n                + (positions[i][2] - target_point.z) ** 2,\n            )\n            result.append(index)\n            available.remove(index)\n        return tuple(result)\n\n',
     ''
 )
-# Boundary-restricted two-point shoulder pins: preserve the authored shoulder anchors
-# while refusing arbitrary interior vertices that can pull the panel laterally.
+# Boundary-restricted four-point shoulder pins: preserve stable anchors while refusing arbitrary interior vertices.
 pin_pattern = re.compile(r'    def authored_shoulder_pins\(piece, positions\):.*?    for source in \(doc\.getObject', re.S)
 pin_replacement = '''    def authored_shoulder_pins(piece, positions, boundary_indices):
         targets = (
-            (0.14 * panel_width, 0.97 * garment_height),
-            (0.86 * panel_width, 0.97 * garment_height),
+            (0.08 * panel_width, 0.97 * garment_height),
+            (0.92 * panel_width, 0.97 * garment_height),
+            (0.20 * panel_width, 0.90 * garment_height),
+            (0.80 * panel_width, 0.90 * garment_height),
         )
         available = list(dict.fromkeys(int(i) for i in boundary_indices))
         if len(available) < len(targets):
@@ -55,14 +56,14 @@ pin_replacement = '''    def authored_shoulder_pins(piece, positions, boundary_i
     for source in (doc.getObject'''
 source, pin_count = pin_pattern.subn(pin_replacement, source, count=1)
 if pin_count != 1:
-    raise RuntimeError("canonical two-point boundary pin patch did not match fixture source")
+    raise RuntimeError("canonical four-point boundary pin patch did not match fixture source")
 
 if 'scene.ParticleDistance = 24.0;' not in source:
     raise RuntimeError("canonical tunic particle-distance patch did not match fixture source")
 if 'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)' not in source:
     raise RuntimeError("canonical tunic neckline patch did not match fixture source")
 if 'front_pins = authored_shoulder_pins(front, front_positions, front_boundary)' not in source:
-    raise RuntimeError("canonical two-point boundary pin patch did not install")
+    raise RuntimeError("canonical four-point boundary pin patch did not install")
 
 backend_patch = r'''
 from freecad_cloth.simulation.ClothBackend import default_backend_registry, preferred_backend_name
