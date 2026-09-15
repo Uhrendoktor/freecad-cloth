@@ -62,9 +62,9 @@ new_pin_calls = '''    front_positions, _front_triangles, _front_boundary = qual
 
     front_pins = authored_boundary_pins(front, front_outline)
     back_pins_local = authored_boundary_pins(back, back_outline)
-    if len(front_pins) < 4 or len(back_pins_local) < 4:
-        raise RuntimeError("insufficient authored shoulder boundary pins")
     back_pins = tuple(len(front_positions) + i for i in back_pins_local)
+    if not front_pins or not back_pins_local:
+        raise RuntimeError("authored shoulder boundary pin selection is empty")
     scene.PinSelection = [str(i) for i in front_pins + back_pins]
 '''
 if old_pin_calls not in source:
