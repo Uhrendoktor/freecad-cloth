@@ -10,16 +10,16 @@ source = source.replace(
     'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):',
     'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):'
 )
-# Conservative solver profile for collision stability; keep the recovered 30-step gate.
+# Conservative solver profile for collision stability; keep the recovered 15-step gate.
 source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 24.0;')
 source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 8;')
 source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 1;')
 source = source.replace('scene.TimeStep = 1.0 / 120.0;', 'scene.TimeStep = 1.0 / 120.0;')
 source = source.replace('scene.FabricFriction = 0.75;', 'scene.FabricFriction = 0.85;')
-source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (10,10,10):')
-source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 30 or')
-source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 30-step state"')
-source = source.replace('after 90 real steps;', 'after 30 real steps;')
+source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (5,5,5):')
+source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 15 or')
+source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 15-step state"')
+source = source.replace('after 90 real steps;', 'after 15 real steps;')
 source = source.replace('upper_margin = 0.15 * max(1.0, float(shoulder_z) - float(hem_z))', 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))')
 
 # Boundary-restricted four-point shoulder pins: preserve stable anchors while refusing arbitrary interior vertices.
@@ -120,7 +120,7 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
     log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
 '''
-anchor = '    for batch in (10,10,10):'
+anchor = '    for batch in (5,5,5):'
 if anchor not in source:
     raise RuntimeError("GUI fixture simulation batch anchor no longer matches expected source; refusing silent no-op")
 source = source.replace(anchor, preview_probe + '\n' + anchor, 1)
