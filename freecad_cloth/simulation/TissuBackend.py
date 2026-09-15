@@ -41,8 +41,43 @@ def _to_tissu_mesh(surface):
     return vertices, triangles
 
 
+def _collision_envelope(surface):
+    """Derive a stable torso envelope from the authored avatar collision data.
+
+    Tissu's sphere collider resolves with a radial normal, which is substantially
+    more stable for this canonical torso drape than nearest-triangle contact on
+    a highly concave human render mesh. The centers are still derived directly
+    from the real avatar bounds; no FreeCAD proxy object is created.
+    """
+    if surface is None or not surface.vertices:
+        return ()
+    xs = [float(v[0]) for v in surface.vertices]
+    ys = [float(v[1]) for v in surface.vertices]
+    zs = [float(v[2]) for v in surface.vertices]
+    min_x, max_x = min(xs), max(xs)
+    min_y, max_y = min(ys), max(ys)
+    min_z, max_z = min(zs), max(zs)
+    height = max(1.0, max_z - min_z)
+    width = max(1.0, max_x - min_x)
+    depth = max(1.0, max_y - min_y)
+    center_x = 0.5 * (min_x + max_x)
+    center_y = 0.5 * (min_y + max_y)
+
+    radius = max(120.0, min(240.0, 0.245 * width, 0.70 * depth))
+    bottom = min_z + 0.38 * height
+    top = min_z + 0.76 * height
+    samples = (0.0, 0.25, 0.50, 0.75, 1.0)
+    return tuple(
+        (
+            (center_x, center_y, bottom + (top - bottom) * t),
+            radius,
+        )
+        for t in samples
+    )
+
+
 class TissuBackend(ClothSimulationBackend):
-    """C++ XPBD backend with Tissu's spatial-hash collision path."""
+    """C++ XPBD backend with selectable Tissu collision paths."""
 
     name = "tissu"
 
@@ -53,16 +88,20 @@ class TissuBackend(ClothSimulationBackend):
         pins: Iterable[int] = (),
         stitches: Iterable[Tuple[int, int]] = (),
         collision_surface: CollisionSurface | None = None,
+        collision_mode: str = "mesh",
     ):
         try:
             from tissu import Simulation
         except ImportError as exc:
             raise RuntimeError("Tissu backend requires the optional 'pytissu' package") from exc
+        if collision_mode not in {"mesh", "torso-envelope"}:
+            raise ValueError("unsupported Tissu collision mode")
         self._initial = deepcopy(system)
         self._triangles = tuple(tuple(int(i) for i in tri) for tri in triangles)
         self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins))
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
         self._collision_surface = collision_surface
+        self._collision_mode = collision_mode
         self._time = 0.0
         self._iterations = 8
         self._build(Simulation)
@@ -70,6 +109,27 @@ class TissuBackend(ClothSimulationBackend):
     @property
     def time(self):
         return self._time
+
+    def _add_collision(self):
+        import numpy as np
+        if self._collision_surface is None:
+            return
+        if self._collision_mode == "torso-envelope":
+            for index, (center, radius_mm) in enumerate(_collision_envelope(self._collision_surface)):
+                self._sim.add_sphere(
+                    f"drape-torso-{index}",
+                    np.asarray(_to_tissu_position(center), dtype=np.float64),
+                    float(radius_mm) / _MM,
+                    friction=0.5,
+                )
+            return
+        vtx, idx = _to_tissu_mesh(self._collision_surface)
+        self._sim.add_mesh_from_arrays(
+            "drape-target",
+            vtx,
+            idx,
+            friction=0.5,
+        )
 
     def _build(self, Simulation):
         import numpy as np
@@ -85,14 +145,7 @@ class TissuBackend(ClothSimulationBackend):
             self._sim.solver.add_pin(int(index), np.asarray(positions[index], dtype=np.float64), 0.0)
         for a, b in self._stitches:
             self._sim.solver.add_stitch(int(a), int(b), 0.0)
-        if self._collision_surface is not None:
-            vtx, idx = _to_tissu_mesh(self._collision_surface)
-            self._sim.add_mesh_from_arrays(
-                "drape-target",
-                vtx,
-                idx,
-                friction=0.5,
-            )
+        self._add_collision()
 
     def step(self, dt=1.0 / 60.0, iterations=8, gravity=(0.0, 0.0, -9810.0), sphere=None, surface=None):
         if dt <= 0 or iterations < 1:
@@ -102,7 +155,7 @@ class TissuBackend(ClothSimulationBackend):
         if sphere is not None:
             raise RuntimeError("TissuBackend does not support sphere fallback collision")
         self._sim.solver.set_iterations(max(1, int(iterations)))
-        gx, gy, gz = gravity
+        _gx, _gy, gz = gravity
         self._sim.gravity = float(gz) / _MM
         self._sim.step(float(dt))
         self._iterations = int(iterations)
