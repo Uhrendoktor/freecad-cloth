@@ -3,34 +3,53 @@ from pathlib import Path
 
 source = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
 
-# Stable closed-tunic visual fixture: close both side seams and both shoulders
-# around the real avatar, with tight initial clearance and a torso-sized collider.
-source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(6.0, 0.02 * body_depth);')
-source = source.replace('front_y = box.YMin - clearance; back_y = box.YMax + clearance;', 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;')
+# Keep the visual garment close enough to the production avatar for stable
+# collision, and orient the authored front/back pieces on opposite sides.
+source = source.replace(
+    'clearance = max(20.0, 0.08 * body_depth);',
+    'clearance = max(6.0, 0.02 * body_depth);',
+)
+source = source.replace(
+    'front_y = box.YMin - clearance; back_y = box.YMax + clearance;',
+    'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
+)
 source = source.replace(
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)',
 )
+
+# The two-panel tunic must span the mannequin torso. A half-chest-wide panel
+# gets pushed around the avatar instead of forming the front/back shell.
 source = source.replace(
-    'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):','for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):')
+    'chest = 980.0; hip = 1020.0; ease = 55.0; panel_width = max(420.0, 0.50 * chest + ease); hem_width = max(450.0, 0.50 * hip + ease)',
+    'chest = 980.0; hip = 1020.0; ease = 55.0; torso_width = float(box.XMax - box.XMin); panel_width = max(760.0, min(980.0, 0.94 * torso_width + ease)); hem_width = max(760.0, min(1000.0, 0.98 * torso_width + ease))',
+)
+
+# Close both side seams and both shoulders; these seams are the physical
+# constraints that turn the two flat panels into one tunic shell.
+source = source.replace(
+    'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")): ',
+    'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")): ',
+)
+source = source.replace(
+    'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):',
+    'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
+)
 source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 22.0;')
 source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 12;')
 source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 2;')
-source = source.replace('scene.TimeStep = 1.0 / 120.0;', 'scene.TimeStep = 1.0 / 120.0;')
 source = source.replace('scene.FabricFriction = 0.85;', 'scene.FabricFriction = 0.80;')
 source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (10,10,10):')
 source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 30 or')
 source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 30-step state"')
 source = source.replace('after 90 real steps;', 'after 30 real steps;')
 source = source.replace('upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))', 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))')
-# Keep the visual fixture close to the avatar; the CPU reference solver handles
-# the authored humanoid collision mesh deterministically for this regression.
 source = source.replace(
     'radius = max(120.0, min(240.0, 0.245 * width, 0.70 * depth))',
     'radius = max(90.0, min(170.0, 0.16 * width, 0.48 * depth))',
 )
-# FreeCAD's camera convention makes the physically front-facing garment side appear
-# under viewRear(), so keep the artifact labels aligned with the visible garment.
+
+# Keep artifact names aligned with the physically front-facing FreeCAD view.
 source = source.replace(
     'for direction, method_name in (("front","viewFront"),("rear","viewRear"),("left","viewLeft"),("right","viewRight"),("top","viewTop"),("bottom","viewBottom")):',
     'for direction, method_name in (("front","viewRear"),("rear","viewFront"),("left","viewLeft"),("right","viewRight"),("top","viewTop"),("bottom","viewBottom")):',
@@ -79,12 +98,15 @@ from freecad_cloth.simulation.ClothBackend import XPBDBackend
 def _canonical_backend(system, triangles, pins, stitches, collision_surface):
     backend = XPBDBackend(system)
     backend.pin(pins)
-    # Keep authored seams visible in the FreeCAD fixture, but leave the visual
-    # drape solve stitch-free so two pinned shells cannot twist sideways.
-    log("canonical-backend=xpbd-cpu visual-regression stitch-free")
+    backend.set_stitches(stitches, compliance=0.0)
+    log("canonical-backend=xpbd-cpu visual-regression sewn")
     return backend
 '''
-source = source.replace('OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")', backend_patch + '\nOUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")', 1)
+source = source.replace(
+    'OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")',
+    backend_patch + '\nOUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")',
+    1,
+)
 source = source.replace(
     'self.backend = default_backend_registry().create("xpbd-cpu", system)',
     'self.backend = _canonical_backend(system, triangles_global, tuple(system.pins), tuple((c.a, c.b) for c in system.stitches), _collision_for_scene(obj))',
@@ -124,6 +146,7 @@ source = source.replace(anchor, preview_probe + '\n' + anchor, 1)
 required = (
     'clearance = max(6.0, 0.02 * body_depth);',
     'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
+    'torso_width = float(box.XMax - box.XMin); panel_width = max(760.0, min(980.0, 0.94 * torso_width + ease));',
     'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
     'scene.ParticleDistance = 22.0;',
     'scene.SolverIterations = 12;',
@@ -131,7 +154,7 @@ required = (
     'for batch in (10,10,10):',
     'if int(scene.Steps) != 30 or',
     'front_pins = authored_boundary_pins(front, front_outline)',
-    'canonical-backend=xpbd-cpu visual-regression stitch-free',
+    'canonical-backend=xpbd-cpu visual-regression sewn',
     '(("front","viewRear"),("rear","viewFront")',
 )
 missing = [needle for needle in required if needle not in source]
