@@ -202,7 +202,7 @@ def build_simulation_state(doc):
     hem_z = box.ZMin + 0.40 * z_span
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
-    clearance = max(6.0, 0.02 * body_depth)
+    clearance = max(20.0, 0.08 * body_depth)
     front_y = box.YMin - clearance
     back_y = box.YMax + clearance
     rotation = App.Rotation(App.Vector(1, 0, 0), 90.0)
@@ -217,14 +217,11 @@ def build_simulation_state(doc):
 
     front, front_outline = make_piece("VisualTunicFront", front_y, 0.64)
     back, back_outline = make_piece("VisualTunicBack", back_y, 0.68)
-    # Keep only the authored shoulder seams in the coarse visual fixture. The side
-    # stitches cross the avatar volume and can inject a non-physical upward impulse
-    # into the back panel during the low-resolution XPBD turntable solve.
-    for edge_a, edge_b, seam_id in (
-        (2, 6, "TunicRightShoulder"),
-        (6, 2, "TunicLeftShoulder"),
-    ):
-        add_seam(doc, Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))
+    # Match each shoulder edge to the same shoulder edge on the opposite panel.
+    # Crosswise pairs pull the panels diagonally across the avatar and create an
+    # obviously non-physical visual result.
+    for edge_id, seam_id in ((2, "TunicRightShoulder"), (6, "TunicLeftShoulder")):
+        add_seam(doc, Seam(str(front.PieceId), edge_id, str(back.PieceId), edge_id, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))
 
     scene.StartHeight = 0.0
     scene.QualityPreset = "Fast"
