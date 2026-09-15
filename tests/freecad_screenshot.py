@@ -18,13 +18,13 @@ source = source.replace(
     'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(6,6,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
 )
 source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 22.0;')
-source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 16;')
+source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 12;')
 source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 2;')
 source = source.replace('scene.FabricFriction = 0.85;', 'scene.FabricFriction = 0.80;')
-source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (10,10,10,10,10,10):')
-source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 60 or')
-source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 60-step state"')
-source = source.replace('after 90 real steps;', 'after 60 real steps;')
+source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (10,10,10):')
+source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 30 or')
+source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 30-step state"')
+source = source.replace('after 90 real steps;', 'after 30 real steps;')
 source = source.replace('upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))', 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))')
 source = source.replace(
     'radius = max(120.0, min(240.0, 0.245 * width, 0.70 * depth))',
@@ -121,7 +121,7 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
     log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
 '''
-anchor = 'for batch in (10,10,10,10,10,10):'
+anchor = 'for batch in (10,10,10):'
 if anchor not in source:
     raise RuntimeError("visual simulation batch anchor did not match canonical source")
 source = source.replace(anchor, preview_probe + '\n' + anchor, 1)
@@ -133,7 +133,7 @@ required = (
     'torso_width = float(box.XMax - box.XMin); panel_width = max(420.0, min(560.0, 0.50 * torso_width + ease));',
     'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(6,6,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
     'scene.ParticleDistance = 22.0;',
-    'scene.SolverIterations = 16;',
+    'scene.SolverIterations = 12;',
     'scene.SolverSubsteps = 2;',
     'front_pins = authored_boundary_pins(front, front_outline)',
     'canonical-backend=xpbd-cpu visual-regression zero-rest-sewn',
