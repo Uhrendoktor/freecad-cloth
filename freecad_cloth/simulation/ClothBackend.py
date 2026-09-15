@@ -111,10 +111,14 @@ class BackendRegistry:
         self._factories[key] = factory
 
     def create(self, name: str, system: ClothSystem, **kwargs):
+        import os
+        requested = str(name).strip()
+        if requested == XPBDBackend.name and str(os.environ.get("CLOTH_SIMULATION_BACKEND", "")).strip().lower() == "tissu":
+            requested = "tissu"
         try:
-            factory = self._factories[name]
+            factory = self._factories[requested]
         except KeyError:
-            raise ValueError(f"unknown cloth backend: {name}") from None
+            raise ValueError(f"unknown cloth backend: {requested}") from None
         backend = factory(system, **kwargs) if kwargs else factory(system)
         if not isinstance(backend, ClothSimulationBackend):
             raise TypeError("backend factory must return ClothSimulationBackend")
