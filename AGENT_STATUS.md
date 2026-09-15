@@ -8,7 +8,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - Default branch: `main`
 - Current main: `2c22f0a981a582f3b6c51b61ecda284d7498c2d1` (latest tunic visual-regression runtime bound to 30 solver steps; canonical CI verification still required for commits after the last recorded green run).
 - Recent merged work: Python 3.12 / FreeCAD 1.1.0 CI baseline, restored GUI screenshot/GIF export, avatar and simulation turntables, Sketcher-authoritative pattern import, sewing command-surface coverage, simulation-signature regression, and MeshValidation disconnected-component fallback.
-- Open implementation PRs requiring supervisor gates: none currently open.
+- Open implementation PRs requiring supervisor gates: PR #539 (optional Tissu backend and realtime preview), PR #538 (tunic visual validation), PR #536 (diagnostic drape metrics), and PR #535 (canonical validation trigger).
 - PR #453 was closed without merge because its validated screenshots remained collapsed/edge-on and not production-ready.
 - PR #438 remains diagnostic-only and must not merge.
 - Python package boundary: `freecad_cloth/` with `avatar`, `pattern`, `sewing`, `simulation`, `common`, `shared` subpackages
@@ -34,6 +34,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - `trimesh` remains optional/lazy; CPU reference remains correctness baseline.
 - Tissu remains sandbox-only until runtime compatibility, constraint/collision parity, determinism, visual parity and performance are demonstrated.
 - Re-cut implementation branches from current `main`; one focused concern per PR.
+- Latest observed canonical result: PR #539 merge ref `a30e4c9287cc1ae0878e76d26a010bca1f29ca48` passed Python/non-GUI tests but failed the FreeCAD GUI job in `tests/freecad_screenshot_source.py` on the hard lateral-detachment gate (`Drape: VisualTunicFront`, 224.6 mm). This is a visual-fixture/metric-gate issue, not a Tissu import failure; coordinate with #536/#538 before changing backend code.
 
 ## Agent rules
 
