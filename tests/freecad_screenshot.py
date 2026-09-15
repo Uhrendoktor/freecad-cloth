@@ -1,5 +1,6 @@
 """CI entry point for the tunic visual regression."""
 from pathlib import Path
+import re
 
 source = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
 source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(6.0, 0.02 * body_depth);')
@@ -19,13 +20,53 @@ source = source.replace(
     '    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):\n        add_seam(doc, Seam(str(front.PieceId), edge_a, edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))\n',
     '    for edge_a, edge_b, seam_id in ((2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder")):\n        add_seam(doc, Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))\n'
 )
-if 'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)' not in source:
-    raise RuntimeError("canonical tunic neckline patch did not match fixture source")
+
+# Use the exact boundary-constrained shoulder pin construction from the stable
+# turntable fixture. The old nearest-vertex selection can pick interior vertices
+# on one side of the panel and produces a gross lateral drift in the drape.
+pin_pattern = re.compile(
+    r'    def authored_shoulder_pins\(piece, positions\):.*?    doc\.recompute\(\)\n',
+    re.S,
+)
+pin_replacement = '''    from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
+    from freecad_cloth.pattern.PatternMesh import triangulate
+
+    def local_boundary(piece, outline):
+        points = [(float(x), float(y)) for x, y in outline]
+        segments = [
+            LineSegment("%s:edge:%d" % (piece.PieceId, i), points[i], points[(i + 1) % len(points)])
+            for i in range(len(points))
+        ]
+        mesh = triangulate(ParametricPattern(segments))
+        h = max(y for _, y in points)
+        pins = tuple(
+            i
+            for i in mesh.boundary_vertex_indices
+            if float(mesh.vertices[i][1]) >= 0.86 * h - 1e-6
+            and (
+                float(mesh.vertices[i][0]) <= 0.32 * panel_width + 1e-6
+                or float(mesh.vertices[i][0]) >= 0.68 * panel_width - 1e-6
+            )
+        )
+        return mesh, pins
+
+    fmesh, front_pins = local_boundary(front, front_outline)
+    _, back_pins_local = local_boundary(back, back_outline)
+    front_positions, _front_triangles, _front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
+    back_pins = tuple(len(front_positions) + i for i in back_pins_local)
+    scene.PinSelection = [str(i) for i in front_pins + back_pins]
+    doc.recompute()
+'''
+source, pin_count = pin_pattern.subn(pin_replacement, source, count=1)
+if pin_count != 1:
+    raise RuntimeError("canonical boundary pin patch did not match fixture source")
+
 if 'scene.ParticleDistance = 22.0;' not in source:
     raise RuntimeError("canonical tunic particle-distance patch did not match fixture source")
-required_pin_code = '    back_pins = tuple(len(front_positions) + i for i in back_pins_local)'
-if required_pin_code not in source:
-    raise RuntimeError("GUI fixture pin mapping no longer uses refined front-position count; refusing silent no-op")
+if 'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)' not in source:
+    raise RuntimeError("canonical tunic neckline patch did not match fixture source")
+if 'scene.PinSelection = [str(i) for i in front_pins + back_pins]' not in source:
+    raise RuntimeError("canonical boundary pin patch did not install pin selection")
 
 backend_patch = r'''
 from freecad_cloth.simulation.ClothBackend import default_backend_registry, preferred_backend_name
