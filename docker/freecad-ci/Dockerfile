@@ -7,8 +7,8 @@ RUN apt-get update -qq \
     && apt-get install -y --no-install-recommends xvfb openbox x11-utils build-essential cmake git libomp-dev \
     && rm -rf /var/lib/apt/lists/* \
     && mamba create -y -n freecad -c conda-forge python=3.12 pip freecad=1.1.0 \
-    && /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir pytissu==1.1.0 \
-    && /opt/conda/envs/freecad/bin/python -c "import tissu; print('Tissu', tissu.__file__)" \
+    && /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir pytissu==1.1.0 pytest \
+    && /opt/conda/envs/freecad/bin/python -c "import tissu, pytest; print('Tissu', tissu.__file__); print('pytest', pytest.__version__)" \
     && mamba clean --all --yes \
     && mkdir -p /opt/freecad \
     && printf '%s\n' '#!/bin/sh' 'exec /opt/conda/envs/freecad/bin/freecad "$@"' > /opt/freecad/AppRun \
