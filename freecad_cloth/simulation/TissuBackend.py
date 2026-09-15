@@ -11,7 +11,7 @@ from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 
 _MM = 1000.0
-_TISSU_SUBSTEPS = 4
+_TISSU_SUBSTEPS = 10
 
 
 def _to_tissu_position(position):
