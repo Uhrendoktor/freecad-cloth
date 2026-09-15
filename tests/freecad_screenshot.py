@@ -84,8 +84,9 @@ def _canonical_backend(system, triangles, pins, stitches, collision_surface):
         pins=pins,
         stitches=stitches,
         collision_surface=collision_surface,
+        collision_mode="torso-envelope",
     )
-    log("canonical-backend=%s" % backend.name)
+    log("canonical-backend=%s collision=torso-envelope" % backend.name)
     return backend
 '''
 source = source.replace('OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")', backend_patch + '\nOUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")')
