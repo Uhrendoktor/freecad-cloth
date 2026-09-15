@@ -17,7 +17,6 @@ permissions:
   packages: write
 
 # Canonical visual validation deliberately uses the production Tissu backend.
-# final canonical run trigger
 env:
   FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
   QT_X11_NO_MITSHM: 1
@@ -45,9 +44,8 @@ jobs:
           IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
-          docker run --rm --security-opt seccomp=unconfined --shm-size=1g \
-            -e PYTHONPATH=/workspace -e CLOTH_SIMULATION_BACKEND=tissu -w /workspace \
-            "$IMAGE" bash -lc '
+          CID="$(docker create --security-opt seccomp=unconfined --shm-size=1g \
+            -e PYTHONPATH=/workspace -e CLOTH_SIMULATION_BACKEND=tissu -w /workspace "$IMAGE" bash -lc '
               set -e
               test "$(python3 -c "import sys; print(sys.version_info[:2])")" = "(3, 12)"
               python3 -m compileall -q .
@@ -66,6 +64,14 @@ jobs:
                 python3 "$test"
               done
             '
+          )"
+          cleanup() {
+            set +e
+            docker rm -f "$CID" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          docker cp "$PWD/." "$CID:/workspace/"
+          docker start -a "$CID"
 
   gui-screenshot:
     name: FreeCAD GUI screenshots
