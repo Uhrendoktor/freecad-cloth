@@ -60,12 +60,18 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v5
+      - name: Log in to GHCR for image pull
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Pull FreeCAD image
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
-          docker pull "$IMAGE"
+          timeout --signal=TERM --kill-after=30s 10m docker pull "$IMAGE"
       - name: Run Python tests in Docker
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
@@ -109,12 +115,18 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v5
+      - name: Log in to GHCR for image pull
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Pull FreeCAD image
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
-          docker pull "$IMAGE"
+          timeout --signal=TERM --kill-after=30s 10m docker pull "$IMAGE"
       - name: Launch FreeCAD GUI and export screenshots in Docker
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
