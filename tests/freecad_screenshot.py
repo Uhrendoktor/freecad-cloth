@@ -17,10 +17,9 @@ source = source.replace('"simulation did not reach a finite 90-step state"', '"s
 source = source.replace('after 90 real steps;', 'after 30 real steps;')
 source = source.replace('upper_margin = 0.15 * max(1.0, float(shoulder_z) - float(hem_z))', 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))')
 source = source.replace(
-    '    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):\n        add_seam(doc, Seam(str(front.PieceId), edge_a, edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))\n',
-    '    for edge_a, edge_b, seam_id in ((2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder")):\n        add_seam(doc, Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))\n'
+    '    def authored_shoulder_pins(piece, positions):\n        targets = (\n            (0.08 * panel_width, 0.97 * garment_height),\n            (0.92 * panel_width, 0.97 * garment_height),\n            (0.20 * panel_width, 0.90 * garment_height),\n            (0.80 * panel_width, 0.90 * garment_height),\n        )\n        available = list(range(len(positions)))\n        result = []\n        for local_x, local_y in targets:\n            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))\n            index = min(\n                available,\n                key=lambda i: (positions[i][0] - target_point.x) ** 2\n                + (positions[i][1] - target_point.y) ** 2\n                + (positions[i][2] - target_point.z) ** 2,\n            )\n            result.append(index)\n            available.remove(index)\n        return tuple(result)\n\n',
+    ''
 )
-
 # Boundary-restricted four-point shoulder pins: preserve the stable four anchors
 # while refusing arbitrary interior vertices that can pull the panel laterally.
 pin_pattern = re.compile(r'    def authored_shoulder_pins\(piece, positions\):.*?    for source in \(doc\.getObject', re.S)
@@ -73,16 +72,18 @@ from freecad_cloth.simulation.ClothBackend import default_backend_registry, pref
 def _canonical_backend(system, triangles, pins, stitches, collision_surface):
     registry = default_backend_registry()
     name = preferred_backend_name(registry)
-    if name == "tissu":
-        return registry.create(
-            name,
-            system,
-            triangles=triangles,
-            pins=pins,
-            stitches=stitches,
-            collision_surface=collision_surface,
-        )
-    return registry.create(name, system)
+    if name != "tissu":
+        raise RuntimeError("canonical GUI visual validation requires the Tissu backend")
+    backend = registry.create(
+        name,
+        system,
+        triangles=triangles,
+        pins=pins,
+        stitches=stitches,
+        collision_surface=collision_surface,
+    )
+    log("canonical-backend=%s" % backend.name)
+    return backend
 '''
 source = source.replace('OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")', backend_patch + '\nOUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")')
 source = source.replace(
@@ -96,6 +97,11 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
         raise RuntimeError("Realtime Cloth Preview GUI command is not registered")
     preview_saved = {name: getattr(scene, name) for name in ("ParticleDistance", "SolverIterations", "SolverSubsteps", "TimeStep", "QualityPreset")}
     Gui.runCommand("ClothRealtimePreview")
+    scene.Document.recompute()
+    base = scene.Proxy._base_or_restore()
+    backend = getattr(base, "backend", None)
+    if getattr(backend, "name", None) != "tissu":
+        raise RuntimeError("Realtime Cloth Preview did not select the Tissu backend")
     for _ in range(12):
         events()
     preview_steps = int(scene.Steps)
@@ -109,7 +115,7 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
     for name, value in preview_saved.items():
         if getattr(scene, name) != value:
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
-    log("realtime-preview=passed steps=%d" % preview_steps)
+    log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
 '''
 anchor = '    for batch in (10,10,10):'
 if anchor not in source:
