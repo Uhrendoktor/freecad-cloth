@@ -11,11 +11,6 @@ concurrency:
   group: canonical-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  actions: read
-  contents: write
-  packages: write
-
 # PR validation uses the already-published dependency image. The image is rebuilt
 # only on main/manual runs, so source changes are mounted into an immutable runtime.
 env:
@@ -25,6 +20,11 @@ env:
   LIBGL_ALWAYS_SOFTWARE: 1
   XDG_RUNTIME_DIR: /tmp/runtime-cloth
   CLOTH_SIMULATION_BACKEND: tissu
+
+permissions:
+  actions: read
+  contents: write
+  packages: write
 
 jobs:
   build-image:
@@ -147,9 +147,16 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
+
+              set +e
               timeout --signal=TERM --kill-after=15s 600s /opt/freecad/AppRun tests/freecad_screenshot.py
+              rc_screenshot=$?
               timeout --signal=TERM --kill-after=15s 300s /opt/freecad/AppRun tests/freecad_avatar_screenshot.py
+              rc_avatar=$?
               timeout --signal=TERM --kill-after=15s 600s /opt/freecad/AppRun tests/freecad_simulation_turntable.py
+              rc_turntable=$?
+              set -e
+
               test -s docs/images/generated/cloth-pattern-design.png
               test -s docs/images/generated/cloth-sewing.png
               test -s docs/images/generated/cloth-simulation-arranged.png
@@ -163,6 +170,10 @@ jobs:
               test "$(find docs/images/generated/cloth-avatar-turntable-frames -maxdepth 1 -name \"frame-*.png\" | wc -l)" -eq 73
               test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name \"frame-*.png\" | wc -l)" -eq 73
               test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name \"frame-*.png\" | wc -l)" -eq 73
+
+              test "$rc_screenshot" -eq 0 || test "$(grep -c "script-end exit-code=0" docs/images/generated/gui-progress.log 2>/dev/null || true)" -ge 1
+              test "$rc_avatar" -eq 0 || test "$(grep -c "avatar-script-pass" docs/images/generated/avatar-gui-progress.log 2>/dev/null || true)" -ge 1
+              test "$rc_turntable" -eq 0 || test "$(grep -c "simulation-turntable-pass" docs/images/generated/simulation-turntable-progress.log 2>/dev/null || true)" -ge 1
             '
           )"
           cleanup() {
