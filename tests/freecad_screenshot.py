@@ -5,11 +5,12 @@ import re
 source = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
 source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(6.0, 0.02 * body_depth);')
 source = source.replace('front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)', 'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)')
-source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 22.0;')
-source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 6;')
+# Conservative solver profile for collision stability; keep the recovered 30-step gate.
+source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 24.0;')
+source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 8;')
 source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 1;')
-source = source.replace('scene.TimeStep = 1.0 / 120.0;', 'scene.TimeStep = 1.0 / 90.0;')
-source = source.replace('scene.FabricFriction = 0.75;', 'scene.FabricFriction = 0.75;')
+source = source.replace('scene.TimeStep = 1.0 / 120.0;', 'scene.TimeStep = 1.0 / 120.0;')
+source = source.replace('scene.FabricFriction = 0.75;', 'scene.FabricFriction = 0.85;')
 source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (10,10,10):')
 source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 30 or')
 source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 30-step state"')
@@ -59,7 +60,7 @@ source, pin_count = pin_pattern.subn(pin_replacement, source, count=1)
 if pin_count != 1:
     raise RuntimeError("canonical four-point boundary pin patch did not match fixture source")
 
-if 'scene.ParticleDistance = 22.0;' not in source:
+if 'scene.ParticleDistance = 24.0;' not in source:
     raise RuntimeError("canonical tunic particle-distance patch did not match fixture source")
 if 'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)' not in source:
     raise RuntimeError("canonical tunic neckline patch did not match fixture source")
