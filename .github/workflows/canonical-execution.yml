@@ -188,14 +188,34 @@ jobs:
       - name: Build turntable GIFs
         run: |
           set -euo pipefail
-          if command -v magick >/dev/null 2>&1; then IM=(magick); else IM=(convert); fi
+          if command -v magick >/dev/null 2>&1; then
+            GIF_TOOL=imagemagick
+          elif command -v convert >/dev/null 2>&1; then
+            GIF_TOOL=imagemagick
+          elif command -v ffmpeg >/dev/null 2>&1; then
+            GIF_TOOL=ffmpeg
+          else
+            sudo apt-get update
+            sudo apt-get install -y imagemagick
+            GIF_TOOL=imagemagick
+          fi
           for spec in \
             "cloth-avatar-turntable-frames cloth-avatar-turntable.gif" \
             "cloth-simulation-arranged-turntable-frames cloth-simulation-arranged-turntable.gif" \
             "cloth-simulation-draped-turntable-frames cloth-simulation-draped-turntable.gif"; do
             set -- $spec
-            "${IM[@]}" "docs/images/generated/$1"/frame-*.png -delay 8 -loop 0 -colors 128 -layers Optimize "docs/images/generated/$2"
-            test -s "docs/images/generated/$2"
+            frames="docs/images/generated/$1"
+            output="docs/images/generated/$2"
+            if [ "$GIF_TOOL" = imagemagick ]; then
+              if command -v magick >/dev/null 2>&1; then
+                magick "$frames"/frame-*.png -delay 8 -loop 0 -colors 128 -layers Optimize "$output"
+              else
+                convert "$frames"/frame-*.png -delay 8 -loop 0 -colors 128 -layers Optimize "$output"
+              fi
+            else
+              ffmpeg -hide_banner -loglevel error -y -framerate 12 -i "$frames/frame-%03d.png" -loop 0 "$output"
+            fi
+            test -s "$output"
           done
       - name: Validate exported screenshots and turntables
         run: |
@@ -204,7 +224,14 @@ jobs:
             python3 -c 'import os,struct,sys; p=sys.argv[1]; d=open(p,"rb").read(24); assert d[:8]==b"\x89PNG\r\n\x1a\n"; w,h=struct.unpack(">II",d[16:24]); assert (w,h)==(1280,720); assert os.path.getsize(p)>=20000' "$image"
           done
           for gif in cloth-avatar-turntable.gif cloth-simulation-arranged-turntable.gif cloth-simulation-draped-turntable.gif; do
-            identify -format '%n\n' "docs/images/generated/$gif" | head -n 1 | grep -qx '73'
+            if command -v identify >/dev/null 2>&1; then
+              identify -format '%n\n' "docs/images/generated/$gif" | head -n 1 | grep -qx '73'
+            elif command -v ffprobe >/dev/null 2>&1; then
+              ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 "docs/images/generated/$gif" | grep -qx '73'
+            else
+              echo 'No GIF frame-count validator available' >&2
+              exit 1
+            fi
             python3 -c 'import os,sys; p=sys.argv[1]; d=open(p,"rb").read(6); assert d in (b"GIF87a", b"GIF89a"); assert os.path.getsize(p)>=50000' "docs/images/generated/$gif"
           done
       - name: Upload GUI screenshots
