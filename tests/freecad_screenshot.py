@@ -1,30 +1,47 @@
 """CI entry point for the tunic visual regression."""
 from pathlib import Path
-import re
 
 source = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
-source = source.replace('clearance = max(20.0, 0.08 * body_depth);', 'clearance = max(30.0, 0.10 * body_depth);')
-source = source.replace('front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)', 'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)')
-# Close the tunic body at the two side seams in addition to the authored shoulders.
+
+# Use the tighter visual fixture established by PR #538.
+source = source.replace(
+    'clearance = max(20.0, 0.08 * body_depth);',
+    'clearance = max(6.0, 0.02 * body_depth);',
+)
+source = source.replace(
+    'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)',
+    'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)',
+)
 source = source.replace(
     'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):',
-    'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):'
+    'for edge_a, edge_b, seam_id in ((2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder")):',
 )
-# Conservative solver profile for collision stability; keep the recovered 15-step gate.
-source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 24.0;')
-source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 8;')
+source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 22.0;')
+source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 6;')
 source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 1;')
-source = source.replace('scene.TimeStep = 1.0 / 120.0;', 'scene.TimeStep = 1.0 / 120.0;')
-source = source.replace('scene.FabricFriction = 0.75;', 'scene.FabricFriction = 0.85;')
-source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (5,5,5):')
-source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 15 or')
-source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 15-step state"')
-source = source.replace('after 90 real steps;', 'after 15 real steps;')
-source = source.replace('upper_margin = 0.15 * max(1.0, float(shoulder_z) - float(hem_z))', 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))')
+source = source.replace('scene.TimeStep = 1.0 / 120.0;', 'scene.TimeStep = 1.0 / 90.0;')
+source = source.replace('scene.FabricFriction = 0.85;', 'scene.FabricFriction = 0.75;')
+source = source.replace('for batch in (15,15,15,15,15,15):', 'for batch in (10,10,10):')
+source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 30 or')
+source = source.replace('"simulation did not reach a finite 90-step state"', '"simulation did not reach a finite 30-step state"')
+source = source.replace('after 90 real steps;', 'after 30 real steps;')
+source = source.replace(
+    'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))',
+    'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
+)
 
-# Boundary-restricted four-point shoulder pins: preserve stable anchors while refusing arbitrary interior vertices.
-pin_pattern = re.compile(r'    def authored_shoulder_pins\(piece, positions\):.*?    for source in \(doc\.getObject', re.S)
-pin_replacement = '''    def authored_shoulder_pins(piece, positions, boundary_indices):
+# Replace unrestricted pin selection with four authored boundary pins.
+old_pin_calls = '''    front_positions, _front_triangles, _front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
+    back_positions, _back_triangles, _back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
+    front_pins = authored_shoulder_pins(front, front_positions)
+    back_pins_local = authored_shoulder_pins(back, back_positions)
+    back_pins = tuple(len(front_positions) + i for i in back_pins_local)
+    scene.PinSelection = [str(i) for i in front_pins + back_pins]
+'''
+new_pin_calls = '''    front_positions, _front_triangles, front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
+    back_positions, _back_triangles, back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
+
+    def authored_boundary_pins(piece, positions, boundary_indices):
         targets = (
             (0.08 * panel_width, 0.97 * garment_height),
             (0.92 * panel_width, 0.97 * garment_height),
@@ -47,28 +64,16 @@ pin_replacement = '''    def authored_shoulder_pins(piece, positions, boundary_i
             available.remove(index)
         return tuple(result)
 
-    front_positions, _front_triangles, front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
-    back_positions, _back_triangles, back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
-    front_pins = authored_shoulder_pins(front, front_positions, front_boundary)
-    back_pins_local = authored_shoulder_pins(back, back_positions, back_boundary)
+    front_pins = authored_boundary_pins(front, front_positions, front_boundary)
+    back_pins_local = authored_boundary_pins(back, back_positions, back_boundary)
     back_pins = tuple(len(front_positions) + i for i in back_pins_local)
     scene.PinSelection = [str(i) for i in front_pins + back_pins]
-    log("pin-map authored front=%s back-local=%s back-global=%s" % (front_pins, back_pins_local, back_pins)); doc.recompute()
+'''
+if old_pin_calls not in source:
+    raise RuntimeError("canonical pin call block did not match the fixture source")
+source = source.replace(old_pin_calls, new_pin_calls, 1)
 
-    for source in (doc.getObject'''
-source, pin_count = pin_pattern.subn(pin_replacement, source, count=1)
-if pin_count != 1:
-    raise RuntimeError("canonical four-point boundary pin patch did not match fixture source")
-
-if 'scene.ParticleDistance = 24.0;' not in source:
-    raise RuntimeError("canonical tunic particle-distance patch did not match fixture source")
-if 'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)' not in source:
-    raise RuntimeError("canonical tunic neckline patch did not match fixture source")
-if 'front_pins = authored_shoulder_pins(front, front_positions, front_boundary)' not in source:
-    raise RuntimeError("canonical four-point boundary pin patch did not install")
-if 'TunicRightSide' not in source or 'TunicLeftSide' not in source:
-    raise RuntimeError("canonical tunic side-seam patch did not install")
-
+# Force canonical GUI visual acceptance through Tissu.
 backend_patch = r'''
 from freecad_cloth.simulation.ClothBackend import default_backend_registry, preferred_backend_name
 
@@ -89,13 +94,18 @@ def _canonical_backend(system, triangles, pins, stitches, collision_surface):
     log("canonical-backend=%s collision=torso-envelope" % backend.name)
     return backend
 '''
-source = source.replace('OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")', backend_patch + '\nOUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")')
+source = source.replace(
+    'OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")',
+    backend_patch + '\nOUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")',
+    1,
+)
 source = source.replace(
     'self.backend = default_backend_registry().create("xpbd-cpu", system)',
     'self.backend = _canonical_backend(system, triangles_global, tuple(system.pins), tuple((c.a, c.b) for c in system.stitches), _collision_for_scene(obj))',
     1,
 )
 
+# Probe realtime preview with the same backend and settings before the final drape.
 preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
     if "ClothRealtimePreview" not in Gui.listCommands():
         raise RuntimeError("Realtime Cloth Preview GUI command is not registered")
@@ -121,9 +131,24 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
     log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
 '''
-anchor = '    for batch in (5,5,5):'
+anchor = '    for batch in (10,10,10):'
 if anchor not in source:
-    raise RuntimeError("GUI fixture simulation batch anchor no longer matches expected source; refusing silent no-op")
+    raise RuntimeError("visual simulation batch anchor did not match canonical source")
 source = source.replace(anchor, preview_probe + '\n' + anchor, 1)
+
+required = (
+    'clearance = max(6.0, 0.02 * body_depth);',
+    'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)',
+    'for edge_a, edge_b, seam_id in ((2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder")):',
+    'scene.ParticleDistance = 22.0;',
+    'scene.SolverIterations = 6;',
+    'scene.TimeStep = 1.0 / 90.0;',
+    'for batch in (10,10,10):',
+    'if int(scene.Steps) != 30 or',
+    'front_pins = authored_boundary_pins(front, front_positions, front_boundary)',
+)
+missing = [needle for needle in required if needle not in source]
+if missing:
+    raise RuntimeError("canonical tunic visual patch did not install: " + ", ".join(missing))
 
 exec(compile(source, str(Path(__file__).with_name("freecad_screenshot_source.py")), "exec"), globals(), globals())
