@@ -150,7 +150,7 @@ class QualitySimulationProxy:
             damping = 1.0 - 0.05 * material.friction
             for _ in range(steps - base.last_steps):
                 for _ in range(int(obj.SolverSubsteps)):
-                    sphere = None if base.collision_surface is not None else (
+                    sphere = None if getattr(base.backend, "name", "") == "tissu" else (
                         float(obj.CollisionX), float(obj.CollisionY), float(obj.CollisionZ), float(obj.CollisionRadius)
                     )
                     base.backend.step(
@@ -232,6 +232,10 @@ class QualitySimulationProxy:
 
     def _apply_collision(self, obj):
         base = self._base_or_restore()
+        if getattr(base.backend, "name", "") == "tissu":
+            # Tissu constructs its immutable mesh collider from the authoritative
+            # DrapeTarget during scene creation. Keep that exact object for every step.
+            return
         avatar = getattr(obj, "AvatarProxy", None)
         source = getattr(avatar, "SourceObject", None) if avatar is not None else None
         if source is None:
@@ -239,13 +243,7 @@ class QualitySimulationProxy:
         from freecad_cloth.avatar.AvatarCollision import coarsen_collision_surface, surface_from_freecad
         thickness = float(getattr(avatar, "CollisionThickness", 0.0)) + float(obj.FabricThickness) + float(obj.AvatarSkinOffset)
         full_surface = surface_from_freecad(source, float(getattr(avatar, "CollisionDeflection", 1.0)), thickness)
-        if getattr(base.backend, "name", "") == "tissu":
-            # Tissu's mesh collider uses a BVH nearest-triangle query. Feeding it
-            # the full authored avatar mesh avoids holes introduced by coarse
-            # triangle decimation that can let cloth tunnel through the body.
-            base.collision_surface = full_surface
-        else:
-            base.collision_surface = coarsen_collision_surface(full_surface, 512)
+        base.collision_surface = coarsen_collision_surface(full_surface, 512)
 
     def reset(self, obj):
         self._base_or_restore().reset(obj)
