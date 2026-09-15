@@ -152,20 +152,20 @@ jobs:
               set -e
             '
           )"
-          cleanup() {
-            set +e
-            docker cp "$CID:/workspace/docs/images/generated/." docs/images/generated/ 2>/dev/null || true
-            docker cp "$CID:/workspace/docs/images/generated/gui-progress.log" artifacts/freecad-gui/gui-progress.log 2>/dev/null || true
-            docker cp "$CID:/workspace/docs/images/generated/avatar-gui-progress.log" artifacts/freecad-gui/avatar-gui-progress.log 2>/dev/null || true
-            docker cp "$CID:/workspace/docs/images/generated/simulation-turntable-progress.log" artifacts/freecad-gui/simulation-turntable-progress.log 2>/dev/null || true
-            docker cp "$CID:/workspace/docs/images/generated/drape-visual-metrics.json" artifacts/freecad-gui/drape-visual-metrics.json 2>/dev/null || true
-            docker cp "$CID:/tmp/xvfb.log" artifacts/freecad-gui/xvfb.log 2>/dev/null || true
-            docker cp "$CID:/tmp/openbox.log" artifacts/freecad-gui/openbox.log 2>/dev/null || true
-            docker rm -f "$CID" >/dev/null 2>&1 || true
-          }
-          trap cleanup EXIT
+          trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
           docker cp "$PWD/." "$CID:/workspace/"
           docker start -a "$CID" || true
+          set +e
+          docker cp "$CID:/workspace/docs/images/generated/." docs/images/generated/
+          docker cp "$CID:/workspace/docs/images/generated/gui-progress.log" artifacts/freecad-gui/gui-progress.log
+          docker cp "$CID:/workspace/docs/images/generated/avatar-gui-progress.log" artifacts/freecad-gui/avatar-gui-progress.log
+          docker cp "$CID:/workspace/docs/images/generated/simulation-turntable-progress.log" artifacts/freecad-gui/simulation-turntable-progress.log
+          docker cp "$CID:/workspace/docs/images/generated/drape-visual-metrics.json" artifacts/freecad-gui/drape-visual-metrics.json
+          docker cp "$CID:/tmp/xvfb.log" artifacts/freecad-gui/xvfb.log
+          docker cp "$CID:/tmp/openbox.log" artifacts/freecad-gui/openbox.log
+          set -e
+          docker rm -f "$CID" >/dev/null 2>&1 || true
+          trap - EXIT
           test -s artifacts/freecad-gui/gui-progress.log
           test -s artifacts/freecad-gui/avatar-gui-progress.log
           test -s artifacts/freecad-gui/simulation-turntable-progress.log
