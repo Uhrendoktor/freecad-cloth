@@ -176,8 +176,6 @@ def style_mesh(obj, label):
 def build_simulation_state(doc):
     from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
     from freecad_cloth.pattern.PatternMesh import triangulate
-    from freecad_cloth.pattern.PatternModel import Seam
-    from freecad_cloth.pattern.PatternObjects import add_seam
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
     from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
 
@@ -217,11 +215,6 @@ def build_simulation_state(doc):
 
     front, front_outline = make_piece("VisualTunicFront", front_y, 0.64)
     back, back_outline = make_piece("VisualTunicBack", back_y, 0.68)
-    # Match each shoulder edge to the same shoulder edge on the opposite panel.
-    # Crosswise pairs pull the panels diagonally across the avatar and create an
-    # obviously non-physical visual result.
-    for edge_id, seam_id in ((2, "TunicRightShoulder"), (6, "TunicLeftShoulder")):
-        add_seam(doc, Seam(str(front.PieceId), edge_id, str(back.PieceId), edge_id, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))
 
     scene.StartHeight = 0.0
     scene.QualityPreset = "Fast"
