@@ -150,10 +150,19 @@ class QualitySimulationProxy:
             damping = 1.0 - 0.05 * material.friction
             for _ in range(steps - base.last_steps):
                 for _ in range(int(obj.SolverSubsteps)):
+                    # A real avatar surface is authoritative. The sphere is only
+                    # a compatibility fallback for scenes without surface data;
+                    # Tissu intentionally rejects sphere-only collision.
+                    sphere = None if base.collision_surface is not None else (
+                        float(obj.CollisionX),
+                        float(obj.CollisionY),
+                        float(obj.CollisionZ),
+                        float(obj.CollisionRadius),
+                    )
                     base.backend.step(
                         dt, int(obj.SolverIterations),
                         (float(obj.GravityX), float(obj.GravityY), float(obj.GravityZ)),
-                        (float(obj.CollisionX), float(obj.CollisionY), float(obj.CollisionZ), float(obj.CollisionRadius)),
+                        sphere,
                         base.collision_surface,
                     )
                     system = getattr(base.backend, "system", None)
@@ -243,30 +252,3 @@ class QualitySimulationProxy:
 
     def reset(self, obj):
         self._base_or_restore().reset(obj)
-
-
-def create_quality_simulation_scene(doc):
-    from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
-    from freecad_cloth.avatar.AvatarCommands import create_avatar
-
-    scene = create_simulation_scene(doc)
-    legacy = doc.getObject("HumanoidAvatar")
-    if legacy is not None and hasattr(legacy, "ViewObject"):
-        legacy.ViewObject.Visibility = False
-
-    avatar = create_avatar(attach_collision=False, doc=doc)
-    avatar.Label = "Cloth Human Avatar (MakeHuman)"
-    avatar.ViewObject.Visibility = True
-
-    set_avatar_collision_source(
-        scene,
-        avatar,
-        float(getattr(avatar, "SkinOffset", 3.0)),
-        1.0,
-    )
-    scene.AvatarProxy.SourceObject = avatar
-    scene.DrapeTarget = doc.getObject("DrapeTarget")
-    ensure_quality_properties(scene)
-    scene.Proxy = QualitySimulationProxy()
-    scene.Document.recompute()
-    return scene
