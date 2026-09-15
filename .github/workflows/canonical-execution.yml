@@ -16,7 +16,8 @@ permissions:
   contents: write
   packages: write
 
-# Canonical visual validation deliberately uses the production Tissu backend.
+# PR validation uses the already-published dependency image. The image is rebuilt
+# only on main/manual runs, so source changes are mounted into an immutable runtime.
 env:
   FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
   QT_X11_NO_MITSHM: 1
@@ -28,6 +29,7 @@ env:
 jobs:
   build-image:
     name: Build and publish Tissu FreeCAD image
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -53,6 +55,7 @@ jobs:
   python:
     name: Python and FreeCAD non-GUI tests
     needs: build-image
+    if: ${{ always() && (github.event_name == 'pull_request' || needs.build-image.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -74,6 +77,7 @@ jobs:
               test "$(python3 -c "import sys; print(sys.version_info[:2])")" = "(3, 12)"
               python3 -m compileall -q .
               python3 -c "import tissu; print(\"Tissu\", tissu.__file__)"
+              python3 -c "import pytest; print(\"pytest\", pytest.__version__)"
               for test in \
                 tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_mesh_validation.py \
                 tests/test_avatar_visual_sanity.py tests/test_drape_visual_sanity.py tests/test_xpbd.py tests/test_cloth_solver.py \
@@ -100,6 +104,7 @@ jobs:
   gui-screenshot:
     name: FreeCAD GUI screenshots
     needs: build-image
+    if: ${{ always() && (github.event_name == 'pull_request' || needs.build-image.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -123,7 +128,7 @@ jobs:
             -e CLOTH_SIMULATION_BACKEND=tissu -w /workspace "$IMAGE" -euo pipefail -c '
               set -e
               test "$(python3 -c "import sys; print(sys.version_info[:2])")" = "(3, 12)"
-              python3 -c "import tissu; print(\"Tissu\", tissu.__file__)"
+              python3 -c "import tissu, pytest; print(\"Tissu\", tissu.__file__); print(\"pytest\", pytest.__version__)"
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
