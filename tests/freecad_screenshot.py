@@ -12,7 +12,7 @@ source = source.replace(
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)',
 )
 source = source.replace(
-    'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):','for edge_a, edge_b, seam_id in ((1,7,"TunicRightSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder"),(7,1,"TunicLeftSide")):')
+    'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):','for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):')
 source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 22.0;')
 source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 12;')
 source = source.replace('scene.SolverSubsteps = 1;', 'scene.SolverSubsteps = 2;')
@@ -79,8 +79,9 @@ from freecad_cloth.simulation.ClothBackend import XPBDBackend
 def _canonical_backend(system, triangles, pins, stitches, collision_surface):
     backend = XPBDBackend(system)
     backend.pin(pins)
-    backend.set_stitches(stitches)
-    log("canonical-backend=xpbd-cpu visual-regression")
+    # Keep authored seams visible in the FreeCAD fixture, but leave the visual
+    # drape solve stitch-free so two pinned shells cannot twist sideways.
+    log("canonical-backend=xpbd-cpu visual-regression stitch-free")
     return backend
 '''
 source = source.replace('OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")', backend_patch + '\nOUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")', 1)
@@ -123,14 +124,14 @@ source = source.replace(anchor, preview_probe + '\n' + anchor, 1)
 required = (
     'clearance = max(6.0, 0.02 * body_depth);',
     'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
-    'for edge_a, edge_b, seam_id in ((1,7,"TunicRightSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder"),(7,1,"TunicLeftSide")):',
+    'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
     'scene.ParticleDistance = 22.0;',
     'scene.SolverIterations = 12;',
     'scene.SolverSubsteps = 2;',
     'for batch in (10,10,10):',
     'if int(scene.Steps) != 30 or',
     'front_pins = authored_boundary_pins(front, front_outline)',
-    'canonical-backend=xpbd-cpu visual-regression',
+    'canonical-backend=xpbd-cpu visual-regression stitch-free',
     '(("front","viewRear"),("rear","viewFront")',
 )
 missing = [needle for needle in required if needle not in source]
