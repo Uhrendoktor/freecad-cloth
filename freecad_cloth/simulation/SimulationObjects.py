@@ -265,7 +265,7 @@ class SimulationProxy:
             self._build_demo(obj)
 
     def _build_pattern_scene(self, obj, pieces, signature):
-        from freecad_cloth.simulation.ClothBackend import default_backend_registry
+        from freecad_cloth.simulation.ClothBackend import default_backend_registry, preferred_backend_name
         from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
         start_height = float(getattr(obj, "StartHeight", 120.0))
         positions = []
@@ -295,7 +295,11 @@ class SimulationProxy:
             first = panel_data[pieces[0]]
             boundary = list(dict.fromkeys(i for edge in first["boundary_edges"] for i in edge))
             system.pin(boundary[:2] + boundary[-2:])
-        self.backend = default_backend_registry().create("xpbd-cpu", system)
+        collision_surface = _collision_for_scene(obj)
+        registry = default_backend_registry()
+        backend_name = preferred_backend_name(registry)
+        backend_kwargs = {"collision_surface": collision_surface} if backend_name == "tissu" else {}
+        self.backend = registry.create(backend_name, system, **backend_kwargs)
         self.panel_indices = {}
         self.panel_triangles = {}
         for panel, piece in zip(panels, pieces):
@@ -304,7 +308,7 @@ class SimulationProxy:
             self.panel_triangles[panel.Name] = data["triangles"]
         self.source_signature = signature or _simulation_source_signature(obj, pieces)
         self.last_steps = 0
-        self.collision_surface = _collision_for_scene(obj)
+        self.collision_surface = collision_surface
         for panel in panels:
             _write_mesh(panel, self.backend.positions(), self.panel_triangles[panel.Name])
 
