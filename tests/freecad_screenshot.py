@@ -21,11 +21,10 @@ source = source.replace(
     '    for edge_a, edge_b, seam_id in ((2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder")):\n        add_seam(doc, Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))\n'
 )
 
-# Use the exact boundary-constrained shoulder pin construction from the stable
-# turntable fixture. The old nearest-vertex selection can pick interior vertices
-# on one side of the panel and produces a gross lateral drift in the drape.
+# Replace the entire old nearest-vertex pin block with the exact stable
+# boundary-constrained construction used by the turntable fixture.
 pin_pattern = re.compile(
-    r'    def authored_shoulder_pins\(piece, positions\):.*?    doc\.recompute\(\)\n',
+    r'    def authored_shoulder_pins\(piece, positions\):.*?    for source in \(doc\.getObject',
     re.S,
 )
 pin_replacement = '''    from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
@@ -56,7 +55,8 @@ pin_replacement = '''    from freecad_cloth.pattern.PatternGeometry import LineS
     back_pins = tuple(len(front_positions) + i for i in back_pins_local)
     scene.PinSelection = [str(i) for i in front_pins + back_pins]
     doc.recompute()
-'''
+
+    for source in (doc.getObject'''
 source, pin_count = pin_pattern.subn(pin_replacement, source, count=1)
 if pin_count != 1:
     raise RuntimeError("canonical boundary pin patch did not match fixture source")
