@@ -287,18 +287,30 @@ class SimulationProxy:
         obj.DrapePanels = panels[:len(pieces)]
         particles = [Particle(*p) for p in positions]
         system = ClothSystem(particles, _mesh_constraints(positions, triangles_global))
-        system.add_stitches(_seam_pairs(obj.Document, panel_data, int(getattr(obj, "StitchSamples", 8))))
+        seam_pairs = _seam_pairs(obj.Document, panel_data, int(getattr(obj, "StitchSamples", 8)))
+        system.add_stitches(seam_pairs)
         explicit_pins = _parse_int_list(getattr(obj, "PinSelection", ()), len(particles))
         if explicit_pins:
-            system.pin(explicit_pins)
+            pins = explicit_pins
+            system.pin(pins)
         elif pieces:
             first = panel_data[pieces[0]]
             boundary = list(dict.fromkeys(i for edge in first["boundary_edges"] for i in edge))
-            system.pin(boundary[:2] + boundary[-2:])
+            pins = tuple(boundary[:2] + boundary[-2:])
+            system.pin(pins)
+        else:
+            pins = ()
         collision_surface = _collision_for_scene(obj)
         registry = default_backend_registry()
         backend_name = preferred_backend_name(registry)
-        backend_kwargs = {"collision_surface": collision_surface} if backend_name == "tissu" else {}
+        backend_kwargs = {}
+        if backend_name == "tissu":
+            backend_kwargs = {
+                "triangles": tuple(triangles_global),
+                "pins": pins,
+                "stitches": seam_pairs,
+                "collision_surface": collision_surface,
+            }
         self.backend = registry.create(backend_name, system, **backend_kwargs)
         self.panel_indices = {}
         self.panel_triangles = {}
