@@ -53,14 +53,13 @@ new_pin_calls = '''    front_positions, _front_triangles, _front_boundary = qual
         return tuple(
             int(i)
             for i in mesh.boundary_vertex_indices
-            if float(mesh.vertices[i][1]) >= 0.86 * h - 1e-6
-            and (float(mesh.vertices[i][0]) <= 0.32 * panel_width + 1e-6 or float(mesh.vertices[i][0]) >= 0.68 * panel_width - 1e-6)
+            if float(mesh.vertices[i][1]) >= 0.90 * h - 1e-6
         )
 
     front_pins = authored_boundary_pins(front, front_outline)
     back_pins_local = authored_boundary_pins(back, back_outline)
     if not front_pins or not back_pins_local:
-        raise RuntimeError("authored shoulder boundary pin selection is empty")
+        raise RuntimeError("authored upper boundary pin selection is empty")
     back_pins = tuple(len(front_positions) + i for i in back_pins_local)
     scene.PinSelection = [str(i) for i in front_pins + back_pins]
 '''
