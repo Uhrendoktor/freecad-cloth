@@ -24,14 +24,27 @@ def _from_tissu_position(position):
 
 
 def _to_tissu_mesh(surface):
-    """Convert FreeCAD collision data to Tissu's pybind-friendly containers."""
+    """Convert FreeCAD collision data to Tissu's pybind-friendly containers.
+
+    FreeCAD is RH-Z-up while Tissu is RH-Y-up. The axis swap is a handedness
+    change, so the authored triangle winding must be re-oriented after the
+    coordinate transform to keep collision normals pointing away from the
+    avatar body rather than ejecting cloth into it.
+    """
     import numpy as np
 
     vertices = [np.asarray(_to_tissu_position(v), dtype=np.float64) for v in surface.vertices]
-    triangles = [
-        [int(a), int(b), int(c)]
-        for a, b, c in surface.triangles
-    ]
+    center = np.mean(np.asarray(vertices, dtype=np.float64), axis=0)
+    triangles = []
+    for a, b, c in surface.triangles:
+        ia, ib, ic = int(a), int(b), int(c)
+        pa, pb, pc = vertices[ia], vertices[ib], vertices[ic]
+        normal = np.cross(pb - pa, pc - pa)
+        face_center = (pa + pb + pc) / 3.0
+        if float(np.dot(normal, center - face_center)) > 0.0:
+            triangles.append([ia, ic, ib])
+        else:
+            triangles.append([ia, ib, ic])
     return vertices, triangles
 
 
