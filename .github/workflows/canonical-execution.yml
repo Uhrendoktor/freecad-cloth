@@ -26,19 +26,43 @@ env:
   CLOTH_SIMULATION_BACKEND: tissu
 
 jobs:
-  python:
-    name: Python and FreeCAD non-GUI tests
+  build-image:
+    name: Build and publish Tissu FreeCAD image
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
-      - name: Prepare FreeCAD image
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish image
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
           docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
-          docker buildx build --progress=plain --cache-from type=gha,scope=freecad-ci --cache-to type=gha,scope=freecad-ci,mode=max --load --tag "$IMAGE" docker/freecad-ci
+          docker buildx build \
+            --progress=plain \
+            --cache-from type=gha,scope=freecad-ci \
+            --cache-to type=gha,scope=freecad-ci,mode=max \
+            --push --tag "$IMAGE" docker/freecad-ci
+
+  python:
+    name: Python and FreeCAD non-GUI tests
+    needs: build-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+      - name: Pull FreeCAD image
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE"
       - name: Run Python tests in Docker
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
@@ -75,17 +99,17 @@ jobs:
 
   gui-screenshot:
     name: FreeCAD GUI screenshots
+    needs: build-image
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v5
-      - name: Prepare FreeCAD image
+      - name: Pull FreeCAD image
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
-          docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
-          docker buildx build --progress=plain --cache-from type=gha,scope=freecad-ci --cache-to type=gha,scope=freecad-ci,mode=max --load --tag "$IMAGE" docker/freecad-ci
+          docker pull "$IMAGE"
       - name: Launch FreeCAD GUI and export screenshots in Docker
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
