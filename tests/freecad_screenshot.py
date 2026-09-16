@@ -16,7 +16,7 @@ source = source.replace(
 )
 source = source.replace(
     'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):',
-    'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(6,6,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
+    'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
 )
 source = source.replace('scene.ParticleDistance = 24.0;', 'scene.ParticleDistance = 22.0;')
 source = source.replace('scene.SolverIterations = 8;', 'scene.SolverIterations = 12;')
@@ -132,7 +132,7 @@ required = (
     'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.08)',
     'torso_width = float(box.XMax - box.XMin); panel_width = max(420.0, min(560.0, 0.50 * torso_width + ease));',
-    'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(6,6,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
+    'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
     'scene.ParticleDistance = 22.0;',
     'scene.SolverIterations = 12;',
     'scene.SolverSubsteps = 2;',
@@ -144,6 +144,5 @@ missing = [needle for needle in required if needle not in source]
 if missing:
     raise RuntimeError("canonical tunic visual patch did not install: " + ", ".join(missing))
 
-# Keep generated source indentation stable across the FreeCAD launcher wrapper.
 source = textwrap.dedent(source)
 exec(compile(source, str(Path(__file__).with_name("freecad_screenshot_source.py")), "exec"), globals(), globals())
