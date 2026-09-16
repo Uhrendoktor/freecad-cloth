@@ -178,7 +178,7 @@ def build_simulation_state(doc):
     front, front_outline = make_piece("VisualTunicFront", box.YMax + clearance)
     back, back_outline = make_piece("VisualTunicBack", box.YMin - clearance)
     seam_records = []
-    for ea, eb, seam_id in ((1, 1, "TunicRightSide"), (2, 2, "TunicRightShoulder"), (6, 6, "TunicLeftShoulder"), (7, 7, "TunicLeftSide")):
+    for ea, eb, seam_id in ((1, 1, "TunicRightSide"), (3, 3, "TunicRightShoulder"), (5, 5, "TunicLeftShoulder"), (7, 7, "TunicLeftSide")):
         seam = Seam(str(front.PieceId), ea, str(back.PieceId), eb, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
@@ -198,7 +198,7 @@ def build_simulation_state(doc):
     doc.recompute()
     def pins(piece, outline):
         points = [(float(x), float(y)) for x, y in outline]
-        segments = [LineSegment("%s:edge:%d" % (piece.PieceId, i), points[i], points[(i + 1) % len(points)]) for i in range(len(points))]
+        segments = [LineSegment("%s:edge:%d" % (piece.PieceId, i), points[i], points[(i + 1) % len(points)]) for i in range(8)]
         mesh = triangulate(ParametricPattern(segments))
         h = max(y for _, y in points)
         return tuple(i for i in mesh.boundary_vertex_indices if mesh.vertices[i][1] >= 0.96 * h)
