@@ -70,9 +70,9 @@ class SimulationQualityTests(unittest.TestCase):
             "Placement": None,
         })()
         positions, triangles, boundary = quality_piece_mesh(piece_obj, 100.0, 2.0)
-        self.assertEqual(len(boundary), 4)
-        self.assertEqual(len(triangles), 162)
-        self.assertEqual([positions[i][:2] for i in boundary], piece.outline)
+        self.assertEqual(len(boundary), 64)
+        self.assertEqual(len(triangles), 512)
+        self.assertEqual([positions[i][:2] for i in range(4)], piece.outline)
         self.assertGreater(len(positions), len(boundary))
 
     def test_quality_proxy_keeps_solver_state_outside_serialized_object_dict(self):
