@@ -132,7 +132,7 @@ jobs:
   gui-screenshot:
     name: Full FreeCAD visual validation
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.full_gui) }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.full_gui) }}
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v5
