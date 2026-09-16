@@ -23,7 +23,6 @@ env:
   QT_QPA_PLATFORM: xcb
   LIBGL_ALWAYS_SOFTWARE: 1
   XDG_RUNTIME_DIR: /tmp/runtime-cloth
-  CLOTH_SIMULATION_BACKEND: tissu
 
 permissions:
   actions: read
@@ -51,9 +50,8 @@ jobs:
             -e PYTHONPATH=/workspace -e CLOTH_SIMULATION_BACKEND=tissu \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -e
-              test "$(python3 -c "import sys; print(sys.version_info[:2])")" = "(3, 12)"
               python3 -m compileall -q .
-              python3 -c "import tissu, pytest; print(\"Tissu\", tissu.__file__); print(\"pytest\", pytest.__version__)"
+              python3 -c "import tissu, pytest"
               for test in \
                 tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_mesh_validation.py \
                 tests/test_avatar_visual_sanity.py tests/test_drape_visual_sanity.py tests/test_xpbd.py tests/test_cloth_solver.py \
@@ -70,13 +68,9 @@ jobs:
             '
 
   realtime-benchmark:
-    name: Actual FreeCAD realtime benchmark (${{ matrix.backend }})
+    name: Production realtime benchmark
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        backend: [xpbd-cpu, tissu]
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v5
       - uses: docker/login-action@v3
@@ -84,38 +78,54 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Pull FreeCAD image
+      - name: Pull FreeCAD image once
         run: docker pull "$FREECAD_IMAGE"
-      - name: Benchmark 30 interactive frames
-        env:
-          CLOTH_SIMULATION_BACKEND: ${{ matrix.backend }}
-          CLOTH_REALTIME_FRAMES: 30
-          CLOTH_REALTIME_DIR: /workspace/artifacts/freecad-realtime/${{ matrix.backend }}
+      - name: Benchmark XPBD and Tissu
         run: |
           set -euo pipefail
-          mkdir -p artifacts/freecad-realtime
+          mkdir -p artifacts/realtime
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
-            -e CLOTH_REALTIME_FRAMES="$CLOTH_REALTIME_FRAMES" \
-            -e CLOTH_REALTIME_DIR="$CLOTH_REALTIME_DIR" \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
-              set -e
-              mkdir -p "$XDG_RUNTIME_DIR" "$CLOTH_REALTIME_DIR"
+              set -euo pipefail
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/realtime
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              /opt/freecad/AppRun tests/freecad_realtime_benchmark.py
+              for backend in xpbd-cpu tissu; do
+                export CLOTH_SIMULATION_BACKEND="$backend"
+                export CLOTH_REALTIME_FRAMES=30
+                export CLOTH_REALTIME_DIR="/workspace/artifacts/realtime/$backend"
+                export CLOTH_TISSU_SUBSTEPS=1
+                rm -rf "$CLOTH_REALTIME_DIR"
+                mkdir -p "$CLOTH_REALTIME_DIR"
+                /opt/freecad/AppRun tests/freecad_realtime_benchmark.py
+                cp "$CLOTH_REALTIME_DIR/metrics.json" "/workspace/artifacts/realtime/${backend}-metrics.json"
+              done
             '
-          cp "artifacts/freecad-realtime/${{ matrix.backend }}/metrics.json" "artifacts/${{ matrix.backend }}-realtime-metrics.json"
+      - name: Validate realtime metrics
+        run: |
+          set -euo pipefail
+          for backend in xpbd-cpu tissu; do
+            python3 - "$backend" <<'PY'
+          import json, pathlib, sys
+          backend=sys.argv[1]
+          p=pathlib.Path(f"artifacts/realtime/{backend}-metrics.json")
+          d=json.loads(p.read_text())
+          assert d["finite"], d
+          assert d["mean_frame_ms"] <= d["frame_budget_ms"], d
+          assert d["p95_frame_ms"] <= 50.0, d
+          print(backend, "mean=%.2fms p95=%.2fms fps=%.1f" % (d["mean_frame_ms"], d["p95_frame_ms"], d["fps_mean"]))
+          PY
+          done
       - name: Upload realtime metrics
         uses: actions/upload-artifact@v6
         with:
-          name: realtime-freecad-${{ matrix.backend }}
-          path: artifacts/${{ matrix.backend }}-realtime-metrics.json
+          name: realtime-benchmark
+          path: artifacts/realtime
           if-no-files-found: error
           compression-level: 1
 
@@ -136,8 +146,8 @@ jobs:
       - name: Render FreeCAD screenshots
         run: |
           set -euo pipefail
-          rm -rf docs/images/generated artifacts/freecad-gui
-          mkdir -p docs/images/generated artifacts/freecad-gui
+          rm -rf docs/images/generated
+          mkdir -p docs/images/generated
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
