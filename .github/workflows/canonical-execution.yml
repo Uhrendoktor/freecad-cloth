@@ -93,10 +93,6 @@ jobs:
       - name: Run native-Sketcher tunic audit
         env:
           CLOTH_SIMULATION_BACKEND: tissu
-          # The last verified Tissu artifact used the stable ten-substep solver
-          # profile and the torso-envelope collider.  Mesh collision is retained
-          # as an explicit selectable backend mode, but is not the canonical
-          # visual-regression profile for this coarse humanoid drape.
           CLOTH_TISSU_SUBSTEPS: 10
           CLOTH_TISSU_COLLISION_MODE: torso-envelope
         run: |
@@ -124,10 +120,10 @@ jobs:
       - name: Validate visual and simulation evidence
         run: |
           set -euo pipefail
-          test -s docs/images/generated/gui-screenshot-progress.log
-          grep -q 'scenario-pass' docs/images/generated/gui-screenshot-progress.log
-          grep -q 'realtime-preview=passed backend=tissu' docs/images/generated/gui-screenshot-progress.log
-          grep -q 'drape-metrics=' docs/images/generated/gui-screenshot-progress.log
+          test -s docs/images/generated/gui-progress.log
+          grep -q 'scenario-pass' docs/images/generated/gui-progress.log
+          grep -q 'realtime-preview=passed backend=tissu' docs/images/generated/gui-progress.log
+          grep -q 'drape-metrics=' docs/images/generated/gui-progress.log
           test -s docs/images/generated/cloth-simulation-draped.png
           test -s docs/images/generated/cloth-simulation-draped-front.png
           test -s docs/images/generated/cloth-simulation-draped-rear.png
@@ -143,7 +139,7 @@ jobs:
           path: |
             docs/images/generated/cloth-simulation-draped*.png
             docs/images/generated/drape-visual-metrics.json
-            docs/images/generated/gui-screenshot-progress.log
+            docs/images/generated/gui-progress.log
             docs/images/generated/gui-screenshot-manifest.txt
           if-no-files-found: error
           compression-level: 1
