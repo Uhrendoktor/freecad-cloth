@@ -50,7 +50,7 @@ jobs:
             -e 's/finite 30-step state/finite 2-step state/' \
             -e 's/after 30 real steps/after 2 real steps/' \
             tests/freecad_simulation_turntable.py
-          cat > /workspace/pr_tunic_smoke.py <<'PY'
+          cat > pr_tunic_smoke.py <<'PY'
           import importlib.util
           import os
           import FreeCAD as App
