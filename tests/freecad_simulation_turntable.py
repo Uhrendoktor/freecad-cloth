@@ -175,7 +175,9 @@ def style_mesh(obj, label):
 
 def build_simulation_state(doc):
     from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
+    from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternMesh import triangulate
+    from freecad_cloth.pattern.PatternObjects import add_seam
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
     from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
 
@@ -191,18 +193,17 @@ def build_simulation_state(doc):
     x_mid = (box.XMin + box.XMax) / 2.0
     y_span = box.YMax - box.YMin
     z_span = box.ZMax - box.ZMin
-    chest = 980.0
-    hip = 1020.0
-    ease = 55.0
-    panel_width = max(420.0, 0.50 * chest + ease)
-    hem_width = max(450.0, 0.50 * hip + ease)
+    torso_width = float(box.XMax - box.XMin)
+    ease = 35.0
+    panel_width = max(420.0, min(560.0, 0.50 * torso_width + ease))
+    hem_width = max(440.0, min(590.0, 0.52 * torso_width + ease))
     shoulder_z = box.ZMin + 0.76 * z_span
     hem_z = box.ZMin + 0.40 * z_span
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
-    clearance = max(20.0, 0.08 * body_depth)
-    front_y = box.YMin - clearance
-    back_y = box.YMax + clearance
+    clearance = max(6.0, 0.02 * body_depth)
+    front_y = box.YMax + clearance
+    back_y = box.YMin - clearance
     rotation = App.Rotation(App.Vector(1, 0, 0), 90.0)
 
     def make_piece(name, y, neckline_ratio):
@@ -214,17 +215,37 @@ def build_simulation_state(doc):
         return piece, outline
 
     front, front_outline = make_piece("VisualTunicFront", front_y, 0.64)
-    back, back_outline = make_piece("VisualTunicBack", back_y, 0.68)
+    back, back_outline = make_piece("VisualTunicBack", back_y, 0.64)
+
+    for edge_a, edge_b, seam_id in (
+        (1, 1, "TunicRightSide"),
+        (2, 2, "TunicRightShoulder"),
+        (6, 6, "TunicLeftShoulder"),
+        (7, 7, "TunicLeftSide"),
+    ):
+        add_seam(
+            doc,
+            Seam(
+                str(front.PieceId),
+                edge_a,
+                str(back.PieceId),
+                edge_b,
+                id=seam_id,
+                alignment="uniform",
+                stitch_group="TunicAssembly",
+            ),
+        )
 
     scene.StartHeight = 0.0
     scene.QualityPreset = "Fast"
     scene.ParticleDistance = 22.0
-    scene.SolverIterations = 6
-    scene.SolverSubsteps = 1
-    scene.TimeStep = 1.0 / 90.0
+    scene.SolverIterations = 12
+    scene.SolverSubsteps = 2
+    scene.TimeStep = 1.0 / 120.0
     scene.GravityX = 0.0
     scene.GravityY = 0.0
     scene.GravityZ = -9810.0
+    scene.FabricFriction = 0.80
     scene.ClothPieces = [front, back]
     refresh_drape_target(target)
     doc.recompute()
@@ -241,13 +262,19 @@ def build_simulation_state(doc):
             i
             for i in mesh.boundary_vertex_indices
             if float(mesh.vertices[i][1]) >= 0.86 * h - 1e-6
-            and (float(mesh.vertices[i][0]) <= 0.32 * panel_width + 1e-6 or float(mesh.vertices[i][0]) >= 0.68 * panel_width - 1e-6)
+            and (
+                float(mesh.vertices[i][0]) <= 0.32 * panel_width + 1e-6
+                or float(mesh.vertices[i][0]) >= 0.68 * panel_width - 1e-6
+            )
         )
         return mesh, pins
 
-    fmesh, front_pins = local_boundary(front, front_outline)
-    _, back_pins_local = local_boundary(back, back_outline)
-    front_positions, _front_triangles, _front_boundary = __import__("freecad_cloth.simulation.SimulationMeshQuality", fromlist=["quality_piece_mesh"]).quality_piece_mesh(front, 0.0, scene.ParticleDistance)
+    _fmesh, front_pins = local_boundary(front, front_outline)
+    _bmesh, back_pins_local = local_boundary(back, back_outline)
+    front_positions, _front_triangles, _front_boundary = __import__(
+        "freecad_cloth.simulation.SimulationMeshQuality",
+        fromlist=["quality_piece_mesh"],
+    ).quality_piece_mesh(front, 0.0, scene.ParticleDistance)
     back_pins = tuple(len(front_positions) + i for i in back_pins_local)
     scene.PinSelection = [str(i) for i in front_pins + back_pins]
     doc.recompute()
