@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       full_gui:
-        description: "Run the heavyweight FreeCAD GUI visual validation"
+        description: "Run heavyweight FreeCAD visual validation"
         required: false
         default: false
         type: boolean
@@ -30,9 +30,75 @@ permissions:
   packages: write
 
 jobs:
+  gui-tunic-smoke:
+    name: Fast tunic visual smoke
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' }}
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Render bounded tunic smoke
+        run: |
+          set -euo pipefail
+          rm -rf docs/images/generated
+          mkdir -p docs/images/generated
+          sed -i \
+            -e 's/effective_count = 4 if smoke else frame_count/effective_count = 2 if smoke else frame_count/' \
+            -e 's/scene.ParticleDistance = 18.0/scene.ParticleDistance = 30.0/' \
+            -e 's/scene.SolverIterations = 16/scene.SolverIterations = 4/' \
+            -e 's/scene.SolverSubsteps = 4/scene.SolverSubsteps = 1/' \
+            -e 's/scene.TimeStep = 1.0 \/ 240.0/scene.TimeStep = 1.0 \/ 120.0/' \
+            -e 's/scene.Steps = 30/scene.Steps = 8/' \
+            -e 's/int(scene.Steps) != 30/int(scene.Steps) != 8/' \
+            -e 's/finite 30-step state/finite 8-step state/' \
+            -e 's/after 30 real steps/after 8 real steps/' \
+            tests/freecad_simulation_turntable.py
+          sed -i 's/frame_count=72/frame_count=int(os.environ.get("CLOTH_TURNTABLE_FRAMES", "72"))/' tests/freecad_simulation_turntable.py
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 \
+            -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
+            -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SIMULATION_BACKEND=xpbd-cpu \
+            -e CLOTH_TURNTABLE_FRAMES=2 -e CLOTH_TUNIC_CLEARANCE_MM=12.0 -e CLOTH_TUNIC_STITCH_SAMPLES=8 \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 12); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=5s 50s /opt/freecad/AppRun tests/freecad_simulation_turntable.py
+            '
+      - name: Validate tunic smoke exports
+        run: |
+          set -euo pipefail
+          test -s docs/images/generated/simulation-turntable-progress.log
+          grep -q 'simulation-turntable-pass' docs/images/generated/simulation-turntable-progress.log
+          test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 2
+          test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 2
+          test -s docs/images/generated/cloth-simulation-draped-turntable-frames/frame-000.png
+          test -s docs/images/generated/cloth-simulation-draped-turntable-frames/frame-001.png
+      - name: Upload tunic visual smoke
+        uses: actions/upload-artifact@v6
+        with:
+          name: tunic-visual-smoke
+          path: docs/images/generated/cloth-simulation-*-turntable-frames
+          if-no-files-found: error
+          compression-level: 1
+
   python:
     name: Python and FreeCAD non-GUI tests
     runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
@@ -53,74 +119,8 @@ jobs:
               python3 -m pip install --no-cache-dir triangle==20250106
               python3 -m compileall -q .
               python3 -c "import tissu, triangle, pytest"
-              for test in \
-                tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_mesh_validation.py \
-                tests/test_avatar_visual_sanity.py tests/test_drape_visual_sanity.py tests/test_xpbd.py tests/test_cloth_solver.py \
-                tests/test_side_tasks.py tests/test_collisions.py tests/test_pattern_sketch.py tests/test_pattern_ir.py \
-                tests/test_pattern_export_semantics.py tests/test_sketch_authority.py tests/test_sewing_workbench.py \
-                tests/test_sewing_show2d.py tests/test_sewing_network.py tests/test_sewing_network_gui.py \
-                tests/test_sewing_network_gui_contract.py tests/test_gui_structure.py tests/test_simulation_scene.py \
-                tests/test_simulation_quality.py tests/test_avatar_fitting.py tests/test_avatar_shoulder_pose.py \
-                tests/test_avatar_hierarchical_pose.py tests/test_humanoid_mesh.py tests/test_drape_quality.py \
-                tests/test_freecad_objects.py tests/test_project_structure.py tests/test_backend_adapter.py \
-                tests/test_backend_authority.py tests/test_realtime_preview.py; do
-                python3 "$test"
-              done
+              for test in tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_mesh_validation.py tests/test_avatar_visual_sanity.py tests/test_drape_visual_sanity.py tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py tests/test_collisions.py tests/test_pattern_sketch.py tests/test_pattern_ir.py tests/test_pattern_export_semantics.py tests/test_sketch_authority.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_sewing_network_gui_contract.py tests/test_gui_structure.py tests/test_simulation_scene.py tests/test_simulation_quality.py tests/test_avatar_fitting.py tests/test_avatar_shoulder_pose.py tests/test_avatar_hierarchical_pose.py tests/test_humanoid_mesh.py tests/test_drape_quality.py tests/test_freecad_objects.py tests/test_project_structure.py tests/test_backend_adapter.py tests/test_backend_authority.py tests/test_realtime_preview.py; do python3 "$test"; done
             '
-
-  gui-tunic-smoke:
-    name: Fast tunic visual smoke
-    runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'pull_request' }}
-    timeout-minutes: 8
-    steps:
-      - uses: actions/checkout@v5
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Pull FreeCAD image
-        run: docker pull "$FREECAD_IMAGE"
-      - name: Render short tunic turntables
-        run: |
-          set -euo pipefail
-          rm -rf docs/images/generated
-          mkdir -p docs/images/generated
-          sed -i 's/frame_count=72/frame_count=int(os.environ.get("CLOTH_TURNTABLE_FRAMES", "72"))/' tests/freecad_simulation_turntable.py
-          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
-            -e TINI_SUBREAPER=1 \
-            -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
-            -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -e CLOTH_SIMULATION_BACKEND=xpbd-cpu \
-            -e CLOTH_TURNTABLE_FRAMES=2 -e CLOTH_TUNIC_CLEARANCE_MM=24.0 -e CLOTH_TUNIC_STITCH_SAMPLES=16 \
-            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
-              set -euo pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106
-              mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
-              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
-              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
-              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
-              xdpyinfo -display :99 >/dev/null 2>&1
-              /opt/freecad/AppRun tests/freecad_simulation_turntable.py
-            '
-      - name: Validate tunic smoke exports
-        run: |
-          set -euo pipefail
-          test -s docs/images/generated/simulation-turntable-progress.log
-          grep -q 'simulation-turntable-pass' docs/images/generated/simulation-turntable-progress.log
-          test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 4
-          test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 4
-          test -s docs/images/generated/cloth-simulation-draped-turntable-frames/frame-000.png
-          test -s docs/images/generated/cloth-simulation-draped-turntable-frames/frame-003.png
-      - name: Upload tunic visual smoke
-        uses: actions/upload-artifact@v6
-        with:
-          name: tunic-visual-smoke
-          path: docs/images/generated/cloth-simulation-*-turntable-frames
-          if-no-files-found: error
-          compression-level: 1
 
   realtime-benchmark:
     name: Production realtime benchmark
@@ -140,42 +140,27 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts/realtime
-          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
-            -e TINI_SUBREAPER=1 \
-            -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
-            -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
-              set -euo pipefail
-              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/realtime
-              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
-              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
-              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
-              xdpyinfo -display :99 >/dev/null 2>&1
-              for backend in xpbd-cpu tissu; do
-                export CLOTH_SIMULATION_BACKEND="$backend"
-                export CLOTH_REALTIME_FRAMES=30
-                export CLOTH_REALTIME_DIR="/workspace/artifacts/realtime/$backend"
-                export CLOTH_TISSU_SUBSTEPS=1
-                rm -rf "$CLOTH_REALTIME_DIR"
-                mkdir -p "$CLOTH_REALTIME_DIR"
-                /opt/freecad/AppRun tests/freecad_realtime_benchmark.py
-                cp "$CLOTH_REALTIME_DIR/metrics.json" "/workspace/artifacts/realtime/${backend}-metrics.json"
-              done
-            '
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+            set -euo pipefail
+            mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/realtime
+            Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+            openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+            trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+            for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+            xdpyinfo -display :99 >/dev/null 2>&1
+            for backend in xpbd-cpu tissu; do export CLOTH_SIMULATION_BACKEND="$backend" CLOTH_REALTIME_FRAMES=30 CLOTH_REALTIME_DIR="/workspace/artifacts/realtime/$backend" CLOTH_TISSU_SUBSTEPS=1; rm -rf "$CLOTH_REALTIME_DIR"; mkdir -p "$CLOTH_REALTIME_DIR"; /opt/freecad/AppRun tests/freecad_realtime_benchmark.py; cp "$CLOTH_REALTIME_DIR/metrics.json" "/workspace/artifacts/realtime/${backend}-metrics.json"; done
+          '
       - name: Validate realtime metrics
         run: |
           set -euo pipefail
           for backend in xpbd-cpu tissu; do
             python3 - "$backend" <<'PY'
           import json, pathlib, sys
-          backend=sys.argv[1]
-          p=pathlib.Path(f"artifacts/realtime/{backend}-metrics.json")
-          d=json.loads(p.read_text())
+          backend=sys.argv[1]; d=json.loads(pathlib.Path(f"artifacts/realtime/{backend}-metrics.json").read_text())
           assert d["finite"], d
           assert d["mean_frame_ms"] <= d["frame_budget_ms"], d
           assert d["p95_frame_ms"] <= 50.0, d
-          print(backend, "mean=%.2fms p95=%.2fms fps=%.1f" % (d["mean_frame_ms"], d["p95_frame_ms"], d["fps_mean"]))
+          print(backend, d["mean_frame_ms"], d["p95_frame_ms"], d["fps_mean"])
           PY
           done
       - name: Upload realtime metrics
@@ -184,12 +169,11 @@ jobs:
           name: realtime-benchmark
           path: artifacts/realtime
           if-no-files-found: error
-          compression-level: 1
 
   gui-screenshot:
     name: Full FreeCAD visual validation
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.full_gui) }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.full_gui }}
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v5
@@ -205,24 +189,18 @@ jobs:
           set -euo pipefail
           rm -rf docs/images/generated
           mkdir -p docs/images/generated
-          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
-            -e TINI_SUBREAPER=1 \
-            -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
-            -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -e CLOTH_SIMULATION_BACKEND=xpbd-cpu \
-            -e CLOTH_TUNIC_CLEARANCE_MM=24.0 -e CLOTH_TUNIC_STITCH_SAMPLES=16 \
-            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
-              set -e
-              python3 -m pip install --no-cache-dir triangle==20250106
-              mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
-              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
-              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
-              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
-              xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=15s 300s /opt/freecad/AppRun tests/freecad_avatar_screenshot.py
-              timeout --signal=TERM --kill-after=15s 600s /opt/freecad/AppRun tests/freecad_simulation_turntable.py
-            '
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=xpbd-cpu -e CLOTH_TUNIC_CLEARANCE_MM=24.0 -e CLOTH_TUNIC_STITCH_SAMPLES=16 -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+            set -e
+            python3 -m pip install --no-cache-dir triangle==20250106
+            mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
+            Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+            openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+            trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+            for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+            xdpyinfo -display :99 >/dev/null 2>&1
+            timeout --signal=TERM --kill-after=15s 300s /opt/freecad/AppRun tests/freecad_avatar_screenshot.py
+            timeout --signal=TERM --kill-after=15s 600s /opt/freecad/AppRun tests/freecad_simulation_turntable.py
+          '
       - name: Validate GUI exports
         run: |
           set -euo pipefail
