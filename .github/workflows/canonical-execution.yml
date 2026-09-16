@@ -64,8 +64,9 @@ jobs:
           os.makedirs("/workspace/docs/images/generated", exist_ok=True)
           window = Gui.getMainWindow()
           window.show(); mod.events()
-          init_gui = "/workspace/InitGui.py"
-          exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
+          if "ClothPatternWorkbench" not in Gui.listWorkbenches():
+              init_gui = "/workspace/InitGui.py"
+              exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
           mod.events()
           doc = App.newDocument("ClothTunicSmoke")
           try:
