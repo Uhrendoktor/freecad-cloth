@@ -50,7 +50,7 @@ jobs:
             -e 's/finite 30-step state/finite 2-step state/' \
             -e 's/after 30 real steps/after 2 real steps/' \
             tests/freecad_simulation_turntable.py
-          cat > /tmp/pr_tunic_smoke.py <<'PY'
+          cat > /workspace/pr_tunic_smoke.py <<'PY'
           import importlib.util
           import os
           import FreeCAD as App
@@ -108,7 +108,7 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 12); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=5s 50s /opt/freecad/AppRun /tmp/pr_tunic_smoke.py
+              timeout --signal=TERM --kill-after=5s 50s /opt/freecad/AppRun /workspace/pr_tunic_smoke.py
             '
       - name: Validate tunic smoke export
         run: |
