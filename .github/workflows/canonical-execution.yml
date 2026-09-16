@@ -94,7 +94,7 @@ jobs:
         env:
           CLOTH_SIMULATION_BACKEND: tissu
           CLOTH_TISSU_SUBSTEPS: 10
-          CLOTH_TISSU_COLLISION_MODE: mesh
+          CLOTH_TISSU_COLLISION_MODE: torso-envelope
         run: |
           set -euo pipefail
           rm -rf docs/images/generated
@@ -115,7 +115,7 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 12); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_tissu.py
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py
             '
       - name: Validate visual and simulation evidence
         run: |
