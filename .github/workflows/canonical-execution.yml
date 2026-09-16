@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: canonical-${{ github.ref }}
+  group: canonical-fast-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -136,6 +136,7 @@ jobs:
             backend="${spec%%:*}"
             collision="${spec#*:}"
             out="/workspace/artifacts/freecad-drape-debug/${backend}-${collision}"
+            mkdir -p "artifacts/freecad-drape-debug/$backend-$collision"
             CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash \
               -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
               -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
