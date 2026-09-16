@@ -9,11 +9,15 @@ description = "FreeCAD workbenches for parametric sewing patterns and 3D cloth s
 readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "LGPL-2.1-or-later"}
+dependencies = [
+  "triangle==20250106",
+]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
   "Intended Audience :: Science/Research",
   "License :: OSI Approved :: GNU Lesser General Public License v2 or later (LGPLv2+)",
+  "Programming Language :: Python",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.12",
 ]

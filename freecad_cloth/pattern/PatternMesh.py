@@ -1,12 +1,14 @@
 """FreeCAD-independent surface mesh generation for pattern pieces.
 
-The mesher deliberately consumes the sewing boundary rather than the cut
-boundary: seam allowance is manufacturing geometry, while the cloth solver
-needs the physical panel boundary.
+The mesher consumes the sewing boundary rather than the cut boundary: seam
+allowance is manufacturing geometry, while the cloth solver needs the
+physical panel boundary.  Constrained Delaunay triangulation is delegated to
+Jonathan Shewchuk's Triangle library; the rest of this module preserves the
+workbench's semantic boundary/provenance contract.
 """
 from dataclasses import dataclass
 from math import hypot, isclose
-from typing import List, Sequence, Tuple
+from typing import Dict, List, Sequence, Tuple
 
 from freecad_cloth.pattern.PatternGeometry import ParametricPattern, Point
 
@@ -41,7 +43,14 @@ class TriangleMesh:
 
 
 def triangulate(pattern: ParametricPattern, curve_samples: int = 16) -> TriangleMesh:
-    """Triangulate a sampled simple polygon using deterministic quality-scored ears."""
+    """Triangulate a sampled simple polygon with constrained Delaunay Triangle.
+
+    The ``pQ`` switch keeps the authored sampled boundary as the vertex set
+    while constraining every polygon edge.  SimulationMeshQuality performs
+    deterministic midpoint refinement afterwards, so Triangle is responsible
+    only for producing a valid base tessellation rather than changing the
+    solver's refinement policy.
+    """
     points = _deduplicate_consecutive(pattern.sampled_outline(curve_samples))
     if len(points) < 3:
         raise ValueError("pattern has too few distinct boundary points")
@@ -54,44 +63,69 @@ def triangulate(pattern: ParametricPattern, curve_samples: int = 16) -> Triangle
         points = list(reversed(points))
         edge_ids = list(reversed(edge_ids))
 
-    vertices = tuple(points)
-    remaining = list(range(len(vertices)))
-    triangles: List[Tuple[int, int, int]] = []
-    guard = len(vertices) * len(vertices)
-    while len(remaining) > 3 and guard:
-        guard -= 1
-        candidates = []
-        for pos in range(len(remaining)):
-            a = remaining[pos - 1]
-            b = remaining[pos]
-            c = remaining[(pos + 1) % len(remaining)]
-            if _cross(vertices[a], vertices[b], vertices[c]) <= 1e-10:
-                continue
-            if any(i not in (a, b, c) and _point_in_triangle(vertices[i], vertices[a], vertices[b], vertices[c]) for i in remaining):
-                continue
-            candidates.append((_ear_cost(vertices[a], vertices[b], vertices[c]), pos, a, b, c))
-        if not candidates:
-            raise ValueError("unable to triangulate polygon; boundary may be degenerate")
-        _, pos, a, b, c = min(candidates)
-        triangles.append((a, b, c))
-        remaining.pop(pos)
-    if len(remaining) == 3:
-        triangles.append(tuple(remaining))
+    try:
+        import numpy as np
+        import triangle as tr
+    except ImportError as exc:
+        raise RuntimeError(
+            "PatternMesh requires the 'triangle' package (Shewchuk constrained Delaunay meshing)"
+        ) from exc
 
+    vertices_in = np.asarray(points, dtype=np.float64)
+    segments = np.asarray(
+        [(i, (i + 1) % len(points)) for i in range(len(points))],
+        dtype=np.int32,
+    )
+    result = tr.triangulate({"vertices": vertices_in, "segments": segments}, "pQ")
+    result_vertices = np.asarray(result.get("vertices", ()), dtype=np.float64)
+    result_triangles = np.asarray(result.get("triangles", ()), dtype=np.int64)
+    if len(result_vertices) != len(points):
+        raise ValueError(
+            "Triangle inserted or removed vertices unexpectedly; expected a boundary-only base mesh"
+        )
+    if result_triangles.ndim != 2 or result_triangles.shape[1] != 3:
+        raise ValueError("Triangle returned no triangular faces")
+
+    # Triangle is free to reorder vertices.  Map its vertices back to the
+    # sampled pattern coordinates so boundary/seam provenance stays stable.
+    source_lookup: Dict[Tuple[float, float], int] = {
+        (_quantize(x), _quantize(y)): i for i, (x, y) in enumerate(points)
+    }
+    remap: Dict[int, int] = {}
+    for result_index, (x, y) in enumerate(result_vertices.tolist()):
+        key = (_quantize(float(x)), _quantize(float(y)))
+        source_index = source_lookup.get(key)
+        if source_index is None:
+            source_index = _nearest_point_index(points, (float(x), float(y)))
+            px, py = points[source_index]
+            if hypot(float(x) - px, float(y) - py) > 1e-7:
+                raise ValueError("Triangle returned an unexpected interior vertex")
+        remap[result_index] = source_index
+
+    triangles: List[Tuple[int, int, int]] = []
+    for raw in result_triangles.tolist():
+        a, b, c = (remap[int(raw[0])], remap[int(raw[1])], remap[int(raw[2])])
+        if len({a, b, c}) != 3:
+            raise ValueError("Triangle returned a degenerate face")
+        if _cross(points[a], points[b], points[c]) < 0.0:
+            b, c = c, b
+        triangles.append((a, b, c))
+
+    vertices = tuple(points)
     mesh = TriangleMesh(vertices, tuple(triangles), tuple(range(len(vertices))), tuple(edge_ids))
     mesh.validate()
-    if abs(mesh.area - abs(_signed_area(points))) > 1e-6 * max(1.0, abs(_signed_area(points))):
+    expected_area = abs(_signed_area(points))
+    if abs(mesh.area - expected_area) > 1e-6 * max(1.0, expected_area):
         raise ValueError("triangulation area does not match pattern area")
     return mesh
 
 
-def _ear_cost(a: Point, b: Point, c: Point) -> Tuple[float, float, float]:
-    ab = hypot(b[0] - a[0], b[1] - a[1])
-    bc = hypot(c[0] - b[0], c[1] - b[1])
-    ca = hypot(a[0] - c[0], a[1] - c[1])
-    shortest = max(min(ab, bc, ca), 1e-9)
-    longest = max(ab, bc, ca)
-    return (ca * ca + 0.25 * (longest / shortest), longest / shortest, -abs(_triangle_area(a, b, c)))
+def _quantize(value: float) -> float:
+    return round(float(value), 9)
+
+
+def _nearest_point_index(points: Sequence[Point], point: Point) -> int:
+    return min(range(len(points)), key=lambda i: hypot(points[i][0] - point[0], points[i][1] - point[1]))
 
 
 def _deduplicate_consecutive(points: Sequence[Point]) -> List[Point]:
@@ -145,11 +179,6 @@ def _triangle_area(a: Point, b: Point, c: Point) -> float:
 
 def _cross(a: Point, b: Point, c: Point) -> float:
     return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
-
-
-def _point_in_triangle(p: Point, a: Point, b: Point, c: Point) -> bool:
-    d1, d2, d3 = _cross(p, a, b), _cross(p, b, c), _cross(p, c, a)
-    return d1 >= -1e-10 and d2 >= -1e-10 and d3 >= -1e-10
 
 
 def _self_intersects(points: Sequence[Point]) -> bool:

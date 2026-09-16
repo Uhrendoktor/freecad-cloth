@@ -50,8 +50,9 @@ jobs:
             -e PYTHONPATH=/workspace -e CLOTH_SIMULATION_BACKEND=tissu \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -e
+              python3 -m pip install --no-cache-dir triangle==20250106
               python3 -m compileall -q .
-              python3 -c "import tissu, pytest"
+              python3 -c "import tissu, triangle, pytest"
               for test in \
                 tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_mesh_validation.py \
                 tests/test_avatar_visual_sanity.py tests/test_drape_visual_sanity.py tests/test_xpbd.py tests/test_cloth_solver.py \
@@ -91,9 +92,11 @@ jobs:
             -e TINI_SUBREAPER=1 \
             -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -e CLOTH_SIMULATION_BACKEND=tissu -e CLOTH_TURNTABLE_FRAMES=2 \
+            -e CLOTH_SIMULATION_BACKEND=tissu -e CLOTH_TISSU_SUBSTEPS=4 -e CLOTH_TISSU_COLLISION_MODE=torso-envelope \
+            -e CLOTH_TURNTABLE_FRAMES=2 -e CLOTH_TUNIC_CLEARANCE_MM=24.0 -e CLOTH_TUNIC_STITCH_SAMPLES=16 \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
@@ -206,9 +209,11 @@ jobs:
             -e TINI_SUBREAPER=1 \
             -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -e CLOTH_SIMULATION_BACKEND=tissu \
+            -e CLOTH_SIMULATION_BACKEND=tissu -e CLOTH_TISSU_SUBSTEPS=4 -e CLOTH_TISSU_COLLISION_MODE=torso-envelope \
+            -e CLOTH_TUNIC_CLEARANCE_MM=24.0 -e CLOTH_TUNIC_STITCH_SAMPLES=16 \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -e
+              python3 -m pip install --no-cache-dir triangle==20250106
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!

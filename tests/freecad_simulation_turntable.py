@@ -167,7 +167,7 @@ def build_simulation_state(doc):
     hem_width = max(440.0, min(590.0, 0.52 * torso_width + 35.0))
     hem_z = box.ZMin + 0.40 * z_span
     garment_height = max(560.0, box.ZMin + 0.76 * z_span - hem_z)
-    clearance = max(6.0, 0.02 * max(120.0, min(260.0, y_span)))
+    clearance = float(os.environ.get("CLOTH_TUNIC_CLEARANCE_MM", "24.0"))
     rotation = App.Rotation(App.Vector(1, 0, 0), 90.0)
     def make_piece(name, y):
         sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width)
@@ -185,13 +185,14 @@ def build_simulation_state(doc):
         seam_records.append((seam_obj, front, back))
     scene.StartHeight = 0.0
     scene.QualityPreset = "Fast"
-    scene.ParticleDistance = 22.0
-    scene.SolverIterations = 12
-    scene.SolverSubsteps = 2
-    scene.TimeStep = 1.0 / 120.0
+    scene.ParticleDistance = 18.0
+    scene.SolverIterations = 16
+    scene.SolverSubsteps = 4
+    scene.TimeStep = 1.0 / 240.0
+    scene.StitchSamples = int(os.environ.get("CLOTH_TUNIC_STITCH_SAMPLES", "16"))
     scene.GravityX = scene.GravityY = 0.0
     scene.GravityZ = -9810.0
-    scene.FabricFriction = 0.80
+    scene.FabricFriction = 0.65
     scene.ClothPieces = [front, back]
     refresh_drape_target(scene.DrapeTarget)
     doc.recompute()
@@ -203,7 +204,10 @@ def build_simulation_state(doc):
         return tuple(i for i in mesh.boundary_vertex_indices if mesh.vertices[i][1] >= 0.96 * h)
     from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
     front_positions, _, _ = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
-    scene.PinSelection = [str(i) for i in pins(front, front_outline)] + [str(len(front_positions) + i) for i in pins(back, back_outline)]
+    # Pin only the front yoke.  Pinning both panels at their separate initial
+    # Y planes over-constrains sewn shoulder/neck seams and produces artificial
+    # folds instead of allowing the back panel to wrap around the torso.
+    scene.PinSelection = [str(i) for i in pins(front, front_outline)]
     doc.recompute()
     for source in (front, back):
         source.ViewObject.Visibility = False
