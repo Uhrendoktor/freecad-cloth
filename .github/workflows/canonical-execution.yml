@@ -53,7 +53,7 @@ jobs:
           from PySide import QtWidgets
 
           os.environ["CLOTH_TISSU_SUBSTEPS"] = "4"
-          os.environ["CLOTH_TISSU_COLLISION_MODE"] = "torso-envelope"
+          os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
           source = open("/workspace/tests/freecad_simulation_turntable.py", encoding="utf-8").read()
           source = source.split("\ntry:\n    main()", 1)[0]
           mod = types.ModuleType("turntable")
