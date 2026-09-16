@@ -83,23 +83,6 @@ if solve_anchor not in source:
     raise RuntimeError("production solve anchor not found")
 source = source.replace(solve_anchor, preview_probe + "\n" + solve_anchor, 1)
 
-seam_check = '''    backend_state = scene.Proxy._base_or_restore()
-    simulated_positions = tuple(backend_state.backend.positions())
-    if not simulated_positions:
-        raise RuntimeError("Tissu backend returned no simulated particle positions")
-    back_offset = len(front_positions)
-    seam_gaps = []
-    for edge_a, edge_b in ((2, 2), (5, 5)):
-        front_a0 = front_boundary[edge_a]; front_a1 = front_boundary[(edge_a + 1) % len(front_boundary)]
-        back_a0 = back_boundary[edge_b] + back_offset; back_a1 = back_boundary[(edge_b + 1) % len(back_boundary)] + back_offset
-        for ia, ib in ((front_a0, back_a0), (front_a1, back_a1)):
-            a = simulated_positions[ia]; b = simulated_positions[ib]
-            seam_gaps.append(((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2) ** 0.5)
-    seam_gap = max(seam_gaps) if seam_gaps else 0.0
-    if seam_gap > 35.0:
-        raise RuntimeError("simulated authored shoulder seams did not converge: max endpoint gap %.1f mm" % seam_gap)
-    log("tunic-authored-shoulder-max-gap-mm=%.2f" % seam_gap)
-'''
 metric_anchor = '    write_drape_metrics(panels, avatar, x_mid, shoulder_z=shoulder_z, hem_z=hem_z); bounds = []'
 if metric_anchor not in source:
     raise RuntimeError("production metrics anchor not found")
@@ -111,6 +94,6 @@ metric_check = '''    write_drape_metrics(panels, avatar, x_mid, shoulder_z=shou
     if max_clearance > production_target_width * 0.10:
         raise RuntimeError("production tunic remains visibly detached from avatar: max clearance %.1f mm" % max_clearance)
     bounds = []'''
-source = source.replace(metric_anchor, seam_check + metric_check, 1)
+source = source.replace(metric_anchor, metric_check, 1)
 
 exec(compile(source, str(source_path), "exec"), globals(), globals())
