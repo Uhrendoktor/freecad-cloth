@@ -189,7 +189,10 @@ def _seam_endpoint_gap(panels, seam_records):
         b0, b1 = back_points[eb], back_points[(eb + 1) % 8]
         if bool(seam.ReversedB):
             b0, b1 = b1, b0
-        gaps.extend([(a0 - b0).Length, (a1 - b1).Length])
+        gaps.extend([
+            (App.Vector(a0.x, a0.y, a0.z) - App.Vector(b0.x, b0.y, b0.z)).Length,
+            (App.Vector(a1.x, a1.y, a1.z) - App.Vector(b1.x, b1.y, b1.z)).Length,
+        ])
     return max(gaps) if gaps else 0.0
 
 
@@ -342,13 +345,9 @@ def main():
         backend = getattr(getattr(scene, "Proxy", None), "_base_or_restore", lambda: None)()
         backend_name = getattr(getattr(backend, "backend", None), "name", "unknown") if backend is not None else "unknown"
         log("simulation-state-pass backend=%s steps=%d particles=%d triangles=%d facets=(%d,%d) seam_max_gap_mm=%.2f" % (
-            backend_name,
-            steps,
-            int(scene.ParticleCount),
+            backend_name, steps, int(scene.ParticleCount),
             sum(len(t) for t in getattr(backend, "panel_triangles", {}).values()) if backend is not None else 0,
-            panels[0].Mesh.CountFacets,
-            panels[1].Mesh.CountFacets,
-            seam_gap,
+            panels[0].Mesh.CountFacets, panels[1].Mesh.CountFacets, seam_gap,
         ))
         render_turntable(view, objects, os.path.join(OUT, "cloth-simulation-draped-turntable-frames"))
         log("simulation-turntable-pass")
