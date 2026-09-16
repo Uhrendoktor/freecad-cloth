@@ -35,21 +35,16 @@ jobs:
       - name: Pull FreeCAD image
         run: docker pull "$FREECAD_IMAGE"
       - name: Render single draped tunic frame
+        env:
+          CLOTH_SIMULATION_BACKEND: tissu
+          CLOTH_TUNIC_PARTICLE_DISTANCE_MM: 18.0
+          CLOTH_TUNIC_SOLVER_ITERATIONS: 6
+          CLOTH_TUNIC_SOLVER_SUBSTEPS: 2
+          CLOTH_TUNIC_STEPS: 30
         run: |
           set -euo pipefail
           rm -rf docs/images/generated
           mkdir -p docs/images/generated
-          sed -i \
-            -e 's/scene.ParticleDistance = 45.0/scene.ParticleDistance = 45.0/' \
-            -e 's/scene.SolverIterations = 5/scene.SolverIterations = 5/' \
-            -e 's/scene.SolverSubsteps = 1/scene.SolverSubsteps = 1/' \
-            -e 's/scene.TimeStep = 1.0 \/ 120.0/scene.TimeStep = 1.0 \/ 120.0/' \
-            -e 's/scene.StitchSamples = int(os.environ.get("CLOTH_TUNIC_STITCH_SAMPLES", "6"))/scene.StitchSamples = int(os.environ.get("CLOTH_TUNIC_STITCH_SAMPLES", "6"))/' \
-            -e 's/scene.Steps = 30/scene.Steps = 10/' \
-            -e 's/int(scene.Steps) != 30/int(scene.Steps) != 10/' \
-            -e 's/finite 30-step state/finite 10-step state/' \
-            -e 's/seam_specs = ((1, 7, False, "TunicRightSide"), (3, 5, True, "TunicRightShoulder"), (5, 3, True, "TunicLeftShoulder"), (7, 1, False, "TunicLeftSide"))/seam_specs = ((1, 7, True, "TunicRightSide"), (3, 5, True, "TunicRightShoulder"), (5, 3, True, "TunicLeftShoulder"), (7, 1, True, "TunicLeftSide"))/' \
-            tests/freecad_simulation_turntable.py
           cat > pr_tunic_smoke.py <<'PY'
           import os
           import types
@@ -72,18 +67,26 @@ jobs:
           try:
               scene, avatar, panels, seam_records, authored, pieces = mod.build_simulation_state(doc)
               authored.ViewObject.Visibility = False
-              scene.Steps = 10
+              steps = int(os.environ.get("CLOTH_TUNIC_STEPS", "30"))
+              scene.Steps = steps
               doc.recompute(); mod.events()
-              if int(scene.Steps) != 10 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
-                  raise RuntimeError("simulation did not reach a finite 10-step state")
-              if any(panel.Mesh.CountFacets <= 10 for panel in panels):
-                  raise RuntimeError("draped tunic panel mesh is empty")
+              if int(scene.Steps) != steps or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
+                  raise RuntimeError("simulation did not reach a finite %d-step state" % steps)
+              if any(panel.Mesh.CountFacets <= 100 for panel in panels):
+                  raise RuntimeError("draped tunic panel mesh is too coarse")
               front, back = pieces
               simulated = {
                   front.Name: mod._boundary_points(panels[0], len(mod._outline(front))),
                   back.Name: mod._boundary_points(panels[1], len(mod._outline(back))),
               }
               mod._seam_overlay(doc, "TunicSeamsSimulated", seam_records, simulated)
+              backend = getattr(getattr(scene, "Proxy", None), "_base_or_restore", lambda: None)()
+              backend_name = getattr(getattr(backend, "backend", None), "name", "unknown") if backend is not None else "unknown"
+              mod.log("smoke-state backend=%s particles=%d facets=(%d,%d)" % (
+                  backend_name, int(scene.ParticleCount), panels[0].Mesh.CountFacets, panels[1].Mesh.CountFacets,
+              ))
+              if backend_name != "tissu":
+                  raise RuntimeError("visual smoke did not use the Tissu backend")
               view = Gui.activeDocument().activeView()
               view.setCameraType("Orthographic")
               view.viewFront(); view.fitAll(); view.zoomIn(); mod.events()
@@ -101,10 +104,14 @@ jobs:
             -e TINI_SUBREAPER=1 \
             -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -e CLOTH_SIMULATION_BACKEND=xpbd-cpu -e CLOTH_TUNIC_CLEARANCE_MM=10.0 -e CLOTH_TUNIC_STITCH_SAMPLES=6 \
+            -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
+            -e CLOTH_TUNIC_PARTICLE_DISTANCE_MM="$CLOTH_TUNIC_PARTICLE_DISTANCE_MM" \
+            -e CLOTH_TUNIC_SOLVER_ITERATIONS="$CLOTH_TUNIC_SOLVER_ITERATIONS" \
+            -e CLOTH_TUNIC_SOLVER_SUBSTEPS="$CLOTH_TUNIC_SOLVER_SUBSTEPS" \
+            -e CLOTH_TUNIC_STEPS="$CLOTH_TUNIC_STEPS" \
+            -e CLOTH_TUNIC_CLEARANCE_MM=10.0 -e CLOTH_TUNIC_STITCH_SAMPLES=8 \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
@@ -118,6 +125,7 @@ jobs:
           set -euo pipefail
           test -s docs/images/generated/simulation-turntable-progress.log
           grep -q 'simulation-turntable-pass' docs/images/generated/simulation-turntable-progress.log
+          grep -q 'smoke-state backend=tissu' docs/images/generated/simulation-turntable-progress.log
           test -s docs/images/generated/cloth-simulation-draped-tunic-smoke.png
       - name: Upload tunic visual smoke
         uses: actions/upload-artifact@v6
