@@ -5,9 +5,10 @@ import re
 source_path = Path(__file__).with_name("freecad_screenshot_source.py")
 source = source_path.read_text(encoding="utf-8")
 
-# Tunic fixture profile: stable drape plus an explicit shoulder/neckline silhouette.
+# Tunic fixture profile: stable drape plus a closer-fitting shoulder/neckline silhouette.
 replacements = {
-    'clearance = max(20.0, 0.08 * body_depth);': 'clearance = max(30.0, 0.10 * body_depth);',
+    'clearance = max(20.0, 0.08 * body_depth);': 'clearance = max(12.0, 0.04 * body_depth);',
+    'chest = 980.0; hip = 1020.0; ease = 55.0;': 'chest = 900.0; hip = 980.0; ease = 25.0;',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
         'front, front_outline = make_piece("VisualTunicFront", front_y, 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", back_y, 0.76, 0.12)',
     'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):' :
