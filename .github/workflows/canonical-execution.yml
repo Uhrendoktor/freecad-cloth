@@ -88,6 +88,7 @@ jobs:
           mkdir -p docs/images/generated
           sed -i 's/frame_count=72/frame_count=int(os.environ.get("CLOTH_TURNTABLE_FRAMES", "72"))/' tests/freecad_simulation_turntable.py
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 \
             -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e CLOTH_SIMULATION_BACKEND=tissu -e CLOTH_TURNTABLE_FRAMES=2 \
@@ -106,10 +107,10 @@ jobs:
           set -euo pipefail
           test -s docs/images/generated/simulation-turntable-progress.log
           grep -q 'simulation-turntable-pass' docs/images/generated/simulation-turntable-progress.log
-          test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 3
-          test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 3
+          test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 4
+          test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 4
           test -s docs/images/generated/cloth-simulation-draped-turntable-frames/frame-000.png
-          test -s docs/images/generated/cloth-simulation-draped-turntable-frames/frame-002.png
+          test -s docs/images/generated/cloth-simulation-draped-turntable-frames/frame-003.png
       - name: Upload tunic visual smoke
         uses: actions/upload-artifact@v6
         with:
@@ -137,6 +138,7 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts/realtime
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 \
             -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
@@ -201,6 +203,7 @@ jobs:
           rm -rf docs/images/generated
           mkdir -p docs/images/generated
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 \
             -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e CLOTH_SIMULATION_BACKEND=tissu \
