@@ -38,9 +38,9 @@ jobs:
         env:
           CLOTH_SIMULATION_BACKEND: tissu
           CLOTH_TUNIC_PARTICLE_DISTANCE_MM: 18.0
-          CLOTH_TUNIC_SOLVER_ITERATIONS: 6
+          CLOTH_TUNIC_SOLVER_ITERATIONS: 8
           CLOTH_TUNIC_SOLVER_SUBSTEPS: 2
-          CLOTH_TUNIC_STEPS: 30
+          CLOTH_TUNIC_STEPS: 120
         run: |
           set -euo pipefail
           rm -rf docs/images/generated
@@ -67,13 +67,16 @@ jobs:
           try:
               scene, avatar, panels, seam_records, authored, pieces = mod.build_simulation_state(doc)
               authored.ViewObject.Visibility = False
-              steps = int(os.environ.get("CLOTH_TUNIC_STEPS", "30"))
+              steps = int(os.environ.get("CLOTH_TUNIC_STEPS", "120"))
               scene.Steps = steps
               doc.recompute(); mod.events()
               if int(scene.Steps) != steps or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
                   raise RuntimeError("simulation did not reach a finite %d-step state" % steps)
               if any(panel.Mesh.CountFacets <= 100 for panel in panels):
                   raise RuntimeError("draped tunic panel mesh is too coarse")
+              seam_gap = mod._seam_endpoint_gap(panels, seam_records)
+              if seam_gap > 35.0:
+                  raise RuntimeError("tunic seams did not converge: max endpoint gap %.1f mm" % seam_gap)
               front, back = pieces
               simulated = {
                   front.Name: mod._boundary_points(panels[0], len(mod._outline(front))),
@@ -82,8 +85,8 @@ jobs:
               mod._seam_overlay(doc, "TunicSeamsSimulated", seam_records, simulated)
               backend = getattr(getattr(scene, "Proxy", None), "_base_or_restore", lambda: None)()
               backend_name = getattr(getattr(backend, "backend", None), "name", "unknown") if backend is not None else "unknown"
-              mod.log("smoke-state backend=%s particles=%d facets=(%d,%d)" % (
-                  backend_name, int(scene.ParticleCount), panels[0].Mesh.CountFacets, panels[1].Mesh.CountFacets,
+              mod.log("smoke-state backend=%s particles=%d facets=(%d,%d) seam_max_gap_mm=%.2f" % (
+                  backend_name, int(scene.ParticleCount), panels[0].Mesh.CountFacets, panels[1].Mesh.CountFacets, seam_gap,
               ))
               if backend_name != "tissu":
                   raise RuntimeError("visual smoke did not use the Tissu backend")
@@ -127,11 +130,14 @@ jobs:
           test -s docs/images/generated/simulation-turntable-progress.log
           grep -q 'simulation-turntable-pass' docs/images/generated/simulation-turntable-progress.log
           grep -q 'smoke-state backend=tissu' docs/images/generated/simulation-turntable-progress.log
+          grep -q 'seam_max_gap_mm=' docs/images/generated/simulation-turntable-progress.log
           test -s docs/images/generated/cloth-simulation-draped-tunic-smoke.png
       - name: Upload tunic visual smoke
         uses: actions/upload-artifact@v6
         with:
           name: tunic-visual-smoke
-          path: docs/images/generated/cloth-simulation-draped-tunic-smoke.png
+          path: |
+            docs/images/generated/cloth-simulation-draped-tunic-smoke.png
+            docs/images/generated/simulation-turntable-progress.log
           if-no-files-found: error
           compression-level: 1
