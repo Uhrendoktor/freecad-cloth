@@ -82,7 +82,7 @@ class TissuBackend(ClothSimulationBackend):
         pins: Iterable[int] = (),
         stitches: Iterable[Tuple[int, int]] = (),
         collision_surface: CollisionSurface | None = None,
-        collision_mode: str = "mesh",
+        collision_mode: str = "torso-envelope",
     ):
         try:
             from tissu import Simulation
@@ -120,12 +120,7 @@ class TissuBackend(ClothSimulationBackend):
                 )
             return
         vtx, idx = _to_tissu_mesh(self._collision_surface)
-        self._sim.add_mesh_from_arrays(
-            "drape-target",
-            vtx,
-            idx,
-            friction=0.5,
-        )
+        self._sim.add_mesh_from_arrays("drape-target", vtx, idx, friction=0.5)
 
     def _build(self, Simulation):
         import numpy as np
