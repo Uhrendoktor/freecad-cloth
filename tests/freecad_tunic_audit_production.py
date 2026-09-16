@@ -43,8 +43,7 @@ pin_replacement = '''    def authored_shoulder_pins(piece, outline, positions):
             raise RuntimeError("insufficient boundary vertices for authored shoulder pins")
         pins = []
         for local_x, local_y in shoulder_targets:
-            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
-            index = min(available, key=lambda i: (positions[i][0] - target_point.x) ** 2 + (positions[i][1] - target_point.y) ** 2 + (positions[i][2] - target_point.z) ** 2)
+            index = min(available, key=lambda i: (positions[i][0] - local_x) ** 2 + (positions[i][1] - local_y) ** 2 + positions[i][2] ** 2)
             pins.append(index)
             available.remove(index)
         return tuple(pins)
