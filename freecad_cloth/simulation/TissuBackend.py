@@ -5,6 +5,7 @@ so installations without the optional wheel keep the existing backend usable.
 """
 from copy import deepcopy
 from typing import Iterable, Sequence, Tuple
+import os
 
 from freecad_cloth.avatar.AvatarCollision import CollisionSurface
 from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
@@ -25,15 +26,7 @@ def _from_tissu_position(position):
 
 
 def _to_tissu_mesh(surface):
-    """Convert FreeCAD collision data to Tissu's pybind-friendly containers.
-
-    FreeCAD is RH-Z-up while Tissu is RH-Y-up. The coordinate mapping swaps
-    Y and Z, an odd permutation with determinant -1, so it reverses handedness.
-    Every authored triangle is therefore reversed exactly once to preserve the
-    authored outward orientation. A per-face center heuristic is incorrect for
-    a concave humanoid surface because its global center is not a reliable
-    inside/outside test for each local face.
-    """
+    """Convert FreeCAD collision data to Tissu's pybind-friendly containers."""
     import numpy as np
 
     vertices = [np.asarray(_to_tissu_position(v), dtype=np.float64) for v in surface.vertices]
@@ -42,13 +35,7 @@ def _to_tissu_mesh(surface):
 
 
 def _collision_envelope(surface):
-    """Derive a stable torso envelope from the authored avatar collision data.
-
-    Tissu's sphere collider resolves with a radial normal, which is substantially
-    more stable for this canonical torso drape than nearest-triangle contact on
-    a highly concave human render mesh. The centers are still derived directly
-    from the real avatar bounds; no FreeCAD proxy object is created.
-    """
+    """Derive a stable torso envelope from the authored avatar collision data."""
     if surface is None or not surface.vertices:
         return ()
     xs = [float(v[0]) for v in surface.vertices]
@@ -94,6 +81,7 @@ class TissuBackend(ClothSimulationBackend):
             from tissu import Simulation
         except ImportError as exc:
             raise RuntimeError("Tissu backend requires the optional 'pytissu' package") from exc
+        collision_mode = str(os.environ.get("CLOTH_TISSU_COLLISION_MODE", collision_mode)).strip().lower()
         if collision_mode not in {"mesh", "torso-envelope"}:
             raise ValueError("unsupported Tissu collision mode")
         self._initial = deepcopy(system)
