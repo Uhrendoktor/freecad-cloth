@@ -192,7 +192,7 @@ def build_simulation_state(doc):
         segments = [LineSegment("%s:edge:%d" % (piece.PieceId, i), points[i], points[(i + 1) % len(points)]) for i in range(len(points))]
         mesh = triangulate(ParametricPattern(segments))
         h = max(y for _, y in points)
-        return tuple(i for i in mesh.boundary_vertex_indices if mesh.vertices[i][1] >= 0.86 * h and (mesh.vertices[i][0] <= 0.32 * panel_width or mesh.vertices[i][0] >= 0.68 * panel_width))
+        return tuple(i for i in mesh.boundary_vertex_indices if mesh.vertices[i][1] >= 0.96 * h)
     from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
     front_positions, _, _ = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
     scene.PinSelection = [str(i) for i in pins(front, front_outline)] + [str(len(front_positions) + i) for i in pins(back, back_outline)]
