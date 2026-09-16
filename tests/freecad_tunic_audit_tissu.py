@@ -5,6 +5,7 @@ import re
 source_path = Path(__file__).with_name("freecad_screenshot_source.py")
 source = source_path.read_text(encoding="utf-8")
 
+# These are the parameters that produced the last verified Tissu tunic artifact.
 replacements = {
     'clearance = max(20.0, 0.08 * body_depth);': 'clearance = max(30.0, 0.10 * body_depth);',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
@@ -23,6 +24,8 @@ for old, new in replacements.items():
         raise RuntimeError(f"audit replacement did not match source: {old}")
     source = source.replace(old, new, 1)
 
+# Pin only actual boundary vertices.  This prevents the refined interior mesh from
+# turning the shoulder anchors into arbitrary interior constraints.
 pin_pattern = re.compile(r'    def authored_shoulder_pins\(piece, positions\):.*?    for source in \(doc\.getObject', re.S)
 pin_replacement = '''    def authored_shoulder_pins(piece, positions, boundary_indices):
         targets = (
@@ -60,40 +63,11 @@ source, pin_count = pin_pattern.subn(pin_replacement, source, count=1)
 if pin_count != 1:
     raise RuntimeError("boundary pin patch did not match source")
 
-backend_patch = r'''
-from freecad_cloth.simulation.ClothBackend import default_backend_registry, preferred_backend_name
-
-def _canonical_backend(system, triangles, pins, stitches, collision_surface):
-    registry = default_backend_registry()
-    name = preferred_backend_name(registry)
-    if name != "tissu":
-        raise RuntimeError("canonical GUI visual validation requires the Tissu backend")
-    backend = registry.create(
-        name,
-        system,
-        triangles=triangles,
-        pins=pins,
-        stitches=stitches,
-        collision_surface=collision_surface,
-        collision_mode="torso-envelope",
-    )
-    log("canonical-backend=%s collision=torso-envelope" % backend.name)
-    return backend
-'''
-source = source.replace(
-    'OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")',
-    backend_patch + '\nOUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")',
-    1,
-)
-backend_hook = 'base.backend = default_backend_registry().create("xpbd-cpu", system)'
-if backend_hook not in source:
-    raise RuntimeError("simulation backend hook no longer matches expected source")
-source = source.replace(
-    backend_hook,
-    'base.backend = _canonical_backend(system, triangles_global, tuple(system.pins), tuple((c.a, c.b) for c in system.stitches), _collision_for_scene(obj))',
-    1,
-)
-
+# The production SimulationQualityRuntimeV2 now owns backend selection.  The old
+# audit used to rewrite an obsolete XPBD assignment in this source file; that
+# guard became a false failure when the runtime moved backend creation into the
+# authoritative SimulationObjects builder.  CI selects Tissu through the normal
+# CLOTH_SIMULATION_BACKEND environment variable instead.
 preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
     if "ClothRealtimePreview" not in Gui.listCommands():
         raise RuntimeError("Realtime Cloth Preview GUI command is not registered")
@@ -119,6 +93,9 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
     log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
 '''
-source = source.replace('    for batch in (5,5,5):', preview_probe + '\n    for batch in (5,5,5):', 1)
+anchor = '    for batch in (5,5,5):'
+if anchor not in source:
+    raise RuntimeError("simulation batch anchor missing")
+source = source.replace(anchor, preview_probe + '\n' + anchor, 1)
 
 exec(compile(source, str(source_path), "exec"), globals(), globals())
