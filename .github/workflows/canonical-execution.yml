@@ -40,11 +40,14 @@ jobs:
           rm -rf docs/images/generated
           mkdir -p docs/images/generated
           sed -i \
-            -e 's/scene.ParticleDistance = 18.0/scene.ParticleDistance = 60.0/' \
-            -e 's/scene.SolverIterations = 16/scene.SolverIterations = 2/' \
-            -e 's/scene.SolverSubsteps = 4/scene.SolverSubsteps = 1/' \
-            -e 's/scene.TimeStep = 1.0 \/ 240.0/scene.TimeStep = 1.0 \/ 120.0/' \
-            -e 's/scene.StitchSamples = int(os.environ.get("CLOTH_TUNIC_STITCH_SAMPLES", "16"))/scene.StitchSamples = int(os.environ.get("CLOTH_TUNIC_STITCH_SAMPLES", "4"))/' \
+            -e 's/scene.ParticleDistance = 30.0/scene.ParticleDistance = 30.0/' \
+            -e 's/scene.SolverIterations = 6/scene.SolverIterations = 6/' \
+            -e 's/scene.SolverSubsteps = 1/scene.SolverSubsteps = 1/' \
+            -e 's/scene.TimeStep = 1.0 \/ 120.0/scene.TimeStep = 1.0 \/ 120.0/' \
+            -e 's/scene.StitchSamples = int(os.environ.get("CLOTH_TUNIC_STITCH_SAMPLES", "8"))/scene.StitchSamples = int(os.environ.get("CLOTH_TUNIC_STITCH_SAMPLES", "8"))/' \
+            -e 's/scene.Steps = 30/scene.Steps = 16/' \
+            -e 's/int(scene.Steps) != 30/int(scene.Steps) != 16/' \
+            -e 's/finite 30-step state/finite 16-step state/' \
             tests/freecad_simulation_turntable.py
           cat > pr_tunic_smoke.py <<'PY'
           import os
@@ -68,10 +71,10 @@ jobs:
           try:
               scene, avatar, panels, seam_records, authored, pieces = mod.build_simulation_state(doc)
               authored.ViewObject.Visibility = False
-              scene.Steps = 2
+              scene.Steps = 16
               doc.recompute(); mod.events()
-              if int(scene.Steps) != 2 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
-                  raise RuntimeError("simulation did not reach a finite 2-step state")
+              if int(scene.Steps) != 16 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
+                  raise RuntimeError("simulation did not reach a finite 16-step state")
               if any(panel.Mesh.CountFacets <= 10 for panel in panels):
                   raise RuntimeError("draped tunic panel mesh is empty")
               front, back = pieces
@@ -97,7 +100,7 @@ jobs:
             -e TINI_SUBREAPER=1 \
             -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -e CLOTH_SIMULATION_BACKEND=xpbd-cpu -e CLOTH_TUNIC_CLEARANCE_MM=12.0 -e CLOTH_TUNIC_STITCH_SAMPLES=4 \
+            -e CLOTH_SIMULATION_BACKEND=xpbd-cpu -e CLOTH_TUNIC_CLEARANCE_MM=10.0 -e CLOTH_TUNIC_STITCH_SAMPLES=8 \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
