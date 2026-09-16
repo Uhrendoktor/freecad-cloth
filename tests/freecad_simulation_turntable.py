@@ -57,7 +57,7 @@ def combined_center(objects):
 def render_turntable(view, objects, frame_dir, frame_count=72):
     os.makedirs(frame_dir, exist_ok=True)
     smoke = frame_count == 2
-    effective_count = 4 if smoke else frame_count
+    effective_count = 2 if smoke else frame_count
     include_endpoint = not smoke
     frame_total = effective_count + 1 if include_endpoint else effective_count
     center = combined_center(objects)
@@ -79,10 +79,11 @@ def render_turntable(view, objects, frame_dir, frame_count=72):
     log("turntable-pass dir=%s frames=%d" % (frame_dir, frame_total))
 
 
-def _make_tunic_sketch(doc, name, panel_width, garment_height, hem_width):
+def _make_tunic_sketch(doc, name, panel_width, garment_height, hem_width, mirror_x=False):
     import Part, Sketcher
     sketch = doc.addObject("Sketcher::SketchObject", name + "Sketch")
-    points = [(0.0, 0.0), (hem_width, 0.0), (panel_width, 0.82 * garment_height), (0.86 * panel_width, 0.97 * garment_height), (0.64 * panel_width, garment_height), (0.36 * panel_width, garment_height), (0.14 * panel_width, 0.97 * garment_height), (0.0, 0.82 * garment_height)]
+    raw_points = [(0.0, 0.0), (hem_width, 0.0), (panel_width, 0.82 * garment_height), (0.86 * panel_width, 0.97 * garment_height), (0.64 * panel_width, garment_height), (0.36 * panel_width, garment_height), (0.14 * panel_width, 0.97 * garment_height), (0.0, 0.82 * garment_height)]
+    points = [(hem_width - x, y) for x, y in raw_points] if mirror_x else raw_points
     sketch.addGeometry([Part.LineSegment(App.Vector(points[i][0], points[i][1], 0), App.Vector(points[(i + 1) % 8][0], points[(i + 1) % 8][1], 0)) for i in range(8)], False)
     sketch.addConstraint([Sketcher.Constraint("Coincident", i, 2, (i + 1) % 8, 1) for i in range(8)])
     doc.recompute()
@@ -161,54 +162,66 @@ def build_simulation_state(doc):
         raise RuntimeError("missing production ClothAvatar")
     box = avatar.Mesh.BoundBox
     torso_width = float(box.XMax - box.XMin)
-    y_span = float(box.YMax - box.YMin)
     z_span = float(box.ZMax - box.ZMin)
-    panel_width = max(420.0, min(560.0, 0.50 * torso_width + 35.0))
-    hem_width = max(440.0, min(590.0, 0.52 * torso_width + 35.0))
+    panel_width = max(390.0, min(500.0, 0.46 * torso_width + 28.0))
+    hem_width = max(410.0, min(530.0, 0.48 * torso_width + 32.0))
     hem_z = box.ZMin + 0.40 * z_span
     garment_height = max(560.0, box.ZMin + 0.76 * z_span - hem_z)
-    clearance = float(os.environ.get("CLOTH_TUNIC_CLEARANCE_MM", "24.0"))
-    rotation = App.Rotation(App.Vector(1, 0, 0), 90.0)
-    def make_piece(name, y):
-        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width)
+    clearance = float(os.environ.get("CLOTH_TUNIC_CLEARANCE_MM", "10.0"))
+
+    def make_piece(name, y, mirror_x=False):
+        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, mirror_x=mirror_x)
         piece = _adopt_sketch(sketch, name)
+        rotation = App.Rotation(App.Vector(1, 0, 0), 90.0)
         piece.Placement = App.Placement(App.Vector((box.XMin + box.XMax) * 0.5 - hem_width / 2.0, y, hem_z), rotation)
         piece.Sketch.Placement = piece.Placement
         return piece, outline
-    front, front_outline = make_piece("VisualTunicFront", box.YMax + clearance)
-    back, back_outline = make_piece("VisualTunicBack", box.YMin - clearance)
+
+    front, front_outline = make_piece("VisualTunicFront", box.YMax + clearance, mirror_x=False)
+    back, back_outline = make_piece("VisualTunicBack", box.YMin - clearance, mirror_x=True)
+
     seam_records = []
-    for ea, eb, seam_id in ((1, 1, "TunicRightSide"), (3, 3, "TunicRightShoulder"), (5, 5, "TunicLeftShoulder"), (7, 7, "TunicLeftSide")):
-        seam = Seam(str(front.PieceId), ea, str(back.PieceId), eb, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")
+    seam_specs = ((1, 7, False, "TunicRightSide"), (3, 5, True, "TunicRightShoulder"), (5, 3, True, "TunicLeftShoulder"), (7, 1, False, "TunicLeftSide"))
+    for edge_a, edge_b, reversed_b, seam_id in seam_specs:
+        seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly", reversed_b=reversed_b)
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
+
     scene.StartHeight = 0.0
     scene.QualityPreset = "Fast"
-    scene.ParticleDistance = 18.0
-    scene.SolverIterations = 16
-    scene.SolverSubsteps = 4
-    scene.TimeStep = 1.0 / 240.0
-    scene.StitchSamples = int(os.environ.get("CLOTH_TUNIC_STITCH_SAMPLES", "16"))
+    scene.ParticleDistance = 30.0
+    scene.SolverIterations = 6
+    scene.SolverSubsteps = 1
+    scene.TimeStep = 1.0 / 120.0
+    scene.StitchSamples = int(os.environ.get("CLOTH_TUNIC_STITCH_SAMPLES", "8"))
     scene.GravityX = scene.GravityY = 0.0
     scene.GravityZ = -9810.0
-    scene.FabricFriction = 0.65
+    scene.FabricFriction = 0.78
     scene.ClothPieces = [front, back]
     refresh_drape_target(scene.DrapeTarget)
     doc.recompute()
-    def pins(piece, outline):
+
+    def authored_shoulder_pins(piece, outline):
         points = [(float(x), float(y)) for x, y in outline]
+        shoulder_targets = (points[3], points[6])
         segments = [LineSegment("%s:edge:%d" % (piece.PieceId, i), points[i], points[(i + 1) % len(points)]) for i in range(8)]
         mesh = triangulate(ParametricPattern(segments))
-        h = max(y for _, y in points)
-        return tuple(i for i in mesh.boundary_vertex_indices if mesh.vertices[i][1] >= 0.96 * h)
-    from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
-    front_positions, _, _ = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
-    # Pin only the front yoke.  Pinning both panels at their separate initial
-    # Y planes over-constrains sewn shoulder/neck seams and produces artificial
-    # folds instead of allowing the back panel to wrap around the torso.
-    scene.PinSelection = [str(i) for i in pins(front, front_outline)]
+        available = list(mesh.boundary_vertex_indices)
+        pins = []
+        for target_x, target_y in shoulder_targets:
+            index = min(available, key=lambda i: (mesh.vertices[i][0] - target_x) ** 2 + (mesh.vertices[i][1] - target_y) ** 2)
+            pins.append(index)
+            available.remove(index)
+        return tuple(pins)
+
+    front_pins = authored_shoulder_pins(front, front_outline)
+    if not front_pins:
+        raise RuntimeError("tunic shoulder pin selection is empty")
+    scene.PinSelection = [str(i) for i in front_pins]
+    log("pin-map front-shoulders=%s" % (front_pins,))
     doc.recompute()
+
     for source in (front, back):
         source.ViewObject.Visibility = False
         source.Sketch.ViewObject.Visibility = False
@@ -218,7 +231,8 @@ def build_simulation_state(doc):
     if len(panels) != 2:
         raise RuntimeError("expected two drape panels")
     for panel, label in zip(panels, ("Drape: Tunic Front", "Drape: Tunic Back")):
-        style_mesh(panel, label); panel.ViewObject.Visibility = True
+        style_mesh(panel, label)
+        panel.ViewObject.Visibility = True
     avatar.ViewObject.Visibility = True
     doc.recompute()
     authored = _seam_overlay(doc, "TunicSeamsAuthored", seam_records)
@@ -232,7 +246,8 @@ def main():
         raise RuntimeError("FreeCAD GUI did not launch")
     window.show(); events()
     init_gui = os.path.join(ROOT, "InitGui.py")
-    exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
+    if "ClothPatternWorkbench" not in Gui.listWorkbenches():
+        exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
     events()
     doc = App.newDocument("ClothSimulationTurntable")
     try:
@@ -249,10 +264,7 @@ def main():
         if any(panel.Mesh.CountFacets <= 10 for panel in panels):
             raise RuntimeError("draped tunic panel mesh is empty")
         front, back = pieces
-        simulated = {
-            front.Name: _boundary_points(panels[0], len(_outline(front))),
-            back.Name: _boundary_points(panels[1], len(_outline(back))),
-        }
+        simulated = {front.Name: _boundary_points(panels[0], len(_outline(front))), back.Name: _boundary_points(panels[1], len(_outline(back)))}
         _seam_overlay(doc, "TunicSeamsSimulated", seam_records, simulated)
         render_turntable(view, objects, os.path.join(OUT, "cloth-simulation-draped-turntable-frames"))
         log("simulation-turntable-pass")
