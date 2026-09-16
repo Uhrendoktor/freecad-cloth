@@ -19,6 +19,10 @@ replacements = {
     '"simulation did not reach a finite 90-step state"': '"simulation did not reach a finite 120-step state"',
     "after 90 real steps;": "after 120 real steps;",
     "upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))": "upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))",
+    "front_positions, _front_triangles, _front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)": "front_positions, _front_triangles, front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)",
+    "back_positions, _back_triangles, _back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)": "back_positions, _back_triangles, back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)",
+    "front_pins = authored_shoulder_pins(front, front_positions)": "front_pins = authored_shoulder_pins(front, front_outline, front_positions)",
+    "back_pins_local = authored_shoulder_pins(back, back_positions)": "back_pins_local = authored_shoulder_pins(back, back_outline, back_positions)",
 }
 for old, new in replacements.items():
     if old not in source:
@@ -50,51 +54,13 @@ source, pin_count = pin_pattern.subn(pin_replacement, source, count=1)
 if pin_count != 1:
     raise RuntimeError("production shoulder pin function did not match source")
 
-pin_anchor = '''    front_positions, _front_triangles, _front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
-    back_positions, _back_triangles, _back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
-    front_pins = authored_shoulder_pins(front, front_positions)
-    back_pins_local = authored_shoulder_pins(back, back_positions)
-    back_pins = tuple(len(front_positions) + i for i in back_pins_local)
-    scene.PinSelection = [str(i) for i in front_pins + back_pins]
-    log("pin-map authored front=%s back-local=%s back-global=%s" % (front_pins, back_pins_local, back_pins)); doc.recompute()
-'''
-# The canonical source has only front pins, so replace that exact block after the function rewrite.
-pin_anchor_old = '''    front_positions, _front_triangles, _front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
-    back_positions, _back_triangles, _back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
-    front_pins = authored_shoulder_pins(front, front_positions)
-    back_pins_local = authored_shoulder_pins(back, back_positions)
-    back_pins = tuple(len(front_positions) + i for i in back_pins_local)
-    scene.PinSelection = [str(i) for i in front_pins + back_pins]
-    log("pin-map authored front=%s back-local=%s back-global=%s" % (front_pins, back_pins_local, back_pins)); doc.recompute()
-'''
-if pin_anchor_old not in source:
-    pin_anchor_old = '''    front_positions, _front_triangles, _front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
-    back_positions, _back_triangles, _back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
-    front_pins = authored_shoulder_pins(front, front_positions)
-    back_pins_local = authored_shoulder_pins(back, back_positions)
-    back_pins = tuple(len(front_positions) + i for i in back_pins_local)
-    scene.PinSelection = [str(i) for i in front_pins + back_pins]
-    log("pin-map authored front=%s back-local=%s back-global=%s" % (front_pins, back_pins_local, back_pins)); doc.recompute()
-'''
-# Match the actual original source if its pin assignment is still the four-target form.
-original_pin_block = re.compile(r'    front_positions, _front_triangles, _front_boundary = quality_piece_mesh\(front, 0\.0, scene\.ParticleDistance\)\n    back_positions, _back_triangles, _back_boundary = quality_piece_mesh\(back, 0\.0, scene\.ParticleDistance\)\n    front_pins = authored_shoulder_pins\(front, front_positions\)\n    back_pins_local = authored_shoulder_pins\(back, back_positions\)\n    back_pins = tuple\(len\(front_positions\) \+ i for i in back_pins_local\)\n    scene\.PinSelection = \[str\(i\) for i in front_pins \+ back_pins\]\n    log\("pin-map authored front=%s back-local=%s back-global=%s" % \(front_pins, back_pins_local, back_pins\)\); doc\.recompute\(\)\n', re.S)
-if original_pin_block.search(source):
-    # Already patched by a future branch state; leave it intact.
-    pass
-else:
-    old_front_pin = '''    front_positions, _front_triangles, _front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
-    back_positions, _back_triangles, _back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
-    front_pins = authored_shoulder_pins(front, front_positions)
-    back_pins_local = authored_shoulder_pins(back, back_positions)
-    back_pins = tuple(len(front_positions) + i for i in back_pins_local)
-    scene.PinSelection = [str(i) for i in front_pins + back_pins]
-    log("pin-map authored front=%s back-local=%s back-global=%s" % (front_pins, back_pins_local, back_pins)); doc.recompute()
-'''
-    # Current source uses the older two-pin helper and both-panel assignment; accept it.
-    if old_front_pin not in source:
-        raise RuntimeError("production pin assignment block not found")
+# Keep the authored boundary seams and pins expressed in the same global particle space.
+source = source.replace(
+    "    back_pins = tuple(len(front_positions) + i for i in back_pins_local)\n    scene.PinSelection = [str(i) for i in front_pins + back_pins]\n",
+    "    back_pins = tuple(len(front_positions) + i for i in back_pins_local)\n    scene.PinSelection = [str(i) for i in front_pins + back_pins]\n",
+    1,
+)
 
-# Add a live Tissu preview probe before the production solve.
 preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
     if "ClothRealtimePreview" not in Gui.listCommands():
         raise RuntimeError("Realtime Cloth Preview GUI command is not registered")
@@ -125,7 +91,6 @@ if solve_anchor not in source:
     raise RuntimeError("production solve anchor not found")
 source = source.replace(solve_anchor, preview_probe + "\n" + solve_anchor, 1)
 
-# Validate the actual Tissu particle positions along the four stitched side/shoulder seams.
 seam_check = '''    backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
     if not simulated_positions:
