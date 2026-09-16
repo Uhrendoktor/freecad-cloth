@@ -105,10 +105,74 @@ jobs:
           docker cp "$PWD/." "$CID:/workspace/"
           docker start -a "$CID"
 
+  debug-drape:
+    name: Fast tunic drape debug
+    needs: build-image
+    if: ${{ always() && (github.event_name == 'pull_request' || needs.build-image.result == 'success') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Log in to GHCR for image pull
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=30s 10m docker pull "$IMAGE"
+      - name: Run fast backend and collision A-B audit
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/freecad-drape-debug
+          mkdir -p artifacts/freecad-drape-debug
+          for spec in "xpbd-cpu:mesh" "tissu:mesh" "tissu:torso-envelope"; do
+            backend="${spec%%:*}"
+            collision="${spec#*:}"
+            out="/workspace/artifacts/freecad-drape-debug/${backend}-${collision}"
+            CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash \
+              -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
+              -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+              -e CLOTH_SIMULATION_BACKEND="$backend" -e CLOTH_TISSU_COLLISION_MODE="$collision" -e CLOTH_DEBUG_DIR="$out" \
+              -w /workspace "$IMAGE" -euo pipefail -c '
+                set -e
+                mkdir -p "$XDG_RUNTIME_DIR" "$CLOTH_DEBUG_DIR"
+                Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+                openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+                trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+                for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+                xdpyinfo -display :99 >/dev/null 2>&1
+                /opt/freecad/AppRun tests/freecad_drape_debug.py
+              '
+            )"
+            trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
+            docker cp "$PWD/." "$CID:/workspace/"
+            docker start -a "$CID"
+            docker cp "$CID:$out/." "artifacts/freecad-drape-debug/$backend-$collision/"
+            docker rm -f "$CID" >/dev/null 2>&1 || true
+            trap - EXIT
+          done
+          find artifacts/freecad-drape-debug -name '*.png' -size +20k -print
+          find artifacts/freecad-drape-debug -name metrics.json -size +100c -print
+      - name: Upload fast drape debug artifact
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: cloth-drape-debug
+          path: artifacts/freecad-drape-debug
+          if-no-files-found: error
+          compression-level: 1
+
   gui-screenshot:
     name: FreeCAD GUI screenshots
     needs: build-image
-    if: ${{ always() && (github.event_name == 'pull_request' || needs.build-image.result == 'success') }}
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
