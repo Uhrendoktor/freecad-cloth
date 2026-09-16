@@ -53,7 +53,7 @@ jobs:
           from PySide import QtWidgets
 
           os.environ["CLOTH_TISSU_SUBSTEPS"] = "4"
-          os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
+          os.environ["CLOTH_TISSU_COLLISION_MODE"] = "torso-envelope"
           source = open("/workspace/tests/freecad_simulation_turntable.py", encoding="utf-8").read()
           source = source.split("\ntry:\n    main()", 1)[0]
           mod = types.ModuleType("turntable")
@@ -68,8 +68,6 @@ jobs:
           try:
               scene, avatar, panels, seam_records, authored, pieces = mod.build_simulation_state(doc)
               authored.ViewObject.Visibility = False
-              # Hold the complete authored shoulder/neck boundary. The previous
-              # two-point anchor allowed the sewn shell to rotate and collapse.
               scene.PinSelection = [str(i) for i in range(2, 8)]
               scene.Steps = 0
               doc.recompute(); mod.events()
