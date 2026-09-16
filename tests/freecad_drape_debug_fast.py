@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import signal
 import sys
 from pathlib import Path
 
@@ -27,6 +28,19 @@ from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 OUT = Path(os.environ.get("CLOTH_DEBUG_DIR", "artifacts/freecad-drape-debug"))
 OUT.mkdir(parents=True, exist_ok=True)
 STEPS = (0, 2, 6)
+TIMEOUT_SECONDS = int(os.environ.get("CLOTH_DEBUG_TIMEOUT_SECONDS", "90"))
+
+
+def log(message):
+    line = "DRAPE-DEBUG: " + str(message)
+    print(line, flush=True)
+    with (OUT / "progress.log").open("a", encoding="utf-8") as fh:
+        fh.write(line + "\n")
+        fh.flush()
+
+
+def _timeout_handler(signum, frame):
+    raise TimeoutError("drape debug timed out after %d seconds" % TIMEOUT_SECONDS)
 
 
 def events():
@@ -123,105 +137,129 @@ def checkpoint_metrics(backend, pins, initial_pins, target_vertices, triangles, 
 
 
 def run():
+    signal.signal(signal.SIGALRM, _timeout_handler)
+    signal.alarm(TIMEOUT_SECONDS)
     backend_requested = os.environ.get("CLOTH_SIMULATION_BACKEND", "auto")
     collision_mode = os.environ.get("CLOTH_TISSU_COLLISION_MODE", "mesh")
-    print("DRAPE-DEBUG: backend=%s collision=%s" % (backend_requested, collision_mode), flush=True)
-    doc = App.newDocument("ClothDrapeDebugFast")
-    scene = create_quality_simulation_scene(doc)
-    avatar = getattr(scene.AvatarProxy, "SourceObject", None)
-    if avatar is None:
-        raise RuntimeError("production avatar missing")
-    base = scene.Proxy._base_or_restore()
-    backend = getattr(base, "backend", None)
-    if backend is None:
-        raise RuntimeError("production simulation backend missing")
-    pins = tuple(dict.fromkeys(int(i) for i in (
-        getattr(backend, "_pins", ())
-        or getattr(backend, "_pin_indices", ())
-        or tuple(getattr(getattr(backend, "system", None), "pins", {}).keys())
-    )))
-    stitches = tuple((int(a), int(b)) for a, b in getattr(backend, "_stitches", ()))
-    if not stitches and hasattr(backend, "system"):
-        stitches = tuple((int(c.a), int(c.b)) for c in getattr(backend.system, "stitches", ()))
-        backend._stitches = stitches
-    if not stitches:
-        raise RuntimeError("production backend has no stitch constraints")
-    target_vertices = [tuple(v) for v in avatar.Mesh.Points]
-    initial_positions = backend.positions()
-    initial_pins = tuple(initial_positions[i] for i in pins)
-    triangles = []
-    for panel in scene.DrapePanels:
-        source = getattr(panel, "SourceObject", panel)
-        try:
-            _, tris, _ = quality_piece_mesh(source, 0.0, scene.ParticleDistance)
-            triangles.extend(tris)
-        except Exception:
-            pass
-    if not triangles and hasattr(backend, "system"):
-        triangles = tuple(getattr(backend.system, "triangles", ()))
-    for panel in scene.DrapePanels:
-        panel.ViewObject.DisplayMode = "Flat Lines"
-        panel.ViewObject.ShapeColor = (0.78, 0.16, 0.08)
-        panel.ViewObject.LineColor = (0.18, 0.01, 0.01)
-        panel.ViewObject.LineWidth = 1.6
-        panel.ViewObject.Visibility = True
-    try:
-        avatar.ViewObject.DisplayMode = "Flat Lines"
-        avatar.ViewObject.Transparency = 72
-        avatar.ViewObject.LineColor = (0.25, 0.25, 0.25)
-    except Exception:
-        pass
-    seam_obj = doc.addObject("Part::Feature", "DebugCurrentStitches")
-    seam_obj.ViewObject.LineColor = (1.0, 0.90, 0.0)
-    seam_obj.ViewObject.LineWidth = 4.0
-    pin_obj = doc.addObject("Part::Feature", "DebugActivePins")
-    pin_obj.ViewObject.ShapeColor = (1.0, 0.10, 1.0)
-    pin_obj.ViewObject.Transparency = 5
-    update_debug_geometry(doc, seam_obj, pin_obj, backend, pins)
-    doc.recompute(); events()
-    panel = SimulationQualityTaskPanel(scene)
-    panel.accept(); close_task(); doc.recompute()
+    log("backend=%s collision=%s timeout=%ss" % (backend_requested, collision_mode, TIMEOUT_SECONDS))
+    doc = None
+    backend = None
     checkpoints = []
     try:
+        log("new-document")
+        doc = App.newDocument("ClothDrapeDebugFast")
+        log("create-quality-scene-start")
+        scene = create_quality_simulation_scene(doc)
+        log("create-quality-scene-done particles=%s steps=%s" % (getattr(scene, "ParticleCount", "?"), getattr(scene, "Steps", "?")))
+        avatar = getattr(scene.AvatarProxy, "SourceObject", None)
+        if avatar is None:
+            raise RuntimeError("production avatar missing")
+        base = scene.Proxy._base_or_restore()
+        backend = getattr(base, "backend", None)
+        if backend is None:
+            raise RuntimeError("production simulation backend missing")
+        log("backend-ready name=%s particles=%s" % (getattr(backend, "name", "?"), len(backend.positions())))
+        pins = tuple(dict.fromkeys(int(i) for i in (
+            getattr(backend, "_pins", ())
+            or getattr(backend, "_pin_indices", ())
+            or tuple(getattr(getattr(backend, "system", None), "pins", {}).keys())
+        )))
+        stitches = tuple((int(a), int(b)) for a, b in getattr(backend, "_stitches", ()))
+        if not stitches and hasattr(backend, "system"):
+            stitches = tuple((int(c.a), int(c.b)) for c in getattr(backend.system, "stitches", ()))
+            backend._stitches = stitches
+        if not stitches:
+            raise RuntimeError("production backend has no stitch constraints")
+        log("constraints pins=%d stitches=%d" % (len(pins), len(stitches)))
+        target_vertices = [tuple(v) for v in avatar.Mesh.Points]
+        initial_positions = backend.positions()
+        initial_pins = tuple(initial_positions[i] for i in pins)
+        triangles = []
+        for panel in scene.DrapePanels:
+            source = getattr(panel, "SourceObject", panel)
+            try:
+                _, tris, _ = quality_piece_mesh(source, 0.0, scene.ParticleDistance)
+                triangles.extend(tris)
+            except Exception:
+                pass
+        if not triangles and hasattr(backend, "system"):
+            triangles = tuple(getattr(backend.system, "triangles", ()))
+        log("mesh-analysis triangles=%d particle-distance=%s" % (len(triangles), getattr(scene, "ParticleDistance", "?")))
+        for panel in scene.DrapePanels:
+            panel.ViewObject.DisplayMode = "Flat Lines"
+            panel.ViewObject.ShapeColor = (0.78, 0.16, 0.08)
+            panel.ViewObject.LineColor = (0.18, 0.01, 0.01)
+            panel.ViewObject.LineWidth = 1.6
+            panel.ViewObject.Visibility = True
+        try:
+            avatar.ViewObject.DisplayMode = "Flat Lines"
+            avatar.ViewObject.Transparency = 72
+            avatar.ViewObject.LineColor = (0.25, 0.25, 0.25)
+        except Exception:
+            pass
+        seam_obj = doc.addObject("Part::Feature", "DebugCurrentStitches")
+        seam_obj.ViewObject.LineColor = (1.0, 0.90, 0.0)
+        seam_obj.ViewObject.LineWidth = 4.0
+        pin_obj = doc.addObject("Part::Feature", "DebugActivePins")
+        pin_obj.ViewObject.ShapeColor = (1.0, 0.10, 1.0)
+        pin_obj.ViewObject.Transparency = 5
+        update_debug_geometry(doc, seam_obj, pin_obj, backend, pins)
+        doc.recompute(); events()
+        log("debug-geometry-ready")
+        panel = SimulationQualityTaskPanel(scene)
+        panel.accept(); close_task(); doc.recompute()
+        log("task-panel-ready")
         for target_step in STEPS:
+            log("checkpoint-start step=%d current=%s" % (target_step, getattr(scene, "Steps", "?")))
             while int(scene.Steps) < target_step:
                 panel.step(1)
+                log("solver-step-done step=%s" % getattr(scene, "Steps", "?"))
             doc.recompute(); update_debug_geometry(doc, seam_obj, pin_obj, backend, pins); events()
             checkpoints.append(checkpoint_metrics(backend, pins, initial_pins, target_vertices, triangles, target_step))
+            log("metrics-ready step=%d" % target_step)
             view = Gui.activeDocument().activeView()
             view.setCameraType("Orthographic"); view.viewRear(); view.fitAll(); events()
             view.saveImage(str(OUT / ("front-step-%03d.png" % target_step)), 1280, 720, "Current", 1)
+            log("front-render-saved step=%d" % target_step)
             if target_step == 6:
                 view.viewLeft(); view.fitAll(); events()
                 view.saveImage(str(OUT / "left-step-006.png"), 1280, 720, "Current", 1)
+                log("left-render-saved step=6")
     finally:
+        signal.alarm(0)
         close_task()
-        (OUT / "metrics.json").write_text(json.dumps({
-            "backend": getattr(backend, "name", backend_requested),
-            "collision_mode": collision_mode,
-            "checkpoints": checkpoints,
-        }, indent=2), encoding="utf-8")
         try:
-            App.closeDocument(doc.Name)
-        except Exception:
-            pass
+            (OUT / "metrics.json").write_text(json.dumps({
+                "backend": getattr(backend, "name", backend_requested),
+                "collision_mode": collision_mode,
+                "checkpoints": checkpoints,
+            }, indent=2), encoding="utf-8")
+        except Exception as exc:
+            log("metrics-write-failed %r" % (exc,))
+        log("finally")
+        if doc is not None:
+            try:
+                App.closeDocument(doc.Name)
+            except Exception as exc:
+                log("close-document-failed %r" % (exc,))
         try:
             app = QtWidgets.QApplication.instance()
             if app is not None:
                 app.quit()
-        except Exception:
-            pass
+        except Exception as exc:
+            log("qt-quit-failed %r" % (exc,))
         try:
             App.exit()
-        except Exception:
-            pass
+        except Exception as exc:
+            log("app-exit-failed %r" % (exc,))
 
 
 if __name__ == "__main__":
     try:
         run()
+        log("pass")
     except Exception as exc:
-        print("DRAPE-DEBUG-ERROR: %r" % (exc,), flush=True)
+        log("ERROR %r" % (exc,))
         try:
             App.exit()
         except Exception:
