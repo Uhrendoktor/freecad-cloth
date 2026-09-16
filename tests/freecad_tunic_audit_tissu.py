@@ -29,7 +29,7 @@ for old, new in replacements.items():
 # Use the same authored shoulder pinning as the canonical tunic turntable:
 # two boundary vertices on the front panel only; the rear panel is sewn and free.
 pin_pattern = re.compile(r'    def authored_shoulder_pins\(piece, positions\):.*?    for source in \(doc\.getObject', re.S)
-pin_replacement = '''    def authored_shoulder_pins(piece, outline):
+pin_replacement = '''    def authored_shoulder_pins(piece, outline, positions):
         points = [(float(x), float(y)) for x, y in outline]
         shoulder_targets = (points[3], points[6])
         available = list(dict.fromkeys(int(i) for i in quality_piece_mesh(piece, 0.0, scene.ParticleDistance)[2]))
@@ -46,7 +46,7 @@ pin_replacement = '''    def authored_shoulder_pins(piece, outline):
         return tuple(pins)
 
     front_positions, _front_triangles, _front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
-    front_pins = authored_shoulder_pins(front, front_outline)
+    front_pins = authored_shoulder_pins(front, front_outline, front_positions)
     scene.PinSelection = [str(i) for i in front_pins]
     log("pin-map front-shoulders=%s" % (front_pins,)); doc.recompute()
 
