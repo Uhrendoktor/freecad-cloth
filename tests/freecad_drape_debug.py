@@ -10,11 +10,11 @@ from __future__ import annotations
 import json
 import math
 import os
-import sys
 from pathlib import Path
 
 import FreeCAD as App
 import FreeCADGui as Gui
+import Part
 
 try:
     from PySide import QtWidgets
@@ -59,14 +59,11 @@ def _make_tunic_sketch(doc, name, panel_width, garment_height, hem_width, neckli
     h = float(garment_height)
     neck_z = h * float(neckline_drop)
     points = [
-        (0, 0),
-        (hem_width, 0),
-        (panel_width, 0.82 * h),
+        (0, 0), (hem_width, 0), (panel_width, 0.82 * h),
         (0.86 * panel_width, 0.97 * h),
         (float(neckline_ratio) * panel_width, neck_z),
         ((1.0 - float(neckline_ratio)) * panel_width, neck_z),
-        (0.14 * panel_width, 0.97 * h),
-        (0, 0.82 * h),
+        (0.14 * panel_width, 0.97 * h), (0, 0.82 * h),
     ]
     sketch = doc.addObject("Sketcher::SketchObject", name)
     for idx, start in enumerate(points):
@@ -77,9 +74,7 @@ def _make_tunic_sketch(doc, name, panel_width, garment_height, hem_width, neckli
 
 def _adopt_sketch(sketch, name, seam_allowance):
     from freecad_cloth.pattern.PatternObjects import add_pattern_piece
-
-    piece = add_pattern_piece(sketch.Document, sketch, label=name, seam_allowance=float(seam_allowance))
-    return piece
+    return add_pattern_piece(sketch.Document, sketch, label=name, seam_allowance=float(seam_allowance))
 
 
 def _style_mesh(obj):
@@ -93,8 +88,6 @@ def _style_mesh(obj):
 
 
 def _debug_line(doc, name, points, color, width=4.0):
-    import Part
-
     feature = doc.addObject("Part::Feature", name)
     feature.Shape = Part.makePolygon([App.Vector(*p) for p in points])
     try:
@@ -106,8 +99,6 @@ def _debug_line(doc, name, points, color, width=4.0):
 
 
 def _debug_sphere(doc, name, point, color, radius=12.0):
-    import Part
-
     feature = doc.addObject("Part::Feature", name)
     feature.Shape = Part.makeSphere(radius, App.Vector(*point))
     try:
@@ -155,7 +146,7 @@ def _minimum_vertex_distance(source, target):
     return math.sqrt(best) if math.isfinite(best) else None
 
 
-def _metrics(backend, stitches, pin_indices, initial_pins, target_vertices, triangles):
+def _metrics(backend, stitches, pin_indices, initial_pins, target_vertices, triangles, requested_step):
     positions = backend.positions()
     seam_gaps = []
     for a, b in stitches:
@@ -168,11 +159,12 @@ def _metrics(backend, stitches, pin_indices, initial_pins, target_vertices, tria
     xs = [float(p[0]) for p in positions]; ys = [float(p[1]) for p in positions]; zs = [float(p[2]) for p in positions]
     metrics = {
         "backend": getattr(backend, "name", "unknown"),
-        "steps": int(round(float(backend.time) * 120.0)),
+        "requested_step": requested_step,
         "finite": bool(backend.finite()),
         "bounds": [min(xs), max(xs), min(ys), max(ys), min(zs), max(zs)],
         "centroid": [sum(xs) / len(xs), sum(ys) / len(ys), sum(zs) / len(zs)],
         "maximum_seam_gap_mm": max(seam_gaps) if seam_gaps else 0.0,
+        "seam_gaps_mm": seam_gaps,
         "maximum_pin_drift_mm": max(pin_drifts) if pin_drifts else 0.0,
         "minimum_vertex_to_target_mm": _minimum_vertex_distance(positions, target_vertices),
         "finite_vertices": all(math.isfinite(float(c)) for p in positions for c in p),
@@ -237,11 +229,9 @@ def run():
 
     front_positions, front_triangles, _ = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
     back_positions, back_triangles, _ = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
-    all_positions = tuple(front_positions) + tuple(back_positions)
     triangles = tuple(front_triangles) + tuple((a + len(front_positions), b + len(front_positions), c + len(front_positions)) for a, b, c in back_triangles)
 
     def pin_indices(piece, outline, positions):
-        points = [(float(x), float(y)) for x, y in outline]
         targets = ((0.14 * panel_width, 0.97 * garment_height), (0.86 * panel_width, 0.97 * garment_height))
         result = []
         available = list(range(len(positions)))
@@ -253,48 +243,46 @@ def run():
 
     front_pins = pin_indices(front, front_outline, front_positions)
     back_pins_local = pin_indices(back, back_outline, back_positions)
-    back_pins = tuple(len(front_positions) + i for i in back_pins_local)
-    pins = tuple(front_pins + back_pins)
+    pins = tuple(front_pins + tuple(len(front_positions) + i for i in back_pins_local))
     scene.PinSelection = [str(i) for i in pins]
     doc.recompute()
 
-    # Hide source sketches/pattern pieces; show the actual simulated panels.
     for source in (doc.getObject("DebugTunicFront"), doc.getObject("DebugTunicBack")):
         if source is not None:
             source.ViewObject.Visibility = False
             sketch = getattr(source, "Sketch", None)
             if sketch is not None:
                 sketch.ViewObject.Visibility = False
+
     base = scene.Proxy._base_or_restore()
     backend = getattr(base, "backend", None)
     if backend is None:
         raise RuntimeError("production simulation backend missing")
     stitches = tuple((int(c.a), int(c.b)) for c in getattr(backend.system, "stitches", ())) if hasattr(backend, "system") else tuple(getattr(backend, "_stitches", ()))
+    if not stitches:
+        raise RuntimeError("production seam graph produced no stitches")
+    backend.pin(pins)
+    backend.set_stitches(stitches, compliance=0.0)
     target_vertices = [tuple(v) for v in avatar.Mesh.Points]
     initial_pins = tuple(backend.positions()[i] for i in pins)
 
     debug_group = doc.addObject("App::DocumentObjectGroup", "DrapeDebug")
     seam_colors = ((1.0, 0.85, 0.0), (1.0, 0.45, 0.0), (0.2, 1.0, 0.2), (0.2, 0.8, 1.0))
     for (edge_a, _edge_b, seam_id), color in zip(SEAMS, seam_colors):
-        outline = front_outline if edge_a <= 3 else front_outline
-        p0 = outline[edge_a]
-        p1 = outline[(edge_a + 1) % len(outline)]
+        p0 = front_outline[edge_a]
+        p1 = front_outline[(edge_a + 1) % len(front_outline)]
         world = [front.Placement.multVec(App.Vector(p0[0], p0[1], 0.0)), front.Placement.multVec(App.Vector(p1[0], p1[1], 0.0))]
-        obj = _debug_line(doc, "DebugSeam_%s" % seam_id, [(p.x, p.y, p.z) for p in world], color)
-        debug_group.addObject(obj)
-    for index, pin_index in enumerate(pins):
-        obj = _debug_sphere(doc, "DebugPin_%02d" % index, initial_pins[index], (1.0, 0.2, 1.0), 13.0)
-        debug_group.addObject(obj)
-    for panel in scene.DrapePanels:
-        _style_mesh(panel)
-        panel.ViewObject.Visibility = True
+        debug_group.addObject(_debug_line(doc, "DebugSeam_%s" % seam_id, [(p.x, p.y, p.z) for p in world], color))
+    for index, initial in enumerate(initial_pins):
+        debug_group.addObject(_debug_sphere(doc, "DebugPin_%02d" % index, initial, (1.0, 0.2, 1.0), 13.0))
+    for panel_obj in scene.DrapePanels:
+        _style_mesh(panel_obj)
+        panel_obj.ViewObject.Visibility = True
     avatar.ViewObject.Visibility = True
-    doc.recompute()
+    doc.recompute(); events()
 
     panel = SimulationQualityTaskPanel(scene)
-    show_task(panel)
-    panel.accept()
-    close_task()
+    panel.accept(); close_task()
     doc.recompute()
 
     metrics = []
@@ -304,28 +292,24 @@ def run():
             if target_step > current:
                 panel.step(target_step - current)
             doc.recompute(); events()
-            values = _metrics(backend, stitches, pins, initial_pins, target_vertices, triangles)
-            values["requested_step"] = target_step
+            values = _metrics(backend, stitches, pins, initial_pins, target_vertices, triangles, target_step)
             values["backend_requested"] = backend_requested
             metrics.append(values)
             view = Gui.activeDocument().activeView()
             view.setCameraType("Orthographic")
-            view.viewRear()  # physical front in the canonical FreeCAD camera convention
-            view.fitAll(); events()
+            view.viewRear(); view.fitAll(); events()
             view.saveImage(str(OUT / ("front-step-%03d.png" % target_step)), 1280, 720, "Current", 1)
             if target_step == 30:
                 view.viewLeft(); view.fitAll(); events()
                 view.saveImage(str(OUT / "left-step-030.png"), 1280, 720, "Current", 1)
     finally:
         close_task()
-        (OUT / "metrics.json").write_text(json.dumps({"backend": backend_requested, "collision_mode": os.environ.get("CLOTH_TISSU_COLLISION_MODE", "mesh"), "checkpoints": metrics}, indent=2), encoding="utf-8")
-        doc.recompute()
-        App.closeDocument(doc.Name)
+        (OUT / "metrics.json").write_text(json.dumps({"backend": getattr(backend, "name", backend_requested), "collision_mode": os.environ.get("CLOTH_TISSU_COLLISION_MODE", "mesh"), "checkpoints": metrics}, indent=2), encoding="utf-8")
+        try:
+            App.closeDocument(doc.Name)
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
-    try:
-        run()
-    except BaseException as exc:
-        log("failure=%r" % (exc,))
-        raise
+    run()
