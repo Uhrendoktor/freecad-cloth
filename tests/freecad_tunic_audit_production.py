@@ -1,6 +1,7 @@
 """Production-oriented tunic visual audit using the canonical FreeCAD GUI scenario."""
 from pathlib import Path
 import re
+import json
 
 source_path = Path(__file__).with_name("freecad_screenshot_source.py")
 source = source_path.read_text(encoding="utf-8")
@@ -12,7 +13,7 @@ replacements = {
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
         'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.08)',
     'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):':
-        'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(6,6,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
+        'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):',
     "scene.ParticleDistance = 24.0;": "scene.ParticleDistance = 22.0;",
     "scene.SolverIterations = 8;": "scene.SolverIterations = 12;",
     "scene.SolverSubsteps = 1;": "scene.SolverSubsteps = 2;",
@@ -43,12 +44,7 @@ pin_replacement = '''    def authored_shoulder_pins(piece, outline, positions):
         pins = []
         for local_x, local_y in shoulder_targets:
             target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
-            index = min(
-                available,
-                key=lambda i: (positions[i][0] - target_point.x) ** 2
-                + (positions[i][1] - target_point.y) ** 2
-                + (positions[i][2] - target_point.z) ** 2,
-            )
+            index = min(available, key=lambda i: (positions[i][0] - target_point.x) ** 2 + (positions[i][1] - target_point.y) ** 2 + (positions[i][2] - target_point.z) ** 2)
             pins.append(index)
             available.remove(index)
         return tuple(pins)
@@ -93,7 +89,7 @@ seam_check = '''    backend_state = scene.Proxy._base_or_restore()
         raise RuntimeError("Tissu backend returned no simulated particle positions")
     back_offset = len(front_positions)
     seam_gaps = []
-    for edge_a, edge_b in ((1, 1), (2, 2), (6, 6), (7, 7)):
+    for edge_a, edge_b in ((2, 2), (5, 5)):
         front_a0 = front_boundary[edge_a]; front_a1 = front_boundary[(edge_a + 1) % len(front_boundary)]
         back_a0 = back_boundary[edge_b] + back_offset; back_a1 = back_boundary[(edge_b + 1) % len(back_boundary)] + back_offset
         for ia, ib in ((front_a0, back_a0), (front_a1, back_a1)):
@@ -101,8 +97,8 @@ seam_check = '''    backend_state = scene.Proxy._base_or_restore()
             seam_gaps.append(((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2) ** 0.5)
     seam_gap = max(seam_gaps) if seam_gaps else 0.0
     if seam_gap > 35.0:
-        raise RuntimeError("simulated tunic seams did not converge: max endpoint gap %.1f mm" % seam_gap)
-    log("tunic-seam-max-gap-mm=%.2f" % seam_gap)
+        raise RuntimeError("simulated authored shoulder seams did not converge: max endpoint gap %.1f mm" % seam_gap)
+    log("tunic-authored-shoulder-max-gap-mm=%.2f" % seam_gap)
 '''
 metric_anchor = '    write_drape_metrics(panels, avatar, x_mid, shoulder_z=shoulder_z, hem_z=hem_z); bounds = []'
 if metric_anchor not in source:
