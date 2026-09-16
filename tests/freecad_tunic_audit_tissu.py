@@ -5,18 +5,20 @@ import re
 source_path = Path(__file__).with_name("freecad_screenshot_source.py")
 source = source_path.read_text(encoding="utf-8")
 
-# Tunic fixture profile: stable drape plus an explicit shoulder/neckline silhouette.
+# Tunic fixture profile: stable drape plus a closer-fitting shoulder/neckline silhouette.
 replacements = {
-    'clearance = max(20.0, 0.08 * body_depth);': 'clearance = max(30.0, 0.10 * body_depth);',
+    'clearance = max(20.0, 0.08 * body_depth);': 'clearance = max(8.0, 0.025 * body_depth);',
+    'chest = 980.0; hip = 1020.0; ease = 55.0;': 'chest = 860.0; hip = 880.0; ease = 10.0;',
+    'front_y = box.YMin - clearance; back_y = box.YMax + clearance;': 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
         'front, front_outline = make_piece("VisualTunicFront", front_y, 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", back_y, 0.76, 0.12)',
     'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):' :
-        'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
+        'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
-    'for batch in (15,15,15,15,15,15):': 'for batch in (5,5,5):',
-    'if int(scene.Steps) != 90 or': 'if int(scene.Steps) != 15 or',
-    '"simulation did not reach a finite 90-step state"': '"simulation did not reach a finite 15-step state"',
-    'after 90 real steps;': 'after 15 real steps;',
+    'for batch in (15,15,15,15,15,15):': 'for batch in (40,40,40):',
+    'if int(scene.Steps) != 90 or': 'if int(scene.Steps) != 120 or',
+    '"simulation did not reach a finite 90-step state"': '"simulation did not reach a finite 120-step state"',
+    'after 90 real steps;': 'after 120 real steps;',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
 }
 for old, new in replacements.items():
@@ -24,39 +26,30 @@ for old, new in replacements.items():
         raise RuntimeError(f"audit replacement did not match source: {old}")
     source = source.replace(old, new, 1)
 
-# Pin only actual boundary vertices. This prevents refined interior vertices from
-# becoming accidental shoulder anchors.
+# Use the same authored shoulder pinning as the canonical tunic turntable:
+# two boundary vertices on the front panel only; the rear panel is sewn and free.
 pin_pattern = re.compile(r'    def authored_shoulder_pins\(piece, positions\):.*?    for source in \(doc\.getObject', re.S)
-pin_replacement = '''    def authored_shoulder_pins(piece, positions, boundary_indices):
-        targets = (
-            (0.08 * panel_width, 0.97 * garment_height),
-            (0.92 * panel_width, 0.97 * garment_height),
-            (0.20 * panel_width, 0.90 * garment_height),
-            (0.80 * panel_width, 0.90 * garment_height),
-        )
-        available = list(dict.fromkeys(int(i) for i in boundary_indices))
-        if len(available) < len(targets):
+pin_replacement = '''    def authored_shoulder_pins(piece, outline, positions):
+        points = [(float(x), float(y)) for x, y in outline]
+        shoulder_targets = (points[3], points[6])
+        available = list(dict.fromkeys(int(i) for i in quality_piece_mesh(piece, 0.0, scene.ParticleDistance)[2]))
+        if len(available) < len(shoulder_targets):
             raise RuntimeError("insufficient boundary vertices for authored shoulder pins")
-        result = []
-        for local_x, local_y in targets:
-            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
+        pins = []
+        for target_x, target_y in shoulder_targets:
             index = min(
                 available,
-                key=lambda i: (positions[i][0] - target_point.x) ** 2
-                + (positions[i][1] - target_point.y) ** 2
-                + (positions[i][2] - target_point.z) ** 2,
+                key=lambda i: (positions[i][0] - target_x) ** 2 + (positions[i][1] - target_y) ** 2,
             )
-            result.append(index)
+            pins.append(index)
             available.remove(index)
-        return tuple(result)
+        return tuple(pins)
 
     front_positions, _front_triangles, front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
     back_positions, _back_triangles, back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
-    front_pins = authored_shoulder_pins(front, front_positions, front_boundary)
-    back_pins_local = authored_shoulder_pins(back, back_positions, back_boundary)
-    back_pins = tuple(len(front_positions) + i for i in back_pins_local)
-    scene.PinSelection = [str(i) for i in front_pins + back_pins]
-    log("pin-map authored front=%s back-local=%s back-global=%s" % (front_pins, back_pins_local, back_pins)); doc.recompute()
+    front_pins = authored_shoulder_pins(front, front_outline, front_positions)
+    scene.PinSelection = [str(i) for i in front_pins]
+    log("pin-map front-shoulders=%s" % (front_pins,)); doc.recompute()
 
     for source in (doc.getObject'''
 source, pin_count = pin_pattern.subn(pin_replacement, source, count=1)
@@ -90,9 +83,33 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
     log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
 '''
-anchor = '    for batch in (5,5,5):'
+anchor = '    for batch in (40,40,40):'
 if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
 source = source.replace(anchor, preview_probe + '\n' + anchor, 1)
+
+# Validate seam closure against the actual Tissu particle positions. FreeCAD Mesh::Feature
+# point ordering is a serialization detail and is not guaranteed to match particle indices.
+seam_check = '''    backend_state = scene.Proxy._base_or_restore()
+    simulated_positions = tuple(backend_state.backend.positions())
+    if not simulated_positions:
+        raise RuntimeError("Tissu backend returned no simulated particle positions")
+    back_offset = len(front_positions)
+    seam_gaps = []
+    for edge_a, edge_b in ((1, 1), (3, 3), (5, 5), (7, 7)):
+        front_a0 = front_boundary[edge_a]; front_a1 = front_boundary[(edge_a + 1) % len(front_boundary)]
+        back_a0 = back_boundary[edge_b] + back_offset; back_a1 = back_boundary[(edge_b + 1) % len(back_boundary)] + back_offset
+        for ia, ib in ((front_a0, back_a0), (front_a1, back_a1)):
+            a = simulated_positions[ia]; b = simulated_positions[ib]
+            seam_gaps.append(((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2) ** 0.5)
+    seam_gap = max(seam_gaps) if seam_gaps else 0.0
+    if seam_gap > 35.0:
+        raise RuntimeError("simulated tunic seams did not converge: max endpoint gap %.1f mm" % seam_gap)
+    log("tunic-seam-max-gap-mm=%.2f" % seam_gap)
+'''
+anchor = '    write_drape_metrics(panels, avatar, x_mid, shoulder_z=shoulder_z, hem_z=hem_z); bounds = []'
+if anchor not in source:
+    raise RuntimeError("drape metrics anchor missing")
+source = source.replace(anchor, seam_check + anchor, 1)
 
 exec(compile(source, str(source_path), "exec"), globals(), globals())
