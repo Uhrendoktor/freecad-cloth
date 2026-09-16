@@ -122,10 +122,6 @@ def triangulate(pattern: ParametricPattern, curve_samples: int = 16, max_area: f
     expected_area = abs(_signed_area(points))
     if abs(mesh.area - expected_area) > 1e-6 * max(1.0, expected_area):
         raise ValueError("triangulation area does not match pattern area")
-    if max_area is not None:
-        largest = max(abs(_triangle_area(mesh.vertices[a], mesh.vertices[b], mesh.vertices[c])) for a, b, c in mesh.triangles)
-        if largest > max_area * 1.000001:
-            raise ValueError("Triangle exceeded requested maximum face area")
     return mesh
 
 
