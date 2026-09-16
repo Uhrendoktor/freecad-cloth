@@ -181,7 +181,7 @@ def build_simulation_state(doc):
     back, back_outline = make_piece("VisualTunicBack", box.YMin - clearance, mirror_x=True)
 
     seam_records = []
-    seam_specs = ((1, 7, False, "TunicRightSide"), (3, 5, True, "TunicRightShoulder"), (5, 3, True, "TunicLeftShoulder"), (7, 1, False, "TunicLeftSide"))
+    seam_specs = ((1, 7, True, "TunicRightSide"), (3, 5, True, "TunicRightShoulder"), (5, 3, True, "TunicLeftShoulder"), (7, 1, True, "TunicLeftSide"))
     for edge_a, edge_b, reversed_b, seam_id in seam_specs:
         seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly", reversed_b=reversed_b)
         add_seam(doc, seam)
@@ -190,11 +190,11 @@ def build_simulation_state(doc):
 
     scene.StartHeight = 0.0
     scene.QualityPreset = "Fast"
-    scene.ParticleDistance = 45.0
-    scene.SolverIterations = 5
-    scene.SolverSubsteps = 1
-    scene.TimeStep = 1.0 / 120.0
-    scene.StitchSamples = int(os.environ.get("CLOTH_TUNIC_STITCH_SAMPLES", "6"))
+    scene.ParticleDistance = float(os.environ.get("CLOTH_TUNIC_PARTICLE_DISTANCE_MM", "18.0"))
+    scene.SolverIterations = int(os.environ.get("CLOTH_TUNIC_SOLVER_ITERATIONS", "6"))
+    scene.SolverSubsteps = int(os.environ.get("CLOTH_TUNIC_SOLVER_SUBSTEPS", "2"))
+    scene.TimeStep = float(os.environ.get("CLOTH_TUNIC_TIMESTEP", str(1.0 / 120.0)))
+    scene.StitchSamples = int(os.environ.get("CLOTH_TUNIC_STITCH_SAMPLES", "8"))
     scene.GravityX = scene.GravityY = 0.0
     scene.GravityZ = -9810.0
     scene.FabricFriction = 0.78
@@ -256,16 +256,24 @@ def main():
         objects = [avatar] + panels
         render_turntable(view, objects, os.path.join(OUT, "cloth-simulation-arranged-turntable-frames"))
         authored.ViewObject.Visibility = False
-        scene.Steps = 30
+        steps = int(os.environ.get("CLOTH_TUNIC_STEPS", "30"))
+        scene.Steps = steps
         doc.recompute()
         events()
-        if int(scene.Steps) != 30 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
-            raise RuntimeError("simulation did not reach a finite 30-step state")
+        if int(scene.Steps) != steps or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
+            raise RuntimeError("simulation did not reach a finite %d-step state" % steps)
         if any(panel.Mesh.CountFacets <= 10 for panel in panels):
             raise RuntimeError("draped tunic panel mesh is empty")
         front, back = pieces
         simulated = {front.Name: _boundary_points(panels[0], len(_outline(front))), back.Name: _boundary_points(panels[1], len(_outline(back)))}
         _seam_overlay(doc, "TunicSeamsSimulated", seam_records, simulated)
+        backend = getattr(getattr(scene, "Proxy", None), "_base_or_restore", lambda: None)()
+        backend_name = getattr(getattr(backend, "backend", None), "name", "unknown") if backend is not None else "unknown"
+        log("simulation-state-pass backend=%s steps=%d particles=%d triangles=%d facets=(%d,%d)" % (
+            backend_name, steps, int(scene.ParticleCount),
+            sum(len(t) for t in getattr(backend, "panel_triangles", {}).values()) if backend is not None else 0,
+            panels[0].Mesh.CountFacets, panels[1].Mesh.CountFacets,
+        ))
         render_turntable(view, objects, os.path.join(OUT, "cloth-simulation-draped-turntable-frames"))
         log("simulation-turntable-pass")
     finally:
