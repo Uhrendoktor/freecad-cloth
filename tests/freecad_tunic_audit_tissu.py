@@ -5,11 +5,11 @@ import re
 source_path = Path(__file__).with_name("freecad_screenshot_source.py")
 source = source_path.read_text(encoding="utf-8")
 
-# These are the parameters that produced the last verified Tissu tunic artifact.
+# Tunic fixture profile: stable drape plus an explicit shoulder/neckline silhouette.
 replacements = {
     'clearance = max(20.0, 0.08 * body_depth);': 'clearance = max(30.0, 0.10 * body_depth);',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
-        'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)',
+        'front, front_outline = make_piece("VisualTunicFront", front_y, 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", back_y, 0.76, 0.12)',
     'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):' :
         'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
@@ -24,8 +24,8 @@ for old, new in replacements.items():
         raise RuntimeError(f"audit replacement did not match source: {old}")
     source = source.replace(old, new, 1)
 
-# Pin only actual boundary vertices.  This prevents the refined interior mesh from
-# turning the shoulder anchors into arbitrary interior constraints.
+# Pin only actual boundary vertices. This prevents refined interior vertices from
+# becoming accidental shoulder anchors.
 pin_pattern = re.compile(r'    def authored_shoulder_pins\(piece, positions\):.*?    for source in \(doc\.getObject', re.S)
 pin_replacement = '''    def authored_shoulder_pins(piece, positions, boundary_indices):
         targets = (
@@ -63,11 +63,8 @@ source, pin_count = pin_pattern.subn(pin_replacement, source, count=1)
 if pin_count != 1:
     raise RuntimeError("boundary pin patch did not match source")
 
-# The production SimulationQualityRuntimeV2 now owns backend selection.  The old
-# audit used to rewrite an obsolete XPBD assignment in this source file; that
-# guard became a false failure when the runtime moved backend creation into the
-# authoritative SimulationObjects builder.  CI selects Tissu through the normal
-# CLOTH_SIMULATION_BACKEND environment variable instead.
+# Backend selection is owned by the production runtime. The audit must not rewrite
+# an obsolete backend assignment or duplicate solver construction.
 preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
     if "ClothRealtimePreview" not in Gui.listCommands():
         raise RuntimeError("Realtime Cloth Preview GUI command is not registered")
