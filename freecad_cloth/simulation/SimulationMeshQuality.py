@@ -1,9 +1,4 @@
-"""Deterministic simulation mesh refinement driven by particle distance.
-
-The authoritative PatternMesh triangulation remains unchanged.  Simulation
-quality adds interior centroid refinement so boundary vertices and semantic
-seam edge indices remain stable while the solver receives a useful topology.
-"""
+"""Deterministic simulation mesh refinement driven by particle distance."""
 from math import ceil, hypot, log2
 
 
@@ -20,24 +15,41 @@ def _outline_points(piece):
     return points
 
 
-def _centroid_refine(vertices, triangles):
-    """Split each triangle into three using an interior centroid.
+def _midpoint_refine(vertices, triangles, boundary):
+    """Split each triangle into four using shared edge midpoints.
 
-    No new boundary vertices are introduced, so existing seam edge indices
-    continue to address the same authored pattern boundary.
+    Original boundary vertices remain at their original indices. Midpoints on
+    the authored boundary are added to the boundary chain so seam sampling
+    gains resolution without invalidating existing seam edge references.
     """
     result_vertices = list(vertices)
+    edge_midpoints = {}
+
+    def midpoint_index(a, b):
+        edge = (min(a, b), max(a, b))
+        existing = edge_midpoints.get(edge)
+        if existing is not None:
+            return existing
+        pa, pb = result_vertices[a], result_vertices[b]
+        index = len(result_vertices)
+        result_vertices.append(((pa[0] + pb[0]) / 2.0, (pa[1] + pb[1]) / 2.0))
+        edge_midpoints[edge] = index
+        return index
+
     result_triangles = []
     for a, b, c in triangles:
-        pa, pb, pc = vertices[a], vertices[b], vertices[c]
-        centroid = (
-            (pa[0] + pb[0] + pc[0]) / 3.0,
-            (pa[1] + pb[1] + pc[1]) / 3.0,
-        )
-        m = len(result_vertices)
-        result_vertices.append(centroid)
-        result_triangles.extend(((a, b, m), (b, c, m), (c, a, m)))
-    return result_vertices, result_triangles
+        ab = midpoint_index(a, b)
+        bc = midpoint_index(b, c)
+        ca = midpoint_index(c, a)
+        result_triangles.extend(((a, ab, ca), (ab, b, bc), (ca, bc, c), (ab, bc, ca)))
+
+    result_boundary = []
+    for index, start in enumerate(boundary):
+        end = boundary[(index + 1) % len(boundary)]
+        result_boundary.append(start)
+        result_boundary.append(midpoint_index(start, end))
+
+    return result_vertices, result_triangles, tuple(result_boundary)
 
 
 def _refinement_levels(vertices, boundary, particle_distance):
@@ -64,9 +76,10 @@ def quality_piece_mesh(piece, start_height, particle_distance):
     mesh = triangulate(ParametricPattern(segments))
     vertices = [(float(x), float(y)) for x, y in mesh.vertices]
     triangles = [tuple(tri) for tri in mesh.triangles]
-    levels = _refinement_levels(vertices, tuple(mesh.boundary_vertex_indices), particle_distance)
+    boundary = tuple(mesh.boundary_vertex_indices)
+    levels = _refinement_levels(vertices, boundary, particle_distance)
     for _ in range(levels):
-        vertices, triangles = _centroid_refine(vertices, triangles)
+        vertices, triangles, boundary = _midpoint_refine(vertices, triangles, boundary)
     placement = getattr(piece, "Placement", None)
     if placement is None:
         positions = [(x, y, float(start_height)) for x, y in vertices]
@@ -76,7 +89,7 @@ def quality_piece_mesh(piece, start_height, particle_distance):
         for x, y in vertices:
             point = placement.multVec(App.Vector(x, y, float(start_height)))
             positions.append((float(point.x), float(point.y), float(point.z)))
-    return positions, tuple(triangles), tuple(mesh.boundary_vertex_indices)
+    return positions, tuple(triangles), tuple(boundary)
 
 
 def install_quality_mesh_patch():
