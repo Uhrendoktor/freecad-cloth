@@ -4,7 +4,7 @@ The backend is intentionally FreeCAD-independent. Positions are millimetres,
 velocities millimetres/second and gravity millimetres/second².
 """
 from dataclasses import dataclass
-from math import sqrt
+from math import floor, sqrt
 
 
 @dataclass
@@ -92,6 +92,7 @@ class ClothSystem:
         self.stitches = list(stitches)
         self.pins = {int(i): tuple(p) for i, p in pins}
         self.time = 0.0
+        self._surface_cache = {}
 
     @classmethod
     def grid(cls, width, height, nx=8, ny=5, origin=(0.0, 0.0, 0.0)):
@@ -166,35 +167,71 @@ class ClothSystem:
             b.y -= dy * correction * b.inv_mass
             b.z -= dz * correction * b.inv_mass
 
-    def _collide_surface(self, surface):
+    def _prepare_surface(self, surface):
+        cached = self._surface_cache.get(id(surface))
+        if cached is not None:
+            return cached
         surface.validate()
         center = surface.center
+        cell_size = max(50.0, min(120.0, 4.0 * max(float(surface.thickness), 1.0)))
         prepared = []
-        for ia, ib, ic in surface.triangles:
+        grid = {}
+
+        def cell_coord(point):
+            return tuple(int(floor(float(point[i]) / cell_size)) for i in range(3))
+
+        for triangle_index, (ia, ib, ic) in enumerate(surface.triangles):
             a, b, c = surface.vertices[ia], surface.vertices[ib], surface.vertices[ic]
             normal = _normalize(_cross(tuple(b[i] - a[i] for i in range(3)), tuple(c[i] - a[i] for i in range(3))))
             if normal is None:
                 continue
             face_center = tuple((a[i] + b[i] + c[i]) / 3.0 for i in range(3))
             if sum(normal[i] * (center[i] - face_center[i]) for i in range(3)) > 0.0:
-                normal = tuple(-c for c in normal)
+                normal = tuple(-value for value in normal)
             prepared.append((a, b, c, normal))
+            mins = tuple(min(a[i], b[i], c[i]) - surface.thickness for i in range(3))
+            maxs = tuple(max(a[i], b[i], c[i]) + surface.thickness for i in range(3))
+            lo = cell_coord(mins)
+            hi = cell_coord(maxs)
+            prepared_index = len(prepared) - 1
+            for ix in range(lo[0], hi[0] + 1):
+                for iy in range(lo[1], hi[1] + 1):
+                    for iz in range(lo[2], hi[2] + 1):
+                        grid.setdefault((ix, iy, iz), []).append(prepared_index)
+
+        cached = (cell_size, prepared, grid)
+        self._surface_cache[id(surface)] = cached
+        return cached
+
+    def _collide_surface(self, surface):
+        cell_size, prepared, grid = self._prepare_surface(surface)
+        thickness = float(surface.thickness)
         for p in self.particles:
             if p.inv_mass == 0.0 or not prepared:
                 continue
             position = p.position()
+            low = tuple(int(floor((position[i] - thickness) / cell_size)) for i in range(3))
+            high = tuple(int(floor((position[i] + thickness) / cell_size)) for i in range(3))
+            candidate_ids = set()
+            for ix in range(low[0], high[0] + 1):
+                for iy in range(low[1], high[1] + 1):
+                    for iz in range(low[2], high[2] + 1):
+                        candidate_ids.update(grid.get((ix, iy, iz), ()))
+            if not candidate_ids:
+                continue
             best = None
-            for a, b, c, normal in prepared:
+            for triangle_index in candidate_ids:
+                a, b, c, normal = prepared[triangle_index]
                 closest = _closest_point_triangle(position, a, b, c)
                 delta = tuple(position[i] - closest[i] for i in range(3))
                 signed = sum(delta[i] * normal[i] for i in range(3))
-                if signed < surface.thickness:
+                if signed < thickness:
                     distance_sq = sum(d * d for d in delta)
                     if best is None or distance_sq < best[0]:
-                        best = (distance_sq, closest, normal, signed)
+                        best = (distance_sq, normal, signed)
             if best is not None:
-                _, _, normal, signed = best
-                correction = surface.thickness - signed
+                _, normal, signed = best
+                correction = thickness - signed
                 p.x += normal[0] * correction
                 p.y += normal[1] * correction
                 p.z += normal[2] * correction
@@ -210,9 +247,9 @@ class ClothSystem:
                 p.x, p.y, p.z = cx+dx*s, cy+dy*s, cz+dz*s
 
     def add_stitches(self, pairs, compliance=0.0):
+        """Add zero-rest-length sewing constraints between corresponding edge samples."""
         for a, b in pairs:
-            pa, pb = self.particles[a], self.particles[b]
-            self.stitches.append(DistanceConstraint(a, b, distance(pa, pb), compliance))
+            self.stitches.append(DistanceConstraint(int(a), int(b), 0.0, compliance))
 
     def pin(self, indices):
         for i in indices:

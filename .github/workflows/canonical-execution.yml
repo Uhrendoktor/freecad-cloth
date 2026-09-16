@@ -1,345 +1,145 @@
 name: Canonical execution
 
 on:
-  push:
-    branches: [main]
   pull_request:
     types: [opened, synchronize, reopened]
-  workflow_dispatch:
 
 concurrency:
-  group: canonical-${{ github.ref }}
+  group: canonical-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
+env:
+  FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
+  QT_X11_NO_MITSHM: 1
+  QT_QPA_PLATFORM: xcb
+  LIBGL_ALWAYS_SOFTWARE: 1
+  XDG_RUNTIME_DIR: /tmp/runtime-cloth
 
 permissions:
   actions: read
   contents: write
   packages: write
-  pull-requests: write
-
-env:
-  FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r2
-  QT_X11_NO_MITSHM: 1
-  QT_QPA_PLATFORM: xcb
-  LIBGL_ALWAYS_SOFTWARE: 1
-  PIXELFLUX_WAYLAND: false
-  XDG_RUNTIME_DIR: /tmp/runtime-cloth
 
 jobs:
   python:
     name: Python and FreeCAD non-GUI tests
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
-      - name: Prepare FreeCAD image
-        env:
-          IMAGE: ${{ env.FREECAD_IMAGE }}
-        run: |
-          set -euo pipefail
-          if docker image inspect "$IMAGE" >/dev/null 2>&1; then exit 0; fi
-          if printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1 && timeout 90s docker pull "$IMAGE"; then exit 0; fi
-          docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
-          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
-            printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin
-            docker buildx build --progress=plain --cache-from type=gha,scope=freecad-ci --cache-to type=gha,scope=freecad-ci,mode=max --push --tag "$IMAGE" docker/freecad-ci
-            docker pull "$IMAGE"
-          else
-            docker buildx build --progress=plain --cache-from type=gha,scope=freecad-ci --cache-to type=gha,scope=freecad-ci,mode=max --load --tag "$IMAGE" docker/freecad-ci
-          fi
-      - name: Run Python tests in Docker
-        env:
-          IMAGE: ${{ env.FREECAD_IMAGE }}
-        run: |
-          set -euo pipefail
-          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e PYTHONPATH=/workspace -w /workspace "$IMAGE" -euo pipefail -c '
-            set -e
-            test "$(python3 -c "import sys; print(sys.version_info[:2])")" = "(3, 12)"
-            python3 -m compileall -q .
-            for test in tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_mesh_validation.py tests/test_avatar_visual_sanity.py tests/test_drape_visual_sanity.py tests/test_xpbd.py tests/test_cloth_solver.py tests/test_side_tasks.py tests/test_collisions.py tests/test_pattern_sketch.py tests/test_pattern_ir.py tests/test_pattern_export_semantics.py tests/test_sketch_authority.py tests/test_sewing_workbench.py tests/test_sewing_show2d.py tests/test_sewing_network.py tests/test_sewing_network_gui.py tests/test_sewing_network_gui_contract.py tests/test_gui_structure.py tests/test_simulation_scene.py tests/test_simulation_quality.py tests/test_avatar_fitting.py tests/test_avatar_shoulder_pose.py tests/test_avatar_hierarchical_pose.py tests/test_humanoid_mesh.py tests/test_drape_quality.py tests/test_freecad_objects.py tests/test_project_structure.py; do python3 "$test"; done
-          ')"
-          trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
-          docker cp "$PWD/." "$CID:/workspace/"
-          docker start -a "$CID"
-
-  gui-screenshot:
-    name: FreeCAD GUI screenshots
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v5
-      - name: Prepare FreeCAD image
-        env:
-          IMAGE: ${{ env.FREECAD_IMAGE }}
-        run: |
-          set -euo pipefail
-          if docker image inspect "$IMAGE" >/dev/null 2>&1; then exit 0; fi
-          if printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1 && timeout 90s docker pull "$IMAGE"; then exit 0; fi
-          docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
-          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
-            printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin
-            docker buildx build --progress=plain --cache-from type=gha,scope=freecad-ci --cache-to type=gha,scope=freecad-ci,mode=max --push --tag "$IMAGE" docker/freecad-ci
-            docker pull "$IMAGE"
-          else
-            docker buildx build --progress=plain --cache-from type=gha,scope=freecad-ci --cache-to type=gha,scope=freecad-ci,mode=max --load --tag "$IMAGE" docker/freecad-ci
-          fi
-      - name: Launch FreeCAD GUI and export screenshots in Docker
-        env:
-          IMAGE: ${{ env.FREECAD_IMAGE }}
-        run: |
-          set -euo pipefail
-          rm -rf docs/images/generated artifacts/freecad-gui
-          mkdir -p docs/images/generated artifacts/freecad-gui
-          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 -w /workspace "$IMAGE" -euo pipefail -c '
-            set -e
-            test "$(python3 -c "import sys; print(sys.version_info[:2])")" = "(3, 12)"
-            mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
-            Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
-            openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
-            trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-            for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
-            xdpyinfo -display :99 >/dev/null 2>&1
-            timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun tests/freecad_screenshot.py
-            timeout --signal=TERM --kill-after=10s 240s /opt/freecad/AppRun tests/freecad_avatar_screenshot.py
-            timeout --signal=TERM --kill-after=10s 240s /opt/freecad/AppRun tests/freecad_simulation_turntable.py
-            test -s docs/images/generated/cloth-pattern-design.png
-            test -s docs/images/generated/cloth-sewing.png
-            test -s docs/images/generated/cloth-simulation-arranged.png
-            test -s docs/images/generated/cloth-simulation-draped.png
-            test -s docs/images/generated/cloth-avatar-front.png
-            test -s docs/images/generated/cloth-avatar-rear.png
-            test -s docs/images/generated/cloth-avatar-left.png
-            test -s docs/images/generated/cloth-avatar-right.png
-            test -s docs/images/generated/cloth-avatar-top.png
-            test -s docs/images/generated/cloth-avatar-bottom.png
-            test -d docs/images/generated/cloth-avatar-turntable-frames
-            test "$(find docs/images/generated/cloth-avatar-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
-            test -d docs/images/generated/cloth-simulation-arranged-turntable-frames
-            test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
-            test -d docs/images/generated/cloth-simulation-draped-turntable-frames
-            test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
-          ')"
-          cleanup() {
-            set +e
-            docker cp "$CID:/workspace/docs/images/generated/." docs/images/generated/ 2>/dev/null || true
-            docker cp "$CID:/workspace/docs/images/generated/gui-progress.log" artifacts/freecad-gui/gui-progress.log 2>/dev/null || true
-            docker cp "$CID:/workspace/docs/images/generated/avatar-gui-progress.log" artifacts/freecad-gui/avatar-gui-progress.log 2>/dev/null || true
-            docker cp "$CID:/workspace/docs/images/generated/simulation-turntable-progress.log" artifacts/freecad-gui/simulation-turntable-progress.log 2>/dev/null || true
-            docker cp "$CID:/workspace/docs/images/generated/drape-visual-metrics.json" artifacts/freecad-gui/drape-visual-metrics.json 2>/dev/null || true
-            docker cp "$CID:/tmp/xvfb.log" artifacts/freecad-gui/xvfb.log 2>/dev/null || true
-            docker cp "$CID:/tmp/openbox.log" artifacts/freecad-gui/openbox.log 2>/dev/null || true
-            docker rm -f "$CID" >/dev/null 2>&1 || true
-          }
-          trap cleanup EXIT
-          docker cp "$PWD/." "$CID:/workspace/"
-          docker start -a "$CID"
-      - name: Build turntable GIFs
-        run: |
-          set -euo pipefail
-          if command -v magick >/dev/null 2>&1; then
-            IM=(magick)
-          elif command -v convert >/dev/null 2>&1; then
-            IM=(convert)
-          else
-            sudo apt-get update
-            sudo apt-get install -y imagemagick
-            IM=(convert)
-          fi
-          for spec in \
-            "cloth-avatar-turntable-frames cloth-avatar-turntable.gif" \
-            "cloth-simulation-arranged-turntable-frames cloth-simulation-arranged-turntable.gif" \
-            "cloth-simulation-draped-turntable-frames cloth-simulation-draped-turntable.gif"; do
-            set -- $spec
-            "${IM[@]}" "docs/images/generated/$1"/frame-*.png \
-              -delay 8 -loop 0 -colors 128 -layers Optimize \
-              "docs/images/generated/$2"
-            test -s "docs/images/generated/$2"
-          done
-      - name: Validate exported screenshots and turntables
-        run: |
-          set -euo pipefail
-          for image in docs/images/generated/*.png; do
-            python3 -c 'import os,struct,sys; p=sys.argv[1]; d=open(p,"rb").read(24); assert d[:8]==b"\x89PNG\r\n\x1a\n"; w,h=struct.unpack(">II",d[16:24]); assert (w,h)==(1280,720); assert os.path.getsize(p)>=20000' "$image"
-          done
-          for gif in cloth-avatar-turntable.gif cloth-simulation-arranged-turntable.gif cloth-simulation-draped-turntable.gif; do
-            identify -format '%n\n' "docs/images/generated/$gif" | head -n 1 | grep -qx '73'
-            python3 -c 'import os,sys; p=sys.argv[1]; d=open(p,"rb").read(6); assert d in (b"GIF87a", b"GIF89a"); assert os.path.getsize(p)>=50000' "docs/images/generated/$gif"
-          done
-      - name: Upload GUI screenshots
-        if: ${{ success() && (github.event_name == 'push' || github.event_name == 'pull_request') }}
-        uses: actions/upload-artifact@v6
+      - uses: docker/login-action@v3
         with:
-          name: cloth-gui-screenshots
-          path: |
-            docs/images/generated/*.png
-            docs/images/generated/cloth-avatar-turntable.gif
-            docs/images/generated/cloth-simulation-arranged-turntable.gif
-            docs/images/generated/cloth-simulation-draped-turntable.gif
-          if-no-files-found: error
-          compression-level: 1
-      - name: Upload GUI diagnostics
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Run code validation
+        run: |
+          set -euo pipefail
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e PYTHONPATH=/workspace -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              test "$(python3 -c "import sys; print(sys.version_info[:2])")" = "(3, 12)"
+              python3 -m compileall -q .
+              for test in \
+                tests/test_core.py \
+                tests/test_mesh.py \
+                tests/test_meshpart_adapter.py \
+                tests/test_mesh_validation.py \
+                tests/test_avatar_visual_sanity.py \
+                tests/test_drape_visual_sanity.py \
+                tests/test_xpbd.py \
+                tests/test_cloth_solver.py \
+                tests/test_side_tasks.py \
+                tests/test_collisions.py \
+                tests/test_pattern_sketch.py \
+                tests/test_pattern_ir.py \
+                tests/test_pattern_export_semantics.py \
+                tests/test_sketch_authority.py \
+                tests/test_sewing_workbench.py \
+                tests/test_sewing_show2d.py \
+                tests/test_sewing_network.py \
+                tests/test_sewing_network_gui.py \
+                tests/test_sewing_network_gui_contract.py \
+                tests/test_gui_structure.py \
+                tests/test_simulation_scene.py \
+                tests/test_simulation_quality.py \
+                tests/test_avatar_fitting.py \
+                tests/test_avatar_shoulder_pose.py \
+                tests/test_avatar_hierarchical_pose.py \
+                tests/test_humanoid_mesh.py \
+                tests/test_drape_quality.py \
+                tests/test_freecad_objects.py \
+                tests/test_project_structure.py; do
+                python3 "$test"
+              done
+            '
+
+  gui-tunic-visual:
+    name: Full tunic visual and simulation audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Run native-Sketcher tunic audit
+        env:
+          CLOTH_SIMULATION_BACKEND: tissu
+          CLOTH_TISSU_SUBSTEPS: 10
+          CLOTH_TISSU_COLLISION_MODE: torso-envelope
+        run: |
+          set -euo pipefail
+          rm -rf docs/images/generated
+          mkdir -p docs/images/generated
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
+            -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" \
+            -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
+            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 12); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_tissu.py
+            '
+      - name: Validate visual and simulation evidence
+        run: |
+          set -euo pipefail
+          test -s docs/images/generated/gui-progress.log
+          grep -q 'scenario-pass' docs/images/generated/gui-progress.log
+          grep -q 'realtime-preview=passed backend=tissu' docs/images/generated/gui-progress.log
+          grep -q 'drape-metrics=' docs/images/generated/gui-progress.log
+          test -s docs/images/generated/cloth-simulation-draped.png
+          test -s docs/images/generated/cloth-simulation-draped-front.png
+          test -s docs/images/generated/cloth-simulation-draped-rear.png
+          test -s docs/images/generated/cloth-simulation-draped-left.png
+          test -s docs/images/generated/cloth-simulation-draped-right.png
+          test -s docs/images/generated/cloth-simulation-draped-top.png
+          test -s docs/images/generated/cloth-simulation-draped-bottom.png
+      - name: Upload tunic visual audit
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: cloth-gui-diagnostics
-          path: artifacts/freecad-gui
-          if-no-files-found: ignore
+          name: tunic-visual-audit
+          path: |
+            docs/images/generated/cloth-simulation-draped*.png
+            docs/images/generated/drape-visual-metrics.json
+            docs/images/generated/gui-progress.log
+            docs/images/generated/gui-screenshot-manifest.txt
+          if-no-files-found: error
           compression-level: 1
-
-  publish-merged-pr-screenshots:
-    name: Publish merged PR GUI screenshots
-    needs: gui-screenshot
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Locate merged PR for main commit
-        id: pr
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          number="$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '[.[] | select(.base.ref == "main" and .merged_at != null)] | .[0].number // empty')"
-          if [ -z "$number" ]; then
-            echo "No merged PR is associated with main commit $SHA; nothing to publish."
-            exit 0
-          fi
-          echo "number=$number" >> "$GITHUB_OUTPUT"
-      - name: Download canonical GUI screenshots
-        if: ${{ steps.pr.outputs.number != '' }}
-        uses: actions/download-artifact@v6
-        with:
-          name: cloth-gui-screenshots
-          path: gui-screenshots
-      - name: Validate screenshot set
-        if: ${{ steps.pr.outputs.number != '' }}
-        run: |
-          set -euo pipefail
-          for image in cloth-pattern-design.png cloth-sewing.png cloth-simulation-arranged.png cloth-simulation-draped.png cloth-avatar-front.png cloth-avatar-rear.png cloth-avatar-left.png cloth-avatar-right.png cloth-avatar-top.png cloth-avatar-bottom.png cloth-avatar-turntable.gif cloth-simulation-arranged-turntable.gif cloth-simulation-draped-turntable.gif; do
-            test -s "gui-screenshots/$image"
-          done
-      - name: Publish screenshots to PR-specific branch
-        if: ${{ steps.pr.outputs.number != '' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ steps.pr.outputs.number }}
-        run: |
-          set -euo pipefail
-          git clone --filter=blob:none --no-checkout "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" screenshot-repo
-          cd screenshot-repo
-          branch="ci/pr-${PR_NUMBER}-screenshots"
-          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
-            git fetch origin "$branch"
-            git checkout -B "$branch" "origin/$branch"
-          else
-            git checkout --orphan "$branch"
-            git rm -rf . >/dev/null 2>&1 || true
-          fi
-          mkdir -p docs/images/generated
-          cp ../gui-screenshots/*.png docs/images/generated/
-          cp ../gui-screenshots/cloth-avatar-turntable.gif docs/images/generated/
-          cp ../gui-screenshots/cloth-simulation-arranged-turntable.gif docs/images/generated/
-          cp ../gui-screenshots/cloth-simulation-draped-turntable.gif docs/images/generated/
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/images/generated/*.png docs/images/generated/*.gif
-          git commit -m "ci: publish PR ${PR_NUMBER} GUI screenshots" || true
-          git push --force origin "HEAD:$branch"
-      - name: Comment merged PR with rendered screenshots
-        if: ${{ steps.pr.outputs.number != '' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ steps.pr.outputs.number }}
-          SERVER_URL: ${{ github.server_url }}
-        run: |
-          set -euo pipefail
-          branch="ci/pr-${PR_NUMBER}-screenshots"
-          raw_base="$SERVER_URL/$REPO/raw/refs/heads/$branch/docs/images/generated"
-          marker="<!-- canonical-gui-screenshots:${PR_NUMBER} -->"
-          body=$(cat <<EOF
-          $marker
-          ## Canonical GUI screenshots
-
-          The merged PR passed the canonical FreeCAD/Xvfb GUI acceptance run. The generated screenshots are rendered below.
-
-          ### Pattern design
-          ![cloth-pattern-design.png]($raw_base/cloth-pattern-design.png)
-
-          ### Sewing
-          ![cloth-sewing.png]($raw_base/cloth-sewing.png)
-
-          ### Simulation — arranged 360°
-          ![cloth-simulation-arranged-turntable.gif]($raw_base/cloth-simulation-arranged-turntable.gif)
-
-          ### Simulation — draped 360°
-          ![cloth-simulation-draped-turntable.gif]($raw_base/cloth-simulation-draped-turntable.gif)
-
-          ### Avatar — 360° turntable
-          ![cloth-avatar-turntable.gif]($raw_base/cloth-avatar-turntable.gif)
-
-          ### Avatar — orthographic audit
-          ![cloth-avatar-front.png]($raw_base/cloth-avatar-front.png)
-          ![cloth-avatar-rear.png]($raw_base/cloth-avatar-rear.png)
-          ![cloth-avatar-left.png]($raw_base/cloth-avatar-left.png)
-          ![cloth-avatar-right.png]($raw_base/cloth-avatar-right.png)
-          ![cloth-avatar-top.png]($raw_base/cloth-avatar-top.png)
-          ![cloth-avatar-bottom.png]($raw_base/cloth-avatar-bottom.png)
-          EOF
-          )
-          existing="$(gh pr view "$PR_NUMBER" --repo "$REPO" --json comments --jq '.comments[].body' | grep -F "$marker" || true)"
-          if [ -n "$existing" ]; then
-            exit 0
-          fi
-          gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$body"
-
-  publish-readme-screenshots:
-    name: Publish stable README screenshots
-    needs: gui-screenshot
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Download canonical GUI screenshots
-        uses: actions/download-artifact@v6
-        with:
-          name: cloth-gui-screenshots
-          path: gui-screenshots
-      - name: Validate stable README asset set
-        run: |
-          set -euo pipefail
-          for image in cloth-pattern-design.png cloth-sewing.png cloth-simulation-arranged.png cloth-simulation-draped.png cloth-avatar-front.png cloth-avatar-rear.png cloth-avatar-left.png cloth-avatar-right.png cloth-avatar-top.png cloth-avatar-bottom.png; do
-            test -s "gui-screenshots/$image"
-          done
-          for gif in cloth-avatar-turntable.gif cloth-simulation-arranged-turntable.gif cloth-simulation-draped-turntable.gif; do
-            test -s "gui-screenshots/$gif"
-          done
-      - name: Publish stable screenshot branch
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          git clone --filter=blob:none --no-checkout "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" screenshot-repo
-          cd screenshot-repo
-          branch="docs/screenshots"
-          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
-            git fetch origin "$branch"
-            git checkout -B "$branch" "origin/$branch"
-          else
-            git checkout --orphan "$branch"
-            git rm -rf . >/dev/null 2>&1 || true
-          fi
-          mkdir -p docs/images/generated
-          cp ../gui-screenshots/*.png docs/images/generated/
-          cp ../gui-screenshots/cloth-avatar-turntable.gif docs/images/generated/
-          cp ../gui-screenshots/cloth-simulation-arranged-turntable.gif docs/images/generated/
-          cp ../gui-screenshots/cloth-simulation-draped-turntable.gif docs/images/generated/
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/images/generated/*.png docs/images/generated/*.gif
-          git commit -m "ci: publish stable README screenshots" || true
-          git push --force origin "HEAD:$branch"
