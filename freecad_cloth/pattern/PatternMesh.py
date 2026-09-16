@@ -2,25 +2,18 @@
 
 The mesher deliberately consumes the sewing boundary rather than the cut
 boundary: seam allowance is manufacturing geometry, while the cloth solver
-needs the physical panel boundary.  Ear clipping keeps this first backend
-small and deterministic; FreeCAD-facing MeshPart/Netgen adapters can replace
-it without changing the semantic mesh contract.
+needs the physical panel boundary.
 """
 from dataclasses import dataclass
 from math import hypot, isclose
-from typing import Dict, List, Sequence, Tuple
+from typing import List, Sequence, Tuple
 
 from freecad_cloth.pattern.PatternGeometry import ParametricPattern, Point
 
 
 @dataclass(frozen=True)
 class TriangleMesh:
-    """Triangle mesh in pattern coordinates, in millimetres.
-
-    ``boundary_edge_segment_ids`` is optional provenance for the ordered
-    boundary edges.  It lets native meshing adapters retain stable pattern
-    segment IDs even when the tessellator inserts or reorders vertices.
-    """
+    """Triangle mesh in pattern coordinates, in millimetres."""
     vertices: Tuple[Point, ...]
     triangles: Tuple[Tuple[int, int, int], ...]
     boundary_vertex_indices: Tuple[int, ...]
@@ -40,8 +33,7 @@ class TriangleMesh:
 
     @property
     def area(self) -> float:
-        return sum(abs(_triangle_area(self.vertices[a], self.vertices[b], self.vertices[c]))
-                   for a, b, c in self.triangles)
+        return sum(abs(_triangle_area(self.vertices[a], self.vertices[b], self.vertices[c])) for a, b, c in self.triangles)
 
     def boundary_edges(self) -> Tuple[Tuple[int, int], ...]:
         indices = self.boundary_vertex_indices
@@ -49,58 +41,63 @@ class TriangleMesh:
 
 
 def triangulate(pattern: ParametricPattern, curve_samples: int = 16) -> TriangleMesh:
-    """Triangulate a sampled simple polygon deterministically with ear clipping."""
-    points = pattern.sampled_outline(curve_samples)
-    if len(points) < 3:
-        raise ValueError("pattern has too few sampled boundary points")
-    points = _deduplicate_consecutive(points)
+    """Triangulate a sampled simple polygon using deterministic quality-scored ears."""
+    points = _deduplicate_consecutive(pattern.sampled_outline(curve_samples))
     if len(points) < 3:
         raise ValueError("pattern has too few distinct boundary points")
     if abs(_signed_area(points)) < 1e-9:
         raise ValueError("pattern has zero area")
     if _self_intersects(points):
         raise ValueError("pattern boundary self-intersects")
-
     edge_ids = _edge_segment_ids(pattern, points)
-
-    # Ear clipping is easiest in counter-clockwise orientation.
     if _signed_area(points) < 0:
         points = list(reversed(points))
         edge_ids = list(reversed(edge_ids))
+
     vertices = tuple(points)
     remaining = list(range(len(vertices)))
     triangles: List[Tuple[int, int, int]] = []
     guard = len(vertices) * len(vertices)
     while len(remaining) > 3 and guard:
         guard -= 1
-        clipped = False
+        candidates = []
         for pos in range(len(remaining)):
             a = remaining[pos - 1]
             b = remaining[pos]
             c = remaining[(pos + 1) % len(remaining)]
             if _cross(vertices[a], vertices[b], vertices[c]) <= 1e-10:
                 continue
-            if any(i not in (a, b, c) and _point_in_triangle(vertices[i], vertices[a], vertices[b], vertices[c])
-                   for i in remaining):
+            if any(i not in (a, b, c) and _point_in_triangle(vertices[i], vertices[a], vertices[b], vertices[c]) for i in remaining):
                 continue
-            triangles.append((a, b, c))
-            remaining.pop(pos)
-            clipped = True
-            break
-        if not clipped:
+            candidates.append((_ear_cost(vertices[a], vertices[b], vertices[c]), pos, a, b, c))
+        if not candidates:
             raise ValueError("unable to triangulate polygon; boundary may be degenerate")
+        _, pos, a, b, c = min(candidates)
+        triangles.append((a, b, c))
+        remaining.pop(pos)
     if len(remaining) == 3:
         triangles.append(tuple(remaining))
+
     mesh = TriangleMesh(vertices, tuple(triangles), tuple(range(len(vertices))), tuple(edge_ids))
     mesh.validate()
+    if abs(mesh.area - abs(_signed_area(points))) > 1e-6 * max(1.0, abs(_signed_area(points))):
+        raise ValueError("triangulation area does not match pattern area")
     return mesh
+
+
+def _ear_cost(a: Point, b: Point, c: Point) -> Tuple[float, float, float]:
+    ab = hypot(b[0] - a[0], b[1] - a[1])
+    bc = hypot(c[0] - b[0], c[1] - b[1])
+    ca = hypot(a[0] - c[0], a[1] - c[1])
+    shortest = max(min(ab, bc, ca), 1e-9)
+    longest = max(ab, bc, ca)
+    return (ca * ca + 0.25 * (longest / shortest), longest / shortest, -abs(_triangle_area(a, b, c)))
 
 
 def _deduplicate_consecutive(points: Sequence[Point]) -> List[Point]:
     result: List[Point] = []
     for point in points:
-        if not result or not (isclose(point[0], result[-1][0], abs_tol=1e-9) and
-                              isclose(point[1], result[-1][1], abs_tol=1e-9)):
+        if not result or not (isclose(point[0], result[-1][0], abs_tol=1e-9) and isclose(point[1], result[-1][1], abs_tol=1e-9)):
             result.append(point)
     if len(result) > 1 and isclose(result[0][0], result[-1][0], abs_tol=1e-9) and isclose(result[0][1], result[-1][1], abs_tol=1e-9):
         result.pop()
@@ -108,7 +105,6 @@ def _deduplicate_consecutive(points: Sequence[Point]) -> List[Point]:
 
 
 def _edge_segment_ids(pattern: ParametricPattern, points: Sequence[Point]) -> List[str]:
-    """Map sampled boundary edges to stable semantic pattern segment IDs."""
     result: List[str] = []
     for index, start in enumerate(points):
         end = points[(index + 1) % len(points)]
