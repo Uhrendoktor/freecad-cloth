@@ -2,7 +2,7 @@
 
 The mesher consumes the sewing boundary rather than the cut boundary: seam
 allowance is manufacturing geometry, while the cloth solver needs the
-physical panel boundary.  Constrained Delaunay triangulation is delegated to
+physical panel boundary. Constrained Delaunay triangulation is delegated to
 Jonathan Shewchuk's Triangle library; the rest of this module preserves the
 workbench's semantic boundary/provenance contract.
 """
@@ -42,14 +42,13 @@ class TriangleMesh:
         return tuple((indices[i], indices[(i + 1) % len(indices)]) for i in range(len(indices)))
 
 
-def triangulate(pattern: ParametricPattern, curve_samples: int = 16) -> TriangleMesh:
+def triangulate(pattern: ParametricPattern, curve_samples: int = 16, max_area: float | None = None) -> TriangleMesh:
     """Triangulate a sampled simple polygon with constrained Delaunay Triangle.
 
-    The ``pQ`` switch keeps the authored sampled boundary as the vertex set
-    while constraining every polygon edge.  SimulationMeshQuality performs
-    deterministic midpoint refinement afterwards, so Triangle is responsible
-    only for producing a valid base tessellation rather than changing the
-    solver's refinement policy.
+    ``max_area`` delegates simulation mesh refinement to Triangle itself. The
+    ``Y`` switch forbids Steiner points on authored boundary segments, so
+    semantic seam edge indices remain stable while Triangle adds interior
+    vertices where needed.
     """
     points = _deduplicate_consecutive(pattern.sampled_outline(curve_samples))
     if len(points) < 3:
@@ -62,6 +61,11 @@ def triangulate(pattern: ParametricPattern, curve_samples: int = 16) -> Triangle
     if _signed_area(points) < 0:
         points = list(reversed(points))
         edge_ids = list(reversed(edge_ids))
+
+    if max_area is not None:
+        max_area = float(max_area)
+        if max_area <= 0.0:
+            raise ValueError("max_area must be positive")
 
     try:
         import numpy as np
@@ -76,47 +80,52 @@ def triangulate(pattern: ParametricPattern, curve_samples: int = 16) -> Triangle
         [(i, (i + 1) % len(points)) for i in range(len(points))],
         dtype=np.int32,
     )
-    result = tr.triangulate({"vertices": vertices_in, "segments": segments}, "pQ")
+    options = "pQ"
+    if max_area is not None:
+        options += "Ya%.12g" % max_area
+    result = tr.triangulate({"vertices": vertices_in, "segments": segments}, options)
     result_vertices = np.asarray(result.get("vertices", ()), dtype=np.float64)
     result_triangles = np.asarray(result.get("triangles", ()), dtype=np.int64)
-    if len(result_vertices) != len(points):
+    if len(result_vertices) == 0:
+        raise ValueError("Triangle returned no vertices")
+    if result_triangles.ndim != 2 or result_triangles.shape[1] != 3:
+        raise ValueError("Triangle returned no triangular faces")
+    if max_area is None and len(result_vertices) != len(points):
         raise ValueError(
             "Triangle inserted or removed vertices unexpectedly; expected a boundary-only base mesh"
         )
-    if result_triangles.ndim != 2 or result_triangles.shape[1] != 3:
-        raise ValueError("Triangle returned no triangular faces")
 
-    # Triangle is free to reorder vertices.  Map its vertices back to the
-    # sampled pattern coordinates so boundary/seam provenance stays stable.
     source_lookup: Dict[Tuple[float, float], int] = {
         (_quantize(x), _quantize(y)): i for i, (x, y) in enumerate(points)
     }
-    remap: Dict[int, int] = {}
-    for result_index, (x, y) in enumerate(result_vertices.tolist()):
-        key = (_quantize(float(x)), _quantize(float(y)))
-        source_index = source_lookup.get(key)
-        if source_index is None:
-            source_index = _nearest_point_index(points, (float(x), float(y)))
-            px, py = points[source_index]
-            if hypot(float(x) - px, float(y) - py) > 1e-7:
-                raise ValueError("Triangle returned an unexpected interior vertex")
-        remap[result_index] = source_index
+    boundary_indices: List[int] = []
+    for source_index, (x, y) in enumerate(points):
+        key = (_quantize(x), _quantize(y))
+        matches = [i for i, vertex in enumerate(result_vertices.tolist()) if (_quantize(vertex[0]), _quantize(vertex[1])) == key]
+        if not matches:
+            raise ValueError("Triangle dropped an authored boundary vertex")
+        boundary_indices.append(matches[0])
 
     triangles: List[Tuple[int, int, int]] = []
     for raw in result_triangles.tolist():
-        a, b, c = (remap[int(raw[0])], remap[int(raw[1])], remap[int(raw[2])])
+        a, b, c = int(raw[0]), int(raw[1]), int(raw[2])
+        pa, pb, pc = result_vertices[a], result_vertices[b], result_vertices[c]
+        if _cross((float(pa[0]), float(pa[1])), (float(pb[0]), float(pb[1])), (float(pc[0]), float(pc[1]))) < 0.0:
+            b, c = c, b
         if len({a, b, c}) != 3:
             raise ValueError("Triangle returned a degenerate face")
-        if _cross(points[a], points[b], points[c]) < 0.0:
-            b, c = c, b
         triangles.append((a, b, c))
 
-    vertices = tuple(points)
-    mesh = TriangleMesh(vertices, tuple(triangles), tuple(range(len(vertices))), tuple(edge_ids))
+    vertices = tuple((float(v[0]), float(v[1])) for v in result_vertices.tolist())
+    mesh = TriangleMesh(vertices, tuple(triangles), tuple(boundary_indices), tuple(edge_ids))
     mesh.validate()
     expected_area = abs(_signed_area(points))
     if abs(mesh.area - expected_area) > 1e-6 * max(1.0, expected_area):
         raise ValueError("triangulation area does not match pattern area")
+    if max_area is not None:
+        largest = max(abs(_triangle_area(mesh.vertices[a], mesh.vertices[b], mesh.vertices[c])) for a, b, c in mesh.triangles)
+        if largest > max_area * 1.000001:
+            raise ValueError("Triangle exceeded requested maximum face area")
     return mesh
 
 
