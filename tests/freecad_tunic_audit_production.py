@@ -8,12 +8,15 @@ source = source_path.read_text(encoding="utf-8")
 replacements = {
     "clearance = max(20.0, 0.08 * body_depth);": "clearance = max(6.0, 0.02 * body_depth);",
     "chest = 980.0; hip = 1020.0; ease = 55.0;": "chest = 860.0; hip = 880.0; ease = 10.0;",
-    "front_y = box.YMin - clearance; back_y = box.YMax + clearance;": "front_y = box.YMin - clearance; back_y = box.YMax + clearance;",
+    "front_y = box.YMin - clearance; back_y = box.YMax + clearance;": "front_y = box.YMax + clearance; back_y = box.YMin - clearance;",
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
-        'front, front_outline = make_piece("VisualTunicFront", front_y, 0.67, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.67, 0.10)',
+        'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.08)',
     'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):':
-        'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(6,6,"TunicLeftSide")):',
-    "scene.FabricFriction = 0.75;": "scene.FabricFriction = 0.88;",
+        'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(6,6,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
+    "scene.ParticleDistance = 24.0;": "scene.ParticleDistance = 22.0;",
+    "scene.SolverIterations = 8;": "scene.SolverIterations = 12;",
+    "scene.SolverSubsteps = 1;": "scene.SolverSubsteps = 2;",
+    "scene.FabricFriction = 0.75;": "scene.FabricFriction = 0.80;",
     "for batch in (15,15,15,15,15,15):": "for batch in (30,30,30,30):",
     "if int(scene.Steps) != 90 or": "if int(scene.Steps) != 120 or",
     '"simulation did not reach a finite 90-step state"': '"simulation did not reach a finite 120-step state"',
@@ -54,13 +57,6 @@ source, pin_count = pin_pattern.subn(pin_replacement, source, count=1)
 if pin_count != 1:
     raise RuntimeError("production shoulder pin function did not match source")
 
-# Keep the authored boundary seams and pins expressed in the same global particle space.
-source = source.replace(
-    "    back_pins = tuple(len(front_positions) + i for i in back_pins_local)\n    scene.PinSelection = [str(i) for i in front_pins + back_pins]\n",
-    "    back_pins = tuple(len(front_positions) + i for i in back_pins_local)\n    scene.PinSelection = [str(i) for i in front_pins + back_pins]\n",
-    1,
-)
-
 preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
     if "ClothRealtimePreview" not in Gui.listCommands():
         raise RuntimeError("Realtime Cloth Preview GUI command is not registered")
@@ -97,7 +93,7 @@ seam_check = '''    backend_state = scene.Proxy._base_or_restore()
         raise RuntimeError("Tissu backend returned no simulated particle positions")
     back_offset = len(front_positions)
     seam_gaps = []
-    for edge_a, edge_b in ((1, 1), (2, 2), (5, 5), (6, 6)):
+    for edge_a, edge_b in ((1, 1), (2, 2), (6, 6), (7, 7)):
         front_a0 = front_boundary[edge_a]; front_a1 = front_boundary[(edge_a + 1) % len(front_boundary)]
         back_a0 = back_boundary[edge_b] + back_offset; back_a1 = back_boundary[(edge_b + 1) % len(back_boundary)] + back_offset
         for ia, ib in ((front_a0, back_a0), (front_a1, back_a1)):
