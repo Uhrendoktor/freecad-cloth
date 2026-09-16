@@ -10,7 +10,7 @@ concurrency:
 
 env:
   FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
-  QT_X11_X11_NO_MITSHM: 1
+  QT_X11_NO_MITSHM: 1
   QT_QPA_PLATFORM: xcb
   LIBGL_ALWAYS_SOFTWARE: 1
   XDG_RUNTIME_DIR: /tmp/runtime-cloth
@@ -83,14 +83,22 @@ jobs:
               mod._seam_overlay(doc, "TunicSeamsSimulated", seam_records, simulated)
               backend = getattr(getattr(scene, "Proxy", None), "_base_or_restore", lambda: None)()
               backend_name = getattr(getattr(backend, "backend", None), "name", "unknown") if backend is not None else "unknown"
-              mod.log("smoke-state backend=%s particles=%d facets=(%d,%d) seam_max_gap_mm=%.2f" % (
-                  backend_name, int(scene.ParticleCount), panels[0].Mesh.CountFacets, panels[1].Mesh.CountFacets, seam_gap,
+              bounds = []
+              for panel in panels:
+                  box = panel.Mesh.BoundBox
+                  bounds.append((float(box.XMin), float(box.XMax), float(box.YMin), float(box.YMax), float(box.ZMin), float(box.ZMax)))
+              mod.log("smoke-state backend=%s particles=%d facets=(%d,%d) seam_max_gap_mm=%.2f bounds=%s" % (
+                  backend_name, int(scene.ParticleCount), panels[0].Mesh.CountFacets, panels[1].Mesh.CountFacets, seam_gap, bounds,
               ))
               if backend_name != "tissu":
                   raise RuntimeError("visual smoke did not use the Tissu backend")
               view = Gui.activeDocument().activeView()
               view.setCameraType("Orthographic")
               view.viewFront(); view.fitAll(); view.zoomIn(); mod.events()
+              avatar.ViewObject.Visibility = False
+              mod.save_png(view, "/workspace/docs/images/generated/cloth-simulation-cloth-only.png", "cloth-only diagnostic")
+              avatar.ViewObject.Visibility = True
+              mod.events()
               mod.save_png(view, "/workspace/docs/images/generated/cloth-simulation-draped-tunic-smoke.png", "draped tunic smoke")
               if seam_gap > 35.0:
                   mod.log("simulation-turntable-fail seam_gap_mm=%.2f" % seam_gap)
@@ -131,6 +139,7 @@ jobs:
           test -s docs/images/generated/simulation-turntable-progress.log
           grep -q 'smoke-state backend=tissu' docs/images/generated/simulation-turntable-progress.log
           test -s docs/images/generated/cloth-simulation-draped-tunic-smoke.png
+          test -s docs/images/generated/cloth-simulation-cloth-only.png
           if grep -q 'simulation-turntable-fail' docs/images/generated/simulation-turntable-progress.log; then
             echo 'Visual artifact captured, but seam convergence gate failed.'
             exit 1
@@ -143,6 +152,7 @@ jobs:
           name: tunic-visual-smoke
           path: |
             docs/images/generated/cloth-simulation-draped-tunic-smoke.png
+            docs/images/generated/cloth-simulation-cloth-only.png
             docs/images/generated/simulation-turntable-progress.log
           if-no-files-found: error
           compression-level: 1
