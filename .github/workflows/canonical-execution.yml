@@ -10,7 +10,7 @@ concurrency:
 
 env:
   FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
-  QT_X11_NO_MITSHM: 1
+  QT_X11_X11_NO_MITSHM: 1
   QT_QPA_PLATFORM: xcb
   LIBGL_ALWAYS_SOFTWARE: 1
   XDG_RUNTIME_DIR: /tmp/runtime-cloth
@@ -75,8 +75,6 @@ jobs:
               if any(panel.Mesh.CountFacets <= 100 for panel in panels):
                   raise RuntimeError("draped tunic panel mesh is too coarse")
               seam_gap = mod._seam_endpoint_gap(panels, seam_records)
-              if seam_gap > 35.0:
-                  raise RuntimeError("tunic seams did not converge: max endpoint gap %.1f mm" % seam_gap)
               front, back = pieces
               simulated = {
                   front.Name: mod._boundary_points(panels[0], len(mod._outline(front))),
@@ -94,7 +92,10 @@ jobs:
               view.setCameraType("Orthographic")
               view.viewFront(); view.fitAll(); view.zoomIn(); mod.events()
               mod.save_png(view, "/workspace/docs/images/generated/cloth-simulation-draped-tunic-smoke.png", "draped tunic smoke")
-              mod.log("simulation-turntable-pass")
+              if seam_gap > 35.0:
+                  mod.log("simulation-turntable-fail seam_gap_mm=%.2f" % seam_gap)
+              else:
+                  mod.log("simulation-turntable-pass")
           finally:
               if doc.Name in App.listDocuments():
                   App.closeDocument(doc.Name)
@@ -128,11 +129,15 @@ jobs:
         run: |
           set -euo pipefail
           test -s docs/images/generated/simulation-turntable-progress.log
-          grep -q 'simulation-turntable-pass' docs/images/generated/simulation-turntable-progress.log
           grep -q 'smoke-state backend=tissu' docs/images/generated/simulation-turntable-progress.log
-          grep -q 'seam_max_gap_mm=' docs/images/generated/simulation-turntable-progress.log
           test -s docs/images/generated/cloth-simulation-draped-tunic-smoke.png
+          if grep -q 'simulation-turntable-fail' docs/images/generated/simulation-turntable-progress.log; then
+            echo 'Visual artifact captured, but seam convergence gate failed.'
+            exit 1
+          fi
+          grep -q 'simulation-turntable-pass' docs/images/generated/simulation-turntable-progress.log
       - name: Upload tunic visual smoke
+        if: always()
         uses: actions/upload-artifact@v6
         with:
           name: tunic-visual-smoke
