@@ -134,7 +134,10 @@ def _seam_overlay(doc, name, seam_records, simulated=None):
 
 
 def _boundary_points(panel, count):
-    return tuple(panel.Mesh.getVertex(i + 1) for i in range(count))
+    points = panel.Mesh.Points
+    if len(points) < count:
+        raise RuntimeError("drape panel exposes fewer mesh points than pattern boundary vertices")
+    return tuple(points[i] for i in range(count))
 
 
 def build_simulation_state(doc):
