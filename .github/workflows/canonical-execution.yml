@@ -70,7 +70,7 @@ jobs:
             '
 
   realtime-benchmark:
-    name: Realtime backend benchmark (${{ matrix.backend }})
+    name: Actual FreeCAD realtime benchmark (${{ matrix.backend }})
     runs-on: ubuntu-latest
     timeout-minutes: 5
     strategy:
@@ -86,31 +86,36 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Pull FreeCAD image
         run: docker pull "$FREECAD_IMAGE"
-      - name: Benchmark 60 realtime frames
+      - name: Benchmark 30 interactive frames
         env:
           CLOTH_SIMULATION_BACKEND: ${{ matrix.backend }}
-          CLOTH_MICRO_STEPS: 60
-          CLOTH_MICRO_ITERATIONS: 1
-          CLOTH_TISSU_SUBSTEPS: 1
-          CLOTH_MICRO_DIR: /workspace/artifacts/drape-backend-micro/${{ matrix.backend }}
+          CLOTH_REALTIME_FRAMES: 30
+          CLOTH_REALTIME_DIR: /workspace/artifacts/freecad-realtime/${{ matrix.backend }}
         run: |
           set -euo pipefail
-          mkdir -p artifacts/drape-backend-micro
-          docker run --rm --security-opt seccomp=unconfined --shm-size=1g \
-            -e PYTHONPATH=/workspace \
+          mkdir -p artifacts/freecad-realtime
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
+            -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
-            -e CLOTH_MICRO_STEPS="$CLOTH_MICRO_STEPS" \
-            -e CLOTH_MICRO_ITERATIONS="$CLOTH_MICRO_ITERATIONS" \
-            -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" \
-            -e CLOTH_MICRO_DIR="$CLOTH_MICRO_DIR" \
-            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" \
-            python3 tests/drape_backend_micro.py
-          cp "artifacts/drape-backend-micro/${{ matrix.backend }}/metrics.json" "artifacts/${{ matrix.backend }}-metrics.json"
-      - name: Upload benchmark metrics
+            -e CLOTH_REALTIME_FRAMES="$CLOTH_REALTIME_FRAMES" \
+            -e CLOTH_REALTIME_DIR="$CLOTH_REALTIME_DIR" \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -e
+              mkdir -p "$XDG_RUNTIME_DIR" "$CLOTH_REALTIME_DIR"
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              /opt/freecad/AppRun tests/freecad_realtime_benchmark.py
+            '
+          cp "artifacts/freecad-realtime/${{ matrix.backend }}/metrics.json" "artifacts/${{ matrix.backend }}-realtime-metrics.json"
+      - name: Upload realtime metrics
         uses: actions/upload-artifact@v6
         with:
-          name: realtime-benchmark-${{ matrix.backend }}
-          path: artifacts/${{ matrix.backend }}-metrics.json
+          name: realtime-freecad-${{ matrix.backend }}
+          path: artifacts/${{ matrix.backend }}-realtime-metrics.json
           if-no-files-found: error
           compression-level: 1
 
@@ -133,7 +138,7 @@ jobs:
           set -euo pipefail
           rm -rf docs/images/generated artifacts/freecad-gui
           mkdir -p docs/images/generated artifacts/freecad-gui
-          docker run --rm --security-opt seccomp=unconfined --shm-size=1g \
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e CLOTH_SIMULATION_BACKEND=tissu \
@@ -149,7 +154,6 @@ jobs:
               timeout --signal=TERM --kill-after=15s 300s /opt/freecad/AppRun tests/freecad_avatar_screenshot.py
               timeout --signal=TERM --kill-after=15s 600s /opt/freecad/AppRun tests/freecad_simulation_turntable.py
             '
-          cp -r docs/images/generated artifacts/freecad-gui/generated
       - name: Validate GUI exports
         run: |
           set -euo pipefail
