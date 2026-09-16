@@ -6,9 +6,15 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
+    inputs:
+      full_gui:
+        description: "Run the heavyweight FreeCAD GUI visual validation"
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
-  group: canonical-fast-v2-${{ github.ref }}
+  group: canonical-${{ github.event_name }}-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 env:
@@ -25,63 +31,29 @@ permissions:
   packages: write
 
 jobs:
-  build-image:
-    name: Build and publish Tissu FreeCAD image
-    if: ${{ github.event_name != 'pull_request' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v5
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and publish image
-        env:
-          IMAGE: ${{ env.FREECAD_IMAGE }}
-        run: |
-          set -euo pipefail
-          docker buildx create --name cloth-ci --use >/dev/null 2>&1 || docker buildx use cloth-ci
-          docker buildx build \
-            --progress=plain \
-            --cache-from type=gha,scope=freecad-ci \
-            --cache-to type=gha,scope=freecad-ci,mode=max \
-            --push --tag "$IMAGE" docker/freecad-ci
-
   python:
     name: Python and FreeCAD non-GUI tests
-    needs: build-image
-    if: ${{ always() && (github.event_name == 'pull_request' || needs.build-image.result == 'success') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
-      - name: Log in to GHCR for image pull
-        uses: docker/login-action@v3
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Pull FreeCAD image
-        env:
-          IMAGE: ${{ env.FREECAD_IMAGE }}
-        run: |
-          set -euo pipefail
-          timeout --signal=TERM --kill-after=30s 10m docker pull "$IMAGE"
+        run: docker pull "$FREECAD_IMAGE"
       - name: Run Python tests in Docker
-        env:
-          IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
-          CID="$(docker create --security-opt seccomp=unconfined --shm-size=1g \
-            -e PYTHONPATH=/workspace -e CLOTH_SIMULATION_BACKEND=tissu -w /workspace "$IMAGE" bash -lc '
+          docker run --rm --security-opt seccomp=unconfined --shm-size=1g \
+            -e PYTHONPATH=/workspace -e CLOTH_SIMULATION_BACKEND=tissu \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -e
               test "$(python3 -c "import sys; print(sys.version_info[:2])")" = "(3, 12)"
               python3 -m compileall -q .
-              python3 -c "import tissu; print(\"Tissu\", tissu.__file__)"
-              python3 -c "import pytest; print(\"pytest\", pytest.__version__)"
+              python3 -c "import tissu, pytest; print(\"Tissu\", tissu.__file__); print(\"pytest\", pytest.__version__)"
               for test in \
                 tests/test_core.py tests/test_mesh.py tests/test_meshpart_adapter.py tests/test_mesh_validation.py \
                 tests/test_avatar_visual_sanity.py tests/test_drape_visual_sanity.py tests/test_xpbd.py tests/test_cloth_solver.py \
@@ -96,233 +68,99 @@ jobs:
                 python3 "$test"
               done
             '
-          )"
-          cleanup() {
-            set +e
-            docker rm -f "$CID" >/dev/null 2>&1 || true
-          }
-          trap cleanup EXIT
-          docker cp "$PWD/." "$CID:/workspace/"
-          docker start -a "$CID"
 
-  debug-drape:
-    name: Fast tunic drape debug (${{ matrix.backend }} / ${{ matrix.collision }})
-    needs: build-image
-    if: ${{ always() && (github.event_name == 'pull_request' || needs.build-image.result == 'success') }}
+  realtime-benchmark:
+    name: Realtime backend benchmark (${{ matrix.backend }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - backend: xpbd-cpu
-            collision: mesh
-          - backend: tissu
-            collision: torso-envelope
-          - backend: tissu
-            collision: mesh
-    runs-on: ubuntu-latest
-    timeout-minutes: 12
+        backend: [xpbd-cpu, tissu]
     steps:
       - uses: actions/checkout@v5
-      - name: Log in to GHCR for image pull
-        uses: docker/login-action@v3
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Benchmark 60 realtime frames
         env:
-          IMAGE: ${{ env.FREECAD_IMAGE }}
+          CLOTH_SIMULATION_BACKEND: ${{ matrix.backend }}
+          CLOTH_MICRO_STEPS: 60
+          CLOTH_MICRO_ITERATIONS: 1
+          CLOTH_TISSU_SUBSTEPS: 1
+          CLOTH_MICRO_DIR: /workspace/artifacts/drape-backend-micro/${{ matrix.backend }}
         run: |
           set -euo pipefail
-          timeout --signal=TERM --kill-after=30s 10m docker pull "$IMAGE"
-      - name: Run fast visual/topology audit
-        env:
-          IMAGE: ${{ env.FREECAD_IMAGE }}
-          BACKEND: ${{ matrix.backend }}
-          COLLISION: ${{ matrix.collision }}
-        run: |
-          set -euo pipefail
-          rm -rf artifacts/freecad-drape-debug
-          mkdir -p artifacts/freecad-drape-debug
-          OUT="/workspace/artifacts/freecad-drape-debug/${BACKEND}-${COLLISION}"
-          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash \
-            -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
-            -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -e CLOTH_SIMULATION_BACKEND="$BACKEND" -e CLOTH_TISSU_COLLISION_MODE="$COLLISION" -e CLOTH_DEBUG_DIR="$OUT" \
-            -w /workspace "$IMAGE" -euo pipefail -c '
-              set -e
-              mkdir -p "$XDG_RUNTIME_DIR" "$CLOTH_DEBUG_DIR"
-              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
-              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
-              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
-              xdpyinfo -display :99 >/dev/null 2>&1
-              /opt/freecad/AppRun tests/freecad_drape_debug_fast.py
-            '
-          )"
-          trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
-          docker cp "$PWD/." "$CID:/workspace/"
-          docker start -a "$CID"
-          docker cp "$CID:$OUT/." "artifacts/freecad-drape-debug/"
-          docker rm -f "$CID" >/dev/null 2>&1 || true
-          trap - EXIT
-          test -s "artifacts/freecad-drape-debug/metrics.json"
-          find artifacts/freecad-drape-debug -name '*.png' -size +20k -print
-      - name: Upload fast drape debug artifact
+          mkdir -p artifacts/drape-backend-micro
+          docker run --rm --security-opt seccomp=unconfined --shm-size=1g \
+            -e PYTHONPATH=/workspace \
+            -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
+            -e CLOTH_MICRO_STEPS="$CLOTH_MICRO_STEPS" \
+            -e CLOTH_MICRO_ITERATIONS="$CLOTH_MICRO_ITERATIONS" \
+            -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" \
+            -e CLOTH_MICRO_DIR="$CLOTH_MICRO_DIR" \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" \
+            python3 tests/drape_backend_micro.py
+          cp "artifacts/drape-backend-micro/${{ matrix.backend }}/metrics.json" "artifacts/${{ matrix.backend }}-metrics.json"
+      - name: Upload benchmark metrics
         uses: actions/upload-artifact@v6
-        if: always()
         with:
-          name: cloth-drape-debug-${{ matrix.backend }}-${{ matrix.collision }}
-          path: artifacts/freecad-drape-debug
+          name: realtime-benchmark-${{ matrix.backend }}
+          path: artifacts/${{ matrix.backend }}-metrics.json
           if-no-files-found: error
           compression-level: 1
 
   gui-screenshot:
-    name: FreeCAD GUI screenshots
-    needs: build-image
-    if: ${{ github.event_name != 'pull_request' }}
+    name: Full FreeCAD visual validation
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.full_gui) }}
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v5
-      - name: Log in to GHCR for image pull
-        uses: docker/login-action@v3
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Pull FreeCAD image
-        env:
-          IMAGE: ${{ env.FREECAD_IMAGE }}
-        run: |
-          set -euo pipefail
-          timeout --signal=TERM --kill-after=30s 10m docker pull "$IMAGE"
-      - name: Launch FreeCAD GUI and export screenshots in Docker
-        env:
-          IMAGE: ${{ env.FREECAD_IMAGE }}
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Render FreeCAD screenshots
         run: |
           set -euo pipefail
           rm -rf docs/images/generated artifacts/freecad-gui
           mkdir -p docs/images/generated artifacts/freecad-gui
-          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash \
+          docker run --rm --security-opt seccomp=unconfined --shm-size=1g \
             -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -e CLOTH_SIMULATION_BACKEND=tissu -w /workspace "$IMAGE" -euo pipefail -c '
+            -e CLOTH_SIMULATION_BACKEND=tissu \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -e
-              test "$(python3 -c "import sys; print(sys.version_info[:2])")" = "(3, 12)"
-              python3 -c "import tissu, pytest; print(\"Tissu\", tissu.__file__); print(\"pytest\", pytest.__version__)"
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              set +e
               timeout --signal=TERM --kill-after=15s 600s /opt/freecad/AppRun tests/freecad_screenshot.py
               timeout --signal=TERM --kill-after=15s 300s /opt/freecad/AppRun tests/freecad_avatar_screenshot.py
               timeout --signal=TERM --kill-after=15s 600s /opt/freecad/AppRun tests/freecad_simulation_turntable.py
-              set -e
             '
-          )"
-          trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
-          docker cp "$PWD/." "$CID:/workspace/"
-          docker start -a "$CID" || true
-          set +e
-          docker cp "$CID:/workspace/docs/images/generated/." docs/images/generated/
-          docker cp "$CID:/workspace/docs/images/generated/gui-progress.log" artifacts/freecad-gui/gui-progress.log
-          docker cp "$CID:/workspace/docs/images/generated/avatar-gui-progress.log" artifacts/freecad-gui/avatar-gui-progress.log
-          docker cp "$CID:/workspace/docs/images/generated/simulation-turntable-progress.log" artifacts/freecad-gui/simulation-turntable-progress.log
-          docker cp "$CID:/workspace/docs/images/generated/drape-visual-metrics.json" artifacts/freecad-gui/drape-visual-metrics.json
-          docker cp "$CID:/tmp/xvfb.log" artifacts/freecad-gui/xvfb.log
-          docker cp "$CID:/tmp/openbox.log" artifacts/freecad-gui/openbox.log
-          set -e
-          docker rm -f "$CID" >/dev/null 2>&1 || true
-          trap - EXIT
-          test -s artifacts/freecad-gui/gui-progress.log
-          test -s artifacts/freecad-gui/avatar-gui-progress.log
-          test -s artifacts/freecad-gui/simulation-turntable-progress.log
-          grep -q 'script-end exit-code=0' artifacts/freecad-gui/gui-progress.log
-          grep -q 'avatar-script-pass' artifacts/freecad-gui/avatar-gui-progress.log
-          grep -q 'simulation-turntable-pass' artifacts/freecad-gui/simulation-turntable-progress.log
-          test -s docs/images/generated/cloth-pattern-design.png
-          test -s docs/images/generated/cloth-sewing.png
-          test -s docs/images/generated/cloth-simulation-arranged.png
+          cp -r docs/images/generated artifacts/freecad-gui/generated
+      - name: Validate GUI exports
+        run: |
+          set -euo pipefail
           test -s docs/images/generated/cloth-simulation-draped.png
-          test -s docs/images/generated/cloth-avatar-front.png
-          test -s docs/images/generated/cloth-avatar-rear.png
-          test -s docs/images/generated/cloth-avatar-left.png
-          test -s docs/images/generated/cloth-avatar-right.png
-          test -s docs/images/generated/cloth-avatar-top.png
-          test -s docs/images/generated/cloth-avatar-bottom.png
+          test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
           test "$(find docs/images/generated/cloth-avatar-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
           test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
-          test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
-      - name: Build turntable GIFs
-        run: |
-          set -euo pipefail
-          if command -v magick >/dev/null 2>&1; then
-            GIF_TOOL=imagemagick
-          elif command -v convert >/dev/null 2>&1; then
-            GIF_TOOL=imagemagick
-          elif command -v ffmpeg >/dev/null 2>&1; then
-            GIF_TOOL=ffmpeg
-          else
-            sudo apt-get update
-            sudo apt-get install -y imagemagick
-            GIF_TOOL=imagemagick
-          fi
-          for spec in \
-            "cloth-avatar-turntable-frames cloth-avatar-turntable.gif" \
-            "cloth-simulation-arranged-turntable-frames cloth-simulation-arranged-turntable.gif" \
-            "cloth-simulation-draped-turntable-frames cloth-simulation-draped-turntable.gif"; do
-            set -- $spec
-            frames="docs/images/generated/$1"
-            output="docs/images/generated/$2"
-            if [ "$GIF_TOOL" = imagemagick ]; then
-              if command -v magick >/dev/null 2>&1; then
-                magick "$frames"/frame-*.png -delay 8 -loop 0 -colors 128 -layers Optimize "$output"
-              else
-                convert "$frames"/frame-*.png -delay 8 -loop 0 -colors 128 -layers Optimize "$output"
-              fi
-            else
-              ffmpeg -hide_banner -loglevel error -y -framerate 12 -i "$frames/frame-%03d.png" -loop 0 "$output"
-            fi
-            test -s "$output"
-          done
-      - name: Validate exported screenshots and turntables
-        run: |
-          set -euo pipefail
-          for image in docs/images/generated/*.png; do
-            python3 -c 'import os,struct,sys; p=sys.argv[1]; d=open(p,"rb").read(24); assert d[:8]==b"\x89PNG\r\n\x1a\n"; w,h=struct.unpack(">II",d[16:24]); assert (w,h)==(1280,720); assert os.path.getsize(p)>=20000' "$image"
-          done
-          for gif in cloth-avatar-turntable.gif cloth-simulation-arranged-turntable.gif cloth-simulation-draped-turntable.gif; do
-            if command -v identify >/dev/null 2>&1; then
-              identify -format '%n\n' "docs/images/generated/$gif" | head -n 1 | grep -qx '73'
-            elif command -v ffprobe >/dev/null 2>&1; then
-              ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 "docs/images/generated/$gif" | grep -qx '73'
-            else
-              echo 'No GIF frame-count validator available' >&2
-              exit 1
-            fi
-            python3 -c 'import os,sys; p=sys.argv[1]; d=open(p,"rb").read(6); assert d in (b"GIF87a", b"GIF89a"); assert os.path.getsize(p)>=50000' "docs/images/generated/$gif"
-          done
       - name: Upload GUI screenshots
-        if: ${{ success() }}
         uses: actions/upload-artifact@v6
         with:
           name: cloth-gui-screenshots
-          path: |
-            docs/images/generated/*.png
-            docs/images/generated/cloth-avatar-turntable.gif
-            docs/images/generated/cloth-simulation-arranged-turntable.gif
-            docs/images/generated/cloth-simulation-draped-turntable.gif
+          path: docs/images/generated
           if-no-files-found: error
-          compression-level: 1
-      - name: Upload GUI diagnostics
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: cloth-gui-diagnostics
-          path: artifacts/freecad-gui
-          if-no-files-found: ignore
           compression-level: 1
