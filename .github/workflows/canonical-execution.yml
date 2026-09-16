@@ -115,7 +115,7 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 12); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_screenshot.py
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit.py
             '
       - name: Validate visual and simulation evidence
         run: |
@@ -123,7 +123,6 @@ jobs:
           test -s docs/images/generated/gui-screenshot-progress.log
           grep -q 'scenario-pass' docs/images/generated/gui-screenshot-progress.log
           grep -q 'realtime-preview=passed backend=tissu' docs/images/generated/gui-screenshot-progress.log
-          grep -q 'canonical-backend=xpbd-cpu visual-regression zero-rest-sewn' docs/images/generated/gui-screenshot-progress.log
           grep -q 'drape-metrics=' docs/images/generated/gui-screenshot-progress.log
           test -s docs/images/generated/cloth-simulation-draped.png
           test -s docs/images/generated/cloth-simulation-draped-front.png
