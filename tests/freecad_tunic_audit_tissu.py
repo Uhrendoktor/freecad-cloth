@@ -9,10 +9,11 @@ source = source_path.read_text(encoding="utf-8")
 replacements = {
     'clearance = max(20.0, 0.08 * body_depth);': 'clearance = max(8.0, 0.025 * body_depth);',
     'chest = 980.0; hip = 1020.0; ease = 55.0;': 'chest = 860.0; hip = 880.0; ease = 10.0;',
+    'front_y = box.YMin - clearance; back_y = box.YMax + clearance;': 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
-        'front, front_outline = make_piece("VisualTunicFront", front_y, 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", back_y, 0.76, 0.12); back.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, back_y, hem_z), App.Rotation(App.Vector(0,0,1), 180.0).multiply(App.Rotation(App.Vector(1,0,0), 90.0))); back.Sketch.Placement = back.Placement',
+        'front, front_outline = make_piece("VisualTunicFront", front_y, 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", back_y, 0.76, 0.12)',
     'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):' :
-        'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
+        'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
     'for batch in (15,15,15,15,15,15):': 'for batch in (5,5,5):',
     'if int(scene.Steps) != 90 or': 'if int(scene.Steps) != 15 or',
@@ -88,7 +89,7 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
         raise RuntimeError("Realtime Cloth Preview did not reset steps on stop")
     for name, value in preview_saved.items():
         if getattr(scene, name) != value:
-            raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
+            raise RuntimeError("Realtime Cloth Preview did not restore %s" name)
     log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
 '''
 anchor = '    for batch in (5,5,5):'
