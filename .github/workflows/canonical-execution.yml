@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: canonical-fast-${{ github.ref }}
+  group: canonical-fast-v2-${{ github.ref }}
   cancel-in-progress: true
 
 env:
