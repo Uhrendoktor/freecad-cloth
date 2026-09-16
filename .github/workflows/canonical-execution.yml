@@ -93,8 +93,12 @@ jobs:
       - name: Run native-Sketcher tunic audit
         env:
           CLOTH_SIMULATION_BACKEND: tissu
-          CLOTH_TISSU_SUBSTEPS: 4
-          CLOTH_TISSU_COLLISION_MODE: mesh
+          # The last verified Tissu artifact used the stable ten-substep solver
+          # profile and the torso-envelope collider.  Mesh collision is retained
+          # as an explicit selectable backend mode, but is not the canonical
+          # visual-regression profile for this coarse humanoid drape.
+          CLOTH_TISSU_SUBSTEPS: 10
+          CLOTH_TISSU_COLLISION_MODE: torso-envelope
         run: |
           set -euo pipefail
           rm -rf docs/images/generated
