@@ -12,7 +12,7 @@ from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 
 _MM = 1000.0
-_TISSU_SUBSTEPS_DEFAULT = 10
+_TISSU_SUBSTEPS_DEFAULT = 1
 
 
 def _tissu_substeps():
