@@ -21,10 +21,10 @@ permissions:
   packages: write
 
 jobs:
-  gui-tunic-smoke:
-    name: Fast tunic visual smoke
+  python:
+    name: Python and FreeCAD non-GUI tests
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - uses: docker/login-action@v3
@@ -34,85 +34,78 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Pull FreeCAD image
         run: docker pull "$FREECAD_IMAGE"
-      - name: Render single draped tunic frame
+      - name: Run code validation
+        run: |
+          set -euo pipefail
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e PYTHONPATH=/workspace -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              test "$(python3 -c "import sys; print(sys.version_info[:2])")" = "(3, 12)"
+              python3 -m compileall -q .
+              for test in \
+                tests/test_core.py \
+                tests/test_mesh.py \
+                tests/test_meshpart_adapter.py \
+                tests/test_mesh_validation.py \
+                tests/test_avatar_visual_sanity.py \
+                tests/test_drape_visual_sanity.py \
+                tests/test_xpbd.py \
+                tests/test_cloth_solver.py \
+                tests/test_side_tasks.py \
+                tests/test_collisions.py \
+                tests/test_pattern_sketch.py \
+                tests/test_pattern_ir.py \
+                tests/test_pattern_export_semantics.py \
+                tests/test_sketch_authority.py \
+                tests/test_sewing_workbench.py \
+                tests/test_sewing_show2d.py \
+                tests/test_sewing_network.py \
+                tests/test_sewing_network_gui.py \
+                tests/test_sewing_network_gui_contract.py \
+                tests/test_gui_structure.py \
+                tests/test_simulation_scene.py \
+                tests/test_simulation_quality.py \
+                tests/test_avatar_fitting.py \
+                tests/test_avatar_shoulder_pose.py \
+                tests/test_avatar_hierarchical_pose.py \
+                tests/test_humanoid_mesh.py \
+                tests/test_drape_quality.py \
+                tests/test_freecad_objects.py \
+                tests/test_project_structure.py; do
+                python3 "$test"
+              done
+            '
+
+  gui-tunic-visual:
+    name: Full tunic visual and simulation audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Run native-Sketcher tunic audit
         env:
           CLOTH_SIMULATION_BACKEND: tissu
-          CLOTH_TUNIC_PARTICLE_DISTANCE_MM: 18.0
-          CLOTH_TUNIC_SOLVER_ITERATIONS: 12
-          CLOTH_TUNIC_SOLVER_SUBSTEPS: 4
-          CLOTH_TUNIC_STEPS: 120
+          CLOTH_TISSU_SUBSTEPS: 4
+          CLOTH_TISSU_COLLISION_MODE: mesh
         run: |
           set -euo pipefail
           rm -rf docs/images/generated
           mkdir -p docs/images/generated
-          cat > pr_tunic_smoke.py <<'PY'
-          import os
-          import types
-          import FreeCAD as App
-          import FreeCADGui as Gui
-          from PySide import QtWidgets
-
-          os.environ["CLOTH_TISSU_SUBSTEPS"] = "4"
-          os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
-          source = open("/workspace/tests/freecad_simulation_turntable.py", encoding="utf-8").read()
-          source = source.split("\ntry:\n    main()", 1)[0]
-          mod = types.ModuleType("turntable")
-          exec(compile(source, "/workspace/tests/freecad_simulation_turntable.py", "exec"), mod.__dict__, mod.__dict__)
-          os.makedirs("/workspace/docs/images/generated", exist_ok=True)
-          window = Gui.getMainWindow(); window.show(); mod.events()
-          if "ClothPatternWorkbench" not in Gui.listWorkbenches():
-              init_gui = "/workspace/InitGui.py"
-              exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
-          mod.events()
-          doc = App.newDocument("ClothTunicSmoke")
-          try:
-              scene, avatar, panels, seam_records, authored, pieces = mod.build_simulation_state(doc)
-              authored.ViewObject.Visibility = False
-              scene.PinSelection = [str(i) for i in range(2, 8)]
-              scene.Steps = 0
-              doc.recompute(); mod.events()
-              steps = int(os.environ.get("CLOTH_TUNIC_STEPS", "120"))
-              scene.Steps = steps
-              doc.recompute(); mod.events()
-              if int(scene.Steps) != steps or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
-                  raise RuntimeError("simulation did not reach a finite %d-step state" % steps)
-              if any(panel.Mesh.CountFacets <= 100 for panel in panels):
-                  raise RuntimeError("draped tunic panel mesh is too coarse")
-              seam_gap = mod._seam_endpoint_gap(panels, seam_records)
-              front, back = pieces
-              simulated = {front.Name: mod._boundary_points(panels[0], len(mod._outline(front))), back.Name: mod._boundary_points(panels[1], len(mod._outline(back)))}
-              mod._seam_overlay(doc, "TunicSeamsSimulated", seam_records, simulated)
-              backend = getattr(getattr(scene, "Proxy", None), "_base_or_restore", lambda: None)()
-              backend_name = getattr(getattr(backend, "backend", None), "name", "unknown") if backend is not None else "unknown"
-              bounds = []
-              for panel in panels:
-                  box = panel.Mesh.BoundBox
-                  bounds.append((float(box.XMin), float(box.XMax), float(box.YMin), float(box.YMax), float(box.ZMin), float(box.ZMax)))
-              mod.log("smoke-state backend=%s particles=%d facets=(%d,%d) seam_max_gap_mm=%.2f bounds=%s" % (backend_name, int(scene.ParticleCount), panels[0].Mesh.CountFacets, panels[1].Mesh.CountFacets, seam_gap, bounds))
-              if backend_name != "tissu":
-                  raise RuntimeError("visual smoke did not use the Tissu backend")
-              view = Gui.activeDocument().activeView(); view.setCameraType("Orthographic"); view.viewFront(); view.fitAll(); view.zoomIn(); mod.events()
-              avatar.ViewObject.Visibility = False
-              mod.save_png(view, "/workspace/docs/images/generated/cloth-simulation-cloth-only.png", "cloth-only diagnostic")
-              avatar.ViewObject.Visibility = True; mod.events()
-              mod.save_png(view, "/workspace/docs/images/generated/cloth-simulation-draped-tunic-smoke.png", "draped tunic smoke")
-              if seam_gap > 35.0:
-                  mod.log("simulation-turntable-fail seam_gap_mm=%.2f" % seam_gap)
-              else:
-                  mod.log("simulation-turntable-pass")
-          finally:
-              if doc.Name in App.listDocuments(): App.closeDocument(doc.Name)
-              mod.events(); window.close(); app = QtWidgets.QApplication.instance()
-              if app is not None: app.quit()
-          PY
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
-            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
-            -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
-            -e CLOTH_TUNIC_PARTICLE_DISTANCE_MM="$CLOTH_TUNIC_PARTICLE_DISTANCE_MM" \
-            -e CLOTH_TUNIC_SOLVER_ITERATIONS="$CLOTH_TUNIC_SOLVER_ITERATIONS" \
-            -e CLOTH_TUNIC_SOLVER_SUBSTEPS="$CLOTH_TUNIC_SOLVER_SUBSTEPS" \
-            -e CLOTH_TUNIC_STEPS="$CLOTH_TUNIC_STEPS" -e CLOTH_TUNIC_CLEARANCE_MM=10.0 -e CLOTH_TUNIC_STITCH_SAMPLES=8 \
+            -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" \
+            -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
+            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
@@ -122,28 +115,32 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 12); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=5s 55s /opt/freecad/AppRun /workspace/pr_tunic_smoke.py
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_screenshot.py
             '
-      - name: Validate tunic smoke export
+      - name: Validate visual and simulation evidence
         run: |
           set -euo pipefail
-          test -s docs/images/generated/simulation-turntable-progress.log
-          grep -q 'smoke-state backend=tissu' docs/images/generated/simulation-turntable-progress.log
-          test -s docs/images/generated/cloth-simulation-draped-tunic-smoke.png
-          test -s docs/images/generated/cloth-simulation-cloth-only.png
-          if grep -q 'simulation-turntable-fail' docs/images/generated/simulation-turntable-progress.log; then
-            echo 'Visual artifact captured, but seam convergence gate failed.'
-            exit 1
-          fi
-          grep -q 'simulation-turntable-pass' docs/images/generated/simulation-turntable-progress.log
-      - name: Upload tunic visual smoke
+          test -s docs/images/generated/gui-screenshot-progress.log
+          grep -q 'scenario-pass' docs/images/generated/gui-screenshot-progress.log
+          grep -q 'realtime-preview=passed backend=tissu' docs/images/generated/gui-screenshot-progress.log
+          grep -q 'canonical-backend=xpbd-cpu visual-regression zero-rest-sewn' docs/images/generated/gui-screenshot-progress.log
+          grep -q 'drape-metrics=' docs/images/generated/gui-screenshot-progress.log
+          test -s docs/images/generated/cloth-simulation-draped.png
+          test -s docs/images/generated/cloth-simulation-draped-front.png
+          test -s docs/images/generated/cloth-simulation-draped-rear.png
+          test -s docs/images/generated/cloth-simulation-draped-left.png
+          test -s docs/images/generated/cloth-simulation-draped-right.png
+          test -s docs/images/generated/cloth-simulation-draped-top.png
+          test -s docs/images/generated/cloth-simulation-draped-bottom.png
+      - name: Upload tunic visual audit
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: tunic-visual-smoke
+          name: tunic-visual-audit
           path: |
-            docs/images/generated/cloth-simulation-draped-tunic-smoke.png
-            docs/images/generated/cloth-simulation-cloth-only.png
-            docs/images/generated/simulation-turntable-progress.log
+            docs/images/generated/cloth-simulation-draped*.png
+            docs/images/generated/drape-visual-metrics.json
+            docs/images/generated/gui-screenshot-progress.log
+            docs/images/generated/gui-screenshot-manifest.txt
           if-no-files-found: error
           compression-level: 1
