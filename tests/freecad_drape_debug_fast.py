@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import sys
 from pathlib import Path
 
 import FreeCAD as App
@@ -14,6 +15,10 @@ try:
     from PySide import QtWidgets
 except ImportError:
     from PySide2 import QtWidgets
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
 from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
