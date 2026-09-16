@@ -205,7 +205,25 @@ def run():
             App.closeDocument(doc.Name)
         except Exception:
             pass
+        try:
+            app = QtWidgets.QApplication.instance()
+            if app is not None:
+                app.quit()
+        except Exception:
+            pass
+        try:
+            App.exit()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
-    run()
+    try:
+        run()
+    except Exception as exc:
+        print("DRAPE-DEBUG-ERROR: %r" % (exc,), flush=True)
+        try:
+            App.exit()
+        except Exception:
+            pass
+        raise
