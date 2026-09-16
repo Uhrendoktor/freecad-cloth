@@ -260,4 +260,3 @@ except BaseException as error:
     print(traceback.format_exc(), flush=True)
     log("simulation-turntable-fail exception=%r" % (error,))
     raise
-# trigger
