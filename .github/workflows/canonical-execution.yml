@@ -92,7 +92,7 @@ jobs:
             -e TINI_SUBREAPER=1 \
             -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -e CLOTH_SIMULATION_BACKEND=tissu -e CLOTH_TISSU_SUBSTEPS=4 -e CLOTH_TISSU_COLLISION_MODE=torso-envelope \
+            -e CLOTH_SIMULATION_BACKEND=xpbd-cpu \
             -e CLOTH_TURNTABLE_FRAMES=2 -e CLOTH_TUNIC_CLEARANCE_MM=24.0 -e CLOTH_TUNIC_STITCH_SAMPLES=16 \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
@@ -209,7 +209,7 @@ jobs:
             -e TINI_SUBREAPER=1 \
             -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -e CLOTH_SIMULATION_BACKEND=tissu -e CLOTH_TISSU_SUBSTEPS=4 -e CLOTH_TISSU_COLLISION_MODE=torso-envelope \
+            -e CLOTH_SIMULATION_BACKEND=xpbd-cpu \
             -e CLOTH_TUNIC_CLEARANCE_MM=24.0 -e CLOTH_TUNIC_STITCH_SAMPLES=16 \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -e

@@ -210,9 +210,9 @@ class ClothSystem:
                 p.x, p.y, p.z = cx+dx*s, cy+dy*s, cz+dz*s
 
     def add_stitches(self, pairs, compliance=0.0):
+        """Add zero-rest-length sewing constraints between corresponding edge samples."""
         for a, b in pairs:
-            pa, pb = self.particles[a], self.particles[b]
-            self.stitches.append(DistanceConstraint(a, b, distance(pa, pb), compliance))
+            self.stitches.append(DistanceConstraint(int(a), int(b), 0.0, compliance))
 
     def pin(self, indices):
         for i in indices:
