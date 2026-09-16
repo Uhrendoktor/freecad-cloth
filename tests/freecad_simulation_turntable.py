@@ -190,11 +190,11 @@ def build_simulation_state(doc):
 
     scene.StartHeight = 0.0
     scene.QualityPreset = "Fast"
-    scene.ParticleDistance = 30.0
-    scene.SolverIterations = 6
+    scene.ParticleDistance = 45.0
+    scene.SolverIterations = 5
     scene.SolverSubsteps = 1
     scene.TimeStep = 1.0 / 120.0
-    scene.StitchSamples = int(os.environ.get("CLOTH_TUNIC_STITCH_SAMPLES", "8"))
+    scene.StitchSamples = int(os.environ.get("CLOTH_TUNIC_STITCH_SAMPLES", "6"))
     scene.GravityX = scene.GravityY = 0.0
     scene.GravityZ = -9810.0
     scene.FabricFriction = 0.78
