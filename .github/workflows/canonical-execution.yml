@@ -45,10 +45,6 @@ jobs:
             -e 's/scene.SolverSubsteps = 4/scene.SolverSubsteps = 1/' \
             -e 's/scene.TimeStep = 1.0 \/ 240.0/scene.TimeStep = 1.0 \/ 120.0/' \
             -e 's/scene.StitchSamples = int(os.environ.get("CLOTH_TUNIC_STITCH_SAMPLES", "16"))/scene.StitchSamples = int(os.environ.get("CLOTH_TUNIC_STITCH_SAMPLES", "4"))/' \
-            -e 's/scene.Steps = 30/scene.Steps = 2/' \
-            -e 's/int(scene.Steps) != 30/int(scene.Steps) != 2/' \
-            -e 's/finite 30-step state/finite 2-step state/' \
-            -e 's/after 30 real steps/after 2 real steps/' \
             tests/freecad_simulation_turntable.py
           cat > pr_tunic_smoke.py <<'PY'
           import os
@@ -72,6 +68,7 @@ jobs:
           try:
               scene, avatar, panels, seam_records, authored, pieces = mod.build_simulation_state(doc)
               authored.ViewObject.Visibility = False
+              scene.Steps = 2
               doc.recompute(); mod.events()
               if int(scene.Steps) != 2 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
                   raise RuntimeError("simulation did not reach a finite 2-step state")
