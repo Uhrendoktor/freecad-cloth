@@ -85,11 +85,12 @@ source = source.replace(
     backend_patch + '\nOUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")',
     1,
 )
-if 'self.backend = default_backend_registry().create("xpbd-cpu", system)' not in source:
+backend_hook = 'base.backend = default_backend_registry().create("xpbd-cpu", system)'
+if backend_hook not in source:
     raise RuntimeError("simulation backend hook no longer matches expected source")
 source = source.replace(
-    'self.backend = default_backend_registry().create("xpbd-cpu", system)',
-    'self.backend = _canonical_backend(system, triangles_global, tuple(system.pins), tuple((c.a, c.b) for c in system.stitches), _collision_for_scene(obj))',
+    backend_hook,
+    'base.backend = _canonical_backend(system, triangles_global, tuple(system.pins), tuple((c.a, c.b) for c in system.stitches), _collision_for_scene(obj))',
     1,
 )
 
