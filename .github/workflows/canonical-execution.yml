@@ -51,15 +51,16 @@ jobs:
             -e 's/after 30 real steps/after 2 real steps/' \
             tests/freecad_simulation_turntable.py
           cat > pr_tunic_smoke.py <<'PY'
-          import importlib.util
           import os
+          import types
           import FreeCAD as App
           import FreeCADGui as Gui
           from PySide import QtWidgets
 
-          spec = importlib.util.spec_from_file_location("turntable", "/workspace/tests/freecad_simulation_turntable.py")
-          mod = importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(mod)
+          source = open("/workspace/tests/freecad_simulation_turntable.py", encoding="utf-8").read()
+          source = source.split("\ntry:\n    main()", 1)[0]
+          mod = types.ModuleType("turntable")
+          exec(compile(source, "/workspace/tests/freecad_simulation_turntable.py", "exec"), mod.__dict__, mod.__dict__)
           os.makedirs("/workspace/docs/images/generated", exist_ok=True)
           window = Gui.getMainWindow()
           window.show(); mod.events()
