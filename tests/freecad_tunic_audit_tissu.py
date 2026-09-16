@@ -88,15 +88,19 @@ if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
 source = source.replace(anchor, preview_probe + '\n' + anchor, 1)
 
-# Require the same seam closure invariant used by the canonical turntable.
-seam_check = '''    simulated_front = _mesh_points(panels[0].Mesh)
-    simulated_back = _mesh_points(panels[1].Mesh)
-    if not simulated_front or not simulated_back:
-        raise RuntimeError("simulated tunic panels have no mesh vertices for seam validation")
+# Validate seam closure against the actual Tissu particle positions. FreeCAD Mesh::Feature
+# point ordering is a serialization detail and is not guaranteed to match particle indices.
+seam_check = '''    backend_state = scene.Proxy._base_or_restore()
+    simulated_positions = tuple(backend_state.backend.positions())
+    if not simulated_positions:
+        raise RuntimeError("Tissu backend returned no simulated particle positions")
+    back_offset = len(front_positions)
     seam_gaps = []
     for edge_a, edge_b in ((1, 1), (3, 3), (5, 5), (7, 7)):
-        for ia, ib in ((front_boundary[edge_a], back_boundary[edge_b]), (front_boundary[(edge_a + 1) % 8], back_boundary[(edge_b + 1) % 8])):
-            a = simulated_front[ia]; b = simulated_back[ib]
+        front_a0 = front_boundary[edge_a]; front_a1 = front_boundary[(edge_a + 1) % len(front_boundary)]
+        back_a0 = back_boundary[edge_b] + back_offset; back_a1 = back_boundary[(edge_b + 1) % len(back_boundary)] + back_offset
+        for ia, ib in ((front_a0, back_a0), (front_a1, back_a1)):
+            a = simulated_positions[ia]; b = simulated_positions[ib]
             seam_gaps.append(((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2) ** 0.5)
     seam_gap = max(seam_gaps) if seam_gaps else 0.0
     if seam_gap > 35.0:
