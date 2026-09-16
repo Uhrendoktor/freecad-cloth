@@ -10,7 +10,7 @@ replacements = {
     'clearance = max(20.0, 0.08 * body_depth);': 'clearance = max(8.0, 0.025 * body_depth);',
     'chest = 980.0; hip = 1020.0; ease = 55.0;': 'chest = 860.0; hip = 880.0; ease = 10.0;',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
-        'front, front_outline = make_piece("VisualTunicFront", front_y, 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", back_y, 0.76, 0.12)',
+        'front, front_outline = make_piece("VisualTunicFront", front_y, 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", back_y, 0.76, 0.12); back.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, back_y, hem_z), App.Rotation(App.Vector(1,0,0), -90.0)); back.Sketch.Placement = back.Placement',
     'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):' :
         'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
