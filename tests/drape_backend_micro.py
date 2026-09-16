@@ -1,4 +1,4 @@
-"""Sub-minute backend smoke/performance check without FreeCAD GUI overhead."""
+"""Realtime backend smoke/performance check without FreeCAD GUI overhead."""
 from __future__ import annotations
 
 import json
@@ -11,11 +11,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from freecad_cloth.avatar.AvatarCollision import CollisionSurface
 from freecad_cloth.simulation.ClothBackend import default_backend_registry
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 
 OUT = Path(os.environ.get("CLOTH_MICRO_DIR", "artifacts/drape-backend-micro"))
 OUT.mkdir(parents=True, exist_ok=True)
+FRAME_BUDGET_MS = 1000.0 / 30.0
 
 
 def make_system():
@@ -46,49 +48,80 @@ def make_system():
     return system, tuple(triangles), stitches
 
 
+def make_collision_surface():
+    # Small closed torso-like box: enough collision work to exercise the same code path
+    # without importing or tessellating the full FreeCAD avatar in the performance test.
+    x0, x1 = -105.0, 105.0
+    y0, y1 = -55.0, 55.0
+    z0, z1 = 105.0, 225.0
+    vertices = (
+        (x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0),
+        (x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1),
+    )
+    triangles = (
+        (0, 1, 2), (0, 2, 3), (4, 6, 5), (4, 7, 6),
+        (0, 4, 5), (0, 5, 1), (1, 5, 6), (1, 6, 2),
+        (2, 6, 7), (2, 7, 3), (3, 7, 4), (3, 4, 0),
+    )
+    return CollisionSurface(vertices, triangles, "micro-torso", 2.0)
+
+
 def main():
     requested = os.environ.get("CLOTH_SIMULATION_BACKEND", "xpbd-cpu")
     registry = default_backend_registry()
     backend_name = requested if requested in registry._factories else "xpbd-cpu"
     system, triangles, stitches = make_system()
-    backend = registry.create(
-        backend_name,
-        system,
-        triangles=triangles,
-        pins=(0, 11, 216, 227) if backend_name == "tissu" else (),
-        stitches=stitches if backend_name == "tissu" else (),
-        collision_surface=None,
-    ) if backend_name == "tissu" else registry.create("xpbd-cpu", system)
-    if backend_name == "xpbd-cpu":
+    collision = make_collision_surface()
+    if backend_name == "tissu":
+        backend = registry.create(
+            "tissu",
+            system,
+            triangles=triangles,
+            pins=(0, 11, 216, 227),
+            stitches=stitches,
+            collision_surface=collision,
+        )
+    else:
+        backend = registry.create("xpbd-cpu", system)
         backend.pin((0, 11, 216, 227))
         backend.set_stitches(stitches, compliance=0.0)
 
-    iterations = int(os.environ.get("CLOTH_MICRO_ITERATIONS", "4"))
-    steps = int(os.environ.get("CLOTH_MICRO_STEPS", "6"))
+    iterations = int(os.environ.get("CLOTH_MICRO_ITERATIONS", "1"))
+    steps = int(os.environ.get("CLOTH_MICRO_STEPS", "60"))
     dt = 1.0 / 60.0
     times = []
-    t0 = time.perf_counter()
+    started = time.perf_counter()
     for _ in range(steps):
         start = time.perf_counter()
-        backend.step(dt=dt, iterations=iterations, gravity=(0.0, 0.0, -9810.0), surface=None)
+        backend.step(
+            dt=dt,
+            iterations=iterations,
+            gravity=(0.0, 0.0, -9810.0),
+            surface=collision,
+        )
         times.append(time.perf_counter() - start)
-    elapsed = time.perf_counter() - t0
+    elapsed = time.perf_counter() - started
+    ordered = sorted(times)
+    p95 = ordered[max(0, min(len(ordered) - 1, int(0.95 * len(ordered)) - 1))]
     result = {
         "backend": backend_name,
         "steps": steps,
         "iterations": iterations,
         "particles": len(backend.positions()),
         "stitches": len(stitches),
-        "substeps": int(os.environ.get("CLOTH_TISSU_SUBSTEPS", "10")) if backend_name == "tissu" else 1,
+        "collision_triangles": len(collision.triangles),
+        "substeps": int(os.environ.get("CLOTH_TISSU_SUBSTEPS", "1")) if backend_name == "tissu" else 1,
         "elapsed_s": elapsed,
         "mean_step_ms": 1000.0 * sum(times) / len(times),
+        "p95_step_ms": 1000.0 * p95,
         "max_step_ms": 1000.0 * max(times),
+        "fps_mean": 1.0 / (sum(times) / len(times)),
         "finite": bool(backend.finite()),
+        "frame_budget_ms": FRAME_BUDGET_MS,
     }
     (OUT / "metrics.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(json.dumps(result, sort_keys=True), flush=True)
-    # Keep the CI contract explicit: the micro path must remain comfortably sub-minute.
-    if not result["finite"] or elapsed > 45.0:
+    if not result["finite"] or result["mean_step_ms"] > FRAME_BUDGET_MS or result["p95_step_ms"] > 50.0:
         raise SystemExit(2)
 
 
