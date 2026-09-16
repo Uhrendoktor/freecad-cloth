@@ -171,7 +171,7 @@ def build_simulation_state(doc):
     back, back_outline = make_piece("VisualTunicBack", box.YMin - clearance)
     seam_records = []
     for ea, eb, seam_id in ((1, 1, "TunicRightSide"), (2, 2, "TunicRightShoulder"), (6, 6, "TunicLeftShoulder"), (7, 7, "TunicLeftSide")):
-        seam = Seam(str(front.PieceId), ea, str(back.PieceId), eb, id=seam_id, alignment="uniform", stitch_group="TunicAssembly", reversed_b=True)
+        seam = Seam(str(front.PieceId), ea, str(back.PieceId), eb, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
