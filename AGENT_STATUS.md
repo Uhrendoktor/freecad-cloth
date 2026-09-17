@@ -34,7 +34,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - `trimesh` remains optional/lazy; CPU reference remains correctness baseline.
 - Tissu remains sandbox-only until runtime compatibility, constraint/collision parity, determinism, visual parity and performance are demonstrated.
 - Re-cut implementation branches from current `main`; one focused concern per PR.
-- Latest observed canonical result: PR #539 merge ref `a30e4c9287cc1ae0878e76d26a010bca1f29ca48` passed Python/non-GUI tests but failed the FreeCAD GUI job in `tests/freecad_screenshot_source.py` on the hard lateral-detachment gate (`Drape: VisualTunicFront`, 224.6 mm). This is a visual-fixture/metric-gate issue, not a Tissu import failure; coordinate with #536/#538 before changing backend code.
+- Latest observed canonical results: PR #539 head `178016d43e2aecae7533e61eb9e555cd6c72b285` passed canonical run #1997 (`35097505536`) on 2026-09-16, but the follow-up docs/status branch PR #541 was re-run against the older hard-gate GUI path in canonical run #1998 (`35097812433`) and failed with `RuntimeError: draped panel Drape: Tunic Front rises too far above the shoulder zone: 1484.4 mm` while Python/non-GUI passed. Treat #541 as stale verification evidence; do not merge it as a green-status record. This remains a visual-fixture/metric-gate issue, not a Tissu import failure; coordinate with #536/#538 before changing backend code.
 
 ## Agent rules
 
