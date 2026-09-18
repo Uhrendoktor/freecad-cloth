@@ -13,7 +13,7 @@ replacements = {
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
         'front, front_outline = make_piece("VisualTunicFront", front_y, 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", back_y, 0.76, 0.12)',
     'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):' :
-        'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
+        'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
     'for batch in (15,15,15,15,15,15):': 'for batch in (40,40,40):',
     'if int(scene.Steps) != 90 or': 'if int(scene.Steps) != 120 or',
@@ -37,9 +37,12 @@ pin_replacement = '''    def authored_shoulder_pins(piece, outline, positions):
             raise RuntimeError("insufficient boundary vertices for authored shoulder pins")
         pins = []
         for target_x, target_y in shoulder_targets:
+            target_point = piece.Placement.multVec(App.Vector(float(target_x), float(target_y), 0.0))
             index = min(
                 available,
-                key=lambda i: (positions[i][0] - target_x) ** 2 + (positions[i][1] - target_y) ** 2,
+                key=lambda i: (positions[i][0] - target_point.x) ** 2
+                + (positions[i][1] - target_point.y) ** 2
+                + (positions[i][2] - target_point.z) ** 2,
             )
             pins.append(index)
             available.remove(index)
@@ -88,6 +91,15 @@ if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
 source = source.replace(anchor, preview_probe + '\n' + anchor, 1)
 
+assembly_line = '    front, front_outline = make_piece("VisualTunicFront", front_y, 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", back_y, 0.76, 0.12)'
+mirrored_assembly = assembly_line + """
+    mirror_back = App.Rotation(App.Vector(1, 0, 0), 90.0).multiply(App.Rotation(App.Vector(0, 1, 0), 180.0))
+    back.Placement = App.Placement(App.Vector(x_mid + hem_width / 2.0, back_y, hem_z), mirror_back)
+    back.Sketch.Placement = back.Placement"""
+if assembly_line not in source:
+    raise RuntimeError("rear-panel assembly anchor missing")
+source = source.replace(assembly_line, mirrored_assembly, 1)
+
 # Validate seam closure against the actual Tissu particle positions. FreeCAD Mesh::Feature
 # point ordering is a serialization detail and is not guaranteed to match particle indices.
 seam_check = '''    backend_state = scene.Proxy._base_or_restore()
@@ -96,7 +108,7 @@ seam_check = '''    backend_state = scene.Proxy._base_or_restore()
         raise RuntimeError("Tissu backend returned no simulated particle positions")
     back_offset = len(front_positions)
     seam_gaps = []
-    for edge_a, edge_b in ((1, 1), (2, 6), (6, 2), (7, 7)):
+    for edge_a, edge_b in ((1, 1), (2, 2), (5, 5), (7, 7)):
         front_a0 = front_boundary[edge_a]; front_a1 = front_boundary[(edge_a + 1) % len(front_boundary)]
         back_a0 = back_boundary[edge_b] + back_offset; back_a1 = back_boundary[(edge_b + 1) % len(back_boundary)] + back_offset
         for ia, ib in ((front_a0, back_a0), (front_a1, back_a1)):
