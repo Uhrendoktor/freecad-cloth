@@ -6,7 +6,7 @@ repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_task: cloth-sewing-workbench-structure-and-roadmap
-current_main: 394735c82ee7dd8cc1e7f428af59ad5eaf232424
+current_main: e1dedecd288963002d75f7687c28be9a83407e49
 open_prs: []
 active_release_gates: [155, 278, 284, 298, 297, 145]
 queued_release_gates: [275, 162, 360]
@@ -31,15 +31,15 @@ workflow_contract:
   image_policy: publish_on_main_when_missing; PR validation may build locally with the same tag
   screenshot_display: 1280x720
   screenshot_outputs:
-    - docs/images/generated/cloth-pattern-design.png
-    - docs/images/generated/cloth-sewing.png
-    - docs/images/generated/cloth-simulation-arranged.png
     - docs/images/generated/cloth-simulation-draped.png
-    - docs/images/generated/cloth-simulation-arranged-turntable.gif
-    - docs/images/generated/cloth-simulation-draped-turntable.gif
-    - docs/images/generated/cloth-avatar-turntable.gif
-  screenshot_artifacts: [cloth-gui-screenshots, cloth-gui-diagnostics]
-  policy: preserve_existing_Docker_Xvfb_PNG_path; simulation_and_avatar_turntables_are_72_position_full_360_camera_orbits_plus_closing_frame; no_second_workflow
+    - docs/images/generated/cloth-simulation-draped-front.png
+    - docs/images/generated/cloth-simulation-draped-rear.png
+    - docs/images/generated/cloth-simulation-draped-left.png
+    - docs/images/generated/cloth-simulation-draped-right.png
+    - docs/images/generated/cloth-simulation-draped-top.png
+    - docs/images/generated/cloth-simulation-draped-bottom.png
+  screenshot_artifacts: [tunic-visual-audit]
+  policy: preserve_existing_Docker_Xvfb_PNG_path; one canonical tunic visual audit; no_second_workflown_and_avatar_turntables_are_72_position_full_360_camera_orbits_plus_closing_frame; no_second_workflow
 
 latest_verified_ci:
   run_id: 35321624103
@@ -50,8 +50,6 @@ latest_verified_ci:
   python_job: success
   gui_job: success
   note: PR #547 was verified on current main and then merged; the FreeCAD GUI audit and Python/non-GUI jobs both passed.
-  publish_readme_screenshots: success
-  note: Main CI successfully published the FreeCAD r2 image to GHCR and refreshed the stable README screenshot branch with arranged, draped, and avatar turntables.
 
 policy:
   - inspect_open_prs_and_issues_before_changes
@@ -64,7 +62,7 @@ policy:
 
 current_focus:
   imports: package-qualified module namespace is authoritative
-  structure: package-tree cleanup in PR 414
+  structure: package-tree cleanup remains historical; current active release focus is M0 garment visual trust (#472)
   ci_status: latest verified canonical run is 35321624103 (#2039) on main-equivalent head 92b54d67eda2914c046fe616427ffd9b9743e864
   visual_regression: current canonical GUI audit is green; diagnostic drape metrics are structured/diagnostic-first, while human visual review remains tracked by #472
 ```
