@@ -52,6 +52,10 @@ Internal imports use the canonical namespace, for example `freecad_cloth.pattern
 
 The Pattern workbench creates native, recomputable PatternPieces with semantic IDs and pattern metadata. Sewing persists seam relationships and supports direction/correspondence operations. Simulation uses a persistent DrapeTarget and exposes target status in the public task panel. The deterministic CPU solver remains the correctness reference.
 
+## License
+
+This project is licensed under the GNU Lesser General Public License v2.1 or later; see [LICENSE](LICENSE).
+
 ## Development
 
 There is one canonical GitHub Actions workflow: `.github/workflows/canonical-execution.yml`. It runs Python/core checks and real FreeCAD/Xvfb GUI coverage. The GUI path preserves the existing static workflow screenshots plus 360° simulation turntables for arranged and draped states and a 360° avatar turntable in the `cloth-gui-screenshots` artifact.
