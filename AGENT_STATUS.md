@@ -6,9 +6,9 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `2c22f0a981a582f3b6c51b61ecda284d7498c2d1` (latest tunic visual-regression runtime bound to 30 solver steps; canonical CI verification still required for commits after the last recorded green run).
+- Current main: `394735c82ee7dd8cc1e7f428af59ad5eaf232424` (current canonical state verified by run #2039).
 - Recent merged work: Python 3.12 / FreeCAD 1.1.0 CI baseline, restored GUI screenshot/GIF export, avatar and simulation turntables, Sketcher-authoritative pattern import, sewing command-surface coverage, simulation-signature regression, and MeshValidation disconnected-component fallback.
-- Open implementation PRs requiring supervisor gates: PR #539 (optional Tissu backend and realtime preview), PR #538 (tunic visual validation), PR #536 (diagnostic drape metrics), and PR #535 (canonical validation trigger).
+- Open implementation PRs requiring supervisor gates: none; stale/superseded PRs #546, #543, #541, #538, #536, and #535 were closed.
 - PR #453 was closed without merge because its validated screenshots remained collapsed/edge-on and not production-ready.
 - PR #438 remains diagnostic-only and must not merge.
 - Python package boundary: `freecad_cloth/` with `avatar`, `pattern`, `sewing`, `simulation`, `common`, `shared` subpackages
@@ -34,7 +34,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - `trimesh` remains optional/lazy; CPU reference remains correctness baseline.
 - Tissu remains sandbox-only until runtime compatibility, constraint/collision parity, determinism, visual parity and performance are demonstrated.
 - Re-cut implementation branches from current `main`; one focused concern per PR.
-- Latest observed canonical results: PR #539 head `178016d43e2aecae7533e61eb9e555cd6c72b285` passed canonical run #1997 (`35097505536`) on 2026-09-16, but the follow-up docs/status branch PR #541 was re-run against the older hard-gate GUI path in canonical run #1998 (`35097812433`) and failed with `RuntimeError: draped panel Drape: Tunic Front rises too far above the shoulder zone: 1484.4 mm` while Python/non-GUI passed. Treat #541 as stale verification evidence; do not merge it as a green-status record. This remains a visual-fixture/metric-gate issue, not a Tissu import failure; coordinate with #536/#538 before changing backend code.
+- Latest observed canonical result: PR #547 head `92b54d67eda2914c046fe616427ffd9b9743e864` passed canonical run #2039 (`35321624103`) on 2026-09-18; both Python/non-GUI and FreeCAD/Xvfb GUI jobs passed. The merge added the root LGPL-2.1-or-later license and README link.
 
 ## Agent rules
 
