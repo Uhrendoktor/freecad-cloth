@@ -6,7 +6,7 @@ repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_task: cloth-sewing-workbench-structure-and-roadmap
-current_main: e1dedecd288963002d75f7687c28be9a83407e49
+current_main: e410299b462bba401da083eef091c76e647ac727
 open_prs: []
 active_release_gates: [155, 278, 284, 298, 297, 145]
 queued_release_gates: [275, 162, 360]
@@ -39,7 +39,7 @@ workflow_contract:
     - docs/images/generated/cloth-simulation-draped-top.png
     - docs/images/generated/cloth-simulation-draped-bottom.png
   screenshot_artifacts: [tunic-visual-audit]
-  policy: preserve_existing_Docker_Xvfb_PNG_path; one canonical tunic visual audit; no_second_workflown_and_avatar_turntables_are_72_position_full_360_camera_orbits_plus_closing_frame; no_second_workflow
+  policy: preserve_existing_Docker_Xvfb_PNG_path; one canonical tunic visual audit; no_second_workflow
 
 latest_verified_ci:
   run_id: 35321624103
