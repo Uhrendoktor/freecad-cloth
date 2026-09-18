@@ -6,7 +6,7 @@ repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_task: cloth-sewing-workbench-structure-and-roadmap
-current_main: e410299b462bba401da083eef091c76e647ac727
+current_main: 17e730a1c16eb36ed97109c219708f353a9ec73f
 open_prs: []
 active_release_gates: [155, 278, 284, 298, 297, 145]
 queued_release_gates: [275, 162, 360]
@@ -49,7 +49,7 @@ latest_verified_ci:
   conclusion: success
   python_job: success
   gui_job: success
-  note: PR #547 was verified on current main and then merged; the FreeCAD GUI audit and Python/non-GUI jobs both passed.
+  note: PR #547 was verified on current main and then merged; the FreeCAD GUI audit and Python/non-GUI jobs both passed. Main-equivalent coordination commits now extend through 17e730a1c16eb36ed97109c219708f353a9ec73f.
 
 policy:
   - inspect_open_prs_and_issues_before_changes
