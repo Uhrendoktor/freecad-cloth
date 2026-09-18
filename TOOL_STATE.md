@@ -6,12 +6,12 @@ repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_task: cloth-sewing-workbench-structure-and-roadmap
-current_main: 2c22f0a981a582f3b6c51b61ecda284d7498c2d1
+current_main: 394735c82ee7dd8cc1e7f428af59ad5eaf232424
 open_prs: []
 active_release_gates: [155, 278, 284, 298, 297, 145]
 queued_release_gates: [275, 162, 360]
 non_blocking: [148]
-closed_this_pass: []
+closed_this_pass: [546, 543, 536, 535, 541, 538]
 
 architecture:
   package_root: freecad_cloth/
@@ -27,7 +27,7 @@ architecture:
 workflow_contract:
   workflow_count: 1
   workflow: .github/workflows/canonical-execution.yml
-  image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r2
+  image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
   image_policy: publish_on_main_when_missing; PR validation may build locally with the same tag
   screenshot_display: 1280x720
   screenshot_outputs:
@@ -42,14 +42,14 @@ workflow_contract:
   policy: preserve_existing_Docker_Xvfb_PNG_path; simulation_and_avatar_turntables_are_72_position_full_360_camera_orbits_plus_closing_frame; no_second_workflow
 
 latest_verified_ci:
-  run_id: 34839362851
-  run_number: 1710
-  commit: 65599603a394505f7bc4ab6d83ff7c5bb84123f2
+  run_id: 35321624103
+  run_number: 2039
+  commit: 92b54d67eda2914c046fe616427ffd9b9743e864
   status: completed
   conclusion: success
   python_job: success
   gui_job: success
-  publish_merged_pr_screenshots: success
+  note: PR #547 was verified on current main and then merged; the FreeCAD GUI audit and Python/non-GUI jobs both passed.
   publish_readme_screenshots: success
   note: Main CI successfully published the FreeCAD r2 image to GHCR and refreshed the stable README screenshot branch with arranged, draped, and avatar turntables.
 
@@ -65,6 +65,6 @@ policy:
 current_focus:
   imports: package-qualified module namespace is authoritative
   structure: package-tree cleanup in PR 414
-  ci_status: latest verified main run is 34839362851; commits after it still require canonical verification
-  visual_regression: tunic fixture is now bounded to 30 solver steps pending canonical confirmation
+  ci_status: latest verified canonical run is 35321624103 (#2039) on main-equivalent head 92b54d67eda2914c046fe616427ffd9b9743e864
+  visual_regression: current canonical GUI audit is green; diagnostic drape metrics are structured/diagnostic-first, while human visual review remains tracked by #472
 ```
