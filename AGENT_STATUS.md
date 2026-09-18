@@ -6,8 +6,8 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `e410299b462bba401da083eef091c76e647ac727` (current canonical product state; subsequent state-only commits do not change product code).
-- Recent merged work: Python 3.12 / FreeCAD 1.1.0 CI baseline, restored GUI screenshot/GIF export, avatar and simulation turntables, Sketcher-authoritative pattern import, sewing command-surface coverage, simulation-signature regression, and MeshValidation disconnected-component fallback.
+- Current main: `17e730a1c16eb36ed97109c219708f353a9ec73f` (current canonical product state; subsequent state-only commits do not change product code).
+- Recent merged work: Python 3.12 / FreeCAD 1.1.0 CI baseline, restored GUI screenshot/GIF export, avatar and simulation turntables, Sketcher-authoritative pattern import, sewing command-surface coverage, simulation-signature regression, MeshValidation disconnected-component fallback, Tissu audit seam mapping, diagnostic drape metrics, and LGPL-2.1-or-later project licensing.
 - Open implementation PRs requiring supervisor gates: none; stale/superseded PRs #546, #543, #541, #538, #536, and #535 were closed.
 - PR #453 was closed without merge because its validated screenshots remained collapsed/edge-on and not production-ready.
 - PR #438 remains diagnostic-only and must not merge.
@@ -34,7 +34,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - `trimesh` remains optional/lazy; CPU reference remains correctness baseline.
 - Tissu remains sandbox-only until runtime compatibility, constraint/collision parity, determinism, visual parity and performance are demonstrated.
 - Re-cut implementation branches from current `main`; one focused concern per PR.
-- Latest observed canonical result: PR #547 head `92b54d67eda2914c046fe616427ffd9b9743e864` passed canonical run #2039 (`35321624103`) on 2026-09-18; both Python/non-GUI and FreeCAD/Xvfb GUI jobs passed. Main then received coordination-only state refreshes.
+- Latest observed canonical result: PR #547 head `92b54d67eda2914c046fe616427ffd9b9743e864` passed canonical run #2039 (`35321624103`) on 2026-09-18; both Python/non-GUI and FreeCAD/Xvfb GUI jobs passed. Main then received coordination-only state refreshes through commit `17e730a1c16eb36ed97109c219708f353a9ec73f`.
 
 ## Agent rules
 
