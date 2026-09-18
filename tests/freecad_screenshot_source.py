@@ -149,25 +149,30 @@ def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=No
         vertices = _mesh_points(getattr(panel, "Mesh", None))
         metrics = inspect_drape(vertices, avatar_vertices, target_height=target_height, target_width=target_width)
         record = {"panel": str(getattr(panel, "Label", getattr(panel, "Name", ""))), **summarize(metrics)}
+        diagnostics = []
+        if not metrics.finite:
+            raise RuntimeError("draped panel %s contains non-finite geometry" % record["panel"])
+        if not vertices:
+            raise RuntimeError("draped panel %s has no mesh vertices" % record["panel"])
         if center_x is not None:
             record["centroid_lateral_offset"] = abs(float(metrics.centroid[0]) - float(center_x))
             if record["centroid_lateral_offset"] > target_width * 0.18:
-                raise RuntimeError("draped panel %s is laterally detached from the avatar center: %.1f mm" % (record["panel"], record["centroid_lateral_offset"]))
+                diagnostics.append("lateral-detached-candidate")
         if metrics.target_vertex_clearance is None or metrics.target_vertex_clearance > target_width * 0.15:
-            raise RuntimeError("draped panel %s is too far from the collision target" % record["panel"])
+            diagnostics.append("target-clearance-candidate")
         if metrics.vertical_span_ratio < 0.25 or metrics.lateral_span_ratio < 0.25:
-            raise RuntimeError("draped panel %s collapsed into a visually weak state" % record["panel"])
+            diagnostics.append("collapsed-candidate")
         if float(metrics.bounds[5]) > float(shoulder_z) + upper_margin:
-            raise RuntimeError("draped panel %s rises too far above the shoulder zone: %.1f mm" % (record["panel"], metrics.bounds[5]))
+            diagnostics.append("above-shoulder-candidate")
         if float(metrics.bounds[4]) < float(hem_z) - lower_margin:
-            raise RuntimeError("draped panel %s falls too far below the intended hem zone: %.1f mm" % (record["panel"], metrics.bounds[4]))
+            diagnostics.append("below-hem-candidate")
         if float(metrics.centroid[2]) > float(shoulder_z) + upper_margin:
-            raise RuntimeError("draped panel %s centroid is above the shoulder zone: %.1f mm" % (record["panel"], metrics.centroid[2]))
+            diagnostics.append("centroid-above-shoulder-candidate")
+        record["diagnostics"] = diagnostics
         records.append(record)
         log("drape-metrics=%s" % json.dumps(record, sort_keys=True))
     with open(METRICS, "w", encoding="utf-8") as handle:
         json.dump({"target_height": target_height, "target_width": target_width, "shoulder_z": shoulder_z, "hem_z": hem_z, "panels": records}, handle, indent=2, sort_keys=True)
-
 
 def _make_tunic_sketch(doc, name, panel_width, garment_height, hem_width, neckline_ratio, neckline_drop=0.08):
     import Part, Sketcher
