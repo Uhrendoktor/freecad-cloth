@@ -56,6 +56,11 @@ class DrapeTargetTests(unittest.TestCase):
         target.Mesh.Topology = ((_Vec(0, 0, 0), _Vec(1, 0, 0), _Vec(0, 0, 1)), ((0, 1, 2),))
         self.assertNotEqual(source_signature(target, 1, 2), baseline)
 
+    def test_mesh_signature_tracks_triangle_connectivity(self):
+        target = _MeshTarget(); baseline = source_signature(target, 1, 2)
+        target.Mesh.Topology = (target.Mesh.Topology[0], ((0, 2, 1),))
+        self.assertNotEqual(source_signature(target, 1, 2), baseline)
+
     def test_source_signature_is_stable(self):
         target = _Target(); self.assertEqual(source_signature(target, 1, 2), source_signature(target, 1, 2))
 
