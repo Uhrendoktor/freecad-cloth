@@ -6,12 +6,12 @@ repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_task: cloth-sewing-workbench-structure-and-roadmap
-current_main: 17e730a1c16eb36ed97109c219708f353a9ec73f
+current_main: 2b67c6ea6a9b861d7793c3a1c5e21ecb4f4ebd95
 open_prs: []
 active_release_gates: [155, 278, 284, 298, 297, 145]
 queued_release_gates: [275, 162, 360]
 non_blocking: [148]
-closed_this_pass: [546, 543, 536, 535, 541, 538]
+closed_this_pass: [549, 546, 543, 536, 535, 541, 538]
 
 architecture:
   package_root: freecad_cloth/
@@ -42,14 +42,14 @@ workflow_contract:
   policy: preserve_existing_Docker_Xvfb_PNG_path; one canonical tunic visual audit; no_second_workflow
 
 latest_verified_ci:
-  run_id: 35321624103
-  run_number: 2039
-  commit: 92b54d67eda2914c046fe616427ffd9b9743e864
+  run_id: 35429756252
+  run_number: 2041
+  commit: 025558fbba1e2e21fcefa353b77d5ef3005ff6df
   status: completed
   conclusion: success
   python_job: success
   gui_job: success
-  note: PR #547 was verified on current main and then merged; the FreeCAD GUI audit and Python/non-GUI jobs both passed. Main-equivalent coordination commits now extend through 17e730a1c16eb36ed97109c219708f353a9ec73f.
+  note: PR #549 was verified on the canonical workflow and squash-merged; the focused topology-connectivity regression is now on main at 2b67c6ea6a9b861d7793c3a1c5e21ecb4f4ebd95.
 
 policy:
   - inspect_open_prs_and_issues_before_changes
@@ -63,6 +63,6 @@ policy:
 current_focus:
   imports: package-qualified module namespace is authoritative
   structure: package-tree cleanup remains historical; current active release focus is M0 garment visual trust (#472)
-  ci_status: latest verified canonical run is 35321624103 (#2039) on main-equivalent head 92b54d67eda2914c046fe616427ffd9b9743e864
+  ci_status: latest verified canonical run is 35429756252 (#2041) on PR head 025558fbba1e2e21fcefa353b77d5ef3005ff6df; merged main head is 2b67c6ea6a9b861d7793c3a1c5e21ecb4f4ebd95
   visual_regression: current canonical GUI audit is green; diagnostic drape metrics are structured/diagnostic-first, while human visual review remains tracked by #472
 ```
