@@ -81,7 +81,9 @@ def inspect_drape(
     centroid = _centroid(garment_vertices)
 
     state = "structurally-plausible"
-    if vertical <= 1e-9:
+    if not target_vertices:
+        state = "missing-target"
+    elif vertical <= 1e-9:
         state = "flat-or-collapsed"
     elif target_height and vertical_span_ratio < 0.15:
         state = "short-drape-candidate"
