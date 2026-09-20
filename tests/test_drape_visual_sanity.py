@@ -51,6 +51,12 @@ class DrapeVisualSanityTests(unittest.TestCase):
         self.assertEqual(result.state, "nonfinite")
         self.assertFalse(result.finite)
 
+    def test_missing_target_is_classified_before_geometry_quality(self):
+        garment = ((-100.0, 0.0, 100.0), (100.0, 0.0, 1500.0))
+        result = inspect_drape(garment, (), target_height=1750.0, target_width=1000.0)
+        self.assertEqual(result.state, "missing-target")
+        self.assertIsNone(result.target_vertex_clearance)
+
     def test_detached_candidate_is_reported(self):
         garment = ((1000.0, 1000.0, 300.0), (1100.0, 1000.0, 300.0), (1000.0, 1000.0, 1500.0))
         result = inspect_drape(garment, self.target, target_height=1750.0, target_width=200.0)
