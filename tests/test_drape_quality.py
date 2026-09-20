@@ -89,6 +89,15 @@ def test_disabled_drape_target_is_explicitly_blocked():
     assert guard["state"] == "disabled"
 
 
+def test_canonical_tunic_audit_keeps_close_tissu_fixture_profile():
+    audit = (Path(__file__).with_name("freecad_tunic_audit.py")).read_text(encoding="utf-8")
+    expected = (
+        "'clearance = max(20.0, 0.08 * body_depth);': 'clearance = max(8.0, 0.025 * body_depth);',",
+        "'if int(scene.Steps) != 90 or': 'if int(scene.Steps) != 120 or',",
+    )
+    assert all(marker in audit for marker in expected)
+
+
 if __name__ == "__main__":
     for name, fn in globals().copy().items():
         if name.startswith("test_"): fn()
