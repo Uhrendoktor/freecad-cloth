@@ -2,6 +2,8 @@
 import ast
 from math import atan2, degrees, hypot
 
+from freecad_cloth.sewing.SewingCorrespondence import analyze_correspondence
+
 
 def _outline_points(piece):
     """Return the ordered sewing boundary as 2D points."""
@@ -208,7 +210,28 @@ class SewingOperationProxy:
         lb = _seam_length(piece_b, seam, "B")
         obj.LengthA, obj.LengthB = la, lb
         obj.LengthDifference = abs(la - lb)
+
+        relative_tolerance = max(
+            0.0, min(0.999999, float(getattr(obj, "RelativeTolerance", 0.05)))
+        )
+        correspondence = analyze_correspondence(
+            la,
+            lb,
+            float(getattr(seam, "StartA", 0.0)),
+            float(getattr(seam, "EndA", 1.0)),
+            float(getattr(seam, "StartB", 0.0)),
+            float(getattr(seam, "EndB", 1.0)),
+            bool(getattr(seam, "ReversedB", False)),
+            relative_tolerance,
+        )
+        if hasattr(obj, "CorrespondenceStatus"):
+            obj.CorrespondenceStatus = correspondence.status
+
         obj.StitchCount = max(2, int(obj.Stitches))
+        # Keep the legacy absolute-tolerance Status contract intact.  The
+        # solver-independent correspondence state is persisted separately so
+        # newer relative/reversal diagnostics do not silently invalidate older
+        # documents.
         obj.Status = "Valid" if obj.LengthDifference <= max(0.0, float(obj.Tolerance)) else "Length mismatch"
         if hasattr(obj, "ReversedB"):
             obj.ReversedB = bool(getattr(seam, "ReversedB", False))
@@ -237,6 +260,8 @@ def add_sewing_operation(doc, seam, piece_a, piece_b, name="SewingOperation"):
     obj.addProperty("App::PropertyBool", "ReversedB", "Sewing").ReversedB = bool(getattr(seam, "ReversedB", False))
     obj.addProperty("App::PropertyPlacement", "AssemblyPlacementB", "Assembly").AssemblyPlacementB = piece_b.Placement
     obj.addProperty("App::PropertyLength", "Tolerance", "Validation").Tolerance = 0.5
+    obj.addProperty("App::PropertyFloat", "RelativeTolerance", "Validation").RelativeTolerance = 0.05
+    obj.addProperty("App::PropertyString", "CorrespondenceStatus", "Validation").CorrespondenceStatus = "valid"
     obj.addProperty("App::PropertyInteger", "Stitches", "Stitching").Stitches = 8
     obj.addProperty("App::PropertyLength", "LengthA", "Validation").LengthA = 0
     obj.addProperty("App::PropertyLength", "LengthB", "Validation").LengthB = 0
@@ -249,6 +274,7 @@ def add_sewing_operation(doc, seam, piece_a, piece_b, name="SewingOperation"):
     obj.setEditorMode("Alignment", 1)
     obj.setEditorMode("StitchGroup", 1)
     obj.setEditorMode("AssemblyPlacementB", 1)
+    obj.setEditorMode("CorrespondenceStatus", 1)
     obj.Proxy = SewingOperationProxy()
     obj.Proxy.execute(obj)
     return obj
