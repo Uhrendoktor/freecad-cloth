@@ -136,6 +136,119 @@ def test_proxy_validation_and_reversal():
         if oldp is None: sys.modules.pop("Part", None)
         else: sys.modules["Part"] = oldp
 
+def _execute_fake_proxy(
+    width_a=100.0,
+    width_b=100.0,
+    start_a=0.0,
+    end_a=1.0,
+    start_b=0.0,
+    end_b=1.0,
+    reversed_b=False,
+    tolerance=0.5,
+    relative_tolerance=0.05,
+):
+    class V:
+        def __init__(self, x, y, z=0): self.x, self.y, self.z = x, y, z
+        def __sub__(self, other): return V(self.x - other.x, self.y - other.y, self.z - other.z)
+        def __add__(self, other): return V(self.x + other.x, self.y + other.y, self.z + other.z)
+        def __mul__(self, value): return V(self.x * value, self.y * value, self.z * value)
+        __rmul__ = __mul__
+
+    class Placement:
+        def multVec(self, value): return value
+
+    class Shape: pass
+    class FakeApp:
+        Vector = V
+        class Rotation:
+            def __init__(self, *args): pass
+        class Placement:
+            def __init__(self, *args): pass
+
+    oldf, oldp = sys.modules.get("FreeCAD"), sys.modules.get("Part")
+    sys.modules["FreeCAD"] = FakeApp()
+    sys.modules["Part"] = SimpleNamespace(
+        Shape=Shape,
+        makePolygon=lambda x: tuple(x),
+        makeLine=lambda a, b: (a, b),
+        makeCompound=lambda x: tuple(x),
+    )
+    try:
+        seam = SimpleNamespace(
+            EdgeA=0,
+            StartA=start_a,
+            EndA=end_a,
+            EdgeB=0,
+            StartB=start_b,
+            EndB=end_b,
+            ReversedB=reversed_b,
+        )
+        a = SimpleNamespace(
+            Width=width_a,
+            Height=60,
+            SewingOutline=repr([(0, 0), (width_a, 0), (width_a, 60), (0, 60)]),
+            Placement=Placement(),
+        )
+        b = SimpleNamespace(
+            Width=width_b,
+            Height=60,
+            SewingOutline=repr([(0, 0), (width_b, 0), (width_b, 60), (0, 60)]),
+            Placement=Placement(),
+        )
+        obj = SimpleNamespace(
+            Seam=seam,
+            PieceA=a,
+            PieceB=b,
+            Tolerance=tolerance,
+            RelativeTolerance=relative_tolerance,
+            Stitches=4,
+            Alignment="endpoints",
+            Status="Incomplete",
+            CorrespondenceStatus="valid",
+            LengthA=0,
+            LengthB=0,
+            LengthDifference=0,
+            StitchCount=0,
+            StitchPoints=[],
+            Shape=None,
+            ReversedB=False,
+            AssemblyPlacementB=None,
+        )
+        SewingOperationProxy().execute(obj)
+        return obj
+    finally:
+        if oldf is None: sys.modules.pop("FreeCAD", None)
+        else: sys.modules["FreeCAD"] = oldf
+        if oldp is None: sys.modules.pop("Part", None)
+        else: sys.modules["Part"] = oldp
+
+
+def test_proxy_reports_symmetric_relative_mismatch():
+    forward = _execute_fake_proxy(width_a=100.0, width_b=120.0)
+    reverse = _execute_fake_proxy(width_a=120.0, width_b=100.0)
+    assert forward.CorrespondenceStatus == "length_mismatch"
+    assert reverse.CorrespondenceStatus == "length_mismatch"
+
+
+def test_proxy_reports_relative_mismatch_for_subrange():
+    obj = _execute_fake_proxy(width_a=100.0, width_b=100.0, start_b=0.0, end_b=0.5)
+    assert obj.LengthA == 100.0
+    assert obj.LengthB == 50.0
+    assert obj.CorrespondenceStatus == "length_mismatch"
+
+
+def test_proxy_reversed_correspondence_is_valid_and_usable():
+    obj = _execute_fake_proxy(reversed_b=True)
+    assert obj.CorrespondenceStatus == "reversed"
+    assert obj.Status == "Valid"
+    assert obj.StitchPoints[0].split("|")[1].startswith("100.000000")
+
+
+def test_proxy_preserves_absolute_tolerance_status():
+    obj = _execute_fake_proxy(width_a=1.0, width_b=1.06, tolerance=0.5)
+    assert obj.Status == "Valid"
+    assert obj.CorrespondenceStatus == "length_mismatch"
+
 
 if __name__ == "__main__":
     test_rectangular_seam_lengths()
