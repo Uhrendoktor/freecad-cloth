@@ -3,9 +3,6 @@ name: Canonical execution
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-  push:
-    branches:
-      - main
 
 concurrency:
   group: canonical-${{ github.event.pull_request.number || github.ref }}
@@ -25,7 +22,6 @@ permissions:
 
 jobs:
   python:
-    if: github.event_name == 'pull_request'
     name: Python and FreeCAD non-GUI tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -82,7 +78,6 @@ jobs:
             '
 
   gui-tunic-visual:
-    if: github.event_name == 'pull_request'
     name: Full tunic visual and simulation audit
     runs-on: ubuntu-latest
     timeout-minutes: 12
@@ -148,115 +143,3 @@ jobs:
             docs/images/generated/gui-screenshot-manifest.txt
           if-no-files-found: error
           compression-level: 1
-  cleanup-stale:
-    name: One-shot branch and Actions cleanup
-    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[cleanup-agent]')
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: write
-      actions: write
-      pull-requests: read
-    steps:
-      - name: Cleanup branches and Actions runs
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json
-          import os
-          import subprocess
-          from datetime import datetime, timedelta, timezone
-          
-          repo = os.environ["REPO"]
-          
-          def gh(*args, check=True):
-              p = subprocess.run(["gh", "api", *args], text=True, capture_output=True)
-              if check and p.returncode:
-                  raise SystemExit(p.stderr.strip() or p.stdout.strip() or "gh api failed")
-              return p.stdout
-          
-          def paginate(endpoint, jq_filter):
-              out = gh("--paginate", endpoint, "--jq", jq_filter)
-              return [json.loads(line) for line in out.splitlines() if line.strip()]
-          
-          def parse_iso(value):
-              return datetime.fromisoformat(value.replace("Z", "+00:00"))
-          
-          branches = paginate(f"repos/{repo}/branches?per_page=100", ".[]")
-          
-          open_prs = json.loads(subprocess.run(
-              ["gh", "pr", "list", "--repo", repo, "--state", "open", "--limit", "1000",
-               "--json", "headRefName"],
-              check=True, text=True, capture_output=True
-          ).stdout)
-          open_heads = {x["headRefName"] for x in open_prs if x.get("headRefName")}
-          
-          default_branch = json.loads(subprocess.run(
-              ["gh", "repo", "view", repo, "--json", "defaultBranchRef"],
-              check=True, text=True, capture_output=True
-          ).stdout)["defaultBranchRef"]["name"]
-          
-          cutoff = datetime.now(timezone.utc) - timedelta(days=7)
-          deleted_branches = []
-          preserved_branches = []
-          
-          for branch in branches:
-              name = branch["name"]
-              if name == default_branch or branch.get("protected") or name in open_heads:
-                  preserved_branches.append(name)
-                  continue
-              raw = gh(f"repos/{repo}/commits/{name}", "--jq", ".commit.committer.date")
-              tip_date = parse_iso(raw.strip())
-              if tip_date < cutoff:
-                  p = subprocess.run(
-                      ["gh", "api", "--method", "DELETE", f"repos/{repo}/git/refs/heads/{name}"],
-                      text=True, capture_output=True
-                  )
-                  if p.returncode:
-                      raise SystemExit(p.stderr.strip() or f"failed deleting branch {name}")
-                  deleted_branches.append(name)
-          
-          runs = paginate(f"repos/{repo}/actions/runs?per_page=100", ".workflow_runs[]")
-          active_states = {"queued", "in_progress", "waiting", "requested", "pending"}
-          active = [r for r in runs if r.get("status") in active_states]
-          completed = sorted(
-              [r for r in runs if r.get("status") == "completed"],
-              key=lambda r: r.get("created_at", ""),
-              reverse=True,
-          )
-          kept_completed = completed[:10]
-          keep_ids = {r["id"] for r in kept_completed}
-          deleted_runs = []
-          for run in completed[10:]:
-              p = subprocess.run(
-                  ["gh", "api", "--method", "DELETE", f"repos/{repo}/actions/runs/{run['id']}"],
-                  text=True, capture_output=True
-              )
-              if p.returncode:
-                  raise SystemExit(p.stderr.strip() or f"failed deleting Actions run {run['id']}")
-              deleted_runs.append(run["id"])
-          
-          subprocess.run(
-              ["gh", "api", f"repos/{repo}/git/ref/heads/{default_branch}"],
-              check=True, text=True, capture_output=True
-          )
-          
-          print(json.dumps({
-              "repository": repo,
-              "default_branch": default_branch,
-              "cutoff_utc": cutoff.isoformat(),
-              "branches_seen": len(branches),
-              "open_pr_heads_preserved": sorted(open_heads),
-              "protected_or_default_preserved": sorted(set(preserved_branches)),
-              "branches_deleted": deleted_branches,
-              "active_runs_preserved": len(active),
-              "completed_before_cleanup": len(completed),
-              "completed_kept": len(kept_completed),
-              "completed_runs_deleted": len(deleted_runs),
-              "verification": "default branch exists",
-              "deleted_run_ids": deleted_runs
-          }, indent=2))
-          PY
