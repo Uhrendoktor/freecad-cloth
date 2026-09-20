@@ -178,21 +178,14 @@ jobs:
                   raise SystemExit(p.stderr.strip() or p.stdout.strip() or "gh api failed")
               return p.stdout
           
-          def paginate(endpoint):
-              out = gh("--paginate", endpoint)
-              items = []
-              for line in out.splitlines():
-                  if line.strip():
-                      items.append(json.loads(line))
-              return items
+          def paginate(endpoint, jq_filter):
+              out = gh("--paginate", endpoint, "--jq", jq_filter)
+              return [json.loads(line) for line in out.splitlines() if line.strip()]
           
           def parse_iso(value):
               return datetime.fromisoformat(value.replace("Z", "+00:00"))
           
-          branches = []
-          for page in paginate(f"repos/{repo}/branches?per_page=100"):
-              if isinstance(page, list):
-                  branches.extend(page)
+          branches = paginate(f"repos/{repo}/branches?per_page=100", ".[]")
           
           open_prs = json.loads(subprocess.run(
               ["gh", "pr", "list", "--repo", repo, "--state", "open", "--limit", "1000",
@@ -226,11 +219,7 @@ jobs:
                       raise SystemExit(p.stderr.strip() or f"failed deleting branch {name}")
                   deleted_branches.append(name)
           
-          runs_raw = gh(f"repos/{repo}/actions/runs?per_page=100", "--paginate")
-          runs = []
-          for page in runs_raw.splitlines():
-              if page.strip():
-                  runs.extend(json.loads(page).get("workflow_runs", []))
+          runs = paginate(f"repos/{repo}/actions/runs?per_page=100", ".workflow_runs[]")
           active_states = {"queued", "in_progress", "waiting", "requested", "pending"}
           active = [r for r in runs if r.get("status") in active_states]
           completed = sorted(
