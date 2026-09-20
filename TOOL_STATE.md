@@ -6,12 +6,12 @@ repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_task: cloth-sewing-workbench-structure-and-roadmap
-current_main: 2b67c6ea6a9b861d7793c3a1c5e21ecb4f4ebd95
+current_main: 6ac97ec7b1019252ba650d1aa1c2107ece901f5f
 open_prs: []
 active_release_gates: [155, 278, 284, 298, 297, 145]
 queued_release_gates: [275, 162, 360]
 non_blocking: [148]
-closed_this_pass: [549, 546, 543, 536, 535, 541, 538]
+closed_this_pass: [551, 549, 546, 543, 536, 535, 541, 538]
 
 architecture:
   package_root: freecad_cloth/
@@ -42,14 +42,14 @@ workflow_contract:
   policy: preserve_existing_Docker_Xvfb_PNG_path; one canonical tunic visual audit; no_second_workflow
 
 latest_verified_ci:
-  run_id: 35429756252
-  run_number: 2041
-  commit: 025558fbba1e2e21fcefa353b77d5ef3005ff6df
+  run_id: 35496744774
+  run_number: 2042
+  commit: a5c87145d20c5358296eb1612b83bd677df4225d
   status: completed
   conclusion: success
   python_job: success
   gui_job: success
-  note: PR #549 was verified on the canonical workflow and squash-merged; the focused topology-connectivity regression is now on main at 2b67c6ea6a9b861d7793c3a1c5e21ecb4f4ebd95.
+  note: PR #551 passed canonical verification and squash-merged to main as e151cb27c1f317b15fc50ed904b9cc3491f1e547; supervisor state was then synchronized in commit 6ac97ec7b1019252ba650d1aa1c2107ece901f5f.
 
 policy:
   - inspect_open_prs_and_issues_before_changes
@@ -63,6 +63,6 @@ policy:
 current_focus:
   imports: package-qualified module namespace is authoritative
   structure: package-tree cleanup remains historical; current active release focus is M0 garment visual trust (#472)
-  ci_status: latest verified canonical run is 35429756252 (#2041) on PR head 025558fbba1e2e21fcefa353b77d5ef3005ff6df; merged main head is 2b67c6ea6a9b861d7793c3a1c5e21ecb4f4ebd95
-  visual_regression: current canonical GUI audit is green; diagnostic drape metrics are structured/diagnostic-first, while human visual review remains tracked by #472
+  ci_status: latest verified canonical run is 35496744774 (#2042) on PR head a5c87145d20c5358296eb1612b83bd677df4225d; merged main head is e151cb27c1f317b15fc50ed904b9cc3491f1e547, followed by state-only sync commit 6ac97ec7b1019252ba650d1aa1c2107ece901f5f
+  visual_regression: canonical GUI audit is green; diagnostic drape metrics are structured/diagnostic-first, while human visual review remains tracked by #472
 ```
