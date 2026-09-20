@@ -6,9 +6,9 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `17e730a1c16eb36ed97109c219708f353a9ec73f` (current canonical product state; subsequent state-only commits do not change product code).
-- Recent merged work: Python 3.12 / FreeCAD 1.1.0 CI baseline, restored GUI screenshot/GIF export, avatar and simulation turntables, Sketcher-authoritative pattern import, sewing command-surface coverage, simulation-signature regression, MeshValidation disconnected-component fallback, Tissu audit seam mapping, diagnostic drape metrics, and LGPL-2.1-or-later project licensing.
-- Open implementation PRs requiring supervisor gates: none; stale/superseded PRs #546, #543, #541, #538, #536, and #535 were closed.
+- Current main: `e151cb27c1f317b15fc50ed904b9cc3491f1e547` (current canonical product state; subsequent state-only commits do not change product code).
+- Recent merged work: Python 3.12 / FreeCAD 1.1.0 CI baseline, restored GUI screenshot/GIF export, avatar and simulation turntables, Sketcher-authoritative pattern import, sewing command-surface coverage, simulation-signature regression, MeshValidation disconnected-component fallback, Tissu audit seam mapping, diagnostic drape metrics, LGPL-2.1-or-later project licensing, and triangle-order topology-signature regression coverage.
+- Open implementation PRs requiring supervisor gates: none; PR #551 was squash-merged after canonical run #2042 passed both Python/non-GUI and Full tunic visual/simulation audit jobs.
 - PR #453 was closed without merge because its validated screenshots remained collapsed/edge-on and not production-ready.
 - PR #438 remains diagnostic-only and must not merge.
 - Python package boundary: `freecad_cloth/` with `avatar`, `pattern`, `sewing`, `simulation`, `common`, `shared` subpackages
@@ -34,7 +34,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - `trimesh` remains optional/lazy; CPU reference remains correctness baseline.
 - Tissu remains sandbox-only until runtime compatibility, constraint/collision parity, determinism, visual parity and performance are demonstrated.
 - Re-cut implementation branches from current `main`; one focused concern per PR.
-- Latest observed canonical result: PR #547 head `92b54d67eda2914c046fe616427ffd9b9743e864` passed canonical run #2039 (`35321624103`) on 2026-09-18; both Python/non-GUI and FreeCAD/Xvfb GUI jobs passed. Main then received coordination-only state refreshes through commit `17e730a1c16eb36ed97109c219708f353a9ec73f`.
+- Latest observed canonical result: PR #551 head `a5c87145d20c5358296eb1612b83bd677df4225d` passed canonical run #2042 (`35496744774`) on 2026-09-20; both Python/non-GUI and Full tunic visual/simulation audit jobs passed. The PR was squash-merged to `main` as `e151cb27c1f317b15fc50ed904b9cc3491f1e547`.
 
 ## Agent rules
 
