@@ -6,7 +6,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `e151cb27c1f317b15fc50ed904b9cc3491f1e547` (current canonical product state; subsequent state-only commits do not change product code).
+- Current main: `2e1601125b83c55e40fb48d109be4e4b58961f61` (current canonical product state; includes the #553 explicit missing-drape-target diagnostic fix).
 - Recent merged work: Python 3.12 / FreeCAD 1.1.0 CI baseline, restored GUI screenshot/GIF export, avatar and simulation turntables, Sketcher-authoritative pattern import, sewing command-surface coverage, simulation-signature regression, MeshValidation disconnected-component fallback, Tissu audit seam mapping, diagnostic drape metrics, LGPL-2.1-or-later project licensing, and triangle-order topology-signature regression coverage.
 - Open implementation PRs requiring supervisor gates: none; PR #551 was squash-merged after canonical run #2042 passed both Python/non-GUI and Full tunic visual/simulation audit jobs.
 - PR #453 was closed without merge because its validated screenshots remained collapsed/edge-on and not production-ready.
@@ -34,7 +34,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - `trimesh` remains optional/lazy; CPU reference remains correctness baseline.
 - Tissu remains sandbox-only until runtime compatibility, constraint/collision parity, determinism, visual parity and performance are demonstrated.
 - Re-cut implementation branches from current `main`; one focused concern per PR.
-- Latest observed canonical result: PR #551 head `a5c87145d20c5358296eb1612b83bd677df4225d` passed canonical run #2042 (`35496744774`) on 2026-09-20; both Python/non-GUI and Full tunic visual/simulation audit jobs passed. The PR was squash-merged to `main` as `e151cb27c1f317b15fc50ed904b9cc3491f1e547`.
+- Latest observed canonical result: PR #553 head `6531bfa8da91c987e90811b3b51d0cbadc2a3685` passed canonical run #2043 (`35538717589`) on 2026-09-20; both Python/non-GUI and Full tunic visual/simulation audit jobs passed and `tunic-visual-audit` artifact `10614295587` is retained. The PR was squash-merged to `main` as `2e1601125b83c55e40fb48d109be4e4b58961f61`. Human visual trust for #472 remains unresolved.
 
 ## Agent rules
 
