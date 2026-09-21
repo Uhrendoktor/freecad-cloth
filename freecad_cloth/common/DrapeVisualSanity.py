@@ -47,6 +47,50 @@ def minimum_vertex_distance(source: Sequence[Point3], target: Sequence[Point3]) 
     return sqrt(best) if isfinite(best) else None
 
 
+def seam_correspondence_gap(
+    boundary_a: Sequence[Point3],
+    boundary_b: Sequence[Point3],
+    edge_a: int,
+    edge_b: int,
+    *,
+    reversed_b: bool = False,
+    start_a: float = 0.0,
+    end_a: float = 1.0,
+    start_b: float = 0.0,
+    end_b: float = 1.0,
+    samples: int = 5,
+) -> float:
+    """Return deterministic max positional gap along one authored seam correspondence."""
+    if not boundary_a or not boundary_b:
+        raise ValueError("seam boundaries are required")
+    if samples < 2:
+        raise ValueError("at least two seam samples are required")
+    if not 0 <= int(edge_a) < len(boundary_a) or not 0 <= int(edge_b) < len(boundary_b):
+        raise ValueError("seam edge index is out of range")
+    a0 = boundary_a[int(edge_a)]
+    a1 = boundary_a[(int(edge_a) + 1) % len(boundary_a)]
+    b0 = boundary_b[int(edge_b)]
+    b1 = boundary_b[(int(edge_b) + 1) % len(boundary_b)]
+    if reversed_b:
+        b0, b1 = b1, b0
+        start_b, end_b = 1.0 - float(end_b), 1.0 - float(start_b)
+
+    def interpolate(left: Point3, right: Point3, fraction: float) -> Point3:
+        return tuple(
+            float(left[i]) + (float(right[i]) - float(left[i])) * fraction
+            for i in range(3)
+        )  # type: ignore[return-value]
+
+    maximum = 0.0
+    for sample in range(int(samples)):
+        fraction = sample / float(samples - 1)
+        point_a = interpolate(a0, a1, float(start_a) + (float(end_a) - float(start_a)) * fraction)
+        point_b = interpolate(b0, b1, float(start_b) + (float(end_b) - float(start_b)) * fraction)
+        gap = sqrt(sum((point_a[i] - point_b[i]) ** 2 for i in range(3)))
+        maximum = max(maximum, gap)
+    return maximum
+
+
 def inspect_drape(
     garment_vertices: Sequence[Point3],
     target_vertices: Sequence[Point3],
