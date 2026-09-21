@@ -143,7 +143,7 @@ def _boundary_points(panel, count):
     points = panel.Mesh.Points
     if len(points) < count:
         raise RuntimeError("drape panel exposes fewer mesh points than pattern boundary vertices")
-    return tuple(points[i] for i in range(count))
+    return tuple((float(point.x), float(point.y), float(point.z)) for point in points[:count])
 
 
 def _seam_coherence(panels, seam_records):
