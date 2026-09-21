@@ -74,11 +74,11 @@ def _simulation_data(scene):
     _diagnostic_guard(scene)
     proxy = getattr(scene, "Proxy", None)
     backend = getattr(proxy, "backend", None)
-    system = getattr(backend, "system", None)
     initial = getattr(backend, "_initial", None)
-    if system is None or initial is None:
+    positions = getattr(backend, "positions", None)
+    if not callable(positions) or initial is None:
         raise RuntimeError("Diagnostics unavailable: simulation result state is missing")
-    current = tuple(p.position() for p in system.particles)
+    current = tuple(positions())
     rest = tuple(p.position() for p in initial.particles)
     stretch_limit = float(getattr(scene, "FabricStretch", 0.02))
     panels = []
