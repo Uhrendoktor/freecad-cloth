@@ -7,11 +7,11 @@ canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_task: cloth-sewing-workbench-structure-and-roadmap
 current_main: ed25f2044853025c2db844a91cb0116242583042
-open_prs: [590, 593, 572, 581, 571]
+open_prs: []
 active_release_gates: [155, 278, 284, 298, 297, 145]
 queued_release_gates: [275, 162, 360]
 non_blocking: [148]
-closed_this_pass: [594]
+closed_this_pass: [594, 590, 593, 572, 581, 571, 592, 495, 556, 560, 567, 563, 565, 568, 574, 578, 579, 580]
 
 architecture:
   package_root: freecad_cloth/
@@ -62,6 +62,7 @@ policy:
   - recut_branches_from_current_main
 
 current_focus:
+  queue_cleanup: all open PRs are closed; active queue is #472 plus execution-required agent issues #555/#576/#585
   imports: package-qualified module namespace is authoritative
   structure: package-tree cleanup remains historical; current active release focus is M0 garment visual trust (#472)
   ci_status: latest verified canonical run is 35551331000 (#2084) on PR head 1934c16936ccc45be2f10487ffcacaebbe7f8356; merged main head is ed25f2044853025c2db844a91cb0116242583042
