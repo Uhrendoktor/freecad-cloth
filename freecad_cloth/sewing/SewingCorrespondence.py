@@ -8,6 +8,7 @@ model.
 """
 
 from dataclasses import dataclass
+import bisect
 import math
 
 
@@ -32,6 +33,17 @@ class CorrespondenceReport:
     def valid(self) -> bool:
         """Return whether the correspondence is usable for sewing."""
         return self.status in {STATUS_VALID, STATUS_REVERSED}
+
+    @property
+    def recovery(self) -> str:
+        """Return deterministic user-facing recovery guidance."""
+        if self.status == STATUS_LENGTH_MISMATCH:
+            return "Adjust seam ranges or use an explicit easing/repair action; do not silently retarget geometry."
+        if self.status == STATUS_INVALID_RANGE:
+            return "Repair the normalized seam ranges before committing the sewing relationship."
+        if self.status == STATUS_REVERSED:
+            return "Keep the explicit B reversal or switch orientation before committing."
+        return "No correspondence repair is required."
 
 
 def _range_is_valid(start: float, end: float) -> bool:
@@ -111,6 +123,45 @@ def analyze_correspondence(
         float(ratio),
         False,
     )
+
+
+def arc_length_vertex_parameters(points, count, start=0.0, end=1.0):
+    """Map normalized samples to the nearest existing vertex by physical arc length."""
+    if int(count) < 2:
+        raise ValueError("at least two correspondence samples are required")
+    if not _range_is_valid(float(start), float(end)):
+        raise ValueError("seam parameter ranges must satisfy 0 <= start < end <= 1")
+    values = tuple(tuple(float(x) for x in point) for point in points)
+    if len(values) < 2:
+        raise ValueError("arc-length sampling needs at least two points")
+    if any(len(point) < 2 or any(not math.isfinite(x) for x in point) for point in values):
+        raise ValueError("arc-length sampling points must be finite and have coordinates")
+    cumulative = [0.0]
+    for first, second in zip(values, values[1:]):
+        if len(first) != len(second):
+            raise ValueError("arc-length sampling points must have matching dimensions")
+        distance = math.sqrt(sum((a - b) ** 2 for a, b in zip(first, second)))
+        cumulative.append(cumulative[-1] + distance)
+    total = cumulative[-1]
+    if total <= 0.0:
+        raise ValueError("arc-length sampling needs a positive total length")
+    last_index = len(values) - 1
+    result = []
+    span = float(end) - float(start)
+    for sample in range(int(count)):
+        local = float(start) + span * sample / float(int(count) - 1)
+        target = local * total
+        index = bisect.bisect_left(cumulative, target)
+        if index <= 0:
+            chosen = 0
+        elif index >= len(cumulative):
+            chosen = last_index
+        else:
+            left = index - 1
+            right = index
+            chosen = left if target - cumulative[left] <= cumulative[right] - target else right
+        result.append(chosen / float(last_index))
+    return tuple(result)
 
 
 def map_parameter(
