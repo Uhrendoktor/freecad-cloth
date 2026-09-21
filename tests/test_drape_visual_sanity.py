@@ -1,7 +1,7 @@
 import unittest
 
 from freecad_cloth.common.DrapeFailureClassifier import classify_drape, summarize_classification
-from freecad_cloth.common.DrapeVisualSanity import inspect_drape, summarize
+from freecad_cloth.common.DrapeVisualSanity import inspect_drape, maximum_correspondence_gap, summarize
 
 
 class DrapeVisualSanityTests(unittest.TestCase):
@@ -62,6 +62,19 @@ class DrapeVisualSanityTests(unittest.TestCase):
         result = inspect_drape(garment, self.target, target_height=1750.0, target_width=200.0)
         self.assertEqual(result.state, "detached-candidate")
         self.assertGreater(result.target_vertex_clearance, 100.0)
+
+    def test_clean_correspondence_has_zero_gap(self):
+        source = ((0.0, 0.0, 0.0), (100.0, 0.0, 1000.0), (100.0, 50.0, 1500.0))
+        self.assertEqual(maximum_correspondence_gap(source, source), 0.0)
+
+    def test_broken_correspondence_reports_gap(self):
+        source = ((0.0, 0.0, 0.0), (100.0, 0.0, 1000.0), (100.0, 50.0, 1500.0))
+        detached = ((0.0, 0.0, 0.0), (100.0, 0.0, 1150.0), (100.0, 50.0, 1500.0))
+        self.assertEqual(maximum_correspondence_gap(source, detached), 150.0)
+
+    def test_correspondence_requires_equal_sample_counts(self):
+        with self.assertRaises(ValueError):
+            maximum_correspondence_gap(((0.0, 0.0, 0.0),), ())
 
     def test_summary_is_stable(self):
         result = inspect_drape(((0.0, 0.0, 0.0), (10.0, 0.0, 10.0)), self.target)
