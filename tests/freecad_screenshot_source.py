@@ -377,6 +377,16 @@ def simulation():
     for diagnostic in diagnostic_maps:
         diagnostic.ViewObject.Visibility = True
     log("diagnostic-map=passed metric=stress maps=%d" % len(diagnostic_maps))
+    original_finite = bool(scene.FiniteState)
+    scene.FiniteState = False
+    try:
+        create_diagnostic_map(scene, "stress")
+    except RuntimeError as exc:
+        log("diagnostic-stale-guard=passed message=%s" % str(exc))
+    else:
+        raise RuntimeError("diagnostics created a map from a non-finite simulation state")
+    finally:
+        scene.FiniteState = original_finite
     view.viewFront(); view.fitAll(); events()
     save(
         "cloth-simulation-draped-diagnostics.png",
