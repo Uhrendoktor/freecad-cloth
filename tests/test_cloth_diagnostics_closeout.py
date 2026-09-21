@@ -31,3 +31,14 @@ def test_gui_contract_shows_formula_units_and_read_only():
     assert "Units" in text
     assert "Read-only" in text
     assert "DiagnosticMap" in text
+
+def test_stale_simulation_is_blocked():
+    scene = SimpleNamespace(
+        FiniteState=True,
+        SimulationState="STALE",
+        InvalidationReason="target changed",
+        Steps=10,
+        DrapeTarget=SimpleNamespace(),
+    )
+    with pytest.raises(RuntimeError, match="simulation state is stale"):
+        ClothDiagnosticsGui._diagnostic_guard(scene)
