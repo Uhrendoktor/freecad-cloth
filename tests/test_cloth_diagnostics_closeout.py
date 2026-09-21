@@ -76,3 +76,9 @@ def test_fit_pressure_fixture_is_deterministic():
     assert first == second
     assert first.fit == pytest.approx((1.0,))
     assert first.pressure == pytest.approx((2.0,))
+
+def test_invalid_target_mesh_is_rejected():
+    point = SimpleNamespace(x=1e309, y=0.0, z=0.0)
+    source = SimpleNamespace(Mesh=SimpleNamespace(Topology=([point], [])))
+    target = SimpleNamespace(SourceObject=source)
+    assert ClothDiagnosticsGui._target_finite(target) is False
