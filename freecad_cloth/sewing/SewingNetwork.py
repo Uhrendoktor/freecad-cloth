@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Iterable, List, Sequence, Tuple
 
 from freecad_cloth.pattern.PatternModel import Seam
+from freecad_cloth.sewing.SewingCorrespondence import analyze_correspondence
 
 
 @dataclass(frozen=True)
@@ -167,6 +168,12 @@ def _network_lengths(seams):
     return total_a, total_b
 
 
+def analyze_network_correspondence(seams, length_tolerance=0.05):
+    """Classify a persisted sewing network with the common correspondence contract."""
+    total_a, total_b = _network_lengths(seams)
+    return analyze_correspondence(total_a, total_b, length_tolerance=float(length_tolerance))
+
+
 def network_invalid_reason(seams):
     """Return a deterministic user-facing reason when a member seam is invalid."""
     invalid = []
@@ -235,8 +242,14 @@ class SewingNetworkProxy:
         obj.LengthA = total_a
         obj.LengthB = total_b
         obj.LengthDifference = abs(total_a - total_b)
-        tolerance = max(0.0, float(getattr(obj, "Tolerance", 0.5)))
-        obj.Status = "Valid" if obj.LengthDifference <= tolerance else "Length mismatch"
+        tolerance = max(0.0, min(0.999999, float(getattr(obj, "RelativeTolerance", 0.05))))
+        correspondence = analyze_correspondence(total_a, total_b, length_tolerance=tolerance)
+        obj.CorrespondenceStatus = correspondence.status
+        obj.CorrespondenceMessage = correspondence.message
+        obj.CorrespondenceRecovery = correspondence.recovery
+        obj.Status = "Valid" if correspondence.valid else "Length mismatch"
+        if hasattr(obj, "InvalidReason") and not correspondence.valid:
+            obj.InvalidReason = correspondence.message + " | " + correspondence.recovery
 
 
 def add_sewing_network(doc, seams, relationship_id, name="SewingNetwork"):
@@ -257,6 +270,10 @@ def add_sewing_network(doc, seams, relationship_id, name="SewingNetwork"):
     obj.addProperty("App::PropertyInteger", "SideBCount", "Sewing").SideBCount = len({(s.PieceB, s.EdgeB) for s in seams})
     obj.addProperty("App::PropertyInteger", "SegmentCount", "Sewing").SegmentCount = len(seams)
     obj.addProperty("App::PropertyLength", "Tolerance", "Validation").Tolerance = 0.5
+    obj.addProperty("App::PropertyFloat", "RelativeTolerance", "Validation").RelativeTolerance = 0.05
+    obj.addProperty("App::PropertyString", "CorrespondenceStatus", "Validation").CorrespondenceStatus = "valid"
+    obj.addProperty("App::PropertyString", "CorrespondenceMessage", "Validation").CorrespondenceMessage = ""
+    obj.addProperty("App::PropertyString", "CorrespondenceRecovery", "Validation").CorrespondenceRecovery = "No correspondence repair is required."
     obj.addProperty("App::PropertyLength", "LengthA", "Validation").LengthA = 0.0
     obj.addProperty("App::PropertyLength", "LengthB", "Validation").LengthB = 0.0
     obj.addProperty("App::PropertyLength", "LengthDifference", "Validation").LengthDifference = 0.0
