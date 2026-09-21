@@ -17,6 +17,15 @@ STATUS_REVERSED = "reversed"
 STATUS_LENGTH_MISMATCH = "length_mismatch"
 STATUS_INVALID_RANGE = "invalid_range"
 
+DEFAULT_RELATIVE_TOLERANCE = 0.05
+SEVERITY_OK = "ok"
+SEVERITY_WARNING = "warning"
+SEVERITY_ERROR = "error"
+RECOVERY_LENGTH_MISMATCH = "length mismatch requires editing the pattern or seam ranges; it was not hidden by changing tolerance"
+RECOVERY_INVALID_RANGE = "Repair the normalized seam ranges before committing the sewing relationship."
+RECOVERY_REVERSED = "Keep the explicit B reversal or switch orientation before committing."
+RECOVERY_VALID = "No correspondence repair is required."
+
 
 @dataclass(frozen=True)
 class CorrespondenceReport:
@@ -28,6 +37,7 @@ class CorrespondenceReport:
     length_b: float
     length_ratio: float
     reversed_b: bool
+    length_tolerance: float = DEFAULT_RELATIVE_TOLERANCE
 
     @property
     def valid(self) -> bool:
@@ -35,15 +45,28 @@ class CorrespondenceReport:
         return self.status in {STATUS_VALID, STATUS_REVERSED}
 
     @property
+    def severity(self) -> str:
+        """Return deterministic diagnostic severity for the correspondence state."""
+        if self.status == STATUS_REVERSED:
+            return SEVERITY_WARNING
+        if self.status in {STATUS_LENGTH_MISMATCH, STATUS_INVALID_RANGE}:
+            return SEVERITY_ERROR
+        return SEVERITY_OK
+
+    @property
+    def tolerance(self) -> float:
+        """Return the relative tolerance used for this classification."""
+        return float(self.length_tolerance)
+
+    @property
     def recovery(self) -> str:
         """Return deterministic user-facing recovery guidance."""
-        if self.status == STATUS_LENGTH_MISMATCH:
-            return "Adjust seam ranges or use an explicit easing/repair action; do not silently retarget geometry."
-        if self.status == STATUS_INVALID_RANGE:
-            return "Repair the normalized seam ranges before committing the sewing relationship."
-        if self.status == STATUS_REVERSED:
-            return "Keep the explicit B reversal or switch orientation before committing."
-        return "No correspondence repair is required."
+        return {
+            STATUS_LENGTH_MISMATCH: RECOVERY_LENGTH_MISMATCH,
+            STATUS_INVALID_RANGE: RECOVERY_INVALID_RANGE,
+            STATUS_REVERSED: RECOVERY_REVERSED,
+            STATUS_VALID: RECOVERY_VALID,
+        }[self.status]
 
 
 def _range_is_valid(start: float, end: float) -> bool:
@@ -62,7 +85,7 @@ def analyze_correspondence(
     start_b: float = 0.0,
     end_b: float = 1.0,
     reversed_b: bool = False,
-    length_tolerance: float = 0.05,
+    length_tolerance: float = DEFAULT_RELATIVE_TOLERANCE,
 ) -> CorrespondenceReport:
     """Validate two seam ranges and classify their repair state.
 
@@ -91,6 +114,7 @@ def analyze_correspondence(
             float(length_b),
             float("inf"),
             bool(reversed_b),
+            float(length_tolerance),
         )
 
     ratio = max(length_a, length_b) / min(length_a, length_b)
@@ -125,44 +149,44 @@ def analyze_correspondence(
     )
 
 
-def arc_length_vertex_parameters(points, count, start=0.0, end=1.0):
-    """Map normalized samples to the nearest existing vertex by physical arc length."""
+def arc_length_vertex_indices(values, points, count, start=0.0, end=1.0):
+    """Select existing edge vertices by physical arc length over a normalized range."""
     if int(count) < 2:
         raise ValueError("at least two correspondence samples are required")
     if not _range_is_valid(float(start), float(end)):
         raise ValueError("seam parameter ranges must satisfy 0 <= start < end <= 1")
-    values = tuple(tuple(float(x) for x in point) for point in points)
-    if len(values) < 2:
+    values = tuple(values)
+    points = tuple(tuple(float(x) for x in point) for point in points)
+    if len(values) != len(points):
+        raise ValueError("arc-length sampling points must match edge vertices")
+    if len(points) < 2:
         raise ValueError("arc-length sampling needs at least two points")
-    if any(len(point) < 2 or any(not math.isfinite(x) for x in point) for point in values):
-        raise ValueError("arc-length sampling points must be finite and have coordinates")
-    cumulative = [0.0]
-    for first, second in zip(values, values[1:]):
-        if len(first) != len(second):
-            raise ValueError("arc-length sampling points must have matching dimensions")
-        distance = math.sqrt(sum((a - b) ** 2 for a, b in zip(first, second)))
-        cumulative.append(cumulative[-1] + distance)
-    total = cumulative[-1]
+    dimensions = len(points[0])
+    if dimensions < 2 or any(len(point) != dimensions for point in points):
+        raise ValueError("arc-length sampling points must have matching dimensions")
+    if any(any(not math.isfinite(value) for value in point) for point in points):
+        raise ValueError("arc-length sampling points must be finite")
+    cumulative=[0.0]
+    for first,second in zip(points,points[1:]):
+        cumulative.append(cumulative[-1] + math.sqrt(sum((a-b)**2 for a,b in zip(first,second))))
+    total=cumulative[-1]
     if total <= 0.0:
         raise ValueError("arc-length sampling needs a positive total length")
-    last_index = len(values) - 1
-    result = []
-    span = float(end) - float(start)
+    result=[]
+    span=float(end)-float(start)
     for sample in range(int(count)):
-        local = float(start) + span * sample / float(int(count) - 1)
-        target = local * total
-        index = bisect.bisect_left(cumulative, target)
-        if index <= 0:
-            chosen = 0
-        elif index >= len(cumulative):
-            chosen = last_index
+        local=float(start)+span*sample/float(int(count)-1)
+        target=local*total
+        right=bisect.bisect_left(cumulative,target)
+        if right <= 0:
+            index=0
+        elif right >= len(cumulative):
+            index=len(cumulative)-1
         else:
-            left = index - 1
-            right = index
-            chosen = left if target - cumulative[left] <= cumulative[right] - target else right
-        result.append(chosen / float(last_index))
+            left=right-1
+            index=left if target-cumulative[left] <= cumulative[right]-target else right
+        result.append(index)
     return tuple(result)
-
 
 def map_parameter(
     parameter_a: float,
