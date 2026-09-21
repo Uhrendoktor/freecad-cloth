@@ -1,4 +1,5 @@
 """Canonical end-to-end FreeCAD garment acceptance for the Cloth workbenches."""
+import hashlib
 import math
 import os
 import tempfile
@@ -82,6 +83,39 @@ def _make_curved(piece, doc):
     if sketch.Shape.isNull() or piece.Shape.isNull():
         raise RuntimeError("curved pattern did not produce native geometry")
     return sketch
+
+
+def _position_signature(scene):
+    """Return the exact rounded mesh-position sequence produced by the fixture."""
+    signature = []
+    panels = sorted(
+        getattr(scene, "DrapePanels", ()),
+        key=lambda panel: str(getattr(panel, "Name", "")),
+    )
+    if not panels:
+        raise RuntimeError("simulation produced no drape panels for determinism evidence")
+    for panel in panels:
+        vertices = tuple(getattr(getattr(panel, "Mesh", None), "Vertexes", ()))
+        if not vertices:
+            raise RuntimeError(
+                "simulation produced no mesh vertices for determinism evidence: %s"
+                % getattr(panel, "Name", "<unnamed>")
+            )
+        for vertex in vertices:
+            point = vertex.Point
+            signature.append(
+                (
+                    str(getattr(panel, "Name", "")),
+                    round(float(point.x), 9),
+                    round(float(point.y), 9),
+                    round(float(point.z), 9),
+                )
+            )
+    return tuple(signature)
+
+
+def _position_signature_digest(signature):
+    return hashlib.sha256(repr(signature).encode("utf-8")).hexdigest()
 
 
 def run_acceptance():
@@ -196,24 +230,35 @@ def run_acceptance():
             if int(scene.Steps) < 1 or not bool(scene.FiniteState):
                 raise RuntimeError("simulation did not rerun after save/reload and upstream invalidation")
 
-            def position_signature():
-                return tuple(
-                    (round(float(vertex.Point.x), 9), round(float(vertex.Point.y), 9), round(float(vertex.Point.z), 9))
-                    for panel in getattr(scene, "DrapePanels", ())
-                    for vertex in getattr(getattr(panel, "Mesh", None), "Vertexes", ())
-                )
+            first_signature = _position_signature(scene)
+            first_digest = _position_signature_digest(first_signature)
+            print(
+                "determinism-signature=first rounding=9 vertices=%d sha256=%s"
+                % (len(first_signature), first_digest),
+                flush=True,
+            )
 
-            first_signature = position_signature()
             Gui.runCommand("ClothSimulation_Reset", 0)
             Gui.runCommand("ClothSimulation_Step", 0)
             reloaded.recompute()
             if int(scene.Steps) != 1 or not bool(scene.FiniteState):
                 raise RuntimeError("repeated deterministic simulation run did not produce a finite one-step state")
-            second_signature = position_signature()
+
+            second_signature = _position_signature(scene)
+            second_digest = _position_signature_digest(second_signature)
             if first_signature != second_signature:
-                raise RuntimeError("repeated deterministic simulation run changed the rounded particle/mesh signature")
+                raise RuntimeError(
+                    "repeated deterministic simulation run changed the rounded particle/mesh signature: "
+                    "first_sha256=%s second_sha256=%s" % (first_digest, second_digest)
+                )
             print(
-                "determinism-signature=passed vertices=%d" % len(second_signature),
+                "determinism-signature=second rounding=9 vertices=%d sha256=%s"
+                % (len(second_signature), second_digest),
+                flush=True,
+            )
+            print(
+                "determinism-signature=passed rounding=9 vertices=%d sha256=%s"
+                % (len(second_signature), second_digest),
                 flush=True,
             )
             App.closeDocument(reloaded.Name)
