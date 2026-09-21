@@ -165,7 +165,10 @@ class SeamGraph:
             seam = self.seams[seam_id].seam
             a = self._edge_vertices(edge_vertices, seam.piece_a, seam.edge_a)
             b = self._edge_vertices(edge_vertices, seam.piece_b, seam.edge_b)
-            count = max(2, min(len(a), len(b)))
+            # The graph API emits three representative stitch pairs at most.
+            # High-resolution solver stitching is controlled independently by the
+            # simulation layer's explicit StitchSamples setting.
+            count = max(2, min(3, len(a), len(b)))
             if edge_points is None:
                 a_sel = _sample_indices(a, seam.start_a, seam.end_a, count)
                 b_sel = _sample_indices(b, seam.start_b, seam.end_b, count)
