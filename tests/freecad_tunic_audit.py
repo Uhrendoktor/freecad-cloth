@@ -51,12 +51,9 @@ pin_replacement = '''    def authored_shoulder_pins(piece, positions, boundary_i
         return tuple(result)
 
     front_positions, _front_triangles, front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
-    back_positions, _back_triangles, back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
     front_pins = authored_shoulder_pins(front, front_positions, front_boundary)
-    back_pins_local = authored_shoulder_pins(back, back_positions, back_boundary)
-    back_pins = tuple(len(front_positions) + i for i in back_pins_local)
-    scene.PinSelection = [str(i) for i in front_pins + back_pins]
-    log("pin-map authored front=%s back-local=%s back-global=%s" % (front_pins, back_pins_local, back_pins)); doc.recompute()
+    scene.PinSelection = [str(i) for i in front_pins]
+    log("pin-map authored front=%s (rear free)" % (front_pins,)); doc.recompute()
 
     for source in (doc.getObject'''
 source, pin_count = pin_pattern.subn(pin_replacement, source, count=1)

@@ -114,6 +114,12 @@ def test_canonical_tunic_fixture_uses_established_tunic_seam_mapping():
     assert '((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide"))' not in fixture
 
 
+def test_canonical_tunic_fixture_leaves_rear_panel_free_for_seam_closure():
+    fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'scene.PinSelection = [str(i) for i in front_pins]' in fixture
+    assert 'front_pins + back_pins' not in fixture
+
+
 def test_canonical_tunic_fixture_uses_experimental_clearance_profile():
     fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "clearance = max(8.0, 0.025 * body_depth);" in fixture
