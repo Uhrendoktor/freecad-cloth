@@ -87,7 +87,7 @@ def _make_curved(piece, doc):
 def run_acceptance():
     doc = App.newDocument("CanonicalGarmentAcceptance")
     try:
-        _activate("ClothPatternWorkbench", ["ClothPattern_CreatePieceWithSketch", "ClothPattern_EditPiece"])
+        _activate("ClothPatternWorkbench", ["ClothPattern_CreatePieceWithSketch", "ClothPattern_EditPiece", "ClothPattern_Export"])
         Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
         Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
         doc.recompute()
@@ -122,6 +122,38 @@ def run_acceptance():
         from freecad_cloth.sewing.SewingGui import SewingTaskPanel
         _show_panel(SewingTaskPanel(operation), ("Seam", "Alignment", "Validation tolerance", "Stitch samples", "Status"))
         _close_task()
+
+        # Exercise the public export command and then validate both generated formats
+        # through the same read-only task panel implementation.
+        Gui.Selection.clearSelection(); Gui.Selection.addSelection(curved)
+        Gui.runCommand("ClothPattern_Export", 0)
+        _events()
+        if not Gui.Control.activeDialog():
+            raise RuntimeError("public Pattern export command did not open its task panel")
+        _close_task()
+        from freecad_cloth.pattern.PatternExport import from_dxf_metadata, from_svg_metadata
+        from freecad_cloth.pattern.PatternExportGui import PatternExportTaskPanel
+        export_signature = (str(curved.SewingOutline), float(curved.SeamAllowance), float(curved.GrainlineAngle))
+        with tempfile.TemporaryDirectory() as export_directory:
+            for export_format, metadata_reader in (("SVG", from_svg_metadata), ("DXF", from_dxf_metadata)):
+                panel = PatternExportTaskPanel(curved)
+                panel.format.setCurrentText(export_format)
+                output = os.path.join(export_directory, "curved.%s" % export_format.lower())
+                panel.path.setText(output)
+                if not panel.accept():
+                    raise RuntimeError("public Pattern export task panel rejected %s output" % export_format)
+                metadata = metadata_reader(open(output, "r", encoding="utf-8").read())
+                if metadata.get("piece_id") != str(curved.PieceId):
+                    raise RuntimeError("exported %s metadata lost piece identity" % export_format)
+                if metadata.get("seam_ids") != [str(seam.SeamId)]:
+                    raise RuntimeError("exported %s metadata lost seam identity" % export_format)
+                if metadata.get("scale") != 1.0 or float(metadata.get("seam_allowance_mm", -1.0)) != float(curved.SeamAllowance):
+                    raise RuntimeError("exported %s metadata lost units/scale or seam allowance" % export_format)
+                if not metadata.get("mark_ids"):
+                    raise RuntimeError("exported %s metadata lost construction-mark identity" % export_format)
+        if export_signature != (str(curved.SewingOutline), float(curved.SeamAllowance), float(curved.GrainlineAngle)):
+            raise RuntimeError("pattern export mutated authoritative PatternPiece state")
+        print("pattern-export=passed formats=SVG,DXF", flush=True)
 
         target_body = doc.addObject("Part::Feature", "AcceptanceTarget")
         target_body.Label = "Acceptance Target"
