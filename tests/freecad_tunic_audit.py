@@ -28,7 +28,7 @@ for old, new in replacements.items():
         raise RuntimeError(f"audit replacement did not match source: {old}")
     source = source.replace(old, new, 1)
 
-pin_pattern = re.compile(r'    def authored_shoulder_pins\(piece, positions\):.*?    for source in \(doc\.getObject', re.S)
+pin_pattern = re.compile(r'    def authored_shoulder_pins\(piece, positions\):.*?    for source in \(doc\.getObject\("VisualTunicFront"\), doc\.getObject\("VisualTunicBack"\)\):', re.S)
 pin_replacement = '''    def authored_shoulder_pins(piece, outline, positions):
         points = [(float(x), float(y)) for x, y in outline]
         shoulder_targets = (points[3], points[6])
