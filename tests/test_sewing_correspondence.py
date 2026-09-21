@@ -74,7 +74,7 @@ def test_recovery_text_is_shared_and_deterministic():
     report = analyze_correspondence(100.0, 120.0, length_tolerance=0.05)
     assert report.severity == "error"
     assert report.tolerance == pytest.approx(0.05)
-    assert report.recovery == "length mismatch requires editing the pattern or seam ranges; it was not hidden by changing tolerance"
+    assert report.recovery == "Adjust seam ranges or use an explicit easing/repair action; do not silently retarget geometry."
 
 
 def test_bad_length_inputs_are_rejected():
