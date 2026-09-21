@@ -324,20 +324,15 @@ def simulation():
         seam_records.append((seam_obj, front, back))
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
     def authored_shoulder_pins(piece, positions):
-        width = float(panel_width)
-        height = float(garment_height)
         targets = (
-            (0.14 * width, 0.97 * height),
-            (0.86 * width, 0.97 * height),
+            (0.14 * panel_width, 0.97 * garment_height),
+            (0.86 * panel_width, 0.97 * garment_height),
         )
-        log("pin-target-types width=%s height=%s targets=%r positions=%d" % (type(width).__name__, type(height).__name__, targets, len(positions)))
         available = list(range(len(positions)))
         result = []
-        for target_x, target_y in targets:
-            local_x = float(target_x)
-            local_y = float(target_y)
-            target_point = piece.Placement.multVec(App.Vector(local_x, local_y, 0.0))
-            index = min(available, key=lambda i: (float(positions[i][0]) - target_point.x) ** 2 + (float(positions[i][1]) - target_point.y) ** 2 + (float(positions[i][2]) - target_point.z) ** 2)
+        for local_x, local_y in targets:
+            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
+            index = min(available, key=lambda i: (positions[i][0] - target_point.x) ** 2 + (positions[i][1] - target_point.y) ** 2 + (positions[i][2] - target_point.z) ** 2)
             result.append(index)
             available.remove(index)
         return tuple(result)
