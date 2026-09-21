@@ -6,6 +6,7 @@ import pytest
 
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.sewing.SeamGraph import SeamGraph, Transform3D
+from freecad_cloth.sewing.SewingNetwork import SewingMember, build_mn_seams
 
 
 def piece(name, ident): return PatternPiece(name, [(0, 0), (10, 0), (10, 10), (0, 10)], id=ident)
@@ -61,6 +62,49 @@ def test_arc_length_stitch_mapping_ignores_nonuniform_boundary_vertex_density():
         ("right", 3): ((0.0, 0.0), (5.0, 0.0), (10.0, 0.0)),
     }
     assert value.stitch_pairs(edges, edge_points=points) == ((10, 20), (11, 21), (13, 22))
+
+
+
+def test_curved_mn_correspondence_uses_physical_arc_length_with_nonuniform_spacing():
+    seams = build_mn_seams(
+        "mn",
+        [SewingMember("left", 0), SewingMember("left", 1)],
+        [SewingMember("right", 3)],
+        lambda piece, edge: {("left", 0): 10.0, ("left", 1): 10.0, ("right", 3): 20.0}[(piece, edge)],
+        alignment="uniform",
+    )
+    value = SeamGraph()
+    value.add_piece(piece("left", "left"))
+    value.add_piece(piece("right", "right"))
+    for seam in seams:
+        value.add_seam(seam)
+
+    edge_vertices = {
+        ("left", 0): (10, 11, 12),
+        ("left", 1): (13, 14, 15),
+        ("right", 3): (20, 21, 22, 23, 24, 25),
+    }
+    raw = (
+        (0.0, 0.0),
+        (0.8, 0.0),
+        (5.0, 1.0),
+        (10.0, 1.0),
+        (14.5, 3.0),
+        (19.5, 3.0),
+    )
+    total = sum(((b[0]-a[0])**2 + (b[1]-a[1])**2) ** 0.5 for a, b in zip(raw, raw[1:]))
+    scale = 20.0 / total
+    curved = tuple((x * scale, y * scale) for x, y in raw)
+    edge_points = {
+        ("left", 0): ((0.0, 0.0), (5.0, 0.0), (10.0, 0.0)),
+        ("left", 1): ((10.0, 0.0), (15.0, 0.0), (20.0, 0.0)),
+        ("right", 3): curved,
+    }
+
+    assert value.stitch_pairs(edge_vertices, edge_points=edge_points) == (
+        (10, 20), (11, 22), (12, 23),
+        (13, 23), (14, 24), (15, 25),
+    )
 
 
 def test_missing_mesh_edge_vertices_is_rejected():
