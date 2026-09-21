@@ -152,10 +152,11 @@ def create_diagnostic_map(scene, metric="stress"):
         obj.addProperty("App::PropertyString", "Units", "Diagnostics").Units = definition["units"]
         obj.addProperty("App::PropertyString", "Summary", "Diagnostics").Summary = repr(summarize(result))
         obj.Mesh = source_mesh.copy()
-        colors = [_metric_color(value, lo, hi) for value in values]
-        if len(colors) == obj.Mesh.CountFacets:
-            obj.ViewObject.DiffuseColor = colors
+        representative = (min(values) + max(values)) * 0.5 if values else lo
+        obj.addProperty("App::PropertyFloat", "MetricMinimum", "Diagnostics").MetricMinimum = float(lo)
+        obj.addProperty("App::PropertyFloat", "MetricMaximum", "Diagnostics").MetricMaximum = float(hi)
         obj.ViewObject.DisplayMode = "Flat Lines"
+        obj.ViewObject.ShapeColor = _metric_color(representative, lo, hi)
         created.append(obj)
     scene.Document.recompute()
     return created
