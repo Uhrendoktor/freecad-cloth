@@ -187,7 +187,7 @@ def arc_length_vertex_indices(values, points, count, start=0.0, end=1.0):
             index=len(cumulative)-1
         else:
             left=right-1
-            index=left if target-cumulative[left] <= cumulative[right]-target else right
+            # On an exact arc-length tie, select the vertex on the forward side.\n            # This keeps the correspondence monotone and avoids density bias at the midpoint.\n            index=left if target-cumulative[left] < cumulative[right]-target else right
         result.append(index)
     return tuple(result)
 
