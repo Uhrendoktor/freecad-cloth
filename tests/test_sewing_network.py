@@ -73,6 +73,17 @@ class SewingNetworkTests(unittest.TestCase):
                 lengths({("A", 0): 10, ("A2", 1): 10, ("B", 0): 20}),
             )
 
+    def test_network_correspondence_uses_the_same_relative_contract(self):
+        seams = build_mn_seams(
+            "rel-report",
+            [SewingMember("A", 0)],
+            [SewingMember("B", 0)],
+            lengths({("A", 0): 100, ("B", 0): 120}),
+        )
+        report = analyze_network_correspondence(seams, length_tolerance=0.05)
+        self.assertEqual(report.status, "length_mismatch")
+        self.assertIn("16.67%", report.message)
+
     def test_invalid_member_status_is_deterministic_and_user_visible(self):
         seam = _SeamStatus("rel-1-1-1", "Changed reference")
         self.assertEqual(
