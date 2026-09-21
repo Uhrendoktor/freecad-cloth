@@ -61,7 +61,7 @@ for old, new in replacements.items():
         raise RuntimeError(f"audit replacement did not match source: {old}")
     source = source.replace(old, new, 1)
 
-pin_pattern = re.compile(r'    def authored_shoulder_pins\(piece, positions\):.*?    for source in \(doc\.getObject', re.S)
+pin_pattern = re.compile(r'    def authored_shoulder_pins\(piece, (?:positions|particle_indices, positions)\):.*?    for source in \(doc\.getObject', re.S)
 pin_replacement = '''    def authored_shoulder_pins(piece, positions, boundary_indices):
         targets = (
             (0.08 * panel_width, 0.97 * garment_height),
