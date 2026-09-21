@@ -94,7 +94,7 @@ def test_canonical_tunic_audit_uses_mesh_collision_and_turntable_profile():
     expected = (
         'os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"',
         '((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):',
-        '((1,1,"TunicRightSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
+        '((1,1,"TunicRightSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
         'scene.PinSelection = [str(i) for i in front_pins]',
         "'scene.ParticleDistance = 24.0;': 'scene.ParticleDistance = 18.0;',",
         "'scene.SolverSubsteps = 1;': 'scene.SolverSubsteps = 2;',",
