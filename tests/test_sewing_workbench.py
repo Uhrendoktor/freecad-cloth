@@ -97,6 +97,18 @@ def test_boundary_sampling_honors_normalized_range():
     assert _sample_boundary(values, 0.25, 0.75, 3) == [11, 12, 13]
 
 
+def test_boundary_sampling_uses_physical_arc_length_for_nonuniform_vertices():
+    values = (10, 11, 12, 13, 14)
+    points = (
+        (0.0, 0.0),
+        (0.2, 0.1),
+        (3.0, 1.0),
+        (4.4, 4.0),
+        (10.0, 4.0),
+    )
+    assert _sample_boundary(values, 0.0, 1.0, 3, points) == [10, 13, 14]
+
+
 def test_proxy_validation_and_reversal():
     class V:
         def __init__(self, x, y, z=0): self.x, self.y, self.z = x, y, z
