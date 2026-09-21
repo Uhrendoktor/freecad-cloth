@@ -39,7 +39,13 @@ workflow_contract:
     - docs/images/generated/cloth-simulation-draped-top.png
     - docs/images/generated/cloth-simulation-draped-bottom.png
   screenshot_artifacts: [tunic-visual-audit]
-  policy: preserve_existing_Docker_Xvfb_PNG_path; one canonical tunic visual audit; no_second_workflow
+  turntable_outputs: [cloth-avatar-turntable.gif, cloth-simulation-arranged-turntable.gif, cloth-simulation-draped-turntable.gif]
+  turntable_frames: 73
+  turntable_artifact: readme-turntables
+  readme_publish_branch: docs/screenshots
+  pr_turntable_generation: enabled
+  readme_publish_on_main_merge: enabled
+  policy: preserve_existing_Docker_Xvfb_PNG_path; one_canonical_tunic_visual_audit; PR_turntable_validation; publish_stable_turntables_after_main_merge; no_second_workflow
 
 latest_verified_ci:
   run_id: 35580478353

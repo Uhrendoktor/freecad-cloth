@@ -1,8 +1,11 @@
 name: Canonical execution
 
 on:
+  push:
+    branches: [main]
   pull_request:
     types: [opened, synchronize, reopened]
+  workflow_dispatch:
 
 concurrency:
   group: canonical-${{ github.event.pull_request.number || github.ref }}
@@ -143,3 +146,132 @@ jobs:
             docs/images/generated/gui-screenshot-manifest.txt
           if-no-files-found: error
           compression-level: 1
+
+  gui-turntables:
+    name: README turntables
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Render turntable frames
+        env:
+          CLOTH_SIMULATION_BACKEND: tissu
+        run: |
+          set -euo pipefail
+          rm -rf docs/images/generated
+          mkdir -p docs/images/generated
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
+            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=15s 300s /opt/freecad/AppRun tests/freecad_avatar_screenshot.py
+              timeout --signal=TERM --kill-after=15s 300s /opt/freecad/AppRun tests/freecad_simulation_turntable.py
+            '
+          test -d docs/images/generated/cloth-avatar-turntable-frames
+          test "$(find docs/images/generated/cloth-avatar-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
+          test -d docs/images/generated/cloth-simulation-arranged-turntable-frames
+          test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
+          test -d docs/images/generated/cloth-simulation-draped-turntable-frames
+          test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
+      - name: Build turntable GIFs
+        run: |
+          set -euo pipefail
+          if command -v magick >/dev/null 2>&1; then
+            IM=(magick)
+          elif command -v convert >/dev/null 2>&1; then
+            IM=(convert)
+          else
+            sudo apt-get update
+            sudo apt-get install -y imagemagick
+            IM=(convert)
+          fi
+          for spec in \
+            "cloth-avatar-turntable-frames cloth-avatar-turntable.gif" \
+            "cloth-simulation-arranged-turntable-frames cloth-simulation-arranged-turntable.gif" \
+            "cloth-simulation-draped-turntable-frames cloth-simulation-draped-turntable.gif"; do
+            set -- $spec
+            "${IM[@]}" "docs/images/generated/$1"/frame-*.png \
+              -delay 8 -loop 0 -colors 128 -layers Optimize \
+              "docs/images/generated/$2"
+            test -s "docs/images/generated/$2"
+          done
+      - name: Validate turntable GIFs
+        run: |
+          set -euo pipefail
+          for gif in cloth-avatar-turntable.gif cloth-simulation-arranged-turntable.gif cloth-simulation-draped-turntable.gif; do
+            identify -format '%n\n' "docs/images/generated/$gif" | head -n 1 | grep -qx '73'
+            python3 -c 'import os,sys; p=sys.argv[1]; d=open(p,"rb").read(6); assert d in (b"GIF87a", b"GIF89a"); assert os.path.getsize(p)>=50000' "docs/images/generated/$gif"
+          done
+      - name: Upload README turntables
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: readme-turntables
+          path: |
+            docs/images/generated/cloth-avatar-turntable.gif
+            docs/images/generated/cloth-simulation-arranged-turntable.gif
+            docs/images/generated/cloth-simulation-draped-turntable.gif
+            docs/images/generated/avatar-gui-progress.log
+            docs/images/generated/simulation-turntable-progress.log
+          if-no-files-found: ignore
+          compression-level: 1
+
+  publish-readme-turntables:
+    name: Publish README turntables
+    needs: [gui-tunic-visual, gui-turntables]
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download turntables
+        uses: actions/download-artifact@v6
+        with:
+          name: readme-turntables
+          path: turntables
+      - name: Update stable README asset branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" screenshot-repo
+          cd screenshot-repo
+          branch="docs/screenshots"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            git fetch origin "$branch"
+            git checkout -B "$branch" "origin/$branch"
+          else
+            git checkout -b "$branch"
+          fi
+          mkdir -p docs/images/generated
+          cp ../turntables/cloth-avatar-turntable.gif docs/images/generated/
+          cp ../turntables/cloth-simulation-arranged-turntable.gif docs/images/generated/
+          cp ../turntables/cloth-simulation-draped-turntable.gif docs/images/generated/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/images/generated/cloth-avatar-turntable.gif \
+            docs/images/generated/cloth-simulation-arranged-turntable.gif \
+            docs/images/generated/cloth-simulation-draped-turntable.gif
+          if git diff --cached --quiet; then
+            echo "README turntables are already current."
+            exit 0
+          fi
+          git commit -m "ci: publish stable README turntables"
+          git push origin "HEAD:$branch"
