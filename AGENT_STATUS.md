@@ -6,7 +6,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `35cb29db06e57fdf58a137fbe4e20279fb8225dd` (merged PR #598 evidence instrumentation for M0 acceptance).
+- Current main: `7217a2d00e513d4e988b8bb98169a5630b66f328` (product state from merged PR #598 plus docs-only supervisor state synchronization).
 - Latest merged work: PR #598 passed canonical run #2087 (`35580478353`) with both Python/non-GUI and Full tunic visual/simulation audit jobs green; artifact `10629862765` was directly reviewed across all six drape views plus metrics/manifest/log.
 - Open implementation PRs requiring supervisor gates: none after closing duplicate PR #597; #472 remains the active M0 release gate.
 - PR #453 was closed without merge because its validated screenshots remained collapsed/edge-on or not production-ready.
@@ -30,11 +30,12 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - Keep DrapeTarget source signatures topology-sensitive; use complete mesh topology where available and `hashCode()` only for lightweight test doubles.
 - Do not add provider-specific readiness exceptions that bypass target invalidation.
 - Treat CI-green screenshot capture as necessary but insufficient: visual validity must show a sane avatar and a convincingly worn garment (#472).
-- Canonical GUI acceptance emits `drape-visual-metrics.json` with deterministic bounds, centroid, span ratios, finite-state and target-proximity evidence. Do not turn these observations into hard pass/fail thresholds until baseline measurements are reviewed.
+- Canonical GUI acceptance emits `drape-visual-metrics.json` with deterministic bounds, centroid, span ratios, finite-state, target-proximity, connected-component and failure-classification evidence. Post-drape seam correspondence is now recorded diagnostically; do not turn those observations into hard pass/fail thresholds without reviewed baseline evidence.
 - `trimesh` remains optional/lazy; CPU reference remains correctness baseline.
 - Tissu remains sandbox-only until runtime compatibility, constraint/collision parity, determinism, visual parity and performance are demonstrated.
 - Re-cut implementation branches from current `main`; one focused concern per PR.
-- Latest observed canonical result: PR #598 head `226fb38f2795450af42c6d2429dddc8c1429627f` passed canonical run #2087 (`35580478353`) on 2026-09-21; both jobs passed and artifact `10629862765` is retained. Panel meshes are finite and each has one connected component; the four seam diagnostics report max correspondence gaps up to `452.652642 mm`. Those gaps remain diagnostic-only; #472 human visual trust is unresolved.
+- Latest verified canonical result: PR #598 head `226fb38f2795450af42c6d2429dddc8c1429627f` passed run #2087 / `35580478353`; artifact `10629862765` was directly inspected. Both drape panels are finite/connected and classified structurally-plausible, while the four seam diagnostics show maximum gaps up to `452.652642 mm`. #472 remains unresolved.
+- Fresh supervisor continuation: issue #600 localizes the post-drape seam/target coherence root cause. No fixture A/B churn, solver redesign, collision-model swap, or second workflow.
 
 ## Agent rules
 
