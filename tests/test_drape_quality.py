@@ -93,3 +93,9 @@ if __name__ == "__main__":
     for name, fn in globals().copy().items():
         if name.startswith("test_"): fn()
     print("drape quality and target tests passed")
+
+
+def test_canonical_tunic_fixture_has_swapped_panel_placement():
+    fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "front_y = box.YMax + clearance" in fixture
+    assert "back_y = box.YMin - clearance" in fixture
