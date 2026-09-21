@@ -17,11 +17,14 @@ from freecad_cloth.sewing.SewingGui import SewingTaskPanel
 
 
 def main():
+    print("SMOKE: start", flush=True)
     # Exercise the public workbench activation path before document operations.
     Gui.activateWorkbench("Cloth Sewing")
+    print("SMOKE: workbench activated", flush=True)
     assert Gui.activeWorkbench() == "Cloth Sewing", "Cloth Sewing workbench did not activate"
 
     doc = App.newDocument("ClothSewingSmoke")
+    print("SMOKE: document created", flush=True)
     try:
         piece_a = create_pattern_piece_from_parameters("PieceA", 100, 60, 0, 0)
         piece_b = create_pattern_piece_from_parameters("PieceB", 100, 60, 0, 0)
@@ -29,6 +32,7 @@ def main():
         seam = add_seam(doc, seam_model)
         operation = add_sewing_operation(doc, seam, piece_a, piece_b)
         doc.recompute()
+        print("SMOKE: initial recompute complete", flush=True)
 
         assert str(seam.EdgeAId) == f"{piece_a.PieceId}:edge:0"
         assert str(seam.EdgeBId) == f"{piece_b.PieceId}:edge:0"
@@ -37,6 +41,7 @@ def main():
         assert seam.PatternA is piece_a and seam.PatternB is piece_b
 
         panel = SewingTaskPanel(operation)
+        print("SMOKE: task panel created", flush=True)
         buttons = panel.getStandardButtons()
         assert buttons != 0
         original = (
@@ -65,6 +70,7 @@ def main():
         panel.alignment.setCurrentText("uniform")
         panel.reversed_b.setChecked(True)
         assert panel.accept() is True
+        print("SMOKE: first accept complete", flush=True)
         assert abs(float(operation.Tolerance) - 1.75) < 1e-9
         assert int(operation.Stitches) == 16
         assert int(operation.StitchCount) == 16
@@ -93,6 +99,7 @@ def main():
             assert bool(seam.ReversedB) is True
             assert operation.Status == "Valid"
 
+        print("SMOKE: undo/redo checks complete", flush=True)
         piece_a.Width = 120
         doc.recompute()
         assert str(seam.EdgeAId) == f"{piece_a.PieceId}:edge:0"
@@ -112,6 +119,7 @@ def main():
             doc.saveAs(path)
             App.closeDocument(doc.Name)
             reloaded = App.openDocument(path)
+            print("SMOKE: document reloaded", flush=True)
             reloaded.recompute()
             restored = reloaded.getObject(operation.Name)
             restored_seam = reloaded.getObject(seam.Name)
@@ -134,6 +142,7 @@ def main():
             assert str(restored.CorrespondenceMessage) == "seam correspondence is valid with B reversed"
             assert restored.Seam is not None
             assert restored.PieceA is not None and restored.PieceB is not None
+            print("SMOKE: final assertions passed", flush=True)
             print("FreeCAD sewing task transaction, semantic persistence, invalidation, and workbench activation smoke test passed", flush=True)
         finally:
             if App.ActiveDocument is not None:
