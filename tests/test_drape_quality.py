@@ -101,3 +101,8 @@ def test_canonical_tunic_fixture_has_swapped_panel_placement():
     fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "front_y = box.YMax + clearance" in fixture
     assert "back_y = box.YMin - clearance" in fixture
+
+
+def test_canonical_tunic_fixture_uses_narrow_panel_ease():
+    fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "chest = 860.0; hip = 880.0; ease = 10.0" in fixture
