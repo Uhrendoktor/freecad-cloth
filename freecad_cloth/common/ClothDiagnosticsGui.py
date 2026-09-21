@@ -27,7 +27,7 @@ def _diagnostic_guard(scene):
     if not bool(getattr(scene, "FiniteState", True)):
         raise RuntimeError("Diagnostics unavailable: simulation state is invalid/non-finite")
     simulation_state = str(getattr(scene, "SimulationState", "READY_FOR_SIMULATION")).upper()
-    if simulation_state in {"STALE", "INVALID", "UNAVAILABLE", "MISSING"}:
+    if simulation_state not in {"READY_FOR_SIMULATION", "READY"}:
         reason = str(getattr(scene, "InvalidationReason", "")).strip()
         detail = ": " + reason if reason else ""
         raise RuntimeError("Diagnostics unavailable: simulation state is %s%s" % (simulation_state.lower(), detail))
