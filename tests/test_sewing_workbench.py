@@ -106,7 +106,9 @@ def test_boundary_sampling_uses_physical_arc_length_for_nonuniform_vertices():
         (4.4, 4.0),
         (10.0, 4.0),
     )
-    assert _sample_boundary(values, 0.0, 1.0, 3, points) == [10, 13, 14]
+    actual = _sample_boundary(values, 0.0, 1.0, 3, points)
+    print(f"DEBUG sample={actual} module={_sample_boundary.__module__} file={_sample_boundary.__code__.co_filename}", flush=True)
+    assert actual == [10, 13, 14]
 
 
 def test_proxy_validation_and_reversal():
