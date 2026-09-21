@@ -23,3 +23,11 @@ def test_export_writer_does_not_change_model_state(tmp_path):
     write_analysis_data(path, result, "strain")
     assert path.read_text(encoding="utf-8") == export_analysis_data(result, "strain") + "\n"
     assert vars(document) == before
+
+def test_gui_contract_shows_formula_units_and_read_only():
+    source = Path(__file__).resolve().parents[1] / "freecad_cloth" / "common" / "ClothDiagnosticsGui.py"
+    text = source.read_text(encoding="utf-8")
+    assert "Formula" in text
+    assert "Units" in text
+    assert "Read-only" in text
+    assert "DiagnosticMap" in text
