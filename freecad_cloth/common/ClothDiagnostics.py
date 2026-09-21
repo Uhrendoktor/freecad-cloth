@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Solver-neutral post-simulation diagnostics for the Cloth workbenches.
 
 The diagnostics layer consumes rest/current mesh data and optional material/target
