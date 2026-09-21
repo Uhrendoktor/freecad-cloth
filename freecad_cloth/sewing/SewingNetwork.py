@@ -197,10 +197,11 @@ class SewingNetworkProxy:
             obj.addProperty("App::PropertyString", "CorrespondenceMessage", "Validation").CorrespondenceMessage = ""
         if "CorrespondenceRecovery" not in getattr(obj, "PropertiesList", ()):
             obj.addProperty("App::PropertyString", "CorrespondenceRecovery", "Validation").CorrespondenceRecovery = "No correspondence repair is required."
-        obj.setEditorMode("CorrespondenceStatus", 1)
-        obj.setEditorMode("CorrespondenceSeverity", 1)
-        obj.setEditorMode("CorrespondenceMessage", 1)
-        obj.setEditorMode("CorrespondenceRecovery", 1)
+        if hasattr(obj, "setEditorMode"):
+            obj.setEditorMode("CorrespondenceStatus", 1)
+            obj.setEditorMode("CorrespondenceSeverity", 1)
+            obj.setEditorMode("CorrespondenceMessage", 1)
+            obj.setEditorMode("CorrespondenceRecovery", 1)
         seams = tuple(getattr(obj, "Seams", ()) or ())
         if hasattr(obj, "InvalidReason"):
             obj.InvalidReason = ""
