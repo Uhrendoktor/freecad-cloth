@@ -95,3 +95,78 @@ def test_release_gate_rejects_geometry_or_semantic_drift():
 def test_release_gate_rejects_unknown_format():
     with TestCase().assertRaisesRegex(ValueError, "format must be 'svg' or 'dxf'"):
         validate_export(_curved_pattern(), "", "pdf")
+
+
+def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path):
+    class Piece:
+        PatternType = "PatternPiece"
+        Name = "Front"
+        Label = "Front"
+        PieceId = "piece-front"
+        Width = 100.0
+        Height = 60.0
+        SeamAllowance = 5.0
+        GrainlineAngle = 90.0
+        GeometryAuthority = ""
+        SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)])
+        DraftingBoundary = SewingOutline
+
+    class Seam:
+        SeamId = "front-back"
+        PieceA = "piece-front"
+        PieceB = "piece-back"
+        Status = "Valid"
+
+    class Document:
+        Objects = ()
+
+    piece = Piece()
+    piece.Document = Document()
+    piece.Document.Objects = (piece, Seam())
+    before = (piece.Label, piece.SeamAllowance, piece.GrainlineAngle, piece.SewingOutline)
+
+    for fmt, metadata_reader in (("svg", from_svg_metadata), ("dxf", from_dxf_metadata)):
+        first = tmp_path / ("front.%s" % fmt)
+        second = tmp_path / ("front-second.%s" % fmt)
+        first_result = export_pattern_piece(piece, first, fmt, curve_samples=16)
+        export_pattern_piece(piece, second, fmt, curve_samples=16)
+        assert first.read_bytes() == second.read_bytes()
+        assert first_result["valid"] is True
+        metadata = metadata_reader(first.read_text(encoding="utf-8"))
+        assert metadata["piece_id"] == "piece-front"
+        assert metadata["seam_ids"] == ["front-back"]
+        assert metadata["scale"] == 1.0
+        assert metadata["seam_allowance_mm"] == 5.0
+        assert metadata["mark_ids"] == ["piece-front:grainline"]
+
+    assert before == (piece.Label, piece.SeamAllowance, piece.GrainlineAngle, piece.SewingOutline)
+
+
+def test_pattern_piece_export_blocks_invalid_semantic_seams(tmp_path):
+    class Piece:
+        PatternType = "PatternPiece"
+        Name = "Front"
+        Label = "Front"
+        PieceId = "piece-front"
+        Width = 100.0
+        Height = 60.0
+        SeamAllowance = 0.0
+        GrainlineAngle = 0.0
+        GeometryAuthority = ""
+        SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)])
+        DraftingBoundary = SewingOutline
+
+    class Seam:
+        SeamId = "front-back"
+        PieceA = "piece-front"
+        PieceB = "piece-back"
+        Status = "Changed reference"
+
+    class Document:
+        Objects = ()
+
+    piece = Piece()
+    piece.Document = Document()
+    piece.Document.Objects = (piece, Seam())
+    with TestCase().assertRaisesRegex(ValueError, "cannot export pattern piece"):
+        export_pattern_piece(piece, tmp_path / "invalid.svg", "svg")
