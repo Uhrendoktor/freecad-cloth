@@ -52,6 +52,7 @@ pin_replacement = '''    def authored_shoulder_pins(piece, outline, positions):
     front_pins = authored_shoulder_pins(front, front_outline, front_positions)
     scene.PinSelection = [str(i) for i in front_pins]
     log("pin-map front-shoulders=%s" % (front_pins,)); doc.recompute()
+    for source in (doc.getObject
 '''
 source, pin_count = pin_pattern.subn(pin_replacement, source, count=1)
 if pin_count != 1:
