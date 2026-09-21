@@ -97,6 +97,27 @@ def inspect_drape(
     )
 
 
+def correspondence_gaps(
+    source: Sequence[Point3],
+    target: Sequence[Point3],
+) -> Tuple[float, ...]:
+    """Return deterministic pairwise correspondence distances in millimetres."""
+    if len(source) != len(target):
+        raise ValueError("correspondence requires equal sample counts")
+    return tuple(
+        sqrt(sum((float(a[i]) - float(b[i])) ** 2 for i in range(3)))
+        for a, b in zip(source, target)
+    )
+
+
+def maximum_correspondence_gap(
+    source: Sequence[Point3],
+    target: Sequence[Point3],
+) -> float:
+    """Return the maximum pairwise correspondence gap, or zero for no samples."""
+    return max(correspondence_gaps(source, target), default=0.0)
+
+
 def summarize(metrics: DrapeVisualMetrics) -> dict:
     return {
         "state": metrics.state,
