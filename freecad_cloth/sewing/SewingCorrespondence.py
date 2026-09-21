@@ -191,6 +191,16 @@ def arc_length_vertex_indices(values, points, count, start=0.0, end=1.0):
         result.append(index)
     return tuple(result)
 
+
+def arc_length_vertex_parameters(points, count, start=0.0, end=1.0):
+    """Backward-compatible normalized-parameter view of physical arc-length sampling."""
+    points = tuple(points)
+    values = tuple(range(len(points)))
+    indices = arc_length_vertex_indices(values, points, count, start, end)
+    last = len(points) - 1
+    return tuple(index / float(last) for index in indices)
+
+
 def map_parameter(
     parameter_a: float,
     start_a: float = 0.0,
