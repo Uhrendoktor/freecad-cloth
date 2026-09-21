@@ -384,7 +384,7 @@ def simulation():
     diagnostics_dock = show_task(
         diagnostics_panel,
         "Cloth Diagnostics",
-        ("Cloth Diagnostics", "Formula", "Units", "Read-only"),
+        ("Cloth Diagnostics", "Active metric", "Formula", "Units", "Read-only"),
     )
     created_maps = diagnostics_panel.create_map()
     if len(created_maps) != len(panels):
