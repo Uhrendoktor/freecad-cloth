@@ -217,6 +217,9 @@ def _execute_fake_proxy(
             Alignment="endpoints",
             Status="Incomplete",
             CorrespondenceStatus="valid",
+            CorrespondenceSeverity="ok",
+            CorrespondenceMessage="",
+            CorrespondenceRecovery="",
             LengthA=0,
             LengthB=0,
             LengthDifference=0,
@@ -240,6 +243,10 @@ def test_proxy_reports_symmetric_relative_mismatch():
     reverse = _execute_fake_proxy(width_a=120.0, width_b=100.0)
     assert forward.CorrespondenceStatus == "length_mismatch"
     assert reverse.CorrespondenceStatus == "length_mismatch"
+    assert forward.CorrespondenceSeverity == "error"
+    assert reverse.CorrespondenceSeverity == "error"
+    assert forward.RelativeTolerance == 0.05
+    assert forward.CorrespondenceRecovery == reverse.CorrespondenceRecovery
 
 
 def test_proxy_reports_relative_mismatch_for_subrange():
@@ -269,5 +276,8 @@ if __name__ == "__main__":
     test_uniform_alignment_follows_curved_edge()
     test_reversed_correspondence_is_applied_once()
     test_boundary_sampling_honors_normalized_range()
+    test_boundary_sampling_uses_physical_arc_length_for_nonuniform_vertices()
     test_proxy_validation_and_reversal()
+    test_proxy_reports_symmetric_relative_mismatch()
+    test_proxy_preserves_absolute_tolerance_status()
     print("sewing tests passed")
