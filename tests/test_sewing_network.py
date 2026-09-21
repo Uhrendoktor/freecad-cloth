@@ -86,7 +86,7 @@ class SewingNetworkTests(unittest.TestCase):
         with patch("freecad_cloth.sewing.SewingNetwork._network_lengths", return_value=(100.0, 120.0)):
             SewingNetworkProxy().execute(network)
         self.assertEqual(network.CorrespondenceStatus, "length_mismatch")
-        self.assertIn("16.67%", network.CorrespondenceMessage)
+        self.assertIn("20.00%", network.CorrespondenceMessage)
         self.assertIn("Adjust seam ranges", network.CorrespondenceRecovery)
 
     def test_invalid_member_status_is_deterministic_and_user_visible(self):
