@@ -1,0 +1,1 @@
+issue 608 diagnostics closeout
