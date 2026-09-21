@@ -86,32 +86,21 @@ def _make_curved(piece, doc):
 
 
 def _position_signature(scene):
-    """Return the exact rounded mesh-position sequence produced by the fixture."""
-    signature = []
-    panels = sorted(
-        getattr(scene, "DrapePanels", ()),
-        key=lambda panel: str(getattr(panel, "Name", "")),
+    """Return the exact rounded solver-particle position sequence for the fixture."""
+    proxy = getattr(scene, "Proxy", None)
+    backend = getattr(proxy, "backend", None) if proxy is not None else None
+    positions = tuple(backend.positions()) if backend is not None and hasattr(backend, "positions") else ()
+    if not positions:
+        raise RuntimeError("simulation produced no particle positions for determinism evidence")
+    return tuple(
+        (
+            index,
+            round(float(position[0]), 9),
+            round(float(position[1]), 9),
+            round(float(position[2]), 9),
+        )
+        for index, position in enumerate(positions)
     )
-    if not panels:
-        raise RuntimeError("simulation produced no drape panels for determinism evidence")
-    for panel in panels:
-        vertices = tuple(getattr(getattr(panel, "Mesh", None), "Vertexes", ()))
-        if not vertices:
-            raise RuntimeError(
-                "simulation produced no mesh vertices for determinism evidence: %s"
-                % getattr(panel, "Name", "<unnamed>")
-            )
-        for vertex in vertices:
-            point = vertex.Point
-            signature.append(
-                (
-                    str(getattr(panel, "Name", "")),
-                    round(float(point.x), 9),
-                    round(float(point.y), 9),
-                    round(float(point.z), 9),
-                )
-            )
-    return tuple(signature)
 
 
 def _position_signature_digest(signature):
