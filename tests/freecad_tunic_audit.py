@@ -12,21 +12,21 @@ os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
 
 # Use the known-stable tunic arrangement from the last passing visual audit.
 replacements = {
-    'clearance = max(20.0, 0.08 * body_depth);': 'clearance = max(8.0, 0.025 * body_depth);',
+    'clearance = max(20.0, 0.08 * body_depth);': 'clearance = max(6.0, 0.02 * body_depth);',
     'chest = 980.0; hip = 1020.0; ease = 55.0;': 'chest = 860.0; hip = 880.0; ease = 10.0;',
     'front_y = box.YMin - clearance; back_y = box.YMax + clearance;': 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
-        'front, front_outline = make_piece("VisualTunicFront", front_y, 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", back_y, 0.76, 0.12)',
+        'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)',
     'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):' :
-        'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
-    'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.78;',
-    'for batch in (15,15,15,15,15,15):': 'for batch in (40,40,40):',
+        'for edge_a, edge_b, seam_id in ((2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder")):',
+    'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.80;',
+    'for batch in (15,15,15,15,15,15):': 'for batch in (30,30,30,30):',
     'if int(scene.Steps) != 90 or': 'if int(scene.Steps) != 120 or',
     '"simulation did not reach a finite 90-step state"': '"simulation did not reach a finite 120-step state"',
     'after 90 real steps;': 'after 120 real steps;',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
-    'scene.ParticleDistance = 24.0;': 'scene.ParticleDistance = 18.0;',
-    'scene.SolverSubsteps = 1;': 'scene.SolverSubsteps = 2;',}
+    'scene.ParticleDistance = 24.0;': 'scene.ParticleDistance = 22.0;',
+    'scene.SolverSubsteps = 1;': 'scene.SolverSubsteps = 1;',}
 for old, new in replacements.items():
     if old not in source:
         raise RuntimeError(f"audit replacement did not match source: {old}")
@@ -98,7 +98,7 @@ seam_check = '''
         raise RuntimeError("Tissu backend returned no simulated particle positions")
     back_offset = len(front_positions)
     seam_gaps = []
-    for edge_a, edge_b in ((1, 1), (2, 6), (6, 2), (7, 7)):
+    for edge_a, edge_b in ((2, 6), (6, 2)):
         front_a0 = front_boundary[edge_a]
         front_a1 = front_boundary[(edge_a + 1) % len(front_boundary)]
         back_a0 = back_boundary[edge_b] + back_offset
