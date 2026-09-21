@@ -6,17 +6,26 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+print("SMOKE: before FreeCAD import", flush=True)
 import FreeCAD as App
+print("SMOKE: after FreeCAD import", flush=True)
 import FreeCADGui as Gui
+print("SMOKE: after FreeCADGui import", flush=True)
 
 from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_parameters
+print("SMOKE: after PatternCommands", flush=True)
 from freecad_cloth.pattern.PatternModel import Seam
+print("SMOKE: after PatternModel", flush=True)
 from freecad_cloth.pattern.PatternObjects import add_seam
+print("SMOKE: after PatternObjects", flush=True)
 from freecad_cloth.sewing.SewingObjects import add_sewing_operation
+print("SMOKE: after SewingObjects", flush=True)
 from freecad_cloth.sewing.SewingGui import SewingTaskPanel
+print("SMOKE: after SewingGui", flush=True)
 
 
 def main():
+    print("SMOKE: entered main", flush=True)
     # Exercise the public workbench activation path before document operations.
     Gui.activateWorkbench("Cloth Sewing")
     assert Gui.activeWorkbench() == "Cloth Sewing", "Cloth Sewing workbench did not activate"
