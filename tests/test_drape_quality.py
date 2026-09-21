@@ -120,6 +120,12 @@ def test_canonical_tunic_fixture_leaves_rear_panel_free_for_seam_closure():
     assert 'front_pins + back_pins' not in fixture
 
 
+def test_canonical_tunic_fixture_runs_full_convergence_window():
+    fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "'for batch in (15,15,15,15,15,15):': 'for batch in (40,40,40):'" in fixture
+    assert "'if int(scene.Steps) != 90 or': 'if int(scene.Steps) != 120 or'" in fixture
+
+
 def test_canonical_tunic_fixture_uses_experimental_clearance_profile():
     fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "clearance = max(8.0, 0.025 * body_depth);" in fixture
