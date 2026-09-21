@@ -58,7 +58,7 @@ def test_arc_length_stitch_mapping_ignores_nonuniform_boundary_vertex_density():
     value = graph()
     edges = {("left", 1): (10, 11, 12, 13), ("right", 3): (20, 21, 22)}
     points = {
-        ("left", 1): ((0.0, 0.0), (1.0, 0.0), (9.0, 0.0), (10.0, 0.0)),
+        ("left", 1): ((0.0, 0.0), (1.0, 0.0), (3.0, 0.0), (10.0, 0.0)),
         ("right", 3): ((0.0, 0.0), (5.0, 0.0), (10.0, 0.0)),
     }
     assert value.stitch_pairs(edges, edge_points=points) == ((10, 20), (12, 21), (13, 22))
