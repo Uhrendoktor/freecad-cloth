@@ -85,9 +85,9 @@ class XPBDBackend(ClothSimulationBackend):
         if self._stitches:
             self.system.add_stitches(self._stitches, self._stitch_compliance)
 
-    def set_seams(self, graph: SeamGraph, edge_vertices: Mapping[Tuple[str, int], Sequence[int]], seam_ids: Iterable[str] = (), compliance=0.0):
+    def set_seams(self, graph: SeamGraph, edge_vertices: Mapping[Tuple[str, int], Sequence[int]], seam_ids: Iterable[str] = (), compliance=0.0, edge_points=None):
         graph.validate()
-        self.set_stitches(graph.stitch_pairs(edge_vertices, seam_ids), compliance)
+        self.set_stitches(graph.stitch_pairs(edge_vertices, seam_ids, edge_points=edge_points), compliance)
 
     def positions(self):
         return tuple(p.position() for p in self.system.particles)
