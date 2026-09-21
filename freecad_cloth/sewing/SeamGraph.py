@@ -8,7 +8,7 @@ from dataclasses import dataclass, field, replace
 from typing import Dict, Iterable, Mapping, Sequence, Tuple
 
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
-from freecad_cloth.sewing.SewingCorrespondence import arc_length_vertex_parameters
+from freecad_cloth.sewing.SewingCorrespondence import arc_length_vertex_indices
 
 
 @dataclass(frozen=True)
@@ -243,9 +243,8 @@ class SeamGraph:
 
 
 def _sample_indices_by_arc_length(values, points, start, end, count):
-    parameters = arc_length_vertex_parameters(points, count, start, end)
-    last = len(values) - 1
-    return [values[min(last, max(0, int(round(parameter * last))))] for parameter in parameters]
+    indices = arc_length_vertex_indices(values, points, count, start, end)
+    return [values[index] for index in indices]
 
 
 def _sample_indices(values: Sequence[int], start: float, end: float, count: int):
