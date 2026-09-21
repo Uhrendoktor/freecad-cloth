@@ -89,6 +89,15 @@ def test_disabled_drape_target_is_explicitly_blocked():
     assert guard["state"] == "disabled"
 
 
+def test_canonical_tunic_audit_uses_physical_four_seam_map_and_front_only_pins():
+    audit = (Path(__file__).with_name("freecad_tunic_audit.py")).read_text(encoding="utf-8")
+    assert '((1,1,"TunicRightSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):' in audit
+    assert "front_pins = authored_shoulder_pins(front, front_outline, front_positions)" in audit
+    assert "scene.PinSelection = [str(i) for i in front_pins]" in audit
+    assert "back_pins_local" not in audit
+    assert "back_pins =" not in audit
+
+
 if __name__ == "__main__":
     for name, fn in globals().copy().items():
         if name.startswith("test_"): fn()
