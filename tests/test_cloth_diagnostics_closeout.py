@@ -42,3 +42,14 @@ def test_stale_simulation_is_blocked():
     )
     with pytest.raises(RuntimeError, match="simulation state is stale"):
         ClothDiagnosticsGui._diagnostic_guard(scene)
+
+def test_disabled_target_is_blocked():
+    scene = SimpleNamespace(
+        FiniteState=True,
+        SimulationState="READY_FOR_SIMULATION",
+        InvalidationReason="",
+        Steps=10,
+        DrapeTarget=SimpleNamespace(Enabled=False),
+    )
+    with pytest.raises(RuntimeError, match="Drape target is disabled"):
+        ClothDiagnosticsGui._diagnostic_guard(scene)
