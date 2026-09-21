@@ -6,9 +6,9 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `ed25f2044853025c2db844a91cb0116242583042` (merged narrow 8 mm clearance A/B for the canonical tunic fixture).
-- Latest merged work: PR #594 passed canonical run #2084 (`35551331000`) with both Python/non-GUI and Full tunic visual/simulation audit jobs green; artifact `10617779616` was directly reviewed across all six views and showed materially reduced side stand-off versus the 30 mm baseline, while remaining an incremental improvement rather than final visual sign-off.
-- Open implementation PRs requiring supervisor gates: #590, #593, #572, #581, #571 (all remain evidence-only/unmerged).
+- Current main: `35cb29db06e57fdf58a137fbe4e20279fb8225dd` (merged PR #598 evidence instrumentation for M0 acceptance).
+- Latest merged work: PR #598 passed canonical run #2087 (`35580478353`) with both Python/non-GUI and Full tunic visual/simulation audit jobs green; artifact `10629862765` was directly reviewed across all six drape views plus metrics/manifest/log.
+- Open implementation PRs requiring supervisor gates: none after closing duplicate PR #597; #472 remains the active M0 release gate.
 - PR #453 was closed without merge because its validated screenshots remained collapsed/edge-on or not production-ready.
 - PR #438 remains diagnostic-only and must not merge.
 - Python package boundary: `freecad_cloth/` with `avatar`, `pattern`, `sewing`, `simulation`, `common`, `shared` subpackages
@@ -34,7 +34,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - `trimesh` remains optional/lazy; CPU reference remains correctness baseline.
 - Tissu remains sandbox-only until runtime compatibility, constraint/collision parity, determinism, visual parity and performance are demonstrated.
 - Re-cut implementation branches from current `main`; one focused concern per PR.
-- Latest observed canonical result: PR #594 head `1934c16936ccc45be2f10487ffcacaebbe7f8356` passed canonical run #2084 (`35551331000`) on 2026-09-21; both Python/non-GUI and Full tunic visual/simulation audit jobs passed and `tunic-visual-audit` artifact `10617779616` is retained. Human visual trust for #472 remains unresolved.
+- Latest observed canonical result: PR #598 head `226fb38f2795450af42c6d2429dddc8c1429627f` passed canonical run #2087 (`35580478353`) on 2026-09-21; both jobs passed and artifact `10629862765` is retained. Panel meshes are finite and each has one connected component; the four seam diagnostics report max correspondence gaps up to `452.652642 mm`. Those gaps remain diagnostic-only; #472 human visual trust is unresolved.
 
 ## Agent rules
 
