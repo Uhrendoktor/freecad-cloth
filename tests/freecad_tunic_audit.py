@@ -19,7 +19,6 @@ replacements = {
     'for batch in (15,15,15,15,15,15):': 'for batch in (5,5,5):',
     'if int(scene.Steps) != 90 or': 'if int(scene.Steps) != 15 or',
     '"simulation did not reach a finite 90-step state"': '"simulation did not reach a finite 15-step state"',
-    'after 90 real steps;': 'after 15 real steps;',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
 }
 for old, new in replacements.items():
