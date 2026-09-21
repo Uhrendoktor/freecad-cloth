@@ -98,7 +98,7 @@ def test_canonical_tunic_audit_uses_mesh_collision_and_turntable_profile():
         'scene.PinSelection = [str(i) for i in front_pins]',
         "'scene.ParticleDistance = 24.0;': 'scene.ParticleDistance = 18.0;',",
         "'scene.SolverSubsteps = 1;': 'scene.SolverSubsteps = 2;',",
-        "'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.78;',"
+        "'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.78;',",
         "'if int(scene.Steps) != 90 or': 'if int(scene.Steps) != 120 or',"
     )
     assert all(marker in audit for marker in expected)
