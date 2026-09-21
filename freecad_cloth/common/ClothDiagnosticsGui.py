@@ -95,7 +95,11 @@ def create_diagnostic_map(scene, metric="stress"):
         obj.Mesh = source_mesh.copy()
         colors = [_metric_color(value, lo, hi) for value in values]
         if len(colors) == obj.Mesh.CountFacets:
-            obj.ViewObject.DiffuseColor = colors
+            if "FaceColors" not in getattr(obj, "PropertiesList", ()):
+                obj.addProperty("App::PropertyColorList", "FaceColors", "Diagnostics")
+            obj.FaceColors = colors
+            if hasattr(obj.ViewObject, "Coloring"):
+                obj.ViewObject.Coloring = True
         created.append(obj)
     scene.Document.recompute()
     return created
