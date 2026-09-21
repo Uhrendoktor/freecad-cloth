@@ -128,6 +128,7 @@ def analyze_correspondence(
             float(length_b),
             float(ratio),
             bool(reversed_b),
+            float(length_tolerance),
         )
 
     if reversed_b:
@@ -138,6 +139,7 @@ def analyze_correspondence(
             float(length_b),
             float(ratio),
             True,
+            float(length_tolerance),
         )
     return CorrespondenceReport(
         STATUS_VALID,
@@ -146,6 +148,7 @@ def analyze_correspondence(
         float(length_b),
         float(ratio),
         False,
+        float(length_tolerance),
     )
 
 
