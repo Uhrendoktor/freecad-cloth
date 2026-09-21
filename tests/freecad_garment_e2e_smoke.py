@@ -86,21 +86,27 @@ def _make_curved(piece, doc):
 
 
 def _position_signature(scene):
-    """Return the exact rounded solver-particle position sequence for the fixture."""
+    """Return the exact rounded solver particle-position sequence produced by the fixture."""
     proxy = getattr(scene, "Proxy", None)
-    backend = getattr(proxy, "backend", None) if proxy is not None else None
-    positions = tuple(backend.positions()) if backend is not None and hasattr(backend, "positions") else ()
+    backend = getattr(proxy, "backend", None)
+    getter = getattr(backend, "positions", None)
+    if not callable(getter):
+        raise RuntimeError("simulation backend did not expose positions for determinism evidence")
+    positions = tuple(getter())
     if not positions:
         raise RuntimeError("simulation produced no particle positions for determinism evidence")
-    return tuple(
-        (
-            index,
-            round(float(position[0]), 9),
-            round(float(position[1]), 9),
-            round(float(position[2]), 9),
+    signature = []
+    for position in positions:
+        if len(position) != 3:
+            raise RuntimeError("simulation produced a non-3D particle position")
+        signature.append(
+            (
+                round(float(position[0]), 9),
+                round(float(position[1]), 9),
+                round(float(position[2]), 9),
+            )
         )
-        for index, position in enumerate(positions)
-    )
+    return tuple(signature)
 
 
 def _position_signature_digest(signature):
