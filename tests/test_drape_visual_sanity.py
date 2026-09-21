@@ -1,7 +1,8 @@
 import unittest
 
 from freecad_cloth.common.DrapeFailureClassifier import classify_drape, summarize_classification
-from freecad_cloth.common.DrapeVisualSanity import inspect_drape, summarize
+from freecad_cloth.common.DrapeVisualSanity import inspect_drape, seam_correspondence_gap, summarize
+from freecad_cloth.common.MeshValidation import validate_mesh
 
 
 class DrapeVisualSanityTests(unittest.TestCase):
@@ -62,6 +63,37 @@ class DrapeVisualSanityTests(unittest.TestCase):
         result = inspect_drape(garment, self.target, target_height=1750.0, target_width=200.0)
         self.assertEqual(result.state, "detached-candidate")
         self.assertGreater(result.target_vertex_clearance, 100.0)
+
+    def test_clean_canonical_style_mesh_has_one_component(self):
+        vertices = (
+            (-140.0, -90.0, 250.0), (140.0, -90.0, 250.0),
+            (-140.0, 90.0, 1500.0), (140.0, 90.0, 1500.0),
+        )
+        triangles = ((0, 1, 2), (1, 3, 2))
+        result = validate_mesh(vertices, triangles, prefer_trimesh=False)
+        self.assertEqual(result.components, 1)
+        self.assertTrue(result.finite)
+
+    def test_fragmented_geometry_has_two_components(self):
+        vertices = (
+            (0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0),
+            (100.0, 0.0, 0.0), (101.0, 0.0, 0.0), (100.0, 1.0, 0.0),
+        )
+        triangles = ((0, 1, 2), (3, 4, 5))
+        result = validate_mesh(vertices, triangles, prefer_trimesh=False)
+        self.assertEqual(result.components, 2)
+
+    def test_seam_correspondence_is_clean_for_matching_canonical_edges(self):
+        boundary = (
+            (0.0, 0.0, 0.0), (100.0, 0.0, 0.0),
+            (100.0, 100.0, 0.0), (0.0, 100.0, 0.0),
+        )
+        self.assertEqual(seam_correspondence_gap(boundary, boundary, 0, 0), 0.0)
+
+    def test_seam_correspondence_detects_obvious_detachment(self):
+        left = ((0.0, 0.0, 0.0), (100.0, 0.0, 0.0))
+        right = ((250.0, 0.0, 0.0), (350.0, 0.0, 0.0))
+        self.assertEqual(seam_correspondence_gap(left, right, 0, 0), 250.0)
 
     def test_summary_is_stable(self):
         result = inspect_drape(((0.0, 0.0, 0.0), (10.0, 0.0, 10.0)), self.target)
