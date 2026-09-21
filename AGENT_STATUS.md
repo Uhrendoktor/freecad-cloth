@@ -6,10 +6,10 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `2e1601125b83c55e40fb48d109be4e4b58961f61` (current canonical product state; includes the #553 explicit missing-drape-target diagnostic fix).
-- Recent merged work: Python 3.12 / FreeCAD 1.1.0 CI baseline, restored GUI screenshot/GIF export, avatar and simulation turntables, Sketcher-authoritative pattern import, sewing command-surface coverage, simulation-signature regression, MeshValidation disconnected-component fallback, Tissu audit seam mapping, diagnostic drape metrics, LGPL-2.1-or-later project licensing, and triangle-order topology-signature regression coverage.
-- Open implementation PRs requiring supervisor gates: none; PR #551 was squash-merged after canonical run #2042 passed both Python/non-GUI and Full tunic visual/simulation audit jobs.
-- PR #453 was closed without merge because its validated screenshots remained collapsed/edge-on and not production-ready.
+- Current main: `ed25f2044853025c2db844a91cb0116242583042` (merged narrow 8 mm clearance A/B for the canonical tunic fixture).
+- Latest merged work: PR #594 passed canonical run #2084 (`35551331000`) with both Python/non-GUI and Full tunic visual/simulation audit jobs green; artifact `10617779616` was directly reviewed across all six views and showed materially reduced side stand-off versus the 30 mm baseline, while remaining an incremental improvement rather than final visual sign-off.
+- Open implementation PRs requiring supervisor gates: #590, #593, #572, #581, #571 (all remain evidence-only/unmerged).
+- PR #453 was closed without merge because its validated screenshots remained collapsed/edge-on or not production-ready.
 - PR #438 remains diagnostic-only and must not merge.
 - Python package boundary: `freecad_cloth/` with `avatar`, `pattern`, `sewing`, `simulation`, `common`, `shared` subpackages
 - Root Python files: `Init.py`, `InitGui.py`, and interpreter-level `sitecustomize.py` only
@@ -34,7 +34,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - `trimesh` remains optional/lazy; CPU reference remains correctness baseline.
 - Tissu remains sandbox-only until runtime compatibility, constraint/collision parity, determinism, visual parity and performance are demonstrated.
 - Re-cut implementation branches from current `main`; one focused concern per PR.
-- Latest observed canonical result: PR #553 head `6531bfa8da91c987e90811b3b51d0cbadc2a3685` passed canonical run #2043 (`35538717589`) on 2026-09-20; both Python/non-GUI and Full tunic visual/simulation audit jobs passed and `tunic-visual-audit` artifact `10614295587` is retained. The PR was squash-merged to `main` as `2e1601125b83c55e40fb48d109be4e4b58961f61`. Human visual trust for #472 remains unresolved.
+- Latest observed canonical result: PR #594 head `1934c16936ccc45be2f10487ffcacaebbe7f8356` passed canonical run #2084 (`35551331000`) on 2026-09-21; both Python/non-GUI and Full tunic visual/simulation audit jobs passed and `tunic-visual-audit` artifact `10617779616` is retained. Human visual trust for #472 remains unresolved.
 
 ## Agent rules
 
