@@ -1,4 +1,5 @@
 """Canonical end-to-end FreeCAD garment acceptance for the Cloth workbenches."""
+import hashlib
 import math
 import os
 import tempfile
@@ -82,6 +83,34 @@ def _make_curved(piece, doc):
     if sketch.Shape.isNull() or piece.Shape.isNull():
         raise RuntimeError("curved pattern did not produce native geometry")
     return sketch
+
+
+def _position_signature(scene):
+    """Return the exact rounded solver particle-position sequence produced by the fixture."""
+    proxy = getattr(scene, "Proxy", None)
+    backend = getattr(proxy, "backend", None)
+    getter = getattr(backend, "positions", None)
+    if not callable(getter):
+        raise RuntimeError("simulation backend did not expose positions for determinism evidence")
+    positions = tuple(getter())
+    if not positions:
+        raise RuntimeError("simulation produced no particle positions for determinism evidence")
+    signature = []
+    for position in positions:
+        if len(position) != 3:
+            raise RuntimeError("simulation produced a non-3D particle position")
+        signature.append(
+            (
+                round(float(position[0]), 9),
+                round(float(position[1]), 9),
+                round(float(position[2]), 9),
+            )
+        )
+    return tuple(signature)
+
+
+def _position_signature_digest(signature):
+    return hashlib.sha256(repr(signature).encode("utf-8")).hexdigest()
 
 
 def run_acceptance():
@@ -195,6 +224,38 @@ def run_acceptance():
             reloaded.recompute()
             if int(scene.Steps) < 1 or not bool(scene.FiniteState):
                 raise RuntimeError("simulation did not rerun after save/reload and upstream invalidation")
+
+            first_signature = _position_signature(scene)
+            first_digest = _position_signature_digest(first_signature)
+            print(
+                "determinism-signature=first rounding=9 vertices=%d sha256=%s"
+                % (len(first_signature), first_digest),
+                flush=True,
+            )
+
+            Gui.runCommand("ClothSimulation_Reset", 0)
+            Gui.runCommand("ClothSimulation_Step", 0)
+            reloaded.recompute()
+            if int(scene.Steps) != 1 or not bool(scene.FiniteState):
+                raise RuntimeError("repeated deterministic simulation run did not produce a finite one-step state")
+
+            second_signature = _position_signature(scene)
+            second_digest = _position_signature_digest(second_signature)
+            if first_signature != second_signature:
+                raise RuntimeError(
+                    "repeated deterministic simulation run changed the rounded particle/mesh signature: "
+                    "first_sha256=%s second_sha256=%s" % (first_digest, second_digest)
+                )
+            print(
+                "determinism-signature=second rounding=9 vertices=%d sha256=%s"
+                % (len(second_signature), second_digest),
+                flush=True,
+            )
+            print(
+                "determinism-signature=passed rounding=9 vertices=%d sha256=%s"
+                % (len(second_signature), second_digest),
+                flush=True,
+            )
             App.closeDocument(reloaded.Name)
         print("canonical garment end-to-end acceptance passed", flush=True)
     finally:
