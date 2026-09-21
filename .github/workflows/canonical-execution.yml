@@ -136,6 +136,7 @@ jobs:
           test -s docs/images/generated/cloth-simulation-draped-bottom.png
           test -s docs/images/generated/cloth-simulation-draped-diagnostics.png
           grep -q 'diagnostic-map=passed metric=stress' docs/images/generated/gui-progress.log
+          grep -q 'diagnostic-stale-guard=passed' docs/images/generated/gui-progress.log
       - name: Upload tunic visual audit
         if: always()
         uses: actions/upload-artifact@v6
