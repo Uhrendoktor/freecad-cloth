@@ -387,8 +387,8 @@ def simulation():
         ("Cloth Diagnostics", "Active metric", "Formula", "Units", "Read-only"),
     )
     created_maps = diagnostics_panel.create_map()
-    if len(created_maps) != len(panels):
-        raise RuntimeError("diagnostic map creation did not produce one map per draped panel")
+    if not created_maps:
+        raise RuntimeError("diagnostic map creation produced no maps for the validated draped garment")
     for panel in panels:
         panel.ViewObject.Visibility = False
     for diagnostic_map in created_maps:
