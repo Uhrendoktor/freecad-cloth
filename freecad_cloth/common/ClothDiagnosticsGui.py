@@ -20,6 +20,24 @@ def _scene(doc):
     return next((obj for obj in doc.Objects if getattr(obj, "Type", "") == "ClothSimulation"), None)
 
 
+def _target_finite(target):
+    source = getattr(target, "SourceObject", None)
+    mesh = getattr(source, "Mesh", None)
+    topology = getattr(mesh, "Topology", None) if mesh is not None else None
+    if topology is None:
+        return True
+    try:
+        from math import isfinite
+        vertices, _triangles = topology
+        return all(
+            isfinite(float(getattr(point, axis)))
+            for point in vertices
+            for axis in ("x", "y", "z")
+        )
+    except (AttributeError, TypeError, ValueError):
+        return False
+
+
 def _diagnostic_guard(scene):
     """Return the validated simulation/target state required by diagnostics."""
     if scene is None:
