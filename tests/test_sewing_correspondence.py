@@ -11,6 +11,7 @@ from freecad_cloth.sewing.SewingCorrespondence import (
     STATUS_REVERSED,
     STATUS_VALID,
     analyze_correspondence,
+    arc_length_vertex_parameters,
     correspondence_samples,
     map_parameter,
 )
@@ -55,6 +56,18 @@ def test_partial_ranges_map_proportionally():
 def test_samples_are_deterministic_and_include_endpoints():
     expected = ((0.2, 0.8), (0.4, 0.6), (0.6, 0.4), (0.8, 0.2))
     assert correspondence_samples(4, 0.2, 0.8, 0.2, 0.8, True) == pytest.approx(expected)
+
+
+def test_arc_length_vertex_sampling_uses_physical_distance_not_vertex_index():
+    points_a = ((0.0, 0.0), (1.0, 0.0), (9.0, 0.0), (10.0, 0.0))
+    points_b = ((0.0, 0.0), (5.0, 0.0), (10.0, 0.0))
+    assert arc_length_vertex_parameters(points_a, 3) == pytest.approx((0.0, 1.0 / 3.0, 1.0))
+    assert arc_length_vertex_parameters(points_b, 3) == pytest.approx((0.0, 0.5, 1.0))
+
+
+def test_recovery_text_is_shared_and_deterministic():
+    report = analyze_correspondence(100.0, 120.0, length_tolerance=0.05)
+    assert report.recovery == "Adjust seam ranges or use an explicit easing/repair action; do not silently retarget geometry."
 
 
 def test_bad_length_inputs_are_rejected():
