@@ -13,6 +13,7 @@ from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_para
 from freecad_cloth.pattern.PatternModel import Seam
 from freecad_cloth.pattern.PatternObjects import add_seam
 from freecad_cloth.sewing.SewingObjects import add_sewing_operation
+from freecad_cloth.sewing.SewingNetwork import SewingMember, analyze_network_correspondence, build_mn_seams
 from freecad_cloth.sewing.SewingGui import SewingTaskPanel
 
 
@@ -20,6 +21,15 @@ def main():
     # Exercise the public workbench activation path before document operations.
     Gui.activateWorkbench("Cloth Sewing")
     assert Gui.activeWorkbench() == "Cloth Sewing", "Cloth Sewing workbench did not activate"
+
+    relation = build_mn_seams(
+        "smoke-mn",
+        [SewingMember("A", 0), SewingMember("A", 1)],
+        [SewingMember("B", 0)],
+        {("A", 0): 100.0, ("A", 1): 50.0, ("B", 0): 150.0},
+    )
+    assert len(relation) == 2
+    assert analyze_network_correspondence(relation).status == "valid"
 
     doc = App.newDocument("ClothSewingSmoke")
     try:
