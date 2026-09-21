@@ -12,18 +12,19 @@ os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
 
 # Use the known-stable tunic arrangement from the last passing visual audit.
 replacements = {
-    'clearance = max(20.0, 0.08 * body_depth);': 'clearance = max(30.0, 0.10 * body_depth);',
+    'clearance = max(20.0, 0.08 * body_depth);': 'clearance = max(8.0, 0.025 * body_depth);',
+    'chest = 980.0; hip = 1020.0; ease = 55.0;': 'chest = 860.0; hip = 880.0; ease = 10.0;',
+    'front_y = box.YMin - clearance; back_y = box.YMax + clearance;': 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
-        'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)',
-    'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):' :
-        'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
+        'front, front_outline = make_piece("VisualTunicFront", front_y, 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", back_y, 0.76, 0.12)',
+    'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):' :
+        'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
-    'for batch in (15,15,15,15,15,15):': 'for batch in (5,5,5):',
-    'if int(scene.Steps) != 90 or': 'if int(scene.Steps) != 15 or',
-    '"simulation did not reach a finite 90-step state"': '"simulation did not reach a finite 15-step state"',
-    'after 90 real steps;': 'after 15 real steps;',
+    'for batch in (15,15,15,15,15,15):': 'for batch in (40,40,40):',
+    'if int(scene.Steps) != 90 or': 'if int(scene.Steps) != 120 or',
+    '"simulation did not reach a finite 90-step state"': '"simulation did not reach a finite 120-step state"',
+    'after 90 real steps;': 'after 120 real steps;',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
-}
 for old, new in replacements.items():
     if old not in source:
         raise RuntimeError(f"audit replacement did not match source: {old}")
