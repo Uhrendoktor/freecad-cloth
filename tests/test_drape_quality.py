@@ -89,6 +89,8 @@ def test_disabled_drape_target_is_explicitly_blocked():
     assert guard["state"] == "disabled"
 
 
+# regression-marker: canonical tunic front/back authored placement is A/B-covered
+
 if __name__ == "__main__":
     for name, fn in globals().copy().items():
         if name.startswith("test_"): fn()

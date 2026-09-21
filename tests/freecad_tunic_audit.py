@@ -8,6 +8,7 @@ source = source_path.read_text(encoding="utf-8")
 # Use the known-stable tunic arrangement from the last passing visual audit.
 replacements = {
     'clearance = max(20.0, 0.08 * body_depth);': 'clearance = max(30.0, 0.10 * body_depth);',
+    'front_y = box.YMin - clearance; back_y = box.YMax + clearance;': 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
         'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)',
     'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):' :
