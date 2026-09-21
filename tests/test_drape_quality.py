@@ -107,6 +107,13 @@ def test_canonical_tunic_fixture_uses_narrow_panel_ease():
     fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "chest = 860.0; hip = 880.0; ease = 10.0" in fixture
 
+def test_canonical_tunic_fixture_uses_established_tunic_seam_mapping():
+    fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
+    expected = '((1,1,"TunicRightSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide"))'
+    assert expected in fixture
+    assert '((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide"))' not in fixture
+
+
 def test_canonical_tunic_fixture_uses_experimental_clearance_profile():
     fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "clearance = max(8.0, 0.025 * body_depth);" in fixture
