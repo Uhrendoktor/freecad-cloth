@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from freecad_cloth.common.ClothDiagnostics import analyze_mesh, fit_score, summarize
+from freecad_cloth.common.ClothDiagnostics import analyze_mesh, export_json, export_payload, fit_score, metric_definition, summarize
 
 
 def _triangle(scale=1.0, z=0.0):
@@ -63,3 +63,29 @@ def test_summary_is_stable_for_export():
     assert summary["faces"] == 1
     assert math.isclose(summary["pressure_max"], 12.0)
     assert summary["stress_max"] > 0
+
+
+def test_metric_definition_is_explicit_and_stable():
+    assert metric_definition("stress") == {
+        "formula": "|strain| / stretch_limit",
+        "units": "normalized utilization",
+    }
+    assert metric_definition("strain")["units"] == "dimensionless"
+
+
+def test_diagnostic_json_export_is_deterministic(tmp_path):
+    vertices = _triangle()
+    result = analyze_mesh(vertices, _triangle(scale=1.02), [(0, 1, 2)], pressures=(12.0,))
+    payload = export_payload(result)
+    first = tmp_path / "analysis.json"
+    second = tmp_path / "analysis-second.json"
+    export_json(result, first)
+    export_json(result, second)
+    assert first.read_text(encoding="utf-8") == second.read_text(encoding="utf-8")
+    assert payload["schema"] == 1
+    assert payload["metrics"]["stress"] == pytest.approx(result.stress)
+
+
+def test_unknown_metric_definition_fails_closed():
+    with pytest.raises(ValueError, match="unknown diagnostic metric"):
+        metric_definition("temperature")
