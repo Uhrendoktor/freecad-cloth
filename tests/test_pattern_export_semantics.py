@@ -51,6 +51,8 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics():
         "edge_ids": ["bottom", "right", "armhole", "left"],
         "piece_id": "bodice-front",
         "seam_ids": ["seam-neck", "seam-side"],
+        "scale": 1.0,
+        "seam_allowance_mm": 0.0,
         "notch_ids": ["notch-1"],
         "mark_ids": ["grain-1"],
     }
