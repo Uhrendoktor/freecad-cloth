@@ -226,6 +226,10 @@ class SewingOperationProxy:
         )
         if hasattr(obj, "CorrespondenceStatus"):
             obj.CorrespondenceStatus = correspondence.status
+        if hasattr(obj, "CorrespondenceMessage"):
+            obj.CorrespondenceMessage = correspondence.message
+        if hasattr(obj, "CorrespondenceRecovery"):
+            obj.CorrespondenceRecovery = correspondence.recovery
 
         obj.StitchCount = max(2, int(obj.Stitches))
         # Keep the legacy absolute-tolerance Status contract intact.  The
