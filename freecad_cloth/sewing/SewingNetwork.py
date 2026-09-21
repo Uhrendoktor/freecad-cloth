@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Iterable, List, Sequence, Tuple
 
 from freecad_cloth.pattern.PatternModel import Seam
-from freecad_cloth.sewing.SewingCorrespondence import analyze_correspondence
+from freecad_cloth.sewing.SewingCorrespondence import DEFAULT_RELATIVE_TOLERANCE, analyze_correspondence
 
 
 @dataclass(frozen=True)
@@ -188,13 +188,19 @@ class SewingNetworkProxy:
 
     def execute(self, obj):
         if "RelativeTolerance" not in getattr(obj, "PropertiesList", ()):
-            obj.addProperty("App::PropertyFloat", "RelativeTolerance", "Validation").RelativeTolerance = 0.05
+            obj.addProperty("App::PropertyFloat", "RelativeTolerance", "Validation").RelativeTolerance = DEFAULT_RELATIVE_TOLERANCE
         if "CorrespondenceStatus" not in getattr(obj, "PropertiesList", ()):
             obj.addProperty("App::PropertyString", "CorrespondenceStatus", "Validation").CorrespondenceStatus = "valid"
+        if "CorrespondenceSeverity" not in getattr(obj, "PropertiesList", ()):
+            obj.addProperty("App::PropertyString", "CorrespondenceSeverity", "Validation").CorrespondenceSeverity = "ok"
         if "CorrespondenceMessage" not in getattr(obj, "PropertiesList", ()):
             obj.addProperty("App::PropertyString", "CorrespondenceMessage", "Validation").CorrespondenceMessage = ""
         if "CorrespondenceRecovery" not in getattr(obj, "PropertiesList", ()):
             obj.addProperty("App::PropertyString", "CorrespondenceRecovery", "Validation").CorrespondenceRecovery = "No correspondence repair is required."
+    obj.setEditorMode("CorrespondenceStatus", 1)
+    obj.setEditorMode("CorrespondenceSeverity", 1)
+    obj.setEditorMode("CorrespondenceMessage", 1)
+    obj.setEditorMode("CorrespondenceRecovery", 1)
         seams = tuple(getattr(obj, "Seams", ()) or ())
         if hasattr(obj, "InvalidReason"):
             obj.InvalidReason = ""
@@ -244,14 +250,14 @@ class SewingNetworkProxy:
         obj.LengthA = total_a
         obj.LengthB = total_b
         obj.LengthDifference = abs(total_a - total_b)
-        tolerance = max(0.0, min(0.999999, float(getattr(obj, "RelativeTolerance", 0.05))))
+        tolerance = max(0.0, min(0.999999, float(getattr(obj, "RelativeTolerance", DEFAULT_RELATIVE_TOLERANCE))))
         correspondence = analyze_correspondence(total_a, total_b, length_tolerance=tolerance)
         obj.CorrespondenceStatus = correspondence.status
+        obj.CorrespondenceSeverity = correspondence.severity
         obj.CorrespondenceMessage = correspondence.message
         obj.CorrespondenceRecovery = correspondence.recovery
-        obj.Status = "Valid" if correspondence.valid else "Length mismatch"
-        if hasattr(obj, "InvalidReason") and not correspondence.valid:
-            obj.InvalidReason = correspondence.message + " | " + correspondence.recovery
+        absolute_tolerance = max(0.0, float(getattr(obj, "Tolerance", 0.5)))
+        obj.Status = "Valid" if obj.LengthDifference <= absolute_tolerance else "Length mismatch"
 
 
 def add_sewing_network(doc, seams, relationship_id, name="SewingNetwork"):
@@ -274,6 +280,7 @@ def add_sewing_network(doc, seams, relationship_id, name="SewingNetwork"):
     obj.addProperty("App::PropertyLength", "Tolerance", "Validation").Tolerance = 0.5
     obj.addProperty("App::PropertyFloat", "RelativeTolerance", "Validation").RelativeTolerance = 0.05
     obj.addProperty("App::PropertyString", "CorrespondenceStatus", "Validation").CorrespondenceStatus = "valid"
+    obj.addProperty("App::PropertyString", "CorrespondenceSeverity", "Validation").CorrespondenceSeverity = "ok"
     obj.addProperty("App::PropertyString", "CorrespondenceMessage", "Validation").CorrespondenceMessage = ""
     obj.addProperty("App::PropertyString", "CorrespondenceRecovery", "Validation").CorrespondenceRecovery = "No correspondence repair is required."
     obj.addProperty("App::PropertyLength", "LengthA", "Validation").LengthA = 0.0
