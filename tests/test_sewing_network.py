@@ -4,7 +4,7 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternModel import Seam
-from freecad_cloth.sewing.SewingNetwork import SewingMember, analyze_network_correspondence, build_mn_seams, network_invalid_reason
+from freecad_cloth.sewing.SewingNetwork import SewingMember, SewingNetworkProxy, build_mn_seams, network_invalid_reason
 
 
 def lengths(mapping):
@@ -73,16 +73,21 @@ class SewingNetworkTests(unittest.TestCase):
                 lengths({("A", 0): 10, ("A2", 1): 10, ("B", 0): 20}),
             )
 
-    def test_network_correspondence_uses_the_same_relative_contract(self):
-        seams = build_mn_seams(
-            "rel-report",
-            [SewingMember("A", 0)],
-            [SewingMember("B", 0)],
-            lengths({("A", 0): 100, ("B", 0): 120}),
-        )
-        report = analyze_network_correspondence(seams, length_tolerance=0.05)
-        self.assertEqual(report.status, "length_mismatch")
-        self.assertIn("16.67%", report.message)
+    def test_network_proxy_uses_common_correspondence_contract(self):
+        seam = _SeamStatus("rel-1-1", "Valid")
+        seam.StitchGroup = "rel"
+        network = type("Network", (), {
+            "Seams": (seam,),
+            "RelationshipId": "rel",
+            "RelativeTolerance": 0.05,
+            "PropertiesList": ["RelativeTolerance", "CorrespondenceStatus", "CorrespondenceMessage", "CorrespondenceRecovery"],
+        })()
+        from unittest.mock import patch
+        with patch("freecad_cloth.sewing.SewingNetwork._network_lengths", return_value=(100.0, 120.0)):
+            SewingNetworkProxy().execute(network)
+        self.assertEqual(network.CorrespondenceStatus, "length_mismatch")
+        self.assertIn("16.67%", network.CorrespondenceMessage)
+        self.assertIn("Adjust seam ranges", network.CorrespondenceRecovery)
 
     def test_invalid_member_status_is_deterministic_and_user_visible(self):
         seam = _SeamStatus("rel-1-1-1", "Changed reference")

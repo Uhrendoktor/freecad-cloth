@@ -168,12 +168,6 @@ def _network_lengths(seams):
     return total_a, total_b
 
 
-def analyze_network_correspondence(seams, length_tolerance=0.05):
-    """Classify a persisted sewing network with the common correspondence contract."""
-    total_a, total_b = _network_lengths(seams)
-    return analyze_correspondence(total_a, total_b, length_tolerance=float(length_tolerance))
-
-
 def network_invalid_reason(seams):
     """Return a deterministic user-facing reason when a member seam is invalid."""
     invalid = []
@@ -193,6 +187,14 @@ class SewingNetworkProxy:
     Type = "ClothSewingNetwork"
 
     def execute(self, obj):
+        if "RelativeTolerance" not in getattr(obj, "PropertiesList", ()):
+            obj.addProperty("App::PropertyFloat", "RelativeTolerance", "Validation").RelativeTolerance = 0.05
+        if "CorrespondenceStatus" not in getattr(obj, "PropertiesList", ()):
+            obj.addProperty("App::PropertyString", "CorrespondenceStatus", "Validation").CorrespondenceStatus = "valid"
+        if "CorrespondenceMessage" not in getattr(obj, "PropertiesList", ()):
+            obj.addProperty("App::PropertyString", "CorrespondenceMessage", "Validation").CorrespondenceMessage = ""
+        if "CorrespondenceRecovery" not in getattr(obj, "PropertiesList", ()):
+            obj.addProperty("App::PropertyString", "CorrespondenceRecovery", "Validation").CorrespondenceRecovery = "No correspondence repair is required."
         seams = tuple(getattr(obj, "Seams", ()) or ())
         if hasattr(obj, "InvalidReason"):
             obj.InvalidReason = ""
