@@ -82,3 +82,13 @@ def test_invalid_target_mesh_is_rejected():
     source = SimpleNamespace(Mesh=SimpleNamespace(Topology=([point], [])))
     target = SimpleNamespace(SourceObject=source)
     assert ClothDiagnosticsGui._target_finite(target) is False
+
+def test_nonfinite_simulation_state_is_blocked():
+    scene = SimpleNamespace(
+        FiniteState=False,
+        SimulationState="READY_FOR_SIMULATION",
+        Steps=10,
+        DrapeTarget=SimpleNamespace(),
+    )
+    with pytest.raises(RuntimeError, match="invalid/non-finite"):
+        ClothDiagnosticsGui._diagnostic_guard(scene)
