@@ -1,6 +1,8 @@
 """FreeCAD-facing deterministic cloth simulation scene objects."""
 import ast
 
+from freecad_cloth.sewing.SewingCorrespondence import arc_length_vertex_indices
+
 
 def _mesh_object(doc, name, label):
     import Mesh
@@ -171,9 +173,12 @@ def _mesh_constraints(positions, triangles):
     return constraints
 
 
-def _sample_boundary(values, start, end, count):
+def _sample_boundary(values, start, end, count, points=None):
     if len(values) < 2:
         raise ValueError("seam edge requires at least two boundary vertices")
+    if points is not None:
+        selected = arc_length_vertex_indices(values, points, count, start, end)
+        return [values[index] for index in selected]
     count = max(2, min(int(count), len(values)))
     result = []
     last = len(values) - 1
@@ -200,8 +205,8 @@ def _seam_pairs(doc, panel_data, seam_samples=8):
         ea, eb = int(seam.EdgeA), int(seam.EdgeB)
         if ea >= len(data_a["boundary_edges"]) or eb >= len(data_b["boundary_edges"]):
             continue
-        va = _sample_boundary(data_a["boundary_edges"][ea], seam.StartA, seam.EndA, seam_samples)
-        vb = _sample_boundary(data_b["boundary_edges"][eb], seam.StartB, seam.EndB, seam_samples)
+        va = _sample_boundary(data_a["boundary_edges"][ea], seam.StartA, seam.EndA, seam_samples, data_a["boundary_points"][ea])
+        vb = _sample_boundary(data_b["boundary_edges"][eb], seam.StartB, seam.EndB, seam_samples, data_b["boundary_points"][eb])
         if bool(getattr(seam, "ReversedB", False)):
             vb.reverse()
         pairs.extend(zip(va, vb))
@@ -279,7 +284,17 @@ class SimulationProxy:
             triangles = tuple(tuple(a + offset for a in tri) for tri in triangles)
             triangles_global.extend(triangles)
             edges = tuple((boundary[i] + offset, boundary[(i + 1) % len(boundary)] + offset) for i in range(len(boundary)))
-            panel_data[piece] = {"offset": offset, "vertex_count": len(vertices), "boundary_edges": edges, "triangles": triangles}
+            boundary_points = tuple(
+                tuple(positions[index] for index in edge)
+                for edge in edges
+            )
+            panel_data[piece] = {
+                "offset": offset,
+                "vertex_count": len(vertices),
+                "boundary_edges": edges,
+                "boundary_points": boundary_points,
+                "triangles": triangles,
+            }
             panel = panels[index] if index < len(panels) else self._ensure_panel(obj.Document, index)
             panel.Label = f"Drape: {piece.Label}"
         if len(panels) < len(pieces):
