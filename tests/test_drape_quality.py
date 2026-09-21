@@ -94,12 +94,12 @@ def test_canonical_tunic_audit_uses_mesh_collision_and_turntable_profile():
     expected = (
         'os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"',
         '((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):',
-        '((1,1,"TunicRightSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
+        '((2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder")):',
         'scene.PinSelection = [str(i) for i in front_pins]',
         'target_point = piece.Placement.multVec(App.Vector(float(target_x), float(target_y), 0.0))',
-        "'scene.ParticleDistance = 24.0;': 'scene.ParticleDistance = 18.0;',",
-        "'scene.SolverSubsteps = 1;': 'scene.SolverSubsteps = 2;',",
-        "'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.78;',",
+        "'scene.ParticleDistance = 24.0;': 'scene.ParticleDistance = 22.0;',",
+        "'scene.SolverSubsteps = 1;': 'scene.SolverSubsteps = 1;',",
+        "'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.80;',",
         "'if int(scene.Steps) != 90 or': 'if int(scene.Steps) != 120 or',"
     )
     assert all(marker in audit for marker in expected)
