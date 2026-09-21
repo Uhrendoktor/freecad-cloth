@@ -58,6 +58,9 @@ def _diagnostic_guard(scene):
         raise RuntimeError("Diagnostics unavailable: cannot inspect DrapeTarget: %s" % exc) from exc
     if status["state"] != "ready":
         raise RuntimeError("Diagnostics unavailable: %s" % status["message"])
+    target = getattr(scene, "DrapeTarget", None)
+    if target is not None and not _target_finite(target):
+        raise RuntimeError("Diagnostics unavailable: DrapeTarget contains non-finite geometry")
     proxy = getattr(scene, "Proxy", None)
     backend = getattr(proxy, "backend", None)
     finite = getattr(backend, "finite", None)
