@@ -251,8 +251,8 @@ def write_seam_coherence_metrics(scene):
         local_b = _sample_boundary(edges_b[edge_b], float(getattr(seam, "StartB", 0.0)), float(getattr(seam, "EndB", 1.0)), sample_count)
         if bool(getattr(seam, "ReversedB", False)):
             local_b.reverse()
-        offset_a = getattr(getattr(proxy, "panel_indices", {}), "get", lambda *_: None)(panels[str(piece_a.PieceId)].Name)
-        offset_b = getattr(getattr(proxy, "panel_indices", {}), "get", lambda *_: None)(panels[str(piece_b.PieceId)].Name)
+        offset_a = getattr(base, "panel_indices", {}).get(panels[str(piece_a.PieceId)].Name)
+        offset_b = getattr(base, "panel_indices", {}).get(panels[str(piece_b.PieceId)].Name)
         if not offset_a or not offset_b:
             record.update({"state": "unavailable", "reason": "final panel particle index map is unavailable"})
             seam_records.append(record)
