@@ -200,9 +200,9 @@ class DiagnosticsTaskPanel:
 
         self.metric = QtWidgets.QComboBox()
         self.metric.addItems(("stress", "strain", "fit", "pressure"))
-        layout.addWidget(self.metric)
 
         info = QtWidgets.QFormLayout()
+        info.addRow("Active metric", self.metric)
         self.formula = QtWidgets.QLabel()
         self.formula.setWordWrap(True)
         self.units = QtWidgets.QLabel()
