@@ -13,7 +13,6 @@ from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_para
 from freecad_cloth.pattern.PatternModel import Seam
 from freecad_cloth.pattern.PatternObjects import add_seam
 from freecad_cloth.sewing.SewingObjects import add_sewing_operation
-from freecad_cloth.sewing.SewingNetwork import add_sewing_network
 from freecad_cloth.sewing.SewingGui import SewingTaskPanel
 
 
@@ -75,6 +74,10 @@ def main():
         assert bool(operation.ReversedB) is True
         assert operation.Status == "Valid"
         assert len(operation.StitchPoints) == 16
+        assert str(operation.CorrespondenceStatus) == "reversed"
+        assert str(operation.CorrespondenceSeverity) == "warning"
+        assert abs(float(operation.RelativeTolerance) - 0.05) < 1e-9
+        assert str(operation.CorrespondenceMessage) == "seam correspondence is valid with B reversed"
 
         # Accepted task-panel edits must form one native FreeCAD undo step.
         if hasattr(doc, "undo") and hasattr(doc, "redo"):
@@ -126,6 +129,9 @@ def main():
             assert str(restored_seam.Status) == "Valid"
             assert restored.Status == "Valid"
             assert len(restored.StitchPoints) == 16
+            assert str(restored.CorrespondenceStatus) == "reversed"
+            assert str(restored.CorrespondenceSeverity) == "warning"
+            assert str(restored.CorrespondenceMessage) == "seam correspondence is valid with B reversed"
             assert restored.Seam is not None
             assert restored.PieceA is not None and restored.PieceB is not None
             print("FreeCAD sewing task transaction, semantic persistence, invalidation, and workbench activation smoke test passed", flush=True)
