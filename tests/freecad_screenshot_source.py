@@ -1,5 +1,6 @@
 """Deterministic FreeCAD GUI acceptance and six-side cloth visual audit."""
 import importlib.util
+import math
 import json
 import os
 import sys
@@ -133,8 +134,20 @@ def _mesh_points(mesh):
     return tuple((float(p.x), float(p.y), float(p.z)) for p in vertices)
 
 
+def _mesh_topology(mesh):
+    topology = getattr(mesh, "Topology", None)
+    if topology is None:
+        return (), ()
+    vertices, triangles = topology
+    points = tuple((float(p.x), float(p.y), float(p.z)) for p in vertices)
+    faces = tuple(tuple(int(index) for index in triangle) for triangle in triangles)
+    return points, faces
+
+
 def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=None):
+    from freecad_cloth.common.DrapeFailureClassifier import classify_drape, summarize_classification
     from freecad_cloth.common.DrapeVisualSanity import inspect_drape, summarize
+    from freecad_cloth.common.MeshValidation import validate_mesh
     avatar_vertices = _mesh_points(getattr(avatar, "Mesh", None)); box = avatar.Mesh.BoundBox
     target_height = float(box.ZMax - box.ZMin)
     target_width = float(max(box.XMax - box.XMin, box.YMax - box.YMin))
@@ -146,9 +159,22 @@ def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=No
     lower_margin = 0.20 * max(1.0, float(shoulder_z) - float(hem_z))
     records = []
     for panel in panels:
-        vertices = _mesh_points(getattr(panel, "Mesh", None))
+        vertices, triangles = _mesh_topology(getattr(panel, "Mesh", None))
         metrics = inspect_drape(vertices, avatar_vertices, target_height=target_height, target_width=target_width)
-        record = {"panel": str(getattr(panel, "Label", getattr(panel, "Name", ""))), **summarize(metrics)}
+        validation = validate_mesh(vertices, triangles, prefer_trimesh=False)
+        classification = classify_drape(metrics, components=validation.components, target_width=target_width)
+        record = {
+            "panel": str(getattr(panel, "Label", getattr(panel, "Name", ""))),
+            **summarize(metrics),
+            "mesh_validation": {
+                "vertices": validation.vertices,
+                "faces": validation.faces,
+                "components": validation.components,
+                "finite": validation.finite,
+                "degenerate_faces": validation.degenerate_faces,
+            },
+            "classification": summarize_classification(classification),
+        }
         diagnostics = []
         if not metrics.finite:
             raise RuntimeError("draped panel %s contains non-finite geometry" % record["panel"])
@@ -173,6 +199,96 @@ def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=No
         log("drape-metrics=%s" % json.dumps(record, sort_keys=True))
     with open(METRICS, "w", encoding="utf-8") as handle:
         json.dump({"target_height": target_height, "target_width": target_width, "shoulder_z": shoulder_z, "hem_z": hem_z, "panels": records}, handle, indent=2, sort_keys=True)
+    return records
+
+
+def write_seam_coherence_metrics(scene):
+    from freecad_cloth.common.DrapeVisualSanity import maximum_correspondence_gap
+    from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
+    from freecad_cloth.simulation.SimulationObjects import _sample_boundary
+
+    proxy = getattr(scene, "Proxy", None)
+    base_or_restore = getattr(proxy, "_base_or_restore", None)
+    base = base_or_restore() if callable(base_or_restore) else proxy
+    backend = getattr(base, "backend", None)
+    if backend is None or not hasattr(backend, "positions"):
+        raise RuntimeError("final drape backend positions are unavailable for seam coherence evidence")
+    positions = tuple(tuple(float(c) for c in point) for point in backend.positions())
+    pieces = {str(piece.PieceId): piece for piece in getattr(scene, "ClothPieces", ())}
+    panels = {str(piece.PieceId): panel for piece, panel in zip(getattr(scene, "ClothPieces", ()), getattr(scene, "DrapePanels", ())) }
+    sample_count = max(2, int(getattr(scene, "StitchSamples", 8)))
+    seam_records = []
+    doc = getattr(scene, "Document", None)
+    for seam in getattr(doc, "Objects", ()) if doc is not None else ():
+        seam_id = str(getattr(seam, "SeamId", "")).strip()
+        if not seam_id:
+            continue
+        piece_a = pieces.get(str(getattr(seam, "PieceA", "")))
+        piece_b = pieces.get(str(getattr(seam, "PieceB", "")))
+        record = {
+            "id": seam_id,
+            "piece_a": str(getattr(seam, "PieceA", "")),
+            "piece_b": str(getattr(seam, "PieceB", "")),
+            "edge_a": int(getattr(seam, "EdgeA", -1)),
+            "edge_b": int(getattr(seam, "EdgeB", -1)),
+            "reversed_b": bool(getattr(seam, "ReversedB", False)),
+            "sample_count": 0,
+        }
+        if piece_a is None or piece_b is None or str(piece_a.PieceId) not in panels or str(piece_b.PieceId) not in panels:
+            record.update({"state": "unavailable", "reason": "seam references pieces outside the final drape scene"})
+            seam_records.append(record)
+            continue
+        _pa, _ta, boundary_a = quality_piece_mesh(piece_a, 0.0, float(scene.ParticleDistance))
+        _pb, _tb, boundary_b = quality_piece_mesh(piece_b, 0.0, float(scene.ParticleDistance))
+        edges_a = tuple((boundary_a[i], boundary_a[(i + 1) % len(boundary_a)]) for i in range(len(boundary_a)))
+        edges_b = tuple((boundary_b[i], boundary_b[(i + 1) % len(boundary_b)]) for i in range(len(boundary_b)))
+        edge_a = int(getattr(seam, "EdgeA", -1)); edge_b = int(getattr(seam, "EdgeB", -1))
+        if not (0 <= edge_a < len(edges_a) and 0 <= edge_b < len(edges_b)):
+            record.update({"state": "unavailable", "reason": "authored seam edge is outside the final drape boundary"})
+            seam_records.append(record)
+            continue
+        local_a = _sample_boundary(edges_a[edge_a], float(getattr(seam, "StartA", 0.0)), float(getattr(seam, "EndA", 1.0)), sample_count)
+        local_b = _sample_boundary(edges_b[edge_b], float(getattr(seam, "StartB", 0.0)), float(getattr(seam, "EndB", 1.0)), sample_count)
+        if bool(getattr(seam, "ReversedB", False)):
+            local_b.reverse()
+        offset_a = getattr(getattr(proxy, "panel_indices", {}), "get", lambda *_: None)(panels[str(piece_a.PieceId)].Name)
+        offset_b = getattr(getattr(proxy, "panel_indices", {}), "get", lambda *_: None)(panels[str(piece_b.PieceId)].Name)
+        if not offset_a or not offset_b:
+            record.update({"state": "unavailable", "reason": "final panel particle index map is unavailable"})
+            seam_records.append(record)
+            continue
+        global_a = [int(offset_a[0]) + int(index) for index in local_a]
+        global_b = [int(offset_b[0]) + int(index) for index in local_b]
+        points_a = [positions[index] for index in global_a if 0 <= index < len(positions)]
+        points_b = [positions[index] for index in global_b if 0 <= index < len(positions)]
+        gap = maximum_correspondence_gap(points_a, points_b)
+        gaps = [math.dist(a, b) for a, b in zip(points_a, points_b)]
+        record.update({
+            "state": "measured",
+            "sample_count": len(points_a),
+            "correspondence_gaps_mm": gaps,
+            "max_correspondence_gap_mm": gap,
+            "mean_correspondence_gap_mm": (sum(gaps) / len(gaps)) if gaps else 0.0,
+        })
+        seam_records.append(record)
+    measured = [float(record["max_correspondence_gap_mm"]) for record in seam_records if record.get("state") == "measured"]
+    evidence = {
+        "seam_count": len(seam_records),
+        "measured_seam_count": len(measured),
+        "max_correspondence_gap_mm": max(measured, default=0.0),
+        "seams": seam_records,
+    }
+    try:
+        with open(METRICS, encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, ValueError) as exc:
+        raise RuntimeError("drape metrics artifact is unavailable for seam coherence evidence") from exc
+    payload["seam_coherence"] = evidence
+    with open(METRICS, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+    log("seam-coherence=%s" % json.dumps(evidence, sort_keys=True))
+    return evidence
+
 
 def _make_tunic_sketch(doc, name, panel_width, garment_height, hem_width, neckline_ratio, neckline_drop=0.08):
     import Part, Sketcher
@@ -300,12 +416,12 @@ def simulation():
         raise RuntimeError("simulation did not reach a finite 90-step state")
     if any(panel.Mesh.CountFacets <= 10 for panel in scene.DrapePanels):
         raise RuntimeError("draped tunic panel mesh is empty")
-    write_drape_metrics(panels, avatar, x_mid, shoulder_z=shoulder_z, hem_z=hem_z); bounds = []
+    write_drape_metrics(panels, avatar, x_mid, shoulder_z=shoulder_z, hem_z=hem_z); write_seam_coherence_metrics(scene); bounds = []
     for panel in scene.DrapePanels:
         b = panel.Mesh.BoundBox; bounds.append((b.XMin,b.XMax,b.YMin,b.YMax,b.ZMin,b.ZMax))
     log("drape-bounds=%s" % (bounds,)); task_dock.hide(); events()
     for direction, method_name in (("front","viewFront"),("rear","viewRear"),("left","viewLeft"),("right","viewRight"),("top","viewTop"),("bottom","viewBottom")):
-        getattr(view, method_name)(); view.fitAll(); events(); save("cloth-simulation-draped-%s.png" % direction, "Simulation Workbench draped %s" % direction, "same sewn tunic after 90 real steps; six-side audit from native Sketcher pattern sources")
+        getattr(view, method_name)(); view.fitAll(); events(); save("cloth-simulation-draped-%s.png" % direction, "Simulation Workbench draped %s" % direction, "same sewn tunic after %d real steps; six-side audit from native Sketcher pattern sources" % int(scene.Steps))
         if direction == "front":
             save("cloth-simulation-draped.png", "Simulation Workbench draped front", "legacy front screenshot alias; native Sketcher tunic source")
     task_dock.show(); task_dock.raise_(); events(); close_task(); App.closeDocument(doc.Name)
