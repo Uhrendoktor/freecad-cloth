@@ -80,7 +80,10 @@ class SewingNetworkTests(unittest.TestCase):
             "Seams": (seam,),
             "RelationshipId": "rel",
             "RelativeTolerance": 0.05,
-            "PropertiesList": ["RelativeTolerance", "CorrespondenceStatus", "CorrespondenceMessage", "CorrespondenceRecovery"],
+            "Tolerance": 0.5,
+            "Status": "Incomplete",
+            "CorrespondenceSeverity": "ok",
+            "PropertiesList": ["RelativeTolerance", "CorrespondenceStatus", "CorrespondenceSeverity", "CorrespondenceMessage", "CorrespondenceRecovery"],
         })()
         from unittest.mock import patch
         with patch("freecad_cloth.sewing.SewingNetwork._network_lengths", return_value=(100.0, 120.0)):
