@@ -2,7 +2,7 @@
 import ast
 from math import atan2, degrees, hypot
 
-from freecad_cloth.sewing.SewingCorrespondence import analyze_correspondence
+from freecad_cloth.sewing.SewingCorrespondence import DEFAULT_RELATIVE_TOLERANCE, analyze_correspondence
 
 
 def _outline_points(piece):
@@ -212,7 +212,7 @@ class SewingOperationProxy:
         obj.LengthDifference = abs(la - lb)
 
         relative_tolerance = max(
-            0.0, min(0.999999, float(getattr(obj, "RelativeTolerance", 0.05)))
+            0.0, min(0.999999, float(getattr(obj, "RelativeTolerance", DEFAULT_RELATIVE_TOLERANCE)))
         )
         correspondence = analyze_correspondence(
             la,
@@ -226,6 +226,8 @@ class SewingOperationProxy:
         )
         if hasattr(obj, "CorrespondenceStatus"):
             obj.CorrespondenceStatus = correspondence.status
+        if hasattr(obj, "CorrespondenceSeverity"):
+            obj.CorrespondenceSeverity = correspondence.severity
         if hasattr(obj, "CorrespondenceMessage"):
             obj.CorrespondenceMessage = correspondence.message
         if hasattr(obj, "CorrespondenceRecovery"):
@@ -266,6 +268,7 @@ def add_sewing_operation(doc, seam, piece_a, piece_b, name="SewingOperation"):
     obj.addProperty("App::PropertyLength", "Tolerance", "Validation").Tolerance = 0.5
     obj.addProperty("App::PropertyFloat", "RelativeTolerance", "Validation").RelativeTolerance = 0.05
     obj.addProperty("App::PropertyString", "CorrespondenceStatus", "Validation").CorrespondenceStatus = "valid"
+    obj.addProperty("App::PropertyString", "CorrespondenceSeverity", "Validation").CorrespondenceSeverity = "ok"
     obj.addProperty("App::PropertyString", "CorrespondenceMessage", "Validation").CorrespondenceMessage = ""
     obj.addProperty("App::PropertyString", "CorrespondenceRecovery", "Validation").CorrespondenceRecovery = "No correspondence repair is required."
     obj.addProperty("App::PropertyInteger", "Stitches", "Stitching").Stitches = 8
@@ -281,6 +284,7 @@ def add_sewing_operation(doc, seam, piece_a, piece_b, name="SewingOperation"):
     obj.setEditorMode("StitchGroup", 1)
     obj.setEditorMode("AssemblyPlacementB", 1)
     obj.setEditorMode("CorrespondenceStatus", 1)
+    obj.setEditorMode("CorrespondenceSeverity", 1)
     obj.Proxy = SewingOperationProxy()
     obj.Proxy.execute(obj)
     return obj
