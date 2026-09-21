@@ -89,6 +89,13 @@ def test_disabled_drape_target_is_explicitly_blocked():
     assert guard["state"] == "disabled"
 
 
+def test_canonical_tunic_audit_mesh_collision_fixture_markers():
+    audit = (Path(__file__).with_name("freecad_tunic_audit.py")).read_text(encoding="utf-8")
+    assert 'CLOTH_TISSU_COLLISION_MODE"] = "mesh"' in audit
+    assert 'TunicRightSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder"),(7,7,"TunicLeftSide"' in audit
+    assert "scene.PinSelection = [str(i) for i in front_pins]" in audit
+
+
 if __name__ == "__main__":
     for name, fn in globals().copy().items():
         if name.startswith("test_"): fn()
