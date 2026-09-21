@@ -18,7 +18,7 @@ replacements = {
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
         'front, front_outline = make_piece("VisualTunicFront", front_y, 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", back_y, 0.76, 0.12)',
     'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):' :
-        'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
+        'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.78;',
     'for batch in (15,15,15,15,15,15):': 'for batch in (40,40,40):',
     'if int(scene.Steps) != 90 or': 'if int(scene.Steps) != 120 or',
@@ -54,7 +54,7 @@ pin_replacement = '''    def authored_shoulder_pins(piece, outline, positions):
     front_pins = authored_shoulder_pins(front, front_outline, front_positions)
     scene.PinSelection = [str(i) for i in front_pins]
     log("pin-map front-shoulders=%s" % (front_pins,)); doc.recompute()
-'''
+    for source in (doc.getObject'''
 source, pin_count = pin_pattern.subn(pin_replacement, source, count=1)
 if pin_count != 1:
     raise RuntimeError("boundary pin patch did not match source")
@@ -97,7 +97,7 @@ seam_check = '''
         raise RuntimeError("Tissu backend returned no simulated particle positions")
     back_offset = len(front_positions)
     seam_gaps = []
-    for edge_a, edge_b in ((1, 1), (3, 3), (5, 5), (7, 7)):
+    for edge_a, edge_b in ((1, 1), (2, 6), (6, 2), (7, 7)):
         front_a0 = front_boundary[edge_a]
         front_a1 = front_boundary[(edge_a + 1) % len(front_boundary)]
         back_a0 = back_boundary[edge_b] + back_offset
