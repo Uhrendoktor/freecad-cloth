@@ -89,16 +89,12 @@ def test_disabled_drape_target_is_explicitly_blocked():
     assert guard["state"] == "disabled"
 
 
-def test_canonical_tunic_audit_keeps_validated_close_tissu_fixture_profile():
+def test_canonical_tunic_audit_uses_mesh_collision_and_front_only_four_seam_map():
     audit = (Path(__file__).with_name("freecad_tunic_audit.py")).read_text(encoding="utf-8")
     expected = (
         'os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"',
-        "'clearance = max(20.0, 0.08 * body_depth);': 'clearance = max(8.0, 0.025 * body_depth);',",
-        "'chest = 980.0; hip = 1020.0; ease = 55.0;': 'chest = 860.0; hip = 880.0; ease = 10.0;',",
-        "'front_y = box.YMin - clearance; back_y = box.YMax + clearance;': 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',",
-        '((1,1,"TunicRightSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder"),(7,7,"TunicLeftSide"))',
-        "'for batch in (15,15,15,15,15,15):': 'for batch in (40,40,40):',",
-        "'if int(scene.Steps) != 90 or': 'if int(scene.Steps) != 120 or',",
+        '((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):',
+        '((1,1,"TunicRightSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
         'scene.PinSelection = [str(i) for i in front_pins]',
     )
     assert all(marker in audit for marker in expected)
