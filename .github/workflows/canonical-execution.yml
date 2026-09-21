@@ -78,7 +78,7 @@ jobs:
                 tests/test_project_structure.py; do
                 python3 "$test"
               done
-              python3 -m pytest -q \
+              # Keep the M2 correspondence contract in the canonical Python gate.\n              python3 -m pytest -q \
                 tests/test_sewing_correspondence.py::test_arc_length_vertex_sampling_uses_physical_distance_not_vertex_index \
                 tests/test_sewing_correspondence.py::test_recovery_text_is_shared_and_deterministic \
                 tests/test_seam_graph.py::test_arc_length_stitch_mapping_ignores_nonuniform_boundary_vertex_density \
