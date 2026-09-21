@@ -19,7 +19,8 @@ replacements = {
     'for batch in (15,15,15,15,15,15):': 'for batch in (5,5,5):',
     'if int(scene.Steps) != 90 or': 'if int(scene.Steps) != 15 or',
     '"simulation did not reach a finite 90-step state"': '"simulation did not reach a finite 15-step state"',
-    'radius = max(120.0, min(240.0, 0.245 * width, 0.70 * depth))': 'radius = max(90.0, min(170.0, 0.16 * width, 0.48 * depth))',\n    'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
+    'radius = max(120.0, min(240.0, 0.245 * width, 0.70 * depth))': 'radius = max(90.0, min(170.0, 0.16 * width, 0.48 * depth))',
+    'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
 }
 for old, new in replacements.items():
     if old not in source:
