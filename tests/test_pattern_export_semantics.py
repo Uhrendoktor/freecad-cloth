@@ -5,7 +5,7 @@ from unittest import TestCase
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternDerivedGeometry import Notch, PatternMark, add_marks, add_notches, derive_cut_boundary
-from freecad_cloth.pattern.PatternExport import from_dxf_metadata, from_svg_metadata, to_dxf, to_svg, validate_export
+from freecad_cloth.pattern.PatternExport import export_pattern_piece, from_dxf_metadata, from_svg_metadata, to_dxf, to_svg, validate_export
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, QuadraticBezier
 
 
@@ -38,6 +38,8 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics():
         "edge_ids": ["bottom", "right", "armhole", "left"],
         "piece_id": "bodice-front",
         "seam_ids": ["seam-neck", "seam-side"],
+        "scale": 1.0,
+        "seam_allowance_mm": 0.0,
         "notch_ids": ["notch-1"],
         "mark_ids": ["grain-1"],
     }
