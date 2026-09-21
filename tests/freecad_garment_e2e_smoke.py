@@ -195,6 +195,27 @@ def run_acceptance():
             reloaded.recompute()
             if int(scene.Steps) < 1 or not bool(scene.FiniteState):
                 raise RuntimeError("simulation did not rerun after save/reload and upstream invalidation")
+
+            def position_signature():
+                return tuple(
+                    (round(float(vertex.Point.x), 9), round(float(vertex.Point.y), 9), round(float(vertex.Point.z), 9))
+                    for panel in getattr(scene, "DrapePanels", ())
+                    for vertex in getattr(getattr(panel, "Mesh", None), "Vertexes", ())
+                )
+
+            first_signature = position_signature()
+            Gui.runCommand("ClothSimulation_Reset", 0)
+            Gui.runCommand("ClothSimulation_Step", 0)
+            reloaded.recompute()
+            if int(scene.Steps) != 1 or not bool(scene.FiniteState):
+                raise RuntimeError("repeated deterministic simulation run did not produce a finite one-step state")
+            second_signature = position_signature()
+            if first_signature != second_signature:
+                raise RuntimeError("repeated deterministic simulation run changed the rounded particle/mesh signature")
+            print(
+                "determinism-signature=passed vertices=%d" % len(second_signature),
+                flush=True,
+            )
             App.closeDocument(reloaded.Name)
         print("canonical garment end-to-end acceptance passed", flush=True)
     finally:
