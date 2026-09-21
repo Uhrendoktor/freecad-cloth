@@ -378,7 +378,29 @@ def simulation():
         getattr(view, method_name)(); view.fitAll(); events(); save("cloth-simulation-draped-%s.png" % direction, "Simulation Workbench draped %s" % direction, "same sewn tunic after %d real steps; six-side audit from native Sketcher pattern sources" % int(scene.Steps))
         if direction == "front":
             save("cloth-simulation-draped.png", "Simulation Workbench draped front", "legacy front screenshot alias; native Sketcher tunic source")
-    task_dock.show(); task_dock.raise_(); events(); close_task(); App.closeDocument(doc.Name)
+    task_dock.show(); task_dock.raise_(); events(); close_task()
+    from freecad_cloth.common.ClothDiagnosticsGui import DiagnosticsTaskPanel
+    diagnostics_panel = DiagnosticsTaskPanel(scene)
+    diagnostics_dock = show_task(
+        diagnostics_panel,
+        "Cloth Diagnostics",
+        ("Cloth Diagnostics", "Formula", "Units", "Read-only"),
+    )
+    created_maps = diagnostics_panel.create_map()
+    if len(created_maps) != len(panels):
+        raise RuntimeError("diagnostic map creation did not produce one map per draped panel")
+    for panel in panels:
+        panel.ViewObject.Visibility = False
+    for diagnostic_map in created_maps:
+        diagnostic_map.ViewObject.Visibility = True
+    view.viewFront(); view.fitAll(); events()
+    save(
+        "cloth-diagnostic-stress.png",
+        "Cloth Diagnostics stress map",
+        "read-only stress utilization map over the validated draped tunic",
+    )
+    diagnostics_dock.show(); diagnostics_dock.raise_(); events()
+    close_task(); App.closeDocument(doc.Name)
 
 
 def main():
