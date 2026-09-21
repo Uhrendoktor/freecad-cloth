@@ -78,6 +78,7 @@ jobs:
                 tests/test_project_structure.py; do
                 python3 "$test"
               done
+              python3 -m pytest -q tests/test_sewing_correspondence.py tests/test_seam_graph.py
             '
 
   gui-tunic-visual:
@@ -93,7 +94,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Pull FreeCAD image
         run: docker pull "$FREECAD_IMAGE"
-      - name: Run native-Sketcher tunic audit
+      - name: Run sewing smoke and native-Sketcher tunic audit
         env:
           CLOTH_SIMULATION_BACKEND: tissu
           CLOTH_TISSU_SUBSTEPS: 10
@@ -118,6 +119,7 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 12); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 120s /opt/freecad/AppRun /workspace/tests/freecad_sewing_smoke.py | tee /workspace/docs/images/generated/freecad-sewing-smoke.log
               timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py
             '
       - name: Validate visual and simulation evidence
@@ -127,6 +129,8 @@ jobs:
           grep -q 'scenario-pass' docs/images/generated/gui-progress.log
           grep -q 'realtime-preview=passed backend=tissu' docs/images/generated/gui-progress.log
           grep -q 'drape-metrics=' docs/images/generated/gui-progress.log
+          test -s docs/images/generated/freecad-sewing-smoke.log
+          grep -q 'FreeCAD sewing task transaction, semantic persistence, invalidation, and workbench activation smoke test passed' docs/images/generated/freecad-sewing-smoke.log
           test -s docs/images/generated/cloth-simulation-draped.png
           test -s docs/images/generated/cloth-simulation-draped-front.png
           test -s docs/images/generated/cloth-simulation-draped-rear.png
@@ -143,6 +147,7 @@ jobs:
             docs/images/generated/cloth-simulation-draped*.png
             docs/images/generated/drape-visual-metrics.json
             docs/images/generated/gui-progress.log
+            docs/images/generated/freecad-sewing-smoke.log
             docs/images/generated/gui-screenshot-manifest.txt
           if-no-files-found: error
           compression-level: 1
