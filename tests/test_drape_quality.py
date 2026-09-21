@@ -93,3 +93,9 @@ if __name__ == "__main__":
     for name, fn in globals().copy().items():
         if name.startswith("test_"): fn()
     print("drape quality and target tests passed")
+
+
+def test_canonical_tunic_fixture_uses_crossed_shoulder_seams():
+    fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert '(1,1,"TunicRightSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder"),(7,7,"TunicLeftSide")' in fixture
+    assert 'back_pins = tuple(len(front_positions) + i for i in back_pins_local)' not in fixture
