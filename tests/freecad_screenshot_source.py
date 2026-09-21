@@ -125,16 +125,63 @@ def run_canonical_acceptance():
         load_and_run(os.path.join(ROOT, path), name); log(marker + "=passed")
 
 
-def _mesh_points(mesh):
+def _mesh_geometry(mesh):
     topology = getattr(mesh, "Topology", None)
     if topology is None:
-        return ()
-    vertices, _triangles = topology
-    return tuple((float(p.x), float(p.y), float(p.z)) for p in vertices)
+        return (), ()
+    vertices, triangles = topology
+    points = tuple((float(p.x), float(p.y), float(p.z)) for p in vertices)
+    faces = tuple(tuple(int(index) for index in triangle) for triangle in triangles)
+    return points, faces
 
 
-def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=None):
+def _mesh_points(mesh):
+    return _mesh_geometry(mesh)[0]
+
+
+def _boundary_points(panel, count):
+    points = panel.Mesh.Points
+    if len(points) < count:
+        raise RuntimeError("drape panel exposes fewer mesh points than pattern boundary vertices")
+    return tuple(points[i] for i in range(count))
+
+
+def _seam_coherence(panels, seam_records):
+    from freecad_cloth.common.DrapeVisualSanity import seam_correspondence_gap
+    if not seam_records:
+        return {"sample_count": 0, "seams": [], "max_correspondence_gap_mm": None}
+    front_points = _boundary_points(panels[0], 8)
+    back_points = _boundary_points(panels[1], 8)
+    sample_count = 5
+    records = []
+    maximum = 0.0
+    for seam, _, _ in seam_records:
+        gap = seam_correspondence_gap(
+            front_points,
+            back_points,
+            int(seam.EdgeA),
+            int(seam.EdgeB),
+            reversed_b=bool(getattr(seam, "ReversedB", False)),
+            start_a=float(getattr(seam, "StartA", 0.0)),
+            end_a=float(getattr(seam, "EndA", 1.0)),
+            start_b=float(getattr(seam, "StartB", 0.0)),
+            end_b=float(getattr(seam, "EndB", 1.0)),
+            samples=sample_count,
+        )
+        seam_id = str(getattr(seam, "SeamId", getattr(seam, "Label", "")))
+        records.append({"seam": seam_id, "max_correspondence_gap_mm": round(float(gap), 6)})
+        maximum = max(maximum, float(gap))
+    return {
+        "sample_count": sample_count,
+        "seams": records,
+        "max_correspondence_gap_mm": round(maximum, 6),
+    }
+
+
+def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=None, seam_records=()):
+    from freecad_cloth.common.DrapeFailureClassifier import classify_drape, summarize_classification
     from freecad_cloth.common.DrapeVisualSanity import inspect_drape, summarize
+    from freecad_cloth.common.MeshValidation import validate_mesh
     avatar_vertices = _mesh_points(getattr(avatar, "Mesh", None)); box = avatar.Mesh.BoundBox
     target_height = float(box.ZMax - box.ZMin)
     target_width = float(max(box.XMax - box.XMin, box.YMax - box.YMin))
@@ -146,8 +193,10 @@ def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=No
     lower_margin = 0.20 * max(1.0, float(shoulder_z) - float(hem_z))
     records = []
     for panel in panels:
-        vertices = _mesh_points(getattr(panel, "Mesh", None))
+        vertices, triangles = _mesh_geometry(getattr(panel, "Mesh", None))
         metrics = inspect_drape(vertices, avatar_vertices, target_height=target_height, target_width=target_width)
+        mesh_result = validate_mesh(vertices, triangles, prefer_trimesh=False)
+        classification = classify_drape(metrics, components=mesh_result.components, target_width=target_width)
         record = {"panel": str(getattr(panel, "Label", getattr(panel, "Name", ""))), **summarize(metrics)}
         diagnostics = []
         if not metrics.finite:
@@ -168,11 +217,21 @@ def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=No
             diagnostics.append("below-hem-candidate")
         if float(metrics.centroid[2]) > float(shoulder_z) + upper_margin:
             diagnostics.append("centroid-above-shoulder-candidate")
+        record["connected_components"] = int(mesh_result.components)
+        record["failure_classification"] = summarize_classification(classification)
         record["diagnostics"] = diagnostics
         records.append(record)
         log("drape-metrics=%s" % json.dumps(record, sort_keys=True))
+    payload = {
+        "target_height": target_height,
+        "target_width": target_width,
+        "shoulder_z": shoulder_z,
+        "hem_z": hem_z,
+        "panels": records,
+        "seam_coherence": _seam_coherence(panels, seam_records),
+    }
     with open(METRICS, "w", encoding="utf-8") as handle:
-        json.dump({"target_height": target_height, "target_width": target_width, "shoulder_z": shoulder_z, "hem_z": hem_z, "panels": records}, handle, indent=2, sort_keys=True)
+        json.dump(payload, handle, indent=2, sort_keys=True)
 
 def _make_tunic_sketch(doc, name, panel_width, garment_height, hem_width, neckline_ratio, neckline_drop=0.08):
     import Part, Sketcher
@@ -257,8 +316,12 @@ def simulation():
         sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot); piece.Sketch.Placement = piece.Placement; return piece, outline
     front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)
     # Same-side side seams and authored shoulder seams; the neckline remains open.
+    seam_records = []
     for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
-        add_seam(doc, Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))
+        seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")
+        add_seam(doc, seam)
+        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
+        seam_records.append((seam_obj, front, back))
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
     def authored_shoulder_pins(piece, positions):
         targets = (
@@ -300,12 +363,19 @@ def simulation():
         raise RuntimeError("simulation did not reach a finite 90-step state")
     if any(panel.Mesh.CountFacets <= 10 for panel in scene.DrapePanels):
         raise RuntimeError("draped tunic panel mesh is empty")
-    write_drape_metrics(panels, avatar, x_mid, shoulder_z=shoulder_z, hem_z=hem_z); bounds = []
+    write_drape_metrics(
+        panels,
+        avatar,
+        x_mid,
+        shoulder_z=shoulder_z,
+        hem_z=hem_z,
+        seam_records=seam_records,
+    ); bounds = []
     for panel in scene.DrapePanels:
         b = panel.Mesh.BoundBox; bounds.append((b.XMin,b.XMax,b.YMin,b.YMax,b.ZMin,b.ZMax))
     log("drape-bounds=%s" % (bounds,)); task_dock.hide(); events()
     for direction, method_name in (("front","viewFront"),("rear","viewRear"),("left","viewLeft"),("right","viewRight"),("top","viewTop"),("bottom","viewBottom")):
-        getattr(view, method_name)(); view.fitAll(); events(); save("cloth-simulation-draped-%s.png" % direction, "Simulation Workbench draped %s" % direction, "same sewn tunic after 90 real steps; six-side audit from native Sketcher pattern sources")
+        getattr(view, method_name)(); view.fitAll(); events(); save("cloth-simulation-draped-%s.png" % direction, "Simulation Workbench draped %s" % direction, "same sewn tunic after %d real steps; six-side audit from native Sketcher pattern sources" % int(scene.Steps))
         if direction == "front":
             save("cloth-simulation-draped.png", "Simulation Workbench draped front", "legacy front screenshot alias; native Sketcher tunic source")
     task_dock.show(); task_dock.raise_(); events(); close_task(); App.closeDocument(doc.Name)
