@@ -97,6 +97,14 @@ if __name__ == "__main__":
     print("drape quality and target tests passed")
 
 
+
+def test_canonical_tunic_fixture_uses_crossed_shoulder_only_seams():
+    fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert '((2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder"))' in fixture
+    assert "TunicRightSide" not in fixture
+    assert "TunicLeftSide" not in fixture
+
+
 def test_canonical_tunic_fixture_has_swapped_panel_placement():
     fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "front_y = box.YMax + clearance" in fixture
