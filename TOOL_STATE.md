@@ -6,12 +6,12 @@ repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_task: cloth-sewing-workbench-structure-and-roadmap
-current_main: ed25f2044853025c2db844a91cb0116242583042
+current_main: 35cb29db06e57fdf58a137fbe4e20279fb8225dd
 open_prs: []
 active_release_gates: [155, 278, 284, 298, 297, 145]
 queued_release_gates: [275, 162, 360]
 non_blocking: [148]
-closed_this_pass: [594, 590, 593, 572, 581, 571, 592, 495, 556, 560, 567, 563, 565, 568, 574, 578, 579, 580]
+closed_this_pass: [598, 595, 597, 594, 590, 593, 572, 581, 571, 592, 495, 556, 560, 567, 563, 565, 568, 574, 578, 579, 580]
 
 architecture:
   package_root: freecad_cloth/
@@ -42,15 +42,16 @@ workflow_contract:
   policy: preserve_existing_Docker_Xvfb_PNG_path; one canonical tunic visual audit; no_second_workflow
 
 latest_verified_ci:
-  run_id: 35551331000
-  run_number: 2084
-  commit: 1934c16936ccc45be2f10487ffcacaebbe7f8356
+  run_id: 35580478353
+  run_number: 2087
+  commit: 226fb38f2795450af42c6d2429dddc8c1429627f
   status: completed
   conclusion: success
   python_job: success
   gui_job: success
-  artifact_id: 10617779616
-  note: PR #594 merged to main as ed25f2044853025c2db844a91cb0116242583042 after six-view review found materially reduced side stand-off versus the 30 mm baseline; #472 human visual trust remains unresolved.
+  artifact_id: 10629862765
+  artifact_sha256: e6d420236b42407855d06624e41a532a1c46ae56990c31b496183a3f1c4266a7
+  note: PR #598 merged to main as 35cb29db06e57fdf58a137fbe4e20279fb8225dd after terminal-green canonical verification and direct six-view artifact inspection. Drape panels are finite with one connected component each; seam correspondence diagnostics report a maximum gap of 452.652642 mm. These measurements remain diagnostic-only; #472 visual trust remains unresolved.
 
 policy:
   - inspect_open_prs_and_issues_before_changes
@@ -62,9 +63,10 @@ policy:
   - recut_branches_from_current_main
 
 current_focus:
-  queue_cleanup: all open PRs are closed; active queue is #472 plus execution-required agent issues #555/#576/#585
+  queue_cleanup: #595 is complete and #597 was a duplicate supervisor PR closed without merge; no open implementation PR remains
   imports: package-qualified module namespace is authoritative
   structure: package-tree cleanup remains historical; current active release focus is M0 garment visual trust (#472)
-  ci_status: latest verified canonical run is 35551331000 (#2084) on PR head 1934c16936ccc45be2f10487ffcacaebbe7f8356; merged main head is ed25f2044853025c2db844a91cb0116242583042
-  visual_regression: canonical GUI audit is green; 8 mm authored clearance reduces stand-off but does not yet satisfy the human worn-garment gate.
+  ci_status: latest verified canonical run is 35580478353 (#2087) on PR head 226fb38f2795450af42c6d2429dddc8c1429627f; merged main head is 35cb29db06e57fdf58a137fbe4e20279fb8225dd
+  visual_regression: canonical GUI audit is green and all six drape views are present; both panels are connected/finite and classified structurally-plausible, while post-drape seam evidence exposes large correspondence gaps. #472 remains unresolved; do not resume blind fixture A/B churn.
+  next_supervisor_focus: localize post-drape seam/target coherence root cause from the canonical evidence without solver redesign, fixture A/B churn, or a second workflow.
 ```
