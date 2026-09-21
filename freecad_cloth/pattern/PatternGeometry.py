@@ -53,6 +53,14 @@ class PolylineSegment:
         if len(self.points) < 2:
             raise ValueError("polyline segment needs at least two points")
 
+    @property
+    def start(self) -> Point:
+        return self.points[0]
+
+    @property
+    def end(self) -> Point:
+        return self.points[-1]
+
     def point(self, t: float) -> Point:
         fraction = min(1.0, max(0.0, float(t)))
         lengths = [0.0]
