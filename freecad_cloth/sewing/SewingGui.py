@@ -45,7 +45,7 @@ def repair_correspondence_settings(seam, report):
         seam.StartB, seam.EndB = 0.0, 1.0
         return "invalid ranges reset to full seam edges"
     if report.status == "length_mismatch":
-        raise ValueError("length mismatch requires editing the pattern or seam ranges; it was not hidden by changing tolerance")
+        raise ValueError(report.recovery)
     return "seam correspondence is already valid"
 
 class SewingTaskPanel:
