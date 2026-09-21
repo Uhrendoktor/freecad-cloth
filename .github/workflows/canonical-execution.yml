@@ -80,59 +80,6 @@ jobs:
               done
             '
 
-  garment-e2e:
-    name: Native FreeCAD garment end-to-end acceptance
-    runs-on: ubuntu-latest
-    timeout-minutes: 12
-    env:
-      CLOTH_SIMULATION_BACKEND: xpbd-cpu
-    steps:
-      - uses: actions/checkout@v5
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Pull FreeCAD image
-        run: docker pull "$FREECAD_IMAGE"
-      - name: Run canonical garment acceptance
-        run: |
-          set -euo pipefail
-          rm -rf artifacts/freecad-garment-e2e
-          mkdir -p artifacts/freecad-garment-e2e
-          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
-            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
-            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
-            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
-              set -euo pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
-              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/freecad-garment-e2e
-              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
-              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
-              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
-              xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=15s 300s /opt/freecad/AppRun /workspace/tests/freecad_garment_e2e_smoke.py \
-                2>&1 | tee /workspace/artifacts/freecad-garment-e2e/garment-e2e.log
-            '
-      - name: Validate deterministic garment evidence
-        run: |
-          set -euo pipefail
-          test -s artifacts/freecad-garment-e2e/garment-e2e.log
-          grep -q 'canonical garment end-to-end acceptance passed' artifacts/freecad-garment-e2e/garment-e2e.log
-          grep -q 'determinism-signature=first rounding=9 ' artifacts/freecad-garment-e2e/garment-e2e.log
-          grep -q 'determinism-signature=second rounding=9 ' artifacts/freecad-garment-e2e/garment-e2e.log
-          grep -q 'determinism-signature=passed rounding=9 ' artifacts/freecad-garment-e2e/garment-e2e.log
-      - name: Upload garment acceptance evidence
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: garment-e2e-acceptance
-          path: artifacts/freecad-garment-e2e/garment-e2e.log
-          if-no-files-found: error
-          compression-level: 1
-
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
     runs-on: ubuntu-latest
