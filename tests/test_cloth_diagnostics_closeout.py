@@ -53,3 +53,26 @@ def test_disabled_target_is_blocked():
     )
     with pytest.raises(RuntimeError, match="Drape target is disabled"):
         ClothDiagnosticsGui._diagnostic_guard(scene)
+
+def test_fit_pressure_fixture_is_deterministic():
+    rest = ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0))
+    triangles = ((0, 1, 2),)
+    first = analyze_mesh(
+        rest,
+        rest,
+        triangles,
+        clearances=(0.0,),
+        fit_tolerance=5.0,
+        pressures=(2.0,),
+    )
+    second = analyze_mesh(
+        rest,
+        rest,
+        triangles,
+        clearances=(0.0,),
+        fit_tolerance=5.0,
+        pressures=(2.0,),
+    )
+    assert first == second
+    assert first.fit == pytest.approx((1.0,))
+    assert first.pressure == pytest.approx((2.0,))
