@@ -8,6 +8,7 @@ from dataclasses import dataclass, field, replace
 from typing import Dict, Iterable, Mapping, Sequence, Tuple
 
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
+from freecad_cloth.sewing.SewingCorrespondence import arc_length_vertex_indices
 
 
 @dataclass(frozen=True)
@@ -153,6 +154,7 @@ class SeamGraph:
         self,
         edge_vertices: Mapping[Tuple[str, int], Sequence[int]],
         seam_ids: Iterable[str] = (),
+        edge_points: Mapping[Tuple[str, int], Sequence[Sequence[float]]] | None = None,
     ) -> Tuple[Tuple[int, int], ...]:
         """Return deterministic particle-index stitch pairs for selected seams."""
         selected = tuple(seam_ids) if seam_ids else tuple(self.seams)
@@ -164,12 +166,28 @@ class SeamGraph:
             a = self._edge_vertices(edge_vertices, seam.piece_a, seam.edge_a)
             b = self._edge_vertices(edge_vertices, seam.piece_b, seam.edge_b)
             count = max(2, min(len(a), len(b)))
-            a_sel = _sample_indices(a, seam.start_a, seam.end_a, count)
-            b_sel = _sample_indices(b, seam.start_b, seam.end_b, count)
+            if edge_points is None:
+                a_sel = _sample_indices(a, seam.start_a, seam.end_a, count)
+                b_sel = _sample_indices(b, seam.start_b, seam.end_b, count)
+            else:
+                a_points = self._edge_points(edge_points, seam.piece_a, seam.edge_a, len(a))
+                b_points = self._edge_points(edge_points, seam.piece_b, seam.edge_b, len(b))
+                a_sel = arc_length_vertex_indices(a, a_points, count, seam.start_a, seam.end_a)
+                b_sel = arc_length_vertex_indices(b, b_points, count, seam.start_b, seam.end_b)
             if seam.reversed_b:
                 b_sel.reverse()
             pairs.extend(zip(a_sel, b_sel))
         return tuple(pairs)
+
+    @staticmethod
+    def _edge_points(edge_points, piece_id, edge_index, expected_count):
+        key = (piece_id, edge_index)
+        if key not in edge_points:
+            raise ValueError(f"missing mesh edge points for {piece_id}:{edge_index}")
+        points = tuple(edge_points[key])
+        if len(points) != expected_count:
+            raise ValueError(f"mesh edge points do not match vertices for {piece_id}:{edge_index}")
+        return points
 
     def to_metadata(self) -> dict:
         """Return deterministic JSON-friendly document metadata."""
