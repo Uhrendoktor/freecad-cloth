@@ -148,4 +148,37 @@ def test_workbench_icons_are_present_and_valid_svg_resources():
         assert content.startswith("<svg "), path
         assert "xmlns=\"http://www.w3.org/2000/svg\"" in content
 
+
+def test_pattern_authoring_command_surface_is_sketcher_backed():
+    native_commands = {
+        "ClothPattern_CreatePieceTask",
+        "ClothPattern_EditPiece",
+        "ClothPattern_EditSketch",
+        "ClothPattern_CreateSketch",
+        "ClothPattern_CreatePieceWithSketch",
+        "ClothPattern_CreateFromSketch",
+        "ClothPattern_CreatePiece",
+        "ClothPattern_CreateCustomPiece",
+    }
+    registered = {
+        line.split('"')[1]
+        for line in commands.splitlines()
+        if line.strip().startswith('"ClothPattern_') and line.strip().endswith(",")
+    }
+    assert "ClothPattern_CreateDrafting" not in registered
+    assert native_commands <= registered
+    assert '"ClothPattern_EditSketch": edit_pattern_sketch' in commands
+    assert '"ClothPattern_CreatePiece": create_pattern_piece_with_sketch' in commands
+    assert '"ClothPattern_CreatePieceWithSketch": create_pattern_piece_with_sketch' in commands
+    assert '"ClothPattern_CreateFromSketch": create_pattern_piece_from_selected_sketch' in commands
+    assert "Edit native Sketch" in pattern_gui
+    assert "Compatibility-only editor for legacy PatternDrafting state" in pattern_gui
+
+
+def test_pattern_drafting_remains_compatibility_only():
+    drafting_source = (ROOT / "freecad_cloth" / "pattern" / "PatternDrafting.py").read_text()
+    assert "Compatibility-only helpers for legacy pattern-drafting documents" in drafting_source
+    assert "ClothPattern_CreateDrafting" not in commands
+
+
 print("GUI structure checks passed")
