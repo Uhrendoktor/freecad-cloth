@@ -37,6 +37,8 @@ def _sync_visuals(scene, *, recompute=True):
             obj.addProperty("App::PropertyAngle", "RotationZ", "Arrangement")
         obj.X, obj.Y, obj.Offset, obj.RotationZ = point.x, point.y, point.offset, point.rotation_z
         obj.Shape = Part.makeSphere(4.0, App.Vector(point.x, point.y, point.offset))
+        from freecad_cloth.common.GarmentDocument import link_garment_object
+        link_garment_object(obj, "Avatar", scene.Document)
         point_objects.append(obj)
     for volume in volumes:
         name = "BoundingVolume_" + _safe_name(volume.name)
