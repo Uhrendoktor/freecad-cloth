@@ -168,3 +168,27 @@ def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision():
             proxy.collision_surface,
         )
     ]
+
+def test_pinned_pinned_stitch_rejects_nonzero_initial_separation():
+    from freecad_cloth.simulation.ClothBackend import validate_pinned_stitch_pairs
+
+    positions = ((0.0, 0.0, 0.0), (327.943695, 0.0, 0.0))
+    records = (("TunicRightShoulder", "Front", "Back", ((0, 1),)),)
+    try:
+        validate_pinned_stitch_pairs(positions, (0, 1), records)
+    except ValueError as exc:
+        message = str(exc)
+        assert "impossible pinned-pinned sewing constraint" in message
+        assert "seam=TunicRightShoulder" in message
+        assert "particle_a=0 particle_b=1" in message
+        assert "initial_separation=327.943695000 mm" in message
+    else:
+        raise AssertionError("physically impossible pinned-pinned stitch was accepted")
+
+
+def test_pinned_pinned_stitch_allows_numerical_zero():
+    from freecad_cloth.simulation.ClothBackend import validate_pinned_stitch_pairs
+
+    positions = ((0.0, 0.0, 0.0), (1.0e-12, 0.0, 0.0))
+    records = (("test-seam", "A", "B", ((0, 1),)),)
+    validate_pinned_stitch_pairs(positions, (0, 1), records)
