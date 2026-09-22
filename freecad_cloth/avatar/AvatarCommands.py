@@ -128,6 +128,8 @@ def _ensure_drape_target(obj):
     if target is None:
         target = create_drape_target(obj.Document, target_type="Mannequin", deflection=1.0, thickness=2.0)
     assign_drape_target(target, obj, "Mannequin")
+    from freecad_cloth.common.GarmentDocument import link_garment_object
+    link_garment_object(target, "DrapeTarget", obj.Document)
     return target
 
 
@@ -175,9 +177,13 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
         _set_prop(obj, "App::PropertyInteger", "MeshTriangleCount", "Avatar", 0)
         _set_prop(obj, "App::PropertyInteger", "AvatarRevision", "Avatar", int(getattr(obj, "AvatarRevision", 0)))
     _rebuild(obj)
+    from freecad_cloth.common.GarmentDocument import link_garment_object
+    link_garment_object(obj, "Avatar", doc)
     if attach_collision:
-        _ensure_collision(obj)
-        _ensure_drape_target(obj)
+        collision = _ensure_collision(obj)
+        target = _ensure_drape_target(obj)
+        link_garment_object(collision, "AvatarCollision", doc)
+        link_garment_object(target, "DrapeTarget", doc)
     doc.recompute()
     return obj
 
