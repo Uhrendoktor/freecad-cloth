@@ -15,7 +15,13 @@ except ImportError:
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
-from freecad_cloth.pattern.PatternObjects import PatternPieceProxy, add_pattern_piece, add_seam
+from freecad_cloth.pattern.PatternObjects import (
+    PatternPieceProxy,
+    add_pattern_piece,
+    add_seam,
+    refresh_edge_reference_signature,
+)
+from freecad_cloth.sewing.SewingNetwork import SewingMember, add_sewing_network, build_mn_seams
 from freecad_cloth.pattern.PatternSketch import create_sketch_for_piece
 
 
@@ -188,8 +194,128 @@ def test_native_seam_reference_save_reload_curve_edit_and_missing():
             App.closeDocument(document.Name)
 
 
+            assert str(restored_line.Status) == "Valid"
+            assert str(restored_arc.EdgeASignature) == arc_signature
+
+            sketch.clear()
+            sketch.addGeometry([
+                Part.LineSegment(App.Vector(0, 0, 0), App.Vector(10, 0, 0)),
+                Part.LineSegment(App.Vector(10, 10, 0), App.Vector(0, 10, 0)),
+                Part.LineSegment(App.Vector(0, 10, 0), App.Vector(0, 0, 0)),
+            ], False)
+            sketch.SemanticEdgeIds = [
+                "native-a:edge:0",
+                "native-a:edge:2",
+                "native-a:edge:3",
+            ]
+            sketch.GeometryAuthority = "Sketcher"
+            reloaded.recompute()
+            assert str(restored_arc.Status) == "Missing reference"
+            assert str(restored_line.Status) == "Valid"
+            App.closeDocument(reloaded.Name)
+        finally:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+    finally:
+        if document is not None and document.Name in App.listDocuments():
+            App.closeDocument(document.Name)
+
+
+def test_native_mn_network_save_reload_curve_edit_invalidates_and_repairs():
+    if App is None or Part is None:
+        return
+    document = App.newDocument("NativeMNSeamFingerprint")
+    path = None
+    try:
+        piece_a = PatternPiece(
+            "NativeMNA", [(0, 0), (10, 0), (10, 10), (0, 10)], id="native-mn-a"
+        )
+        piece_b = PatternPiece(
+            "NativeMNB", [(0, 0), (10, 0), (10, 10), (0, 10)], id="native-mn-b"
+        )
+        obj_a = add_pattern_piece(document, piece_a)
+        obj_b = add_pattern_piece(document, piece_b)
+        sketch_a = create_sketch_for_piece(piece_a, document)
+        sketch_b = create_sketch_for_piece(piece_b, document)
+        arc = Part.ArcOfCircle(
+            Part.Circle(App.Vector(10, 5, 0), App.Vector(0, 0, 1), 5),
+            -math.pi / 2,
+            math.pi / 2,
+        )
+        _set_native_boundary(sketch_a, arc)
+        _set_native_boundary(sketch_b, arc)
+        document.recompute()
+
+        relationship_id = "native-mn"
+        models = build_mn_seams(
+            relationship_id,
+            [SewingMember(obj_a.PieceId, 0), SewingMember(obj_a.PieceId, 1)],
+            [SewingMember(obj_b.PieceId, 0), SewingMember(obj_b.PieceId, 1)],
+            {
+                (obj_a.PieceId, 0): 10.0,
+                (obj_a.PieceId, 1): 10.0,
+                (obj_b.PieceId, 0): 10.0,
+                (obj_b.PieceId, 1): 10.0,
+            },
+        )
+        seams = [add_seam(document, model) for model in models]
+        network = add_sewing_network(document, seams, relationship_id, "NativeMNNetwork")
+        document.recompute()
+        assert len(network.Seams) == 2
+        assert str(network.Status) == "Valid"
+        assert all(str(seam.Status) == "Valid" for seam in network.Seams)
+
+        fd, path = tempfile.mkstemp(suffix=".FCStd")
+        os.close(fd)
+        document.saveAs(path)
+        App.closeDocument(document.Name)
+        document = None
+
+        reloaded = App.openDocument(path)
+        reloaded.recompute()
+        network = next(
+            obj for obj in reloaded.Objects
+            if str(getattr(obj, "RelationshipId", "")) == relationship_id
+        )
+        seam_ids = tuple(str(seam.SeamId) for seam in network.Seams)
+        assert len(seam_ids) == 2
+        assert str(network.Status) == "Valid"
+
+        restored_piece_a = next(
+            obj for obj in reloaded.Objects
+            if str(getattr(obj, "PieceId", "")) == "native-mn-a"
+        )
+        restored_sketch = restored_piece_a.Sketch
+        _set_native_boundary(
+            restored_sketch,
+            Part.ArcOfCircle(
+                Part.Circle(App.Vector(5, 5, 0), App.Vector(0, 0, 1), math.sqrt(50)),
+                -math.pi / 4,
+                math.pi / 4,
+            ),
+        )
+        reloaded.recompute()
+
+        changed = [seam for seam in network.Seams if str(seam.Status) == "Changed reference"]
+        valid = [seam for seam in network.Seams if str(seam.Status) == "Valid"]
+        assert len(changed) == 1
+        assert len(valid) == 1
+        assert str(network.Status) == "Invalid"
+        assert "Changed reference" in str(network.InvalidReason)
+
+        changed_seam = changed[0]
+        changed_seam.EdgeASignature = refresh_edge_reference_signature(
+            changed_seam.PatternA,
+            changed_seam.EdgeAId,
+        )
+        reloaded.recompute()
+        assert all(str(seam.Status) == "Valid" for seam in network.Seams)
+
 if __name__ == "__main__":
     test_pattern_piece_proxy_recomputes_deterministically()
     test_pattern_piece_proxy_rejects_invalid_dimensions()
     test_native_seam_reference_save_reload_curve_edit_and_missing()
+    test_native_mn_network_save_reload_curve_edit_invalidates_and_repairs()
     print("FreeCAD object proxy and native seam reference tests passed")
