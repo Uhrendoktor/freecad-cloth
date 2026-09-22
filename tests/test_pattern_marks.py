@@ -31,7 +31,7 @@ def test_add_mark_persists_semantic_reference():
     mark = add_mark(doc, "Notch", "pattern-piece-1", "bottom", 0.25)
     assert mark.PatternMarkType == "Notch"
     assert mark.PieceId == "pattern-piece-1"
-    assert mark.SegmentId == "bottom"
+    assert mark.SegmentId == "pattern-piece-1:edge:0"
     assert mark.Position == 0.25
     assert mark.Depth == 3.0
 
@@ -43,6 +43,13 @@ def test_add_mark_rejects_invalid_position():
         assert "between 0 and 1" in str(exc)
     else:
         raise AssertionError("invalid mark position should fail")
+
+
+def test_add_mark_persists_valid_segment_for_supported_types():
+    doc = Doc()
+    for kind in ("Notch", "Grainline", "InternalMark"):
+        mark = add_mark(doc, kind, "pattern-piece-2", "pattern-piece-2:edge:0")
+        assert mark.SegmentId == "pattern-piece-2:edge:0"
 
 
 if __name__ == "__main__":
