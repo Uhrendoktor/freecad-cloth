@@ -328,7 +328,7 @@ class SimulationProxy:
             self._build_demo(obj)
 
     def _build_pattern_scene(self, obj, pieces, signature):
-        from freecad_cloth.simulation.ClothBackend import default_backend_registry, preferred_backend_name
+        from freecad_cloth.simulation.ClothBackend import default_backend_registry, preferred_backend_name, validate_pinned_stitch_pairs
         from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
         start_height = float(getattr(obj, "StartHeight", 120.0))
         positions = []
@@ -353,18 +353,22 @@ class SimulationProxy:
         seam_pairs, seam_pair_records = _seam_pair_records(
             obj.Document, panel_data, int(getattr(obj, "StitchSamples", 8))
         )
-        system.add_stitches(seam_pairs)
         explicit_pins = _parse_int_list(getattr(obj, "PinSelection", ()), len(particles))
         if explicit_pins:
             pins = explicit_pins
-            system.pin(pins)
         elif pieces:
             first = panel_data[pieces[0]]
             boundary = list(dict.fromkeys(i for edge in first["boundary_edges"] for i in edge))
             pins = tuple(boundary[:2] + boundary[-2:])
-            system.pin(pins)
         else:
             pins = ()
+        validate_pinned_stitch_pairs(
+            positions,
+            pins,
+            seam_pair_records,
+        )
+        system.add_stitches(seam_pairs)
+        system.pin(pins)
         collision_surface = _collision_for_scene(obj)
         registry = default_backend_registry()
         backend_name = preferred_backend_name(registry)
