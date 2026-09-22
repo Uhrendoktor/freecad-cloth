@@ -281,15 +281,36 @@ try:
                     raise RuntimeError("DXF export lost persisted construction-mark coordinates")
             results[export_format] = len(first)
 
-        if source_before != (
+        after_export = (
             str(piece.Label),
             str(piece.PieceId),
             str(piece.SewingOutline),
             float(piece.SeamAllowance),
             float(piece.GrainlineAngle),
             str(getattr(piece, "GeometryAuthority", "")),
-        ):
-            raise RuntimeError("public export mutated authoritative PatternPiece state")
+            tuple((str(obj.PatternMarkId), str(obj.PatternMarkType), str(obj.PieceId), str(obj.SegmentId), float(obj.Position), float(obj.Depth), float(obj.Angle), float(obj.Length), str(obj.Text)) for obj in sorted(marks, key=lambda value: str(getattr(value, "PatternMarkId", "")))),
+            tuple((str(obj.SeamId), str(obj.PieceA), str(obj.PieceB), str(obj.EdgeAId), str(obj.EdgeBId), str(obj.Status)) for obj in seams),
+        )
+        if source_before != after_export:
+            raise RuntimeError("public export mutated authoritative PatternPiece/seam/mark state")
+
+        stale_path = output_dir / "stale.svg"
+        notch.SegmentId = piece_id + ":edge:stale"
+        doc.recompute()
+        panel = open_public_export(piece)
+        panel.format.setCurrentText("SVG")
+        panel.path.setText(str(stale_path))
+        accepted = panel.accept()
+        if accepted is not False:
+            close_public_task(panel)
+            raise RuntimeError("public export accepted a stale construction-mark reference")
+        if "blocked" not in panel.status.text().lower():
+            close_public_task(panel)
+            raise RuntimeError("public export did not report the stale-reference block")
+        close_public_task(panel)
+        if stale_path.exists():
+            raise RuntimeError("stale semantic export wrote an artifact")
+        record("stale-mark-guard=passed")
 
         record("pattern-export=passed formats=SVG,DXF bytes=%s,%s" % (results["SVG"], results["DXF"]))
 except Exception:
