@@ -1,8 +1,8 @@
 """Regression tests for Pattern/Sewing -> Simulation source invalidation."""
 
 from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR, PieceIR
+from freecad_cloth.common import PatternIRDocumentAdapter
 from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
-import freecad_cloth.simulation.SimulationObjects as SimulationObjects
 
 
 class _Vec:
@@ -85,15 +85,15 @@ def test_simulation_signature_uses_compiled_pattern_ir_not_legacy_outlines():
     pattern_ir = _test_pattern_ir()
     calls = []
 
-    original = SimulationObjects.compile_pattern_ir
-    SimulationObjects.compile_pattern_ir = lambda doc, pieces: (calls.append(tuple(pieces)) or pattern_ir)
+    original = PatternIRDocumentAdapter.compile_pattern_ir
+    PatternIRDocumentAdapter.compile_pattern_ir = lambda doc, pieces: (calls.append(tuple(pieces)) or pattern_ir)
     try:
         baseline = _simulation_source_signature(scene, [piece])
         piece.SewingOutline = "invalid legacy outline"
         piece.DraftingBoundary = "another invalid legacy outline"
         assert _simulation_source_signature(scene, [piece]) == baseline
     finally:
-        SimulationObjects.compile_pattern_ir = original
+        PatternIRDocumentAdapter.compile_pattern_ir = original
 
     assert calls == [(piece,), (piece,)]
 
