@@ -535,6 +535,10 @@ def create_simulation_scene(doc):
     target = create_drape_target(doc, avatar.SourceObject, "Mannequin", avatar.CollisionDeflection, avatar.CollisionThickness)
     scene.DrapeTarget = target
     proxy._build(scene, ())
+    from freecad_cloth.common.GarmentDocument import register_garment_object
+    register_garment_object(doc, scene, "Simulation")
+    for panel in scene.DrapePanels:
+        register_garment_object(doc, panel, "Simulation")
     return scene
 
 
