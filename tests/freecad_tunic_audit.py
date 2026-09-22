@@ -49,7 +49,14 @@ replacements = {
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
         'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)',
     'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):' :
-        'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(6,6,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
+        'authored_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())\\n'
+        '    if len(authored_edge_ids) < 8 or any(not authored_edge_ids[index] for index in (1, 2, 6, 7)): raise RuntimeError("canonical tunic fixture is missing authored semantic edge IDs")\\n'
+        '    for edge_a_id, edge_b_id, seam_id in ((authored_edge_ids[1], authored_edge_ids[1], "TunicRightSide"),(authored_edge_ids[2], authored_edge_ids[2], "TunicRightShoulder"),(authored_edge_ids[6], authored_edge_ids[6], "TunicLeftShoulder"),(authored_edge_ids[7], authored_edge_ids[7], "TunicLeftSide")):\\n'
+        '        seam = Seam(str(front.PieceId), edge_a_id, str(back.PieceId), edge_b_id, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\\n'
+        '        add_seam(doc, seam)\\n'
+        '        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)\\n'
+        '        if str(getattr(seam_obj, "EdgeAId", "")) != edge_a_id or str(getattr(seam_obj, "EdgeBId", "")) != edge_b_id: raise RuntimeError("canonical tunic seam %s did not retain authored semantic edge IDs" % seam_id)\\n'
+        '        seam_records.append((seam_obj, front, back))',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
     'front_y = box.YMin - clearance; back_y = box.YMax + clearance;': 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
@@ -94,16 +101,21 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
     if not simulated_positions: raise RuntimeError("Tissu backend returned no simulated particle positions")
     boundary_cache = {}
+    from freecad_cloth.common.PatternSimulationAdapter import resolve_piece_ir
     for piece in (front, back):
         _local_positions, _triangles, boundary_edges = quality_piece_mesh(piece, 0.0, scene.ParticleDistance)
         panel = next((candidate for candidate in panels if candidate.Label.endswith(piece.Label)), None)
         if panel is None: raise RuntimeError("authoritative seam check cannot resolve drape panel")
-        boundary_cache[piece.PieceId] = (boundary_edges, scene.Proxy.panel_indices[panel.Name])
+        piece_ir = resolve_piece_ir(piece)
+        edge_index = {str(boundary.id): index for index, boundary in enumerate(piece_ir.boundaries)}
+        boundary_cache[piece.PieceId] = (boundary_edges, scene.Proxy.panel_indices[panel.Name], edge_index)
     seam_gaps = []
     for seam, piece_a, piece_b in seam_records:
-        edges_a, global_a = boundary_cache[piece_a.PieceId]; edges_b, global_b = boundary_cache[piece_b.PieceId]
-        edge_a = int(getattr(seam, "EdgeA", 0)); edge_b = int(getattr(seam, "EdgeB", 0))
-        if edge_a >= len(edges_a) or edge_b >= len(edges_b): raise RuntimeError("authoritative seam check cannot resolve seam edge")
+        edges_a, global_a, edge_index_a = boundary_cache[piece_a.PieceId]; edges_b, global_b, edge_index_b = boundary_cache[piece_b.PieceId]
+        edge_a_id = str(getattr(seam, "EdgeAId", "")); edge_b_id = str(getattr(seam, "EdgeBId", ""))
+        if edge_a_id not in edge_index_a or edge_b_id not in edge_index_b: raise RuntimeError("authoritative seam check cannot resolve semantic seam edge")
+        edge_a = edge_index_a[edge_a_id]; edge_b = edge_index_b[edge_b_id]
+        if edge_a >= len(edges_a) or edge_b >= len(edges_b): raise RuntimeError("authoritative seam check resolved an invalid semantic edge")
         for ia, ib in ((edges_a[edge_a][0], edges_b[edge_b][0]), (edges_a[edge_a][-1], edges_b[edge_b][-1])):
             ga = global_a[ia]; gb = global_b[ib]; a = simulated_positions[ga]; b = simulated_positions[gb]
             seam_gaps.append(((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2)**0.5)
