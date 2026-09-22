@@ -105,6 +105,36 @@ class SimulationQualityTests(unittest.TestCase):
                 ) ** 0.5
                 self.assertLessEqual(span, 20.0 + 1e-6)
 
+    def test_refined_tunic_edges_preserve_authored_order_and_spacing(self):
+        outline = [
+            (0.0, 0.0), (600.0, 0.0), (520.0, 590.4), (447.2, 698.4),
+            (332.8, 648.0), (187.2, 648.0), (72.8, 698.4), (0.0, 590.4),
+        ]
+        piece = PatternPiece("Tunic", outline, id="tunic")
+        piece_obj = type("Piece", (), {
+            "SewingOutline": repr(piece.outline),
+            "DraftingBoundary": repr(piece.outline),
+            "PieceId": piece.id,
+            "Placement": None,
+        })()
+        spacing = 20.0
+        positions, _triangles, boundary = quality_piece_mesh(piece_obj, 100.0, spacing)
+
+        self.assertEqual(len(boundary), len(outline))
+        for edge_index, chain in enumerate(boundary):
+            self.assertGreaterEqual(len(chain), 3)
+            self.assertAlmostEqual(positions[chain[0]][0], outline[edge_index][0], places=7)
+            self.assertAlmostEqual(positions[chain[0]][1], outline[edge_index][1], places=7)
+            end_index = (edge_index + 1) % len(outline)
+            self.assertAlmostEqual(positions[chain[-1]][0], outline[end_index][0], places=7)
+            self.assertAlmostEqual(positions[chain[-1]][1], outline[end_index][1], places=7)
+            for left, right in zip(chain, chain[1:]):
+                span = (
+                    (positions[left][0] - positions[right][0]) ** 2
+                    + (positions[left][1] - positions[right][1]) ** 2
+                ) ** 0.5
+                self.assertLessEqual(span, spacing + 1e-6)
+
     def test_sewing_semantic_edge_lookup_remains_authored_ordinal(self):
         from types import SimpleNamespace
         from freecad_cloth.pattern.PatternObjects import _edge_records, _seam_edge_id
