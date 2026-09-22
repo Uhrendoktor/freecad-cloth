@@ -79,14 +79,40 @@ def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5):
                       int(sample_count), z=0.4)
     if bool(getattr(seam, "ReversedB", False)):
         b.reverse()
-    shapes = [Part.makePolygon(list(a)), Part.makePolygon(list(b))]
+
+    def distinct(points, tolerance=1e-9):
+        result = []
+        for point in points:
+            if not result:
+                result.append(point)
+                continue
+            dx = point.x - result[-1].x
+            dy = point.y - result[-1].y
+            dz = point.z - result[-1].z
+            if (dx * dx + dy * dy + dz * dz) > tolerance * tolerance:
+                result.append(point)
+        return result
+
+    a_distinct = distinct(a)
+    b_distinct = distinct(b)
+    shapes = []
+    if len(a_distinct) >= 2:
+        shapes.append(Part.makePolygon(a_distinct))
+    if len(b_distinct) >= 2:
+        shapes.append(Part.makePolygon(b_distinct))
     for pa, pb in zip(a, b):
-        shapes.append(Part.makeLine(pa, pb))
-    mid = len(a) // 2
-    for points in (a, b):
+        dx = pb.x - pa.x
+        dy = pb.y - pa.y
+        dz = pb.z - pa.z
+        if (dx * dx + dy * dy + dz * dz) > 1e-18:
+            shapes.append(Part.makeLine(pa, pb))
+    for points in (a_distinct, b_distinct):
+        if len(points) < 2:
+            continue
+        mid = len(points) // 2
         prev, nxt = points[max(0, mid - 1)], points[min(len(points) - 1, mid + 1)]
         dx, dy = nxt.x - prev.x, nxt.y - prev.y
-        length = (dx * dx + dy * dy) ** 0.5 or 1.0
+        length = (dx * dx + dy * dy) ** 0.5
         ux, uy = dx / length, dy / length
         tip = points[mid]
         arrow_len = min(6.0, max(1.0, length * 0.3))
