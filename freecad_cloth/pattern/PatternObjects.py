@@ -132,6 +132,30 @@ def _seam_edge_id(piece, edge, prefix):
     raise MissingEdgeReference(f"semantic edge reference {reference_id} is missing from pattern piece {piece.PieceId}")
 
 
+def refresh_edge_reference_signature(piece, edge_id):
+    """Return the current signature for an existing semantic edge id.
+
+    This is an explicit repair primitive: it refreshes a stored reference only
+    when the same semantic edge id still exists; it never retargets to another edge.
+    """
+    reference_id = str(edge_id or "").strip()
+    if not reference_id:
+        raise MissingEdgeReference("cannot repair an empty semantic edge id")
+    for record in _edge_records(piece):
+        if str(record["id"]) == reference_id:
+            reference = capture_edge_reference(
+                str(getattr(piece, "PieceId", "")),
+                reference_id,
+                record["points"],
+                record.get("provenance"),
+            )
+            return reference.signature
+    raise MissingEdgeReference(
+        "semantic edge reference %s is missing from pattern piece %s" %
+        (reference_id, getattr(piece, "PieceId", ""))
+    )
+
+
 def _resolve_document_edge(piece, edge_id, signature):
     reference = capture_edge_reference(piece.PieceId, edge_id, ((0.0, 0.0), (1.0, 0.0)))
     reference = type(reference)(reference.piece_id, reference.edge_id, signature)
