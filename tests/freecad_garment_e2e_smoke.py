@@ -550,7 +550,7 @@ def run_acceptance():
             if group.Name not in root_group_names:
                 raise RuntimeError("garment hierarchy root lost its native group membership: %s" % role)
         print(
-            "hierarchy=passed groups=Pattern,Sewing,Fitting,Avatar,Simulation pieces=%d"
+            "hierarchy=passed groups=Patterns,Sewing,Fabric,Fitting,Avatar,Simulation pieces=%d"
             % len(garment.PatternPieces),
             flush=True,
         )

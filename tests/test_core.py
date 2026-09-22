@@ -35,7 +35,7 @@ def test_garment_hierarchy_classifies_authoritative_objects():
     assert classify_object(fitting) == "fitting"
     assert classify_object(point) == "fitting"
     assert classify_object(avatar) == "avatar"
-    assert classify_object(target) == "simulation"
+    assert classify_object(target) == "avatar"
     assert classify_object(simulation) == "simulation"
 
     members = classify_members((front, seam, network, fitting, point, avatar, target, simulation, front))
