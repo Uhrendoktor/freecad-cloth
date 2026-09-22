@@ -10,6 +10,23 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+LOG_PATH = Path(
+    os.environ.get(
+        "CLOTH_GARMENT_E2E_LOG",
+        ROOT / "artifacts" / "canonical-garment-e2e" / "canonical-garment-e2e.log",
+    )
+)
+LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+
+def _record(message):
+    line = str(message)
+    print(line, flush=True)
+    with LOG_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(line + "\n")
+        handle.flush()
+
+
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
@@ -377,7 +394,7 @@ def run_acceptance():
         if {obj.Name for obj in doc.Objects} != before:
             raise RuntimeError("invalid staged sewing preview persisted document objects")
         _cancel_staged(panel)
-        print("staged-selection=passed", flush=True)
+        _record("staged-selection=passed")
 
         _select_edges((front, 2), (back, 2))
         panel = _open_staged("ClothSewing_CreateSeam")
@@ -385,7 +402,7 @@ def run_acceptance():
         seam_11 = next((obj for obj in created_11 if getattr(obj, "SeamId", "")), None)
         if seam_11 is None or str(seam_11.Status) != "Valid":
             raise RuntimeError("public staged Sewing command did not create a valid curved 1:1 seam")
-        print("sewing-1to1-preview=passed type=curved", flush=True)
+        _record("sewing-1to1-preview=passed type=curved")
         _commit_staged(panel)
         doc.recompute()
         seam_11 = next(obj for obj in doc.Objects if getattr(obj, "SeamId", "") == str(seam_11.SeamId))
@@ -402,7 +419,7 @@ def run_acceptance():
         doc.recompute()
         if bool(seam_11.ReversedB) or str(seam_11.Alignment) != "endpoints":
             raise RuntimeError("public sewing controls did not restore canonical seam metadata")
-        print("sewing-1to1=passed type=curved", flush=True)
+        _record("sewing-1to1=passed type=curved")
 
         _select_edges((sleeve_a, 2), (sleeve_a, 3), (sleeve_b, 2), (sleeve_b, 3))
         panel = _open_staged("ClothSewing_CreateMNSewing")
@@ -410,7 +427,7 @@ def run_acceptance():
         network = next((obj for obj in created_mn if getattr(obj, "SewingType", "") == "SewingNetwork"), None)
         if network is None or str(network.Status) != "Valid" or len(network.Seams) != 2:
             raise RuntimeError("public staged M:N preview did not create a valid two-segment network")
-        print("sewing-mn-preview=passed sides=2,2 segments=2", flush=True)
+        _record("sewing-mn-preview=passed sides=2,2 segments=2")
         _commit_staged(panel)
         doc.recompute()
         networks = [obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork"]
@@ -421,7 +438,7 @@ def run_acceptance():
             raise RuntimeError("M:N sewing network did not persist valid 2:2 topology")
         if any(str(getattr(seam, "Status", "")) != "Valid" for seam in network.Seams):
             raise RuntimeError("M:N network retained an invalid member seam")
-        print("sewing-mn=passed sides=2,2 segments=2", flush=True)
+        _record("sewing-mn=passed sides=2,2 segments=2")
 
         _select_objects(seam_11)
         Gui.runCommand("ClothSewing_CreateOperation", 0)
@@ -451,7 +468,7 @@ def run_acceptance():
         doc.recompute()
         if int(operation.StitchCount) != 12 or str(operation.Alignment) != "uniform":
             raise RuntimeError("public Sewing operation task panel did not persist controls")
-        print("sewing-operation=passed", flush=True)
+        _record("sewing-operation=passed")
 
         _select_objects(front, back, sleeve_a, sleeve_b)
         Gui.runCommand("ClothFitting_CreateScene", 0)
@@ -472,7 +489,7 @@ def run_acceptance():
         doc.recompute()
         if len(fitting.PatternPieces) != 4 or str(fitting.FitStatus) not in {"Pieces assigned", "Ready"}:
             raise RuntimeError("public fitting scene did not persist all four pattern pieces")
-        print("arrangement=passed pieces=4", flush=True)
+        _record("arrangement=passed pieces=4")
 
         structure = garment_structure(doc)
         expected_members = {
@@ -485,7 +502,7 @@ def run_acceptance():
                 raise RuntimeError("native garment hierarchy missing %s members: %s" % (role, sorted(names - actual)))
         if not any(item["role"] == "FabricMaterial" for item in structure["groups"]["Fabric"]):
             raise RuntimeError("native garment hierarchy lost FabricMaterial")
-        print("garment-hierarchy=passed groups=Patterns,Sewing,Fabric,Avatar,Simulation", flush=True)
+        _record("garment-hierarchy=passed groups=Patterns,Sewing,Fabric,Avatar,Simulation")
 
         target_body = doc.addObject("Part::Feature", "AcceptanceTarget")
         target_body.Label = "Acceptance Target"
@@ -502,7 +519,7 @@ def run_acceptance():
         target = doc.getObject("DrapeTarget")
         if target is None or target.SourceObject != target_body:
             raise RuntimeError("public DrapeTarget command did not persist CAD target")
-        print("drape-target=passed", flush=True)
+        _record("drape-target=passed")
 
         _select_objects(fitting)
         Gui.runCommand("ClothFitting_CreateSimulation", 0)
@@ -546,7 +563,7 @@ def run_acceptance():
         if "Created" not in str(diagnostics_panel.status.text()):
             raise RuntimeError("public diagnostics task panel did not create a diagnostic map")
         _close_task()
-        print("diagnostics=passed metric=stress", flush=True)
+        _record("diagnostics=passed metric=stress")
 
         with tempfile.TemporaryDirectory() as directory:
             output_dir = __import__("pathlib").Path(directory)
@@ -601,7 +618,7 @@ def run_acceptance():
             semantic_ids_after_reload = tuple(getattr(reloaded_pieces[0].Sketch, "SemanticEdgeIds", ()))
             if semantic_ids_after_reload != before_ids[0]:
                 raise RuntimeError("save/reload changed native Sketcher semantic edge IDs")
-            print("save-reload=passed pieces=4 seam=1to1 network=2segment", flush=True)
+            _record("save-reload=passed pieces=4 seam=1to1 network=2segment")
 
             curved = reloaded_pieces[0]
             seam_11 = reloaded.getObject(seam_11_name)
@@ -614,7 +631,7 @@ def run_acceptance():
                 raise RuntimeError("native Sketcher edit changed semantic edge IDs")
             if str(seam_11.Status) not in {"Changed reference", "Missing reference"}:
                 raise RuntimeError("native Sketcher edit did not invalidate downstream curved seam: %s" % seam_11.Status)
-            print("invalidation=passed seam=%s" % seam_11.Status, flush=True)
+            _record("invalidation=passed seam=%s" % seam_11.Status)
 
             curved.Sketch.setDatum(dimensional, App.Units.Quantity("50 mm"))
             reloaded.recompute()
@@ -626,7 +643,7 @@ def run_acceptance():
             reloaded.recompute()
             if str(seam_11.Status) != "Valid":
                 raise RuntimeError("explicit seam repair did not recover the curved seam")
-            print("invalidation-restore=passed seam=Valid", flush=True)
+            _record("invalidation-restore=passed seam=Valid")
 
             network_piece = reloaded.getObject(next(obj.Name for obj in reloaded_pieces if obj.PieceId == "pattern-piece-3"))
             if network_piece is None:
@@ -667,7 +684,7 @@ def run_acceptance():
             if "Export blocked" not in str(stale_export_panel.status.text()):
                 raise RuntimeError("stale export did not report a deterministic blocked status")
             _close_task()
-            print("stale-export=blocked", flush=True)
+            _record("stale-export=blocked")
 
             network_sketch.setDatum(network_dim, App.Units.Quantity("50 mm"))
             reloaded.recompute()
@@ -707,14 +724,13 @@ def run_acceptance():
             if "Created" not in str(diagnostics_panel.status.text()):
                 raise RuntimeError("post-invalidation diagnostics did not create a diagnostic map")
             _close_task()
-            print("diagnostics-after-invalidation=passed metric=stress", flush=True)
+            _record("diagnostics-after-invalidation=passed metric=stress")
 
             first_signature = _position_signature(scene)
             first_digest = _position_signature_digest(first_signature)
-            print(
+            _record(
                 "determinism-signature=first rounding=9 vertices=%d sha256=%s"
-                % (len(first_signature), first_digest),
-                flush=True,
+                % (len(first_signature), first_digest)
             )
 
             Gui.runCommand("ClothSimulation_Reset", 0)
@@ -728,10 +744,9 @@ def run_acceptance():
                     "repeated deterministic simulation run changed the rounded particle/mesh signature: "
                     "first_sha256=%s second_sha256=%s" % (first_digest, second_digest)
                 )
-            print(
+            _record(
                 "determinism-signature=passed rounding=9 vertices=%d sha256=%s"
-                % (len(second_signature), second_digest),
-                flush=True,
+                % (len(second_signature), second_digest)
             )
 
             export_results = {}
@@ -760,25 +775,24 @@ def run_acceptance():
             )
             if source_before != source_after:
                 raise RuntimeError("production export mutated authoritative PatternPiece state")
-            print(
+            _record(
                 "pattern-export=passed formats=SVG,DXF bytes=%s,%s"
-                % (export_results["SVG"], export_results["DXF"]),
-                flush=True,
+                % (export_results["SVG"], export_results["DXF"])
             )
 
             App.closeDocument(reloaded.Name)
             doc = None
-        print("pattern-e2e=passed pieces=4", flush=True)
-        print("canonical garment end-to-end acceptance passed", flush=True)
+        _record("pattern-e2e=passed pieces=4")
+        _record("canonical garment end-to-end acceptance passed")
     finally:
         _close_task()
         if doc is not None and doc.Name in App.listDocuments():
             App.closeDocument(doc.Name)
 
 
-print("standalone-fixture=start", flush=True)
+_record("standalone-fixture=start")
 run_acceptance()
-print("scenario-complete=passed", flush=True)
-print("freecad-process-exit=forced", flush=True)
+_record("scenario-complete=passed")
+_record("freecad-process-exit=forced")
 sys.stdout.flush()
 os._exit(0)
