@@ -170,6 +170,7 @@ jobs:
             -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
             -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" \
             -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
+            -e CLOTH_GARMENT_E2E_STANDALONE=1 \
             -e CLOTH_GARMENT_E2E_LOG=/workspace/artifacts/canonical-garment-e2e/canonical-garment-e2e.log \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
