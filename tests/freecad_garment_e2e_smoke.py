@@ -288,17 +288,30 @@ def _export_pair(piece, output_dir, export_format):
 
 
 def run_acceptance():
-    doc = App.newDocument("CanonicalGarmentAcceptance")
+    doc = None
     path = None
     try:
         _activate(
             "ClothPatternWorkbench",
             [
+                "ClothPattern_CreateGarment",
                 "ClothPattern_CreatePieceWithSketch",
                 "ClothPattern_EditPiece",
                 "ClothPattern_Show2D",
             ],
         )
+        Gui.runCommand("ClothPattern_CreateGarment", 0)
+        _events()
+        doc = App.ActiveDocument
+        if doc is None:
+            raise RuntimeError("public Garment creation command did not create an active FreeCAD document")
+        from freecad_cloth.common.GarmentDocument import garment_structure
+        initial_structure = garment_structure(doc)
+        if set(initial_structure["groups"]) != {"Patterns", "Sewing", "Fabric", "Avatar", "Simulation"}:
+            raise RuntimeError("public Garment creation command did not create the complete native hierarchy")
+        fabric_members = initial_structure["groups"]["Fabric"]
+        if not any(item["role"] == "FabricMaterial" for item in fabric_members):
+            raise RuntimeError("public Garment creation command did not create the native FabricMaterial member")
         for _ in range(4):
             Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
             _events()
@@ -445,6 +458,19 @@ def run_acceptance():
             raise RuntimeError("public fitting scene did not persist all four pattern pieces")
         print("arrangement=passed pieces=4", flush=True)
 
+        structure = garment_structure(doc)
+        expected_members = {
+            "Patterns": {piece.Name for piece in pieces},
+            "Sewing": {seam_11.Name, network.Name, operation.Name},
+        }
+        for role, names in expected_members.items():
+            actual = {item["name"] for item in structure["groups"].get(role, ())}
+            if not names.issubset(actual):
+                raise RuntimeError("native garment hierarchy missing %s members: %s" % (role, sorted(names - actual)))
+        if not any(item["role"] == "FabricMaterial" for item in structure["groups"]["Fabric"]):
+            raise RuntimeError("native garment hierarchy lost FabricMaterial")
+        print("garment-hierarchy=passed groups=Patterns,Sewing,Fabric,Avatar,Simulation", flush=True)
+
         target_body = doc.addObject("Part::Feature", "AcceptanceTarget")
         target_body.Label = "Acceptance Target"
         target_body.Shape = Part.makeCylinder(35, 100, App.Vector(0, 0, -50))
@@ -536,6 +562,18 @@ def run_acceptance():
             fitting = reloaded.getObject(fitting_name)
             scene = reloaded.getObject(scene_name)
             target = reloaded.getObject(target_name)
+            reloaded_structure = garment_structure(reloaded)
+            if set(reloaded_structure["groups"]) != {"Patterns", "Sewing", "Fabric", "Avatar", "Simulation"}:
+                raise RuntimeError("save/reload lost native garment hierarchy groups")
+            hierarchy_names = {
+                role: {item["name"] for item in reloaded_structure["groups"].get(role, ())}
+                for role in reloaded_structure["groups"]
+            }
+            for role, names in expected_members.items():
+                if not names.issubset(hierarchy_names[role]):
+                    raise RuntimeError("save/reload lost garment hierarchy membership for %s" % role)
+            if not any(item["role"] == "FabricMaterial" for item in reloaded_structure["groups"]["Fabric"]):
+                raise RuntimeError("save/reload lost FabricMaterial")
             if any(obj is None for obj in (seam_11, network, operation, fitting, scene, target)):
                 raise RuntimeError("garment fixture did not preserve sewing/fitting/simulation objects")
             if str(seam_11.Status) != "Valid" or str(network.Status) != "Valid" or str(operation.Status) != "Valid":

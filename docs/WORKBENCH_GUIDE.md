@@ -38,6 +38,10 @@ Generate a preview/final mesh, choose material and quality, confirm target valid
 
 After pattern, seam or target edits: recompute, inspect the stale/invalid reason, refresh/rebuild the affected derived state, then simulate again. A stale target must never be silently substituted or consumed.
 
+## Native garment hierarchy
+
+Use the public `ClothPattern_CreateGarment` command to create a production garment document. The FCStd document remains the only persistence authority: the native `Garment` root contains deterministic `Patterns`, `Sewing`, `Fabric`, `Avatar`, and `Simulation` groups. A persisted native `FabricMaterial` object lives in the Fabric group; pattern, sewing, fitting, avatar/target, and simulation outputs are linked into the corresponding group when the garment root exists. Existing standalone object-creation commands remain supported in documents without a Garment root.
+
 ## Document authority
 
 ```text
