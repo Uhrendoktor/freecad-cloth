@@ -1,5 +1,6 @@
 """Real-FreeCAD smoke coverage for public staged sewing Preview/Commit/Cancel."""
 from pathlib import Path
+import math
 import os
 import sys
 import traceback
@@ -10,6 +11,7 @@ if str(ROOT) not in sys.path:
 
 import FreeCAD as App
 import FreeCADGui as Gui
+import Part
 import InitGui
 
 from freecad_cloth.pattern.PatternModel import PatternPiece
@@ -22,6 +24,59 @@ LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
 LOG = []
 LOG_PATH.write_text("", encoding="utf-8")
 
+
+
+
+def add_curved_piece(doc, name, piece_id, line_length, curve_span=80.0, curve_height=90.0):
+    """Create a real Part edge set with a curved, physically non-uniform boundary."""
+    line_length = float(line_length)
+    curve_span = float(curve_span)
+    curve_height = float(curve_height)
+    p0 = App.Vector(0, 0, 0)
+    p1 = App.Vector(line_length, 0, 0)
+    p2 = App.Vector(line_length, 40, 0)
+    p3 = App.Vector(line_length - curve_span, 40, 0)
+    curve = Part.BezierCurve()
+    curve.setPoles([
+        p2,
+        App.Vector(line_length, 40 + curve_height, 0),
+        App.Vector(line_length - curve_span, 40 + curve_height, 0),
+        p3,
+    ])
+    edges = [
+        Part.makeLine(p0, p1),
+        Part.makeLine(p1, p2),
+        curve.toShape(),
+        Part.makeLine(p3, p0),
+    ]
+    obj = doc.addObject("Part::Feature", name)
+    obj.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
+    obj.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = str(piece_id)
+    obj.addProperty("App::PropertyLength", "Width", "Parameters").Width = max(line_length, curve_span)
+    obj.addProperty("App::PropertyLength", "Height", "Parameters").Height = 40.0 + curve_height
+    obj.addProperty("App::PropertyString", "SewingOutline", "Cloth").SewingOutline = repr([
+        (0.0, 0.0),
+        (line_length, 0.0),
+        (line_length, 40.0),
+        (line_length - curve_span, 40.0),
+    ])
+    obj.Shape = Part.Face(Part.Wire(edges))
+    return obj
+
+
+def edge_sample_spacing(edge, parameters=(0.0, 0.07, 0.19, 0.43, 0.71, 1.0)):
+    first = float(edge.FirstParameter)
+    last = float(edge.LastParameter)
+    points = [
+        edge.valueAt(first + (last - first) * float(parameter))
+        for parameter in parameters
+    ]
+    distances = []
+    for left, right in zip(points, points[1:]):
+        distances.append(
+            ((left.x - right.x) ** 2 + (left.y - right.y) ** 2 + (left.z - right.z) ** 2) ** 0.5
+        )
+    return points, distances
 
 def process_events():
     try:
