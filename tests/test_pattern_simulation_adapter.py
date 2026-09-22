@@ -344,6 +344,27 @@ def test_native_integer_seam_edge_uses_original_sketch_geometry_index():
         "piece", "piece:edge:5", ((5.0, 0.0), (6.0, 0.0)), reordered[3]["provenance"]
     ).signature
 
+
+def test_legacy_integer_seam_edge_keeps_legacy_boundary_ordinal():
+    import freecad_cloth.pattern.PatternObjects as pattern_objects
+
+    piece = _LegacyPiece("legacy")
+    records = [
+        {
+            "id": f"legacy:edge:{index}",
+            "points": ((float(index), 0.0), (float(index + 1), 0.0)),
+            "provenance": ("PatternIR", "Legacy", "line", (0.0, 1.0), ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0))),
+        }
+        for index in range(4)
+    ]
+    original = pattern_objects._edge_records
+    pattern_objects._edge_records = lambda _piece: records
+    try:
+        edge_id, _signature = pattern_objects._seam_edge_id(piece, 2, "A")
+    finally:
+        pattern_objects._edge_records = original
+    assert edge_id == "legacy:edge:2"
+
 if __name__ == "__main__":
     for name, fn in globals().copy().items():
         if name.startswith("test_"):
