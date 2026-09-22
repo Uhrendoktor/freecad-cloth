@@ -260,11 +260,7 @@ def test_proxy_status_uses_shared_relative_mismatch_contract():
 
 
 if __name__ == "__main__":
-    test_rectangular_seam_lengths()
-    test_polygon_seam_length_uses_stored_outline()
-    test_curved_native_edge_uses_arc_length_sampling()
-    test_uniform_alignment_follows_curved_edge()
-    test_reversed_correspondence_is_applied_once()
-    test_boundary_sampling_honors_normalized_range()
-    test_proxy_validation_and_reversal()
+    for name, fn in sorted(globals().items()):
+        if name.startswith("test_") and callable(fn):
+            fn()
     print("sewing tests passed")
