@@ -175,6 +175,7 @@ jobs:
       - name: Inspect export evidence
         run: |
           set -euo pipefail
+          grep -q 'persisted-marks=passed ids=' artifacts/pattern-production-export.log
           grep -q 'pattern-export=passed formats=SVG,DXF' artifacts/pattern-production-export.log
           grep -q 'pattern-export-smoke=completed' artifacts/pattern-production-export.log
       - name: Upload pattern export evidence
