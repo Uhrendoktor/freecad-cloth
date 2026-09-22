@@ -3,7 +3,7 @@ import json
 from html import escape
 from math import cos, radians, sin
 from xml.etree import ElementTree
-from freecad_cloth.pattern.PatternDerivedGeometry import DerivedPattern, PatternMark, add_marks, derive_cut_boundary, mark_point, notch_point
+from freecad_cloth.pattern.PatternDerivedGeometry import Notch, DerivedPattern, PatternMark, add_marks, add_notches, derive_cut_boundary, mark_point, notch_point
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, PolylineSegment
 
 
@@ -146,6 +146,68 @@ def _piece_seams(piece):
     return tuple(sorted(set(seams)))
 
 
+def _piece_construction_marks(piece, pattern, curve_samples=32):
+    """Enumerate persisted PatternMark/Notch objects for the selected piece."""
+    doc = getattr(piece, "Document", None)
+    if doc is None:
+        raise ValueError("pattern piece is not attached to a FreeCAD document")
+    piece_id = str(getattr(piece, "PieceId", "")).strip()
+    edge_ids = {str(segment.id) for segment in pattern.segments}
+    entries = []
+    for obj in getattr(doc, "Objects", ()):
+        mark_type = str(getattr(obj, "PatternMarkType", "")).strip()
+        if not mark_type:
+            continue
+        if str(getattr(obj, "PieceId", "")).strip() != piece_id:
+            continue
+        mark_id = str(
+            getattr(obj, "PatternMarkId", "") or getattr(obj, "Name", "")
+        ).strip()
+        if not mark_id:
+            raise ValueError("cannot export pattern piece with a construction mark that has no stable ID")
+        segment_id = str(getattr(obj, "SegmentId", "")).strip()
+        position = float(getattr(obj, "Position", 0.5))
+        if mark_type == "Notch":
+            notch = Notch(
+                mark_id,
+                segment_id,
+                position,
+                depth=float(getattr(obj, "Depth", 3.0)),
+            )
+            entries.append(("notch", mark_id, notch))
+        else:
+            mark = PatternMark(
+                mark_id,
+                mark_type,
+                segment_id=segment_id,
+                t=position,
+                angle=float(getattr(obj, "Angle", 0.0)),
+                length=float(getattr(obj, "Length", 40.0)),
+                text=str(getattr(obj, "Text", "")),
+            )
+            entries.append(("mark", mark_id, mark))
+
+    entries.sort(key=lambda value: (value[1], value[0]))
+    allowance = max(0.0, float(getattr(piece, "SeamAllowance", 0.0)))
+    derived = derive_cut_boundary(pattern, allowance, curve_samples=curve_samples)
+    for kind, _mark_id, value in entries:
+        if kind == "notch":
+            if value.segment_id not in edge_ids:
+                raise ValueError(
+                    "cannot export pattern piece while construction mark %s references missing edge %s"
+                    % (value.id, value.segment_id)
+                )
+            derived = add_notches(derived, (value,))
+        else:
+            if value.segment_id and value.segment_id not in edge_ids:
+                raise ValueError(
+                    "cannot export pattern piece while construction mark %s references missing edge %s"
+                    % (value.id, value.segment_id)
+                )
+            derived = add_marks(derived, (value,))
+    return derived
+
+
 def pattern_from_pattern_piece(piece, curve_samples: int = 64) -> ParametricPattern:
     """Build a deterministic derived export pattern from the authoritative piece."""
     if getattr(piece, "PatternType", "") != "PatternPiece":
@@ -197,17 +259,7 @@ def export_pattern_piece(piece, path, format: str, *, units: str = "mm", curve_s
     pattern = pattern_from_pattern_piece(piece, curve_samples=curve_samples)
     seam_ids = _piece_seams(piece)
     allowance = max(0.0, float(getattr(piece, "SeamAllowance", 0.0)))
-    derived = derive_cut_boundary(pattern, allowance, curve_samples=curve_samples)
-    if pattern.segments:
-        mark = PatternMark(
-            id="%s:grainline" % str(getattr(piece, "PieceId", "piece")),
-            kind="Grainline",
-            segment_id=pattern.segments[0].id,
-            angle=float(getattr(piece, "GrainlineAngle", 0.0)),
-            length=40.0,
-            text="Grain",
-        )
-        derived = add_marks(derived, (mark,))
+    derived = _piece_construction_marks(piece, pattern, curve_samples=curve_samples)
     if normalized_format == "svg":
         content = to_svg(pattern, curve_samples, units, derived, str(getattr(piece, "PieceId", "")), seam_ids, allowance)
     else:
