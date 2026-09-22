@@ -50,8 +50,8 @@ def compile_pattern_ir(doc, pieces, curve_samples=64):
         if not seam_id:
             continue
 
-        piece_a = str(getattr(seam, "PieceA", "")).strip()
-        piece_b = str(getattr(seam, "PieceB", "")).strip()
+        piece_a = _seam_piece_id(seam, "A")
+        piece_b = _seam_piece_id(seam, "B")
         selected_a = piece_a in selected_ids
         selected_b = piece_b in selected_ids
         if not selected_a or not selected_b:
@@ -86,6 +86,16 @@ def compile_pattern_ir(doc, pieces, curve_samples=64):
     result = PatternIR(tuple(piece_irs), tuple(seams))
     result.validate()
     return result
+
+
+def _seam_piece_id(seam, prefix):
+    """Resolve the native pattern link first; mirrored string IDs are compatibility data."""
+    linked = getattr(seam, f"Pattern{prefix}", None)
+    linked_id = str(getattr(linked, "PieceId", "")).strip() if linked is not None else ""
+    if linked_id:
+        return linked_id
+    return str(getattr(seam, f"Piece{prefix}", "")).strip()
+
 
 
 def _semantic_edge_id(seam, prefix, piece_ir, seam_id):
