@@ -16,6 +16,17 @@ def seam_color_map(seam_ids):
     return result
 
 
+def seam_color_hex(seam_id, seam_ids):
+    """Return the deterministic display color for a seam as a CSS hex value."""
+    target = str(seam_id).strip()
+    if not target:
+        return "#666666"
+    colors = seam_color_map(seam_ids)
+    color = colors.get(target) or seam_color_map((target,))[target]
+    channels = [max(0, min(255, int(round(float(value) * 255.0)))) for value in color]
+    return "#%02X%02X%02X" % tuple(channels)
+
+
 def apply_seam_colors(objects):
     """Apply one deterministic line color to each canonical seam object."""
     seam_objects = [
