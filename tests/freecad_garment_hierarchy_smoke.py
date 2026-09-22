@@ -134,7 +134,7 @@ def run():
         from freecad_cloth.pattern.PatternCommands import create_garment
         doc = create_garment(name="GarmentHierarchySmoke")
         assert doc is not None
-        log("production-garment-command=passed")
+        log("production-garment-path=passed")
 
         front = make_piece(doc, "Front", "front", 0)
         back = make_piece(doc, "Back", "back", 130)
@@ -149,8 +149,16 @@ def run():
         assert str(operation.Status) == "Valid"
         log("populate-pattern-sewing=passed")
 
+        import Part
+        from freecad_cloth.common.GarmentDocument import link_garment_object
+        avatar = doc.addObject("Part::Feature", "ClothAvatarSmoke")
+        avatar.Label = "Cloth Avatar"
+        avatar.Shape = Part.makeCylinder(40.0, 160.0)
+        avatar.addProperty("App::PropertyString", "AvatarType", "Avatar").AvatarType = "ClothAvatar"
+        link_garment_object(avatar, "Avatar", doc)
+
         from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
-        scene = create_simulation_scene(doc, build=False)
+        scene = create_simulation_scene(doc, build=False, avatar_source=avatar)
         scene.ClothPieces = [front, back]
         assert scene.FabricMaterial is not None
         assert scene.DrapeTarget is not None
