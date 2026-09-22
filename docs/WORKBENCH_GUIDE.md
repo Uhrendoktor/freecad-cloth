@@ -12,6 +12,8 @@ FreeCAD Cloth has three cooperating native workbenches:
 
 Create at least two PatternPieces. Use the native Sketcher representation for editable dimensions, constraints and curves. Add seam allowance, notches, grainline and internal-mark metadata as needed. Recompute and validate before sewing.
 
+For production output, select a PatternPiece and use **ClothPattern_Export** to open the public SVG/DXF export task panel. Export is derived and read-only; it blocks invalid/stale seam references and embeds deterministic piece, seam, unit/scale, seam-allowance, notch and mark metadata.
+
 ### 2. Sewing
 
 Select compatible pattern edges/ranges and explicitly create a seam or M:N/free sewing relationship. Review direction, reversal, correspondence and length diagnostics before committing. Use the task panel for staged operations and the Property Editor for persistent state.
