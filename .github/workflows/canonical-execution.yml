@@ -107,7 +107,6 @@ jobs:
             -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
-              python3 -c "import triangle; print(\"triangle-import=passed\", flush=True)"
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
@@ -419,3 +418,104 @@ jobs:
             git checkout -B "$branch" "origin/$branch"
           else
             git checkout -b "$branch"
+          fi
+          mkdir -p docs/images/generated
+          cp ../turntables/cloth-avatar-turntable.gif docs/images/generated/
+          cp ../turntables/cloth-simulation-arranged-turntable.gif docs/images/generated/
+          cp ../turntables/cloth-simulation-draped-turntable.gif docs/images/generated/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/images/generated/cloth-avatar-turntable.gif \
+            docs/images/generated/cloth-simulation-arranged-turntable.gif \
+            docs/images/generated/cloth-simulation-draped-turntable.gif
+          if git diff --cached --quiet; then
+            echo "README turntables are already current."
+            exit 0
+          fi
+          git commit -m "ci: publish stable README turntables"
+          git push origin "HEAD:$branch"
+  benchmark:
+    name: Measured FreeCAD workbench benchmark
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - name: Pull published FreeCAD image
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
+        run: |
+          set -euo pipefail
+          printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1
+          timeout --signal=TERM --kill-after=30s 10m docker pull "$IMAGE"
+      - name: Run isolated FreeCAD workbench measurements
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
+        run: |
+          set -uo pipefail
+          rm -rf artifacts/workbench-benchmark
+          mkdir -p artifacts/workbench-benchmark
+          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu -w /workspace "$IMAGE" -euo pipefail -c '
+            set -e
+            python3 -c "import tissu, pytest; print(\"Tissu\", tissu.__file__); print(\"pytest\", pytest.__version__)"
+            mkdir -p "$XDG_RUNTIME_DIR"
+            Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+            openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+            trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+            for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+            xdpyinfo -display :99 >/dev/null 2>&1
+            for wb in Pattern Sewing Simulation; do
+              echo "=== benchmark: $wb ==="
+              rm -f /tmp/cloth-benchmark-trace.log
+              CLOTH_BENCHMARK_WORKBENCH="$wb" CLOTH_BENCHMARK_OUTPUT="artifacts/workbench-benchmark/$wb.json" CLOTH_BENCHMARK_REPEATS=7 timeout --signal=TERM --kill-after=10s 180s /opt/freecad/AppRun tests/freecad_workbench_benchmark.py
+              test -s "artifacts/workbench-benchmark/$wb.json"
+            done
+          ')"
+          cleanup() {
+            set +e
+            docker cp "$CID:/workspace/artifacts/workbench-benchmark/." artifacts/workbench-benchmark/ 2>/dev/null || true
+            docker cp "$CID:/tmp/cloth-benchmark-trace.log" artifacts/workbench-benchmark/cloth-benchmark-trace.log 2>/dev/null || true
+            docker cp "$CID:/tmp/xvfb.log" artifacts/workbench-benchmark/xvfb.log 2>/dev/null || true
+            docker cp "$CID:/tmp/openbox.log" artifacts/workbench-benchmark/openbox.log 2>/dev/null || true
+            docker rm -f "$CID" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          docker cp "$PWD/." "$CID:/workspace/"
+          docker start -a "$CID"
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "FreeCAD benchmark failed with status $status"
+            exit "$status"
+          fi
+          docker cp "$CID:/workspace/artifacts/workbench-benchmark/." artifacts/workbench-benchmark/
+          docker cp "$CID:/tmp/cloth-benchmark-trace.log" artifacts/workbench-benchmark/cloth-benchmark-trace.log 2>/dev/null || true
+          docker cp "$CID:/tmp/xvfb.log" artifacts/workbench-benchmark/xvfb.log 2>/dev/null || true
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("artifacts/workbench-benchmark")
+          names = ["Pattern", "Sewing", "Simulation"]
+          data = [json.loads((root / f"{name}.json").read_text()) for name in names]
+          merged = {
+              "schema": data[0]["schema"],
+              "python": data[0]["python"],
+              "freecad_version": data[0]["freecad_version"],
+              "repeats": data[0]["repeats"],
+              "workbenches": {},
+          }
+          for item in data:
+              merged["workbenches"].update(item["workbenches"])
+          (root / "benchmark.json").write_text(json.dumps(merged, indent=2, sort_keys=True) + "\n")
+          PY
+      - name: Install plotting dependency
+        run: python3 -m pip install --disable-pip-version-check matplotlib
+      - name: Generate benchmark plots
+        run: python3 tools/plot_workbench_benchmark.py artifacts/workbench-benchmark/benchmark.json artifacts/workbench-benchmark/plots
+      - name: Upload benchmark measurements and plots
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: workbench-benchmark
+          path: artifacts/workbench-benchmark
+          if-no-files-found: warn
+          compression-level: 1
