@@ -342,31 +342,62 @@ def simulation():
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
-    def authored_shoulder_pins(piece, particle_indices, positions):
+    def authored_front_boundary_pins(piece, outline, particle_indices, positions):
+        points = [(float(x), float(y)) for x, y in outline]
         targets = (
-            (0.14 * panel_width, 0.97 * garment_height),
-            (0.86 * panel_width, 0.97 * garment_height),
+            (0.08 * panel_width, 0.97 * garment_height),
+            (0.92 * panel_width, 0.97 * garment_height),
+            (0.20 * panel_width, 0.90 * garment_height),
+            (0.80 * panel_width, 0.90 * garment_height),
         )
+
+        def nearest_boundary_point(target_x, target_y):
+            best = None
+            best_distance = None
+            for i, start in enumerate(points):
+                end = points[(i + 1) % len(points)]
+                dx = end[0] - start[0]
+                dy = end[1] - start[1]
+                length_sq = dx * dx + dy * dy
+                if length_sq <= 1e-12:
+                    candidate = start
+                else:
+                    t = ((target_x - start[0]) * dx + (target_y - start[1]) * dy) / length_sq
+                    t = max(0.0, min(1.0, t))
+                    candidate = (start[0] + t * dx, start[1] + t * dy)
+                distance = (candidate[0] - target_x) ** 2 + (candidate[1] - target_y) ** 2
+                if best_distance is None or distance < best_distance:
+                    best = candidate
+                    best_distance = distance
+            return best
+
         available = list(particle_indices)
         result = []
         for local_x, local_y in targets:
-            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
-            index = min(available, key=lambda i: (positions[i][0] - target_point.x) ** 2 + (positions[i][1] - target_point.y) ** 2 + (positions[i][2] - target_point.z) ** 2)
+            boundary_x, boundary_y = nearest_boundary_point(local_x, local_y)
+            target_point = piece.Placement.multVec(App.Vector(boundary_x, boundary_y, 0.0))
+            index = min(
+                available,
+                key=lambda i: (positions[i][0] - target_point.x) ** 2
+                + (positions[i][1] - target_point.y) ** 2
+                + (positions[i][2] - target_point.z) ** 2,
+            )
             result.append(index)
             available.remove(index)
         return tuple(result)
+
     proxy = scene.Proxy
     positions = tuple(proxy.backend.positions())
     pin_panels = list(scene.DrapePanels)
     panel_indices = proxy.panel_indices
     front_indices = tuple(panel_indices[pin_panels[0].Name])
     back_indices = tuple(panel_indices[pin_panels[1].Name])
-    front_pins = authored_shoulder_pins(front, front_indices, positions)
-    back_pins = authored_shoulder_pins(back, back_indices, positions)
-    # The two panels begin on opposite sides of the avatar. Pinning both sewn
-    # shoulder endpoints would freeze each endpoint at its separated start
-    # position, making the zero-rest stitch constraint unsatisfiable. Anchor
-    # only the front shoulder endpoints; the back panel must follow through the
+    front_pins = authored_front_boundary_pins(front, front_outline, front_indices, positions)
+    back_pins = authored_front_boundary_pins(back, back_outline, back_indices, positions)
+    # The two panels begin on opposite sides of the avatar. Pinning both endpoints
+    # of a sewn pair would freeze each endpoint at its separated start position,
+    # making the zero-rest stitch constraint unsatisfiable. Anchor only the front
+    # boundary points; the back panel remains unpinned and follows through the
     # authored shoulder stitches.
     scene.PinSelection = [str(i) for i in front_pins]
     if any(
