@@ -95,3 +95,20 @@ def test_sketcher_integer_seam_reference_uses_original_geometry_index():
     assert _seam_edge_id(piece, 1, "A")[0] == "piece:edge:1"
     assert _seam_edge_id(piece, 2, "A")[0] == "piece:edge:2"
     assert {record["ordinal"] for record in records} == {0, 1, 2, 3}
+
+
+def test_sketcher_semantic_seam_reference_preserves_native_provenance_signature():
+    from freecad_cloth.pattern.PatternObjects import _seam_edge_id
+    from freecad_cloth.sewing.SeamReference import capture_edge_reference
+
+    piece = _NativePiece()
+    edge_id, signature = _seam_edge_id(piece, "piece:edge:1", "A")
+    assert edge_id == "piece:edge:1"
+    record = next(record for record in __import__("freecad_cloth.pattern.PatternObjects", fromlist=["_edge_records"])._edge_records(piece) if record["id"] == edge_id)
+    expected = capture_edge_reference(
+        piece.PieceId,
+        edge_id,
+        record["points"],
+        record["provenance"],
+    ).signature
+    assert signature == expected
