@@ -54,3 +54,19 @@ def test_tunic_audit_replaces_full_legacy_seam_block_and_gate_anchor():
     assert 'seam_records.append((seam_obj, front, back))' in source
     assert 'proxy=proxy' in source
     assert 'authoritative tunic seams did not converge' in source
+
+def test_tunic_audit_source_rewrite_consumes_legacy_seam_loop_body():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    tree = ast.parse(audit, filename=str(ROOT / "tests" / "freecad_tunic_audit.py"))
+    replacements = next(
+        ast.literal_eval(node.value)
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "replacements" for target in node.targets)
+    )
+    seam_old = next(key for key in replacements if "for edge_a, edge_b, seam_id" in key)
+    seam_new = replacements[seam_old]
+    dummy = "def simulation():\n    seam_records = []\n    " + seam_old + "\n        seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id)\n        add_seam(doc, seam)\n        seam_records.append((seam, front, back))\n"
+    rewritten = dummy.replace(seam_old, seam_new, 1)
+    assert "edge_a, edge_b" not in rewritten
+    compile(rewritten, "<tunic-audit-rewrite>", "exec")
