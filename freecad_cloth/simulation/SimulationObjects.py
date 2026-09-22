@@ -456,6 +456,8 @@ def create_humanoid_avatar(doc, scale=1.0):
     from freecad_cloth.avatar.AvatarCommands import create_avatar
     avatar = create_avatar(attach_collision=False, doc=doc, object_name="HumanoidAvatar")
     avatar.Label = "Humanoid Avatar (MakeHuman)"
+    from freecad_cloth.common.GarmentDocument import link_garment_object
+    link_garment_object(avatar, "Avatar", doc)
     return avatar
 
 
@@ -477,6 +479,8 @@ def create_avatar_collision(doc, source_obj=None, thickness=2.0, deflection=1.0)
     avatar.CollisionType = "MeshSurface"
     avatar.CollisionVertexCount = len(surface.vertices)
     avatar.CollisionTriangleCount = len(surface.triangles)
+    from freecad_cloth.common.GarmentDocument import link_garment_object
+    link_garment_object(avatar, "AvatarCollision", doc)
     return avatar
 
 
@@ -533,6 +537,10 @@ def create_simulation_scene(doc):
     scene.Proxy = proxy
     panel_a = _mesh_object(doc, "DrapePanelA", "Drape Panel A")
     panel_b = _mesh_object(doc, "DrapePanelB", "Drape Panel B")
+    from freecad_cloth.common.GarmentDocument import link_garment_object
+    link_garment_object(scene, "Simulation", doc)
+    link_garment_object(panel_a, "SimulationOutput", doc)
+    link_garment_object(panel_b, "SimulationOutput", doc)
     scene.DrapePanels = [panel_a, panel_b]
     avatar = create_avatar_collision(doc)
     scene.AvatarProxy = avatar
