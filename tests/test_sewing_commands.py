@@ -99,6 +99,10 @@ def _repair_test_modules(monkeypatch, edge_length, pieces=()):
         PieceB="piece-b",
         EdgeA=0,
         EdgeB=1,
+        EdgeAId="piece-a:edge:0",
+        EdgeBId="piece-b:edge:1",
+        EdgeASignature="stale-a",
+        EdgeBSignature="stale-b",
         LengthA=0.0,
         LengthB=0.0,
     )
@@ -118,7 +122,11 @@ def _repair_test_modules(monkeypatch, edge_length, pieces=()):
 
 
 def _pattern_piece(piece_id):
-    return SimpleNamespace(PatternType="PatternPiece", PieceId=piece_id)
+    return SimpleNamespace(
+        PatternType="PatternPiece",
+        PieceId=piece_id,
+        SewingOutline="[(0, 0), (10, 0), (10, 10), (0, 10)]",
+    )
 
 
 def test_repair_selected_seam_wraps_missing_piece_with_actionable_context(monkeypatch):
@@ -163,9 +171,17 @@ def test_repair_selected_seam_does_not_swallow_unexpected_runtime_error(monkeypa
         raise AssertionError("unexpected runtime errors must not be swallowed")
 
 
-def test_repair_selected_seam_successful_repair_keeps_public_result(monkeypatch):
+def test_repair_selected_seam_successful_repair_refreshes_existing_semantic_edges(monkeypatch):
     def edge_length(_piece, edge):
         return 10.0 + edge
 
-    _repair_test_modules(monkeypatch, edge_length, (_pattern_piece("piece-a"), _pattern_piece("piece-b")))
+    seam, _doc = _repair_test_modules(
+        monkeypatch,
+        edge_length,
+        (_pattern_piece("piece-a"), _pattern_piece("piece-b")),
+    )
     assert repair_selected_seam() == "repaired"
+    assert seam.EdgeAId == "piece-a:edge:0"
+    assert seam.EdgeBId == "piece-b:edge:1"
+    assert seam.EdgeASignature != "stale-a"
+    assert seam.EdgeBSignature != "stale-b"
