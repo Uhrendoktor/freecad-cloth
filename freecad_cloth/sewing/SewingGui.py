@@ -16,6 +16,10 @@ def seam_reference_status(seam):
     if seam is None: return "Missing seam"
     return str(getattr(seam, "Status", "Valid")) or "Valid"
 
+def correspondence_recovery(status):
+    from freecad_cloth.sewing.SewingCorrespondence import correspondence_recovery as _recovery
+    return _recovery(status)
+
 def validate_seam_for_accept(seam):
     status=seam_reference_status(seam)
     if status != "Valid":
