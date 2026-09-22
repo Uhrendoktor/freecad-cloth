@@ -1,4 +1,10 @@
-"""Commands for the Cloth Pattern workbench."""
+"""Commands for the Cloth Pattern workbench.
+
+Native FreeCAD Sketcher is the normal pattern authoring/editor path. The
+legacy polygon drafting helper remains importable only for explicit migration
+and compatibility with older documents; it is intentionally not registered as
+a normal workbench command.
+"""
 import ast
 from freecad_cloth.common.CommandAdapter import icon_for_command
 
@@ -183,7 +189,11 @@ def create_pattern_piece_task():
 
 
 def create_pattern_drafting():
-    """Open the sketch-like polygon drafting canvas for the selected piece."""
+    """Explicit legacy compatibility hook for old PatternDrafting documents.
+
+    This helper is intentionally not part of the command list or normal
+    FreeCAD command registration. New authoring uses native Sketcher.
+    """
     import FreeCAD as App
     import FreeCADGui as Gui
     from freecad_cloth.pattern.PatternGui import show_pattern_drafting_task
@@ -353,10 +363,12 @@ class _PatternExportCommand:
         }
 
 
+# Compatibility-only: keep create_pattern_drafting available for explicit
+# migration/legacy document handling, but never expose it as a normal command.
 COMMANDS = [
     "ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_EditSketch",
     "ClothPattern_CreateSketch", "ClothPattern_CreatePieceWithSketch", "ClothPattern_CreateFromSketch",
-    "ClothPattern_CreateDrafting", "ClothPattern_Show2D", "ClothPattern_CreatePiece", "ClothPattern_CreateCustomPiece",
+    "ClothPattern_Show2D", "ClothPattern_CreatePiece", "ClothPattern_CreateCustomPiece",
     "ClothPattern_CreateMesh", "ClothPattern_AddSeam", "ClothPattern_RepairTopology", "ClothPattern_Export",
 ]
 
@@ -376,8 +388,7 @@ try:
             "ClothPattern_CreateSketch": create_pattern_sketch,
             "ClothPattern_CreatePieceWithSketch": create_pattern_piece_with_sketch,
             "ClothPattern_CreateFromSketch": create_pattern_piece_from_selected_sketch,
-            "ClothPattern_CreateDrafting": create_pattern_drafting,
-            "ClothPattern_Show2D": show_pattern_2d,
+"ClothPattern_Show2D": show_pattern_2d,
             "ClothPattern_CreatePiece": create_pattern_piece_with_sketch,
             "ClothPattern_CreateCustomPiece": create_custom_pattern_piece,
             "ClothPattern_CreateMesh": create_pattern_mesh,
