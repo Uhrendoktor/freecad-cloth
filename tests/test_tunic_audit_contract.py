@@ -10,7 +10,7 @@ def test_canonical_tunic_uses_authored_sketch_semantic_edge_ids():
     assert 'front_semantic_edge_ids = {index: _semantic_edge_id(front.Sketch, index) for index in (1, 2, 6, 7)}' in source
     assert 'back_semantic_edge_ids = {index: _semantic_edge_id(back.Sketch, index) for index in (1, 2, 6, 7)}' in source
     assert 'for authored_a, authored_b, seam_id in ((1, 1, "TunicRightSide"), (2, 2, "TunicRightShoulder"), (6, 6, "TunicLeftShoulder"), (7, 7, "TunicLeftSide")):' in source
-    assert 'Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b' in source
+    assert 'Seam(str(front.PieceId), authored_a, str(back.PieceId), authored_b' in source
     assert 'canonical tunic seam %s did not retain authored semantic edge IDs' in source
     assert 'tunic-seam-map=' in source
     assert 'edge_a = int(seam.EdgeA)' not in source
