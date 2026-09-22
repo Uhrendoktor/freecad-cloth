@@ -291,6 +291,30 @@ def test_native_and_legacy_pieces_can_share_one_simulation_pattern():
     assert pattern.piece("front").boundaries[0].id == "front:bottom"
     assert pattern.piece("back").boundaries[0].id == "back:edge:0"
 
+def test_native_semantic_seam_edge_keeps_sketch_provenance_signature(monkeypatch):
+    import freecad_cloth.pattern.PatternObjects as pattern_objects
+
+    sketch = _Sketch(
+        [LineSegment((0.0, 0.0), (10.0, 0.0)) for _ in range(4)],
+        [f"piece:edge:{index}" for index in range(4)],
+    )
+    piece = _Piece("piece", sketch)
+    provenance = ("PatternIR", "Sketcher", "line", (0.0, 1.0), ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0)))
+    records = [{"id": "piece:edge:2", "points": ((0.0, 0.0), (10.0, 0.0)), "provenance": provenance}]
+    monkeypatch.setattr(pattern_objects, "_native_edge_records", lambda _piece: records)
+    edge_id, signature = pattern_objects._seam_edge_id(piece, "piece:edge:2", "A")
+    assert edge_id == "piece:edge:2"
+    assert signature == capture_edge_reference("piece", "piece:edge:2", records[0]["points"], provenance).signature
+
+
+
+if __name__ == "__main__":
+    for name, fn in globals().copy().items():
+        if name.startswith("test_"):
+            fn()
+    print("Pattern simulation adapter tests passed")
+
+
 if __name__ == "__main__":
     for name, fn in globals().copy().items():
         if name.startswith("test_"):
