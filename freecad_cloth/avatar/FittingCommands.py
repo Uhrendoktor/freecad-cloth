@@ -351,7 +351,6 @@ class _FittingProxy:
         points = tuple(ArrangementPoint.from_string(v) for v in obj.ArrangementPoints)
         volumes = tuple(BoundingVolume.from_string(v) for v in obj.BoundingVolumes)
         FittingScene(measurements, avatar_name, placements, points, volumes, bool(obj.SymmetryEnabled)).validate()
-        _sync_visuals(obj)
 
 
 COMMANDS = [
