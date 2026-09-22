@@ -60,24 +60,31 @@ def test_endpoint_alignment_uses_physical_arc_length_on_curved_edge():
         def __init__(self, values): self.values = values
         def discretize(self, Number=64): return [SimpleNamespace(x=x, y=y) for x, y in self.values]
 
-    curved = [(0, 0), (2, 2), (4, 0)]
+    # The two polyline segments have unequal physical lengths. The midpoint
+    # therefore falls inside the second segment when sampled by arc length.
+    curved = [(0, 0), (1, 0), (4, 3)]
     straight = [(0, 0), (4, 0)]
-    a = SimpleNamespace(Width=4, Height=2, SewingOutline=repr([(0, 0), (4, 0), (4, 2)]), Shape=SimpleNamespace(Edges=[Edge(curved), Edge(straight), Edge(straight)]))
-    b = SimpleNamespace(Width=4, Height=2, SewingOutline=repr([(0, 0), (4, 0), (4, 2)]), Shape=SimpleNamespace(Edges=[Edge(straight), Edge(straight), Edge(straight)]))
+    a = SimpleNamespace(Width=4, Height=3, SewingOutline=repr([(0, 0), (4, 0), (4, 3)]), Shape=SimpleNamespace(Edges=[Edge(curved), Edge(straight), Edge(straight)]))
+    b = SimpleNamespace(Width=4, Height=3, SewingOutline=repr([(0, 0), (4, 0), (4, 3)]), Shape=SimpleNamespace(Edges=[Edge(straight), Edge(straight), Edge(straight)]))
     seam = SimpleNamespace(EdgeA=0, StartA=0, EndA=1, EdgeB=0, StartB=0, EndB=1, ReversedB=False)
     oldf = sys.modules.get("FreeCAD")
     sys.modules["FreeCAD"] = _install_fake_freecad()()
     try:
         endpoint_pairs = _seam_correspondence(a, b, seam, 3, "endpoints")
-        uniform_pairs = _seam_correspondence(a, b, seam, 3, "uniform")
+        seam.ReversedB = True
+        reversed_pairs = _seam_correspondence(a, b, seam, 3, "endpoints")
     finally:
         if oldf is None: sys.modules.pop("FreeCAD", None)
         else: sys.modules["FreeCAD"] = oldf
-    assert endpoint_pairs[1][0].y > 0
-    assert endpoint_pairs[1][0].x == uniform_pairs[1][0].x
-    assert endpoint_pairs[1][0].y == uniform_pairs[1][0].y
-    assert endpoint_pairs[1][1].x == uniform_pairs[1][1].x
-    assert endpoint_pairs[1][1].y == uniform_pairs[1][1].y
+
+    midpoint = endpoint_pairs[1][0]
+    assert abs(midpoint.x - 2.2) < 1e-9
+    assert abs(midpoint.y - 1.2) < 1e-9
+
+    assert abs(reversed_pairs[0][1].x - endpoint_pairs[-1][1].x) < 1e-9
+    assert abs(reversed_pairs[0][1].y - endpoint_pairs[-1][1].y) < 1e-9
+    assert abs(reversed_pairs[-1][1].x - endpoint_pairs[0][1].x) < 1e-9
+    assert abs(reversed_pairs[-1][1].y - endpoint_pairs[0][1].y) < 1e-9
 
 
 def test_reversed_correspondence_is_applied_once():
