@@ -82,11 +82,7 @@ def triangulate(pattern: ParametricPattern, curve_samples: int = 16, max_area: f
     edge_ids = _edge_segment_ids(pattern, points)
     if _signed_area(points) < 0:
         points = list(reversed(points))
-        reversed_edge_ids = list(reversed(edge_ids))
-        # Reversing the vertex loop shifts the closing edge to the last slot.
-        # Rotate the reversed provenance left by one so each semantic ID stays
-        # attached to the same geometric segment after winding normalization.
-        edge_ids = reversed_edge_ids[1:] + reversed_edge_ids[:1]
+        edge_ids = _edge_segment_ids(pattern, points)
 
     if max_area is not None:
         max_area = float(max_area)
