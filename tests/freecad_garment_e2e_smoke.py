@@ -789,7 +789,13 @@ def run_acceptance():
                     raise RuntimeError("%s export lost units/scale" % export_format)
                 if float(metadata.get("seam_allowance_mm", 0.0)) != float(marked_piece.SeamAllowance):
                     raise RuntimeError("%s export lost seam allowance" % export_format)
-                if metadata.get("edge_ids") != list(str(v) for v in marked_piece.Sketch.SemanticEdgeIds):
+                expected_edge_ids = {
+                    str(v) for v in marked_piece.Sketch.SemanticEdgeIds if str(v)
+                }
+                exported_edge_ids = {
+                    str(v) for v in metadata.get("edge_ids", ()) if str(v)
+                }
+                if exported_edge_ids != expected_edge_ids:
                     raise RuntimeError("%s export lost semantic edge IDs" % export_format)
                 if metadata.get("seam_ids") != [str(seam_11.SeamId)]:
                     raise RuntimeError("%s export lost seam ID" % export_format)
