@@ -97,7 +97,7 @@ try:
     Gui.activateWorkbench("ClothPatternWorkbench")
     process_events()
 
-    for command in ("ClothPattern_CreatePieceWithSketch", "ClothPattern_EditSketch", "ClothPattern_Export"):
+    for command in ("ClothPattern_CreatePieceWithSketch", "ClothPattern_EditSketch", "ClothPattern_Export", "ClothPattern_AddNotch", "ClothPattern_AddGrainline", "ClothPattern_AddInternalMark"):
         if command not in Gui.listCommands():
             raise RuntimeError("missing public Pattern command: " + command)
     if "ClothPattern_CreateDrafting" in Gui.listCommands():
@@ -128,6 +128,27 @@ try:
     else:
         raise RuntimeError("pattern creation task panel remained open before export")
 
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(piece)
+    process_events()
+    for command in ("ClothPattern_AddNotch", "ClothPattern_AddGrainline", "ClothPattern_AddInternalMark"):
+        Gui.runCommand(command, 0)
+        process_events()
+    doc.recompute()
+    construction_marks = [
+        obj for obj in doc.Objects
+        if str(getattr(obj, "PatternMarkType", "")).strip()
+        and str(getattr(obj, "PieceId", "")) == str(piece.PieceId)
+    ]
+    if len(construction_marks) != 3:
+        raise RuntimeError("public Pattern mark commands did not persist notch/grainline/internal-mark objects")
+    if not all(str(getattr(obj, "PatternMarkId", "")).strip() for obj in construction_marks):
+        raise RuntimeError("persisted PatternMark objects are missing stable IDs")
+    semantic_edge_ids = tuple(str(value) for value in getattr(piece.Sketch, "SemanticEdgeIds", ()) if str(value))
+    if any(str(getattr(obj, "SegmentId", "")) not in semantic_edge_ids for obj in construction_marks):
+        raise RuntimeError("persisted construction marks do not reference semantic Sketcher edge IDs")
+    record("construction-marks=passed notch=1 grainline=1 internal=1")
+
     source_before = (
         str(piece.Label),
         str(piece.PieceId),
@@ -135,6 +156,15 @@ try:
         float(piece.SeamAllowance),
         float(piece.GrainlineAngle),
         str(getattr(piece, "GeometryAuthority", "")),
+        tuple(
+            (
+                str(getattr(obj, "PatternMarkId", "")),
+                str(getattr(obj, "PatternMarkType", "")),
+                str(getattr(obj, "SegmentId", "")),
+                float(getattr(obj, "Position", 0.0)),
+            )
+            for obj in construction_marks
+        ),
     )
 
     with tempfile.TemporaryDirectory() as directory:
@@ -188,6 +218,17 @@ try:
                 raise RuntimeError(export_format + " export lost semantic edge IDs")
             if not metadata.get("mark_ids"):
                 raise RuntimeError(export_format + " export lost construction mark identity")
+            if metadata.get("notch_ids") != [
+                str(next(obj for obj in construction_marks if obj.PatternMarkType == "Notch").PatternMarkId)
+            ]:
+                raise RuntimeError(export_format + " export lost persisted notch identity")
+            internal_mark_id = str(
+                next(obj for obj in construction_marks if obj.PatternMarkType == "InternalMark").PatternMarkId
+            )
+            if metadata.get("internal_mark_ids") != [internal_mark_id]:
+                raise RuntimeError(export_format + " export lost persisted internal-mark identity")
+            if internal_mark_id not in metadata.get("mark_ids", []):
+                raise RuntimeError(export_format + " export lost internal-mark construction metadata")
             results[export_format] = len(first)
 
         if source_before != (
@@ -197,8 +238,17 @@ try:
             float(piece.SeamAllowance),
             float(piece.GrainlineAngle),
             str(getattr(piece, "GeometryAuthority", "")),
+            tuple(
+                (
+                    str(getattr(obj, "PatternMarkId", "")),
+                    str(getattr(obj, "PatternMarkType", "")),
+                    str(getattr(obj, "SegmentId", "")),
+                    float(getattr(obj, "Position", 0.0)),
+                )
+                for obj in construction_marks
+            ),
         ):
-            raise RuntimeError("public export mutated authoritative PatternPiece state")
+            raise RuntimeError("public export mutated authoritative PatternPiece or PatternMark state")
 
         record("pattern-export=passed formats=SVG,DXF bytes=%s,%s" % (results["SVG"], results["DXF"]))
 except Exception:
