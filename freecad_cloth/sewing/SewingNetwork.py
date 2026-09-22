@@ -273,4 +273,6 @@ def add_sewing_network(doc, seams, relationship_id, name="SewingNetwork"):
     obj.setEditorMode("InvalidReason", 1)
     obj.Proxy = SewingNetworkProxy()
     obj.Proxy.execute(obj)
+    from freecad_cloth.common.GarmentDocument import link_garment_object
+    link_garment_object(obj, "Sewing", doc)
     return obj
