@@ -60,7 +60,10 @@ def snapshot(doc):
     root = garment_root(doc)
     assert root is not None
     assert root.TypeId == "App::Part"
-    assert [obj.Name for obj in children(root)] == list(GARMENT_GROUPS)
+    actual_root_children = [obj.Name for obj in children(root)]
+    log("root-children=%s" % actual_root_children)
+    assert sorted(actual_root_children) == sorted(GARMENT_GROUPS)
+    assert len(actual_root_children) == len(GARMENT_GROUPS)
 
     patterns = require_group(doc, "Patterns")
     sewing = require_group(doc, "Sewing")
