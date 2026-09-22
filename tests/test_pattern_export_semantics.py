@@ -119,13 +119,28 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path):
         PieceB = "piece-back"
         Status = "Valid"
 
+    class Mark:
+        def __init__(self, name, mark_type, segment_id, position=0.5, depth=3.0, angle=0.0, length=40.0, text=""):
+            self.Name = name
+            self.PatternMarkId = name
+            self.PatternMarkType = mark_type
+            self.PieceId = "piece-front"
+            self.SegmentId = segment_id
+            self.Position = position
+            self.Depth = depth
+            self.Angle = angle
+            self.Length = length
+            self.Text = text
+
     class Document:
         Objects = ()
 
+    notch = Mark("notch-front", "Notch", "piece-front:edge:0", position=0.5, depth=3.0)
+    construction = Mark("mark-front", "InternalMark", "piece-front:edge:0", position=0.5, length=20.0, text="Internal")
     piece = Piece()
     piece.Document = Document()
-    piece.Document.Objects = (piece, Seam())
-    before = (piece.Label, piece.SeamAllowance, piece.GrainlineAngle, piece.SewingOutline)
+    piece.Document.Objects = (piece, Seam(), notch, construction)
+    before = (piece.Label, piece.SeamAllowance, piece.GrainlineAngle, piece.SewingOutline, notch.PatternMarkId, notch.SegmentId, construction.PatternMarkId, construction.SegmentId)
 
     for fmt, metadata_reader in (("svg", from_svg_metadata), ("dxf", from_dxf_metadata)):
         first = tmp_path / ("front.%s" % fmt)
@@ -139,9 +154,56 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path):
         assert metadata["seam_ids"] == ["front-back"]
         assert metadata["scale"] == 1.0
         assert metadata["seam_allowance_mm"] == 5.0
-        assert metadata["mark_ids"] == ["piece-front:grainline"]
+        assert metadata["notch_ids"] == ["notch-front"]
+        assert metadata["mark_ids"] == ["mark-front"]
+        output = first.read_text(encoding="utf-8")
+        if fmt == "svg":
+            assert 'id="notch-notch-front"' in output
+            assert 'data-segment="piece-front:edge:0" data-t="0.500000"' in output
+            assert 'id="mark-mark-front"' in output
+            assert 'data-kind="InternalMark"' in output
+            assert 'x1="45.000000" y1="65.000000" x2="65.000000" y2="65.000000"' in output
+        else:
+            assert "10\n50.000000\n20\n0.000000\n10\n50.000000\n20\n3.000000" in output
+            assert "10\n40.000000\n20\n0.000000\n10\n60.000000\n20\n0.000000" in output
 
-    assert before == (piece.Label, piece.SeamAllowance, piece.GrainlineAngle, piece.SewingOutline)
+    assert before == (piece.Label, piece.SeamAllowance, piece.GrainlineAngle, piece.SewingOutline, notch.PatternMarkId, notch.SegmentId, construction.PatternMarkId, construction.SegmentId)
+
+
+def test_pattern_piece_export_blocks_stale_construction_mark(tmp_path):
+    class Piece:
+        PatternType = "PatternPiece"
+        Name = "Front"
+        Label = "Front"
+        PieceId = "piece-front"
+        Width = 100.0
+        Height = 60.0
+        SeamAllowance = 0.0
+        GrainlineAngle = 0.0
+        GeometryAuthority = ""
+        SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)])
+        DraftingBoundary = SewingOutline
+
+    class Mark:
+        Name = "notch-stale"
+        PatternMarkId = "notch-stale"
+        PatternMarkType = "Notch"
+        PieceId = "piece-front"
+        SegmentId = "piece-front:edge:missing"
+        Position = 0.5
+        Depth = 3.0
+        Angle = 0.0
+        Length = 40.0
+        Text = ""
+
+    class Document:
+        Objects = ()
+
+    piece = Piece()
+    piece.Document = Document()
+    piece.Document.Objects = (piece, Mark())
+    with TestCase().assertRaisesRegex(ValueError, "construction mark notch-stale references missing edge"):
+        export_pattern_piece(piece, tmp_path / "stale.svg", "svg")
 
 
 def test_pattern_piece_export_blocks_invalid_semantic_seams(tmp_path):
