@@ -93,3 +93,31 @@ def test_release_gate_rejects_geometry_or_semantic_drift():
 def test_release_gate_rejects_unknown_format():
     with TestCase().assertRaisesRegex(ValueError, "format must be 'svg' or 'dxf'"):
         validate_export(_curved_pattern(), "", "pdf")
+
+
+def test_release_gate_preserves_explicit_metadata_scale():
+    pattern = _curved_pattern()
+    derived = _derived(pattern)
+    kwargs = dict(
+        curve_samples=9,
+        units="cm",
+        scale=0.25,
+        metadata_scale=2.0,
+        derived=derived,
+        piece_id="bodice-front",
+        seam_ids=("seam-neck",),
+        seam_allowance=5.0,
+    )
+    svg = to_svg(pattern, **kwargs)
+    metadata = from_svg_metadata(svg)
+    assert metadata["units"] == "cm"
+    assert metadata["scale"] == 2.0
+    assert metadata["seam_allowance"] == 5.0
+    assert validate_export(pattern, svg, "svg", **kwargs)["valid"] is True
+
+    dxf = to_dxf(pattern, **kwargs)
+    metadata = from_dxf_metadata(dxf)
+    assert metadata["units"] == "cm"
+    assert metadata["scale"] == 2.0
+    assert metadata["seam_allowance"] == 5.0
+    assert validate_export(pattern, dxf, "dxf", **kwargs)["valid"] is True
