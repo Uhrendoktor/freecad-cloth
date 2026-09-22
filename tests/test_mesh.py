@@ -43,6 +43,18 @@ def test_reversed_rectangle_retains_segment_provenance():
     assert mesh.boundary_edge_segment_ids == ("left", "bottom", "right", "top")
 
 
+def test_clockwise_outline_keeps_segment_provenance_on_normalization():
+    # This order is genuinely clockwise: bottom-left -> top-left -> top-right -> bottom-right.
+    pattern = ParametricPattern([
+        LineSegment("left", (0, 0), (0, 50)),
+        LineSegment("top", (0, 50), (100, 50)),
+        LineSegment("right", (100, 50), (100, 0)),
+        LineSegment("bottom", (100, 0), (0, 0)),
+    ])
+    mesh = triangulate(pattern)
+    assert mesh.boundary_edge_segment_ids == ("right", "top", "left", "bottom")
+
+
 def test_seam_generates_stitches():
     a = rectangle(100.0, 50.0)
     b = rectangle(100.0, 50.0)
