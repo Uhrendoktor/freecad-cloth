@@ -16,7 +16,7 @@ def _outline_points(piece):
 
 def quality_piece_mesh(piece, start_height, particle_distance):
     from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
-    from freecad_cloth.pattern.PatternMesh import triangulate
+    from freecad_cloth.pattern.PatternMesh import refine_linear_boundary, triangulate
 
     spacing = max(0.25, float(particle_distance))
     points = _outline_points(piece)
@@ -28,7 +28,7 @@ def quality_piece_mesh(piece, start_height, particle_distance):
     # A small safety margin keeps the actual edge spacing below the requested
     # particle distance without hand-written midpoint refinement.
     max_area = 0.45 * spacing * spacing
-    mesh = triangulate(ParametricPattern(segments), max_area=max_area)
+    mesh = triangulate(refine_linear_boundary(ParametricPattern(segments), spacing), max_area=max_area)
     placement = getattr(piece, "Placement", None)
     if placement is None:
         positions = [(x, y, float(start_height)) for x, y in mesh.vertices]
@@ -43,8 +43,13 @@ def quality_piece_mesh(piece, start_height, particle_distance):
     segment_ids = mesh.boundary_edge_segment_ids
     if segment_ids and len(segment_ids) != len(boundary):
         raise ValueError("quality mesh boundary provenance length does not match boundary vertices")
+    edge_prefixes = [f"{piece.PieceId}:edge:{index}" for index in range(len(points))]
     for index, segment_id in enumerate(segment_ids):
-        key = str(segment_id)
+        raw_key = str(segment_id)
+        key = next(
+            prefix for prefix in edge_prefixes
+            if raw_key == prefix or raw_key.startswith(prefix + "::sub::")
+        )
         start = int(boundary[index])
         end = int(boundary[(index + 1) % len(boundary)])
         group = boundary_groups.setdefault(key, [start])
