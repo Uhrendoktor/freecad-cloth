@@ -71,7 +71,6 @@ def _ensure_group(doc, root, role):
     if group is None:
         group = doc.addObject("App::DocumentObjectGroup", role)
     _ensure_string(group, "GarmentRole", "Garment", role)
-    _ensure_link(group, "Garment", "Garment", root)
     if group not in _children(root):
         root.addObject(group)
     return group
@@ -109,7 +108,6 @@ def ensure_fabric_material(doc, root=None):
         if name not in getattr(material, "PropertiesList", ()):
             material.addProperty("App::PropertyFloat", name, "Fabric")
             setattr(material, name, float(value))
-    _ensure_link(material, "Garment", "Garment", root)
     if material not in _children(fabric_group):
         fabric_group.addObject(material)
     return material
@@ -155,7 +153,6 @@ def link_garment_object(obj, role, doc=None):
     if group is None:
         group = _ensure_group(doc, root, group_role)
     _ensure_string(obj, "GarmentRole", "Garment", role)
-    _ensure_link(obj, "Garment", "Garment", root)
     if obj not in _children(group):
         group.addObject(obj)
     return obj
