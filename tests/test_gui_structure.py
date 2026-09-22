@@ -51,6 +51,7 @@ assert '"Pose"' in avatar_gui
 assert '"Display"' in avatar_gui
 assert "Apply & Rebuild" in avatar_gui
 assert "Gui.Control.showDialog(panel)" in avatar_gui
+assert "ClothPattern_CreateGarment" in commands
 assert "ClothPattern_CreatePieceTask" in commands
 assert "ClothPattern_EditPiece" in commands
 assert "ClothPattern_Show2D" in commands

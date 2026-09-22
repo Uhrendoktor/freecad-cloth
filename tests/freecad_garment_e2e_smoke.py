@@ -9,7 +9,7 @@ import FreeCADGui as Gui
 import Part
 import Sketcher
 
-from freecad_cloth.common.GarmentDocument import adopt_garment, create_garment
+from freecad_cloth.common.GarmentDocument import adopt_garment
 
 
 def _events():
@@ -290,17 +290,23 @@ def _export_pair(piece, output_dir, export_format):
 
 
 def run_acceptance():
-    doc = App.newDocument("CanonicalGarmentAcceptance")
+    doc = None
     path = None
     try:
         _activate(
             "ClothPatternWorkbench",
             [
+                "ClothPattern_CreateGarment",
                 "ClothPattern_CreatePieceWithSketch",
                 "ClothPattern_EditPiece",
                 "ClothPattern_Show2D",
             ],
         )
+        Gui.runCommand("ClothPattern_CreateGarment", 0)
+        _events()
+        doc = App.ActiveDocument
+        if doc is None:
+            raise RuntimeError("public ClothPattern_CreateGarment command did not create a document")
         for _ in range(4):
             Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
             _events()
@@ -508,15 +514,16 @@ def run_acceptance():
         _close_task()
         print("diagnostics=passed metric=stress", flush=True)
 
-        garment = create_garment(doc)
+        garment = adopt_garment(doc)
         if str(garment.GarmentType) != "ClothGarment":
             raise RuntimeError("public garment creation did not create a ClothGarment root")
         if len([obj for obj in doc.Objects if str(getattr(obj, "GarmentType", "")) == "ClothGarment"]) != 1:
             raise RuntimeError("document contains more than one Garment root")
         garment = adopt_garment(doc)
         expected_groups = {
-            "Pattern": garment.PatternGroup,
+            "Patterns": garment.PatternsGroup,
             "Sewing": garment.SewingGroup,
+            "Fabric": garment.FabricGroup,
             "Fitting": garment.FittingGroup,
             "Avatar": garment.AvatarGroup,
             "Simulation": garment.SimulationGroup,
@@ -536,6 +543,8 @@ def run_acceptance():
             raise RuntimeError("garment hierarchy did not link the authoritative ClothSimulation")
         if garment.PrimaryAvatar is None or str(getattr(garment.PrimaryAvatar, "AvatarType", "")) != "ClothAvatar":
             raise RuntimeError("garment hierarchy did not link the authoritative avatar")
+        if garment.PrimaryFabric is None or str(getattr(garment.PrimaryFabric, "FabricType", "")) != "FabricMaterial":
+            raise RuntimeError("garment hierarchy did not link the authoritative fabric material")
         root_group_names = {obj.Name for obj in getattr(garment, "Group", ())}
         for role, group in expected_groups.items():
             if group.Name not in root_group_names:
@@ -559,8 +568,9 @@ def run_acceptance():
             target_name = target.Name
             garment_name = garment.Name
             garment_group_names = {
-                "Pattern": garment.PatternGroup.Name,
+                "Patterns": garment.PatternsGroup.Name,
                 "Sewing": garment.SewingGroup.Name,
+                "Fabric": garment.FabricGroup.Name,
                 "Fitting": garment.FittingGroup.Name,
                 "Avatar": garment.AvatarGroup.Name,
                 "Simulation": garment.SimulationGroup.Name,
@@ -606,10 +616,28 @@ def run_acceptance():
                 raise RuntimeError("save/reload lost Garment -> DrapeTarget link")
             if reloaded_garment.PrimarySimulation is None or reloaded_garment.PrimarySimulation.Name != scene.Name:
                 raise RuntimeError("save/reload lost Garment -> ClothSimulation link")
+            if reloaded_garment.PrimaryFabric is None or str(getattr(reloaded_garment.PrimaryFabric, "FabricType", "")) != "FabricMaterial":
+                raise RuntimeError("save/reload lost Garment -> FabricMaterial link")
             adopted = adopt_garment(reloaded)
             if adopted.Name != reloaded_garment.Name:
                 raise RuntimeError("adopting a reloaded document created a second Garment root")
             print("hierarchy-save-reload=passed", flush=True)
+
+            legacy = App.newDocument("StandalonePatternCompatibility")
+            try:
+                from freecad_cloth.pattern.PatternModel import PatternPiece
+                from freecad_cloth.pattern.PatternObjects import add_pattern_piece
+                legacy_piece = add_pattern_piece(
+                    legacy,
+                    PatternPiece("Legacy", [(0, 0), (20, 0), (20, 10)], id="legacy"),
+                )
+                if any(str(getattr(obj, "GarmentType", "")) == "ClothGarment" for obj in legacy.Objects):
+                    raise RuntimeError("standalone pattern creation unexpectedly created a Garment root")
+                if legacy_piece not in legacy.Objects:
+                    raise RuntimeError("standalone PatternPiece was not preserved")
+                print("standalone-backcompat=passed", flush=True)
+            finally:
+                App.closeDocument(legacy.Name)
 
             if target.SourceObject is None or target.SourceObject.Name != target_body_name:
                 raise RuntimeError("save/reload lost persistent DrapeTarget source")
