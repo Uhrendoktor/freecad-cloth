@@ -406,9 +406,7 @@ def run_acceptance():
 
         _select_objects(scene)
         quality_panel = _open_quality_panel()
-        quality_panel.quality = getattr(quality_panel, "quality", None)
-        if hasattr(quality_panel, "preset"):
-            quality_panel.preset.setCurrentText("Fast")
+        quality_panel.quality.setCurrentText("Fast")
         Gui.Control.accept()
         _wait_task_close()
         scene.Steps = 1
@@ -447,10 +445,12 @@ def run_acceptance():
             reloaded = App.openDocument(path)
             reloaded.recompute()
 
+            expected_piece_ids = [str(piece.PieceId) for piece in pieces]
+            target_body_name = target_body.Name
             reloaded_pieces = [reloaded.getObject(name) for name in piece_names]
             if any(piece is None for piece in reloaded_pieces):
                 raise RuntimeError("garment fixture did not preserve all four PatternPiece objects")
-            if [str(piece.PieceId) for piece in reloaded_pieces] != [str(piece.PieceId) for piece in pieces]:
+            if [str(piece.PieceId) for piece in reloaded_pieces] != expected_piece_ids:
                 raise RuntimeError("save/reload changed persistent PatternPiece identity")
             seam_11 = reloaded.getObject(seam_11_name)
             network = reloaded.getObject(network_name)
@@ -464,7 +464,7 @@ def run_acceptance():
                 raise RuntimeError("save/reload changed sewing validity")
             if len(network.Seams) != 2 or len(fitting.PatternPieces) != 4 or len(scene.ClothPieces) != 4:
                 raise RuntimeError("save/reload changed sewing/fitting/simulation membership")
-            if target.SourceObject is None or target.SourceObject.Name != target_body.Name:
+            if target.SourceObject is None or target.SourceObject.Name != target_body_name:
                 raise RuntimeError("save/reload lost persistent DrapeTarget source")
             semantic_ids_after_reload = tuple(getattr(reloaded_pieces[0].Sketch, "SemanticEdgeIds", ()))
             if semantic_ids_after_reload != before_ids[0]:
