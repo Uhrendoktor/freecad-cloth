@@ -245,7 +245,9 @@ def export_pattern_piece(piece, path, format: str, *, units: str = "mm", curve_s
     seam_ids = _piece_seams(piece)
     allowance = max(0.0, float(getattr(piece, "SeamAllowance", 0.0)))
     derived = derive_cut_boundary(pattern, allowance, curve_samples=curve_samples)
-    if pattern.segments:
+    derived, internal_mark_ids = _persisted_construction_marks(piece, derived)
+    semantic_edge_ids = tuple(str(value).strip() for value in getattr(getattr(piece, "Sketch", None), "SemanticEdgeIds", ()) or () if str(value).strip())
+    if not any(mark.kind.casefold() == "grainline" for mark in derived.marks) and pattern.segments:
         mark = PatternMark(
             id="%s:grainline" % str(getattr(piece, "PieceId", "piece")),
             kind="Grainline",
