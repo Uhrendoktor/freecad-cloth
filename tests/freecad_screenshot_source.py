@@ -146,7 +146,6 @@ def _post_drape_seam_gap(edge_a_indices, edge_b_indices, positions, seam, sample
         raise ValueError("semantic seam boundary vertices are required")
     points_a = tuple(positions[int(index)] for index in edge_a_indices)
     points_b = tuple(positions[int(index)] for index in edge_b_indices)
-    from freecad_cloth.sewing.SewingCorrespondence import arc_length_vertex_indices
     sampled_a = arc_length_vertex_indices(
         edge_a_indices,
         points_a,
@@ -162,7 +161,7 @@ def _post_drape_seam_gap(edge_a_indices, edge_b_indices, positions, seam, sample
         float(getattr(seam, "EndB", 1.0)),
     )
     if bool(getattr(seam, "ReversedB", False)):
-        sampled_b.reverse()
+        sampled_b = tuple(reversed(sampled_b))
     maximum = 0.0
     for a_index, b_index in zip(sampled_a, sampled_b):
         a = positions[int(a_index)]
