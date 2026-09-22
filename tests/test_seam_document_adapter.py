@@ -35,3 +35,59 @@ def test_document_edge_resolution_rejects_missing_semantic_id():
     piece = _piece()
     with pytest.raises(MissingEdgeReference):
         _resolve_document_edge(piece, "front:edge:99", "deadbeef")
+
+
+class _NativeSketch:
+    SemanticEdgeIds = tuple(f"piece:edge:{index}" for index in range(4))
+
+
+class _NativePiece:
+    PieceId = "piece"
+    GeometryAuthority = "Sketcher"
+    Sketch = _NativeSketch()
+
+
+def test_sketcher_integer_seam_reference_uses_authored_geometry_index_after_boundary_reordering():
+    import freecad_cloth.pattern.PatternObjects as pattern_objects
+
+    piece = _NativePiece()
+    semantic_ids = tuple(f"piece:edge:{index}" for index in range(4))
+    reordered = [
+        {"id": semantic_ids[index], "points": ((float(index), 0.0), (float(index + 1), 0.0)),
+         "ordinal": traversal, "provenance": ("PatternIR", "Sketcher", "line", (0.0, 1.0),
+            ((float(index), 0.0, 0.0), (float(index + 1), 0.0, 0.0)))}
+        for traversal, index in enumerate((0, 3, 2, 1))
+    ]
+    previous = pattern_objects._native_edge_records
+    pattern_objects._native_edge_records = lambda _piece: reordered
+    try:
+        assert [record["id"] for record in _edge_records(piece)] == [
+            "piece:edge:0", "piece:edge:3", "piece:edge:2", "piece:edge:1"
+        ]
+        assert pattern_objects._seam_edge_id(piece, 1, "A")[0] == "piece:edge:1"
+        assert pattern_objects._seam_edge_id(piece, 2, "A")[0] == "piece:edge:2"
+    finally:
+        pattern_objects._native_edge_records = previous
+
+
+def test_sketcher_semantic_seam_reference_keeps_provenance_signature():
+    import freecad_cloth.pattern.PatternObjects as pattern_objects
+
+    piece = _NativePiece()
+    record = {
+        "id": "piece:edge:2",
+        "points": ((2.0, 0.0), (3.0, 0.0)),
+        "ordinal": 0,
+        "provenance": ("PatternIR", "Sketcher", "line", (0.0, 1.0),
+            ((2.0, 0.0, 0.0), (3.0, 0.0, 0.0))),
+    }
+    previous = pattern_objects._native_edge_records
+    pattern_objects._native_edge_records = lambda _piece: [record]
+    try:
+        edge_id, signature = pattern_objects._seam_edge_id(piece, "piece:edge:2", "A")
+    finally:
+        pattern_objects._native_edge_records = previous
+    assert edge_id == "piece:edge:2"
+    assert signature == capture_edge_reference(
+        piece.PieceId, record["id"], record["points"], record["provenance"]
+    ).signature
