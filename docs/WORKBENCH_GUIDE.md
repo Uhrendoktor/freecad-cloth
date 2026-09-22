@@ -40,7 +40,7 @@ After pattern, seam or target edits: recompute, inspect the stale/invalid reason
 
 ## Native garment hierarchy
 
-Use the public `ClothPattern_CreateGarment` command to create a production garment document. The FCStd document remains the only persistence authority: the native `Garment` root contains deterministic `Patterns`, `Sewing`, `Fabric`, `Avatar`, and `Simulation` groups. A persisted native `FabricMaterial` object lives in the Fabric group; pattern, sewing, fitting, avatar/target, and simulation outputs are linked into the corresponding group when the garment root exists. Existing standalone object-creation commands remain supported in documents without a Garment root.
+Use the public `ClothPattern_CreateGarment` command to create a production garment document. The FCStd document remains the only persistence authority: the native `Garment` root contains deterministic `Patterns`, `Sewing`, `Fabric`, `Avatar`, and `Simulation` groups. A persisted native `FabricMaterial` object lives in the Fabric group; pattern, sewing, avatar/target, and simulation outputs are linked into their corresponding groups when the garment root exists. Fitting remains the existing persisted FreeCAD fitting-scene state rather than adding a sixth hierarchy group. Existing standalone object-creation commands remain supported in documents without a Garment root.
 
 ## Document authority
 
