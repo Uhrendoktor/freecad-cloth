@@ -150,7 +150,12 @@ def _seam_edge_id(piece, edge, prefix):
     reference_id = str(edge)
     for record in records:
         if record["id"] == reference_id:
-            return reference_id, capture_edge_reference(piece.PieceId, reference_id, record["points"]).signature
+            return reference_id, capture_edge_reference(
+                piece.PieceId,
+                reference_id,
+                record["points"],
+                record.get("provenance"),
+            ).signature
     raise MissingEdgeReference(f"semantic edge reference {reference_id} is missing from pattern piece {piece.PieceId}")
 
 
