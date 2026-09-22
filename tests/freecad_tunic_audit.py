@@ -221,6 +221,14 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
     log("authoritative-seam-max-gap-mm=%.2f seam-ids=%s" % (max_seam_gap, tuple(str(seam.SeamId) for seam, _a, _b in seam_records)))\n"""
 
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", 1)
-source = source.replace("def simulation():", "def simulation():\n    from freecad_cloth.simulation import SimulationMeshQuality as _quality_module\n    _quality_module.quality_piece_mesh = _coarse_boundary_quality_piece_mesh\n    log(\"tunic-mesh-ab=boundary-refinement-48mm max-area-preserved-259.2\")\n", 1)\n\n# The source uses the production simulation path; this wrapper only stabilizes
+source = source.replace(
+    "def simulation():",
+    "def simulation():\n"
+    "    from freecad_cloth.simulation import SimulationMeshQuality as _quality_module\n"
+    "    _quality_module.quality_piece_mesh = _coarse_boundary_quality_piece_mesh\n"
+    "    log(\"tunic-mesh-ab=boundary-refinement-48mm max-area-preserved-259.2\")\n",
+    1,
+)
+\n# The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
 exec(compile(source, str(source_path), "exec"), globals(), globals())
