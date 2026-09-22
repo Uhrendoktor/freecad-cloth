@@ -263,6 +263,8 @@ class SimulationProxy:
         self.backend = None
         self.panel_indices = {}
         self.panel_triangles = {}
+        self.panel_boundary_edges = {}
+        self.panel_piece_names = {}
         self.source_signature = None
         self.last_steps = 0
         self.collision_surface = None
@@ -346,10 +348,14 @@ class SimulationProxy:
         self.backend = registry.create(backend_name, system, **backend_kwargs)
         self.panel_indices = {}
         self.panel_triangles = {}
+        self.panel_boundary_edges = {}
+        self.panel_piece_names = {}
         for panel, piece in zip(panels, pieces):
             data = panel_data[piece]
             self.panel_indices[panel.Name] = tuple(range(data["offset"], data["offset"] + data["vertex_count"]))
             self.panel_triangles[panel.Name] = data["triangles"]
+            self.panel_boundary_edges[panel.Name] = data["boundary_edges"]
+            self.panel_piece_names[panel.Name] = str(getattr(piece, "Name", ""))
         self.source_signature = signature or _simulation_source_signature(obj, pieces)
         self.last_steps = 0
         self.collision_surface = collision_surface
@@ -380,6 +386,8 @@ class SimulationProxy:
                 tris.extend(((a, b, c), (a, c, d)))
         self.panel_indices = {"DrapePanelA": tuple(range(offset)), "DrapePanelB": tuple(range(offset, offset * 2))}
         self.panel_triangles = {"DrapePanelA": tuple(tris), "DrapePanelB": tuple((a + offset, b + offset, c + offset) for a, b, c in tris)}
+        self.panel_boundary_edges = {}
+        self.panel_piece_names = {}
         self.source_signature = _simulation_source_signature(obj, ())
         self.last_steps = 0
         self.collision_surface = _collision_for_scene(obj)
