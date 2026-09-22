@@ -97,6 +97,46 @@ def _set_native_boundary(sketch, arc):
     sketch.GeometryAuthority = "Sketcher"
 
 
+def test_native_integer_seam_reference_uses_authored_sketch_edge_after_reorder():
+    if App is None or Part is None:
+        return
+    document = App.newDocument("NativeShuffledSeam")
+    try:
+        piece_a = PatternPiece("NativeShuffledA", [(0, 0), (10, 0), (10, 10), (0, 10)], id="native-shuffled-a")
+        piece_b = PatternPiece("NativeShuffledB", [(0, 0), (10, 0), (10, 10), (0, 10)], id="native-shuffled-b")
+        obj_a = add_pattern_piece(document, piece_a)
+        obj_b = add_pattern_piece(document, piece_b)
+        sketch_a = create_sketch_for_piece(piece_a, document)
+        create_sketch_for_piece(piece_b, document)
+        sketch_a.clear()
+        sketch_a.addGeometry([
+            Part.LineSegment(App.Vector(10, 10, 0), App.Vector(0, 10, 0)),
+            Part.LineSegment(App.Vector(0, 10, 0), App.Vector(0, 0, 0)),
+            Part.LineSegment(App.Vector(0, 0, 0), App.Vector(10, 0, 0)),
+            Part.LineSegment(App.Vector(10, 0, 0), App.Vector(10, 10, 0)),
+        ], False)
+        sketch_a.SemanticEdgeIds = [
+            "native-shuffled-a:edge:2",
+            "native-shuffled-a:edge:3",
+            "native-shuffled-a:edge:0",
+            "native-shuffled-a:edge:1",
+        ]
+        sketch_a.GeometryAuthority = "Sketcher"
+        document.recompute()
+
+        seam = add_seam(
+            document,
+            Seam(obj_a.PieceId, 1, obj_b.PieceId, 0, id="native-shuffled-seam"),
+        )
+        document.recompute()
+        assert str(seam.EdgeAId) == "native-shuffled-a:edge:3"
+        assert str(seam.EdgeBId) == "native-shuffled-b:edge:0"
+        assert str(seam.Status) == "Valid"
+    finally:
+        if document.Name in App.listDocuments():
+            App.closeDocument(document.Name)
+
+
 def test_native_seam_reference_save_reload_curve_edit_and_missing():
     if App is None or Part is None:
         return
@@ -191,5 +231,6 @@ def test_native_seam_reference_save_reload_curve_edit_and_missing():
 if __name__ == "__main__":
     test_pattern_piece_proxy_recomputes_deterministically()
     test_pattern_piece_proxy_rejects_invalid_dimensions()
+    test_native_integer_seam_reference_uses_authored_sketch_edge_after_reorder()
     test_native_seam_reference_save_reload_curve_edit_and_missing()
     print("FreeCAD object proxy and native seam reference tests passed")
