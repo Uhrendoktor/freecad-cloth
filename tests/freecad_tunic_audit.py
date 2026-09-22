@@ -68,8 +68,18 @@ for old, new in replacements.items():
         raise RuntimeError(f"audit replacement did not match source: {old}")
     source = source.replace(old, new, 1)
 
-
-preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
+# Remove the stale seam body left behind when the semantic-edge header is rewritten.
+_stale_a = "edge" + "_a"
+_stale_b = "edge" + "_b"
+_stale_body = (
+    '        seam = Seam(str(front.PieceId), %s, str(back.PieceId), %s, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\\n'
+    '        add_seam(doc, seam)\\n'
+    '        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)\\n'
+    '        seam_records.append((seam_obj, front, back))'
+    % (_stale_a, _stale_b)
+)
+source = source.replace(_stale_body, "")
+\npreview_probe = '''    from freecad_cloth.simulation import RealtimePreview
     if "ClothRealtimePreview" not in Gui.listCommands():
         raise RuntimeError("Realtime Cloth Preview GUI command is not registered")
     preview_saved = {name: getattr(scene, name) for name in ("ParticleDistance", "SolverIterations", "SolverSubsteps", "TimeStep", "QualityPreset")}
