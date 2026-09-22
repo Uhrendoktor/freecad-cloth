@@ -49,8 +49,17 @@ def _require_drape_target_ready(doc):
     return target
 
 
+_ACTIVE_SIMULATION_QUALITY_TASK_PANEL = None
+
+
+def get_active_simulation_quality_task_panel():
+    """Return the task panel opened by the public simulation controls command."""
+    return _ACTIVE_SIMULATION_QUALITY_TASK_PANEL
+
+
 def edit_simulation():
     """Open the native simulation quality controls task panel."""
+    global _ACTIVE_SIMULATION_QUALITY_TASK_PANEL
     import FreeCAD as App
     from freecad_cloth.simulation.SimulationQualityGui import show_simulation_quality_task
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import ensure_quality_properties
@@ -58,7 +67,8 @@ def edit_simulation():
     scene = _find_simulation(doc) if doc else None
     if scene is not None:
         ensure_quality_properties(scene)
-    return show_simulation_quality_task(scene)
+    _ACTIVE_SIMULATION_QUALITY_TASK_PANEL = show_simulation_quality_task(scene)
+    return _ACTIVE_SIMULATION_QUALITY_TASK_PANEL
 
 
 def _require_simulation():
