@@ -46,7 +46,7 @@ def to_svg(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm
     def xy(point): return (point[0]-min_x,height-(point[1]-min_y))
     def path(points,closed=True):
         coords=[xy(p) for p in points]; return "M "+" L ".join(f"{_fmt(x)},{_fmt(y)}" for x,y in coords)+(" Z" if closed else "")
-    edge_ids=" ".join(escape(s.id,quote=True) for s in pattern.segments); metadata=json.dumps(_metadata(pattern,units,piece_id,seam_ids,derived,seam_allowance),sort_keys=True,separators=(",",":"))
+    edge_ids=" ".join(escape(s.id,quote=True) for s in pattern.segments); metadata=json.dumps(_metadata(pattern,units,piece_id,seam_ids,derived,seam_allowance,internal_mark_ids,semantic_edge_ids),sort_keys=True,separators=(",",":"))
     lines=[f'<svg xmlns="http://www.w3.org/2000/svg" width="{_dim(width)}{escape(units)}" height="{_dim(height)}{escape(units)}" viewBox="0 0 {_fmt(width)} {_fmt(height)}" data-units="{escape(units,quote=True)}" data-edge-ids="{edge_ids}" data-piece-id="{escape(str(piece_id),quote=True)}">',f'  <metadata>{escape(metadata)}</metadata>',f'  <g id="sewing-boundary" data-edge-ids="{edge_ids}"><path d="{path(sewing)}" fill="none"/></g>']
     if cut_edges:
         lines.append('  <g id="cut-boundary">')
