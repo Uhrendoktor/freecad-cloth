@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Iterable, List, Sequence, Tuple
 
 from freecad_cloth.pattern.PatternModel import Seam
+from freecad_cloth.sewing.SewingCorrespondence import analyze_correspondence, correspondence_status_label
 
 
 @dataclass(frozen=True)
@@ -235,8 +236,13 @@ class SewingNetworkProxy:
         obj.LengthA = total_a
         obj.LengthB = total_b
         obj.LengthDifference = abs(total_a - total_b)
-        tolerance = max(0.0, float(getattr(obj, "Tolerance", 0.5)))
-        obj.Status = "Valid" if obj.LengthDifference <= tolerance else "Length mismatch"
+        report = analyze_correspondence(
+            total_a,
+            total_b,
+            length_tolerance=max(0.0, min(0.99, float(getattr(obj, "RelativeTolerance", 0.05)))),
+        )
+        obj.Status = correspondence_status_label(report)
+        obj.CorrespondenceStatus = str(report.status)
 
 
 def add_sewing_network(doc, seams, relationship_id, name="SewingNetwork"):
@@ -257,6 +263,8 @@ def add_sewing_network(doc, seams, relationship_id, name="SewingNetwork"):
     obj.addProperty("App::PropertyInteger", "SideBCount", "Sewing").SideBCount = len({(s.PieceB, s.EdgeB) for s in seams})
     obj.addProperty("App::PropertyInteger", "SegmentCount", "Sewing").SegmentCount = len(seams)
     obj.addProperty("App::PropertyLength", "Tolerance", "Validation").Tolerance = 0.5
+    obj.addProperty("App::PropertyFloat", "RelativeTolerance", "Validation").RelativeTolerance = 0.05
+    obj.addProperty("App::PropertyString", "CorrespondenceStatus", "Validation").CorrespondenceStatus = "valid"
     obj.addProperty("App::PropertyLength", "LengthA", "Validation").LengthA = 0.0
     obj.addProperty("App::PropertyLength", "LengthB", "Validation").LengthB = 0.0
     obj.addProperty("App::PropertyLength", "LengthDifference", "Validation").LengthDifference = 0.0
