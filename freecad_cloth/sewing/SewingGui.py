@@ -84,7 +84,7 @@ class SewingTaskPanel:
         self._transaction_active=False; return False
     def _refresh(self):
         self.status.setText(str(self.obj.Status)); self.lengths.setText("%.2f / %.2f mm (Δ %.2f)"%(float(self.obj.LengthA),float(self.obj.LengthB),float(self.obj.LengthDifference)))
-        report=correspondence_report(self.seam,self.obj.LengthA,self.obj.LengthB,max(0.0,float(self.obj.Tolerance))/max(1.0,float(self.obj.LengthA)))
+        report=correspondence_report(self.seam,self.obj.LengthA,self.obj.LengthB,float(getattr(self.obj,"RelativeTolerance",0.05)))
         if report is None: self.correspondence.setText("No seam correspondence"); return
         self.correspondence.setText("%s — %s (ratio %.4f)"%(report.status,report.message,report.length_ratio))
         self.reverse_button.setText("Unreverse B" if bool(getattr(self.seam,"ReversedB",False)) else "Reverse B")
@@ -106,7 +106,7 @@ class SewingTaskPanel:
         self._apply_seam_settings(); self.App.ActiveDocument.recompute(); self._refresh(); return True
     def repair(self):
         validate_seam_for_accept(self.seam)
-        report=correspondence_report(self.seam,self.obj.LengthA,self.obj.LengthB,max(0.0,float(self.obj.Tolerance))/max(1.0,float(self.obj.LengthA)))
+        report=correspondence_report(self.seam,self.obj.LengthA,self.obj.LengthB,float(getattr(self.obj,"RelativeTolerance",0.05)))
         message=repair_correspondence_settings(self.seam, report)
         self.reversed_b.setChecked(bool(getattr(self.seam,"ReversedB",False)))
         for widget,name,default in ((self.start_a,"StartA",0.0),(self.end_a,"EndA",1.0),(self.start_b,"StartB",0.0),(self.end_b,"EndB",1.0)):
@@ -114,7 +114,7 @@ class SewingTaskPanel:
         self.App.ActiveDocument.recompute(); self._refresh(); return message
     def accept(self):
         validate_seam_for_accept(self.seam); self._apply_seam_settings(); self.obj.Tolerance=self.tolerance.value(); self.obj.Stitches=self.stitches.value(); self.App.ActiveDocument.recompute(); validate_seam_for_accept(self.seam)
-        report=correspondence_report(self.seam,self.obj.LengthA,self.obj.LengthB,max(0.0,float(self.obj.Tolerance))/max(1.0,float(self.obj.LengthA)))
+        report=correspondence_report(self.seam,self.obj.LengthA,self.obj.LengthB,float(getattr(self.obj,"RelativeTolerance",0.05)))
         if report is None or not report.valid: raise ValueError("cannot accept seam correspondence: %s"%(report.message if report else "missing seam"))
         self._commit_transaction(); self._refresh(); return True
     def reject(self):
