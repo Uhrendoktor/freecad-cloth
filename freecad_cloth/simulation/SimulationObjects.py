@@ -139,13 +139,16 @@ def _simulation_source_signature(obj, pieces):
     return piece_signature, seam_signature, target_signature, int(getattr(obj, "StitchSamples", 8)), pin_signature
 
 
-def _piece_mesh(piece, start_height):
+def _piece_mesh(piece, start_height, particle_distance=None):
     from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
-    from freecad_cloth.pattern.PatternMesh import triangulate
+    from freecad_cloth.pattern.PatternMesh import refine_linear_boundary, triangulate
     import FreeCAD as App
     points = _outline_points(piece)
     segments = [LineSegment(f"{piece.PieceId}:edge:{i}", points[i], points[(i + 1) % len(points)]) for i in range(len(points))]
-    mesh = triangulate(ParametricPattern(segments))
+    pattern = ParametricPattern(segments)
+    if particle_distance is not None:
+        pattern = refine_linear_boundary(pattern, float(particle_distance))
+    mesh = triangulate(pattern)
     placement = getattr(piece, "Placement", None)
     vertices = []
     for x, y in mesh.vertices:
@@ -158,8 +161,13 @@ def _piece_mesh(piece, start_height):
     segment_ids = mesh.boundary_edge_segment_ids
     if segment_ids and len(segment_ids) != len(boundary):
         raise ValueError("pattern mesh boundary provenance length does not match boundary vertices")
+    edge_prefixes = [f"{piece.PieceId}:edge:{index}" for index in range(len(points))]
     for index, segment_id in enumerate(segment_ids):
-        key = str(segment_id)
+        raw_key = str(segment_id)
+        key = next(
+            prefix for prefix in edge_prefixes
+            if raw_key == prefix or raw_key.startswith(prefix + "::sub::")
+        )
         start = int(boundary[index])
         end = int(boundary[(index + 1) % len(boundary)])
         group = boundary_groups.setdefault(key, [start])
@@ -307,7 +315,7 @@ class SimulationProxy:
         panel_data = {}
         panels = list(getattr(obj, "DrapePanels", ()))
         for index, piece in enumerate(pieces):
-            vertices, triangles, boundary = _piece_mesh(piece, start_height)
+            vertices, triangles, boundary = _piece_mesh(piece, start_height, float(getattr(obj, "ParticleDistance", 24.0)))
             offset = len(positions)
             positions.extend(vertices)
             triangles = tuple(tuple(a + offset for a in tri) for tri in triangles)
