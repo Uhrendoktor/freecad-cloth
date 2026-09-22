@@ -82,6 +82,8 @@ def _attach(sketch, piece, document):
         _ensure_piece_properties(obj)
         from freecad_cloth.common.SketchAuthority import attach
         attach(obj, sketch)
+        from freecad_cloth.common.GarmentDocument import link_garment_object
+        link_garment_object(sketch, "PatternSketch", document)
         obj.Visibility = False
         sketch.Visibility = True
     return sketch
