@@ -75,7 +75,7 @@ class SimulationQualityTests(unittest.TestCase):
         for outline_point in piece.outline:
             self.assertIn(outline_point, boundary_points)
         self.assertEqual(len(boundary), len(piece.outline))
-        self.assertGreater(sum(len(edge) for edge in boundary), len(piece.outline))
+        self.assertGreater(sum(len(edge) for edge in boundary), len(piece.outline) * 2)
         self.assertGreater(len(triangles), 100)
         self.assertGreater(len(positions), len(boundary_points))
 
