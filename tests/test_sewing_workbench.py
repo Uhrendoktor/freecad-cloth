@@ -208,6 +208,8 @@ def _execute_fake_proxy(
             Alignment="endpoints",
             Status="Incomplete",
             CorrespondenceStatus="valid",
+            CorrespondenceSeverity="info",
+            CorrespondenceRecovery="no repair required",
             LengthA=0,
             LengthB=0,
             LengthDifference=0,
@@ -245,6 +247,12 @@ def test_proxy_reversed_correspondence_is_valid_and_usable():
     assert obj.CorrespondenceStatus == "reversed"
     assert obj.Status == "Valid"
     assert obj.StitchPoints[0].split("|")[1].startswith("100.000000")
+
+
+def test_proxy_persists_shared_severity_and_recovery_contract():
+    obj = _execute_fake_proxy(width_a=100.0, width_b=120.0, relative_tolerance=0.05)
+    assert obj.CorrespondenceSeverity == "error"
+    assert obj.CorrespondenceRecovery == "edit the pattern geometry or seam ranges; do not hide the mismatch with tolerance"
 
 
 def test_proxy_status_uses_shared_relative_mismatch_contract():
