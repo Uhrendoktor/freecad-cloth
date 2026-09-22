@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from math import ceil, hypot, isfinite, isclose
 from typing import Dict, List, Sequence, Tuple
 
-from freecad_cloth.pattern.PatternGeometry import ParametricPattern, Point
+from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, Point
 
 
 @dataclass(frozen=True)
