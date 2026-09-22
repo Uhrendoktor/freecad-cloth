@@ -101,6 +101,28 @@ class SewingNetworkTests(unittest.TestCase):
         seam = _SeamStatus("rel-1-1-1", "Valid")
         self.assertEqual(network_invalid_reason([seam]), "")
 
+    def test_network_uses_shared_relative_mismatch_contract(self):
+        class Doc:
+            Objects = ()
+        a = SimpleNamespace(
+            SeamId="rel-1-1-1", Status="Valid", StitchGroup="rel-1", Document=Doc(),
+            PieceA="A", PieceB="B", EdgeA=0, EdgeB=0, StartA=0.0, EndA=1.0, StartB=0.0, EndB=1.0,
+        )
+        network = SimpleNamespace(
+            Seams=(a,), RelationshipId="rel-1", Status="Valid", InvalidReason="",
+            SegmentCount=1, LengthA=100.0, LengthB=106.0, LengthDifference=6.0,
+            RelativeTolerance=0.05,
+        )
+        import freecad_cloth.sewing.SewingNetwork as module
+        old = module._network_lengths
+        module._network_lengths = lambda seams: (100.0, 106.0)
+        try:
+            SewingNetworkProxy().execute(network)
+        finally:
+            module._network_lengths = old
+        self.assertEqual(network.Status, "Length mismatch")
+        self.assertEqual(network.CorrespondenceStatus, "length_mismatch")
+
 
 if __name__ == "__main__":
     unittest.main()
