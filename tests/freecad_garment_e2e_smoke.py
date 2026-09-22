@@ -561,8 +561,14 @@ def run_acceptance():
 
             curved.Sketch.setDatum(dimensional, App.Units.Quantity("50 mm"))
             reloaded.recompute()
+            if str(seam_11.Status) not in {"Changed reference", "Missing reference"}:
+                raise RuntimeError("restoring native Sketch geometry unexpectedly retargeted the curved seam")
+            _select_objects(seam_11)
+            Gui.runCommand("ClothSewing_RepairSeam", 0)
+            _events()
+            reloaded.recompute()
             if str(seam_11.Status) != "Valid":
-                raise RuntimeError("restoring native Sketch geometry did not recover the curved seam")
+                raise RuntimeError("explicit seam repair did not recover the curved seam")
             print("invalidation-restore=passed seam=Valid", flush=True)
 
             network_piece = reloaded.getObject(next(obj.Name for obj in reloaded_pieces if obj.PieceId == "pattern-piece-3"))

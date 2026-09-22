@@ -290,12 +290,12 @@ class SimulationProxy:
     def execute(self, obj):
         pieces = [p for p in getattr(obj, "ClothPieces", ()) if getattr(p, "PatternType", "") == "PatternPiece"]
         signature = _simulation_source_signature(obj, pieces)
-        if self.backend is None or signature != self.source_signature or int(obj.Steps) < self.last_steps:
+        if getattr(self, "backend", None) is None or signature != getattr(self, "source_signature", None) or int(obj.Steps) < int(getattr(self, "last_steps", 0)):
             self._build(obj, signature)
         steps = int(obj.Steps)
         if steps > self.last_steps:
             fallback_sphere = None
-            if self.collision_surface is None:
+            if getattr(self, "collision_surface", None) is None:
                 fallback_sphere = (
                     float(obj.CollisionX),
                     float(obj.CollisionY),
@@ -307,7 +307,7 @@ class SimulationProxy:
                     float(obj.TimeStep), int(obj.Iterations),
                     (float(obj.GravityX), float(obj.GravityY), float(obj.GravityZ)),
                     fallback_sphere,
-                    self.collision_surface,
+                    getattr(self, "collision_surface", None),
                 )
             self.last_steps = steps
         positions = self.backend.positions()
