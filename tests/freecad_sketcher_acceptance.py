@@ -199,6 +199,9 @@ def run_acceptance():
                 raise RuntimeError("named height dimensional constraint did not survive save/reload")
             if _constraint_name(sketch, width_index) != "PieceWidth" or _constraint_name(sketch, height_index) != "PieceHeight":
                 raise RuntimeError("named PatternPiece Sketcher dimensions did not survive save/reload")
+            restored_seam = next((obj for obj in reloaded.Objects if getattr(obj, "SeamId", "") == seam_id), None)
+            if restored_seam is None or str(restored_seam.Status) != "Valid":
+                raise RuntimeError("valid native straight/arc seam did not survive save/reload")
             audit = reloaded.getObject("SketchConstraintAudit")
             if audit is None or not getattr(audit, "ExternalGeometry", ()):
                 raise RuntimeError("external Sketcher reference did not survive save/reload")
