@@ -226,7 +226,7 @@ def _persisted_construction_marks(piece, pattern):
         else:
             mark = PatternMark(mark_id, kind, segment_id, position, angle, length, text)
         collected.append(mark)
-    return tuple(sorted(collected, key=lambda mark: (mark.kind, mark.id)))
+    return tuple(sorted(collected, key=lambda mark: ("Notch" if isinstance(mark, Notch) else str(mark.kind), mark.id)))
 
 
 def export_pattern_piece(piece, path, format: str, *, units: str = "mm", curve_samples: int = 64) -> dict:
