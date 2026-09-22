@@ -17,6 +17,7 @@ from freecad_cloth.pattern.PatternSketch import create_sketch_for_piece
 
 def run():
     doc = create_garment_document("GarmentDocumentContract")
+    restored = None
     try:
         root = garment_root(doc)
         assert root is not None
@@ -57,12 +58,10 @@ def run():
             except OSError:
                 pass
     finally:
+        if restored is not None and restored.Name in App.listDocuments():
+            App.closeDocument(restored.Name)
         if doc is not None and doc.Name in App.listDocuments():
             App.closeDocument(doc.Name)
-        for name in list(App.listDocuments()):
-            if name != "GarmentDocumentContract":
-                continue
-            App.closeDocument(name)
 
 
 if __name__ == "__main__":
