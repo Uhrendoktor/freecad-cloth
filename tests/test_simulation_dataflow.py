@@ -99,3 +99,14 @@ def test_unrelated_seams_do_not_invalidate_selected_pattern_scene():
 
     unrelated.ReversedB = True
     assert _simulation_source_signature(scene, [piece_a, piece_b]) == baseline
+
+
+def test_quality_proxy_exposes_solver_seam_provenance_explicitly():
+    from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy
+
+    proxy = QualitySimulationProxy.__new__(QualitySimulationProxy)
+    base = type("Base", (), {"seam_stitch_pairs": {"seam-1": ((1, 2),)}})()
+    proxy.seam_stitch_pairs = dict(base.seam_stitch_pairs)
+
+    assert proxy.seam_stitch_pairs == {"seam-1": ((1, 2),)}
+    assert proxy.seam_stitch_pairs is not base.seam_stitch_pairs
