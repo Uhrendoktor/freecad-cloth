@@ -10,8 +10,9 @@ sampling used by older mesh/GUI paths until those consumers are migrated.
 def _piece_model(obj):
     from freecad_cloth.pattern.PatternModel import PatternPiece
     import ast
+    raw = getattr(obj, "SewingOutline", "") or getattr(obj, "DraftingBoundary", "")
     try:
-        outline = [(float(p[0]), float(p[1])) for p in ast.literal_eval(str(getattr(obj, "DraftingBoundary", "")))]
+        outline = [(float(p[0]), float(p[1])) for p in ast.literal_eval(str(raw))]
     except (ValueError, SyntaxError, TypeError, IndexError):
         outline = [(0.0, 0.0), (float(obj.Width), 0.0), (float(obj.Width), float(obj.Height)), (0.0, float(obj.Height))]
     return PatternPiece(
