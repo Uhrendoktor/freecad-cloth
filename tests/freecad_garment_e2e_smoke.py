@@ -796,9 +796,14 @@ def run_acceptance():
             App.closeDocument(doc.Name)
 
 
-_record("standalone-fixture=start")
-run_acceptance()
-_record("scenario-complete=passed")
-_record("freecad-process-exit=forced")
-sys.stdout.flush()
-os._exit(0)
+def _run_standalone():
+    _record("standalone-fixture=start")
+    run_acceptance()
+    _record("scenario-complete=passed")
+    _record("freecad-process-exit=forced")
+    sys.stdout.flush()
+    os._exit(0)
+
+
+if __name__ == "__main__":
+    _run_standalone()
