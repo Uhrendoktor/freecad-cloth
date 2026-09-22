@@ -163,7 +163,7 @@ def _make_nonuniform_curved(piece, doc):
     ])
     doc.recompute()
     if sketch.Shape.isNull() or piece.Shape.isNull():
-        raise RuntimeError("straight M:N counterpart did not produce native geometry")
+        raise RuntimeError("non-uniform curved M:N counterpart did not produce native geometry")
     return sketch
 
 def _position_signature(scene):
