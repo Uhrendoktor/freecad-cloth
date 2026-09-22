@@ -340,6 +340,31 @@ try:
     assert str(curved_network.Status) == "Valid"
     record("curved-mn-reversal=passed segments=3")
 
+    _select_objects(curved_network)
+    Gui.runCommand("ClothSewing_EditNetwork", 0)
+    process_events()
+    network_dialog = Gui.Control.activeDialog()
+    assert network_dialog is not None
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
+    network_form = getattr(network_dialog, "form", network_dialog)
+    network_widgets = [network_form]
+    if hasattr(network_form, "findChildren"):
+        network_widgets.extend(network_form.findChildren(QtWidgets.QWidget))
+    network_text = " | ".join(
+        str(getter())
+        for widget in network_widgets
+        for getter in [getattr(widget, "text", None)]
+        if callable(getter)
+    ).lower()
+    assert "severity info" in network_text
+    assert "recovery:" in network_text
+    record("correspondence-gui-evidence=passed severity=info")
+    Gui.Control.closeDialog()
+    process_events()
+
     visual_seam = curved_network.Seams[0]
     assert not visual_seam.Shape.isNull()
     assert len(visual_seam.Shape.Edges) >= 10, (
