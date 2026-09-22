@@ -49,7 +49,14 @@ replacements = {
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
         'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)',
     'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):' :
-        'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(6,6,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
+        'authored_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())\\n'
+        '    if len(authored_edge_ids) < 8 or any(not authored_edge_ids[index] for index in (1, 2, 6, 7)): raise RuntimeError("canonical tunic fixture is missing authored semantic edge IDs")\\n'
+        '    for edge_a_id, edge_b_id, seam_id in ((authored_edge_ids[1], authored_edge_ids[1], "TunicRightSide"),(authored_edge_ids[2], authored_edge_ids[2], "TunicRightShoulder"),(authored_edge_ids[6], authored_edge_ids[6], "TunicLeftShoulder"),(authored_edge_ids[7], authored_edge_ids[7], "TunicLeftSide")):\\n'
+        '        seam = Seam(str(front.PieceId), edge_a_id, str(back.PieceId), edge_b_id, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\\n'
+        '        add_seam(doc, seam)\\n'
+        '        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)\\n'
+        '        if str(getattr(seam_obj, "EdgeAId", "")) != edge_a_id or str(getattr(seam_obj, "EdgeBId", "")) != edge_b_id: raise RuntimeError("canonical tunic seam %s did not retain authored semantic edge IDs" % seam_id)\\n'
+        '        seam_records.append((seam_obj, front, back))',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
     'front_y = box.YMin - clearance; back_y = box.YMax + clearance;': 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
