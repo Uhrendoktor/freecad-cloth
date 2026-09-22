@@ -43,7 +43,10 @@ def _create_native_sketch_for_piece(obj):
     except (ValueError, SyntaxError, TypeError, IndexError):
         raise ValueError("selected pattern piece has no valid sewing outline")
     piece = PatternPiece(obj.Label, points, seam_allowance=float(getattr(obj, "SeamAllowance", 0.0)), grainline_angle=float(getattr(obj, "GrainlineAngle", 0.0)), id=str(obj.PieceId))
-    return create_sketch_for_piece(piece, App.ActiveDocument)
+    sketch = create_sketch_for_piece(piece, App.ActiveDocument)
+    from freecad_cloth.common.GarmentDocument import register_garment_object
+    register_garment_object(App.ActiveDocument, sketch, "Patterns")
+    return sketch
 
 
 def create_pattern_piece_with_sketch():
