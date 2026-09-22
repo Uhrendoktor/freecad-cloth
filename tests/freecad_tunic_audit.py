@@ -15,6 +15,7 @@ source = source_path.read_text(encoding="utf-8")
 # longer present in freecad_screenshot_source.py, so patch the executable adapter.
 from freecad_cloth.simulation import TissuBackend as _tissu_backend
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
+from tunic_triangle_quality import build_triangle_quality_manifest, persist_triangle_quality_manifest
 
 def _tight_tissu_collision_envelope(surface):
     if surface is None or not surface.vertices:
@@ -124,6 +125,38 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
     log("authoritative-seam-max-gap-mm=%.2f seam-ids=%s" % (max_seam_gap, tuple(str(seam.SeamId) for seam, _a, _b in seam_records)))\n"""
 
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n    ); bounds = []", 1)
+triangle_quality_anchor = """    write_drape_metrics(
+        panels,
+        avatar,
+        x_mid,
+        shoulder_z=shoulder_z,
+        hem_z=hem_z,
+        seam_records=seam_records,
+        proxy=proxy,
+    ); bounds = []"""
+if triangle_quality_anchor not in source:
+    raise RuntimeError("triangle-quality manifest insertion anchor missing from current canonical source")
+source = source.replace(
+    triangle_quality_anchor,
+    """    write_drape_metrics(
+        panels,
+        avatar,
+        x_mid,
+        shoulder_z=shoulder_z,
+        hem_z=hem_z,
+        seam_records=seam_records,
+        proxy=proxy,
+    )
+    persist_triangle_quality_manifest(
+        build_triangle_quality_manifest(
+            (front, back), panels, proxy, scene.ParticleDistance, seam_records
+        ),
+        METRICS,
+        log,
+    ); bounds = []""",
+    1,
+)
+
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
 exec(compile(source, str(source_path), "exec"), globals(), globals())
