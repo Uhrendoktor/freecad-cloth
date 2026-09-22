@@ -170,17 +170,21 @@ jobs:
             -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
             -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" \
             -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
+            -e CLOTH_GARMENT_E2E_LOG=/workspace/artifacts/canonical-garment-e2e/canonical-garment-e2e.log \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
-              python3 -c "import triangle; print(\"triangle-preflight=passed\")"
+              LOG_PATH=/workspace/artifacts/canonical-garment-e2e/canonical-garment-e2e.log
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/canonical-garment-e2e
+              : > "$LOG_PATH"
+              python3 -c "import triangle"
+              printf '%s\n' 'triangle-preflight=passed' | tee -a "$LOG_PATH"
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=15s 8m /opt/freecad/AppRun /workspace/tests/freecad_garment_e2e_smoke.py 2>&1 | tee /workspace/artifacts/canonical-garment-e2e/canonical-garment-e2e.log
+              timeout --signal=TERM --kill-after=15s 8m /opt/freecad/AppRun /workspace/tests/freecad_garment_e2e_smoke.py 2>&1 | tee -a "$LOG_PATH"
               test -s /workspace/artifacts/canonical-garment-e2e/canonical-garment-e2e.log
             '
       - name: Inspect canonical end-to-end evidence
