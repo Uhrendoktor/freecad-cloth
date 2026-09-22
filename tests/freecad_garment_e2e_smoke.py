@@ -60,14 +60,15 @@ def _dialog_text(dialog):
     )
 
 
-def _require_dialog(required, label):
+def _require_dialog(required, label, panel=None):
     dialog = Gui.Control.activeDialog()
     if dialog is None:
         raise RuntimeError("%s did not open an active public task dialog" % label)
 
-    visible_text = _dialog_text(dialog)
+    target = panel if panel is not None else dialog
+    visible_text = _dialog_text(target)
     if all(item in visible_text for item in required):
-        return dialog
+        return target
 
     # FreeCAD's Control.activeDialog() may return a native task wrapper while
     # the actual Python panel is hosted in the Tasks dock. Validate the visible
@@ -85,7 +86,7 @@ def _require_dialog(required, label):
         _events()
         dock_text = _dialog_text(dock)
         if all(item in dock_text for item in required):
-            return dialog
+            return target
 
     missing = [item for item in required if item not in (dock_text if dock is not None else visible_text)]
     raise RuntimeError("%s task panel missing visible text: %s" % (label, ",".join(missing)))
@@ -167,11 +168,15 @@ def _open_staged(command):
     _close_task()
     Gui.runCommand(command, 0)
     _events()
-    _require_dialog(("Preview", "Commit", "Cancel", "Selected semantic pattern edges"), command)
     from freecad_cloth.sewing.SewingCommands import get_active_staged_sewing_task_panel
     panel = get_active_staged_sewing_task_panel()
     if panel is None:
         raise RuntimeError(command + " did not expose its public staged sewing task panel")
+    _require_dialog(
+        ("Preview", "Commit", "Cancel", "Selected semantic pattern edges"),
+        command,
+        panel=panel,
+    )
     return panel
 
 
@@ -195,20 +200,32 @@ def _open_quality_panel():
     _close_task()
     Gui.runCommand("ClothSimulation_Edit", 0)
     _events()
-    return _require_dialog(
+    from freecad_cloth.simulation.SimulationCommands import get_active_simulation_quality_task_panel
+    panel = get_active_simulation_quality_task_panel()
+    if panel is None:
+        raise RuntimeError("ClothSimulation_Edit did not expose its public simulation task panel")
+    _require_dialog(
         ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset"),
         "ClothSimulation_Edit",
+        panel=panel,
     )
+    return panel
 
 
 def _open_diagnostics_panel():
     _close_task()
     Gui.runCommand("ClothDrape_Diagnostics", 0)
     _events()
-    return _require_dialog(
+    from freecad_cloth.simulation.DrapeCommands import get_active_diagnostics_task_panel
+    panel = get_active_diagnostics_task_panel()
+    if panel is None:
+        raise RuntimeError("ClothDrape_Diagnostics did not expose its public diagnostics task panel")
+    _require_dialog(
         ("Refresh analysis", "Create diagnostic map", "Export analysis data"),
         "ClothDrape_Diagnostics",
+        panel=panel,
     )
+    return panel
 
 
 def _export_pair(piece, output_dir, export_format):
@@ -221,7 +238,11 @@ def _export_pair(piece, output_dir, export_format):
     _close_task()
     Gui.runCommand("ClothPattern_Export", 0)
     _events()
-    panel = _require_dialog(("Production Export", "read-only"), "ClothPattern_Export")
+    from freecad_cloth.pattern.PatternCommands import get_active_pattern_export_task_panel
+    panel = get_active_pattern_export_task_panel()
+    if panel is None:
+        raise RuntimeError("ClothPattern_Export did not expose its public pattern-export task panel")
+    _require_dialog(("Production Export", "read-only"), "ClothPattern_Export", panel=panel)
     panel.format.setCurrentText(export_format)
     panel.path.setText(str(path_a))
     if not panel.accept():
@@ -373,9 +394,14 @@ def run_acceptance():
         _select_objects(operation)
         Gui.runCommand("ClothSewing_EditOperation", 0)
         _events()
-        operation_panel = _require_dialog(
+        from freecad_cloth.sewing.SewingCommands import get_active_sewing_operation_task_panel
+        operation_panel = get_active_sewing_operation_task_panel()
+        if operation_panel is None:
+            raise RuntimeError("ClothSewing_EditOperation did not expose its public operation task panel")
+        _require_dialog(
             ("Seam", "Alignment", "Validation tolerance", "Stitch samples", "Status"),
             "ClothSewing_EditOperation",
+            panel=operation_panel,
         )
         operation_panel.stitches.setValue(12)
         operation_panel.alignment.setCurrentText("uniform")
@@ -546,7 +572,15 @@ def run_acceptance():
             _close_task()
             Gui.runCommand("ClothPattern_Export", 0)
             _events()
-            stale_export_panel = _require_dialog(("Production Export", "read-only"), "ClothPattern_Export stale validation")
+            from freecad_cloth.pattern.PatternCommands import get_active_pattern_export_task_panel
+            stale_export_panel = get_active_pattern_export_task_panel()
+            if stale_export_panel is None:
+                raise RuntimeError("ClothPattern_Export did not expose its public pattern-export task panel")
+            _require_dialog(
+                ("Production Export", "read-only"),
+                "ClothPattern_Export stale validation",
+                panel=stale_export_panel,
+            )
             stale_export_path = output_dir / "stale.svg"
             stale_export_panel.format.setCurrentText("SVG")
             stale_export_panel.path.setText(str(stale_export_path))
