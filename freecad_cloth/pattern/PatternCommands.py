@@ -302,6 +302,30 @@ class _FunctionCommand:
         return {"MenuText": self.function.__name__.replace("_", " ").title(), "ToolTip": self.function.__doc__ or "Cloth pattern command", "Pixmap": icon_for_command(self.command_name)}
 
 
+class _PatternExportCommand:
+    """FreeCAD command object that retains the active export task panel."""
+    def __init__(self):
+        self.panel = None
+
+    def Activated(self):
+        self.panel = export_pattern()
+        return None
+
+    def IsActive(self):
+        import FreeCAD as App
+        return App.ActiveDocument is not None and any(
+            getattr(obj, "PatternType", "") == "PatternPiece"
+            for obj in App.ActiveDocument.Objects
+        )
+
+    def GetResources(self):
+        return {
+            "MenuText": "Export Pattern",
+            "ToolTip": "Open the public deterministic SVG/DXF production export task panel",
+            "Pixmap": icon_for_command("ClothPattern_Export"),
+        }
+
+
 COMMANDS = [
     "ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_EditSketch",
     "ClothPattern_CreateSketch", "ClothPattern_CreatePieceWithSketch", "ClothPattern_CreateFromSketch",
@@ -332,8 +356,8 @@ try:
             "ClothPattern_CreateMesh": create_pattern_mesh,
             "ClothPattern_AddSeam": add_seam,
             "ClothPattern_RepairTopology": repair_pattern_topology,
-            "ClothPattern_Export": export_pattern,
         }.items():
             Gui.addCommand(name, _FunctionCommand(handler, name))
+        Gui.addCommand("ClothPattern_Export", _PatternExportCommand())
 except (ImportError, AttributeError):
     pass
