@@ -102,9 +102,17 @@ class QualitySimulationProxy:
             raise AttributeError(name)
         return getattr(self._base_or_restore(), name)
 
+    def _sync_seam_stitch_provenance(self, base):
+        """Keep exact solver stitch-pair provenance on the authoritative document proxy."""
+        self.seam_stitch_pairs = {
+            str(seam_id): tuple(stitch_pairs)
+            for seam_id, stitch_pairs in getattr(base, "seam_stitch_pairs", {}).items()
+        }
+
     def onDocumentRestored(self, obj):
         """Recreate non-serializable solver state after FreeCAD reloads the proxy."""
         self._restore_base()
+        self.seam_stitch_pairs = {}
 
     @staticmethod
     def _signature(obj):
@@ -141,6 +149,7 @@ class QualitySimulationProxy:
                 self._build_pattern_scene(obj, pieces, signature)
             else:
                 self._build_demo(obj, signature)
+            self._sync_seam_stitch_provenance(base)
             self._apply_material(obj)
             self._apply_collision(obj)
         steps = int(obj.Steps)
