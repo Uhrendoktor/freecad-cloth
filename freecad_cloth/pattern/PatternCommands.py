@@ -225,7 +225,8 @@ def export_pattern():
     )
     if piece is None:
         raise ValueError("create or select a pattern piece before exporting")
-    return show_pattern_export_task(piece)
+    _ACTIVE_PATTERN_EXPORT_TASK_PANEL = show_pattern_export_task(piece)
+    return _ACTIVE_PATTERN_EXPORT_TASK_PANEL
 
 
 def create_pattern_mesh():
