@@ -259,6 +259,7 @@ def test_sewing_task_panel_reject_preserves_persisted_relative_tolerance():
     panel._transaction_active = False
     panel._original = {
         "Tolerance": 0.5,
+        "RelativeTolerance": 0.05,
         "Stitches": 8,
         "Alignment": "endpoints",
         "ReversedB": False,
