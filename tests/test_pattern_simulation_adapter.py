@@ -1,5 +1,6 @@
 import math
 
+# Native Sketcher test doubles intentionally expose the same boundary attributes consumed by PatternIR.
 from freecad_cloth.common.PatternSimulationAdapter import (
     resolve_simulation_pattern,
 )
