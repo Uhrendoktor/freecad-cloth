@@ -43,8 +43,6 @@ def quality_piece_mesh(piece, start_height, particle_distance):
     segment_ids = tuple(str(value) for value in mesh.boundary_edge_segment_ids)
     if segment_ids and len(segment_ids) != len(boundary):
         raise ValueError("quality mesh boundary provenance length does not match boundary vertices")
-    if len(boundary) != len(points):
-        raise ValueError("quality mesh boundary vertex count does not match authored outline")
 
     edge_pairs = {}
     prefixes = tuple(f"{piece.PieceId}:edge:{index}" for index in range(len(points)))
