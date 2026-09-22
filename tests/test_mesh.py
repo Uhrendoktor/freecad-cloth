@@ -32,15 +32,35 @@ def test_concave_polygon_triangulates():
     assert mesh.boundary_edge_segment_ids == ("a", "b", "c", "d", "e")
 
 
-def test_reversed_rectangle_retains_segment_provenance():
-    pattern = ParametricPattern([
-        LineSegment("left", (0, 50), (0, 0)),
-        LineSegment("bottom", (0, 0), (100, 0)),
-        LineSegment("right", (100, 0), (100, 50)),
-        LineSegment("top", (100, 50), (0, 50)),
-    ])
+def test_clockwise_rectangle_retains_segment_provenance_after_normalization():
+    segments = [
+        LineSegment("left", (0.0, 0.0), (0.0, 50.0)),
+        LineSegment("top", (0.0, 50.0), (100.0, 50.0)),
+        LineSegment("right", (100.0, 50.0), (100.0, 0.0)),
+        LineSegment("bottom", (100.0, 0.0), (0.0, 0.0)),
+    ]
+    pattern = ParametricPattern(segments)
+    outline = pattern.sampled_outline()
+
+    signed_area = 0.5 * sum(
+        a[0] * b[1] - b[0] * a[1]
+        for a, b in zip(outline, outline[1:] + [outline[0]])
+    )
+    assert signed_area < 0.0
+
     mesh = triangulate(pattern)
-    assert mesh.boundary_edge_segment_ids == ("left", "bottom", "right", "top")
+    assert mesh.boundary_edge_segment_ids == ("right", "top", "left", "bottom")
+
+    segment_by_id = {segment.id: segment for segment in segments}
+    for ordinal, ((start_index, end_index), segment_id) in enumerate(
+        zip(mesh.boundary_edges(), mesh.boundary_edge_segment_ids)
+    ):
+        observed = {mesh.vertices[start_index], mesh.vertices[end_index]}
+        segment = segment_by_id[segment_id]
+        assert observed == {segment.start, segment.end}, (
+            f"boundary ordinal {ordinal} provenance {segment_id!r} "
+            f"does not match its normalized geometric edge"
+        )
 
 
 def test_seam_generates_stitches():
