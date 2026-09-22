@@ -89,6 +89,8 @@ def create_fitting_scene():
     obj.addProperty("App::PropertyString", "FitStatus", "Fitting").FitStatus = "Unassigned"
     obj.Proxy = _FittingProxy()
     FittingScene().validate()
+    from freecad_cloth.common.GarmentDocument import link_garment_object
+    link_garment_object(obj, "Fitting", doc)
     doc.recompute()
     return obj
 
@@ -188,6 +190,12 @@ def create_arrangement_point(name, x, y, offset=0.0, wrap_direction="front", rot
     scene.ArrangementPoints = [values[k].to_string() for k in sorted(values)]
     scene.SymmetryEnabled = bool(scene.SymmetryEnabled)
     _sync_visuals(scene)
+    visual = next((o for o in getattr(scene, "ArrangementPointObjects", ()) if str(getattr(o, "PointName", "")) == str(point.name)), None)
+    if visual is not None:
+        from freecad_cloth.common.GarmentDocument import link_garment_object
+        link_garment_object(visual, "Fitting", doc)
+    from freecad_cloth.common.GarmentDocument import link_garment_object
+    link_garment_object(scene, "Fitting", doc)
     return point
 
 
@@ -242,6 +250,12 @@ def create_bounding_volume(name, center=(0.0, 0.0, 0.0), size=(100.0, 100.0, 100
     values[volume.name] = volume
     scene.BoundingVolumes = [values[k].to_string() for k in sorted(values)]
     _sync_visuals(scene)
+    visual = next((o for o in getattr(scene, "BoundingVolumeObjects", ()) if str(getattr(o, "VolumeName", "")) == str(volume.name)), None)
+    if visual is not None:
+        from freecad_cloth.common.GarmentDocument import link_garment_object
+        link_garment_object(visual, "Fitting", doc)
+    from freecad_cloth.common.GarmentDocument import link_garment_object
+    link_garment_object(scene, "Fitting", doc)
     return volume
 
 
