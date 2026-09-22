@@ -192,46 +192,41 @@ def _sample_boundary(values, start, end, count, points=None):
     return result
 
 
-def _seam_pair_records(doc, panel_data, seam_samples=8):
+def _seam_pair_records(pattern, panel_data, seam_samples=8):
     """Return exact solver stitch pairs plus their semantic seam provenance."""
-    pieces = {str(piece.PieceId): piece for piece in panel_data}
     pairs = []
     records = []
-    for seam in doc.Objects:
-        seam_id = str(getattr(seam, "SeamId", ""))
-        if not seam_id:
+    for seam in pattern.seams:
+        data_a = panel_data.get(str(seam.piece_a))
+        data_b = panel_data.get(str(seam.piece_b))
+        if data_a is None or data_b is None:
             continue
-        piece_a = pieces.get(str(getattr(seam, "PieceA", "")))
-        piece_b = pieces.get(str(getattr(seam, "PieceB", "")))
-        if piece_a is None or piece_b is None:
-            continue
-        data_a, data_b = panel_data[piece_a], panel_data[piece_b]
-        ea, eb = int(seam.EdgeA), int(seam.EdgeB)
-        if ea < 0 or eb < 0 or ea >= len(data_a["boundary_edges"]) or eb >= len(data_b["boundary_edges"]):
-            continue
-        points_a = tuple(data_a["positions"][index] for index in data_a["boundary_edges"][ea])
-        points_b = tuple(data_b["positions"][index] for index in data_b["boundary_edges"][eb])
-        va = _sample_boundary(data_a["boundary_edges"][ea], seam.StartA, seam.EndA, seam_samples, points_a)
-        vb = _sample_boundary(data_b["boundary_edges"][eb], seam.StartB, seam.EndB, seam_samples, points_b)
-        if bool(getattr(seam, "ReversedB", False)):
+        piece_ir_a = pattern.piece(seam.piece_a)
+        piece_ir_b = pattern.piece(seam.piece_b)
+        edge_a = _boundary_vertices(piece_ir_a, seam.edge_a, data_a)
+        edge_b = _boundary_vertices(piece_ir_b, seam.edge_b, data_b)
+        points_a = tuple(data_a["positions"][index] for index in edge_a)
+        points_b = tuple(data_b["positions"][index] for index in edge_b)
+        va = _sample_boundary(edge_a, seam.start_a, seam.end_a, seam_samples, points_a)
+        vb = _sample_boundary(edge_b, seam.start_b, seam.end_b, seam_samples, points_b)
+        if seam.reversed_b:
             vb.reverse()
         seam_pairs = tuple(zip(va, vb))
         pairs.extend(seam_pairs)
-        records.append(
-            (
-                seam_id,
-                str(getattr(piece_a, "Name", "")),
-                str(getattr(piece_b, "Name", "")),
-                seam_pairs,
-            )
-        )
+        records.append((str(seam.id), str(piece_ir_a.name), str(piece_ir_b.name), seam_pairs))
     return tuple(dict.fromkeys(pairs)), tuple(records)
 
 
-def _seam_pairs(doc, panel_data, seam_samples=8):
-    """Return the exact particle pairs used as solver stitch constraints."""
-    return _seam_pair_records(doc, panel_data, seam_samples)[0]
+def _boundary_vertices(piece_ir, edge_id, panel_data):
+    for boundary_ir, values in zip(piece_ir.boundaries, panel_data["boundary_edges"]):
+        if str(boundary_ir.id) == str(edge_id):
+            return tuple(values)
+    raise ValueError("PatternIR semantic seam edge %s is missing from piece %s" % (edge_id, piece_ir.id))
 
+
+def _seam_pairs(pattern, panel_data, seam_samples=8):
+    """Return the exact particle pairs used as solver stitch constraints."""
+    return _seam_pair_records(pattern, panel_data, seam_samples)[0]
 
 def _collision_for_scene(obj):
     """Resolve collision strictly from the persistent DrapeTarget."""
