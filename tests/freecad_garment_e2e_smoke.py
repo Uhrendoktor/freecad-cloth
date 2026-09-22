@@ -10,6 +10,17 @@ import Part
 import Sketcher
 
 
+def _ensure_workbench_registration():
+    if "ClothPatternWorkbench" in Gui.listWorkbenches():
+        return
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    init_gui = os.path.join(root, "InitGui.py")
+    if not os.path.exists(init_gui):
+        raise RuntimeError("InitGui.py is required for standalone canonical garment acceptance")
+    exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
+    _events()
+
+
 def _events():
     Gui.updateGui()
     try:
@@ -288,6 +299,7 @@ def _export_pair(piece, output_dir, export_format):
 
 
 def run_acceptance():
+    _ensure_workbench_registration()
     doc = None
     path = None
     try:
