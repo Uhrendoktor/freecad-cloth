@@ -102,6 +102,17 @@ def test_seam_visual_markers_are_deterministic_and_directional():
     assert first["notch_A"][1] == (-0.0, 1.0)
 
 
+def test_seam_visual_markers_make_reversal_visible_in_b_direction_and_correspondence():
+    a = ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (20.0, 0.0, 0.0))
+    b = ((20.0, 10.0, 0.0), (10.0, 10.0, 0.0), (0.0, 10.0, 0.0))
+    markers = seam_visual_markers(a, b)
+    assert markers["correspondence"][0][1] == b[0]
+    assert markers["correspondence"][-1][1] == b[-1]
+    assert markers["direction_A"][1] == (1.0, 0.0)
+    assert markers["direction_B"][1] == (-1.0, 0.0)
+    assert markers["notch_B"][1] == (0.0, -1.0)
+
+
 def test_seam_visual_markers_reject_mismatched_correspondence():
     try:
         seam_visual_markers(((0.0, 0.0, 0.0),), ((0.0, 1.0, 0.0), (1.0, 1.0, 0.0)))
