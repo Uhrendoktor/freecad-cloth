@@ -9,6 +9,17 @@ def test_sewing_network_gui_contract_is_headless_importable():
     assert hasattr(SewingNetworkGui, "show_sewing_network_task")
 
 
+def test_network_task_panel_exposes_shared_correspondence_evidence():
+    from pathlib import Path
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "freecad_cloth" / "sewing" / "SewingNetworkGui.py"
+    ).read_text(encoding="utf-8")
+    assert 'ClothSewingNetworkCorrespondenceEvidence' in source
+    assert 'CorrespondenceSeverity' in source
+    assert 'CorrespondenceRecovery' in source
+
+
 def test_network_task_panel_uses_transactional_editor_contract():
     from freecad_cloth.sewing.SewingNetworkGui import SewingNetworkTaskPanel
     assert SewingNetworkTaskPanel._TRANSACTION_NAME == "Edit Sewing Network"
