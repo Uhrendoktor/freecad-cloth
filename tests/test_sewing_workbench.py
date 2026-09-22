@@ -1,4 +1,5 @@
 import sys
+import math
 from pathlib import Path
 from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -60,8 +61,8 @@ def test_uniform_alignment_follows_curved_edge():
         def __init__(self, values): self.values = values
         def discretize(self, Number=64): return [SimpleNamespace(x=x, y=y) for x, y in self.values]
 
-    # The segments have unequal physical lengths (1 mm and 5 mm), so the
-    # physical half-length lies 2 mm into the second segment at (2.2, 1.2).
+    # The segments have unequal physical lengths (1 mm and sqrt(18) mm), so
+    # the physical half-length lies inside the second segment.
     curved = [(0, 0), (1, 0), (4, 3)]
     straight = [(0, 0), (4, 0)]
     a = SimpleNamespace(Width=4, Height=3, SewingOutline=repr([(0, 0), (4, 0), (4, 3)]), Shape=SimpleNamespace(Edges=[Edge(curved), Edge(straight), Edge(straight)]))
@@ -78,8 +79,10 @@ def test_uniform_alignment_follows_curved_edge():
         else: sys.modules["FreeCAD"] = oldf
 
     midpoint = endpoint_pairs[1][0]
-    assert abs(midpoint.x - 2.2) < 1e-9
-    assert abs(midpoint.y - 1.2) < 1e-9
+    total = 1.0 + math.sqrt(18.0)
+    fraction = (0.5 * total - 1.0) / math.sqrt(18.0)
+    assert abs(midpoint.x - (1.0 + 3.0 * fraction)) < 1e-9
+    assert abs(midpoint.y - (3.0 * fraction)) < 1e-9
     assert abs(reversed_pairs[0][1].x - endpoint_pairs[-1][1].x) < 1e-9
     assert abs(reversed_pairs[0][1].y - endpoint_pairs[-1][1].y) < 1e-9
     assert abs(reversed_pairs[-1][1].x - endpoint_pairs[0][1].x) < 1e-9
