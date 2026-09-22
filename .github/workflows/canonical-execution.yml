@@ -2,7 +2,7 @@ name: Canonical execution
 
 on:
   push:
-    branches: [main]
+    branches: [main, agent/issue-689-patternir-simulation-20260922]
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
