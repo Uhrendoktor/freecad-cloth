@@ -2,6 +2,14 @@
 from freecad_cloth.common.CommandAdapter import icon_for_command
 
 
+_ACTIVE_DIAGNOSTICS_TASK_PANEL = None
+
+
+def get_active_diagnostics_task_panel():
+    """Return the diagnostics task panel opened by the public command."""
+    return _ACTIVE_DIAGNOSTICS_TASK_PANEL
+
+
 def _selected_source():
     import FreeCADGui as Gui
     for obj in Gui.Selection.getSelection():
@@ -78,11 +86,13 @@ def set_drape_target_enabled(enabled=True):
 
 def show_diagnostics():
     """Open post-simulation stress/strain/fit/pressure diagnostics."""
+    global _ACTIVE_DIAGNOSTICS_TASK_PANEL
     import FreeCAD as App
     from freecad_cloth.common.ClothDiagnosticsGui import show_diagnostics as show_panel
     doc = App.ActiveDocument
     if doc is None: raise ValueError("create a simulation before opening diagnostics")
-    return show_panel()
+    _ACTIVE_DIAGNOSTICS_TASK_PANEL = show_panel()
+    return _ACTIVE_DIAGNOSTICS_TASK_PANEL
 
 
 def _has_document():
