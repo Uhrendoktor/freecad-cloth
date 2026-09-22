@@ -2,7 +2,7 @@ name: Canonical execution
 
 on:
   push:
-    branches: [main]
+    branches: [main, agent/857-readme-seam-visuals]
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
