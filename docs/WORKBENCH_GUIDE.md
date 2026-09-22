@@ -16,9 +16,9 @@ Exports fail closed when the selected piece has missing native geometry or inval
 
 ### 1. Pattern
 
-Create at least two PatternPieces. Use the native Sketcher representation for editable dimensions, constraints and curves. The normal Cloth Pattern authoring/editing commands are Sketcher-backed (\`ClothPattern_CreatePieceWithSketch\`, \`ClothPattern_CreateFromSketch\`, and \`ClothPattern_EditSketch\`); \`ClothPattern_EditPiece\` exposes persistent garment metadata and an explicit **Edit native Sketch…** action rather than a second geometry editor. Add seam allowance, notches, grainline and internal-mark metadata as needed. Recompute and validate before sewing.
+Create at least two PatternPieces. Use the native Sketcher representation for editable dimensions, constraints and curves. The normal Cloth Pattern authoring/editing commands are Sketcher-backed (`ClothPattern_CreatePieceWithSketch`, `ClothPattern_CreateFromSketch`, and `ClothPattern_EditSketch`); `ClothPattern_EditPiece` exposes persistent garment metadata and an explicit **Edit native Sketch…** action rather than a second geometry editor. Add seam allowance, notches, grainline and internal-mark metadata as needed. Recompute and validate before sewing.
 
-The former \`PatternDrafting\` polygon editor is compatibility-only. Its parser and persisted \`DraftingBoundary\` data remain supported for legacy documents, but no normal Pattern workbench menu, toolbar or command registers that editor.
+The former `PatternDrafting` polygon editor is compatibility-only. Its parser and persisted `DraftingBoundary` data remain supported for legacy documents, but no normal Pattern workbench menu, toolbar or command registers that editor.
 
 ### 2. Sewing
 
