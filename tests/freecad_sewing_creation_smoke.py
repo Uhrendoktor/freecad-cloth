@@ -190,3 +190,7 @@ finally:
     finally:
         LOG_PATH.write_text("\n".join(LOG) + "\n", encoding="utf-8")
         print("sewing-creation-smoke=completed", flush=True)
+
+sys.stdout.flush()
+# Match the existing real-FreeCAD smoke-test exit convention: return success only after all assertions and cleanup passed.
+os._exit(0)
