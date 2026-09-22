@@ -344,8 +344,10 @@ def simulation():
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
     def authored_shoulder_pins(piece, particle_indices, positions):
         targets = (
-            (0.14 * panel_width, 0.97 * garment_height),
-            (0.86 * panel_width, 0.97 * garment_height),
+            (0.08 * panel_width, 0.97 * garment_height),
+            (0.92 * panel_width, 0.97 * garment_height),
+            (0.20 * panel_width, 0.90 * garment_height),
+            (0.80 * panel_width, 0.90 * garment_height),
         )
         available = list(particle_indices)
         result = []
