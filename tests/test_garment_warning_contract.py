@@ -36,4 +36,5 @@ def test_fitting_proxy_does_not_mutate_visual_children_during_recompute():
     start = source.index("class _FittingProxy")
     body = source[start:source.index("\n\nCOMMANDS =", start)]
     assert "_sync_visuals(obj)" not in body
-    sync_start = source.index("def _sync_visuals(")\n    sync_body = source[sync_start:source.index("\n\ndef create_fitting_scene", sync_start)]\n    assert "Document.recompute()" not in sync_body\n
+    sync_start = source.index("def _sync_visuals(")
+    sync_body = source[sync_start:source.index("\n\ndef create_fitting_scene", sync_start)]\n    assert "Document.recompute()" not in sync_body\n
