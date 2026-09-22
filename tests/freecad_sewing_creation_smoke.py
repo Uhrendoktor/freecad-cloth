@@ -68,9 +68,9 @@ def close_public_task():
 doc = None
 try:
     record("smoke=started")
-    InitGui.ClothSewingWorkbench()
+    assert InitGui.ClothSewingWorkbench is not None
+    Gui.activateWorkbench("Cloth Sewing")
     record("workbench=initialized")
-    Gui.activateWorkbench("ClothSewingWorkbench")
     process_events()
     for command in ("ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing"):
         assert command in Gui.listCommands(), "missing public sewing command: " + command
