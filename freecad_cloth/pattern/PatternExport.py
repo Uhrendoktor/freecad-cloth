@@ -146,7 +146,7 @@ def _piece_seams(piece):
     return tuple(sorted(set(seams)))
 
 
-def _piece_construction_marks(piece, pattern):
+def _piece_construction_marks(piece, pattern, curve_samples=32):
     """Enumerate persisted PatternMark/Notch objects for the selected piece."""
     doc = getattr(piece, "Document", None)
     if doc is None:
@@ -259,7 +259,7 @@ def export_pattern_piece(piece, path, format: str, *, units: str = "mm", curve_s
     pattern = pattern_from_pattern_piece(piece, curve_samples=curve_samples)
     seam_ids = _piece_seams(piece)
     allowance = max(0.0, float(getattr(piece, "SeamAllowance", 0.0)))
-    derived = _piece_construction_marks(piece, pattern)
+    derived = _piece_construction_marks(piece, pattern, curve_samples=curve_samples)
     if normalized_format == "svg":
         content = to_svg(pattern, curve_samples, units, derived, str(getattr(piece, "PieceId", "")), seam_ids, allowance)
     else:
