@@ -299,21 +299,24 @@ class SimulationProxy:
             self._build_demo(obj)
 
     def _build_pattern_scene(self, obj, pieces, signature):
+        from freecad_cloth.common.PatternSimulationAdapter import resolve_simulation_pattern
         from freecad_cloth.simulation.ClothBackend import default_backend_registry, preferred_backend_name, validate_pinned_stitch_pairs
         from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
         start_height = float(getattr(obj, "StartHeight", 120.0))
+        resolved = resolve_simulation_pattern(obj.Document, tuple(pieces))
         positions = []
         triangles_global = []
         panel_data = {}
         panels = list(getattr(obj, "DrapePanels", ()))
         for index, piece in enumerate(pieces):
-            vertices, triangles, boundary = _piece_mesh(piece, start_height)
+            piece_ir = resolved.piece(str(piece.PieceId))
+            vertices, triangles, boundary = _piece_mesh(piece, start_height, piece_ir=piece_ir)
             offset = len(positions)
             positions.extend(vertices)
             triangles = tuple(tuple(a + offset for a in tri) for tri in triangles)
             triangles_global.extend(triangles)
             edges = tuple(tuple(int(index) + offset for index in edge) for edge in boundary)
-            panel_data[piece] = {"offset": offset, "vertex_count": len(vertices), "boundary_edges": edges, "positions": tuple(positions), "triangles": triangles}
+            panel_data[str(piece.PieceId)] = {"offset": offset, "vertex_count": len(vertices), "boundary_edges": edges, "positions": tuple(positions), "triangles": triangles, "piece": piece}
             panel = panels[index] if index < len(panels) else self._ensure_panel(obj.Document, index)
             panel.Label = f"Drape: {piece.Label}"
         if len(panels) < len(pieces):
@@ -322,13 +325,13 @@ class SimulationProxy:
         particles = [Particle(*p) for p in positions]
         system = ClothSystem(particles, _mesh_constraints(positions, triangles_global))
         seam_pairs, seam_pair_records = _seam_pair_records(
-            obj.Document, panel_data, int(getattr(obj, "StitchSamples", 8))
+            resolved.pattern, panel_data, int(getattr(obj, "StitchSamples", 8))
         )
         explicit_pins = _parse_int_list(getattr(obj, "PinSelection", ()), len(particles))
         if explicit_pins:
             pins = explicit_pins
         elif pieces:
-            first = panel_data[pieces[0]]
+            first = panel_data[str(pieces[0].PieceId)]
             boundary = list(dict.fromkeys(i for edge in first["boundary_edges"] for i in edge))
             pins = tuple(boundary[:2] + boundary[-2:])
         else:
@@ -361,7 +364,7 @@ class SimulationProxy:
             for seam_id, _piece_a_name, _piece_b_name, stitch_pairs in seam_pair_records
         }
         for panel, piece in zip(panels, pieces):
-            data = panel_data[piece]
+            data = panel_data[str(piece.PieceId)]
             self.panel_indices[panel.Name] = tuple(range(data["offset"], data["offset"] + data["vertex_count"]))
             self.panel_triangles[panel.Name] = data["triangles"]
             self.panel_boundary_edges[panel.Name] = data["boundary_edges"]
