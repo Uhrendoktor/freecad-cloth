@@ -125,6 +125,7 @@ def _create_root(doc, name: str = "Garment"):
         subgroup = doc.addObject("App::DocumentObjectGroup", "Garment" + group_name)
         subgroup.Label = label
         _prop(subgroup, "App::PropertyString", "GarmentGroup", "Garment", group_name)
+        _prop(subgroup, "App::PropertyString", "GarmentRootName", "Garment", root.Name)
         root.addObject(subgroup)
         _prop(root, "App::PropertyLink", group_name + "Group", "Garment", subgroup)
         _prop(subgroup, "App::PropertyLinkList", "Members", "Garment", [])
