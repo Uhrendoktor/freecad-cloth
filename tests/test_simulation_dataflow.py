@@ -165,5 +165,22 @@ def test_quality_proxy_preserves_solver_stitch_provenance():
         adapter.compile_pattern_ir = original_compile
 
     assert proxy.seam_stitch_pairs == {"seam-1": ((0, 1),)}
-    assert proxy.seam_stitch_pairs is base.seam_stitch_pairs
+    assert proxy.seam_stitch_pairs is not base.seam_stitch_pairs
+
+
+def test_quality_proxy_keeps_provenance_explicit_after_backend_handoff():
+    from freecad_cloth.simulation import SimulationQualityRuntimeV2 as runtime
+
+    class Base:
+        seam_stitch_pairs = {"seam-2": ((2, 3), (4, 5))}
+
+    proxy = runtime.QualitySimulationProxy()
+    proxy._sync_seam_stitch_provenance(Base())
+
+    assert proxy.seam_stitch_pairs == {"seam-2": ((2, 3), (4, 5))}
+
+    replacement = Base()
+    replacement.seam_stitch_pairs = {}
+    proxy._base_or_restore = lambda: replacement
+    assert proxy.seam_stitch_pairs == {"seam-2": ((2, 3), (4, 5))}
 
