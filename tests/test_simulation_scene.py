@@ -2,6 +2,8 @@ from freecad_cloth.pattern.PatternGeometry import rectangle
 from freecad_cloth.pattern.PatternMesh import triangulate
 from freecad_cloth.simulation.SimulationScene import SimulationScene
 
+from freecad_cloth.simulation.ClothBackend import validate_pinned_stitch_pairs
+
 
 def test_scene_is_constructed_from_pattern_mesh():
     mesh = triangulate(rectangle(100.0, 60.0))
