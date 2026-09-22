@@ -138,6 +138,7 @@ try:
         raise RuntimeError("public Pattern mark commands did not create Notch, Grainline, and InternalMark")
     record("marks=created-publicly types=Notch,Grainline,InternalMark")
 
+    piece_id = str(piece.PieceId)
     source_before = (
         str(piece.Label),
         str(piece.PieceId),
@@ -148,6 +149,7 @@ try:
     )
 
     with tempfile.TemporaryDirectory() as directory:
+        output_dir = Path(directory)
         mark_path = output_dir / "marks-roundtrip.FCStd"
         doc.recompute()
         doc.saveAs(str(mark_path))
@@ -156,7 +158,7 @@ try:
         doc = None
         doc = App.openDocument(str(mark_path))
         doc.recompute()
-        piece = next((obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece" and str(getattr(obj, "PieceId", "")) == str(piece_id)), None) if False else next((obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"), None)
+        piece = next((obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece" and str(getattr(obj, "PieceId", "")) == piece_id), None)
         if piece is None:
             raise RuntimeError("saved/reloaded PatternPiece was not found")
         reloaded_marks = [obj for obj in doc.Objects if str(getattr(obj, "PatternMarkType", "")) and str(getattr(obj, "PieceId", "")) == str(piece.PieceId)]
@@ -166,7 +168,6 @@ try:
         Gui.Selection.addSelection(piece)
         record("marks=save-reload-passed")
 
-        output_dir = Path(directory)
         panel = open_public_export(piece)
         record("export-panel=opened-initial")
         if "Production Export" not in panel.form.windowTitle():
