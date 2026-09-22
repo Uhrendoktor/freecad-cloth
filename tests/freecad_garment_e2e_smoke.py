@@ -22,7 +22,8 @@ def _events():
 
 
 def _close_task():
-    if Gui.Control.activeDialog():
+    active = Gui.Control.activeDialog()
+    if active is not None:
         Gui.Control.closeDialog()
         _events()
 
@@ -411,7 +412,9 @@ def run_acceptance():
         )
         operation_panel.stitches.setValue(12)
         operation_panel.alignment.setCurrentText("uniform")
-        Gui.Control.accept()
+        if not operation_panel.accept():
+            raise RuntimeError("public Sewing operation task panel rejected the updated controls")
+        _close_task()
         _wait_task_close()
         doc.recompute()
         if int(operation.StitchCount) != 12 or str(operation.Alignment) != "uniform":
@@ -473,7 +476,9 @@ def run_acceptance():
         _select_objects(scene)
         quality_panel = _open_quality_panel()
         quality_panel.quality.setCurrentText("Fast")
-        Gui.Control.accept()
+        if not quality_panel.accept():
+            raise RuntimeError("public Simulation quality task panel rejected the selected preset")
+        _close_task()
         _wait_task_close()
         scene.Steps = 1
         doc.recompute()
