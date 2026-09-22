@@ -142,6 +142,39 @@ jobs:
           if-no-files-found: error
           compression-level: 1
 
+
+  gui-garment-e2e:
+    name: Canonical garment end-to-end smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run garment acceptance
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/canonical-garment-e2e
+          docker pull "$IMAGE"
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace \
+            -v "$PWD:/workspace" -w /workspace "$IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/dev/null
+              mkdir -p "$XDG_RUNTIME_DIR"
+              Xvfb :99 -screen 0 1280x720x24 >/tmp/xvfb.log 2>&1 & pid=$!
+              trap "kill $pid 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep .25; done
+              timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /workspace/tests/freecad_garment_e2e_smoke.py 2>&1 | tee /workspace/artifacts/canonical-garment-e2e/canonical-garment-e2e.log
+            '
+          grep -q 'canonical garment end-to-end acceptance passed' artifacts/canonical-garment-e2e/canonical-garment-e2e.log
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: canonical-garment-e2e
+          path: artifacts/canonical-garment-e2e
+          if-no-files-found: error
+
   gui-pattern-export:
     name: Pattern production export smoke
     runs-on: ubuntu-latest
