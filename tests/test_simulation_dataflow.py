@@ -131,17 +131,39 @@ def test_simulation_document_adapter_fails_closed_on_missing_semantic_seam_edge(
     raise AssertionError("simulation accepted a seam with a missing semantic edge")
 
 
-def test_simulation_document_adapter_ignores_seams_outside_selected_scene():
+def test_simulation_document_adapter_ignores_partial_seams_before_validation():
     from freecad_cloth.common.PatternIRDocumentAdapter import compile_pattern_ir
 
     piece_a = _Piece("A", "piece-a")
     piece_b = _Piece("B", "piece-b")
     seam = _Seam()
     seam.PieceB = "unselected-piece"
+    seam.Status = "Invalid"
+    seam.EdgeAId = "missing-edge"
+    seam.EdgeBId = "missing-edge"
     scene = _Scene([seam])
+
     ir = compile_pattern_ir(scene.Document, [piece_a, piece_b])
+
     assert ir.seams == ()
 
+
+def test_simulation_document_adapter_fails_closed_on_invalid_selected_seam_status():
+    from freecad_cloth.common.PatternIRDocumentAdapter import compile_pattern_ir
+
+    piece_a = _Piece("A", "piece-a")
+    piece_b = _Piece("B", "piece-b")
+    seam = _Seam()
+    seam.Status = "Invalid"
+    scene = _Scene([seam])
+
+    try:
+        compile_pattern_ir(scene.Document, [piece_a, piece_b])
+    except ValueError as exc:
+        assert "simulation seam is invalid" in str(exc)
+        assert seam.SeamId in str(exc)
+        return
+    raise AssertionError("simulation accepted an invalid selected seam")
 
 
 def test_signature_changes_when_piece_geometry_or_placement_changes():
