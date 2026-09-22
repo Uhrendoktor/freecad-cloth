@@ -158,7 +158,7 @@ def _square_sketch(prefix, curved=False, bend=1.0):
         LineSegment((0.0, 0.0), (10.0, 0.0)),
         ArcOfCircle(bend) if curved else LineSegment((10.0, 0.0), (10.0, 10.0)),
         LineSegment((10.0, 10.0), (0.0, 10.0)),
-        _Line((0.0, 10.0), (0.0, 0.0)),
+        LineSegment((0.0, 10.0), (0.0, 0.0)),
     ]
     ids = [
         f"{prefix}:bottom",
