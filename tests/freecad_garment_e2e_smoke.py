@@ -9,6 +9,8 @@ import FreeCADGui as Gui
 import Part
 import Sketcher
 
+from freecad_cloth.common.GarmentDocument import adopt_garment
+
 
 def _events():
     Gui.updateGui()
@@ -288,17 +290,23 @@ def _export_pair(piece, output_dir, export_format):
 
 
 def run_acceptance():
-    doc = App.newDocument("CanonicalGarmentAcceptance")
+    doc = None
     path = None
     try:
         _activate(
             "ClothPatternWorkbench",
             [
+                "ClothPattern_CreateGarment",
                 "ClothPattern_CreatePieceWithSketch",
                 "ClothPattern_EditPiece",
                 "ClothPattern_Show2D",
             ],
         )
+        Gui.runCommand("ClothPattern_CreateGarment", 0)
+        _events()
+        doc = App.ActiveDocument
+        if doc is None:
+            raise RuntimeError("public ClothPattern_CreateGarment command did not create a document")
         for _ in range(4):
             Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
             _events()
@@ -506,6 +514,47 @@ def run_acceptance():
         _close_task()
         print("diagnostics=passed metric=stress", flush=True)
 
+        garment = adopt_garment(doc)
+        if str(garment.GarmentType) != "ClothGarment":
+            raise RuntimeError("public garment creation did not create a ClothGarment root")
+        if len([obj for obj in doc.Objects if str(getattr(obj, "GarmentType", "")) == "ClothGarment"]) != 1:
+            raise RuntimeError("document contains more than one Garment root")
+        garment = adopt_garment(doc)
+        expected_groups = {
+            "Patterns": garment.PatternsGroup,
+            "Sewing": garment.SewingGroup,
+            "Fabric": garment.FabricGroup,
+            "Fitting": garment.FittingGroup,
+            "Avatar": garment.AvatarGroup,
+            "Simulation": garment.SimulationGroup,
+        }
+        if any(group is None for group in expected_groups.values()):
+            raise RuntimeError("garment root did not expose all required native hierarchy groups")
+        if any(str(getattr(group, "GarmentGroup", "")) == "" for group in expected_groups.values()):
+            raise RuntimeError("garment hierarchy groups did not expose public GarmentGroup roles")
+        piece_names = {piece.Name for piece in pieces}
+        if {piece.Name for piece in garment.PatternPieces} != piece_names:
+            raise RuntimeError("garment hierarchy cloned, dropped, or retargeted PatternPiece objects")
+        if garment.PrimaryFittingScene is None or garment.PrimaryFittingScene.Name != fitting.Name:
+            raise RuntimeError("garment hierarchy did not link the authoritative FittingScene")
+        if garment.PrimaryDrapeTarget is None or garment.PrimaryDrapeTarget.Name != target.Name:
+            raise RuntimeError("garment hierarchy did not link the authoritative DrapeTarget")
+        if garment.PrimarySimulation is None or garment.PrimarySimulation.Name != scene.Name:
+            raise RuntimeError("garment hierarchy did not link the authoritative ClothSimulation")
+        if garment.PrimaryAvatar is None or str(getattr(garment.PrimaryAvatar, "AvatarType", "")) != "ClothAvatar":
+            raise RuntimeError("garment hierarchy did not link the authoritative avatar")
+        if garment.PrimaryFabric is None or str(getattr(garment.PrimaryFabric, "FabricType", "")) != "FabricMaterial":
+            raise RuntimeError("garment hierarchy did not link the authoritative fabric material")
+        root_group_names = {obj.Name for obj in getattr(garment, "Group", ())}
+        for role, group in expected_groups.items():
+            if group.Name not in root_group_names:
+                raise RuntimeError("garment hierarchy root lost its native group membership: %s" % role)
+        print(
+            "hierarchy=passed groups=Patterns,Sewing,Fabric,Fitting,Avatar,Simulation pieces=%d"
+            % len(garment.PatternPieces),
+            flush=True,
+        )
+
         with tempfile.TemporaryDirectory() as directory:
             output_dir = __import__("pathlib").Path(directory)
             path = os.path.join(directory, "canonical-garment.FCStd")
@@ -517,6 +566,15 @@ def run_acceptance():
             fitting_name = fitting.Name
             scene_name = scene.Name
             target_name = target.Name
+            garment_name = garment.Name
+            garment_group_names = {
+                "Patterns": garment.PatternsGroup.Name,
+                "Sewing": garment.SewingGroup.Name,
+                "Fabric": garment.FabricGroup.Name,
+                "Fitting": garment.FittingGroup.Name,
+                "Avatar": garment.AvatarGroup.Name,
+                "Simulation": garment.SimulationGroup.Name,
+            }
             piece_names = [piece.Name for piece in pieces]
             expected_piece_ids = [str(piece.PieceId) for piece in pieces]
             target_body_name = target_body.Name
@@ -542,6 +600,45 @@ def run_acceptance():
                 raise RuntimeError("save/reload changed sewing validity")
             if len(network.Seams) != 2 or len(fitting.PatternPieces) != 4 or len(scene.ClothPieces) != 4:
                 raise RuntimeError("save/reload changed sewing/fitting/simulation membership")
+
+            reloaded_garment = reloaded.getObject(garment_name)
+            if reloaded_garment is None or str(reloaded_garment.GarmentType) != "ClothGarment":
+                raise RuntimeError("save/reload did not preserve the native Garment root")
+            if [getattr(reloaded_garment, role + "Group").Name for role in garment_group_names] != [
+                garment_group_names[role] for role in garment_group_names
+            ]:
+                raise RuntimeError("save/reload changed native garment group identity")
+            if {piece.Name for piece in reloaded_garment.PatternPieces} != set(piece_names):
+                raise RuntimeError("save/reload changed Garment PatternPiece links")
+            if reloaded_garment.PrimaryFittingScene is None or reloaded_garment.PrimaryFittingScene.Name != fitting.Name:
+                raise RuntimeError("save/reload lost Garment -> FittingScene link")
+            if reloaded_garment.PrimaryDrapeTarget is None or reloaded_garment.PrimaryDrapeTarget.Name != target.Name:
+                raise RuntimeError("save/reload lost Garment -> DrapeTarget link")
+            if reloaded_garment.PrimarySimulation is None or reloaded_garment.PrimarySimulation.Name != scene.Name:
+                raise RuntimeError("save/reload lost Garment -> ClothSimulation link")
+            if reloaded_garment.PrimaryFabric is None or str(getattr(reloaded_garment.PrimaryFabric, "FabricType", "")) != "FabricMaterial":
+                raise RuntimeError("save/reload lost Garment -> FabricMaterial link")
+            adopted = adopt_garment(reloaded)
+            if adopted.Name != reloaded_garment.Name:
+                raise RuntimeError("adopting a reloaded document created a second Garment root")
+            print("hierarchy-save-reload=passed", flush=True)
+
+            legacy = App.newDocument("StandalonePatternCompatibility")
+            try:
+                from freecad_cloth.pattern.PatternModel import PatternPiece
+                from freecad_cloth.pattern.PatternObjects import add_pattern_piece
+                legacy_piece = add_pattern_piece(
+                    legacy,
+                    PatternPiece("Legacy", [(0, 0), (20, 0), (20, 10)], id="legacy"),
+                )
+                if any(str(getattr(obj, "GarmentType", "")) == "ClothGarment" for obj in legacy.Objects):
+                    raise RuntimeError("standalone pattern creation unexpectedly created a Garment root")
+                if legacy_piece not in legacy.Objects:
+                    raise RuntimeError("standalone PatternPiece was not preserved")
+                print("standalone-backcompat=passed", flush=True)
+            finally:
+                App.closeDocument(legacy.Name)
+
             if target.SourceObject is None or target.SourceObject.Name != target_body_name:
                 raise RuntimeError("save/reload lost persistent DrapeTarget source")
             semantic_ids_after_reload = tuple(getattr(reloaded_pieces[0].Sketch, "SemanticEdgeIds", ()))
