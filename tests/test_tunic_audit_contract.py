@@ -27,4 +27,6 @@ def test_canonical_tunic_pins_exact_front_solver_shoulder_endpoints():
     assert 'for seam_id in ("TunicRightShoulder", "TunicLeftShoulder"):' in source
     assert 'front_pins.extend((int(seam_pairs[0][0]), int(seam_pairs[-1][0])))' in source
     assert 'pin-map solver-seam-endpoints front=' in source
+    assert 'for a, b in seam_pairs:' in source
+    assert 'for a, b in pair' not in source
     assert 'authored_shoulder_pins(front, front_indices, positions)' not in source
