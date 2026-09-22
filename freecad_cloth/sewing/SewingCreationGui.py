@@ -292,3 +292,16 @@ class SewingCreationTaskPanel:
         self._show_status("Cancelled. No seam or sewing-network object was persisted.")
         return True
 
+
+
+    def getStandardButtons(self):
+        return 0
+
+
+def show_sewing_creation_task(kind):
+    _App, Gui, _QtWidgets = _modules()
+    panel = SewingCreationTaskPanel(kind)
+    Gui.Control.showDialog(panel)
+    if hasattr(panel.form, "isVisible") and not panel.form.isVisible():
+        panel.form.show()
+    return panel
