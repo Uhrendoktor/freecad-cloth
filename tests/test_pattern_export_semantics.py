@@ -185,6 +185,42 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path):
     )
 
 
+def test_pattern_piece_export_metadata_preserves_authored_semantic_edge_order(tmp_path):
+    class Sketch:
+        SemanticEdgeIds = [
+            "piece-front:edge:0",
+            "piece-front:edge:1",
+            "piece-front:edge:2",
+            "piece-front:edge:3",
+        ]
+
+    class Piece:
+        PatternType = "PatternPiece"
+        Name = "Front"
+        Label = "Front"
+        PieceId = "piece-front"
+        Width = 100.0
+        Height = 60.0
+        SeamAllowance = 0.0
+        GrainlineAngle = 90.0
+        GeometryAuthority = "Sketcher"
+        Sketch = Sketch()
+        SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)])
+        DraftingBoundary = SewingOutline
+
+    class Document:
+        Objects = ()
+
+    piece = Piece()
+    piece.Document = Document()
+    piece.Document.Objects = (piece,)
+    path = tmp_path / "semantic.svg"
+    result = export_pattern_piece(piece, path, "svg", curve_samples=16)
+    metadata = from_svg_metadata(path.read_text(encoding="utf-8"))
+    assert result["valid"] is True
+    assert metadata["edge_ids"] == Sketch.SemanticEdgeIds
+
+
 def test_pattern_piece_export_preserves_legacy_grainline_fallback(tmp_path):
     class Piece:
         PatternType = "PatternPiece"
