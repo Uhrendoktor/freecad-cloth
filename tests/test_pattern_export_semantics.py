@@ -144,6 +144,57 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path):
     assert before == (piece.Label, piece.SeamAllowance, piece.GrainlineAngle, piece.SewingOutline)
 
 
+def test_persisted_native_marks_round_trip_into_export_metadata(tmp_path):
+    from types import SimpleNamespace
+    from freecad_cloth.pattern.PatternExport import _persisted_pattern_marks
+
+    class Piece:
+        PatternType = "PatternPiece"
+        Name = "Front"
+        Label = "Front"
+        PieceId = "piece-front"
+        Width = 100.0
+        Height = 60.0
+        SeamAllowance = 5.0
+        GrainlineAngle = 90.0
+        GeometryAuthority = ""
+        SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)])
+        DraftingBoundary = SewingOutline
+
+    piece = Piece()
+    piece.Document = SimpleNamespace(Objects=(
+        piece,
+        SimpleNamespace(Name="Notch_1", PatternMarkType="Notch", PieceId="piece-front", SegmentId="right", Position=0.25, Depth=4.0, Length=40.0, Angle=0.0, Text=""),
+        SimpleNamespace(Name="InternalMark_1", PatternMarkType="InternalMark", PieceId="piece-front", SegmentId="bottom", Position=0.50, Depth=3.0, Length=25.0, Angle=90.0, Text="Mark"),
+        SimpleNamespace(Name="Grainline_1", PatternMarkType="Grainline", PieceId="piece-front", SegmentId="left", Position=0.50, Depth=3.0, Length=42.0, Angle=90.0, Text="Grain"),
+    ))
+    notches, marks = _persisted_pattern_marks(piece, _curved_pattern())
+    assert [item.id for item in notches] == ["Notch_1"]
+    assert {item.id for item in marks} == {"InternalMark_1", "Grainline_1"}
+
+    first = tmp_path / "persisted.svg"
+    result = export_pattern_piece(piece, first, "svg", curve_samples=16)
+    metadata = from_svg_metadata(first.read_text(encoding="utf-8"))
+    assert result["valid"] is True
+    assert metadata["notch_ids"] == ["Notch_1"]
+    assert metadata["mark_ids"] == ["Grainline_1", "InternalMark_1"]
+    assert "piece-front:grainline" not in metadata["mark_ids"]
+
+
+def test_persisted_native_mark_rejects_unknown_segment():
+    from types import SimpleNamespace
+    from freecad_cloth.pattern.PatternExport import _persisted_pattern_marks
+
+    class Piece:
+        PieceId = "piece-front"
+        Document = SimpleNamespace(Objects=(
+            SimpleNamespace(Name="Notch_1", PatternMarkType="Notch", PieceId="piece-front", SegmentId="missing", Position=0.5, Depth=3.0, Length=40.0, Angle=0.0, Text=""),
+        ))
+
+    with TestCase().assertRaisesRegex(ValueError, "unknown segment"):
+        _persisted_pattern_marks(Piece(), _curved_pattern())
+
+
 def test_pattern_piece_export_blocks_invalid_semantic_seams(tmp_path):
     class Piece:
         PatternType = "PatternPiece"
