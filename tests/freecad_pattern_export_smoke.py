@@ -128,24 +128,125 @@ try:
     else:
         raise RuntimeError("pattern creation task panel remained open before export")
 
-    source_before = (
-        str(piece.Label),
-        str(piece.PieceId),
-        str(piece.SewingOutline),
-        float(piece.SeamAllowance),
-        float(piece.GrainlineAngle),
-        str(getattr(piece, "GeometryAuthority", "")),
-    )
-
     with tempfile.TemporaryDirectory() as directory:
         output_dir = Path(directory)
-        panel = open_public_export(piece)
-        record("export-panel=opened-initial")
-        if "Production Export" not in panel.form.windowTitle():
-            raise RuntimeError("export task panel title is not visible")
-        if "read-only" not in panel.status.text().lower():
-            raise RuntimeError("export task panel does not state that source geometry is read-only")
-        close_public_task(panel)
+        document_path = output_dir / "pattern-roundtrip.FCStd"
+
+        Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
+        process_events()
+        doc.recompute()
+        pieces = [obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"]
+        if len(pieces) != 2:
+            raise RuntimeError("real-FreeCAD export smoke did not create two native Sketch PatternPieces")
+        piece = pieces[0]
+        other_piece = pieces[1]
+        if str(getattr(piece, "GeometryAuthority", "")) != "Sketcher" or str(getattr(other_piece, "GeometryAuthority", "")) != "Sketcher":
+            raise RuntimeError("export smoke pieces are not native Sketch-authoritative PatternPieces")
+
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(piece)
+        process_events()
+        Gui.runCommand("ClothPattern_AddNotch", 0)
+        process_events()
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(piece)
+        process_events()
+        Gui.runCommand("ClothPattern_AddInternalMark", 0)
+        process_events()
+        Gui.runCommand("ClothPattern_AddSeam", 0)
+        process_events()
+        doc.recompute()
+
+        pre_save_seams = [obj for obj in doc.Objects if str(getattr(obj, "SeamId", "")).strip()]
+        pre_save_marks = [
+            obj for obj in doc.Objects
+            if str(getattr(obj, "PatternMarkType", "")).strip()
+            and str(getattr(obj, "PieceId", "")).strip() == str(piece.PieceId)
+        ]
+        if len(pre_save_seams) != 1 or len(pre_save_marks) != 3:
+            raise RuntimeError("export smoke did not persist the expected seam/notch/internal-mark/grainline objects")
+        seam_id = str(pre_save_seams[0].SeamId)
+        if str(getattr(pre_save_seams[0], "Status", "")) != "Valid":
+            raise RuntimeError("persisted seam is not valid before export round-trip")
+        mark_ids = {
+            str(getattr(obj, "PatternMarkType", "")): str(getattr(obj, "PatternMarkId", obj.Name))
+            for obj in pre_save_marks
+        }
+        if set(mark_ids) != {"Notch", "InternalMark", "Grainline"}:
+            raise RuntimeError("export smoke did not persist all required construction-mark types")
+        piece_id = str(piece.PieceId)
+
+        doc.saveAs(str(document_path))
+        saved_name = doc.Name
+        App.closeDocument(saved_name)
+        process_events()
+        doc = App.openDocument(str(document_path))
+        process_events()
+        doc.recompute()
+
+        piece = next(
+            (obj for obj in doc.Objects
+             if getattr(obj, "PatternType", "") == "PatternPiece"
+             and str(getattr(obj, "PieceId", "")) == piece_id),
+            None,
+        )
+        if piece is None or str(getattr(piece, "GeometryAuthority", "")) != "Sketcher" or getattr(piece, "Sketch", None) is None:
+            raise RuntimeError("save/reload lost the selected native Sketch PatternPiece identity")
+        expected_edge_ids = [piece_id + ":edge:%d" % index for index in range(4)]
+        if list(getattr(piece.Sketch, "SemanticEdgeIds", ())) != expected_edge_ids:
+            raise RuntimeError("save/reload changed native semantic edge identities")
+
+        seams = [obj for obj in doc.Objects if str(getattr(obj, "SeamId", "")).strip()]
+        marks = [
+            obj for obj in doc.Objects
+            if str(getattr(obj, "PatternMarkType", "")).strip()
+            and str(getattr(obj, "PieceId", "")).strip() == piece_id
+        ]
+        if len(seams) != 1 or str(seams[0].SeamId) != seam_id or str(seams[0].Status) != "Valid":
+            raise RuntimeError("save/reload lost seam identity or validity")
+        persisted_types = {str(getattr(obj, "PatternMarkType", "")): obj for obj in marks}
+        if set(persisted_types) != {"Notch", "InternalMark", "Grainline"}:
+            raise RuntimeError("save/reload lost persisted construction-mark types")
+        for mark_type, obj in persisted_types.items():
+            if not str(getattr(obj, "PatternMarkId", "")).strip():
+                raise RuntimeError("save/reload lost stable PatternMarkId for %s" % mark_type)
+            if str(getattr(obj, "SegmentId", "")) != piece_id + ":edge:0":
+                raise RuntimeError("save/reload changed semantic edge reference for %s" % mark_type)
+        record("roundtrip=passed piece=%s seam=%s marks=%s" % (piece_id, seam_id, ",".join(sorted(persisted_types))))
+
+        source_before = (
+            str(piece.Label),
+            str(piece.PieceId),
+            str(piece.SewingOutline),
+            float(piece.SeamAllowance),
+            float(piece.GrainlineAngle),
+            str(getattr(piece, "GeometryAuthority", "")),
+            tuple(
+                (
+                    str(obj.PatternMarkId),
+                    str(obj.PatternMarkType),
+                    str(obj.PieceId),
+                    str(obj.SegmentId),
+                    float(obj.Position),
+                    float(obj.Depth),
+                    float(obj.Angle),
+                    float(obj.Length),
+                    str(obj.Text),
+                )
+                for obj in sorted(marks, key=lambda value: str(getattr(value, "PatternMarkId", "")))
+            ),
+            tuple(
+                (
+                    str(obj.SeamId),
+                    str(obj.PieceA),
+                    str(obj.PieceB),
+                    str(obj.EdgeAId),
+                    str(obj.EdgeBId),
+                    str(obj.Status),
+                )
+                for obj in seams
+            ),
+        )
 
         results = {}
         readers = {"SVG": from_svg_metadata, "DXF": from_dxf_metadata}
@@ -178,7 +279,7 @@ try:
                 raise RuntimeError(export_format + " export is not byte-deterministic")
 
             metadata = readers[export_format](first.decode("utf-8"))
-            if metadata.get("piece_id") != str(piece.PieceId):
+            if metadata.get("piece_id") != piece_id:
                 raise RuntimeError(export_format + " export lost piece identity")
             if metadata.get("units") != "mm" or metadata.get("scale") != 1.0:
                 raise RuntimeError(export_format + " export lost units/scale")
@@ -186,19 +287,72 @@ try:
                 raise RuntimeError(export_format + " export lost seam allowance")
             if not metadata.get("edge_ids"):
                 raise RuntimeError(export_format + " export lost semantic edge IDs")
-            if not metadata.get("mark_ids"):
-                raise RuntimeError(export_format + " export lost construction mark identity")
+            if metadata.get("seam_ids") != [seam_id]:
+                raise RuntimeError(export_format + " export lost persisted seam identity")
+            if metadata.get("notch_ids") != [str(persisted_types["Notch"].PatternMarkId)]:
+                raise RuntimeError(export_format + " export lost persisted notch identity")
+            if metadata.get("mark_ids") != sorted(
+                [str(persisted_types["Grainline"].PatternMarkId), str(persisted_types["InternalMark"].PatternMarkId)]
+            ):
+                raise RuntimeError(export_format + " export lost persisted construction-mark identity")
+            output = first.decode("utf-8")
+            if "Notch" not in output or "InternalMark" not in output or "Grainline" not in output:
+                raise RuntimeError(export_format + " export lost persisted construction-mark geometry")
             results[export_format] = len(first)
 
-        if source_before != (
+        after_export = (
             str(piece.Label),
             str(piece.PieceId),
             str(piece.SewingOutline),
             float(piece.SeamAllowance),
             float(piece.GrainlineAngle),
             str(getattr(piece, "GeometryAuthority", "")),
-        ):
-            raise RuntimeError("public export mutated authoritative PatternPiece state")
+            tuple(
+                (
+                    str(obj.PatternMarkId),
+                    str(obj.PatternMarkType),
+                    str(obj.PieceId),
+                    str(obj.SegmentId),
+                    float(obj.Position),
+                    float(obj.Depth),
+                    float(obj.Angle),
+                    float(obj.Length),
+                    str(obj.Text),
+                )
+                for obj in sorted(marks, key=lambda value: str(getattr(value, "PatternMarkId", "")))
+            ),
+            tuple(
+                (
+                    str(obj.SeamId),
+                    str(obj.PieceA),
+                    str(obj.PieceB),
+                    str(obj.EdgeAId),
+                    str(obj.EdgeBId),
+                    str(obj.Status),
+                )
+                for obj in seams
+            ),
+        )
+        if source_before != after_export:
+            raise RuntimeError("public export mutated authoritative PatternPiece/seam/mark state")
+
+        stale_path = output_dir / "stale.svg"
+        persisted_types["Notch"].SegmentId = piece_id + ":edge:stale"
+        doc.recompute()
+        panel = open_public_export(piece)
+        panel.format.setCurrentText("SVG")
+        panel.path.setText(str(stale_path))
+        accepted = panel.accept()
+        if accepted is not False:
+            close_public_task(panel)
+            raise RuntimeError("public export accepted a stale construction-mark reference")
+        if "blocked" not in panel.status.text().lower():
+            close_public_task(panel)
+            raise RuntimeError("public export did not report the stale-reference block")
+        close_public_task(panel)
+        if stale_path.exists():
+            raise RuntimeError("stale semantic export wrote an artifact")
+        record("stale-mark-guard=passed")
 
         record("pattern-export=passed formats=SVG,DXF bytes=%s,%s" % (results["SVG"], results["DXF"]))
 except Exception:
