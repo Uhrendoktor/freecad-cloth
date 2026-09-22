@@ -32,6 +32,10 @@ import FreeCAD as App
 _record("freecad-import=app-passed")
 import FreeCADGui as Gui
 _record("freecad-import=gui-passed")
+import Part
+_record("part-import=passed")
+import Sketcher
+_record("sketcher-import=passed")
 
 
 def _ensure_workbench_registration():
@@ -340,8 +344,6 @@ def _export_pair(piece, output_dir, export_format):
 
 
 def run_acceptance():
-    import Part
-    import Sketcher
     _record("solver-imports=passed")
     doc = None
     path = None
