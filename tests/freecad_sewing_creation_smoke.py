@@ -56,6 +56,16 @@ cancel_panel.reject()
 assert {obj.Name for obj in doc.Objects} == cancel_before, "cancel persisted preview objects"
 record("cancel-1to1=passed")
 
+count_before = {obj.Name for obj in doc.Objects}
+select_edges((piece_a, 2))
+invalid_count_panel = SewingCreationTaskPanel("seam")
+assert "Preview rejected" in invalid_count_panel.feedback.text()
+assert "exactly two edges" in invalid_count_panel.feedback.text()
+assert {obj.Name for obj in doc.Objects} == count_before
+invalid_count_panel.reject()
+assert {obj.Name for obj in doc.Objects} == count_before
+record("selection-count-rejection=passed")
+
 same_piece_before = {obj.Name for obj in doc.Objects}
 select_edges((piece_a, 0), (piece_a, 1))
 invalid_panel = SewingCreationTaskPanel("seam")
