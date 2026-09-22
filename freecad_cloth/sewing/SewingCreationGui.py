@@ -205,10 +205,19 @@ class SewingCreationTaskPanel:
         self.commit_button = QtWidgets.QPushButton("Commit")
         self.cancel_button = QtWidgets.QPushButton("Cancel")
         self.preview_button.clicked.connect(self.preview)
-        # Visible Commit/Cancel controls invoke the task-panel protocol directly.
-        # _close_dialog() defers controller cleanup to the Qt event queue.
-        self.commit_button.clicked.connect(self.accept)
-        self.cancel_button.clicked.connect(self.reject)
+        # Defer the native controller call until the QPushButton signal returns.
+        # This avoids closing the FreeCAD task view from inside its own custom
+        # button callback while retaining the visible Commit/Cancel controls.
+        try:
+            from PySide import QtCore
+        except ImportError:
+            from PySide2 import QtCore
+        self.commit_button.clicked.connect(
+            lambda: QtCore.QTimer.singleShot(0, self.Gui.Control.accept)
+        )
+        self.cancel_button.clicked.connect(
+            lambda: QtCore.QTimer.singleShot(0, self.Gui.Control.reject)
+        )
         buttons.addWidget(self.preview_button)
         buttons.addWidget(self.commit_button)
         buttons.addWidget(self.cancel_button)
@@ -267,21 +276,6 @@ class SewingCreationTaskPanel:
         )
         return True
 
-    def _close_dialog(self):
-        if not self.Gui.activeDocument() or self.Gui.Control.activeDialog() is None:
-            return
-        self.Gui.Control.closeDialog()
-        try:
-            from PySide import QtCore
-        except ImportError:
-            from PySide2 import QtCore
-
-        def finish_close():
-            if self.Gui.activeDocument() and self.Gui.Control.activeDialog() is not None:
-                self.Gui.Control.closeDialog()
-
-        QtCore.QTimer.singleShot(0, finish_close)
-
     def accept(self):
         try:
             self.session.commit()
@@ -291,23 +285,10 @@ class SewingCreationTaskPanel:
         self._show_status("Committed sewing creation.")
         self.commit_button.setEnabled(False)
         self.preview_button.setEnabled(False)
-        self._close_dialog()
         return True
 
     def reject(self):
         self.session.cancel()
         self._show_status("Cancelled. No seam or sewing-network object was persisted.")
-        self._close_dialog()
         return True
 
-    def getStandardButtons(self):
-        return 0
-
-
-def show_sewing_creation_task(kind):
-    _App, Gui, _QtWidgets = _modules()
-    panel = SewingCreationTaskPanel(kind)
-    Gui.Control.showDialog(panel)
-    if hasattr(panel.form, "isVisible") and not panel.form.isVisible():
-        panel.form.show()
-    return panel
