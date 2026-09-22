@@ -12,6 +12,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 
+SMOKE_SCHEMA_VERSION = "1"
 OUT = Path(os.environ.get("CLOTH_GARMENT_HIERARCHY_OUT", "artifacts/garment-hierarchy-smoke"))
 OUT.mkdir(parents=True, exist_ok=True)
 LOG = OUT / "garment-hierarchy-smoke.log"
@@ -187,6 +188,7 @@ def run():
         MANIFEST.write_text(
             json.dumps(
                 {
+                    "smoke_schema_version": SMOKE_SCHEMA_VERSION,
                     "fcstd": FCSTD.name,
                     "hierarchy": after["hierarchy"],
                     "links": after["links"],
