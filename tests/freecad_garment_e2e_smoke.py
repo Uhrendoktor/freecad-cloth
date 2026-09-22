@@ -289,6 +289,10 @@ def _export_pair(piece, output_dir, export_format):
 
 def run_acceptance():
     doc = App.newDocument("CanonicalGarmentAcceptance")
+    from freecad_cloth.common.GarmentDocument import ensure_garment_hierarchy, garment_structure
+    garment_root = ensure_garment_hierarchy(doc)
+    if str(getattr(garment_root, "GarmentRole", "")) != "GarmentRoot":
+        raise RuntimeError("native garment root was not created")
     path = None
     try:
         _activate(
@@ -506,6 +510,27 @@ def run_acceptance():
         _close_task()
         print("diagnostics=passed metric=stress", flush=True)
 
+        structure = garment_structure(doc)
+        expected_groups = {"Patterns", "Sewing", "Fabric", "Avatar", "Simulation"}
+        if set(structure["groups"]) != expected_groups:
+            raise RuntimeError("native garment hierarchy groups are incomplete")
+        role_members = {
+            role: tuple(item["name"] for item in items)
+            for role, items in structure["groups"].items()
+        }
+        required_members = {
+            "Patterns": {piece.Name for piece in pieces},
+            "Sewing": {seam_11.Name, network.Name, operation.Name},
+            "Avatar": {str(getattr(scene.AvatarProxy, "SourceObject", None).Name) if getattr(scene, "AvatarProxy", None) is not None and getattr(scene.AvatarProxy, "SourceObject", None) is not None else ""},
+            "Simulation": {scene.Name, target.Name},
+        }
+        for role, names in required_members.items():
+            if not names.issubset(set(role_members[role])):
+                raise RuntimeError("native garment hierarchy lost %s members" % role)
+        if not role_members["Fabric"]:
+            raise RuntimeError("native garment hierarchy did not create a FabricMaterial object")
+        print("garment-hierarchy=passed groups=Patterns,Sewing,Fabric,Avatar,Simulation", flush=True)
+
         with tempfile.TemporaryDirectory() as directory:
             output_dir = __import__("pathlib").Path(directory)
             path = os.path.join(directory, "canonical-garment.FCStd")
@@ -536,6 +561,12 @@ def run_acceptance():
             fitting = reloaded.getObject(fitting_name)
             scene = reloaded.getObject(scene_name)
             target = reloaded.getObject(target_name)
+            reloaded_structure = garment_structure(reloaded)
+            if set(reloaded_structure["groups"]) != expected_groups:
+                raise RuntimeError("save/reload lost native garment hierarchy groups")
+            for role, names in required_members.items():
+                if not names.issubset({item["name"] for item in reloaded_structure["groups"][role]}):
+                    raise RuntimeError("save/reload lost native garment hierarchy membership for %s" % role)
             if any(obj is None for obj in (seam_11, network, operation, fitting, scene, target)):
                 raise RuntimeError("garment fixture did not preserve sewing/fitting/simulation objects")
             if str(seam_11.Status) != "Valid" or str(network.Status) != "Valid" or str(operation.Status) != "Valid":
