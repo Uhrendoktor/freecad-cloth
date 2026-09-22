@@ -357,7 +357,7 @@ class _PatternExportCommand:
 COMMANDS = [
     "ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_EditSketch",
     "ClothPattern_CreateSketch", "ClothPattern_CreatePieceWithSketch", "ClothPattern_CreateFromSketch",
-    "ClothPattern_CreateDrafting", "ClothPattern_Show2D", "ClothPattern_CreatePiece", "ClothPattern_CreateCustomPiece",
+    "ClothPattern_Show2D", "ClothPattern_CreatePiece",
     "ClothPattern_CreateMesh", "ClothPattern_AddSeam", "ClothPattern_RepairTopology", "ClothPattern_Export",
 ]
 
@@ -377,7 +377,6 @@ try:
             "ClothPattern_CreateSketch": create_pattern_sketch,
             "ClothPattern_CreatePieceWithSketch": create_pattern_piece_with_sketch,
             "ClothPattern_CreateFromSketch": create_pattern_piece_from_selected_sketch,
-            "ClothPattern_CreateDrafting": create_pattern_drafting,
             "ClothPattern_Show2D": show_pattern_2d,
             "ClothPattern_CreatePiece": create_pattern_piece_with_sketch,
             "ClothPattern_CreateCustomPiece": create_custom_pattern_piece,
