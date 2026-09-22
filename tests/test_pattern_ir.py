@@ -6,6 +6,7 @@ from freecad_cloth.pattern.PatternGeometry import LineSegment as GeometryLineSeg
 from freecad_cloth.pattern.PatternIR import PatternIR
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.sewing.SeamGraph import SeamGraph
+from freecad_cloth.sewing.SeamReference import ChangedEdgeReference, capture_edge_reference, resolve_edge_reference, resolve_edge_reference_status
 
 
 def _graph():
@@ -63,16 +64,24 @@ class _NativeCurve:
     FirstParameter = 2.0
     LastParameter = 4.0
 
-    def __init__(self, start, end):
+    def __init__(self, start, end, bend=0.0):
         self._start = start
         self._end = end
+        self._bend = float(bend)
 
     def valueAt(self, parameter):
         t = (parameter - self.FirstParameter) / (self.LastParameter - self.FirstParameter)
-        return _Point(
-            self._start[0] + (self._end[0] - self._start[0]) * t,
-            self._start[1] + (self._end[1] - self._start[1]) * t,
-        )
+        x = self._start[0] + (self._end[0] - self._start[0]) * t
+        y = self._start[1] + (self._end[1] - self._start[1]) * t
+        dx = self._end[0] - self._start[0]
+        dy = self._end[1] - self._start[1]
+        length = (dx * dx + dy * dy) ** 0.5
+        if length > 1e-12:
+            import math
+            offset = self._bend * math.sin(math.pi * t) / length
+            x += -dy * offset
+            y += dx * offset
+        return _Point(x, y)
 
 
 class ArcOfCircle(_NativeCurve):
@@ -130,6 +139,55 @@ def test_native_sketch_curve_kinds_are_preserved():
         assert len(boundary.samples) == 7
         assert boundary.samples[0] == (10.0, 0.0, 0.0)
         assert boundary.samples[-1] == (10.0, 10.0, 0.0)
+
+
+def _pattern_ir_edge_record(boundary):
+    samples = tuple(tuple(point) for point in boundary.samples)
+    return {
+        "piece_id": "piece",
+        "id": boundary.id,
+        "points": (
+            (samples[0][0], samples[0][1]),
+            (samples[-1][0], samples[-1][1]),
+        ),
+        "provenance": (
+            "PatternIR",
+            "Sketcher",
+            boundary.kind,
+            boundary.parameter_range,
+            samples,
+        ),
+    }
+
+
+def test_native_curve_shape_change_with_same_endpoints_is_changed_reference():
+    first_curve = ArcOfCircle((10, 0), (10, 10), bend=4.0)
+    second_curve = ArcOfCircle((10, 0), (10, 10), bend=7.0)
+    first_graph, first_sketch = _sketch_graph(first_curve, "piece:curved")
+    second_graph, second_sketch = _sketch_graph(second_curve, "piece:curved")
+    first_ir = PatternIR.from_sketches(first_graph, {"piece": first_sketch, "other": _other_sketch()}, curve_samples=9)
+    second_ir = PatternIR.from_sketches(second_graph, {"piece": second_sketch, "other": _other_sketch()}, curve_samples=9)
+    first_edge = _pattern_ir_edge_record(first_ir.boundary("piece", "piece:curved"))
+    second_edge = _pattern_ir_edge_record(second_ir.boundary("piece", "piece:curved"))
+    assert first_edge["points"] == second_edge["points"]
+    assert first_edge["provenance"] != second_edge["provenance"]
+    reference = capture_edge_reference("piece", first_edge["id"], first_edge["points"], first_edge["provenance"])
+    try:
+        resolve_edge_reference(reference, [second_edge])
+    except ChangedEdgeReference:
+        pass
+    else:
+        raise AssertionError("native curve shape change must be a Changed reference")
+    assert resolve_edge_reference_status(reference, [second_edge]) == (False, "changed")
+
+
+def test_legacy_endpoint_reference_remains_valid_against_native_provenance():
+    curve = ArcOfCircle((10, 0), (10, 10), bend=7.0)
+    graph, sketch = _sketch_graph(curve, "piece:curved")
+    ir = PatternIR.from_sketches(graph, {"piece": sketch, "other": _other_sketch()}, curve_samples=9)
+    current = _pattern_ir_edge_record(ir.boundary("piece", "piece:curved"))
+    legacy = capture_edge_reference("piece", current["id"], current["points"])
+    assert resolve_edge_reference_status(legacy, [current]) == (True, "valid")
 
 
 def test_shuffled_sketch_geometry_resolves_by_endpoint_connectivity():
