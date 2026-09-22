@@ -218,7 +218,7 @@ def show_sewing_2d():
     import FreeCADGui as Gui
     if not Gui.activeDocument():
         return
-    from freecad_cloth.sewing.SewingView import apply_seam_colors, pattern_pieces_for_2d
+    from freecad_cloth.sewing.SewingView import apply_seam_colors
     document = Gui.activeDocument().Document
     apply_seam_colors(document.Objects)
     Gui.Selection.clearSelection()
