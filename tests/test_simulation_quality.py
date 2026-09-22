@@ -70,13 +70,35 @@ class SimulationQualityTests(unittest.TestCase):
             "Placement": None,
         })()
         positions, triangles, boundary = quality_piece_mesh(piece_obj, 100.0, 2.0)
-        # Constrained Delaunay keeps the authored pattern vertices as the
-        # semantic boundary; refinement adds interior vertices and triangles.
+        # Boundary refinement preserves authored outline vertices and adds
+        # deterministic interior seam particles along each straight edge.
+        boundary_points = {positions[index][:2] for edge in boundary for index in edge}
+        for outline_point in piece.outline:
+            self.assertIn(outline_point, boundary_points)
         self.assertEqual(len(boundary), len(piece.outline))
+        self.assertGreater(sum(len(edge) for edge in boundary), len(piece.outline))
         self.assertGreater(len(triangles), 100)
-        self.assertEqual([positions[i][:2] for i in range(len(piece.outline))], piece.outline)
-        self.assertGreater(len(positions), len(boundary))
+        self.assertGreater(len(positions), len(boundary_points))
 
+    def test_quality_seam_edges_have_interior_particles(self):
+        piece = PatternPiece("Test", [(0, 0), (120, 0), (120, 60), (0, 60)], id="test")
+        piece_obj = type("Piece", (), {
+            "SewingOutline": repr(piece.outline),
+            "DraftingBoundary": repr(piece.outline),
+            "PieceId": piece.id,
+            "Placement": None,
+        })()
+        positions, _triangles, boundary = quality_piece_mesh(piece_obj, 100.0, 20.0)
+        self.assertEqual(len(boundary), 4)
+        self.assertTrue(all(len(edge) >= 3 for edge in boundary))
+        for edge in boundary:
+            self.assertLessEqual(
+                max(
+                    ((positions[a][0] - positions[b][0]) ** 2 + (positions[a][1] - positions[b][1]) ** 2) ** 0.5
+                    for a, b in zip(edge, edge[1:])
+                ),
+                20.000001,
+            )
     def test_quality_proxy_keeps_solver_state_outside_serialized_object_dict(self):
         """Guard the reload path without placing the non-serializable solver in __dict__."""
         proxy = QualitySimulationProxy()
