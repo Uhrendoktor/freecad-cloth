@@ -9,6 +9,8 @@ import FreeCADGui as Gui
 import Part
 import Sketcher
 
+from freecad_cloth.common.GarmentDocument import ensure_garment_structure
+
 
 def _events():
     Gui.updateGui()
@@ -506,6 +508,28 @@ def run_acceptance():
         _close_task()
         print("diagnostics=passed metric=stress", flush=True)
 
+        garment, garment_groups = ensure_garment_structure(doc)
+        expected_domains = ("Patterns", "Sewing", "Fabric", "Fitting", "Avatar", "Simulation")
+        if garment.Label != "Garment" or str(garment.GarmentType) != "Garment" or str(garment.SchemaVersion) != "1":
+            raise RuntimeError("native Garment root did not expose its persistent hierarchy contract")
+        if tuple(sorted(garment_groups)) != tuple(sorted(expected_domains)):
+            raise RuntimeError("native Garment hierarchy groups are incomplete")
+        if any(group not in tuple(getattr(garment, "Group", ())) for group in garment_groups.values()):
+            raise RuntimeError("native Garment root does not own every domain group")
+        if any(piece not in tuple(getattr(garment_groups["Patterns"], "Group", ())) for piece in pieces):
+            raise RuntimeError("PatternPiece authority was not retained in Garment Patterns")
+        if seam_11 not in tuple(getattr(garment_groups["Sewing"], "Group", ())):
+            raise RuntimeError("seam authority was not retained in Garment Sewing")
+        if network not in tuple(getattr(garment_groups["Sewing"], "Group", ())):
+            raise RuntimeError("sewing-network authority was not retained in Garment Sewing")
+        if target not in tuple(getattr(garment_groups["Fitting"], "Group", ())):
+            raise RuntimeError("DrapeTarget authority was not retained in Garment Fitting")
+        if avatar not in tuple(getattr(garment_groups["Avatar"], "Group", ())):
+            raise RuntimeError("avatar authority was not retained in Garment Avatar")
+        if scene not in tuple(getattr(garment_groups["Simulation"], "Group", ())):
+            raise RuntimeError("simulation authority was not retained in Garment Simulation")
+        print("hierarchy=passed domains=Patterns,Sewing,Fabric,Fitting,Avatar,Simulation", flush=True)
+
         with tempfile.TemporaryDirectory() as directory:
             output_dir = __import__("pathlib").Path(directory)
             path = os.path.join(directory, "canonical-garment.FCStd")
@@ -519,6 +543,8 @@ def run_acceptance():
             target_name = target.Name
             piece_names = [piece.Name for piece in pieces]
             expected_piece_ids = [str(piece.PieceId) for piece in pieces]
+            garment_name = garment.Name
+            garment_group_names = {domain: group.Name for domain, group in garment_groups.items()}
             target_body_name = target_body.Name
             App.closeDocument(doc.Name)
             doc = None
@@ -542,6 +568,24 @@ def run_acceptance():
                 raise RuntimeError("save/reload changed sewing validity")
             if len(network.Seams) != 2 or len(fitting.PatternPieces) != 4 or len(scene.ClothPieces) != 4:
                 raise RuntimeError("save/reload changed sewing/fitting/simulation membership")
+            reloaded_garment = reloaded.getObject(garment_name)
+            if reloaded_garment is None or str(reloaded_garment.GarmentType) != "Garment":
+                raise RuntimeError("save/reload did not preserve the native Garment root")
+            reloaded_groups = {
+                domain: reloaded.getObject(name) for domain, name in garment_group_names.items()
+            }
+            if any(group is None for group in reloaded_groups.values()):
+                raise RuntimeError("save/reload lost one or more native Garment domain groups")
+            if any(group not in tuple(getattr(reloaded_garment, "Group", ())) for group in reloaded_groups.values()):
+                raise RuntimeError("save/reload lost native Garment root/group membership")
+            if {piece.Name for piece in reloaded_groups["Patterns"].Group} != set(piece_names):
+                raise RuntimeError("save/reload changed Garment Patterns membership")
+            if seam_11 not in tuple(getattr(reloaded_groups["Sewing"], "Group", ())):
+                raise RuntimeError("save/reload lost Garment Sewing membership")
+            if target not in tuple(getattr(reloaded_groups["Fitting"], "Group", ())):
+                raise RuntimeError("save/reload lost Garment Fitting membership")
+            if scene not in tuple(getattr(reloaded_groups["Simulation"], "Group", ())):
+                raise RuntimeError("save/reload lost Garment Simulation membership")
             if target.SourceObject is None or target.SourceObject.Name != target_body_name:
                 raise RuntimeError("save/reload lost persistent DrapeTarget source")
             semantic_ids_after_reload = tuple(getattr(reloaded_pieces[0].Sketch, "SemanticEdgeIds", ()))
