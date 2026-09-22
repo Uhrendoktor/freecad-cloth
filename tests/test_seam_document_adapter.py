@@ -109,6 +109,29 @@ def test_native_curve_shape_change_with_identical_endpoints_is_changed_reference
         _resolve_document_edge(changed, edge_id, signature)
 
 
+def test_semantic_seam_status_distinguishes_changed_from_missing(monkeypatch):
+    import sys
+    from freecad_cloth.pattern.PatternObjects import SeamProxy
+
+    monkeypatch.setitem(sys.modules, "Part", SimpleNamespace(Shape=lambda: "empty-shape"))
+    original = _native_piece(1.0)
+    edge_id, signature = _seam_edge_id(original, 1, "A")
+    obj = SimpleNamespace(PatternA=original, PatternB=original, EdgeAId=edge_id, EdgeASignature=signature,
+                          EdgeBId=edge_id, EdgeBSignature=signature, Status="Incomplete", Shape=None)
+    SeamProxy().execute(obj)
+    assert obj.Status == "Valid"
+
+    changed = _native_piece(2.0)
+    obj.PatternA = changed
+    SeamProxy().execute(obj)
+    assert obj.Status == "Changed reference"
+
+    deleted = _native_piece(1.0, geometry=())
+    obj.PatternA = deleted
+    SeamProxy().execute(obj)
+    assert obj.Status == "Missing reference"
+
+
 def test_deleted_native_geometry_is_missing_not_retargeted():
     original = _native_piece(1.0)
     edge_id, signature = _seam_edge_id(original, 1, "A")
