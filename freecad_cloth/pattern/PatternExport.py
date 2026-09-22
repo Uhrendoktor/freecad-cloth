@@ -3,7 +3,7 @@ import json
 from html import escape
 from math import cos, isfinite, radians, sin
 from xml.etree import ElementTree
-from freecad_cloth.pattern.PatternDerivedGeometry import DerivedPattern, PatternMark, add_marks, derive_cut_boundary, mark_point, notch_point
+from freecad_cloth.pattern.PatternDerivedGeometry import Notch, DerivedPattern, PatternMark, add_marks, derive_cut_boundary, mark_point, notch_point
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, PolylineSegment
 
 
