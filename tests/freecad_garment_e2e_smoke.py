@@ -2,12 +2,32 @@
 import hashlib
 import math
 import os
+import sys
 import tempfile
 
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
 import Sketcher
+
+
+def _record_bootstrap(message):
+    print(str(message), flush=True)
+
+
+def _ensure_workbench_registration():
+    _record_bootstrap("workbench-bootstrap=starting")
+    import InitGui  # noqa: F401
+    expected = (
+        "ClothPatternWorkbench",
+        "ClothSewingWorkbench",
+        "ClothSimulationWorkbench",
+    )
+    missing = [name for name in expected if name not in Gui.listWorkbenches()]
+    if missing:
+        raise RuntimeError("standalone InitGui bootstrap did not register: %s" % ",".join(missing))
+    _events()
+    _record_bootstrap("workbench-bootstrap=passed")
 
 
 def _events():
@@ -761,4 +781,9 @@ def run_acceptance():
 
 
 if __name__ == "__main__":
+    _ensure_workbench_registration()
     run_acceptance()
+    print("scenario-complete=passed", flush=True)
+    print("freecad-process-exit=forced", flush=True)
+    sys.stdout.flush()
+    os._exit(0)
