@@ -2,6 +2,8 @@ from freecad_cloth.pattern.PatternGeometry import rectangle
 from freecad_cloth.pattern.PatternMesh import triangulate
 from freecad_cloth.simulation.SimulationScene import SimulationScene
 
+from freecad_cloth.simulation.ClothBackend import validate_pinned_stitch_pairs
+
 
 def test_scene_is_constructed_from_pattern_mesh():
     mesh = triangulate(rectangle(100.0, 60.0))
@@ -14,7 +16,28 @@ def test_scene_is_constructed_from_pattern_mesh():
 
 def test_pinned_vertices_remain_fixed_while_free_vertices_move():
     mesh = triangulate(rectangle(100.0, 60.0))
-    scene = SimulationScene.from_mesh(mesh, gravity=(0.0, 0.0, -1000.0), pinned=(0,), iterations=16)
+    scene = SimulationScene.from_mesh(mesh, gravity=(0.0, 0.0, 
+
+def test_pinned_pinned_stitch_rejects_nonzero_initial_separation():
+    positions = ((0.0, 0.0, 0.0), (327.943695, 0.0, 0.0))
+    records = (("TunicRightShoulder", "Front", "Back", ((0, 1),)),)
+    try:
+        validate_pinned_stitch_pairs(positions, (0, 1), records)
+    except ValueError as exc:
+        message = str(exc)
+        assert "impossible pinned-pinned sewing constraint" in message
+        assert "seam=TunicRightShoulder" in message
+        assert "particle_a=0 particle_b=1" in message
+        assert "initial_separation=327.943695000 mm" in message
+    else:
+        raise AssertionError("physically impossible pinned-pinned stitch was accepted")
+
+
+def test_pinned_pinned_stitch_allows_numerical_zero():
+    positions = ((0.0, 0.0, 0.0), (1.0e-12, 0.0, 0.0))
+    records = (("test-seam", "A", "B", ((0, 1),)),)
+    validate_pinned_stitch_pairs(positions, (0, 1), records)
+-1000.0), pinned=(0,), iterations=16)
     initial = tuple(scene.state.positions)
     scene.step(0.01)
     assert scene.state.positions[0] == initial[0]
