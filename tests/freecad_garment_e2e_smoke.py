@@ -536,7 +536,7 @@ def run_acceptance():
         if garment.PrimaryAvatar is None or str(getattr(garment.PrimaryAvatar, "AvatarType", "")) != "ClothAvatar":
             raise RuntimeError("garment hierarchy did not link the authoritative avatar")
         for role, group in expected_groups.items():
-            if garment not in tuple(getattr(group, "Garment", None) for _ in [0]):
+            if group.Garment != garment:
                 raise RuntimeError("garment hierarchy group lost its public root link: %s" % role)
         print(
             "hierarchy=passed groups=Pattern,Sewing,Fitting,Avatar,Simulation pieces=%d"
