@@ -235,8 +235,8 @@ def _seam_pair_records(doc, panel_data, seam_samples=8):
             continue
         points_a = tuple(data_a["positions"][index] for index in data_a["boundary_edges"][ea])
         points_b = tuple(data_b["positions"][index] for index in data_b["boundary_edges"][eb])
-        va = _sample_boundary(data_a["boundary_edges"][ea], seam.StartA, seam.EndA, seam_samples, points_a)
-        vb = _sample_boundary(data_b["boundary_edges"][eb], seam.StartB, seam.EndB, seam_samples, points_b)
+        # A/B experiment: preserve the public arc-length sewing contract, while testing the\n        # pre-#604 normalized boundary-index sampling inside the simulation stitch path.\n        va = _sample_boundary(data_a["boundary_edges"][ea], seam.StartA, seam.EndA, seam_samples)
+        vb = _sample_boundary(data_b["boundary_edges"][eb], seam.StartB, seam.EndB, seam_samples)
         if bool(getattr(seam, "ReversedB", False)):
             vb.reverse()
         seam_pairs = tuple(zip(va, vb))
