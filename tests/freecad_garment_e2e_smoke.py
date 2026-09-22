@@ -639,6 +639,19 @@ def run_acceptance():
             if int(scene.Steps) != 1 or not bool(scene.FiniteState):
                 raise RuntimeError("simulation did not rerun after save/reload and upstream invalidation")
 
+            diagnostics_panel = _open_diagnostics_panel()
+            diagnostics_panel.metric.setCurrentText("stress")
+            diagnostics_panel.refresh_button.click()
+            _events()
+            if "Stress" not in str(diagnostics_panel.status.text()):
+                raise RuntimeError("post-invalidation diagnostics did not produce stress analysis")
+            diagnostics_panel.map_button.click()
+            _events()
+            if "Created" not in str(diagnostics_panel.status.text()):
+                raise RuntimeError("post-invalidation diagnostics did not create a diagnostic map")
+            _close_task()
+            print("diagnostics-after-invalidation=passed metric=stress", flush=True)
+
             first_signature = _position_signature(scene)
             first_digest = _position_signature_digest(first_signature)
             print(
