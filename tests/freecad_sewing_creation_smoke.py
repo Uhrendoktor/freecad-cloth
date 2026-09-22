@@ -209,6 +209,17 @@ try:
     assert any(len(network.Seams) == 1 and network.Status == "Valid" for network in free_networks)
     record("commit-free=passed")
 
+    free_cancel_before = {obj.Name for obj in doc.Objects}
+    select_edges((piece_a, 2), (piece_b, 2))
+    free_cancel_panel = open_public("ClothSewing_FreeSewing")
+    assert free_cancel_panel.session.created
+    assert "Preview valid" in free_cancel_panel.feedback.text()
+    free_cancel_panel.cancel_button.click()
+    wait_for_task_close()
+    assert {obj.Name for obj in doc.Objects} == free_cancel_before
+    record("cancel-free=passed")
+
+
     _success = True
 except Exception:
     record("smoke=exception\n" + traceback.format_exc())
