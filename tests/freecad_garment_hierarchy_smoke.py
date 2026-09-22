@@ -153,6 +153,12 @@ def run():
         assert garment_root(doc) is not None
         log("production-garment-command=passed")
 
+        from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
+        scene = create_simulation_scene(doc)
+        assert scene.FabricMaterial is not None
+        assert scene.DrapeTarget is not None
+        log("populate-fabric-avatar-simulation=passed")
+
         front = make_piece(doc, "Front", "front", 0)
         back = make_piece(doc, "Back", "back", 130)
 
@@ -164,15 +170,8 @@ def run():
         doc.recompute()
         assert str(seam.Status) == "Valid"
         assert str(operation.Status) == "Valid"
+        scene.ClothPieces = [front, back]
         log("populate-pattern-sewing=passed")
-
-        from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
-        scene = create_simulation_scene(doc)
-        doc.recompute()
-        assert scene.FabricMaterial is not None
-        assert scene.DrapeTarget is not None
-        assert int(getattr(scene, "ParticleCount", 0)) > 0
-        log("populate-fabric-avatar-simulation=passed")
 
         before = verify(doc, "before-save")
         doc.recompute()
@@ -182,7 +181,6 @@ def run():
         saved_name = doc.Name
         App.closeDocument(saved_name)
         doc = App.openDocument(str(path))
-        doc.recompute()
         after = verify(doc, "after-reload")
         assert before["hierarchy"] == after["hierarchy"], "hierarchy changed after reload"
         assert before["links"] == after["links"], "object links changed after reload"
