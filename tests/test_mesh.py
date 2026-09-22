@@ -75,7 +75,7 @@ def test_clockwise_refined_outline_preserves_subsegment_provenance_membership():
         values = [
             str(value)
             for value in mesh.boundary_edge_segment_ids
-            if str(value).startswith(prefix + "::sub::")
+            if str(value).startswith(prefix + "::simulation-sub::")
         ]
         indices = sorted(int(value.rsplit("::", 1)[-1]) for value in values)
         assert indices == list(range(expected_count))
