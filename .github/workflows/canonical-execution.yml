@@ -78,6 +78,9 @@ jobs:
                 tests/test_humanoid_mesh.py \
                 tests/test_drape_quality.py \
                 tests/test_freecad_objects.py \
+                tests/test_pattern_simulation_adapter.py \
+                tests/test_seam_graph.py \
+                tests/test_workbench_icons.py \
                 tests/test_project_structure.py \
                 tests/test_cloth_diagnostics.py \
                 tests/test_tunic_audit_contract.py; do
