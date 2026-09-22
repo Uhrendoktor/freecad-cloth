@@ -189,6 +189,8 @@ def create_drape_target(doc, source=None, target_type="FreeCAD Geometry", deflec
     target.InvalidationReason = "collision cache missing"
     if source is not None:
         assign_drape_target(target, source, target_type)
+    from freecad_cloth.common.GarmentDocument import link_garment_object
+    link_garment_object(target, "Simulation", doc)
     return target
 
 
