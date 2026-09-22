@@ -241,7 +241,8 @@ class SeamProxy:
         if obj.ReversedB: pb0, pb1 = pb1, pb0
         if getattr(piece_a, "Placement", None) is not None: pa0, pa1 = piece_a.Placement.multVec(pa0), piece_a.Placement.multVec(pa1)
         if getattr(piece_b, "Placement", None) is not None: pb0, pb1 = piece_b.Placement.multVec(pb0), piece_b.Placement.multVec(pb1)
-        obj.Shape = Part.makeCompound([Part.makeLine(pa0, pa1), Part.makeLine(pb0, pb1)])
+        from freecad_cloth.sewing.SewingView import build_seam_visual_shape
+        obj.Shape = build_seam_visual_shape(piece_a, piece_b, obj, sample_count=5)
 
 
 def add_seam(doc, seam: Seam):
