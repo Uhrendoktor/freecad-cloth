@@ -59,6 +59,7 @@ jobs:
                 tests/test_collisions.py \
                 tests/test_pattern_sketch.py \
                 tests/test_pattern_ir.py \
+                tests/test_pattern_simulation_adapter.py \
                 tests/test_pattern_export_semantics.py \
                 tests/test_sketch_authority.py \
                 tests/test_sewing_workbench.py \
@@ -71,6 +72,7 @@ jobs:
                 tests/test_sewing_network_gui_contract.py \
                 tests/test_gui_structure.py \
                 tests/test_simulation_scene.py \
+                tests/test_simulation_dataflow.py \
                 tests/test_simulation_quality.py \
                 tests/test_avatar_fitting.py \
                 tests/test_avatar_shoulder_pose.py \
