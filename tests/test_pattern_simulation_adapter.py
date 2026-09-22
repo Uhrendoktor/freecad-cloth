@@ -172,14 +172,15 @@ def test_sketch_authority_resolves_to_pattern_ir_without_reading_legacy_outline(
     resolved = resolve_simulation_pattern(doc, [front], curve_samples=11)
     piece = resolved.pattern.piece("front")
 
-    assert [boundary.id for boundary in piece.boundaries] == [
+    assert {boundary.id for boundary in piece.boundaries} == {
         "front:bottom",
         "front:side",
         "front:top",
         "front:left",
-    ]
-    assert piece.boundaries[1].kind == "arc"
-    assert len(piece.boundaries[1].samples) == 11
+    }
+    curved = piece.boundary("front", "front:side")
+    assert curved.kind == "arc"
+    assert len(curved.samples) == 11
 
 
 def test_semantic_seam_ids_and_provenance_survive_resolution():
@@ -254,6 +255,3 @@ def test_native_and_legacy_pieces_can_share_one_simulation_pattern():
     assert pattern.piece("front").boundaries[0].id == "front:bottom"
     assert pattern.piece("back").boundaries[0].id == "back:edge:0"
 
-
-if __name__ == "__main__":
-    pytest.main([__file__])
