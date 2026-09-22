@@ -24,4 +24,6 @@ def test_canonical_tunic_rejects_known_shoulder_mapping_regressions():
     assert 'authored_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())' in audit
     assert 'edge_a_id, edge_b_id, seam_id in ((authored_edge_ids[1], authored_edge_ids[1], "TunicRightSide")' in audit
     assert '((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(6,6,"TunicLeftShoulder"),(7,7,"TunicLeftSide"))' not in audit
+    assert 'proxy=proxy' in audit
+    assert 'write_anchor not in source' in audit
     assert '((1,1,"TunicRightSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide"))' not in audit
