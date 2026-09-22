@@ -124,9 +124,12 @@ try:
             panel.format.setCurrentText(export_format)
             panel.path.setText(str(path_a))
             record("export=%s:first-accept" % export_format)
-            if not panel.accept():
-                raise RuntimeError("public export task panel rejected " + export_format)
+            Gui.Control.accept()
             process_events()
+            if Gui.Control.activeDialog() is not None:
+                raise RuntimeError(
+                    "public export task panel did not close after successful " + export_format
+                )
             record("export=%s:first-written" % export_format)
 
             first = path_a.read_bytes()
@@ -138,9 +141,12 @@ try:
             panel.format.setCurrentText(export_format)
             panel.path.setText(str(path_b))
             record("export=%s:second-accept" % export_format)
-            if not panel.accept():
-                raise RuntimeError("second public export rejected " + export_format)
+            Gui.Control.accept()
             process_events()
+            if Gui.Control.activeDialog() is not None:
+                raise RuntimeError(
+                    "second public export task panel did not close after successful " + export_format
+                )
             record("export=%s:second-written" % export_format)
 
             second = path_b.read_bytes()
