@@ -442,6 +442,18 @@ def run_acceptance():
             raise RuntimeError("public fitting scene did not persist all four pattern pieces")
         print("arrangement=passed pieces=4", flush=True)
 
+        _activate(
+            "ClothSimulationWorkbench",
+            [
+                "ClothSimulation_Create",
+                "ClothSimulation_Step",
+                "ClothSimulation_Reset",
+                "ClothDrape_CreateTarget",
+                "ClothDrape_RefreshTarget",
+                "ClothDrape_Diagnostics",
+            ],
+        )
+
         target_body = doc.addObject("Part::Feature", "AcceptanceTarget")
         target_body.Label = "Acceptance Target"
         target_body.Shape = Part.makeCylinder(35, 100, App.Vector(0, 0, -50))
