@@ -177,6 +177,15 @@ def test_pattern_authoring_command_surface_is_sketcher_backed():
     assert "Edit native Sketch" in pattern_gui
     assert "Compatibility-only editor for legacy PatternDrafting state" in pattern_gui
 
+def test_sewing_task_panel_exposes_deterministic_seam_color():
+    source = (ROOT / "freecad_cloth" / "sewing" / "SewingGui.py").read_text(encoding="utf-8")
+    view = (ROOT / "freecad_cloth" / "sewing" / "SewingView.py").read_text(encoding="utf-8")
+    assert 'layout.addRow("Seam color",self.seam_color)' in source
+    assert "def _update_seam_color(self):" in source
+    assert "seam_color_hex" in source
+    assert "def seam_color_hex(seam_id, seam_ids):" in view
+
+
 def test_pattern_drafting_remains_compatibility_only():
     drafting_source = (ROOT / "freecad_cloth" / "pattern" / "PatternDrafting.py").read_text()
     assert "Compatibility-only helpers for legacy pattern-drafting documents" in drafting_source
@@ -184,3 +193,21 @@ def test_pattern_drafting_remains_compatibility_only():
 
 
 print("GUI structure checks passed")
+
+
+def test_readme_asset_contract_is_published_on_main_merge():
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    for asset in (
+        "cloth-pattern-design.png",
+        "cloth-sewing.png",
+        "cloth-avatar-turntable.gif",
+        "cloth-simulation-arranged-turntable.gif",
+        "cloth-simulation-draped-turntable.gif",
+    ):
+        assert asset in readme
+        assert asset in workflow
+    assert "docs/images/workbench-generated" in workflow
+    assert "github.event_name == 'push' && github.ref == 'refs/heads/main'" in workflow
+
+
