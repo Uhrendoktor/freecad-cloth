@@ -178,6 +178,7 @@ def test_quality_proxy_keeps_provenance_explicit_after_backend_handoff():
     proxy._sync_seam_stitch_provenance(Base())
 
     assert proxy.seam_stitch_pairs == {"seam-2": ((2, 3), (4, 5))}
+    assert "seam_stitch_pairs" in proxy.__dict__
 
     replacement = Base()
     replacement.seam_stitch_pairs = {}
