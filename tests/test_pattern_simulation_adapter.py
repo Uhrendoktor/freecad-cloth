@@ -222,6 +222,38 @@ def test_legacy_piece_uses_explicit_patternir_fallback():
     ]
 
 
+def test_legacy_integer_seam_reference_resolves_to_semantic_id():
+    front = _LegacyPiece("front")
+    back = _LegacyPiece("back")
+    seam = _Seam(
+        "front-back",
+        "front",
+        "back",
+        "",
+        "",
+        "",
+        "",
+        edge_a=1,
+        edge_b=3,
+    )
+    resolved = resolve_simulation_pattern(_Doc([front, back, seam]), [front, back])
+    current = resolved.pattern.seams[0]
+
+    assert current.edge_a == "front:edge:1"
+    assert current.edge_b == "back:edge:3"
+
+
+def test_sketcher_authority_without_sketch_fails_closed():
+    front = _Piece("front", None)
+    front.GeometryAuthority = "Sketcher"
+    try:
+        resolve_simulation_pattern(_Doc([front]), [front])
+    except Exception as exc:
+        assert "Sketch-authoritative" in str(exc)
+        return
+    raise AssertionError("Sketcher authority without a Sketch must not use legacy fallback")
+
+
 def test_native_sketch_edit_with_same_semantic_id_fails_closed():
     front = _Piece("front", _square_sketch("front", curved=True, bend=1.0))
     back = _Piece("back", _square_sketch("back"))
