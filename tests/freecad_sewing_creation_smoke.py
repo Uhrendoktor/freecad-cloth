@@ -19,10 +19,14 @@ from freecad_cloth.sewing.SewingCreationGui import SewingCreationTaskPanel
 LOG_PATH = Path(os.environ.get("CLOTH_SEWING_SMOKE_LOG", ROOT / "artifacts" / "sewing-creation-smoke.log"))
 LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
 LOG = []
+LOG_PATH.write_text("", encoding="utf-8")
 
 
 def record(message):
     LOG.append(message)
+    with LOG_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(message + "\\n")
+        handle.flush()
     print(message, flush=True)
 
 
