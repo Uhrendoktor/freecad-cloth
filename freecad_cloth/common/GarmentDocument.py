@@ -159,7 +159,6 @@ def _ensure_root_properties(root):
             root.addObject(group)
             _prop(root, "App::PropertyLink", name, "Garment", group)
         _prop(group, "App::PropertyString", "GarmentGroup", "Garment", group_name)
-        _prop(group, "App::PropertyLink", "Garment", "Garment", root)
         _prop(group, "App::PropertyLinkList", "Members", "Garment", [])
     for prop in (
         "PatternPieces",
