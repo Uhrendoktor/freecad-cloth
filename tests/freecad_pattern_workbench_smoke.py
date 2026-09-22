@@ -11,6 +11,16 @@ from freecad_cloth.pattern.PatternCommands import create_pattern_piece
 from freecad_cloth.pattern.PatternGui import PatternPieceTaskPanel
 
 
+def process_events():
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
+    QtWidgets.QApplication.processEvents()
+    Gui.updateGui()
+    QtWidgets.QApplication.processEvents()
+
+
 def main():
     workbench = InitGui.ClothPatternWorkbench()
     Gui.activateWorkbench("Cloth Pattern")
