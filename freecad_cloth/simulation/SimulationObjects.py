@@ -118,13 +118,13 @@ def _simulation_source_signature(obj, pieces):
     return pattern_signature, seam_signature, target_signature, int(getattr(obj, "StitchSamples", 8)), pin_signature
 
 
-def _piece_mesh(piece, start_height):
-    from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
+def _piece_mesh(piece, start_height, piece_ir=None):
+    from freecad_cloth.common.PatternSimulationAdapter import geometry_from_piece_ir, resolve_piece_ir
     from freecad_cloth.pattern.PatternMesh import triangulate
     import FreeCAD as App
-    points = _outline_points(piece)
-    segments = [LineSegment(f"{piece.PieceId}:edge:{i}", points[i], points[(i + 1) % len(points)]) for i in range(len(points))]
-    mesh = triangulate(ParametricPattern(segments))
+    if piece_ir is None:
+        piece_ir = resolve_piece_ir(piece)
+    mesh = triangulate(geometry_from_piece_ir(piece_ir))
     placement = getattr(piece, "Placement", None)
     vertices = []
     for x, y in mesh.vertices:
