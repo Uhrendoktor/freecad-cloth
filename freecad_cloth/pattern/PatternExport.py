@@ -146,6 +146,68 @@ def _piece_seams(piece):
     return tuple(sorted(set(seams)))
 
 
+def _resolve_persisted_segment_id(pattern, value, piece_id=""):
+    """Resolve persisted pattern-mark edge aliases against authoritative IDs."""
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    ids = tuple(str(segment.id) for segment in pattern.segments)
+    if raw in ids:
+        return raw
+    aliases = {"bottom": 0, "right": 1, "top": 2, "left": 3}
+    if raw in aliases and aliases[raw] < len(ids):
+        return ids[aliases[raw]]
+    if raw.startswith("edge:"):
+        try:
+            index = int(raw.split(":", 1)[1])
+        except ValueError:
+            index = -1
+        if 0 <= index < len(ids):
+            return ids[index]
+    prefix = str(piece_id or "").strip()
+    if prefix and raw.startswith(prefix + ":edge:"):
+        try:
+            index = int(raw.rsplit(":", 1)[1])
+        except ValueError:
+            index = -1
+        if 0 <= index < len(ids):
+            return ids[index]
+    raise ValueError("persisted pattern mark references unknown segment: %s" % raw)
+
+
+def _persisted_construction_marks(piece, pattern):
+    """Resolve persisted FreeCAD Notch/PatternMark objects for production export."""
+    document = getattr(piece, "Document", None)
+    if document is None:
+        return (), (), False
+    piece_id = str(getattr(piece, "PieceId", ""))
+    objects = sorted((
+        obj for obj in getattr(document, "Objects", ())
+        if str(getattr(obj, "PatternMarkType", "")).strip()
+        and str(getattr(obj, "PieceId", "")).strip() == piece_id
+    ), key=lambda obj: str(getattr(obj, "Name", getattr(obj, "Label", ""))))
+    notches = []
+    marks = []
+    has_persisted_grainline = False
+    for obj in objects:
+        object_id = str(getattr(obj, "Name", getattr(obj, "Label", ""))).strip()
+        kind = str(getattr(obj, "PatternMarkType", "")).strip()
+        if not object_id or not kind:
+            raise ValueError("persisted pattern mark is missing a stable identity or type")
+        segment_id = _resolve_persisted_segment_id(pattern, getattr(obj, "SegmentId", ""), piece_id)
+        position = float(getattr(obj, "Position", 0.5))
+        depth = float(getattr(obj, "Depth", 3.0))
+        angle = float(getattr(obj, "Angle", 0.0))
+        length = float(getattr(obj, "Length", 40.0))
+        text = str(getattr(obj, "Text", ""))
+        if kind.lower() == "notch":
+            notches.append(Notch(object_id, segment_id, position, depth))
+        else:
+            marks.append(PatternMark(object_id, kind, segment_id, position, angle, length, text))
+        has_persisted_grainline = has_persisted_grainline or kind.lower() == "grainline"
+    return tuple(notches), tuple(marks), has_persisted_grainline
+
+
 def pattern_from_pattern_piece(piece, curve_samples: int = 64) -> ParametricPattern:
     """Build a deterministic derived export pattern from the authoritative piece."""
     if getattr(piece, "PatternType", "") != "PatternPiece":
@@ -198,7 +260,12 @@ def export_pattern_piece(piece, path, format: str, *, units: str = "mm", curve_s
     seam_ids = _piece_seams(piece)
     allowance = max(0.0, float(getattr(piece, "SeamAllowance", 0.0)))
     derived = derive_cut_boundary(pattern, allowance, curve_samples=curve_samples)
-    if pattern.segments:
+    persisted_notches, persisted_marks, has_persisted_grainline = _persisted_construction_marks(piece, pattern)
+    if persisted_notches:
+        derived = add_notches(derived, persisted_notches)
+    if persisted_marks:
+        derived = add_marks(derived, persisted_marks)
+    if pattern.segments and not has_persisted_grainline:
         mark = PatternMark(
             id="%s:grainline" % str(getattr(piece, "PieceId", "piece")),
             kind="Grainline",
