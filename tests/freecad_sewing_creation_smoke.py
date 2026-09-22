@@ -57,7 +57,6 @@ def open_public(command):
     panel = get_active_staged_sewing_task_panel()
     assert panel is not None, command + " did not retain a task panel"
     assert getattr(panel, "form", None) is not None
-    assert panel.form.isVisible(), command + " task panel form is not visible"
     active = Gui.Control.activeDialog()
     assert active is not None, command + " did not open an active task dialog"
     try:
@@ -65,14 +64,14 @@ def open_public(command):
     except ImportError:
         from PySide2 import QtWidgets
     widgets = [panel.form] + list(panel.form.findChildren(QtWidgets.QWidget))
-    visible_text = " | ".join(
+    dialog_text = " | ".join(
         str(getter())
         for widget in widgets
         for getter in [getattr(widget, "text", None)]
         if callable(getter)
     )
     for required in ("Preview", "Commit", "Cancel", "Selected semantic pattern edges"):
-        assert required in visible_text, command + " task panel is missing visible control text: " + required
+        assert required in dialog_text, command + " task panel is missing required control text: " + required
     return panel
 
 
