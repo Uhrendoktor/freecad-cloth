@@ -291,7 +291,7 @@ def test_native_and_legacy_pieces_can_share_one_simulation_pattern():
     assert pattern.piece("front").boundaries[0].id == "front:bottom"
     assert pattern.piece("back").boundaries[0].id == "back:edge:0"
 
-def test_native_semantic_seam_edge_keeps_sketch_provenance_signature(monkeypatch):
+def test_native_semantic_seam_edge_keeps_sketch_provenance_signature():
     import freecad_cloth.pattern.PatternObjects as pattern_objects
 
     sketch = _Sketch(
@@ -301,8 +301,12 @@ def test_native_semantic_seam_edge_keeps_sketch_provenance_signature(monkeypatch
     piece = _Piece("piece", sketch)
     provenance = ("PatternIR", "Sketcher", "line", (0.0, 1.0), ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0)))
     records = [{"id": "piece:edge:2", "points": ((0.0, 0.0), (10.0, 0.0)), "provenance": provenance}]
-    monkeypatch.setattr(pattern_objects, "_native_edge_records", lambda _piece: records)
-    edge_id, signature = pattern_objects._seam_edge_id(piece, "piece:edge:2", "A")
+    original = pattern_objects._native_edge_records
+    pattern_objects._native_edge_records = lambda _piece: records
+    try:
+        edge_id, signature = pattern_objects._seam_edge_id(piece, "piece:edge:2", "A")
+    finally:
+        pattern_objects._native_edge_records = original
     assert edge_id == "piece:edge:2"
     assert signature == capture_edge_reference("piece", "piece:edge:2", records[0]["points"], provenance).signature
 
@@ -323,7 +327,7 @@ if __name__ == "__main__":
 
 
 
-def test_native_integer_seam_edge_uses_original_sketch_geometry_index(monkeypatch):
+def test_native_integer_seam_edge_uses_original_sketch_geometry_index():
     import freecad_cloth.pattern.PatternObjects as pattern_objects
 
     sketch = _Sketch(
@@ -346,9 +350,12 @@ def test_native_integer_seam_edge_uses_original_sketch_geometry_index(monkeypatc
                 ((points[0][0], points[0][1], 0.0), (points[1][0], points[1][1], 0.0)),
             ),
         })
-    monkeypatch.setattr(pattern_objects, "_native_edge_records", lambda _piece: reordered)
-
-    edge_id, signature = pattern_objects._seam_edge_id(piece, 5, "A")
+    original = pattern_objects._native_edge_records
+    pattern_objects._native_edge_records = lambda _piece: reordered
+    try:
+        edge_id, signature = pattern_objects._seam_edge_id(piece, 5, "A")
+    finally:
+        pattern_objects._native_edge_records = original
     assert edge_id == "piece:edge:5"
     assert signature == capture_edge_reference(
         "piece", "piece:edge:5", ((5.0, 0.0), (6.0, 0.0)), reordered[3]["provenance"]
