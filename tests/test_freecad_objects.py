@@ -193,3 +193,50 @@ if __name__ == "__main__":
     test_pattern_piece_proxy_rejects_invalid_dimensions()
     test_native_seam_reference_save_reload_curve_edit_and_missing()
     print("FreeCAD object proxy and native seam reference tests passed")
+
+
+def test_native_edge_number_uses_authored_semantic_id_after_boundary_reordering(monkeypatch):
+    from types import SimpleNamespace
+    import freecad_cloth.pattern.PatternCommands as commands
+    import freecad_cloth.pattern.PatternObjects as pattern_objects
+
+    semantic_ids = tuple("native-8:edge:%d" % index for index in range(8))
+    piece = SimpleNamespace(
+        PieceId="native-8",
+        GeometryAuthority="Sketcher",
+        Sketch=SimpleNamespace(SemanticEdgeIds=semantic_ids),
+    )
+    resolved_order = (0, 7, 6, 5, 4, 3, 2, 1)
+    records = [
+        {
+            "piece_id": piece.PieceId,
+            "id": semantic_ids[index],
+            "points": ((float(index), 0.0), (float(index + 1), 0.0)),
+            "ordinal": ordinal,
+            "provenance": ("PatternIR", "Sketcher", "line", (0.0, 1.0), ((float(index), 0.0, 0.0), (float(index + 1), 0.0, 0.0))),
+        }
+        for ordinal, index in enumerate(resolved_order)
+    ]
+    monkeypatch.setattr(pattern_objects, "_native_edge_records", lambda _piece: records)
+
+    class _SelectionEx:
+        def __init__(self, names):
+            self.Object = piece
+            self.SubElementNames = names
+
+    fake_gui = SimpleNamespace(
+        Selection=SimpleNamespace(
+            getSelectionEx=lambda: [_SelectionEx(["Edge%d" % (index + 1)]) for index in (1, 2, 6, 7)]
+        )
+    )
+    monkeypatch.setitem(sys.modules, "FreeCADGui", fake_gui)
+
+    selected = commands._selected_seam_edges(SimpleNamespace())
+    assert [edge for _, edge in selected] == [1, 2, 6, 7]
+    resolved = {edge: pattern_objects._seam_edge_id(piece, edge, "A")[0] for _, edge in selected}
+    assert resolved == {
+        1: "native-8:edge:1",
+        2: "native-8:edge:2",
+        6: "native-8:edge:6",
+        7: "native-8:edge:7",
+    }
