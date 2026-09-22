@@ -336,10 +336,19 @@ def simulation():
     front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
+    front_edge_ids = tuple(str(edge_id) for edge_id in getattr(front.Sketch, "SemanticEdgeIds", ()))
+    back_edge_ids = tuple(str(edge_id) for edge_id in getattr(back.Sketch, "SemanticEdgeIds", ()))
+    if len(front_edge_ids) != len(front.Sketch.Geometry) or len(back_edge_ids) != len(back.Sketch.Geometry):
+        raise RuntimeError("canonical tunic Sketcher seam provenance is incomplete")
     for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
-        seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")
+        semantic_edge_a = front_edge_ids[int(edge_a)]
+        semantic_edge_b = back_edge_ids[int(edge_b)]
+        seam = Seam(str(front.PieceId), semantic_edge_a, str(back.PieceId), semantic_edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
+        if str(getattr(seam_obj, "EdgeAId", "")) != semantic_edge_a or str(getattr(seam_obj, "EdgeBId", "")) != semantic_edge_b:
+            raise RuntimeError("canonical tunic seam did not retain Sketcher semantic edge provenance")
+        log("seam-map semantic id=%s A=%s B=%s" % (seam_id, semantic_edge_a, semantic_edge_b))
         seam_records.append((seam_obj, front, back))
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
     def authored_shoulder_pins(piece, particle_indices, positions):
