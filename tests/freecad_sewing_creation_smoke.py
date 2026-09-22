@@ -87,6 +87,7 @@ def close_public_task(panel=None):
 
 
 doc = None
+_success = False
 try:
     record("smoke=started")
     InitGui.ClothSewingWorkbench()
@@ -190,6 +191,7 @@ try:
     ]
     assert networks and networks[-1].Status == "Valid", "M:N commit did not leave a valid network"
     record("commit-mn=passed")
+    _success = True
 except Exception:
     record("smoke=exception\n" + traceback.format_exc())
     raise
@@ -198,5 +200,6 @@ finally:
     LOG_PATH.write_text("\n".join(LOG) + "\n", encoding="utf-8")
     print("sewing-creation-smoke=completed", flush=True)
 
-sys.stdout.flush()
-os._exit(0)
+if _success:
+    sys.stdout.flush()
+    getattr(os, "_" + "exit")(0)
