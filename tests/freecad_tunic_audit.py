@@ -49,7 +49,7 @@ replacements = {
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
         'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)',
     'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):' :
-        'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
+        'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(6,6,"TunicRightShoulder"),(2,2,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
     'front_y = box.YMin - clearance; back_y = box.YMax + clearance;': 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
@@ -59,6 +59,19 @@ for old, new in replacements.items():
         raise RuntimeError(f"audit replacement did not match source: {old}")
     source = source.replace(old, new, 1)
 
+    expected_shoulder_edge_assertion = '''    expected_shoulder_ids = {
+        "TunicRightShoulder": (f"{front.PieceId}:edge:2", f"{back.PieceId}:edge:2"),
+        "TunicLeftShoulder": (f"{front.PieceId}:edge:6", f"{back.PieceId}:edge:6"),
+    }
+    for seam_id, expected in expected_shoulder_ids.items():
+        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
+        actual = (str(getattr(seam_obj, "EdgeAId", "")), str(getattr(seam_obj, "EdgeBId", "")))
+        if actual != expected:
+            raise RuntimeError("canonical tunic shoulder seam %s resolved to %s, expected authored edges %s" % (seam_id, actual, expected))
+'''
+    scene_anchor = '    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()'
+    if scene_anchor not in source: raise RuntimeError("canonical tunic scene anchor missing")
+    source = source.replace(scene_anchor, expected_shoulder_edge_assertion + "\n" + scene_anchor, 1)
 
 preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
     if "ClothRealtimePreview" not in Gui.listCommands():
