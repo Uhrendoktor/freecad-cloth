@@ -88,7 +88,7 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
 anchor = '    for batch in (15,15,15,15,15,15):'
 if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
-source = source.replace(anchor, preview_probe + '\n' + anchor, 1)
+source = source.replace(anchor, preview_probe + '\n' + '    for batch in (5,5,5):', 1)
 
 seam_check = """    backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
