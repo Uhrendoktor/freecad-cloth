@@ -602,10 +602,10 @@ def create_simulation_scene(doc):
     scene.addProperty("App::PropertyFloat", "GravityX", "Solver").GravityX = 0.0
     scene.addProperty("App::PropertyFloat", "GravityY", "Solver").GravityY = 0.0
     scene.addProperty("App::PropertyFloat", "GravityZ", "Solver").GravityZ = -9810.0
-    scene.addProperty("App::PropertyLinkList", "ClothPieces", "Selection")
-    scene.addProperty("App::PropertyLinkList", "DrapePanels", "Output")
-    scene.addProperty("App::PropertyLink", "DrapeTarget", "Selection")
-    scene.addProperty("App::PropertyLink", "AvatarProxy", "Compatibility")
+    scene.addProperty("App::PropertyLinkListGlobal", "ClothPieces", "Selection")
+    scene.addProperty("App::PropertyLinkListGlobal", "DrapePanels", "Output")
+    scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Selection")
+    scene.addProperty("App::PropertyLinkGlobal", "AvatarProxy", "Compatibility")
     scene.addProperty("App::PropertyStringList", "PinSelection", "Selection").PinSelection = []
     scene.addProperty("App::PropertyStringList", "SeamSelection", "Selection").SeamSelection = []
     scene.addProperty("App::PropertyFloat", "SimulatedTime", "State").SimulatedTime = 0.0
@@ -617,10 +617,15 @@ def create_simulation_scene(doc):
     scene.addProperty("App::PropertyFloat", "CollisionRadius", "Collision").CollisionRadius = 38.0
     proxy = SimulationProxy()
     scene.Proxy = proxy
+    from freecad_cloth.common.GarmentDocument import link_garment_object
+    link_garment_object(scene, "Simulation", doc)
     panel_a = _mesh_object(doc, "DrapePanelA", "Drape Panel A")
     panel_b = _mesh_object(doc, "DrapePanelB", "Drape Panel B")
+    link_garment_object(panel_a, "SimulationOutput", doc)
+    link_garment_object(panel_b, "SimulationOutput", doc)
     scene.DrapePanels = [panel_a, panel_b]
     avatar = create_avatar_collision(doc)
+    link_garment_object(avatar, "AvatarCollision", doc)
     scene.AvatarProxy = avatar
     target = create_drape_target(doc, avatar.SourceObject, "Mannequin", avatar.CollisionDeflection, avatar.CollisionThickness)
     scene.DrapeTarget = target
