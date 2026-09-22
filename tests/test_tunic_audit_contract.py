@@ -27,3 +27,10 @@ def test_canonical_tunic_rejects_integer_seam_mapping_regression():
     assert 'f"{front.PieceId}:edge:5", f"{back.PieceId}:edge:5", "TunicLeftShoulder"' in audit
     assert 'f"{front.PieceId}:edge:6", f"{back.PieceId}:edge:6", "TunicLeftSide"' in audit
     assert '(1,1,"TunicRightSide")' not in audit
+
+
+
+def test_canonical_tunic_seam_indices_follow_native_sketch_order():
+    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'seam_indices = ((1, "TunicRightSide"), (2, "TunicRightShoulder"), (6, "TunicLeftShoulder"), (7, "TunicLeftSide"))' in source
+    assert "front_edge_ids[index], back_edge_ids[index], seam_id" in source
