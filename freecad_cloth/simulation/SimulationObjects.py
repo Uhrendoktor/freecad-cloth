@@ -1,6 +1,4 @@
 """FreeCAD-facing deterministic cloth simulation scene objects."""
-import ast
-
 
 def _mesh_object(doc, name, label):
     import Mesh
@@ -58,22 +56,6 @@ def _parse_int_list(values, particle_count=None):
     return tuple(dict.fromkeys(result))
 
 
-def _outline_points(piece):
-    for attribute in ("SewingOutline", "DraftingBoundary"):
-        raw = getattr(piece, attribute, "")
-        if not raw:
-            continue
-        try:
-            values = ast.literal_eval(str(raw))
-            points = [(float(p[0]), float(p[1])) for p in values]
-            if len(points) >= 3:
-                return points
-        except (ValueError, SyntaxError, TypeError, IndexError):
-            pass
-    width, height = float(piece.Width), float(piece.Height)
-    return [(0.0, 0.0), (width, 0.0), (width, height), (0.0, height)]
-
-
 def _placement_signature(piece):
     placement = getattr(piece, "Placement", None)
     if placement is None:
@@ -94,58 +76,54 @@ def _placement_signature(piece):
 
 def _simulation_source_signature(obj, pieces):
     """Return deterministic inputs that require rebuilding the cloth scene."""
-    piece_ids = {str(getattr(piece, "PieceId", "")) for piece in pieces}
-    piece_signature = tuple(
-        (
-            str(getattr(piece, "Name", "")),
-            str(getattr(piece, "PieceId", "")),
-            str(getattr(piece, "SewingOutline", "")),
-            str(getattr(piece, "DraftingBoundary", "")),
-            _placement_signature(piece),
+    if pieces:
+        from freecad_cloth.common.PatternSimulationAdapter import resolve_simulation_pattern
+        resolved = resolve_simulation_pattern(
+            getattr(obj, "Document", None),
+            tuple(pieces),
         )
-        for piece in pieces
-    )
-    seam_signature = tuple(sorted(
-        (
-            str(getattr(seam, "SeamId", "")),
-            str(getattr(seam, "PieceA", "")),
-            int(getattr(seam, "EdgeA", 0)),
-            float(getattr(seam, "StartA", 0.0)),
-            float(getattr(seam, "EndA", 1.0)),
-            str(getattr(seam, "PieceB", "")),
-            int(getattr(seam, "EdgeB", 0)),
-            float(getattr(seam, "StartB", 0.0)),
-            float(getattr(seam, "EndB", 1.0)),
-            bool(getattr(seam, "ReversedB", False)),
-        )
-        for seam in getattr(getattr(obj, "Document", None), "Objects", ())
-        if getattr(seam, "SeamId", "")
-        and (str(getattr(seam, "PieceA", "")) in piece_ids or str(getattr(seam, "PieceB", "")) in piece_ids)
-    ))
+        pattern_signature = resolved.signature
+    else:
+        pattern_signature = ((), ())
     target = getattr(obj, "DrapeTarget", None)
     target_signature = ()
     if target is not None:
         try:
             from freecad_cloth.simulation.DrapeTarget import source_signature
             source = getattr(target, "SourceObject", None)
-            target_signature = source_signature(source, float(getattr(target, "CollisionDeflection", 1.0)), float(getattr(target, "CollisionThickness", 0.0))) if source is not None else ("unassigned",)
+            target_signature = source_signature(
+                source,
+                float(getattr(target, "CollisionDeflection", 1.0)),
+                float(getattr(target, "CollisionThickness", 0.0)),
+            ) if source is not None else ("unassigned",)
         except (ImportError, AttributeError, TypeError, ValueError):
             target_signature = ("invalid-target",)
     else:
         avatar = getattr(obj, "AvatarProxy", None)
         source = getattr(avatar, "SourceObject", None) if avatar is not None else None
-        target_signature = ("legacy-avatar", str(getattr(source, "Name", "")), float(getattr(avatar, "CollisionDeflection", 0.0)) if avatar is not None else 0.0, float(getattr(avatar, "CollisionThickness", 0.0)) if avatar is not None else 0.0)
+        target_signature = (
+            "legacy-avatar",
+            str(getattr(source, "Name", "")),
+            float(getattr(avatar, "CollisionDeflection", 0.0)) if avatar is not None else 0.0,
+            float(getattr(avatar, "CollisionThickness", 0.0)) if avatar is not None else 0.0,
+        )
     pin_signature = _parse_int_list(getattr(obj, "PinSelection", ()))
-    return piece_signature, seam_signature, target_signature, int(getattr(obj, "StitchSamples", 8)), pin_signature
+    return (
+        pattern_signature,
+        target_signature,
+        int(getattr(obj, "StitchSamples", 8)),
+        pin_signature,
+    )
 
 
-def _piece_mesh(piece, start_height):
-    from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
+def _piece_mesh(piece, start_height, piece_ir=None):
+    from freecad_cloth.common.PatternSimulationAdapter import geometry_from_piece_ir, resolve_piece_ir
     from freecad_cloth.pattern.PatternMesh import triangulate
     import FreeCAD as App
-    points = _outline_points(piece)
-    segments = [LineSegment(f"{piece.PieceId}:edge:{i}", points[i], points[(i + 1) % len(points)]) for i in range(len(points))]
-    mesh = triangulate(ParametricPattern(segments))
+
+    if piece_ir is None:
+        piece_ir = resolve_piece_ir(piece)
+    mesh = triangulate(geometry_from_piece_ir(piece_ir))
     placement = getattr(piece, "Placement", None)
     vertices = []
     for x, y in mesh.vertices:
@@ -153,34 +131,102 @@ def _piece_mesh(piece, start_height):
         if placement is not None:
             point = placement.multVec(point)
         vertices.append((float(point.x), float(point.y), float(point.z)))
-    boundary_groups = {}
-    boundary = mesh.boundary_vertex_indices
-    segment_ids = mesh.boundary_edge_segment_ids
-    if segment_ids and len(segment_ids) != len(boundary):
+
+    boundary = tuple(int(index) for index in mesh.boundary_vertex_indices)
+    segment_ids = tuple(str(value) for value in mesh.boundary_edge_segment_ids)
+    if not segment_ids:
+        raise ValueError("pattern mesh semantic boundary provenance is missing")
+    if len(segment_ids) != len(boundary):
         raise ValueError("pattern mesh boundary provenance length does not match boundary vertices")
+
+    edge_pairs = {}
     for index, segment_id in enumerate(segment_ids):
-        key = str(segment_id)
-        start = int(boundary[index])
-        end = int(boundary[(index + 1) % len(boundary)])
-        group = boundary_groups.setdefault(key, [start])
-        if group[-1] != start:
-            raise ValueError("pattern mesh semantic edge provenance is not contiguous")
-        group.append(end)
-    if not boundary_groups:
-        for index in range(len(boundary)):
-            key = f"{piece.PieceId}:edge:{index}"
-            boundary_groups[key] = [int(boundary[index]), int(boundary[(index + 1) % len(boundary)])]
-    semantic_order = tuple(boundary_groups)
-    by_index = {}
-    for edge_index in range(len(points)):
-        key = f"{piece.PieceId}:edge:{edge_index}"
-        if key in boundary_groups:
-            by_index[edge_index] = tuple(boundary_groups[key])
-        elif edge_index < len(boundary):
-            by_index[edge_index] = (int(boundary[edge_index]), int(boundary[(edge_index + 1) % len(boundary)]))
-        else:
-            raise ValueError(f"pattern mesh has no boundary provenance for edge {edge_index}")
-    return vertices, mesh.triangles, tuple(tuple(v for v in by_index[index]) for index in range(len(points)))
+        raw_key = str(segment_id)
+        base = next(
+            (
+                str(boundary_ir.id)
+                for boundary_ir in piece_ir.boundaries
+                if raw_key == str(boundary_ir.id)
+                or raw_key.startswith(str(boundary_ir.id) + "::sub::")
+            ),
+            None,
+        )
+        if base is None:
+            raise ValueError("pattern mesh boundary provenance contains an unknown semantic edge")
+        pair = (boundary[index], boundary[(index + 1) % len(boundary)])
+        edge_pairs.setdefault(base, []).append(pair)
+
+    by_id = {}
+    mesh_vertices = tuple(mesh.vertices)
+    for boundary_ir in piece_ir.boundaries:
+        edge_id = str(boundary_ir.id)
+        pairs = edge_pairs.get(edge_id)
+        if not pairs:
+            raise ValueError(
+                "pattern mesh has no boundary provenance for semantic edge %s"
+                % edge_id
+            )
+        vertex_indices = {vertex for pair in pairs for vertex in pair}
+        samples = tuple(tuple(point[:2]) for point in boundary_ir.samples)
+        ordered = tuple(
+            sorted(
+                vertex_indices,
+                key=lambda vertex: _polyline_parameter(mesh_vertices[vertex], samples),
+            )
+        )
+        if len(ordered) < 2:
+            raise ValueError(
+                "pattern mesh semantic edge %s has too few boundary vertices"
+                % edge_id
+            )
+        actual_pairs = {frozenset(pair) for pair in pairs}
+        ordered_pairs = {
+            frozenset((left, right))
+            for left, right in zip(ordered, ordered[1:])
+        }
+        if ordered_pairs != actual_pairs:
+            raise ValueError(
+                "pattern mesh semantic edge %s boundary chain is disconnected"
+                % edge_id
+            )
+        by_id[edge_id] = ordered
+
+    return vertices, mesh.triangles, tuple(
+        tuple(by_id[str(boundary_ir.id)])
+        for boundary_ir in piece_ir.boundaries
+    )
+
+
+def _polyline_parameter(point, polyline):
+    if len(polyline) < 2:
+        return 0.0
+    total = 0.0
+    spans = []
+    for start, end in zip(polyline, polyline[1:]):
+        dx = float(end[0]) - float(start[0])
+        dy = float(end[1]) - float(start[1])
+        length = (dx * dx + dy * dy) ** 0.5
+        spans.append((total, start, end, length))
+        total += length
+    if total <= 1e-12:
+        return 0.0
+    best = None
+    for offset, start, end, length in spans:
+        if length <= 1e-12:
+            continue
+        dx = float(end[0]) - float(start[0])
+        dy = float(end[1]) - float(start[1])
+        t = (
+            (float(point[0]) - float(start[0])) * dx
+            + (float(point[1]) - float(start[1])) * dy
+        ) / (length * length)
+        t = max(0.0, min(1.0, t))
+        px = float(start[0]) + t * dx
+        py = float(start[1]) + t * dy
+        distance = (float(point[0]) - px) ** 2 + (float(point[1]) - py) ** 2
+        candidate = (distance, offset + t * length)
+        best = candidate if best is None or candidate < best else best
+    return best[1] / total if best else 0.0
 
 
 def _mesh_constraints(positions, triangles):
@@ -216,45 +262,63 @@ def _sample_boundary(values, start, end, count, points=None):
     return result
 
 
-def _seam_pair_records(doc, panel_data, seam_samples=8):
+def _seam_pair_records(pattern, panel_data, seam_samples=8):
     """Return exact solver stitch pairs plus their semantic seam provenance."""
-    pieces = {str(piece.PieceId): piece for piece in panel_data}
     pairs = []
     records = []
-    for seam in doc.Objects:
-        seam_id = str(getattr(seam, "SeamId", ""))
-        if not seam_id:
+    for seam in pattern.seams:
+        data_a = panel_data.get(str(seam.piece_a))
+        data_b = panel_data.get(str(seam.piece_b))
+        if data_a is None or data_b is None:
             continue
-        piece_a = pieces.get(str(getattr(seam, "PieceA", "")))
-        piece_b = pieces.get(str(getattr(seam, "PieceB", "")))
-        if piece_a is None or piece_b is None:
-            continue
-        data_a, data_b = panel_data[piece_a], panel_data[piece_b]
-        ea, eb = int(seam.EdgeA), int(seam.EdgeB)
-        if ea < 0 or eb < 0 or ea >= len(data_a["boundary_edges"]) or eb >= len(data_b["boundary_edges"]):
-            continue
-        points_a = tuple(data_a["positions"][index] for index in data_a["boundary_edges"][ea])
-        points_b = tuple(data_b["positions"][index] for index in data_b["boundary_edges"][eb])
-        va = _sample_boundary(data_a["boundary_edges"][ea], seam.StartA, seam.EndA, seam_samples, points_a)
-        vb = _sample_boundary(data_b["boundary_edges"][eb], seam.StartB, seam.EndB, seam_samples, points_b)
-        if bool(getattr(seam, "ReversedB", False)):
+        piece_ir_a = pattern.piece(seam.piece_a)
+        piece_ir_b = pattern.piece(seam.piece_b)
+        edge_a = _boundary_vertices(piece_ir_a, seam.edge_a, data_a)
+        edge_b = _boundary_vertices(piece_ir_b, seam.edge_b, data_b)
+        points_a = tuple(data_a["positions"][index] for index in edge_a)
+        points_b = tuple(data_b["positions"][index] for index in edge_b)
+        va = _sample_boundary(
+            edge_a,
+            seam.start_a,
+            seam.end_a,
+            seam_samples,
+            points_a,
+        )
+        vb = _sample_boundary(
+            edge_b,
+            seam.start_b,
+            seam.end_b,
+            seam_samples,
+            points_b,
+        )
+        if seam.reversed_b:
             vb.reverse()
         seam_pairs = tuple(zip(va, vb))
         pairs.extend(seam_pairs)
         records.append(
             (
-                seam_id,
-                str(getattr(piece_a, "Name", "")),
-                str(getattr(piece_b, "Name", "")),
+                str(seam.id),
+                str(piece_ir_a.name),
+                str(piece_ir_b.name),
                 seam_pairs,
             )
         )
     return tuple(dict.fromkeys(pairs)), tuple(records)
 
 
-def _seam_pairs(doc, panel_data, seam_samples=8):
+def _boundary_vertices(piece_ir, edge_id, panel_data):
+    for boundary, values in zip(piece_ir.boundaries, panel_data["boundary_edges"]):
+        if str(boundary.id) == str(edge_id):
+            return tuple(values)
+    raise ValueError(
+        "PatternIR semantic seam edge %s is missing from piece %s"
+        % (edge_id, piece_ir.id)
+    )
+
+
+def _seam_pairs(pattern, panel_data, seam_samples=8):
     """Return the exact particle pairs used as solver stitch constraints."""
-    return _seam_pair_records(doc, panel_data, seam_samples)[0]
+    return _seam_pair_records(pattern, panel_data, seam_samples)[0]
 
 
 def _collision_for_scene(obj):
@@ -328,47 +392,67 @@ class SimulationProxy:
             self._build_demo(obj)
 
     def _build_pattern_scene(self, obj, pieces, signature):
-        from freecad_cloth.simulation.ClothBackend import default_backend_registry, preferred_backend_name, validate_pinned_stitch_pairs
+        from freecad_cloth.common.PatternSimulationAdapter import resolve_simulation_pattern
+        from freecad_cloth.simulation.ClothBackend import default_backend_registry, preferred_backend_name
         from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
+
         start_height = float(getattr(obj, "StartHeight", 120.0))
+        resolved = resolve_simulation_pattern(obj.Document, tuple(pieces))
         positions = []
         triangles_global = []
         panel_data = {}
         panels = list(getattr(obj, "DrapePanels", ()))
         for index, piece in enumerate(pieces):
-            vertices, triangles, boundary = _piece_mesh(piece, start_height)
+            piece_ir = resolved.piece(str(piece.PieceId))
+            vertices, triangles, boundary = _piece_mesh(
+                piece,
+                start_height,
+                piece_ir=piece_ir,
+            )
             offset = len(positions)
             positions.extend(vertices)
             triangles = tuple(tuple(a + offset for a in tri) for tri in triangles)
             triangles_global.extend(triangles)
-            edges = tuple(tuple(int(index) + offset for index in edge) for edge in boundary)
-            panel_data[piece] = {"offset": offset, "vertex_count": len(vertices), "boundary_edges": edges, "positions": tuple(positions), "triangles": triangles}
+            edges = tuple(
+                tuple(int(vertex_index) + offset for vertex_index in edge)
+                for edge in boundary
+            )
+            panel_data[str(piece.PieceId)] = {
+                "offset": offset,
+                "vertex_count": len(vertices),
+                "boundary_edges": edges,
+                "positions": tuple(positions),
+                "triangles": triangles,
+                "piece": piece,
+            }
             panel = panels[index] if index < len(panels) else self._ensure_panel(obj.Document, index)
             panel.Label = f"Drape: {piece.Label}"
         if len(panels) < len(pieces):
-            panels.extend(self._ensure_panel(obj.Document, i) for i in range(len(panels), len(pieces)))
+            panels.extend(
+                self._ensure_panel(obj.Document, i)
+                for i in range(len(panels), len(pieces))
+            )
         obj.DrapePanels = panels[:len(pieces)]
+
         particles = [Particle(*p) for p in positions]
         system = ClothSystem(particles, _mesh_constraints(positions, triangles_global))
         seam_pairs, seam_pair_records = _seam_pair_records(
-            obj.Document, panel_data, int(getattr(obj, "StitchSamples", 8))
+            resolved.pattern,
+            panel_data,
+            int(getattr(obj, "StitchSamples", 8)),
         )
+        system.add_stitches(seam_pairs)
         explicit_pins = _parse_int_list(getattr(obj, "PinSelection", ()), len(particles))
         if explicit_pins:
             pins = explicit_pins
+            system.pin(pins)
         elif pieces:
-            first = panel_data[pieces[0]]
+            first = panel_data[str(pieces[0].PieceId)]
             boundary = list(dict.fromkeys(i for edge in first["boundary_edges"] for i in edge))
             pins = tuple(boundary[:2] + boundary[-2:])
+            system.pin(pins)
         else:
             pins = ()
-        validate_pinned_stitch_pairs(
-            positions,
-            pins,
-            seam_pair_records,
-        )
-        system.add_stitches(seam_pairs)
-        system.pin(pins)
         collision_surface = _collision_for_scene(obj)
         registry = default_backend_registry()
         backend_name = preferred_backend_name(registry)
@@ -390,8 +474,10 @@ class SimulationProxy:
             for seam_id, _piece_a_name, _piece_b_name, stitch_pairs in seam_pair_records
         }
         for panel, piece in zip(panels, pieces):
-            data = panel_data[piece]
-            self.panel_indices[panel.Name] = tuple(range(data["offset"], data["offset"] + data["vertex_count"]))
+            data = panel_data[str(piece.PieceId)]
+            self.panel_indices[panel.Name] = tuple(
+                range(data["offset"], data["offset"] + data["vertex_count"])
+            )
             self.panel_triangles[panel.Name] = data["triangles"]
             self.panel_boundary_edges[panel.Name] = data["boundary_edges"]
             self.panel_piece_names[panel.Name] = str(getattr(piece, "Name", ""))
@@ -456,8 +542,6 @@ def create_humanoid_avatar(doc, scale=1.0):
     from freecad_cloth.avatar.AvatarCommands import create_avatar
     avatar = create_avatar(attach_collision=False, doc=doc, object_name="HumanoidAvatar")
     avatar.Label = "Humanoid Avatar (MakeHuman)"
-    from freecad_cloth.common.GarmentDocument import link_garment_object
-    link_garment_object(avatar, "Avatar", doc)
     return avatar
 
 
@@ -479,8 +563,6 @@ def create_avatar_collision(doc, source_obj=None, thickness=2.0, deflection=1.0)
     avatar.CollisionType = "MeshSurface"
     avatar.CollisionVertexCount = len(surface.vertices)
     avatar.CollisionTriangleCount = len(surface.triangles)
-    from freecad_cloth.common.GarmentDocument import link_garment_object
-    link_garment_object(avatar, "AvatarCollision", doc)
     return avatar
 
 
@@ -537,10 +619,6 @@ def create_simulation_scene(doc):
     scene.Proxy = proxy
     panel_a = _mesh_object(doc, "DrapePanelA", "Drape Panel A")
     panel_b = _mesh_object(doc, "DrapePanelB", "Drape Panel B")
-    from freecad_cloth.common.GarmentDocument import link_garment_object
-    link_garment_object(scene, "Simulation", doc)
-    link_garment_object(panel_a, "SimulationOutput", doc)
-    link_garment_object(panel_b, "SimulationOutput", doc)
     scene.DrapePanels = [panel_a, panel_b]
     avatar = create_avatar_collision(doc)
     scene.AvatarProxy = avatar
