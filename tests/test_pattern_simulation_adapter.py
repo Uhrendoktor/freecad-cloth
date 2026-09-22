@@ -17,7 +17,7 @@ class _Point:
         self.z = z
 
 
-class _Line:
+class LineSegment:
     def __init__(self, start, end):
         self.StartPoint = _Point(*start)
         self.EndPoint = _Point(*end)
