@@ -156,10 +156,16 @@ def _ensure_root_properties(root):
             group = doc.addObject("App::DocumentObjectGroup", "Garment" + group_name)
             group.Label = label
             _prop(group, "App::PropertyString", "GarmentGroup", "Garment", group_name)
-            _prop(group, "App::PropertyLink", "Garment", "Garment", root)
+            _prop(group, "App::PropertyString", "GarmentRootName", "Garment", root.Name)
             root.addObject(group)
             _prop(root, "App::PropertyLink", name, "Garment", group)
         _prop(group, "App::PropertyString", "GarmentGroup", "Garment", group_name)
+        _prop(group, "App::PropertyString", "GarmentRootName", "Garment", root.Name)
+        if "Garment" in getattr(group, "PropertiesList", ()):
+            try:
+                group.removeProperty("Garment")
+            except Exception:
+                pass
         _prop(group, "App::PropertyLinkList", "Members", "Garment", [])
     for prop in (
         "PatternPieces",
