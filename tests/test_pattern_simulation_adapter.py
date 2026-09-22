@@ -310,23 +310,6 @@ def test_native_semantic_seam_edge_keeps_sketch_provenance_signature():
     assert edge_id == "piece:edge:2"
     assert signature == capture_edge_reference("piece", "piece:edge:2", records[0]["points"], provenance).signature
 
-
-
-if __name__ == "__main__":
-    for name, fn in globals().copy().items():
-        if name.startswith("test_"):
-            fn()
-    print("Pattern simulation adapter tests passed")
-
-
-if __name__ == "__main__":
-    for name, fn in globals().copy().items():
-        if name.startswith("test_"):
-            fn()
-    print("Pattern simulation adapter tests passed")
-
-
-
 def test_native_integer_seam_edge_uses_original_sketch_geometry_index():
     import freecad_cloth.pattern.PatternObjects as pattern_objects
 
@@ -360,3 +343,9 @@ def test_native_integer_seam_edge_uses_original_sketch_geometry_index():
     assert signature == capture_edge_reference(
         "piece", "piece:edge:5", ((5.0, 0.0), (6.0, 0.0)), reordered[3]["provenance"]
     ).signature
+
+if __name__ == "__main__":
+    for name, fn in globals().copy().items():
+        if name.startswith("test_"):
+            fn()
+    print("Pattern simulation adapter tests passed")
