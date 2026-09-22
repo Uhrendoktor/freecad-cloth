@@ -61,6 +61,7 @@ def triangulate(pattern: ParametricPattern, curve_samples: int = 16, max_area: f
     if _signed_area(points) < 0:
         points = list(reversed(points))
         edge_ids = list(reversed(edge_ids))
+        # Reversing the points shifts each source edge to the preceding ordinal.
         edge_ids = edge_ids[1:] + edge_ids[:1]
 
     if max_area is not None:
