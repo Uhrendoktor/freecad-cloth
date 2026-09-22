@@ -215,7 +215,7 @@ def test_sewing_task_panel_accept_cannot_broaden_mismatch_with_legacy_tolerance(
     panel.App = App
     panel.obj = obj
     panel.seam = obj.Seam
-    panel.tolerance = Widget(5000.0)
+    panel.tolerance = Widget(5.0)
     panel.stitches = Widget(8)
     panel._apply_seam_settings = lambda: None
     panel._commit_transaction = lambda: None
