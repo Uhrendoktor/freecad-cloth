@@ -368,7 +368,11 @@ try:
     assert "severity info" in network_text
     assert "recovery:" in network_text
     record("correspondence-gui-evidence=passed severity=info")
-    Gui.Control.closeDialog()
+    reject_network_editor = getattr(network_dialog, "reject", None)
+    if callable(reject_network_editor):
+        reject_network_editor()
+    else:
+        Gui.Control.closeDialog()
     process_events()
 
     visual_seam = curved_network.Seams[0]
