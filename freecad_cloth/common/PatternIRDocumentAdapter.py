@@ -89,7 +89,12 @@ def compile_pattern_ir(doc, pieces, curve_samples=64):
 
 
 def _seam_piece_id(seam, prefix):
-    """Resolve the native pattern link first; mirrored string IDs are compatibility data."""
+    """Use the native PatternA/PatternB document link as seam identity.
+    
+    PieceA/PieceB remain a compatibility mirror for older documents. This
+    keeps the simulation boundary aligned with the document object's actual
+    dependency graph and therefore preserves native invalidation semantics.
+    """
     linked = getattr(seam, f"Pattern{prefix}", None)
     linked_id = str(getattr(linked, "PieceId", "")).strip() if linked is not None else ""
     if linked_id:
