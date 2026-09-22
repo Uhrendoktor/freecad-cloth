@@ -96,7 +96,7 @@ class SimulationQualityTests(unittest.TestCase):
         positions, _triangles, boundary = quality_piece_mesh(piece_obj, 100.0, 20.0)
 
         self.assertEqual(len(boundary), len(piece.outline))
-        self.assertGreaterEqual(len(boundary[0]), 3)
+        self.assertGreaterEqual(len(boundary[0]), 8)
         for edge_index, chain in enumerate(boundary):
             self.assertGreaterEqual(len(chain), 2)
             self.assertEqual(positions[chain[0]][:2], piece.outline[edge_index])
