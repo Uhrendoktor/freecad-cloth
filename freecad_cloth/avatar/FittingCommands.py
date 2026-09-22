@@ -58,11 +58,39 @@ def _sync_visuals(scene):
         )
         obj.Shape = Part.makeBox(volume.size[0], volume.size[1], volume.size[2], corner)
         volume_objects.append(obj)
-    scene.ArrangementPointObjects = point_objects
-    scene.BoundingVolumeObjects = volume_objects
+    scene.ArrangementPointObjects = [obj.Name for obj in point_objects]
+    scene.BoundingVolumeObjects = [obj.Name for obj in volume_objects]
     for obj in point_objects + volume_objects:
         obj.ViewObject.Visibility = True
 
+
+
+def _migrate_visual_output_references(scene):
+    """Convert legacy visual-object links to persisted object-name outputs.
+
+    ArrangementPointObjects and BoundingVolumeObjects are derived visual outputs,
+    not dependency inputs. Persisting them as links makes the FittingScene proxy
+    depend on objects that the proxy itself mutates during execution, which is a
+    reverse dependency that FreeCAD reports as an object still touched after
+    recompute. Existing documents keep the property names but migrate their
+    values to non-dependency string outputs before proxy execution.
+    """
+    for name in ("ArrangementPointObjects", "BoundingVolumeObjects"):
+        if name not in getattr(scene, "PropertiesList", ()):
+            scene.addProperty("App::PropertyStringList", name, "Arrangement")
+            setattr(scene, name, [])
+            continue
+        try:
+            type_id = scene.getTypeIdOfProperty(name)
+        except (AttributeError, RuntimeError):
+            type_id = ""
+        if str(type_id) == "App::PropertyStringList":
+            continue
+        legacy = tuple(getattr(scene, name, ()) or ())
+        names = [getattr(item, "Name", "") for item in legacy if getattr(item, "Name", "")]
+        scene.removeProperty(name)
+        scene.addProperty("App::PropertyStringList", name, "Arrangement")
+        setattr(scene, name, names)
 
 def create_fitting_scene():
     import FreeCAD as App
@@ -82,8 +110,8 @@ def create_fitting_scene():
     obj.addProperty("App::PropertyStringList", "HomePlacements", "Fitting").HomePlacements = []
     obj.addProperty("App::PropertyStringList", "ArrangementPoints", "Arrangement").ArrangementPoints = []
     obj.addProperty("App::PropertyStringList", "BoundingVolumes", "Arrangement").BoundingVolumes = []
-    obj.addProperty("App::PropertyLinkList", "ArrangementPointObjects", "Arrangement")
-    obj.addProperty("App::PropertyLinkList", "BoundingVolumeObjects", "Arrangement")
+    obj.addProperty("App::PropertyStringList", "ArrangementPointObjects", "Arrangement").ArrangementPointObjects = []
+    obj.addProperty("App::PropertyStringList", "BoundingVolumeObjects", "Arrangement").BoundingVolumeObjects = []
     obj.addProperty("App::PropertyBool", "SymmetryEnabled", "Arrangement").SymmetryEnabled = True
     obj.addProperty("App::PropertyString", "FitStatus", "Fitting").FitStatus = "Unassigned"
     obj.Proxy = _FittingProxy()
@@ -345,6 +373,7 @@ class _FittingProxy:
 
     def execute(self, obj):
         from freecad_cloth.avatar.AvatarFitting import BodyMeasurements, FittingScene, PiecePlacement, ArrangementPoint, BoundingVolume
+        _migrate_visual_output_references(obj)
         measurements = BodyMeasurements.from_json(obj.MeasurementData)
         avatar_name = getattr(obj.AvatarProxy, "Label", "") if obj.AvatarProxy else ""
         placements = tuple(PiecePlacement.from_string(v) for v in obj.PiecePlacements)
