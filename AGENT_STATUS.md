@@ -7,8 +7,8 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
 - Current main: `f460ed6fa1e4116d8e345d69eb802e2de2c22d56`.
-- #645 has passed its Python, production-export, tunic-audit and turntable stages on prior exact heads, but no exact-head terminal-green canonical run is accepted yet; recent runs were cancelled as the PR branch was updated.
-- Active implementation PR: #645 (`feat: integrate staged sewing and production pattern export`), current head `7c01a230f925db01be171c353686c27849c324a8`.
+- #645 has passed its Python, production-export, tunic-audit and turntable stages on prior exact heads, but no exact-head terminal-green canonical run is accepted yet; run #2309 on head `4c58cc63aee387ff75afdccdc15d5f81670f3c85` was cancelled before terminal evidence.
+- Active implementation PR: #645 (`feat: integrate staged sewing and production pattern export`), current head `4c58cc63aee387ff75afdccdc15d5f81670f3c85`.
 - PR #453 was closed without merge because its validated screenshots remained collapsed/edge-on or not production-ready.
 - PR #438 remains diagnostic-only and must not merge.
 - Python package boundary: `freecad_cloth/` with `avatar`, `pattern`, `sewing`, `simulation`, `common`, `shared` subpackages
@@ -39,4 +39,4 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 ## Agent rules
 
-Inspect → plan → execute → persist → verify. Do not report completion while a required workflow/PR/CI verification is non-terminal. If CI fails, inspect logs/artifacts, repair in scope, rerun, wait for terminal status, and reassess before progressing dependent work. Never weaken tests or multiply workflows. Close issues only with an explicit GitHub state reason and a reason recorded in the conversation.
+Inspect → plan → execute → persist → verify. Do not report completion while a required workflow/PR/CI verification is non-terminal. If CI fails, inspect logs/artifacts, repair in scope, rerun, wait for terminal status, and reassess before progressing dependent work. Never weaken tests or multiply workflows. Close issues only with an explicit state reason and a reason recorded in the conversation.
