@@ -89,6 +89,7 @@ class QualitySimulationProxy:
     def _restore_base(self):
         base = self._new_base()
         _RUNTIME_BASES[self] = base
+        self.seam_stitch_pairs = {}
         return base
 
     def _base_or_restore(self):
@@ -141,6 +142,7 @@ class QualitySimulationProxy:
                 self._build_pattern_scene(obj, pieces, signature)
             else:
                 self._build_demo(obj, signature)
+            self.seam_stitch_pairs = dict(getattr(base, "seam_stitch_pairs", {}))
             self._apply_material(obj)
             self._apply_collision(obj)
         steps = int(obj.Steps)
