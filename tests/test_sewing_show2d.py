@@ -5,7 +5,7 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.sewing.SewingCommands import show_sewing_2d
-from freecad_cloth.sewing.SewingView import apply_seam_colors, pattern_pieces_for_2d, seam_color_map
+from freecad_cloth.sewing.SewingView import apply_seam_colors, pattern_pieces_for_2d, seam_color_map, seam_visual_markers
 
 
 def test_2d_focus_includes_only_authoritative_pattern_pieces_in_document_order():
@@ -97,3 +97,22 @@ if __name__ == "__main__":
     test_apply_seam_colors_marks_each_seam_pair()
     test_show_2d_does_not_select_seams_over_their_colors()
     print("sewing Show 2D tests passed")
+
+
+def test_seam_visual_markers_are_deterministic_and_directional():
+    a = ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (20.0, 0.0, 0.0))
+    b = ((0.0, 10.0, 0.0), (10.0, 10.0, 0.0), (20.0, 10.0, 0.0))
+    first = seam_visual_markers(a, b)
+    assert first == seam_visual_markers(a, b)
+    assert first["direction_A"][1] == (1.0, 0.0)
+    assert first["direction_B"][1] == (1.0, 0.0)
+    assert first["notch_A"][1] == (-0.0, 1.0)
+
+
+def test_seam_visual_markers_reject_mismatched_correspondence():
+    try:
+        seam_visual_markers(((0.0, 0.0, 0.0),), ((0.0, 1.0, 0.0), (1.0, 1.0, 0.0)))
+    except ValueError as exc:
+        assert "equal length" in str(exc)
+    else:
+        raise AssertionError("marker builder must reject mismatched correspondence")
