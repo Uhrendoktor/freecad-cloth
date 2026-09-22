@@ -10,8 +10,8 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())' in source
     assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in source
     assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in source
-    assert 'front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"' in source
-    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftSide"' in source
+    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' in source
+    assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
     assert 'f"{front.PieceId}:edge:1", f"{back.PieceId}:edge:1"' not in source
 
 def test_canonical_tunic_pins_only_one_side_of_sewn_shoulders():
@@ -27,3 +27,10 @@ def test_canonical_tunic_rejects_integer_seam_mapping_regression():
     assert 'f"{front.PieceId}:edge:5", f"{back.PieceId}:edge:5", "TunicLeftShoulder"' in audit
     assert 'f"{front.PieceId}:edge:6", f"{back.PieceId}:edge:6", "TunicLeftSide"' in audit
     assert '(1,1,"TunicRightSide")' not in audit
+
+
+def test_canonical_tunic_gate_anchors_current_write_drape_metrics_signature():
+    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'seam_records=seam_records,\\n        proxy=proxy,' in source
+    assert 'authoritative-seam-max-gap-mm=' in source
+    assert 'max_seam_gap > 35.0' in source
