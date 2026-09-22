@@ -111,7 +111,9 @@ jobs:
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               FCMD="$(command -v FreeCADCmd || command -v freecadcmd || printf /opt/freecad/bin/FreeCADCmd)"
               test -x "$FCMD"
-              timeout --signal=TERM --kill-after=10s 5m "$FCMD" /workspace/tests/freecad_garment_hierarchy_smoke.py
+              timeout --signal=TERM --kill-after=10s 5m "$FCMD" -c <<'PY'
+exec(compile(open("/workspace/tests/freecad_garment_hierarchy_smoke.py", encoding="utf-8").read(), "/workspace/tests/freecad_garment_hierarchy_smoke.py", "exec"))
+PY
               test -s /workspace/artifacts/garment-hierarchy-smoke/garment-hierarchy-smoke.log
               test -s /workspace/artifacts/garment-hierarchy-smoke/garment-hierarchy-smoke.json
               test -s /workspace/artifacts/garment-hierarchy-smoke/garment-hierarchy-smoke.FCStd
