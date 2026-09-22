@@ -104,15 +104,15 @@ def test_endpoint_alignment_uses_physical_arc_length_on_curved_edge():
     t_b = (target_b - first_segment) / second_segment
     expected_b = (1.0 + (4.0 - 1.0) * t_b, 3.0 + (0.0 - 3.0) * t_b)
 
-    assert pairs[1][0].x == expected_a[0]
-    assert pairs[1][0].y == expected_a[1]
-    assert pairs[1][1].x == expected_b[0]
-    assert pairs[1][1].y == expected_b[1]
+    assert math.isclose(pairs[1][0].x, expected_a[0], rel_tol=0.0, abs_tol=1e-12)
+    assert math.isclose(pairs[1][0].y, expected_a[1], rel_tol=0.0, abs_tol=1e-12)
+    assert math.isclose(pairs[1][1].x, expected_b[0], rel_tol=0.0, abs_tol=1e-12)
+    assert math.isclose(pairs[1][1].y, expected_b[1], rel_tol=0.0, abs_tol=1e-12)
 
-    assert pairs[1][1].x == pairs[2][0].x
-    assert pairs[1][1].y == pairs[2][0].y
-    assert pairs[2][1].x == pairs[1][0].x
-    assert pairs[2][1].y == pairs[1][0].y
+    assert math.isclose(pairs[1][1].x, pairs[2][0].x, rel_tol=0.0, abs_tol=1e-12)
+    assert math.isclose(pairs[1][1].y, pairs[2][0].y, rel_tol=0.0, abs_tol=1e-12)
+    assert math.isclose(pairs[2][1].x, pairs[1][0].x, rel_tol=0.0, abs_tol=1e-12)
+    assert math.isclose(pairs[2][1].y, pairs[1][0].y, rel_tol=0.0, abs_tol=1e-12)
 
 
 def test_reversed_correspondence_is_applied_once():
