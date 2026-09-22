@@ -1,13 +1,28 @@
 """Canonical public FreeCAD Pattern -> Sewing -> Fitting -> Simulation -> Export acceptance."""
+from pathlib import Path
 import hashlib
 import math
 import os
+import sys
 import tempfile
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
 import Sketcher
+
+
+def _ensure_workbench_registration():
+    if "ClothPatternWorkbench" in Gui.listWorkbenches():
+        return
+    import InitGui
+    _events()
+    if "ClothPatternWorkbench" not in Gui.listWorkbenches():
+        raise RuntimeError("InitGui.py did not register ClothPatternWorkbench")
 
 
 def _events():
@@ -288,6 +303,7 @@ def _export_pair(piece, output_dir, export_format):
 
 
 def run_acceptance():
+    _ensure_workbench_registration()
     doc = None
     path = None
     try:
@@ -762,3 +778,7 @@ def run_acceptance():
 
 if __name__ == "__main__":
     run_acceptance()
+    print("scenario-complete=passed", flush=True)
+    print("freecad-process-exit=forced", flush=True)
+    sys.stdout.flush()
+    os._exit(0)
