@@ -38,8 +38,8 @@ def create_network_from_selection():
     return network
 
 
-def create_free_sewing_from_selection():
-    """Create a 1:1 free-sewing relationship and open its range editor."""
+def create_free_sewing_from_selection(open_editor=True):
+    """Create a 1:1 free-sewing relationship from two selected pattern edges."""
     import FreeCAD as App
     from freecad_cloth.pattern.PatternObjects import add_seam
     from freecad_cloth.sewing.SewingNetwork import SewingMember, add_sewing_network, build_mn_seams
@@ -67,7 +67,8 @@ def create_free_sewing_from_selection():
     seam_objects = [add_seam(doc, model) for model in models]
     network = add_sewing_network(doc, seam_objects, relationship_id, "SewingNetwork%d" % index)
     doc.recompute()
-    show_sewing_network_task(network)
+    if open_editor:
+        show_sewing_network_task(network)
     return network
 
 
