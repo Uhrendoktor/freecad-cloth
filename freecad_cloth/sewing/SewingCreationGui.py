@@ -171,6 +171,7 @@ class SewingCreationTaskPanel:
     _TRANSACTION_NAMES = {
         "seam": "Create Seam",
         "mn": "Create M:N Sewing",
+        "free": "Create Free Sewing",
     }
 
     def __init__(self, kind):
@@ -228,8 +229,11 @@ class SewingCreationTaskPanel:
         if self.kind == "seam":
             from freecad_cloth.sewing.SewingCommands import create_seam_from_selection
             return create_seam_from_selection()
-        from freecad_cloth.sewing.SewingCommands import create_mn_sewing_from_selection
-        return create_mn_sewing_from_selection()
+        if self.kind == "mn":
+            from freecad_cloth.sewing.SewingCommands import create_mn_sewing_from_selection
+            return create_mn_sewing_from_selection()
+        from freecad_cloth.sewing.SewingNetworkCommands import create_free_sewing_from_selection
+        return create_free_sewing_from_selection()
 
     def _refresh_selection(self):
         try:
