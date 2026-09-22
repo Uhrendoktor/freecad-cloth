@@ -104,6 +104,12 @@ class SimulationQualityTests(unittest.TestCase):
                 piece.outline[(edge_index + 1) % len(piece.outline)],
             )
 
+    def test_quality_proxy_clears_stale_stitch_provenance_on_restore(self):
+        proxy = QualitySimulationProxy()
+        proxy.seam_stitch_pairs = {"stale-seam": ((1, 2),)}
+        proxy.onDocumentRestored(None)
+        self.assertEqual(proxy.seam_stitch_pairs, {})
+
     def test_quality_proxy_keeps_solver_state_outside_serialized_object_dict(self):
         """Guard the reload path without placing the non-serializable solver in __dict__."""
         proxy = QualitySimulationProxy()
