@@ -1,12 +1,12 @@
-"""Commands for the Cloth Pattern workbench.
-
-Native FreeCAD Sketcher is the normal pattern authoring/editor path. The
-legacy polygon drafting helper remains importable only for explicit migration
-and compatibility with older documents; it is intentionally not registered as
-a normal workbench command.
-"""
+"""Commands for the Cloth Pattern workbench."""
 import ast
 from freecad_cloth.common.CommandAdapter import icon_for_command
+from freecad_cloth.common.GarmentDocument import create_garment_document
+
+
+def create_garment(name="Garment"):
+    """Create a new production FreeCAD document with the native garment hierarchy."""
+    return create_garment_document(name=name, label="Garment")
 
 
 def create_pattern_piece_from_parameters(name, width, height, allowance, grainline):
@@ -189,11 +189,7 @@ def create_pattern_piece_task():
 
 
 def create_pattern_drafting():
-    """Explicit legacy compatibility hook for old PatternDrafting documents.
-
-    This helper is intentionally not part of the command list or normal
-    FreeCAD command registration. New authoring uses native Sketcher.
-    """
+    """Open the sketch-like polygon drafting canvas for the selected piece."""
     import FreeCAD as App
     import FreeCADGui as Gui
     from freecad_cloth.pattern.PatternGui import show_pattern_drafting_task
@@ -363,12 +359,10 @@ class _PatternExportCommand:
         }
 
 
-# Compatibility-only: keep create_pattern_drafting available for explicit
-# migration/legacy document handling, but never expose it as a normal command.
 COMMANDS = [
-    "ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_EditSketch",
+    "ClothPattern_CreateGarment", "ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_EditSketch",
     "ClothPattern_CreateSketch", "ClothPattern_CreatePieceWithSketch", "ClothPattern_CreateFromSketch",
-    "ClothPattern_Show2D", "ClothPattern_CreatePiece", "ClothPattern_CreateCustomPiece",
+    "ClothPattern_CreateDrafting", "ClothPattern_Show2D", "ClothPattern_CreatePiece", "ClothPattern_CreateCustomPiece",
     "ClothPattern_CreateMesh", "ClothPattern_AddSeam", "ClothPattern_RepairTopology", "ClothPattern_Export",
 ]
 
@@ -382,12 +376,14 @@ try:
     import FreeCADGui as Gui
     if hasattr(Gui, "addCommand"):
         for name, handler in {
+            "ClothPattern_CreateGarment": create_garment,
             "ClothPattern_CreatePieceTask": create_pattern_piece_task,
             "ClothPattern_EditPiece": edit_pattern_piece,
             "ClothPattern_EditSketch": edit_pattern_sketch,
             "ClothPattern_CreateSketch": create_pattern_sketch,
             "ClothPattern_CreatePieceWithSketch": create_pattern_piece_with_sketch,
             "ClothPattern_CreateFromSketch": create_pattern_piece_from_selected_sketch,
+            "ClothPattern_CreateDrafting": create_pattern_drafting,
             "ClothPattern_Show2D": show_pattern_2d,
             "ClothPattern_CreatePiece": create_pattern_piece_with_sketch,
             "ClothPattern_CreateCustomPiece": create_custom_pattern_piece,

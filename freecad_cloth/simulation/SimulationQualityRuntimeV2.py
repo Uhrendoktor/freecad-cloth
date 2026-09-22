@@ -28,6 +28,12 @@ def ensure_quality_properties(scene):
             if values is not None:
                 setattr(scene, name, values)
             setattr(scene, name, default)
+    from freecad_cloth.common.GarmentDocument import ensure_fabric_material, garment_root
+    if garment_root(getattr(scene, "Document", None)) is not None:
+        material = ensure_fabric_material(scene.Document)
+        if "FabricMaterial" not in getattr(scene, "PropertiesList", ()):
+            scene.addProperty("App::PropertyLink", "FabricMaterial", "Fabric")
+        scene.FabricMaterial = material
     _validate_properties(scene)
     return scene
 

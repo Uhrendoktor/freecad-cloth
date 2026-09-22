@@ -473,6 +473,8 @@ def create_avatar_collision(doc, source_obj=None, thickness=2.0, deflection=1.0)
     avatar.CollisionType = "MeshSurface"
     avatar.CollisionVertexCount = len(surface.vertices)
     avatar.CollisionTriangleCount = len(surface.triangles)
+    from freecad_cloth.common.GarmentDocument import link_garment_object
+    link_garment_object(avatar, "AvatarCollision", doc)
     return avatar
 
 
@@ -502,8 +504,10 @@ def set_avatar_collision_source(scene, source_obj, thickness=2.0, deflection=1.0
 
 def create_simulation_scene(doc):
     from freecad_cloth.simulation.DrapeTarget import create_drape_target
+    from freecad_cloth.common.GarmentDocument import ensure_fabric_material, garment_group, link_garment_object
     scene = doc.addObject("App::FeaturePython", "ClothSimulation")
     scene.Label = "Cloth Simulation"
+    link_garment_object(scene, "Simulation", doc)
     scene.addProperty("App::PropertyInteger", "Iterations", "Solver").Iterations = 8
     scene.addProperty("App::PropertyFloat", "TimeStep", "Solver").TimeStep = 1 / 60
     scene.addProperty("App::PropertyInteger", "Steps", "Solver").Steps = 0
@@ -516,6 +520,10 @@ def create_simulation_scene(doc):
     scene.addProperty("App::PropertyLinkList", "DrapePanels", "Output")
     scene.addProperty("App::PropertyLink", "DrapeTarget", "Selection")
     scene.addProperty("App::PropertyLink", "AvatarProxy", "Compatibility")
+    scene.addProperty("App::PropertyLink", "FabricMaterial", "Fabric")
+    material = ensure_fabric_material(doc)
+    if material is not None:
+        scene.FabricMaterial = material
     scene.addProperty("App::PropertyStringList", "PinSelection", "Selection").PinSelection = []
     scene.addProperty("App::PropertyStringList", "SeamSelection", "Selection").SeamSelection = []
     scene.addProperty("App::PropertyFloat", "SimulatedTime", "State").SimulatedTime = 0.0
@@ -530,10 +538,17 @@ def create_simulation_scene(doc):
     panel_a = _mesh_object(doc, "DrapePanelA", "Drape Panel A")
     panel_b = _mesh_object(doc, "DrapePanelB", "Drape Panel B")
     scene.DrapePanels = [panel_a, panel_b]
+    link_garment_object(panel_a, "SimulationOutput", doc)
+    link_garment_object(panel_b, "SimulationOutput", doc)
     avatar = create_avatar_collision(doc)
     scene.AvatarProxy = avatar
     target = create_drape_target(doc, avatar.SourceObject, "Mannequin", avatar.CollisionDeflection, avatar.CollisionThickness)
     scene.DrapeTarget = target
+    link_garment_object(avatar, "AvatarCollision", doc)
+    link_garment_object(target, "DrapeTarget", doc)
+    patterns = garment_group(doc, "Patterns")
+    if patterns is not None:
+        scene.ClothPieces = [obj for obj in patterns.Group if getattr(obj, "PatternType", "") == "PatternPiece"]
     proxy._build(scene, ())
     return scene
 

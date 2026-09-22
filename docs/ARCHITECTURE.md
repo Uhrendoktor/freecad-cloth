@@ -80,6 +80,44 @@ Native FCStd is the project authority. JSON-like structures may support headless
 
 Production adapters may target DXF/AAMA/ASTM-oriented pattern exchange, SVG/TechDraw/PDF sheets and standard 3D avatar formats. External formats are adapters, not authorities.
 
+## Native Garment document hierarchy
+
+The production entry point `ClothPattern_CreateGarment` creates one native `App::Part`
+root named `Garment` and five deterministic child containers:
+
+```text
+Garment (App::Part)
+├── Patterns (App::DocumentObjectGroup)
+│   ├── PatternPiece (Part::FeaturePython) → Sketcher::SketchObject
+│   └── PatternPiece (Part::FeaturePython) → Sketcher::SketchObject
+├── Sewing (App::DocumentObjectGroup)
+│   ├── Seam (Part::FeaturePython)
+│   └── SewingOperation / SewingNetwork
+├── Fabric (App::DocumentObjectGroup)
+│   └── FabricMaterial (App::FeaturePython)
+├── Avatar (App::DocumentObjectGroup)
+│   ├── ClothAvatar
+│   └── DrapeTarget
+└── Simulation (App::DocumentObjectGroup)
+    ├── ClothSimulation
+    └── DrapePanel* (derived output)
+```
+
+The containers and all inter-object relationships are native FreeCAD document Links/Groups.
+Pattern pieces carry a Link to their authoritative Sketcher object; seams and sewing
+operations link to their participating PatternPiece/seam objects; simulation links to
+the persistent FabricMaterial, DrapeTarget and PatternPiece inputs.
+
+**Persistence authority:** the FCStd document is the only project persistence authority.
+`freecad_cloth.common.GarmentDocument` is a document adapter that creates/repairs the
+native container structure and assigns existing objects to it. It does not maintain a
+second project database. JSON manifests produced by the real-FreeCAD smoke test are
+evidence snapshots only.
+
+Standalone object creation remains backward compatible: the hierarchy adapter is a
+no-op in documents without a `Garment` root, so existing PatternPiece, Seam, Avatar and
+Simulation creation paths can still be used independently.
+
 ## UI consequence
 
 Task panels use **Context → Primary action → Secondary actions → Parameters → Recovery**. Persistent data remains inspectable in the document tree/Property Editor. Transient selection/previews never replace the document model.
