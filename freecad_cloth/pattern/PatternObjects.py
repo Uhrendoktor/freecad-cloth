@@ -46,8 +46,53 @@ def _boundary_shape(points, allowance=0.0):
     return Part.Face(wire)
 
 
+def _native_edge_records(piece):
+    """Expose native Sketcher/PatternIR provenance as semantic edge records."""
+    sketch = getattr(piece, "Sketch", None)
+    if sketch is None or str(getattr(piece, "GeometryAuthority", "")) != "Sketcher":
+        return None
+    try:
+        from freecad_cloth.common.SketchAuthority import _resolve_sketch_ir
+        piece_ir = _resolve_sketch_ir(piece)
+    except (AttributeError, KeyError, TypeError, ValueError, RuntimeError):
+        return []
+    piece_id = str(getattr(piece, "PieceId", ""))
+    records = []
+    for ordinal, boundary in enumerate(piece_ir.boundaries):
+        samples = tuple(
+            (float(point[0]), float(point[1]), float(point[2]))
+            for point in boundary.samples
+        )
+        if len(samples) < 2:
+            continue
+        points = (
+            (samples[0][0], samples[0][1]),
+            (samples[-1][0], samples[-1][1]),
+        )
+        provenance = (
+            "PatternIR",
+            "Sketcher",
+            boundary.kind,
+            tuple(float(value) for value in boundary.parameter_range),
+            samples,
+        )
+        records.append(
+            {
+                "piece_id": piece_id,
+                "id": str(boundary.id),
+                "points": points,
+                "ordinal": ordinal,
+                "provenance": provenance,
+            }
+        )
+    return records
+
+
 def _edge_records(piece):
-    """Expose pattern edges through persistent semantic ids."""
+    """Expose native semantic edge records, with a legacy outline fallback."""
+    native = _native_edge_records(piece)
+    if native is not None:
+        return native
     points = _parse_points(getattr(piece, "SewingOutline", ""))
     drafting = _parse_points(getattr(piece, "DraftingBoundary", ""))
     if len(drafting) > len(points):
@@ -79,7 +124,7 @@ def _seam_edge_id(piece, edge, prefix):
         if edge < 0 or edge >= len(records):
             raise MissingEdgeReference(f"seam edge {edge} is outside pattern piece {piece.PieceId}")
         record = records[edge]
-        return record["id"], capture_edge_reference(piece.PieceId, record["id"], record["points"]).signature
+        return record["id"], capture_edge_reference(piece.PieceId, record["id"], record["points"], record.get("provenance")).signature
     reference_id = str(edge)
     for record in records:
         if record["id"] == reference_id:

@@ -102,13 +102,13 @@ def apply_repair_plan(doc, repairs):
             if side == "A":
                 seam.EdgeAId = str(record["id"])
                 seam.EdgeASignature = capture_edge_reference(
-                    seam.PatternA.PieceId, record["id"], record["points"]
+                    seam.PatternA.PieceId, record["id"], record["points"], record.get("provenance")
                 ).signature
                 seam.EdgeA = int(record["ordinal"])
             else:
                 seam.EdgeBId = str(record["id"])
                 seam.EdgeBSignature = capture_edge_reference(
-                    seam.PatternB.PieceId, record["id"], record["points"]
+                    seam.PatternB.PieceId, record["id"], record["points"], record.get("provenance")
                 ).signature
                 seam.EdgeB = int(record["ordinal"])
             if hasattr(seam, "touch"):

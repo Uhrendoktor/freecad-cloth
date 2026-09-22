@@ -15,6 +15,24 @@ from typing import Iterable, Mapping, Sequence, Tuple
 
 Point = Tuple[float, float]
 
+NATIVE_SIGNATURE_PREFIX = "native-v1:"
+
+
+def _normalize_provenance(value, precision=9):
+    """Convert native PatternIR provenance into deterministic JSON data."""
+    if isinstance(value, Mapping):
+        return {
+            str(key): _normalize_provenance(value[key], precision)
+            for key in sorted(value, key=str)
+        }
+    if isinstance(value, (list, tuple)):
+        return [_normalize_provenance(item, precision) for item in value]
+    if isinstance(value, float):
+        return round(value, precision)
+    if isinstance(value, int):
+        return value
+    return str(value)
+
 
 class EdgeReferenceError(ValueError):
     """Base error for invalid or unresolvable semantic edge references."""
@@ -73,25 +91,48 @@ def semantic_edge_id(piece_id: str, ordinal: int) -> str:
     return "%s:edge:%d" % (piece_id, ordinal)
 
 
-def edge_signature(points: Sequence[Point], precision: int = 9) -> str:
-    """Hash an ordered edge polyline after deterministic float normalization."""
+def edge_signature(
+    points: Sequence[Point],
+    precision: int = 9,
+    provenance=None,
+) -> str:
+    """Hash an edge using legacy endpoints or native PatternIR provenance."""
     if len(points) < 2:
         raise ValueError("an edge needs at least two points")
     normalized = [
         (round(float(point[0]), precision), round(float(point[1]), precision))
         for point in points
     ]
-    payload = json.dumps(normalized, separators=(",", ":"), ensure_ascii=True)
-    return hashlib.sha256(payload.encode("ascii")).hexdigest()
+    if provenance is None:
+        payload = normalized
+        prefix = ""
+    else:
+        payload = {
+            "points": normalized,
+            "provenance": _normalize_provenance(provenance, precision),
+        }
+        prefix = NATIVE_SIGNATURE_PREFIX
+    encoded = json.dumps(
+        payload,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        sort_keys=provenance is not None,
+    )
+    return prefix + hashlib.sha256(encoded.encode("ascii")).hexdigest()
 
 
 def capture_edge_reference(
     piece_id: str,
     edge_id: str,
     points: Sequence[Point],
+    provenance=None,
 ) -> EdgeReference:
-    """Capture the current semantic identity and geometry fingerprint."""
-    return EdgeReference(str(piece_id), str(edge_id), edge_signature(points))
+    """Capture semantic identity plus optional native Sketcher provenance."""
+    return EdgeReference(
+        str(piece_id),
+        str(edge_id),
+        edge_signature(points, provenance=provenance),
+    )
 
 
 def resolve_edge_reference(
@@ -117,10 +158,12 @@ def resolve_edge_reference(
         raise ChangedEdgeReference(
             "semantic edge reference %s has no current geometry" % reference.edge_id
         )
-    current = edge_signature(points)
+    native_reference = str(reference.signature).startswith(NATIVE_SIGNATURE_PREFIX)
+    provenance = match.get("provenance") if native_reference else None
+    current = edge_signature(points, provenance=provenance)
     if current != reference.signature:
         raise ChangedEdgeReference(
-            "semantic edge reference %s geometry changed" % reference.edge_id
+            "semantic edge reference %s geometry/provenance changed" % reference.edge_id
         )
     return match
 
