@@ -55,29 +55,35 @@ def test_curved_native_edge_uses_arc_length_sampling():
     assert abs(_edge_length(p, 0) - (8.0 ** 0.5 * 2.0)) < 1e-9
 
 
-def test_uniform_alignment_follows_curved_edge():
+def test_endpoint_alignment_uses_physical_arc_length_on_curved_edge():
+    import math
     class Edge:
         def __init__(self, values): self.values = values
         def discretize(self, Number=64): return [SimpleNamespace(x=x, y=y) for x, y in self.values]
-
-    curved = [(0, 0), (2, 2), (4, 0)]
-    straight = [(0, 0), (4, 0)]
-    a = SimpleNamespace(Width=4, Height=2, SewingOutline=repr([(0, 0), (4, 0), (4, 2)]), Shape=SimpleNamespace(Edges=[Edge(curved), Edge(straight), Edge(straight)]))
-    b = SimpleNamespace(Width=4, Height=2, SewingOutline=repr([(0, 0), (4, 0), (4, 2)]), Shape=SimpleNamespace(Edges=[Edge(straight), Edge(straight), Edge(straight)]))
-    seam = SimpleNamespace(EdgeA=0, StartA=0, EndA=1, EdgeB=0, StartB=0, EndB=1, ReversedB=False)
+    curved = [(0, 0), (1, 3), (4, 0)]
+    a = SimpleNamespace(Width=4, Height=3, SewingOutline=repr([(0, 0), (4, 0), (4, 3)]), Shape=SimpleNamespace(Edges=[Edge(curved), Edge(curved), Edge(curved)]))
+    b = SimpleNamespace(Width=4, Height=3, SewingOutline=repr([(0, 0), (4, 0), (4, 3)]), Shape=SimpleNamespace(Edges=[Edge(curved), Edge(curved), Edge(curved)]))
+    seam = SimpleNamespace(EdgeA=0, StartA=0, EndA=1, EdgeB=0, StartB=0, EndB=1, ReversedB=True)
     oldf = sys.modules.get("FreeCAD")
     sys.modules["FreeCAD"] = _install_fake_freecad()()
     try:
-        endpoint_pairs = _seam_correspondence(a, b, seam, 3, "endpoints")
-        uniform_pairs = _seam_correspondence(a, b, seam, 3, "uniform")
+        pairs = _seam_correspondence(a, b, seam, 4, "endpoints")
     finally:
         if oldf is None: sys.modules.pop("FreeCAD", None)
         else: sys.modules["FreeCAD"] = oldf
-    assert endpoint_pairs[1][0].y > 0
-    assert endpoint_pairs[1][0].x == uniform_pairs[1][0].x
-    assert endpoint_pairs[1][0].y == uniform_pairs[1][0].y
-    assert endpoint_pairs[1][1].x == uniform_pairs[1][1].x
-    assert endpoint_pairs[1][1].y == uniform_pairs[1][1].y
+    first_segment = math.hypot(1, 3)
+    second_segment = math.hypot(3, 3)
+    total_length = first_segment + second_segment
+    target_a = total_length / 3.0
+    t_a = target_a / first_segment
+    expected_a = (t_a, 3.0 * t_a)
+    target_b = total_length * (2.0 / 3.0)
+    t_b = (target_b - first_segment) / second_segment
+    expected_b = (1.0 + 3.0 * t_b, 3.0 * (1.0 - t_b))
+    assert math.isclose(pairs[1][0].x, expected_a[0], rel_tol=0.0, abs_tol=1e-12)
+    assert math.isclose(pairs[1][0].y, expected_a[1], rel_tol=0.0, abs_tol=1e-12)
+    assert math.isclose(pairs[1][1].x, expected_b[0], rel_tol=0.0, abs_tol=1e-12)
+    assert math.isclose(pairs[1][1].y, expected_b[1], rel_tol=0.0, abs_tol=1e-12)
 
 
 def test_reversed_correspondence_is_applied_once():
