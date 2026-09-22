@@ -152,6 +152,20 @@ def edit_pattern_piece():
     show_pattern_piece_task(obj)
 
 
+
+def export_pattern_production():
+    """Open the public deterministic SVG/DXF production export task panel."""
+    import FreeCADGui as Gui
+    obj = next(
+        (candidate for candidate in Gui.Selection.getSelection()
+         if getattr(candidate, "PatternType", "") == "PatternPiece"),
+        None,
+    )
+    if obj is None:
+        raise ValueError("select a pattern piece before exporting")
+    from freecad_cloth.pattern.PatternGui import show_pattern_export_task
+    return show_pattern_export_task(obj)
+
 def edit_pattern_sketch():
     """Enter the native Sketcher editor for the selected pattern piece."""
     import FreeCADGui as Gui
@@ -281,12 +295,23 @@ class _FunctionCommand:
         self.function = function
         self.command_name = command_name
     def Activated(self): return self.function()
+    def IsActive(self):
+        if self.command_name != "ClothPattern_ExportProduction":
+            return True
+        try:
+            import FreeCADGui as Gui
+            return any(
+                getattr(obj, "PatternType", "") == "PatternPiece"
+                for obj in Gui.Selection.getSelection()
+            )
+        except (ImportError, AttributeError):
+            return False
     def GetResources(self):
         return {"MenuText": self.function.__name__.replace("_", " ").title(), "ToolTip": self.function.__doc__ or "Cloth pattern command", "Pixmap": icon_for_command(self.command_name)}
 
 
 COMMANDS = [
-    "ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_EditSketch",
+    "ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_ExportProduction", "ClothPattern_EditSketch",
     "ClothPattern_CreateSketch", "ClothPattern_CreatePieceWithSketch", "ClothPattern_CreateFromSketch",
     "ClothPattern_CreateDrafting", "ClothPattern_Show2D", "ClothPattern_CreatePiece", "ClothPattern_CreateCustomPiece",
     "ClothPattern_CreateMesh", "ClothPattern_AddSeam", "ClothPattern_RepairTopology",
