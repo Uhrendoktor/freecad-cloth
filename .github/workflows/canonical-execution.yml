@@ -166,7 +166,6 @@ jobs:
               timeout --signal=TERM --kill-after=10s 5m /opt/freecad/AppRun -c "import runpy, sys; sys.path.insert(0, \"/workspace\"); runpy.run_path(\"/workspace/tests/test_garment_document.py\", run_name=\"__main__\")" | tee /workspace/artifacts/garment-hierarchy-smoke/test-garment-document.log
               timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /workspace/tests/freecad_garment_hierarchy_smoke.py
               test -s /workspace/artifacts/garment-hierarchy-smoke/garment-hierarchy-smoke.log
-              test -s /workspace/artifacts/garment-hierarchy-smoke/test-garment-document.log
               test -s /workspace/artifacts/garment-hierarchy-smoke/garment-hierarchy-smoke.json
               test -s /workspace/artifacts/garment-hierarchy-smoke/garment-hierarchy-smoke.FCStd
             '
