@@ -130,6 +130,41 @@ def _make_curved(piece, doc):
     return sketch
 
 
+def _make_nonuniform_curved(piece, doc):
+    """Use a different supported circular arc with the canonical 50*pi mm physical length."""
+    sketch = piece.Sketch
+    piece_id = str(piece.PieceId)
+    radius = 60.0
+    target_length = 50.0 * math.pi
+    sweep = target_length / radius
+    center = App.Vector(50, 50, 0)
+    geometry = [
+        Part.LineSegment(App.Vector(0, 0, 0), App.Vector(100, 0, 0)),
+        Part.LineSegment(App.Vector(100, 0, 0), App.Vector(110, 50, 0)),
+        Part.ArcOfCircle(Part.Circle(center, App.Vector(0, 0, 1), radius), 0.0, sweep),
+    ]
+    end = App.Vector(center.x + radius * math.cos(sweep), center.y + radius * math.sin(sweep), 0)
+    geometry.append(Part.LineSegment(end, App.Vector(0, 0, 0)))
+    sketch.Constraints = []
+    sketch.Geometry = geometry
+    sketch.SemanticEdgeIds = [f"{piece_id}:edge:{index}" for index in range(4)]
+    sketch.GeometryAuthority = "Sketcher"
+    sketch.addConstraint([
+        Sketcher.Constraint("Coincident", 0, 2, 1, 1),
+        Sketcher.Constraint("Coincident", 1, 2, 2, 1),
+        Sketcher.Constraint("Coincident", 2, 2, 3, 1),
+        Sketcher.Constraint("Coincident", 3, 2, 0, 1),
+        Sketcher.Constraint("Horizontal", 0),
+    ])
+    doc.recompute()
+    if sketch.Shape.isNull() or piece.Shape.isNull():
+        raise RuntimeError("non-uniform curved M:N counterpart did not produce native geometry")
+    actual_length = sketch.Geometry[2].Length
+    if abs(float(actual_length) - target_length) > 1e-6:
+        raise RuntimeError("non-uniform curved M:N fixture arc length drifted: %.9f" % float(actual_length))
+    return sketch
+
+
 def _position_signature(scene):
     proxy = getattr(scene, "Proxy", None)
     backend = getattr(proxy, "backend", None)
