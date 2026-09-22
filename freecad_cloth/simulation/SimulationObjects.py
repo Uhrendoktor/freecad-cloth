@@ -116,13 +116,14 @@ def _simulation_source_signature(obj, pieces):
     )
 
 
-def _piece_mesh(piece, start_height):
-    from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
+def _piece_mesh(piece, start_height, piece_ir=None):
+    from freecad_cloth.common.PatternSimulationAdapter import geometry_from_piece_ir, resolve_piece_ir
     from freecad_cloth.pattern.PatternMesh import triangulate
     import FreeCAD as App
-    points = _outline_points(piece)
-    segments = [LineSegment(f"{piece.PieceId}:edge:{i}", points[i], points[(i + 1) % len(points)]) for i in range(len(points))]
-    mesh = triangulate(ParametricPattern(segments))
+
+    if piece_ir is None:
+        piece_ir = resolve_piece_ir(piece)
+    mesh = triangulate(geometry_from_piece_ir(piece_ir))
     placement = getattr(piece, "Placement", None)
     vertices = []
     for x, y in mesh.vertices:
@@ -130,34 +131,102 @@ def _piece_mesh(piece, start_height):
         if placement is not None:
             point = placement.multVec(point)
         vertices.append((float(point.x), float(point.y), float(point.z)))
-    boundary_groups = {}
-    boundary = mesh.boundary_vertex_indices
-    segment_ids = mesh.boundary_edge_segment_ids
-    if segment_ids and len(segment_ids) != len(boundary):
+
+    boundary = tuple(int(index) for index in mesh.boundary_vertex_indices)
+    segment_ids = tuple(str(value) for value in mesh.boundary_edge_segment_ids)
+    if not segment_ids:
+        raise ValueError("pattern mesh semantic boundary provenance is missing")
+    if len(segment_ids) != len(boundary):
         raise ValueError("pattern mesh boundary provenance length does not match boundary vertices")
+
+    edge_pairs = {}
     for index, segment_id in enumerate(segment_ids):
-        key = str(segment_id)
-        start = int(boundary[index])
-        end = int(boundary[(index + 1) % len(boundary)])
-        group = boundary_groups.setdefault(key, [start])
-        if group[-1] != start:
-            raise ValueError("pattern mesh semantic edge provenance is not contiguous")
-        group.append(end)
-    if not boundary_groups:
-        for index in range(len(boundary)):
-            key = f"{piece.PieceId}:edge:{index}"
-            boundary_groups[key] = [int(boundary[index]), int(boundary[(index + 1) % len(boundary)])]
-    semantic_order = tuple(boundary_groups)
-    by_index = {}
-    for edge_index in range(len(points)):
-        key = f"{piece.PieceId}:edge:{edge_index}"
-        if key in boundary_groups:
-            by_index[edge_index] = tuple(boundary_groups[key])
-        elif edge_index < len(boundary):
-            by_index[edge_index] = (int(boundary[edge_index]), int(boundary[(edge_index + 1) % len(boundary)]))
-        else:
-            raise ValueError(f"pattern mesh has no boundary provenance for edge {edge_index}")
-    return vertices, mesh.triangles, tuple(tuple(v for v in by_index[index]) for index in range(len(points)))
+        raw_key = str(segment_id)
+        base = next(
+            (
+                str(boundary_ir.id)
+                for boundary_ir in piece_ir.boundaries
+                if raw_key == str(boundary_ir.id)
+                or raw_key.startswith(str(boundary_ir.id) + "::sub::")
+            ),
+            None,
+        )
+        if base is None:
+            raise ValueError("pattern mesh boundary provenance contains an unknown semantic edge")
+        pair = (boundary[index], boundary[(index + 1) % len(boundary)])
+        edge_pairs.setdefault(base, []).append(pair)
+
+    by_id = {}
+    mesh_vertices = tuple(mesh.vertices)
+    for boundary_ir in piece_ir.boundaries:
+        edge_id = str(boundary_ir.id)
+        pairs = edge_pairs.get(edge_id)
+        if not pairs:
+            raise ValueError(
+                "pattern mesh has no boundary provenance for semantic edge %s"
+                % edge_id
+            )
+        vertex_indices = {vertex for pair in pairs for vertex in pair}
+        samples = tuple(tuple(point[:2]) for point in boundary_ir.samples)
+        ordered = tuple(
+            sorted(
+                vertex_indices,
+                key=lambda vertex: _polyline_parameter(mesh_vertices[vertex], samples),
+            )
+        )
+        if len(ordered) < 2:
+            raise ValueError(
+                "pattern mesh semantic edge %s has too few boundary vertices"
+                % edge_id
+            )
+        actual_pairs = {frozenset(pair) for pair in pairs}
+        ordered_pairs = {
+            frozenset((left, right))
+            for left, right in zip(ordered, ordered[1:])
+        }
+        if ordered_pairs != actual_pairs:
+            raise ValueError(
+                "pattern mesh semantic edge %s boundary chain is disconnected"
+                % edge_id
+            )
+        by_id[edge_id] = ordered
+
+    return vertices, mesh.triangles, tuple(
+        tuple(by_id[str(boundary_ir.id)])
+        for boundary_ir in piece_ir.boundaries
+    )
+
+
+def _polyline_parameter(point, polyline):
+    if len(polyline) < 2:
+        return 0.0
+    total = 0.0
+    spans = []
+    for start, end in zip(polyline, polyline[1:]):
+        dx = float(end[0]) - float(start[0])
+        dy = float(end[1]) - float(start[1])
+        length = (dx * dx + dy * dy) ** 0.5
+        spans.append((total, start, end, length))
+        total += length
+    if total <= 1e-12:
+        return 0.0
+    best = None
+    for offset, start, end, length in spans:
+        if length <= 1e-12:
+            continue
+        dx = float(end[0]) - float(start[0])
+        dy = float(end[1]) - float(start[1])
+        t = (
+            (float(point[0]) - float(start[0])) * dx
+            + (float(point[1]) - float(start[1])) * dy
+        ) / (length * length)
+        t = max(0.0, min(1.0, t))
+        px = float(start[0]) + t * dx
+        py = float(start[1]) + t * dy
+        distance = (float(point[0]) - px) ** 2 + (float(point[1]) - py) ** 2
+        candidate = (distance, offset + t * length)
+        best = candidate if best is None or candidate < best else best
+    return best[1] / total if best else 0.0
 
 
 def _mesh_constraints(positions, triangles):
