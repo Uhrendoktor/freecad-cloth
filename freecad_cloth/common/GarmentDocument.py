@@ -213,12 +213,12 @@ def adopt_garment(doc=None, garment=None):
     for role, group_name, _label in GROUP_SPECS:
         group = getattr(root, group_name + "Group")
         _clear_group(group)
-        group.addObject(group)
         role_groups[role] = group
 
     for role, objects in members.items():
         group = role_groups[role]
-        group.addObjects(list(objects))
+        for obj in objects:
+            group.addObject(obj)
         group.Members = list(objects)
 
     root.PatternPieces = list(members["pattern"])
