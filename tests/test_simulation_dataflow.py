@@ -130,6 +130,20 @@ def test_simulation_document_adapter_fails_closed_on_missing_semantic_seam_edge(
         return
     raise AssertionError("simulation accepted a seam with a missing semantic edge")
 
+
+def test_simulation_document_adapter_ignores_seams_outside_selected_scene():
+    from freecad_cloth.common.PatternIRDocumentAdapter import compile_pattern_ir
+
+    piece_a = _Piece("A", "piece-a")
+    piece_b = _Piece("B", "piece-b")
+    seam = _Seam()
+    seam.PieceB = "unselected-piece"
+    scene = _Scene([seam])
+    ir = compile_pattern_ir(scene.Document, [piece_a, piece_b])
+    assert ir.seams == ()
+
+
+
 def test_signature_changes_when_piece_geometry_or_placement_changes():
     piece = _Piece("A", "piece-a")
     scene = _Scene([])
