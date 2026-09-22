@@ -132,35 +132,32 @@ def _piece_mesh(piece, start_height, piece_ir=None):
         if placement is not None:
             point = placement.multVec(point)
         vertices.append((float(point.x), float(point.y), float(point.z)))
-    boundary_groups = {}
-    boundary = mesh.boundary_vertex_indices
-    segment_ids = mesh.boundary_edge_segment_ids
-    if segment_ids and len(segment_ids) != len(boundary):
-        raise ValueError("pattern mesh boundary provenance length does not match boundary vertices")
-    for index, segment_id in enumerate(segment_ids):
-        key = str(segment_id)
-        start = int(boundary[index])
-        end = int(boundary[(index + 1) % len(boundary)])
-        group = boundary_groups.setdefault(key, [start])
-        if group[-1] != start:
-            raise ValueError("pattern mesh semantic edge provenance is not contiguous")
-        group.append(end)
-    if not boundary_groups:
-        for index in range(len(boundary)):
-            key = f"{piece.PieceId}:edge:{index}"
-            boundary_groups[key] = [int(boundary[index]), int(boundary[(index + 1) % len(boundary)])]
-    semantic_order = tuple(boundary_groups)
-    by_index = {}
-    for edge_index in range(len(points)):
-        key = f"{piece.PieceId}:edge:{edge_index}"
-        if key in boundary_groups:
-            by_index[edge_index] = tuple(boundary_groups[key])
-        elif edge_index < len(boundary):
-            by_index[edge_index] = (int(boundary[edge_index]), int(boundary[(edge_index + 1) % len(boundary)]))
-        else:
-            raise ValueError(f"pattern mesh has no boundary provenance for edge {edge_index}")
-    return vertices, mesh.triangles, tuple(tuple(v for v in by_index[index]) for index in range(len(points)))
-
+    boundary = tuple(int(index) for index in mesh.boundary_vertex_indices)
+    segment_ids = tuple(str(value) for value in mesh.boundary_edge_segment_ids)
+    if not segment_ids or len(segment_ids) != len(boundary):
+        raise ValueError("pattern mesh semantic boundary provenance is missing or mismatched")
+    by_id = {}
+    for boundary_ir in piece_ir.boundaries:
+        edge_id = str(boundary_ir.id)
+        indices = []
+        for index, segment_id in enumerate(segment_ids):
+            base = edge_id if segment_id == edge_id or segment_id.startswith(edge_id + "::sub::") else None
+            if base is None:
+                continue
+            if not indices:
+                indices.append(boundary[index])
+            indices.append(boundary[(index + 1) % len(boundary)])
+        ordered = []
+        for value in indices:
+            value = int(value)
+            if not ordered or ordered[-1] != value:
+                ordered.append(value)
+        if len(ordered) < 2:
+            raise ValueError("pattern mesh has too few vertices for semantic edge %s" % edge_id)
+        by_id[edge_id] = tuple(ordered)
+    if len(by_id) != len(piece_ir.boundaries):
+        raise ValueError("pattern mesh is missing semantic edge provenance")
+    return vertices, mesh.triangles, tuple(by_id[str(boundary_ir.id)] for boundary_ir in piece_ir.boundaries)
 
 def _mesh_constraints(positions, triangles):
     from freecad_cloth.simulation.ClothSolver import DistanceConstraint, Particle, distance
