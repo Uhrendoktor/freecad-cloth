@@ -218,14 +218,10 @@ def show_sewing_2d():
     import FreeCADGui as Gui
     if not Gui.activeDocument():
         return
-    from freecad_cloth.sewing.SewingView import pattern_pieces_for_2d
+    from freecad_cloth.sewing.SewingView import apply_seam_colors, pattern_pieces_for_2d
     document = Gui.activeDocument().Document
+    apply_seam_colors(document.Objects)
     Gui.Selection.clearSelection()
-    for obj in pattern_pieces_for_2d(document.Objects):
-        Gui.Selection.addSelection(obj)
-    for obj in document.Objects:
-        if (getattr(obj, "SeamId", "") or getattr(obj, "SewingType", "") in {"SewingOperation", "SewingNetwork"}):
-            Gui.Selection.addSelection(obj)
     view = Gui.activeDocument().activeView()
     view.viewTop()
     view.fitAll()
