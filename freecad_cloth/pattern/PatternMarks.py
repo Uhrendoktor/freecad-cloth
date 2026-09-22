@@ -27,6 +27,17 @@ def _has_selected_piece():
     except (ImportError, AttributeError):
         return True
 
+def _default_segment_id(piece):
+    """Return a deterministic authoritative segment ID for a persisted mark."""
+    sketch = getattr(piece, "Sketch", None)
+    if sketch is not None:
+        ids = tuple(str(value).strip() for value in (getattr(sketch, "SemanticEdgeIds", ()) or ()))
+        for value in ids:
+            if value:
+                return value
+    piece_id = str(getattr(piece, "PieceId", "")).strip()
+    return ("%s:edge:0" % piece_id) if piece_id else ""
+
 
 def add_mark(doc, mark_type, piece_id, segment_id="", position=0.5, depth=3.0, angle=0.0, length=40.0, text=""):
     if not mark_type.strip():
@@ -57,7 +68,7 @@ def add_notch():
     import FreeCAD as App
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
     piece = _selected_piece(doc)
-    return add_mark(doc, "Notch", str(piece.PieceId), "bottom", 0.5, depth=3.0)
+    return add_mark(doc, "Notch", str(piece.PieceId), _default_segment_id(piece), 0.5, depth=3.0)
 
 
 def add_grainline():
@@ -65,14 +76,14 @@ def add_grainline():
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
     piece = _selected_piece(doc)
     length = max(10.0, min(float(piece.Width), float(piece.Height)) * 0.6)
-    return add_mark(doc, "Grainline", str(piece.PieceId), angle=float(piece.GrainlineAngle), length=length)
+    return add_mark(doc, "Grainline", str(piece.PieceId), _default_segment_id(piece), angle=float(piece.GrainlineAngle), length=length)
 
 
 def add_internal_mark():
     import FreeCAD as App
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
     piece = _selected_piece(doc)
-    return add_mark(doc, "InternalMark", str(piece.PieceId), "bottom", 0.5, depth=3.0, text="Internal mark")
+    return add_mark(doc, "InternalMark", str(piece.PieceId), _default_segment_id(piece), 0.5, depth=3.0, text="Internal mark")
 
 
 class _FunctionCommand:
