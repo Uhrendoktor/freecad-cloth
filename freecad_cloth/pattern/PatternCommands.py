@@ -1,4 +1,5 @@
 """Commands for the Cloth Pattern workbench."""
+
 import ast
 from freecad_cloth.common.CommandAdapter import icon_for_command
 
