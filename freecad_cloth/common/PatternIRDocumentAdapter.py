@@ -89,6 +89,7 @@ def compile_pattern_ir(doc, pieces, curve_samples=64):
 
 
 def _seam_piece_id(seam, prefix):
+    # Canonical validation branch: this remains derived runtime data only.
     """Use the native PatternA/PatternB document link as seam identity.
     
     PieceA/PieceB remain a compatibility mirror for older documents. This
