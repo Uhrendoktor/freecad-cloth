@@ -18,6 +18,7 @@ EXPECTED = {
         "commands": {
             "ClothPattern_CreatePieceTask",
             "ClothPattern_EditPiece",
+            "ClothPattern_ExportProduction",
             "ClothPattern_Show2D",
         },
         "modules": ("PatternCommands", "PatternMarks"),
