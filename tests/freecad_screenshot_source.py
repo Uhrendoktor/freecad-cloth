@@ -342,8 +342,8 @@ def simulation():
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
-    def authored_shoulder_pins(piece, particle_indices, positions):
-        targets = (
+    def authored_shoulder_pins(piece, particle_indices, positions, targets=None):
+        targets = targets or (
             (0.14 * panel_width, 0.97 * garment_height),
             (0.86 * panel_width, 0.97 * garment_height),
         )
@@ -362,20 +362,23 @@ def simulation():
     front_indices = tuple(panel_indices[pin_panels[0].Name])
     back_indices = tuple(panel_indices[pin_panels[1].Name])
     front_pins = authored_shoulder_pins(front, front_indices, positions)
-    back_pins = authored_shoulder_pins(back, back_indices, positions)
-    # The two panels begin on opposite sides of the avatar. Pinning both sewn
-    # shoulder endpoints would freeze each endpoint at its separated start
-    # position, making the zero-rest stitch constraint unsatisfiable. Anchor
-    # only the front shoulder endpoints; the back panel must follow through the
-    # authored shoulder stitches.
-    scene.PinSelection = [str(i) for i in front_pins]
+    back_pins = authored_shoulder_pins(
+        back,
+        back_indices,
+        positions,
+        targets=((0.30 * panel_width, 0.86 * garment_height), (0.70 * panel_width, 0.86 * garment_height)),
+    )
+    # Keep the sewn shoulder endpoints one-sided while adding two deterministic
+    # interior supports on the back panel to preserve its upper-torso shape.
+    scene.PinSelection = [str(i) for i in front_pins + back_pins]
+    pinned = set(front_pins + back_pins)
     if any(
-        int(a) in front_pins and int(b) in front_pins
+        int(a) in pinned and int(b) in pinned
         for seam_pairs in getattr(proxy, "seam_stitch_pairs", {}).values()
         for a, b in seam_pairs
     ):
         raise RuntimeError("visual tunic pin contract pins both endpoints of a sewn pair")
-    log("pin-map authored front=%s back-global=%s back-pinned=false" % (front_pins, back_pins)); doc.recompute()
+    log("pin-map authored front=%s back-support-global=%s" % (front_pins, back_pins)); doc.recompute()
     for source in (doc.getObject("VisualTunicFront"), doc.getObject("VisualTunicBack")):
         if source is not None: source.ViewObject.Visibility = False
         sketch = getattr(source, "Sketch", None) if source is not None else None
