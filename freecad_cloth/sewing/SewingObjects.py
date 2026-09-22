@@ -2,7 +2,7 @@
 import ast
 from math import atan2, degrees, hypot
 
-from freecad_cloth.sewing.SewingCorrespondence import analyze_correspondence
+from freecad_cloth.sewing.SewingCorrespondence import analyze_correspondence, correspondence_status_label
 
 
 def _outline_points(piece):
@@ -170,14 +170,8 @@ def _seam_correspondence(piece_a, piece_b, seam, count, alignment="endpoints"):
         raise ValueError(f"unsupported sewing alignment: {alignment}")
     edge_a = _resolved_edge(piece_a, seam, "A")
     edge_b = _resolved_edge(piece_b, seam, "B")
-    if alignment == "endpoints":
-        a0, a1 = _edge_points(piece_a, edge_a, seam.StartA, seam.EndA)
-        b0, b1 = _edge_points(piece_b, edge_b, seam.StartB, seam.EndB)
-        a_points = [a0 + (a1 - a0) * (i / float(count - 1)) for i in range(count)]
-        b_points = [b0 + (b1 - b0) * (i / float(count - 1)) for i in range(count)]
-    else:
-        a_points = _edge_samples(piece_a, edge_a, seam.StartA, seam.EndA, count)
-        b_points = _edge_samples(piece_b, edge_b, seam.StartB, seam.EndB, count)
+    a_points = _edge_samples(piece_a, edge_a, seam.StartA, seam.EndA, count)
+    b_points = _edge_samples(piece_b, edge_b, seam.StartB, seam.EndB, count)
     if bool(getattr(seam, "ReversedB", False)):
         b_points.reverse()
     return list(zip(a_points, b_points))
@@ -228,11 +222,7 @@ class SewingOperationProxy:
             obj.CorrespondenceStatus = correspondence.status
 
         obj.StitchCount = max(2, int(obj.Stitches))
-        # Keep the legacy absolute-tolerance Status contract intact.  The
-        # solver-independent correspondence state is persisted separately so
-        # newer relative/reversal diagnostics do not silently invalidate older
-        # documents.
-        obj.Status = "Valid" if obj.LengthDifference <= max(0.0, float(obj.Tolerance)) else "Length mismatch"
+        obj.Status = correspondence_status_label(correspondence)
         if hasattr(obj, "ReversedB"):
             obj.ReversedB = bool(getattr(seam, "ReversedB", False))
         if hasattr(obj, "Alignment"):
