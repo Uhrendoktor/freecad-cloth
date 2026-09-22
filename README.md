@@ -20,7 +20,7 @@ FreeCAD/Sketcher owns editable geometry and document persistence; Cloth owns gar
 
 ## Screenshots
 
-The canonical FreeCAD/Xvfb workflow publishes the validated GUI states to a stable `docs/screenshots` branch. The simulation views are rendered as complete 360° camera paths for both the arranged and draped states, so the garment, mannequin and silhouette can be inspected continuously rather than from disconnected stills. The avatar is rendered the same way, with the orthographic captures retained for CI audit evidence.
+The canonical FreeCAD/Xvfb workflow publishes the validated workbench screenshots and 360° renders to a stable `docs/screenshots` branch. The simulation views are rendered as complete 360° camera paths for both the arranged and draped states, so the garment, mannequin and silhouette can be inspected continuously rather than from disconnected stills. The avatar is rendered the same way, with the orthographic captures retained for CI audit evidence.
 
 ### Pattern design
 
@@ -58,7 +58,7 @@ This project is licensed under the GNU Lesser General Public License v2.1 or lat
 
 ## Development
 
-There is one canonical GitHub Actions workflow: `.github/workflows/canonical-execution.yml`. It runs Python/core checks and real FreeCAD/Xvfb GUI coverage. The GUI path preserves the existing static workflow screenshots plus 360° simulation turntables for arranged and draped states and a 360° avatar turntable in the `cloth-gui-screenshots` artifact.
+There is one canonical GitHub Actions workflow: `.github/workflows/canonical-execution.yml`. It runs Python/core checks and real FreeCAD/Xvfb GUI coverage. The GUI path captures the README workbench screenshots plus 360° simulation turntables for arranged and draped states and a 360° avatar turntable.
 
 ## Documentation
 
