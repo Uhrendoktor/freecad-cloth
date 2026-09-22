@@ -2,7 +2,6 @@
 
 from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR, PieceIR
 from freecad_cloth.common import PatternIRDocumentAdapter
-from freecad_cloth.common import PatternIRDocumentAdapter
 from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
 
 
