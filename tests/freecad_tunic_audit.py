@@ -41,11 +41,97 @@ def _tight_tissu_collision_envelope(surface):
 
 _tissu_backend._collision_envelope = _tight_tissu_collision_envelope
 
-# Bounded A/B from research #811/#815: bypass only the 24 mm authored-boundary
-# refinement while retaining the same constrained-Delaunay max-area mesh,
-# semantic edge provenance, pins, collision envelope, solver settings, and gate.
-from freecad_cloth.pattern import PatternMesh as _pattern_mesh
-_pattern_mesh.refine_linear_boundary = lambda pattern, spacing: pattern
+# Audit-only A/B: coarsen boundary refinement from the production 24 mm spacing
+# to 48 mm while keeping the production 24 mm Triangle max-area target.
+def _coarse_boundary_quality_piece_mesh(piece, start_height, particle_distance, piece_ir=None):
+    from math import hypot
+    from freecad_cloth.common.PatternSimulationAdapter import geometry_from_piece_ir, resolve_piece_ir
+    from freecad_cloth.pattern.PatternMesh import refine_linear_boundary, triangulate
+    requested_spacing = max(0.25, float(particle_distance))
+    spacing = requested_spacing * 2.0
+    max_area = 0.45 * requested_spacing * requested_spacing
+    if piece_ir is None:
+        piece_ir = resolve_piece_ir(piece)
+    pattern = geometry_from_piece_ir(piece_ir)
+    mesh = triangulate(refine_linear_boundary(pattern, spacing), max_area=max_area)
+    placement = getattr(piece, "Placement", None)
+    if placement is None:
+        positions = [(x, y, float(start_height)) for x, y in mesh.vertices]
+    else:
+        import FreeCAD as App
+        positions = []
+        for x, y in mesh.vertices:
+            point = placement.multVec(App.Vector(x, y, float(start_height)))
+            positions.append((float(point.x), float(point.y), float(point.z)))
+    boundary = tuple(int(index) for index in mesh.boundary_vertex_indices)
+    segment_ids = tuple(str(value) for value in mesh.boundary_edge_segment_ids)
+    if not segment_ids or len(segment_ids) != len(boundary):
+        raise ValueError("coarse tunic A/B mesh lost boundary provenance")
+    edge_pairs = {}
+    for index, segment_id in enumerate(segment_ids):
+        base = next(
+            (
+                str(boundary_ir.id)
+                for boundary_ir in piece_ir.boundaries
+                if segment_id == str(boundary_ir.id)
+                or segment_id.startswith(str(boundary_ir.id) + "::sub::")
+            ),
+            None,
+        )
+        if base is None:
+            raise ValueError("coarse tunic A/B mesh contains unknown semantic edge provenance")
+        edge_pairs.setdefault(base, []).append((boundary[index], boundary[(index + 1) % len(boundary)]))
+    by_id = {}
+    mesh_vertices = tuple(mesh.vertices)
+    for boundary_ir in piece_ir.boundaries:
+        edge_id = str(boundary_ir.id)
+        pairs = edge_pairs.get(edge_id)
+        if not pairs:
+            raise ValueError("coarse tunic A/B mesh has no provenance for %s" % edge_id)
+        authored = tuple(tuple(point[:2]) for point in boundary_ir.samples)
+        def parameter(vertex):
+            point = mesh_vertices[vertex]
+            total = 0.0
+            spans = []
+            for start, end in zip(authored, authored[1:]):
+                dx = float(end[0]) - float(start[0]); dy = float(end[1]) - float(start[1])
+                length = hypot(dx, dy)
+                spans.append((total, start, end, length)); total += length
+            if total <= 1e-12:
+                return 0.0
+            best = None
+            for offset, start, end, length in spans:
+                if length <= 1e-12:
+                    continue
+                dx = float(end[0]) - float(start[0]); dy = float(end[1]) - float(start[1])
+                t = ((float(point[0]) - float(start[0])) * dx + (float(point[1]) - float(start[1])) * dy) / (length * length)
+                t = max(0.0, min(1.0, t))
+                px = float(start[0]) + t * dx; py = float(start[1]) + t * dy
+                distance = (float(point[0]) - px) ** 2 + (float(point[1]) - py) ** 2
+                candidate = (distance, offset + t * length)
+                best = candidate if best is None or candidate < best else best
+            return best[1] / total if best else 0.0
+        ordered = tuple(sorted({vertex for pair in pairs for vertex in pair}, key=parameter))
+        if len(ordered) < 2:
+            raise ValueError("coarse tunic A/B semantic edge has too few boundary vertices")
+        endpoint_tolerance = 1e-7 * max(1.0, float(boundary_ir.length))
+        first = mesh_vertices[ordered[0]]; last = mesh_vertices[ordered[-1]]
+        if hypot(float(first[0]) - float(authored[0][0]), float(first[1]) - float(authored[0][1])) > endpoint_tolerance:
+            raise ValueError("coarse tunic A/B semantic edge start does not match authored geometry")
+        if hypot(float(last[0]) - float(authored[-1][0]), float(last[1]) - float(authored[-1][1])) > endpoint_tolerance:
+            raise ValueError("coarse tunic A/B semantic edge end does not match authored geometry")
+        actual_pairs = {frozenset(pair) for pair in pairs}
+        ordered_pairs = {frozenset((left, right)) for left, right in zip(ordered, ordered[1:])}
+        if actual_pairs != ordered_pairs:
+            raise ValueError("coarse tunic A/B semantic edge chain is disconnected")
+        if max(
+            hypot(float(mesh_vertices[left][0]) - float(mesh_vertices[right][0]), float(mesh_vertices[left][1]) - float(mesh_vertices[right][1]))
+            for left, right in zip(ordered, ordered[1:])
+        ) > spacing + endpoint_tolerance:
+            raise ValueError("coarse tunic A/B semantic edge exceeds experiment spacing")
+        by_id[edge_id] = ordered
+    return positions, tuple(mesh.triangles), tuple(tuple(by_id[str(boundary_ir.id)]) for boundary_ir in piece_ir.boundaries)
+
 
 # Use the known-stable tunic arrangement from the last passing visual audit.
 replacements = {
@@ -135,6 +221,6 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
     log("authoritative-seam-max-gap-mm=%.2f seam-ids=%s" % (max_seam_gap, tuple(str(seam.SeamId) for seam, _a, _b in seam_records)))\n"""
 
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", 1)
-# The source uses the production simulation path; this wrapper only stabilizes
+source = source.replace("def simulation():", "def simulation():\n    from freecad_cloth.simulation import SimulationMeshQuality as _quality_module\n    _quality_module.quality_piece_mesh = _coarse_boundary_quality_piece_mesh\n    log(\"tunic-mesh-ab=boundary-refinement-48mm max-area-preserved-259.2\")\n", 1)\n\n# The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
 exec(compile(source, str(source_path), "exec"), globals(), globals())
