@@ -31,7 +31,7 @@ def _wait_task_close():
     for _ in range(40):
         _events()
         active = Gui.Control.activeDialog()
-        if active is None:
+        if active is None or not bool(active):
             return
     print(
         "TASK_CLOSE_DIAGNOSTIC activeDialog=%r type=%s bool=%s"
