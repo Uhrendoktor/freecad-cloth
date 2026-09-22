@@ -183,3 +183,9 @@ finally:
     finally:
         LOG_PATH.write_text("\n".join(LOG) + "\n", encoding="utf-8")
         print("pattern-export-smoke=completed", flush=True)
+
+# FreeCAD can retain a GUI event-loop/task-panel object after the script has finished.
+# Force a clean process exit on the successful path, matching the existing real-GUI
+# smoke-test convention without weakening any assertion above.
+sys.stdout.flush()
+os._exit(0)
