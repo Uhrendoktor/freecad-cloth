@@ -3,7 +3,7 @@ import json
 from html import escape
 from math import cos, radians, sin
 from xml.etree import ElementTree
-from freecad_cloth.pattern.PatternDerivedGeometry import DerivedPattern, PatternMark, add_marks, derive_cut_boundary, mark_point, notch_point
+from freecad_cloth.pattern.PatternDerivedGeometry import DerivedPattern, Notch, PatternMark, add_marks, add_notches, derive_cut_boundary, mark_point, notch_point
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, PolylineSegment
 
 
@@ -15,7 +15,7 @@ def _sampled_sewing(pattern, curve_samples):
     return points
 
 
-def _metadata(pattern, units, piece_id="", seam_ids=(), derived=None, seam_allowance=0.0):
+def _metadata(pattern, units, piece_id="", seam_ids=(), derived=None, seam_allowance=0.0, internal_mark_ids=None):
     data={"version":1,"units":units,"edge_ids":[s.id for s in pattern.segments]}
     if piece_id:
         data["piece_id"] = str(piece_id)
@@ -29,10 +29,12 @@ def _metadata(pattern, units, piece_id="", seam_ids=(), derived=None, seam_allow
         data["seam_allowance_mm"] = float(seam_allowance)
         data["notch_ids"] = [str(value.id) for value in derived.notches]
         data["mark_ids"] = [str(value.id) for value in derived.marks]
+        if internal_mark_ids is not None:
+            data["internal_mark_ids"] = [str(value) for value in internal_mark_ids]
     return data
 
 
-def to_svg(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm", derived: DerivedPattern | None = None, piece_id: str = "", seam_ids=(), seam_allowance: float = 0.0) -> str:
+def to_svg(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm", derived: DerivedPattern | None = None, piece_id: str = "", seam_ids=(), seam_allowance: float = 0.0, internal_mark_ids=None) -> str:
     if not units.strip(): raise ValueError("units must not be empty")
     sewing=_sampled_sewing(pattern,curve_samples)
     if derived is not None and derived.sewing_boundary is not pattern: raise ValueError("derived pattern belongs to a different sewing boundary")
@@ -43,7 +45,7 @@ def to_svg(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm
     def xy(point): return (point[0]-min_x,height-(point[1]-min_y))
     def path(points,closed=True):
         coords=[xy(p) for p in points]; return "M "+" L ".join(f"{_fmt(x)},{_fmt(y)}" for x,y in coords)+(" Z" if closed else "")
-    edge_ids=" ".join(escape(s.id,quote=True) for s in pattern.segments); metadata=json.dumps(_metadata(pattern,units,piece_id,seam_ids,derived,seam_allowance),sort_keys=True,separators=(",",":"))
+    edge_ids=" ".join(escape(s.id,quote=True) for s in pattern.segments); metadata=json.dumps(_metadata(pattern,units,piece_id,seam_ids,derived,seam_allowance,internal_mark_ids),sort_keys=True,separators=(",",":"))
     lines=[f'<svg xmlns="http://www.w3.org/2000/svg" width="{_dim(width)}{escape(units)}" height="{_dim(height)}{escape(units)}" viewBox="0 0 {_fmt(width)} {_fmt(height)}" data-units="{escape(units,quote=True)}" data-edge-ids="{edge_ids}" data-piece-id="{escape(str(piece_id),quote=True)}">',f'  <metadata>{escape(metadata)}</metadata>',f'  <g id="sewing-boundary" data-edge-ids="{edge_ids}"><path d="{path(sewing)}" fill="none"/></g>']
     if cut_edges:
         lines.append('  <g id="cut-boundary">')
@@ -61,7 +63,7 @@ def to_svg(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm
     lines.append('</svg>'); return "\n".join(lines)+"\n"
 
 
-def to_dxf(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm", derived: DerivedPattern | None = None, piece_id: str = "", seam_ids=(), seam_allowance: float = 0.0) -> str:
+def to_dxf(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm", derived: DerivedPattern | None = None, piece_id: str = "", seam_ids=(), seam_allowance: float = 0.0, internal_mark_ids=None) -> str:
     if not units.strip(): raise ValueError("units must not be empty")
     sewing=_sampled_sewing(pattern,curve_samples)
     if derived is not None and derived.sewing_boundary is not pattern: raise ValueError("derived pattern belongs to a different sewing boundary")
@@ -79,7 +81,7 @@ def to_dxf(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm
             x,y=notch_point(pattern,notch); polyline([(x,y),(x,y+notch.depth)],"MARK",False)
         for mark in derived.marks:
             x,y=mark_point(pattern,mark); angle=radians(mark.angle); dx,dy=cos(angle)*mark.length/2,sin(angle)*mark.length/2; polyline([(x-dx,y-dy),(x+dx,y+dy)],"MARK",False)
-    metadata=json.dumps(_metadata(pattern,units,piece_id,seam_ids,derived,seam_allowance),sort_keys=True,separators=(",",":")); lines=["0","SECTION","2","HEADER","9","$COMMENT","1",metadata,"0","ENDSEC","0","SECTION","2","ENTITIES"]
+    metadata=json.dumps(_metadata(pattern,units,piece_id,seam_ids,derived,seam_allowance,internal_mark_ids),sort_keys=True,separators=(",",":")); lines=["0","SECTION","2","HEADER","9","$COMMENT","1",metadata,"0","ENDSEC","0","SECTION","2","ENTITIES"]
     for entity in entities: lines.extend(entity)
     lines += ["0","ENDSEC","0","EOF",""]; return "\n".join(lines)
 
@@ -110,7 +112,7 @@ def from_svg_metadata(svg: str) -> dict:
     return data
 
 
-def validate_export(pattern: ParametricPattern, exported: str, format: str, curve_samples: int = 32, units: str = "mm", derived: DerivedPattern | None = None, piece_id: str = "", seam_ids=(), seam_allowance: float = 0.0) -> dict:
+def validate_export(pattern: ParametricPattern, exported: str, format: str, curve_samples: int = 32, units: str = "mm", derived: DerivedPattern | None = None, piece_id: str = "", seam_ids=(), seam_allowance: float = 0.0, internal_mark_ids=None) -> dict:
     """Validate an export against its authoritative pattern model.
 
     The exporter is deterministic, so byte equality with a freshly generated
@@ -120,7 +122,7 @@ def validate_export(pattern: ParametricPattern, exported: str, format: str, curv
     normalized_format=str(format).strip().lower()
     if normalized_format not in {"svg", "dxf"}:
         raise ValueError("format must be 'svg' or 'dxf'")
-    expected = to_svg(pattern, curve_samples, units, derived, piece_id, seam_ids, seam_allowance) if normalized_format == "svg" else to_dxf(pattern, curve_samples, units, derived, piece_id, seam_ids, seam_allowance)
+    expected = to_svg(pattern, curve_samples, units, derived, piece_id, seam_ids, seam_allowance, internal_mark_ids) if normalized_format == "svg" else to_dxf(pattern, curve_samples, units, derived, piece_id, seam_ids, seam_allowance, internal_mark_ids)
     if exported != expected:
         raise ValueError("export does not match the deterministic authoritative pattern output")
     metadata = from_svg_metadata(exported) if normalized_format == "svg" else from_dxf_metadata(exported)
@@ -144,6 +146,58 @@ def _piece_seams(piece):
             raise ValueError("cannot export pattern piece while seam %s is %s" % (seam_id, status or "invalid"))
         seams.append(seam_id)
     return tuple(sorted(set(seams)))
+
+
+def _persisted_construction_marks(piece, pattern, derived):
+    """Resolve persisted FreeCAD PatternMark objects into deterministic export IR."""
+    doc = getattr(piece, "Document", None)
+    if doc is None:
+        raise ValueError("pattern piece is not attached to a FreeCAD document")
+    piece_id = str(getattr(piece, "PieceId", "")).strip()
+    records = []
+    for obj in getattr(doc, "Objects", ()):
+        mark_type = str(getattr(obj, "PatternMarkType", "")).strip()
+        if not mark_type or str(getattr(obj, "PieceId", "")).strip() != piece_id:
+            continue
+        mark_id = str(getattr(obj, "PatternMarkId", "")).strip() or str(getattr(obj, "Name", "")).strip()
+        if not mark_id:
+            raise ValueError("persisted pattern mark is missing a stable ID")
+        records.append((mark_id, mark_type, obj))
+    records.sort(key=lambda item: item[0])
+
+    notches = []
+    marks = []
+    internal_mark_ids = []
+    for mark_id, mark_type, obj in records:
+        segment_id = str(getattr(obj, "SegmentId", "")).strip()
+        if not segment_id:
+            raise ValueError("persisted construction mark %s is missing its semantic edge ID" % mark_id)
+        position = float(getattr(obj, "Position", 0.5))
+        if mark_type.casefold() == "notch":
+            notches.append(
+                Notch(
+                    id=mark_id,
+                    segment_id=segment_id,
+                    t=position,
+                    depth=float(getattr(obj, "Depth", 3.0)),
+                )
+            )
+            continue
+        mark = PatternMark(
+            id=mark_id,
+            kind=mark_type,
+            segment_id=segment_id,
+            t=position,
+            angle=float(getattr(obj, "Angle", 0.0)),
+            length=float(getattr(obj, "Length", 40.0)),
+            text=str(getattr(obj, "Text", "")).strip(),
+        )
+        marks.append(mark)
+        if mark_type.casefold() == "internalmark":
+            internal_mark_ids.append(mark_id)
+    derived = add_notches(derived, notches)
+    derived = add_marks(derived, marks)
+    return derived, tuple(internal_mark_ids)
 
 
 def pattern_from_pattern_piece(piece, curve_samples: int = 64) -> ParametricPattern:
@@ -198,20 +252,17 @@ def export_pattern_piece(piece, path, format: str, *, units: str = "mm", curve_s
     seam_ids = _piece_seams(piece)
     allowance = max(0.0, float(getattr(piece, "SeamAllowance", 0.0)))
     derived = derive_cut_boundary(pattern, allowance, curve_samples=curve_samples)
-    if pattern.segments:
-        mark = PatternMark(
-            id="%s:grainline" % str(getattr(piece, "PieceId", "piece")),
-            kind="Grainline",
-            segment_id=pattern.segments[0].id,
-            angle=float(getattr(piece, "GrainlineAngle", 0.0)),
-            length=40.0,
-            text="Grain",
-        )
-        derived = add_marks(derived, (mark,))
+    derived, internal_mark_ids = _persisted_construction_marks(piece, pattern, derived)
     if normalized_format == "svg":
-        content = to_svg(pattern, curve_samples, units, derived, str(getattr(piece, "PieceId", "")), seam_ids, allowance)
+        content = to_svg(
+            pattern, curve_samples, units, derived, str(getattr(piece, "PieceId", "")),
+            seam_ids, allowance, internal_mark_ids
+        )
     else:
-        content = to_dxf(pattern, curve_samples, units, derived, str(getattr(piece, "PieceId", "")), seam_ids, allowance)
+        content = to_dxf(
+            pattern, curve_samples, units, derived, str(getattr(piece, "PieceId", "")),
+            seam_ids, allowance, internal_mark_ids
+        )
     with open(str(path), "w", encoding="utf-8", newline="") as handle:
         handle.write(content)
     return validate_export(
@@ -224,4 +275,5 @@ def export_pattern_piece(piece, path, format: str, *, units: str = "mm", curve_s
         piece_id=str(getattr(piece, "PieceId", "")),
         seam_ids=seam_ids,
         seam_allowance=allowance,
+        internal_mark_ids=internal_mark_ids,
     )
