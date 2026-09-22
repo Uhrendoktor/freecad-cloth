@@ -191,7 +191,7 @@ def test_persisted_pattern_marks_are_collected_deterministically():
         [
             _persisted_mark("grain-persisted", "Grainline", segment_id=""),
             _persisted_mark("notch-persisted", "Notch", segment_id="right", depth=4.0),
-            _persisted_mark("internal-persisted", "InternalMark", text="construction"),
+            _persisted_mark("internal-persisted", "InternalMark", segment_id="piece-front:edge:1", text="construction"),
         ]
     )
     notches, marks = _persisted_pattern_marks(piece, pattern)
@@ -209,7 +209,7 @@ def test_persisted_pattern_marks_are_collected_deterministically():
 def test_pattern_piece_export_preserves_persisted_mark_ids_and_suppresses_synthesized_grainline(tmp_path):
     piece = _piece_with_marks(
         [
-            _persisted_mark("notch-persisted", "Notch", segment_id="bottom", depth=4.0),
+            _persisted_mark("notch-persisted", "Notch", segment_id="piece-front:edge:0", depth=4.0),
             _persisted_mark("internal-persisted", "InternalMark", text="construction"),
             _persisted_mark("grain-persisted", "Grainline", segment_id=""),
         ]
