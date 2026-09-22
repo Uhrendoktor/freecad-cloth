@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.simulation.SimulationQuality import FabricMaterial, QUALITY_PRESETS, preset, solver_parameters
 from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, _RUNTIME_BASES, quality_discretization
-from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
+from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh, refine_linear_boundary
 
 
 class SimulationQualityTests(unittest.TestCase):
@@ -48,6 +48,85 @@ class SimulationQualityTests(unittest.TestCase):
         coarse = quality_discretization(4, 320.0, preset("Fast").particle_distance)
         fine = quality_discretization(4, 320.0, preset("Final").particle_distance)
         self.assertGreater(fine, coarse)
+
+
+    def test_linear_boundary_refinement_is_deterministic_and_capped(self):
+        from freecad_cloth.pattern.PatternGeometry import rectangle
+
+        pattern = rectangle(100.0, 60.0)
+        refined, subedge_map = refine_linear_boundary(pattern, 20.0)
+
+        authored_ids = [segment.id for segment in pattern.segments]
+        self.assertEqual(set(subedge_map.values()), set(authored_ids))
+        self.assertEqual(
+            [segment.id for segment in refined.segments],
+            [
+                "bottom::simulation-sub::0",
+                "bottom::simulation-sub::1",
+                "bottom::simulation-sub::2",
+                "bottom::simulation-sub::3",
+                "bottom::simulation-sub::4",
+                "right::simulation-sub::0",
+                "right::simulation-sub::1",
+                "right::simulation-sub::2",
+                "top::simulation-sub::0",
+                "top::simulation-sub::1",
+                "top::simulation-sub::2",
+                "top::simulation-sub::3",
+                "top::simulation-sub::4",
+                "left::simulation-sub::0",
+                "left::simulation-sub::1",
+                "left::simulation-sub::2",
+            ],
+        )
+        for segment in refined.segments:
+            self.assertLessEqual(segment.length(), 20.0 + 1e-9)
+
+    def test_quality_boundary_is_contiguous_per_authored_edge_and_spacing_bounded(self):
+        piece = PatternPiece("Test", [(0, 0), (100, 0), (100, 60), (0, 60)], id="test")
+        piece_obj = type("Piece", (), {
+            "SewingOutline": repr(piece.outline),
+            "DraftingBoundary": repr(piece.outline),
+            "PieceId": piece.id,
+            "Placement": None,
+        })()
+        positions, _triangles, boundary = quality_piece_mesh(piece_obj, 100.0, 20.0)
+
+        self.assertEqual(len(boundary), len(piece.outline))
+        for edge_index, chain in enumerate(boundary):
+            self.assertGreaterEqual(len(chain), 2)
+            self.assertEqual(positions[chain[0]][:2], piece.outline[edge_index])
+            end_index = (edge_index + 1) % len(piece.outline)
+            self.assertEqual(positions[chain[-1]][:2], piece.outline[end_index])
+            for a, b in zip(chain, chain[1:]):
+                span = (
+                    (positions[a][0] - positions[b][0]) ** 2
+                    + (positions[a][1] - positions[b][1]) ** 2
+                ) ** 0.5
+                self.assertLessEqual(span, 20.0 + 1e-6)
+
+    def test_sewing_semantic_edge_lookup_remains_authored_ordinal(self):
+        from types import SimpleNamespace
+        from freecad_cloth.pattern.PatternObjects import _edge_records
+        from freecad_cloth.sewing.SewingObjects import _seam_edge_index
+
+        piece = SimpleNamespace(
+            PieceId="test",
+            Width=100.0,
+            Height=60.0,
+            SewingOutline=repr([(0, 0), (100, 0), (100, 60), (0, 60)]),
+        )
+        records = _edge_records(piece)
+        self.assertEqual([record["id"] for record in records], [
+            "test:edge:0",
+            "test:edge:1",
+            "test:edge:2",
+            "test:edge:3",
+        ])
+        seam = SimpleNamespace(EdgeAId="test:edge:0", EdgeASignature="", EdgeA=0)
+        resolved = _seam_edge_index(piece, seam, "A")
+        self.assertEqual(resolved, 0)
+        self.assertNotIn("::simulation-sub::", seam.EdgeAId)
 
     def test_pattern_mesh_density_changes_with_particle_distance(self):
         piece = PatternPiece("Test", [(0, 0), (100, 0), (100, 60), (0, 60)], id="test")
