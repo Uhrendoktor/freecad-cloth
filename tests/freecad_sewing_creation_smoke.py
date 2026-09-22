@@ -62,11 +62,9 @@ def close_public_task():
         process_events()
 
 
-InitGui.ClothSewingWorkbench()
-Gui.activateWorkbench("ClothSewingWorkbench")
+assert InitGui.ClothPatternWorkbench is not None
+Gui.activateWorkbench("Cloth Pattern")
 process_events()
-for command in ("ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing"):
-    assert command in Gui.listCommands(), "missing public sewing command: " + command
 
 doc = App.newDocument("SewingCreationSmoke")
 for _ in range(3):
@@ -75,6 +73,12 @@ for _ in range(3):
 pieces = [obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"]
 if len(pieces) != 3:
     raise RuntimeError("public Pattern command did not create three PatternPiece objects")
+
+assert InitGui.ClothSewingWorkbench is not None
+Gui.activateWorkbench("Cloth Sewing")
+process_events()
+for command in ("ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing"):
+    assert command in Gui.listCommands(), "missing public sewing command: " + command
 piece_a, piece_b, piece_c = pieces
 for piece, label, piece_id in (
     (piece_a, "SmokeA", "smoke-a"),
