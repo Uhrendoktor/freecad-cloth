@@ -11,7 +11,7 @@ import Sketcher
 
 
 def _ensure_workbench_registration():
-    if "ClothPattern_CreateGarment" in Gui.listCommands():
+    if "ClothPatternWorkbench" in Gui.listWorkbenches():
         return
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     init_gui = os.path.join(root, "InitGui.py")
