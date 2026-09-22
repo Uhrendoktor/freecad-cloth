@@ -363,8 +363,10 @@ def simulation():
     back_indices = tuple(panel_indices[pin_panels[1].Name])
     front_pins = authored_shoulder_pins(front, front_indices, positions)
     back_pins = authored_shoulder_pins(back, back_indices, positions)
-    scene.PinSelection = [str(i) for i in front_pins + back_pins]
-    log("pin-map authored front=%s back-global=%s" % (front_pins, back_pins)); doc.recompute()
+    # Pin only the authored front shoulder pair. The rear panel must remain free to close
+    # zero-rest seam constraints rather than pinning both ends of the sewn relationship apart.
+    scene.PinSelection = [str(i) for i in front_pins]
+    log("pin-map authored front=%s back-global=%s pinned-front-only=true" % (front_pins, back_pins)); doc.recompute()
     for source in (doc.getObject("VisualTunicFront"), doc.getObject("VisualTunicBack")):
         if source is not None: source.ViewObject.Visibility = False
         sketch = getattr(source, "Sketch", None) if source is not None else None
