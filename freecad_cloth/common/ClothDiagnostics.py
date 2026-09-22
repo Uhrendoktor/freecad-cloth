@@ -12,6 +12,50 @@ Point3 = Tuple[float, float, float]
 Triangle = Tuple[int, int, int]
 
 
+METRIC_DEFINITIONS = {
+    "strain": {"formula": "ΔL / L₀", "units": "dimensionless"},
+    "stress": {"formula": "|strain| / stretch_limit", "units": "normalized utilization"},
+    "fit": {"formula": "1 - |clearance - ideal| / tolerance", "units": "score 0..1"},
+    "pressure": {"formula": "solver-provided per-face pressure", "units": "backend-native"},
+}
+
+
+def metric_definition(name: str) -> dict:
+    key = str(name).strip().lower()
+    try:
+        return dict(METRIC_DEFINITIONS[key])
+    except KeyError as exc:
+        raise ValueError("unknown diagnostic metric: %s" % name) from exc
+
+
+def export_payload(result: "DiagnosticResult") -> dict:
+    """Return a deterministic, solver-neutral JSON-ready diagnostic payload."""
+    if not isinstance(result, DiagnosticResult):
+        raise TypeError("result must be a DiagnosticResult")
+    return {
+        "schema": 1,
+        "faces": len(result.strain),
+        "metrics": {
+            "fit": list(result.fit),
+            "pressure": list(result.pressure),
+            "strain": list(result.strain),
+            "stress": list(result.stress),
+        },
+        "range": {"minimum": result.minimum, "maximum": result.maximum},
+        "summary": summarize(result),
+    }
+
+
+def export_json(result: "DiagnosticResult", path) -> dict:
+    """Write deterministic diagnostic data without mutating the FreeCAD model."""
+    import json
+    payload = export_payload(result)
+    content = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    with open(str(path), "w", encoding="utf-8", newline="") as handle:
+        handle.write(content)
+    return payload
+
+
 @dataclass(frozen=True)
 class DiagnosticResult:
     """Per-face diagnostic values plus aggregate ranges."""
