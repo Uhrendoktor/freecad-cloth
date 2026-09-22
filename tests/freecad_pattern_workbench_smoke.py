@@ -8,7 +8,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 import InitGui
 from freecad_cloth.pattern.PatternCommands import create_pattern_piece
-from freecad_cloth.pattern.PatternGui import PatternPieceTaskPanel, PatternDraftingTaskPanel
+from freecad_cloth.pattern.PatternGui import PatternPieceTaskPanel
 
 
 def main():
@@ -17,7 +17,9 @@ def main():
     workbench.Initialize()
     assert workbench.MenuText == "Cloth Pattern"
     assert "ClothPattern_CreatePieceTask" in workbench.commands
-    assert "ClothPattern_CreateDrafting" in workbench.commands
+    assert "ClothPattern_CreateDrafting" not in workbench.commands
+    assert "ClothPattern_CreatePieceWithSketch" in workbench.commands
+    assert "ClothPattern_EditSketch" in workbench.commands
 
     doc = App.newDocument("PatternWorkbenchSmoke")
     piece = create_pattern_piece()
@@ -37,12 +39,14 @@ def main():
     assert abs(float(piece.SeamAllowance) - 6.0) < 1e-9
     assert piece.Shape.isValid()
 
-    original = piece.DraftingBoundary
-    drafting = PatternDraftingTaskPanel(piece)
-    drafting.nudge(10.0, 0.0)
-    assert drafting.obj.DraftingBoundary != original
-    assert drafting.reject() is True
-    assert piece.DraftingBoundary == original
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(piece)
+    process_events()
+    Gui.runCommand("ClothPattern_EditSketch", 0)
+    process_events()
+    assert Gui.activeDocument().getInEdit() is not None
+    Gui.activeDocument().resetEdit()
+    process_events()
     assert piece.Shape.isValid()
 
     Gui.Control.closeDialog()
