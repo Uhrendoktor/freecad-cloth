@@ -71,3 +71,45 @@ def test_pin_selection_is_part_of_rebuild_signature():
     scene_a = SimpleNamespace(DrapeTarget=target, PinSelection=["1", "2"], StitchSamples=8, Document=SimpleNamespace(Objects=[]))
     scene_b = SimpleNamespace(DrapeTarget=target, PinSelection=["3", "4"], StitchSamples=8, Document=SimpleNamespace(Objects=[]))
     assert _simulation_source_signature(scene_a, []) != _simulation_source_signature(scene_b, [])
+
+
+
+def test_seam_pair_records_preserve_exact_solver_stitch_provenance():
+    from freecad_cloth.pattern.PatternModel import Seam
+    from freecad_cloth.simulation.SimulationObjects import _seam_pair_records
+
+    class Piece:
+        def __init__(self, piece_id, name):
+            self.PieceId = piece_id
+            self.Name = name
+
+    piece_a = Piece("piece-a", "PieceA")
+    piece_b = Piece("piece-b", "PieceB")
+    seam = Seam(
+        piece_a="piece-a",
+        edge_a=0,
+        piece_b="piece-b",
+        edge_b=0,
+        id="seam-1",
+        reversed_b=True,
+        start_a=0.0,
+        end_a=1.0,
+        start_b=0.0,
+        end_b=1.0,
+    )
+    doc = type("Doc", (), {"Objects": [seam]})()
+    panel_data = {
+        piece_a: {
+            "boundary_edges": ((0, 1, 2),),
+            "positions": ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (20.0, 0.0, 0.0)),
+        },
+        piece_b: {
+            "boundary_edges": ((3, 4, 5),),
+            "positions": ((0.0, 100.0, 0.0), (10.0, 100.0, 0.0), (20.0, 100.0, 0.0)),
+        },
+    }
+    pairs, records = _seam_pair_records(doc, panel_data, seam_samples=3)
+    assert pairs == ((0, 5), (1, 4), (2, 3))
+    assert records == (
+        ("seam-1", "PieceA", "PieceB", ((0, 5), (1, 4), (2, 3))),
+    )

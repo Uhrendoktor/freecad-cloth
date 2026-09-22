@@ -216,11 +216,14 @@ def _sample_boundary(values, start, end, count, points=None):
     return result
 
 
-def _seam_pairs(doc, panel_data, seam_samples=8):
+def _seam_pair_records(doc, panel_data, seam_samples=8):
+    """Return exact solver stitch pairs plus their semantic seam provenance."""
     pieces = {str(piece.PieceId): piece for piece in panel_data}
     pairs = []
+    records = []
     for seam in doc.Objects:
-        if not getattr(seam, "SeamId", ""):
+        seam_id = str(getattr(seam, "SeamId", ""))
+        if not seam_id:
             continue
         piece_a = pieces.get(str(getattr(seam, "PieceA", "")))
         piece_b = pieces.get(str(getattr(seam, "PieceB", "")))
@@ -228,7 +231,7 @@ def _seam_pairs(doc, panel_data, seam_samples=8):
             continue
         data_a, data_b = panel_data[piece_a], panel_data[piece_b]
         ea, eb = int(seam.EdgeA), int(seam.EdgeB)
-        if ea >= len(data_a["boundary_edges"]) or eb >= len(data_b["boundary_edges"]):
+        if ea < 0 or eb < 0 or ea >= len(data_a["boundary_edges"]) or eb >= len(data_b["boundary_edges"]):
             continue
         points_a = tuple(data_a["positions"][index] for index in data_a["boundary_edges"][ea])
         points_b = tuple(data_b["positions"][index] for index in data_b["boundary_edges"][eb])
@@ -236,8 +239,22 @@ def _seam_pairs(doc, panel_data, seam_samples=8):
         vb = _sample_boundary(data_b["boundary_edges"][eb], seam.StartB, seam.EndB, seam_samples, points_b)
         if bool(getattr(seam, "ReversedB", False)):
             vb.reverse()
-        pairs.extend(zip(va, vb))
-    return tuple(dict.fromkeys(pairs))
+        seam_pairs = tuple(zip(va, vb))
+        pairs.extend(seam_pairs)
+        records.append(
+            (
+                seam_id,
+                str(getattr(piece_a, "Name", "")),
+                str(getattr(piece_b, "Name", "")),
+                seam_pairs,
+            )
+        )
+    return tuple(dict.fromkeys(pairs)), tuple(records)
+
+
+def _seam_pairs(doc, panel_data, seam_samples=8):
+    """Return the exact particle pairs used as solver stitch constraints."""
+    return _seam_pair_records(doc, panel_data, seam_samples)[0]
 
 
 def _collision_for_scene(obj):
@@ -265,6 +282,7 @@ class SimulationProxy:
         self.panel_triangles = {}
         self.panel_boundary_edges = {}
         self.panel_piece_names = {}
+        self.seam_stitch_pairs = {}
         self.source_signature = None
         self.last_steps = 0
         self.collision_surface = None
@@ -321,7 +339,9 @@ class SimulationProxy:
         obj.DrapePanels = panels[:len(pieces)]
         particles = [Particle(*p) for p in positions]
         system = ClothSystem(particles, _mesh_constraints(positions, triangles_global))
-        seam_pairs = _seam_pairs(obj.Document, panel_data, int(getattr(obj, "StitchSamples", 8)))
+        seam_pairs, seam_pair_records = _seam_pair_records(
+            obj.Document, panel_data, int(getattr(obj, "StitchSamples", 8))
+        )
         system.add_stitches(seam_pairs)
         explicit_pins = _parse_int_list(getattr(obj, "PinSelection", ()), len(particles))
         if explicit_pins:
@@ -350,6 +370,10 @@ class SimulationProxy:
         self.panel_triangles = {}
         self.panel_boundary_edges = {}
         self.panel_piece_names = {}
+        self.seam_stitch_pairs = {
+            seam_id: tuple(stitch_pairs)
+            for seam_id, _piece_a_name, _piece_b_name, stitch_pairs in seam_pair_records
+        }
         for panel, piece in zip(panels, pieces):
             data = panel_data[piece]
             self.panel_indices[panel.Name] = tuple(range(data["offset"], data["offset"] + data["vertex_count"]))
@@ -388,6 +412,7 @@ class SimulationProxy:
         self.panel_triangles = {"DrapePanelA": tuple(tris), "DrapePanelB": tuple((a + offset, b + offset, c + offset) for a, b, c in tris)}
         self.panel_boundary_edges = {}
         self.panel_piece_names = {}
+        self.seam_stitch_pairs = {}
         self.source_signature = _simulation_source_signature(obj, ())
         self.last_steps = 0
         self.collision_surface = _collision_for_scene(obj)
