@@ -11,7 +11,6 @@ import FreeCAD as App
 import FreeCADGui as Gui
 import InitGui
 
-from freecad_cloth.pattern.PatternCommands import create_pattern_piece
 
 
 LOG_PATH = Path(os.environ.get("CLOTH_SEWING_SMOKE_LOG", ROOT / "artifacts" / "sewing-creation-smoke.log"))
@@ -70,15 +69,20 @@ for command in ("ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing"):
     assert command in Gui.listCommands(), "missing public sewing command: " + command
 
 doc = App.newDocument("SewingCreationSmoke")
-piece_a = create_pattern_piece()
-piece_a.Label = "SmokeA"
-piece_a.PieceId = "smoke-a"
-piece_b = create_pattern_piece()
-piece_b.Label = "SmokeB"
-piece_b.PieceId = "smoke-b"
-piece_c = create_pattern_piece()
-piece_c.Label = "SmokeC"
-piece_c.PieceId = "smoke-c"
+for _ in range(3):
+    Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
+    process_events()
+pieces = [obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"]
+if len(pieces) != 3:
+    raise RuntimeError("public Pattern command did not create three PatternPiece objects")
+piece_a, piece_b, piece_c = pieces
+for piece, label, piece_id in (
+    (piece_a, "SmokeA", "smoke-a"),
+    (piece_b, "SmokeB", "smoke-b"),
+    (piece_c, "SmokeC", "smoke-c"),
+):
+    piece.Label = label
+    piece.PieceId = piece_id
 doc.recompute()
 
 
