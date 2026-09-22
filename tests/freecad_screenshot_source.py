@@ -358,13 +358,10 @@ def simulation():
     front_pins = tuple(dict.fromkeys(front_pins))
     if not front_pins or not all(index in front_indices for index in front_pins):
         raise RuntimeError("visual tunic pin contract resolved a non-front solver endpoint")
-    if any(
-        index in {int(a) for pair in seam_pairs for a, b in pair}
-        and index in {int(b) for pair in seam_pairs for a, b in pair}
-        for index in front_pins
-        for seam_pairs in stitch_map.values()
-    ):
-        raise RuntimeError("visual tunic pin contract pins both endpoints of a sewn pair")
+    for seam_pairs in stitch_map.values():
+        for a, b in seam_pairs:
+            if int(a) in front_pins and int(b) in front_pins:
+                raise RuntimeError("visual tunic pin contract pins both endpoints of a sewn pair")
     scene.PinSelection = [str(i) for i in front_pins]
     log("pin-map solver-seam-endpoints front=%s back-pinned=false" % (front_pins,)); doc.recompute()
     for source in (doc.getObject("VisualTunicFront"), doc.getObject("VisualTunicBack")):
