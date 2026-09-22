@@ -49,7 +49,13 @@ def _boundary_shape(points, allowance=0.0):
 def _native_edge_records(piece):
     """Expose native Sketcher/PatternIR provenance as semantic edge records."""
     sketch = getattr(piece, "Sketch", None)
-    if sketch is None or str(getattr(piece, "GeometryAuthority", "")) != "Sketcher":
+    if sketch is None:
+        return None
+    semantic_ids = tuple(
+        str(value).strip()
+        for value in (getattr(sketch, "SemanticEdgeIds", ()) or ())
+    )
+    if str(getattr(piece, "GeometryAuthority", "")) != "Sketcher" and not semantic_ids:
         return None
     try:
         from freecad_cloth.common.SketchAuthority import _resolve_sketch_ir
