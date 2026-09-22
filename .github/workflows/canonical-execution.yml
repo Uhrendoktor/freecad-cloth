@@ -80,7 +80,8 @@ jobs:
                 tests/test_freecad_objects.py \
                 tests/test_project_structure.py \
                 tests/test_cloth_diagnostics.py \
-                tests/test_tunic_audit_contract.py; do
+                tests/test_tunic_audit_contract.py
+                tests/test_garment_e2e_contract.py; do
                 python3 "$test"
               done
             '
