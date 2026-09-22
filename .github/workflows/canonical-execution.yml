@@ -142,6 +142,70 @@ jobs:
           if-no-files-found: error
           compression-level: 1
 
+  gui-garment-e2e:
+    name: Canonical garment end-to-end smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Run canonical garment end-to-end smoke
+        env:
+          CLOTH_SIMULATION_BACKEND: tissu
+          CLOTH_TISSU_SUBSTEPS: 10
+          CLOTH_TISSU_COLLISION_MODE: torso-envelope
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/canonical-garment-e2e
+          mkdir -p artifacts/canonical-garment-e2e
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
+            -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" \
+            -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              python3 -c "import triangle; print(\"triangle-preflight=passed\")"
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/canonical-garment-e2e
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=15s 8m /opt/freecad/AppRun /workspace/tests/freecad_garment_e2e_smoke.py 2>&1 | tee /workspace/artifacts/canonical-garment-e2e/canonical-garment-e2e.log
+              test -s /workspace/artifacts/canonical-garment-e2e/canonical-garment-e2e.log
+            '
+      - name: Inspect canonical end-to-end evidence
+        run: |
+          set -euo pipefail
+          grep -q 'triangle-preflight=passed' artifacts/canonical-garment-e2e/canonical-garment-e2e.log
+          grep -q 'staged-selection=passed' artifacts/canonical-garment-e2e/canonical-garment-e2e.log
+          grep -q 'sewing-1to1=passed type=curved' artifacts/canonical-garment-e2e/canonical-garment-e2e.log
+          grep -q 'sewing-mn=passed sides=2,2 segments=2' artifacts/canonical-garment-e2e/canonical-garment-e2e.log
+          grep -q 'garment-hierarchy=passed groups=Patterns,Sewing,Fabric,Avatar,Simulation' artifacts/canonical-garment-e2e/canonical-garment-e2e.log
+          grep -q 'save-reload=passed pieces=4 seam=1to1 network=2segment' artifacts/canonical-garment-e2e/canonical-garment-e2e.log
+          grep -q 'invalidation-restore=passed seam=Valid' artifacts/canonical-garment-e2e/canonical-garment-e2e.log
+          grep -q 'stale-export=blocked' artifacts/canonical-garment-e2e/canonical-garment-e2e.log
+          grep -q 'determinism-signature=passed ' artifacts/canonical-garment-e2e/canonical-garment-e2e.log
+          grep -q 'pattern-export=passed formats=SVG,DXF' artifacts/canonical-garment-e2e/canonical-garment-e2e.log
+          grep -q 'canonical garment end-to-end acceptance passed' artifacts/canonical-garment-e2e/canonical-garment-e2e.log
+      - name: Upload canonical end-to-end evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: canonical-garment-e2e
+          path: artifacts/canonical-garment-e2e
+          if-no-files-found: error
+          compression-level: 1
+
   gui-pattern-export:
     name: Pattern production export smoke
     runs-on: ubuntu-latest
