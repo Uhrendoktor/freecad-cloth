@@ -97,6 +97,41 @@ def _set_native_boundary(sketch, arc):
     sketch.GeometryAuthority = "Sketcher"
 
 
+def test_native_semantic_seam_capture_preserves_provenance_before_authority_flag():
+    import freecad_cloth.pattern.PatternObjects as pattern_objects
+
+    semantic_ids = tuple("piece:edge:%d" % index for index in range(4))
+    sketch = SimpleNamespace(SemanticEdgeIds=semantic_ids)
+    piece = SimpleNamespace(
+        PieceId="piece",
+        Sketch=sketch,
+        GeometryAuthority="PatternParameters",
+    )
+    records = [
+        {
+            "piece_id": piece.PieceId,
+            "id": semantic_ids[index],
+            "points": ((float(index), 0.0), (float(index + 1), 0.0)),
+            "provenance": (
+                "PatternIR",
+                "Sketcher",
+                "line",
+                (0.0, 1.0),
+                ((float(index), 0.0, 0.0), (float(index + 1), 0.0, 0.0)),
+            ),
+        }
+        for index in range(4)
+    ]
+    previous_records = pattern_objects._native_edge_records
+    pattern_objects._native_edge_records = lambda _piece: records
+    try:
+        edge_id, signature = pattern_objects._seam_edge_id(piece, "piece:edge:2", "A")
+        assert edge_id == "piece:edge:2"
+        assert signature.startswith("native-v1:")
+    finally:
+        pattern_objects._native_edge_records = previous_records
+
+
 def test_native_seam_reference_save_reload_curve_edit_and_missing():
     if App is None or Part is None:
         return
@@ -189,6 +224,7 @@ def test_native_seam_reference_save_reload_curve_edit_and_missing():
 
 
 if __name__ == "__main__":
+    test_native_semantic_seam_capture_preserves_provenance_before_authority_flag()
     test_pattern_piece_proxy_recomputes_deterministically()
     test_pattern_piece_proxy_rejects_invalid_dimensions()
     test_native_seam_reference_save_reload_curve_edit_and_missing()
