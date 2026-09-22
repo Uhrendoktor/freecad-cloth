@@ -204,6 +204,8 @@ def add_pattern_piece(doc, piece: PatternPiece):
     obj.addProperty("App::PropertyString", "SewingBoundary", "Cloth")
     obj.addProperty("App::PropertyString", "SewingOutline", "Cloth")
     obj.Proxy = PatternPieceProxy(); obj.Proxy.execute(obj)
+    from freecad_cloth.common.GarmentDocument import link_garment_object
+    link_garment_object(obj, "PatternPiece", doc)
     return obj
 
 
@@ -280,6 +282,8 @@ def add_seam(doc, seam: Seam):
     obj.Proxy.execute(obj)
     from freecad_cloth.sewing.SewingView import apply_seam_colors
     apply_seam_colors(doc.Objects)
+    from freecad_cloth.common.GarmentDocument import link_garment_object
+    link_garment_object(obj, "Seam", doc)
     return obj
 
 
