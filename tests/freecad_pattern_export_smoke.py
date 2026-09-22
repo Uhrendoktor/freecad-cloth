@@ -97,7 +97,7 @@ try:
     Gui.activateWorkbench("ClothPatternWorkbench")
     process_events()
 
-    for command in ("ClothPattern_CreatePieceWithSketch", "ClothPattern_EditSketch", "ClothPattern_Export"):
+    for command in ("ClothPattern_CreatePieceWithSketch", "ClothPattern_EditSketch", "ClothPattern_Export", "ClothPattern_AddNotch", "ClothPattern_AddGrainline", "ClothPattern_AddInternalMark"):
         if command not in Gui.listCommands():
             raise RuntimeError("missing public Pattern command: " + command)
     if "ClothPattern_CreateDrafting" in Gui.listCommands():
@@ -117,6 +117,23 @@ try:
         raise RuntimeError("public Pattern command did not create a PatternPiece")
     doc.recompute()
     record("piece=ready")
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(piece)
+    process_events()
+    for command in ("ClothPattern_AddNotch", "ClothPattern_AddGrainline", "ClothPattern_AddInternalMark"):
+        Gui.runCommand(command, 0)
+        process_events()
+    doc.recompute()
+    construction_marks = [obj for obj in doc.Objects if str(getattr(obj, "PatternMarkType", "")).strip() and str(getattr(obj, "PieceId", "")) == str(piece.PieceId)]
+    if len(construction_marks) != 3:
+        raise RuntimeError("public Pattern mark commands did not persist all construction marks")
+    semantic_edge_ids = tuple(str(v) for v in getattr(piece.Sketch, "SemanticEdgeIds", ()) if str(v))
+    if not semantic_edge_ids or any(str(getattr(obj, "SegmentId", "")) not in semantic_edge_ids for obj in construction_marks):
+        raise RuntimeError("persisted Pattern marks do not reference native Sketch semantic edges")
+    mark_ids = tuple(sorted(str(getattr(obj, "PatternMarkId", "")) for obj in construction_marks))
+    if any(not value for value in mark_ids):
+        raise RuntimeError("persisted Pattern marks are missing stable IDs")
+    record("construction-marks=passed count=3")
     if Gui.Control.activeDialog():
         Gui.Control.closeDialog()
         process_events()
