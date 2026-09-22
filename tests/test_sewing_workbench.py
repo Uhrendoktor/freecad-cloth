@@ -73,8 +73,8 @@ def test_uniform_alignment_follows_curved_edge():
     finally:
         if oldf is None: sys.modules.pop("FreeCAD", None)
         else: sys.modules["FreeCAD"] = oldf
-    assert endpoint_pairs[1][0].y == 0
-    assert uniform_pairs[1][0].y > 0
+    assert endpoint_pairs[1][0].y > 0
+    assert endpoint_pairs[1] == uniform_pairs[1]
 
 
 def test_reversed_correspondence_is_applied_once():
@@ -244,9 +244,9 @@ def test_proxy_reversed_correspondence_is_valid_and_usable():
     assert obj.StitchPoints[0].split("|")[1].startswith("100.000000")
 
 
-def test_proxy_preserves_absolute_tolerance_status():
-    obj = _execute_fake_proxy(width_a=1.0, width_b=1.06, tolerance=0.5)
-    assert obj.Status == "Valid"
+def test_proxy_status_uses_shared_relative_mismatch_contract():
+    obj = _execute_fake_proxy(width_a=1.0, width_b=1.06, tolerance=50.0, relative_tolerance=0.05)
+    assert obj.Status == "Length mismatch"
     assert obj.CorrespondenceStatus == "length_mismatch"
 
 
