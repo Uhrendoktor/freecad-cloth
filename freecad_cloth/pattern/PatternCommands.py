@@ -388,7 +388,7 @@ try:
             "ClothPattern_CreateSketch": create_pattern_sketch,
             "ClothPattern_CreatePieceWithSketch": create_pattern_piece_with_sketch,
             "ClothPattern_CreateFromSketch": create_pattern_piece_from_selected_sketch,
-"ClothPattern_Show2D": show_pattern_2d,
+            "ClothPattern_Show2D": show_pattern_2d,
             "ClothPattern_CreatePiece": create_pattern_piece_with_sketch,
             "ClothPattern_CreateCustomPiece": create_custom_pattern_piece,
             "ClothPattern_CreateMesh": create_pattern_mesh,
