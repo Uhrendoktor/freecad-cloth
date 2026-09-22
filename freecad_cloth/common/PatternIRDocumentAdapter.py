@@ -54,12 +54,8 @@ def compile_pattern_ir(doc, pieces, curve_samples=64):
         piece_b = str(getattr(seam, "PieceB", "")).strip()
         selected_a = piece_a in selected_ids
         selected_b = piece_b in selected_ids
-        if not selected_a and not selected_b:
-            continue
         if not selected_a or not selected_b:
-            raise ValueError(
-                f"simulation seam references a pattern piece outside the selected scene: {seam_id}"
-            )
+            continue
 
         status = str(getattr(seam, "Status", "Valid"))
         if status != "Valid":
