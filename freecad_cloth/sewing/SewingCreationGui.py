@@ -26,6 +26,7 @@ class SewingCreationSession:
         self.builder = builder
         self.created = ()
         self.previewed = False
+        self.committed = False
         self._transaction_active = False
         self._original_selection = tuple(gui.Selection.getSelection()) if gui is not None else ()
         self._begin_transaction()
@@ -116,6 +117,8 @@ class SewingCreationSession:
 
     def preview(self):
         """Create and validate the normal persisted objects, still uncommitted."""
+        if self.committed:
+            raise ValueError("sewing creation has already been committed")
         if self.previewed:
             self._reset_preview()
         before_names = {str(getattr(obj, "Name", "")) for obj in getattr(self.doc, "Objects", ())}
@@ -137,17 +140,22 @@ class SewingCreationSession:
 
     def commit(self):
         """Validate the staged objects once, then commit the document transaction."""
+        if self.committed:
+            raise ValueError("sewing creation has already been committed")
         if not self.previewed:
             self.preview()
         self.doc.recompute()
         self._validate_preview()
         self._commit_transaction()
         self.previewed = False
+        self.committed = True
         self._select_created()
         return self.created
 
     def cancel(self):
         """Abort the creation transaction, restoring the document and prior selection."""
+        if self.committed:
+            return True
         self._abort_transaction()
         self.created = ()
         self.previewed = False
@@ -264,6 +272,8 @@ class SewingCreationTaskPanel:
             self._show_error(exc)
             return False
         self._show_status("Committed sewing creation.")
+        self.commit_button.setEnabled(False)
+        self.preview_button.setEnabled(False)
         return True
 
     def reject(self):
