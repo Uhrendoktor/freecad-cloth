@@ -43,3 +43,15 @@ def test_simulation_cross_scope_dependencies_are_global_and_outputs_have_garment
     assert 'link_garment_object(scene, "Simulation", doc)' in source
     assert 'link_garment_object(panel_a, "SimulationOutput", doc)' in source
     assert 'link_garment_object(panel_b, "SimulationOutput", doc)' in source
+
+
+def test_fitting_proxy_execute_does_not_mutate_visual_children():
+    source = (ROOT / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    proxy_start = source.index("class _FittingProxy")
+    proxy_end = source.index("\n\nCOMMANDS =", proxy_start)
+    assert "_sync_visuals(obj)" not in source[proxy_start:proxy_end]
+
+
+def test_native_pattern_sketch_link_is_global():
+    source = (ROOT / "freecad_cloth" / "pattern" / "PatternSketch.py").read_text(encoding="utf-8")
+    assert 'App::PropertyLinkGlobal", "Sketch", "Cloth"' in source
