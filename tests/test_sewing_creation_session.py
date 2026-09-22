@@ -92,15 +92,34 @@ class SewingCreationSessionContractTests(unittest.TestCase):
         self.assertEqual(invalid.previewed, False)
         invalid.cancel()
 
-    def test_failed_preview_does_not_leave_a_commit_enabled_state_contract(self):
-        doc = _Document()
-        gui = SimpleNamespace(Selection=_Selection())
-        session = SewingCreationSession(doc, gui, "Create Seam", _builder(doc, status="Changed reference"))
-        with self.assertRaises(ValueError):
-            session.preview()
-        self.assertFalse(session.previewed)
-        self.assertEqual(doc.Objects, [])
-        self.assertFalse(session._transaction_active is False and doc.calls[-1][0] == "abort")
+    def test_preview_error_feedback_is_actionable_and_disables_commit(self):
+        from freecad_cloth.sewing.SewingCreationGui import SewingCreationTaskPanel
+
+        class _Label:
+            def __init__(self):
+                self.text = ""
+                self.style = ""
+
+            def setText(self, value):
+                self.text = value
+
+            def setStyleSheet(self, value):
+                self.style = value
+
+        class _Button:
+            def __init__(self):
+                self.enabled = True
+
+            def setEnabled(self, value):
+                self.enabled = value
+
+        panel = SewingCreationTaskPanel.__new__(SewingCreationTaskPanel)
+        panel.feedback = _Label()
+        panel.commit_button = _Button()
+        panel._show_error(ValueError("select exactly two edges on pattern pieces"))
+        self.assertIn("Preview rejected", panel.feedback.text)
+        self.assertIn("Adjust the selection", panel.feedback.text)
+        self.assertFalse(panel.commit_button.enabled)
 
 
 if __name__ == "__main__":
