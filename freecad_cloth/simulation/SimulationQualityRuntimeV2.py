@@ -176,6 +176,9 @@ class QualitySimulationProxy:
         obj.SimulatedTime = base.backend.time
         obj.ParticleCount = len(positions)
         obj.FiniteState = base.backend.finite()
+        # Mirror derived solver provenance on the FreeCAD-facing wrapper so
+        # diagnostics can inspect the same runtime data without persisting it.
+        self.seam_stitch_pairs = base.seam_stitch_pairs
 
     def _build_pattern_scene(self, obj, pieces, signature, pattern_ir=None):
         """Use the authoritative base scene builder with quality tessellation."""
