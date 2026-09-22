@@ -61,9 +61,12 @@ def snapshot(doc):
     assert root is not None
     assert root.TypeId == "App::Part"
     actual_root_children = [obj.Name for obj in children(root)]
-    log("root-children=%s" % actual_root_children)
-    assert sorted(actual_root_children) == sorted(GARMENT_GROUPS)
-    assert len(actual_root_children) == len(GARMENT_GROUPS)
+    log("root-contents=%s" % actual_root_children)
+    groups = [require_group(doc, role) for role in GARMENT_GROUPS]
+    assert all(group in children(root) for group in groups)
+    assert sorted(group.Name for group in groups) == sorted(GARMENT_GROUPS)
+    assert all(group.TypeId == "App::DocumentObjectGroup" for group in groups)
+    assert all(group.GarmentRole == group.Name for group in groups)
 
     patterns = require_group(doc, "Patterns")
     sewing = require_group(doc, "Sewing")
