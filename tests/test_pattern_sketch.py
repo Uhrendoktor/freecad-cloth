@@ -123,8 +123,6 @@ def test_polygon_drafting_round_trip_and_editing():
     assert edited == points
     assert bounds(points) == (0.0, 0.0, 100.0, 70.0)
 
-
-
 def test_garment_pattern_sketch_scope_contract():
     root = Path(__file__).resolve().parents[1]
     source = (root / "freecad_cloth" / "pattern" / "PatternSketch.py").read_text(encoding="utf-8")
