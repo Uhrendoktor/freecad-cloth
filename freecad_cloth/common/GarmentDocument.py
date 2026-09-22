@@ -9,7 +9,8 @@ GARMENT_SCHEMA_VERSION = "1"
 GARMENT_ROOT_NAME = "Garment"
 GARMENT_GROUPS = ("Patterns", "Sewing", "Fabric", "Avatar", "Simulation")
 
-# FittingScene remains an ordinary persisted FreeCAD scene object; the garment schema intentionally stays five-group.\n_ROLE_TO_GROUP = {
+# FittingScene remains an ordinary persisted FreeCAD scene object; the garment schema intentionally stays five-group.
+_ROLE_TO_GROUP = {
     "PatternPiece": "Patterns",
     "PatternSketch": "Patterns",
     "PatternMesh": "Patterns",
