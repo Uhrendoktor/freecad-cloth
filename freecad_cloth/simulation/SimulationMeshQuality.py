@@ -15,21 +15,34 @@ def _outline_points(piece):
     return points
 
 
-def quality_piece_mesh(piece, start_height, particle_distance):
+def quality_piece_mesh(piece, start_height, particle_distance, pattern_ir=None):
     from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
     from freecad_cloth.pattern.PatternMesh import refine_linear_boundary, triangulate
 
     spacing = max(0.25, float(particle_distance))
-    points = _outline_points(piece)
-    segments = [
-        LineSegment(f"{piece.PieceId}:edge:{i}", points[i], points[(i + 1) % len(points)])
-        for i in range(len(points))
-    ]
+    if pattern_ir is None:
+        points = _outline_points(piece)
+        segments = [
+            LineSegment(f"{piece.PieceId}:edge:{i}", points[i], points[(i + 1) % len(points)])
+            for i in range(len(points))
+        ]
+        edge_prefixes = [f"{piece.PieceId}:edge:{i}" for i in range(len(points))]
+    else:
+        pattern_ir.validate()
+        piece_ir = pattern_ir.piece(str(piece.PieceId))
+        pattern = pattern_ir.to_parametric_pattern(str(piece.PieceId))
+        points = [
+            (float(boundary.samples[0][0]), float(boundary.samples[0][1]))
+            for boundary in piece_ir.boundaries
+        ]
+        segments = list(pattern.segments)
+        edge_prefixes = [str(boundary.id) for boundary in piece_ir.boundaries]
+    pattern = ParametricPattern(segments)
     # For an approximately equilateral triangle lattice, area ~= sqrt(3)/4*d^2.
     # A small safety margin keeps the actual edge spacing below the requested
     # particle distance without hand-written midpoint refinement.
     max_area = 0.45 * spacing * spacing
-    mesh = triangulate(refine_linear_boundary(ParametricPattern(segments), spacing), max_area=max_area)
+    mesh = triangulate(refine_linear_boundary(pattern, spacing), max_area=max_area)
     placement = getattr(piece, "Placement", None)
     if placement is None:
         positions = [(x, y, float(start_height)) for x, y in mesh.vertices]
@@ -47,7 +60,6 @@ def quality_piece_mesh(piece, start_height, particle_distance):
         raise ValueError("quality mesh boundary provenance length does not match boundary vertices")
 
     edge_pairs = {}
-    edge_prefixes = [f"{piece.PieceId}:edge:{index}" for index in range(len(points))]
     for index, segment_id in enumerate(segment_ids):
         raw_key = str(segment_id)
         matches = [
@@ -64,17 +76,17 @@ def quality_piece_mesh(piece, start_height, particle_distance):
     mesh_vertices = tuple(mesh.vertices)
     for edge_index, start_point in enumerate(points):
         end_point = points[(edge_index + 1) % len(points)]
-        key = f"{piece.PieceId}:edge:{edge_index}"
+        key = edge_prefixes[edge_index]
         pairs = edge_pairs.get(key)
         if not pairs:
-            raise ValueError(f"quality mesh has no boundary provenance for edge {edge_index}")
+            raise ValueError(f"quality mesh has no boundary provenance for edge {key}")
 
         vertex_indices = {vertex for pair in pairs for vertex in pair}
         dx = float(end_point[0]) - float(start_point[0])
         dy = float(end_point[1]) - float(start_point[1])
         length_squared = dx * dx + dy * dy
         if length_squared <= 1e-18:
-            raise ValueError(f"quality mesh authored edge {edge_index} has zero length")
+            raise ValueError(f"quality mesh authored edge {key} has zero length")
 
         def parameter(vertex_index):
             vertex = mesh_vertices[vertex_index]
@@ -85,20 +97,20 @@ def quality_piece_mesh(piece, start_height, particle_distance):
 
         ordered = tuple(sorted(vertex_indices, key=parameter))
         if len(ordered) < 2:
-            raise ValueError(f"quality mesh semantic edge {edge_index} has too few boundary vertices")
+            raise ValueError(f"quality mesh semantic edge {key} has too few boundary vertices")
 
         endpoint_tolerance = 1e-7 * max(1.0, hypot(dx, dy))
         first = mesh_vertices[ordered[0]]
         last = mesh_vertices[ordered[-1]]
         if hypot(float(first[0]) - float(start_point[0]), float(first[1]) - float(start_point[1])) > endpoint_tolerance:
-            raise ValueError(f"quality mesh semantic edge {edge_index} does not start at its authored vertex")
+            raise ValueError(f"quality mesh semantic edge {key} does not start at its authored vertex")
         if hypot(float(last[0]) - float(end_point[0]), float(last[1]) - float(end_point[1])) > endpoint_tolerance:
-            raise ValueError(f"quality mesh semantic edge {edge_index} does not end at its authored vertex")
+            raise ValueError(f"quality mesh semantic edge {key} does not end at its authored vertex")
 
         actual_pairs = {frozenset(pair) for pair in pairs}
         ordered_pairs = {frozenset((left, right)) for left, right in zip(ordered, ordered[1:])}
         if ordered_pairs != actual_pairs:
-            raise ValueError(f"quality mesh semantic edge {edge_index} boundary chain is disconnected")
+            raise ValueError(f"quality mesh semantic edge {key} boundary chain is disconnected")
 
         for left, right in zip(ordered, ordered[1:]):
             span = hypot(
@@ -107,10 +119,12 @@ def quality_piece_mesh(piece, start_height, particle_distance):
             )
             if span > float(spacing) + endpoint_tolerance:
                 raise ValueError(
-                    f"quality mesh semantic edge {edge_index} exceeds requested boundary spacing"
+                    f"quality mesh semantic edge {key} exceeds requested boundary spacing"
                 )
         by_index.append(ordered)
     return positions, tuple(mesh.triangles), tuple(by_index)
+
+
 
 
 def install_quality_mesh_patch():
@@ -121,13 +135,16 @@ def install_quality_mesh_patch():
     from freecad_cloth.simulation import SimulationObjects
     original = QualitySimulationProxy._build_pattern_scene
 
-    def build_pattern_scene(self, obj, pieces, signature):
+    def build_pattern_scene(self, obj, pieces, signature, pattern_ir=None):
         previous = SimulationObjects._piece_mesh
-        SimulationObjects._piece_mesh = lambda piece, start_height: quality_piece_mesh(
-            piece, start_height, float(obj.ParticleDistance)
+        SimulationObjects._piece_mesh = lambda piece, start_height, _pattern_ir=None: quality_piece_mesh(
+            piece,
+            start_height,
+            float(obj.ParticleDistance),
+            pattern_ir=_pattern_ir if _pattern_ir is not None else pattern_ir,
         )
         try:
-            return original(self, obj, pieces, signature)
+            return original(self, obj, pieces, signature, pattern_ir)
         finally:
             SimulationObjects._piece_mesh = previous
 
