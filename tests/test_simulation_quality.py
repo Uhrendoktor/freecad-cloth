@@ -1,5 +1,6 @@
 import sys
 import unittest
+from math import hypot
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -96,6 +97,39 @@ class SimulationQualityTests(unittest.TestCase):
                 for a, b in zip(edge, edge[1:])
             ]
             self.assertLessEqual(max(distances), spacing + 1e-9)
+
+    def test_refined_tunic_edges_preserve_authored_order(self):
+        outline = [
+            (0.0, 0.0), (600.0, 0.0), (520.0, 590.4), (447.2, 698.4),
+            (332.8, 648.0), (187.2, 648.0), (72.8, 698.4), (0.0, 590.4),
+        ]
+        piece = PatternPiece("Tunic", outline, id="tunic")
+        piece_obj = type("Piece", (), {
+            "SewingOutline": repr(piece.outline),
+            "DraftingBoundary": repr(piece.outline),
+            "PieceId": piece.id,
+            "Placement": None,
+        })()
+        spacing = 20.0
+        positions, _triangles, boundary = quality_piece_mesh(piece_obj, 100.0, spacing)
+
+        self.assertEqual(len(boundary), len(outline))
+        for edge_index, edge in enumerate(boundary):
+            self.assertGreaterEqual(len(edge), 3)
+            start = outline[edge_index]
+            end = outline[(edge_index + 1) % len(outline)]
+            self.assertAlmostEqual(positions[edge[0]][0], start[0], places=7)
+            self.assertAlmostEqual(positions[edge[0]][1], start[1], places=7)
+            self.assertAlmostEqual(positions[edge[-1]][0], end[0], places=7)
+            self.assertAlmostEqual(positions[edge[-1]][1], end[1], places=7)
+            distances = [
+                hypot(
+                    positions[left][0] - positions[right][0],
+                    positions[left][1] - positions[right][1],
+                )
+                for left, right in zip(edge, edge[1:])
+            ]
+            self.assertLessEqual(max(distances), spacing + 1e-7)
 
     def test_quality_proxy_keeps_solver_state_outside_serialized_object_dict(self):
         """Guard the reload path without placing the non-serializable solver in __dict__."""
