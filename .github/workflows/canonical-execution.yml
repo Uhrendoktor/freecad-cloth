@@ -104,19 +104,14 @@ jobs:
           rm -rf artifacts/garment-hierarchy-smoke
           mkdir -p artifacts/garment-hierarchy-smoke
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
-            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
-            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e PYTHONPATH=/workspace \
             -e CLOTH_GARMENT_HIERARCHY_OUT=/workspace/artifacts/garment-hierarchy-smoke \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
-              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/garment-hierarchy-smoke
-              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
-              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
-              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
-              xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /workspace/tests/freecad_garment_hierarchy_smoke.py
+              FCMD="$(command -v FreeCADCmd || command -v freecadcmd || printf /opt/freecad/bin/FreeCADCmd)"
+              test -x "$FCMD"
+              timeout --signal=TERM --kill-after=10s 5m "$FCMD" /workspace/tests/freecad_garment_hierarchy_smoke.py
               test -s /workspace/artifacts/garment-hierarchy-smoke/garment-hierarchy-smoke.log
               test -s /workspace/artifacts/garment-hierarchy-smoke/garment-hierarchy-smoke.json
               test -s /workspace/artifacts/garment-hierarchy-smoke/garment-hierarchy-smoke.FCStd
