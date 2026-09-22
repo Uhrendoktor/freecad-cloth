@@ -8,7 +8,8 @@ import FreeCAD as App
 import FreeCADGui as Gui
 import Part
 import Sketcher
-\nfrom freecad_cloth.common.GarmentDocument import adopt_garment, create_garment
+
+from freecad_cloth.common.GarmentDocument import adopt_garment, create_garment
 
 
 def _events():
