@@ -165,6 +165,26 @@ try:
             raise RuntimeError("export task panel does not state that source geometry is read-only")
         close_public_task(panel)
 
+        document_path = output_dir / "pattern-roundtrip.FCStd"
+        piece_id = str(piece.PieceId)
+        doc.saveAs(str(document_path))
+        saved_name = doc.Name
+        App.closeDocument(saved_name)
+        process_events()
+        doc = App.openDocument(str(document_path))
+        process_events()
+        doc.recompute()
+        piece = next((obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece" and str(getattr(obj, "PieceId", "")) == piece_id), None)
+        if piece is None or str(getattr(piece, "GeometryAuthority", "")) != "Sketcher" or getattr(piece, "Sketch", None) is None:
+            raise RuntimeError("save/reload lost native Sketch-authoritative PatternPiece")
+        reloaded_marks = [obj for obj in doc.Objects if str(getattr(obj, "PatternMarkType", "")).strip() and str(getattr(obj, "PieceId", "")) == piece_id]
+        if tuple(sorted(str(getattr(obj, "PatternMarkId", "")) for obj in reloaded_marks)) != mark_ids:
+            raise RuntimeError("save/reload changed persisted Pattern mark IDs")
+        if any(str(getattr(obj, "SegmentId", "")) not in tuple(str(v) for v in getattr(piece.Sketch, "SemanticEdgeIds", ())) for obj in reloaded_marks):
+            raise RuntimeError("save/reload lost persisted native mark segment identity")
+        construction_marks = reloaded_marks
+        record("roundtrip=passed pattern-marks")
+
         results = {}
         readers = {"SVG": from_svg_metadata, "DXF": from_dxf_metadata}
         for export_format in ("SVG", "DXF"):
