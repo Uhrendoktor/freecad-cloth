@@ -100,17 +100,24 @@ source = source.replace(anchor, preview_probe + '\n' + anchor, 1)
 seam_check = """    backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
     if not simulated_positions: raise RuntimeError("Tissu backend returned no simulated particle positions")
+    from freecad_cloth.common.PatternSimulationAdapter import resolve_simulation_pattern
+    resolved_pattern = resolve_simulation_pattern(scene.Document, (front, back))
     boundary_cache = {}
     for piece in (front, back):
         _local_positions, _triangles, boundary_edges = quality_piece_mesh(piece, 0.0, scene.ParticleDistance)
         panel = next((candidate for candidate in panels if candidate.Label.endswith(piece.Label)), None)
         if panel is None: raise RuntimeError("authoritative seam check cannot resolve drape panel")
-        boundary_cache[piece.PieceId] = (boundary_edges, scene.Proxy.panel_indices[panel.Name])
+        piece_ir = resolved_pattern.piece(str(piece.PieceId))
+        boundary_cache[piece.PieceId] = (piece_ir, boundary_edges, scene.Proxy.panel_indices[panel.Name])
     seam_gaps = []
     for seam, piece_a, piece_b in seam_records:
-        edges_a, global_a = boundary_cache[piece_a.PieceId]; edges_b, global_b = boundary_cache[piece_b.PieceId]
-        edge_a = int(getattr(seam, "EdgeA", 0)); edge_b = int(getattr(seam, "EdgeB", 0))
-        if edge_a >= len(edges_a) or edge_b >= len(edges_b): raise RuntimeError("authoritative seam check cannot resolve seam edge")
+        ir_a, edges_a, global_a = boundary_cache[piece_a.PieceId]
+        ir_b, edges_b, global_b = boundary_cache[piece_b.PieceId]
+        edge_a_id = str(getattr(seam, "EdgeAId", "")).strip()
+        edge_b_id = str(getattr(seam, "EdgeBId", "")).strip()
+        edge_a = next((index for index, boundary in enumerate(ir_a.boundaries) if str(boundary.id) == edge_a_id), None)
+        edge_b = next((index for index, boundary in enumerate(ir_b.boundaries) if str(boundary.id) == edge_b_id), None)
+        if edge_a is None or edge_b is None: raise RuntimeError("authoritative seam check cannot resolve semantic seam edge")
         for ia, ib in ((edges_a[edge_a][0], edges_b[edge_b][0]), (edges_a[edge_a][-1], edges_b[edge_b][-1])):
             ga = global_a[ia]; gb = global_b[ib]; a = simulated_positions[ga]; b = simulated_positions[gb]
             seam_gaps.append(((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2)**0.5)
