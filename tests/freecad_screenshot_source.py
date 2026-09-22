@@ -365,6 +365,38 @@ def simulation():
         raise RuntimeError("simulation did not reach a finite 90-step state")
     if any(panel.Mesh.CountFacets <= 10 for panel in scene.DrapePanels):
         raise RuntimeError("draped tunic panel mesh is empty")
+    from freecad_cloth.common.ClothDiagnosticsGui import DiagnosticsTaskPanel, create_diagnostic_map
+    diagnostics_panel = DiagnosticsTaskPanel(scene)
+    diagnostic_dock = show_task(
+        diagnostics_panel,
+        "Cloth Diagnostics",
+        ("Formula:", "Read-only", "Refresh analysis", "Create diagnostic map", "Export analysis data"),
+    )
+    diagnostic_dock.hide(); events()
+    diagnostic_maps = create_diagnostic_map(scene, "stress")
+    if not diagnostic_maps:
+        raise RuntimeError("valid draped tunic produced no diagnostic stress map")
+    for diagnostic in diagnostic_maps:
+        diagnostic.ViewObject.Visibility = True
+    log("diagnostic-map=passed metric=stress maps=%d" % len(diagnostic_maps))
+    original_finite = bool(scene.FiniteState)
+    scene.FiniteState = False
+    try:
+        create_diagnostic_map(scene, "stress")
+    except RuntimeError as exc:
+        log("diagnostic-stale-guard=passed message=%s" % str(exc))
+    else:
+        raise RuntimeError("diagnostics created a map from a non-finite simulation state")
+    finally:
+        scene.FiniteState = original_finite
+    view.viewFront(); view.fitAll(); events()
+    save(
+        "cloth-simulation-draped-diagnostics.png",
+        "Cloth Diagnostics stress map",
+        "read-only stress utilization map over the valid 90-step drape",
+    )
+    for diagnostic in diagnostic_maps:
+        diagnostic.ViewObject.Visibility = False
     write_drape_metrics(
         panels,
         avatar,

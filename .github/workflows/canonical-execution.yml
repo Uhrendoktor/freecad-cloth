@@ -75,7 +75,9 @@ jobs:
                 tests/test_humanoid_mesh.py \
                 tests/test_drape_quality.py \
                 tests/test_freecad_objects.py \
-                tests/test_project_structure.py; do
+                tests/test_project_structure.py \
+                tests/test_cloth_diagnostics.py \
+                tests/test_tunic_audit_contract.py; do
                 python3 "$test"
               done
             '
@@ -134,6 +136,9 @@ jobs:
           test -s docs/images/generated/cloth-simulation-draped-right.png
           test -s docs/images/generated/cloth-simulation-draped-top.png
           test -s docs/images/generated/cloth-simulation-draped-bottom.png
+          test -s docs/images/generated/cloth-simulation-draped-diagnostics.png
+          grep -q 'diagnostic-map=passed metric=stress' docs/images/generated/gui-progress.log
+          grep -q 'diagnostic-stale-guard=passed' docs/images/generated/gui-progress.log
       - name: Upload tunic visual audit
         if: always()
         uses: actions/upload-artifact@v6
