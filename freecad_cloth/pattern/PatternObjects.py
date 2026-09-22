@@ -114,6 +114,34 @@ def _edge_records(piece):
 def _seam_edge_id(piece, edge, prefix):
     """Return the semantic edge id and captured signature for a seam side."""
     records = _edge_records(piece)
+    if isinstance(edge, int) and str(getattr(piece, "GeometryAuthority", "")).strip() == "Sketcher":
+        sketch = getattr(piece, "Sketch", None)
+        if sketch is None:
+            raise MissingEdgeReference(
+                f"Sketch-authoritative pattern piece {piece.PieceId} has no Sketch object"
+            )
+        semantic_ids = tuple(getattr(sketch, "SemanticEdgeIds", ()) or ())
+        if edge < 0 or edge >= len(semantic_ids):
+            raise MissingEdgeReference(
+                f"Sketcher seam edge {edge} is outside semantic geometry on pattern piece {piece.PieceId}"
+            )
+        reference_id = str(semantic_ids[edge]).strip()
+        if not reference_id:
+            raise MissingEdgeReference(
+                f"Sketcher seam edge {edge} has no persisted semantic edge id on pattern piece {piece.PieceId}"
+            )
+        record = next((value for value in records if str(value.get("id", "")) == reference_id), None)
+        if record is None:
+            raise MissingEdgeReference(
+                f"semantic edge reference {reference_id} is missing from pattern piece {piece.PieceId}"
+            )
+        return reference_id, capture_edge_reference(
+            piece.PieceId,
+            reference_id,
+            record["points"],
+            record.get("provenance"),
+        ).signature
+
     if isinstance(edge, int) and (edge < 0 or edge >= len(records)):
         proxy = getattr(piece, "Proxy", None)
         execute = getattr(proxy, "execute", None)
