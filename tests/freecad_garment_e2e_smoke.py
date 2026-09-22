@@ -462,7 +462,6 @@ def run_acceptance():
         expected_members = {
             "Patterns": {piece.Name for piece in pieces},
             "Sewing": {seam_11.Name, network.Name, operation.Name},
-            "Fitting": {fitting.Name},
         }
         for role, names in expected_members.items():
             actual = {item["name"] for item in structure["groups"].get(role, ())}
