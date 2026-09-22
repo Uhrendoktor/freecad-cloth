@@ -163,7 +163,7 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=10s 5m /opt/freecad/AppRun /workspace/tests/ci_garment_document_runner.py | tee /workspace/artifacts/garment-hierarchy-smoke/test-garment-document.log
+              # Run the unchanged garment document contract inside the native FreeCAD GUI job.\n              timeout --signal=TERM --kill-after=10s 5m /opt/freecad/AppRun /workspace/tests/ci_garment_document_runner.py | tee /workspace/artifacts/garment-hierarchy-smoke/test-garment-document.log
               timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /workspace/tests/freecad_garment_hierarchy_smoke.py
               test -s /workspace/artifacts/garment-hierarchy-smoke/garment-hierarchy-smoke.log
               test -s /workspace/artifacts/garment-hierarchy-smoke/garment-hierarchy-smoke.json
