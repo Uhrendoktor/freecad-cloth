@@ -218,6 +218,7 @@ jobs:
             -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" \
             -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
+            -e CLOTH_PRODUCTION_EXPORT_EVIDENCE=/workspace/docs/images/generated/pattern-production-roundtrip.log \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
@@ -244,6 +245,17 @@ jobs:
           test -s docs/images/generated/cloth-simulation-draped-top.png
           test -s docs/images/generated/cloth-simulation-draped-bottom.png
           test -s docs/images/generated/cloth-simulation-draped-diagnostics.png
+          test -s docs/images/generated/pattern-production-roundtrip.log
+          grep -q '^pattern-export-route=public-ui-task-panel$' docs/images/generated/pattern-production-roundtrip.log
+          grep -q '^formats=SVG,DXF$' docs/images/generated/pattern-production-roundtrip.log
+          grep -q '^units=mm$' docs/images/generated/pattern-production-roundtrip.log
+          grep -q '^scale=1.0$' docs/images/generated/pattern-production-roundtrip.log
+          grep -q '^edge_ids=' docs/images/generated/pattern-production-roundtrip.log
+          grep -q '^seam_ids=' docs/images/generated/pattern-production-roundtrip.log
+          grep -q '^notch_ids=' docs/images/generated/pattern-production-roundtrip.log
+          grep -q '^internal_mark_ids=' docs/images/generated/pattern-production-roundtrip.log
+          grep -q '^export-immutable=true$' docs/images/generated/pattern-production-roundtrip.log
+          grep -q '^deterministic=true$' docs/images/generated/pattern-production-roundtrip.log
           grep -q 'diagnostic-map=passed metric=stress' docs/images/generated/gui-progress.log
           grep -q 'diagnostic-stale-guard=passed' docs/images/generated/gui-progress.log
       - name: Upload tunic visual audit
@@ -256,6 +268,7 @@ jobs:
             docs/images/generated/drape-visual-metrics.json
             docs/images/generated/gui-progress.log
             docs/images/generated/gui-screenshot-manifest.txt
+            docs/images/generated/pattern-production-roundtrip.log
           if-no-files-found: error
           compression-level: 1
 

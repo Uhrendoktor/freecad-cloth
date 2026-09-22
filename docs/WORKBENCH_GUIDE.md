@@ -8,9 +8,9 @@ FreeCAD Cloth has three cooperating native workbenches:
 
 ## Production 2D export
 
-In the Cloth Pattern workbench, select a PatternPiece and run the public `ClothPattern_Export` command. The task panel emits deterministic SVG or DXF derived from the authoritative native Sketcher geometry and reports piece/edge/seam identities, units, scale, seam allowance and construction-mark metadata. Export is read-only: source PatternPiece/Sketch state is not mutated.
+In the Cloth Pattern workbench, select a PatternPiece and run the public `ClothPattern_Export` command. The task panel emits deterministic SVG or DXF derived from the authoritative native Sketcher geometry and persisted FreeCAD `PatternMark` objects, and reports piece/edge/seam identities, units, scale, seam allowance, notch IDs and internal-mark IDs. Persisted construction marks are authoritative when present; for legacy pieces with no persisted Grainline, the exporter retains the existing deterministic grainline fallback for compatibility. Export is read-only: source PatternPiece/Sketch/PatternMark state is not mutated.
 
-Exports fail closed when the selected piece has missing native geometry or invalid/stale semantic seam references. Re-running an export with identical document state produces byte-identical output.
+Exports fail closed when the selected piece has missing native geometry, invalid/stale semantic seam references, or persisted construction marks that reference an unknown semantic edge. Re-running an export with identical document state produces byte-identical output. The canonical CI garment audit records the public task-panel route and round-trip metadata in the `pattern-production-roundtrip.log` artifact.
 
 ## User workflow
 
