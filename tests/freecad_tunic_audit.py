@@ -67,8 +67,13 @@ for old, new in replacements.items():
     if old not in source:
         raise RuntimeError(f"audit replacement did not match source: {old}")
     source = source.replace(old, new, 1)
-
-
+# The semantic seam replacement must consume the entire legacy loop body. Keep a second exact cleanup as a fail-closed guard against stale edge_a/edge_b statements surviving older fixture text.
+source = source.replace('''        seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")
+        add_seam(doc, seam)
+        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
+        seam_records.append((seam_obj, front, back))''', '', 1)
+source = source.replace('front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"', 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"', 1)
+source = source.replace('front_edge_ids[6], back_edge_ids[6], "TunicLeftSide"', 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"', 1)
 preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
     if "ClothRealtimePreview" not in Gui.listCommands():
         raise RuntimeError("Realtime Cloth Preview GUI command is not registered")
