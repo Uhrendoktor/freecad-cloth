@@ -47,6 +47,21 @@ def test_invalid_geometry_is_rejected():
     except ValueError: return
     raise AssertionError("open boundary should fail")
 
+
+def test_garment_domain_classifies_authoritative_objects():
+    from freecad_cloth.common.GarmentDocument import garment_domain
+    assert garment_domain(type("O", (), {"PatternType": "PatternPiece", "Name": "Front"})()) == "Patterns"
+    assert garment_domain(type("O", (), {"SeamId": "seam-1", "Name": "Seam"})()) == "Sewing"
+    assert garment_domain(type("O", (), {"SewingType": "SewingNetwork", "Name": "SewingNetwork"})()) == "Sewing"
+    assert garment_domain(type("O", (), {"AvatarType": "ClothAvatar", "Name": "ClothAvatar"})()) == "Avatar"
+    assert garment_domain(type("O", (), {"Name": "DrapeTarget", "TargetType": "Mannequin"})()) == "Fitting"
+    assert garment_domain(type("O", (), {"Name": "ClothSimulation", "Proxy": type("P", (), {"Type": "ClothSimulation"})()})()) == "Simulation"
+
+
+def test_garment_domain_ignores_unrelated_document_objects():
+    from freecad_cloth.common.GarmentDocument import garment_domain
+    assert garment_domain(type("O", (), {"Name": "RandomPart"})()) is None
+
 def test_pattern_document_round_trip_is_canonical():
     document = PatternDocument("garment-1", "Test garment", pieces=[{"id": "front", "name": "Front"}, {"id": "back", "name": "Back"}], seams=[{"id": "side", "piece_a": "front", "piece_b": "back"}], metadata={"units": "mm"})
     encoded = dumps(document); assert dumps(loads(encoded)) == encoded
