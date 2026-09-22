@@ -59,6 +59,8 @@ def _sync_visuals(scene, *, recompute=True):
             volume.center[2] - volume.size[2] / 2.0,
         )
         obj.Shape = Part.makeBox(volume.size[0], volume.size[1], volume.size[2], corner)
+        from freecad_cloth.common.GarmentDocument import link_garment_object
+        link_garment_object(obj, "Avatar", scene.Document)
         volume_objects.append(obj)
     scene.ArrangementPointObjects = point_objects
     scene.BoundingVolumeObjects = volume_objects
