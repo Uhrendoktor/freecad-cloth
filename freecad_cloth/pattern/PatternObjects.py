@@ -57,8 +57,16 @@ def _native_edge_records(piece):
     except (AttributeError, KeyError, TypeError, ValueError, RuntimeError):
         return []
     piece_id = str(getattr(piece, "PieceId", ""))
+    semantic_ids = tuple(str(value) for value in getattr(sketch, "SemanticEdgeIds", ()) or ())
+    native_indices = {value: index for index, value in enumerate(semantic_ids) if value}
     records = []
-    for ordinal, boundary in enumerate(piece_ir.boundaries):
+    for traversal_ordinal, boundary in enumerate(piece_ir.boundaries):
+        edge_id = str(boundary.id)
+        native_ordinal = native_indices.get(edge_id)
+        if native_ordinal is None:
+            prefix = piece_id + ":edge:"
+            suffix = edge_id[len(prefix):] if edge_id.startswith(prefix) else ""
+            native_ordinal = int(suffix) if suffix.isdigit() else traversal_ordinal
         samples = tuple(
             (float(point[0]), float(point[1]), float(point[2]))
             for point in boundary.samples
@@ -79,9 +87,10 @@ def _native_edge_records(piece):
         records.append(
             {
                 "piece_id": piece_id,
-                "id": str(boundary.id),
+                "id": edge_id,
                 "points": points,
-                "ordinal": ordinal,
+                "ordinal": int(native_ordinal),
+                "traversal_ordinal": int(traversal_ordinal),
                 "provenance": provenance,
             }
         )
@@ -114,16 +123,20 @@ def _edge_records(piece):
 def _seam_edge_id(piece, edge, prefix):
     """Return the semantic edge id and captured signature for a seam side."""
     records = _edge_records(piece)
-    if isinstance(edge, int) and (edge < 0 or edge >= len(records)):
+    if isinstance(edge, bool):
+        raise MissingEdgeReference(f"boolean seam edge reference is invalid for pattern piece {piece.PieceId}")
+    if isinstance(edge, int):
         proxy = getattr(piece, "Proxy", None)
         execute = getattr(proxy, "execute", None)
-        if callable(execute):
+        if callable(execute) and (edge < 0 or (str(getattr(piece, "GeometryAuthority", "")) != "Sketcher" and edge >= len(records))):
             execute(piece)
             records = _edge_records(piece)
-    if isinstance(edge, int):
-        if edge < 0 or edge >= len(records):
+        if str(getattr(piece, "GeometryAuthority", "")) == "Sketcher" and getattr(piece, "Sketch", None) is not None:
+            record = next((item for item in records if int(item.get("ordinal", -1)) == edge), None)
+        else:
+            record = records[edge] if 0 <= edge < len(records) else None
+        if record is None:
             raise MissingEdgeReference(f"seam edge {edge} is outside pattern piece {piece.PieceId}")
-        record = records[edge]
         return record["id"], capture_edge_reference(piece.PieceId, record["id"], record["points"], record.get("provenance")).signature
     reference_id = str(edge)
     for record in records:
