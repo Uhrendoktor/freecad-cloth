@@ -166,7 +166,10 @@ def geometry_from_piece_ir(piece_ir):
             (float(sample[0]), float(sample[1]))
             for sample in boundary.samples
         )
-        segments.append(PolylineSegment(str(boundary.id), points))
+        if boundary.kind == "line" and len(points) == 2:
+            segments.append(LineSegment(str(boundary.id), points[0], points[1]))
+        else:
+            segments.append(PolylineSegment(str(boundary.id), points))
     return ParametricPattern(segments)
 
 
