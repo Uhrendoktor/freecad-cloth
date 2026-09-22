@@ -287,7 +287,8 @@ class SewingCreationTaskPanel:
         return True
 
     def getStandardButtons(self):
-        return 0
+        _App, _Gui, QtWidgets = _modules()
+        return QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
 
 
 def show_sewing_creation_task(kind):
