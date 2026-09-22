@@ -441,7 +441,11 @@ def _is_construction(sketch, index: int) -> bool:
 
 def _native_boundary(native, edge_id: str, curve_samples: int) -> BoundaryIR:
     type_name = type(native).__name__.lower()
-    if type_name == "linesegment":
+    if type_name == "linesegment" or (
+        hasattr(native, "StartPoint") and hasattr(native, "EndPoint")
+        and not callable(getattr(native, "valueAt", None))
+        and not callable(getattr(native, "value", None))
+    ):
         start = _point3(getattr(native, "StartPoint"))
         end = _point3(getattr(native, "EndPoint"))
         return BoundaryIR(edge_id, "line", (start, end))
