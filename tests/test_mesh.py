@@ -3,7 +3,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, rectangle
-from freecad_cloth.pattern.PatternMesh import triangulate
+from freecad_cloth.pattern.PatternMesh import refine_linear_boundary, triangulate
 from freecad_cloth.pattern.PatternModel import Seam
 from freecad_cloth.sewing.SewingConstraints import build_sewing_constraints
 
@@ -53,6 +53,32 @@ def test_clockwise_outline_keeps_segment_provenance_on_normalization():
     ])
     mesh = triangulate(pattern)
     assert mesh.boundary_edge_segment_ids == ("right", "top", "left", "bottom")
+
+
+def test_clockwise_refined_outline_preserves_subsegment_provenance_membership():
+    pattern = ParametricPattern([
+        LineSegment("left", (0, 0), (0, 50)),
+        LineSegment("top", (0, 50), (100, 50)),
+        LineSegment("right", (100, 50), (100, 0)),
+        LineSegment("bottom", (100, 0), (0, 0)),
+    ])
+    refined = refine_linear_boundary(pattern, 20.0)
+    mesh = triangulate(refined)
+    assert len(mesh.boundary_edge_segment_ids) == len(mesh.boundary_vertex_indices)
+    expected_counts = {
+        "right": 3,
+        "top": 5,
+        "left": 3,
+        "bottom": 5,
+    }
+    for prefix, expected_count in expected_counts.items():
+        values = [
+            str(value)
+            for value in mesh.boundary_edge_segment_ids
+            if str(value).startswith(prefix + "::sub::")
+        ]
+        indices = sorted(int(value.rsplit("::", 1)[-1]) for value in values)
+        assert indices == list(range(expected_count))
 
 
 def test_seam_generates_stitches():
