@@ -24,9 +24,9 @@ def test_canonical_tunic_pins_only_one_side_of_sewn_shoulders():
 
 def test_canonical_tunic_rejects_known_shoulder_mapping_regressions():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert 'TunicRightSide"), (1' in audit
-    assert 'TunicRightShoulder"), (2' in audit
-    assert 'TunicLeftShoulder"), (6' in audit
-    assert 'TunicLeftSide"), (7' in audit
+    assert '(1, 1, "TunicRightSide")' in audit
+    assert '(2, 2, "TunicRightShoulder")' in audit
+    assert '(6, 6, "TunicLeftShoulder")' in audit
+    assert '(7, 7, "TunicLeftSide")' in audit
     assert '(3, 3, "TunicRightShoulder")' not in audit
     assert '(5, 5, "TunicLeftShoulder")' not in audit
