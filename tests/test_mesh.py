@@ -3,8 +3,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, rectangle
-from freecad_cloth.pattern.PatternMesh import triangulate
-from freecad_cloth.simulation.SimulationMeshQuality import refine_linear_boundary
+from freecad_cloth.pattern.PatternMesh import refine_linear_boundary, triangulate
 from freecad_cloth.pattern.PatternModel import Seam
 from freecad_cloth.sewing.SewingConstraints import build_sewing_constraints
 
