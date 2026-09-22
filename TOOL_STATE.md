@@ -7,9 +7,10 @@ canonical_workflow: .github/workflows/canonical-execution.yml
 workflow_blob_sha: ad6c8789d91ce3ca34825f055087e75b976647b4
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_task: "#647 release lifecycle"
-current_main: 5acc453e12e1462481b85df49ba16a9c31483ee1
-open_prs: [695, 702, 704, 706, 711, 719, 721, 722]
-historical_closed_release_prs: [708, 701]
+current_main: 03273ddf34e9658a91111e4f6bd575664367b37f
+open_prs: [659, 695, 702, 706, 726, 727, 728, 731, 734, 735, 738, 739, 740, 741, 743, 744, 745, 746, 747, 749, 750, 751, 752]
+merged_release_slices: [687, 732]
+historical_closed_release_prs: [701, 708, 713]
 m0_issue_472: closed-complete
 one_workflow_policy: enforced
 
@@ -25,68 +26,66 @@ workflow_contract:
     - publish-readme-turntables: "Publish README turntables"
     - benchmark: "Measured FreeCAD workbench benchmark"
   image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
-  image_policy: publish_on_main_when_missing; PR validation may build locally with the same tag
   screenshot_display: 1280x720
-  screenshot_outputs:
-    - docs/images/generated/cloth-simulation-draped.png
-    - docs/images/generated/cloth-simulation-draped-front.png
-    - docs/images/generated/cloth-simulation-draped-rear.png
-    - docs/images/generated/cloth-simulation-draped-left.png
-    - docs/images/generated/cloth-simulation-draped-right.png
-    - docs/images/generated/cloth-simulation-draped-top.png
-    - docs/images/generated/cloth-simulation-draped-bottom.png
-  screenshot_artifacts: [tunic-visual-audit]
+  screenshot_artifact: tunic-visual-audit
   turntable_outputs: [cloth-avatar-turntable.gif, cloth-simulation-arranged-turntable.gif, cloth-simulation-draped-turntable.gif]
   turntable_frames: 73
   turntable_artifact: readme-turntables
   readme_publish_branch: docs/screenshots
-  pr_turntable_generation: enabled
-  readme_publish_on_main_merge: enabled
-  policy: preserve_existing_Docker_Xvfb_PNG_path; one_canonical_tunic_visual_audit; PR_turntable_validation; publish_stable_turntables_after_main_merge; no_second_workflow
+  policy: preserve_existing_Docker_Xvfb_PNG_path; one_canonical_workflow; no_second_workflow
 
-latest_verified_ci:
+latest_verified_exact_main:
+  current_main: 03273ddf34e9658a91111e4f6bd575664367b37f
+  run_id: 35783458955
+  run_number: 2584
+  status: completed
+  conclusion: cancelled
+  note: main advanced through merged PR #732 while the canonical run was active; the run is not terminal-green.
+
+latest_verified_job_level:
+  run_id: 35783007599
+  run_number: 2560
+  commit: cc93d0f8cd9451cc96667de5584cecf38c7a6350
+  tunic_rerun_job_id: 106933253526
+  tunic_rerun_conclusion: success
+  artifacts:
+    pattern-production-export: 10719155792
+    sewing-creation-smoke: 10718832779
+    tunic-visual-audit: 10719056530
+    readme-turntables: 10719560452
+    workbench-benchmark: 10718268347
+
+historical_terminal_green:
   run_id: 35782037267
   run_number: 2520
   commit: 5acc453e12e1462481b85df49ba16a9c31483ee1
-  status: completed
   conclusion: success
-  event: push
-  jobs:
-    python: success
-    gui-sewing-creation: success
-    gui-pattern-export: success
-    gui-tunic-visual: success
-    gui-turntables: success
-    publish-readme-turntables: success
-    benchmark: success
-  artifact_id: 10718318860
-  artifact_name: tunic-visual-audit
-  artifacts:
-    pattern-production-export: 10718573486
-    sewing-creation-smoke: 10718403724
-    tunic-visual-audit: 10718318860
-    readme-turntables: 10718134220
-    workbench-benchmark: 10717974490
+  note: superseded by later main merges.
 
 release_slices:
-  - "#695 open; current-main PatternIR runtime boundary"
-  - "#702 open; stale-base sewing release slice; currently unmergeable"
-  - "#704 open; current-main single-scene PatternIR follow-up"
-  - "#706 open; current-main canonical garment E2E candidate"
-  - "#711 open; stale-base PatternIR simulation-boundary overlap"
-  - "#719 open; current-main pinned-stitch feasibility guard"
-  - "#721 open; current-main right-shoulder seam-edge A/B"
-  - "#722 open; current-main solver seam-sampling A/B"
-  - "#708 closed without merge; historical garment-E2E workflow attempt"
-  - "#701 closed without merge; historical garment-hierarchy attempt"
+  sewing:
+    current_main_candidates: [746, 731]
+    stale_or_replacement: [702, 728]
+  patternir:
+    current_main_candidates: [747]
+    stale_or_duplicate: [695, 744, 745]
+  garment_hierarchy:
+    merged: [732]
+    stale_or_duplicate: [701, 739, 741, 743]
+  garment_e2e:
+    current_main_candidates: [750, 726]
+    stale_or_duplicate: [659, 706]
+  tunic_validation:
+    current_main_candidates: [749, 751, 752]
+    diagnostic_ancestors: [734, 735, 738, 740, 727]
 
 outstanding_gates:
-  - reconcile overlapping PatternIR PRs #695/#704/#711 before merging duplicate implementations
-  - rebase/reassess stale #702 and #711 against current main
-  - validate #706 on its exact current-main head before any workflow contract change
-  - validate #719 independently; keep #721/#722 diagnostic experiments bounded
-  - continue M1/M2 release gates #473/#475/#476
-  - preserve one canonical workflow and fail-closed validation
+  - fresh terminal-green canonical validation on current main after PR #732
+  - reconcile PatternIR overlap: #747 vs #695/#744/#745
+  - reconcile sewing overlap: #746/#731 vs #702/#728
+  - reconcile garment-E2E overlap: #750/#726/#659/#706
+  - keep tunic A/B work bounded and evidence-led; no arbitrary threshold changes
+  - preserve one canonical workflow; do not add another E2E workflow
 
 policy:
   - inspect_open_prs_and_issues_before_changes
@@ -98,8 +97,7 @@ policy:
   - recut_branches_from_current_main
 
 current_focus:
-  ci_status: current main 5acc453e12e1462481b85df49ba16a9c31483ee1 is terminal-green in canonical run 35782037267 (#2520)
-  queue_status: open_prs_are_695_702_704_706_711_719_721_722
-  m0_status: "#472 closed-complete"
-  next_supervisor_focus: reconcile PatternIR overlaps, stale-base release slices, and the current-main pinned-stitch/E2E work without multiplying workflows
+  ci_status: current main 03273ddf34e9658a91111e4f6bd575664367b37f has no terminal-green canonical run; exact-head run 35783458955 (#2584) was cancelled during rapid main evolution.
+  queue_status: active open PRs are [659,695,702,706,726,727,728,731,734,735,738,739,740,741,743,744,745,746,747,749,750,751,752]
+  next_supervisor_focus: obtain fresh terminal-green current-main validation, then collapse duplicate release candidates to one validated current-main PR per sewing, PatternIR, garment hierarchy/E2E, and tunic-validation concern.
 ```
