@@ -1,10 +1,11 @@
 from pathlib import Path
+from types import SimpleNamespace
 import sys
 import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternModel import Seam
-from freecad_cloth.sewing.SewingNetwork import SewingMember, build_mn_seams, network_invalid_reason
+from freecad_cloth.sewing.SewingNetwork import SewingMember, SewingNetworkProxy, build_mn_seams, network_invalid_reason
 
 
 def lengths(mapping):
@@ -79,6 +80,22 @@ class SewingNetworkTests(unittest.TestCase):
             network_invalid_reason([seam]),
             "Invalid member seam(s): rel-1-1-1: Changed reference",
         )
+
+    def test_changed_reference_member_invalidates_network_deterministically(self):
+        seam = SimpleNamespace(SeamId="rel-1-1-1", Status="Changed reference", StitchGroup="rel-1")
+        network = SimpleNamespace(
+            Seams=(seam,),
+            RelationshipId="rel-1",
+            Status="Valid",
+            InvalidReason="",
+            SegmentCount=0,
+            LengthA=0.0,
+            LengthB=0.0,
+            LengthDifference=0.0,
+        )
+        SewingNetworkProxy().execute(network)
+        self.assertEqual(network.Status, "Invalid")
+        self.assertEqual(network.InvalidReason, "Invalid member seam(s): rel-1-1-1: Changed reference")
 
     def test_all_valid_member_statuses_have_no_invalid_reason(self):
         seam = _SeamStatus("rel-1-1-1", "Valid")
