@@ -343,8 +343,8 @@ def simulation():
     back_edge_ids = tuple(str(value) for value in back.Sketch.SemanticEdgeIds)
     seam_specs = (
         (front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),
-        (front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"),
-        (front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"),
+        (front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"),
+        (front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"),
         (front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"),
     )
     seam_records = []
