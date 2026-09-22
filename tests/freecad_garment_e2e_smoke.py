@@ -263,7 +263,10 @@ def _export_pair(piece, output_dir, export_format):
     _close_task()
     Gui.runCommand("ClothPattern_Export", 0)
     _events()
-    panel = _require_dialog(("Production Export", "read-only"), "ClothPattern_Export")
+    panel = get_active_pattern_export_task_panel()
+    if panel is None:
+        raise RuntimeError("second ClothPattern_Export did not expose its public pattern-export task panel")
+    _require_dialog(("Production Export", "read-only"), "ClothPattern_Export", panel=panel)
     panel.format.setCurrentText(export_format)
     panel.path.setText(str(path_b))
     if not panel.accept():
