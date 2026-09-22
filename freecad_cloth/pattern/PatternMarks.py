@@ -85,7 +85,7 @@ def add_internal_mark():
     import FreeCAD as App
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
     piece = _selected_piece(doc)
-    return add_mark(doc, "InternalMark", str(piece.PieceId), "bottom", 0.5, depth=3.0, text="Internal mark")
+    return add_mark(doc, "InternalMark", str(piece.PieceId), _default_segment_id(piece), 0.5, depth=3.0, text="Internal mark")
 
 
 class _FunctionCommand:
