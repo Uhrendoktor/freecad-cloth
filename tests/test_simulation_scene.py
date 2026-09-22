@@ -168,7 +168,10 @@ def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision():
             proxy.collision_surface,
         )
     ]
-\n\ndef test_impossible_pinned_sewing_stitch_is_rejected():
+
+
+
+def test_impossible_pinned_sewing_stitch_is_rejected():
     from freecad_cloth.simulation.ClothSolver import Particle
     from freecad_cloth.simulation.SimulationObjects import _validate_seam_pin_configuration
 
