@@ -2,6 +2,7 @@
 
 from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR, PieceIR
 from freecad_cloth.common import PatternIRDocumentAdapter
+from freecad_cloth.common import PatternIRDocumentAdapter
 from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
 
 
@@ -102,8 +103,8 @@ def test_simulation_signature_fails_closed_on_invalid_pattern_ir():
     piece = _Piece("A", "piece-a")
     scene = _Scene([])
     invalid_ir = PatternIR((PieceIR("piece-a", "invalid", ()),), ())
-    original = SimulationObjects.compile_pattern_ir
-    SimulationObjects.compile_pattern_ir = lambda doc, pieces: invalid_ir
+    original = PatternIRDocumentAdapter.compile_pattern_ir
+    PatternIRDocumentAdapter.compile_pattern_ir = lambda doc, pieces: invalid_ir
     try:
         try:
             _simulation_source_signature(scene, [piece])
@@ -112,7 +113,7 @@ def test_simulation_signature_fails_closed_on_invalid_pattern_ir():
         else:
             raise AssertionError("invalid PatternIR reached the simulation signature")
     finally:
-        SimulationObjects.compile_pattern_ir = original
+        PatternIRDocumentAdapter.compile_pattern_ir = original
 
 
 def test_simulation_document_adapter_fails_closed_on_missing_semantic_seam_edge():
