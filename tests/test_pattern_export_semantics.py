@@ -173,6 +173,90 @@ def test_pattern_piece_export_blocks_invalid_semantic_seams(tmp_path):
     with TestCase().assertRaisesRegex(ValueError, "cannot export pattern piece"):
         export_pattern_piece(piece, tmp_path / "invalid.svg", "svg")
 
+def test_pattern_piece_export_round_trips_persisted_native_marks(tmp_path):
+    class Piece:
+        PatternType = "PatternPiece"
+        Name = "Front"
+        Label = "Front"
+        PieceId = "piece-front"
+        Width = 100.0
+        Height = 60.0
+        SeamAllowance = 5.0
+        GrainlineAngle = 90.0
+        GeometryAuthority = ""
+        SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)])
+        DraftingBoundary = SewingOutline
+
+    class Mark:
+        def __init__(self, name, kind, piece_id, segment_id, position=0.5, depth=3.0, angle=0.0, length=40.0, text=""):
+            self.Name = name
+            self.PatternMarkType = kind
+            self.PieceId = piece_id
+            self.SegmentId = segment_id
+            self.Position = position
+            self.Depth = depth
+            self.Angle = angle
+            self.Length = length
+            self.Text = text
+
+    class Document:
+        Objects = ()
+
+    piece = Piece()
+    marks = (
+        Mark("Grainline_1", "Grainline", "piece-front", "piece-front:edge:0", angle=90.0, text=""),
+        Mark("InternalMark_1", "InternalMark", "piece-front", "piece-front:edge:1", angle=0.0, length=25.0, text="Internal mark"),
+        Mark("Notch_1", "Notch", "piece-front", "piece-front:edge:2", position=0.25, depth=4.0),
+    )
+    piece.Document = Document()
+    piece.Document.Objects = (piece,) + marks
+
+    for fmt, reader in (("svg", from_svg_metadata), ("dxf", from_dxf_metadata)):
+        first = tmp_path / ("persisted.%s" % fmt)
+        second = tmp_path / ("persisted-second.%s" % fmt)
+        export_pattern_piece(piece, first, fmt, curve_samples=16)
+        export_pattern_piece(piece, second, fmt, curve_samples=16)
+        assert first.read_bytes() == second.read_bytes()
+        metadata = reader(first.read_text(encoding="utf-8"))
+        assert metadata["notch_ids"] == ["Notch_1"]
+        assert metadata["mark_ids"] == ["Grainline_1", "InternalMark_1"]
+
+
+def test_pattern_piece_export_rejects_stale_persisted_mark_reference(tmp_path):
+    class Piece:
+        PatternType = "PatternPiece"
+        Name = "Front"
+        Label = "Front"
+        PieceId = "piece-front"
+        Width = 100.0
+        Height = 60.0
+        SeamAllowance = 0.0
+        GrainlineAngle = 0.0
+        GeometryAuthority = ""
+        SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)])
+        DraftingBoundary = SewingOutline
+
+    class Mark:
+        Name = "Notch_1"
+        PatternMarkType = "Notch"
+        PieceId = "piece-front"
+        SegmentId = "missing-edge"
+        Position = 0.5
+        Depth = 3.0
+        Angle = 0.0
+        Length = 40.0
+        Text = ""
+
+    class Document:
+        Objects = ()
+
+    piece = Piece()
+    piece.Document = Document()
+    piece.Document.Objects = (piece, Mark())
+    with TestCase().assertRaisesRegex(ValueError, "unknown segment"):
+        export_pattern_piece(piece, tmp_path / "stale.svg", "svg")
+
+
 def test_export_boundary_is_closed_and_continuous():
     pattern = _curved_pattern()
     points = pattern.sampled_outline(24)
