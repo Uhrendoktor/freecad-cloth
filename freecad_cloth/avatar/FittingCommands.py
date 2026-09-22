@@ -354,7 +354,7 @@ class _FittingProxy:
 
     def onChanged(self, obj, prop):
         if prop in {"ArrangementPoints", "BoundingVolumes"}:
-            _sync_visuals(obj, recompute=False)
+            _sync_visuals(obj)
 
 
 COMMANDS = [
