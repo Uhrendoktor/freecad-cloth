@@ -146,6 +146,36 @@ def _piece_seams(piece):
     return tuple(sorted(set(seams)))
 
 
+def _persisted_marks(piece, pattern):
+    doc = getattr(piece, "Document", None)
+    if doc is None:
+        return (), False
+    piece_id = str(getattr(piece, "PieceId", "")).strip()
+    persisted = []
+    grainline_present = False
+    for obj in sorted(getattr(doc, "Objects", ()), key=lambda value: str(getattr(value, "Name", ""))):
+        mark_type = str(getattr(obj, "PatternMarkType", "")).strip()
+        if not mark_type or str(getattr(obj, "PieceId", "")).strip() != piece_id:
+            continue
+        identity = str(getattr(obj, "Name", "")).strip()
+        segment_id = str(getattr(obj, "SegmentId", "")).strip()
+        if not identity:
+            raise ValueError("persisted pattern mark has no stable object identity")
+        if not segment_id or segment_id not in pattern.by_id():
+            raise ValueError("persisted pattern mark %s references unknown segment %s" % (identity, segment_id or "<empty>"))
+        position = float(getattr(obj, "Position", 0.5))
+        depth = float(getattr(obj, "Depth", 3.0))
+        angle = float(getattr(obj, "Angle", 0.0))
+        length = float(getattr(obj, "Length", 40.0))
+        text = str(getattr(obj, "Text", "") or "")
+        if mark_type == "Notch":
+            persisted.append(Notch(identity, segment_id, position, depth))
+        else:
+            persisted.append(PatternMark(identity, mark_type, segment_id, position, angle, length, text))
+            grainline_present = grainline_present or mark_type == "Grainline"
+    return tuple(persisted), grainline_present
+
+
 def pattern_from_pattern_piece(piece, curve_samples: int = 64) -> ParametricPattern:
     """Build a deterministic derived export pattern from the authoritative piece."""
     if getattr(piece, "PatternType", "") != "PatternPiece":
@@ -198,7 +228,16 @@ def export_pattern_piece(piece, path, format: str, *, units: str = "mm", curve_s
     seam_ids = _piece_seams(piece)
     allowance = max(0.0, float(getattr(piece, "SeamAllowance", 0.0)))
     derived = derive_cut_boundary(pattern, allowance, curve_samples=curve_samples)
-    if pattern.segments:
+    persisted_marks, grainline_present = _persisted_marks(piece, pattern)
+    if persisted_marks:
+        notches = tuple(value for value in persisted_marks if isinstance(value, Notch))
+        marks = tuple(value for value in persisted_marks if isinstance(value, PatternMark))
+        if notches:
+            from freecad_cloth.pattern.PatternDerivedGeometry import add_notches
+            derived = add_notches(derived, notches)
+        if marks:
+            derived = add_marks(derived, marks)
+    if pattern.segments and not grainline_present:
         mark = PatternMark(
             id="%s:grainline" % str(getattr(piece, "PieceId", "piece")),
             kind="Grainline",
