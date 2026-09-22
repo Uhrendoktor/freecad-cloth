@@ -167,6 +167,12 @@ def _persisted_construction_marks(piece, pattern):
         if not mark_id:
             raise ValueError("persisted pattern mark has no stable identity")
         segment_id = str(getattr(obj, "SegmentId", "")).strip()
+        if segment_id == "bottom" and pattern.segments:
+            # PatternMarks historically persisted the human-facing "bottom"
+            # token. The public mark commands use that token for the default
+            # rectangular piece; normalize it to the authoritative first edge
+            # rather than treating a valid legacy document as stale.
+            segment_id = str(pattern.segments[0].id)
         if segment_id and segment_id not in pattern.by_id():
             raise ValueError(
                 "persisted pattern mark %s references unknown segment: %s"
