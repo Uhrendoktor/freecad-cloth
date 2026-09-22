@@ -62,6 +62,9 @@ jobs:
                 tests/test_pattern_export_semantics.py \
                 tests/test_sketch_authority.py \
                 tests/test_sewing_workbench.py \
+                tests/test_sewing_correspondence.py \
+                tests/test_sewing_commands.py \
+                tests/test_sewing_creation_session.py \
                 tests/test_sewing_show2d.py \
                 tests/test_sewing_network.py \
                 tests/test_sewing_network_gui.py \
@@ -125,6 +128,9 @@ jobs:
           grep -q 'selection-count-rejection=passed' artifacts/sewing-creation-smoke.log
           grep -q 'preview-mn=passed' artifacts/sewing-creation-smoke.log
           grep -q 'commit-mn=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'preview-free=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'commit-free=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'cancel-free=passed' artifacts/sewing-creation-smoke.log
           grep -q 'invalid-same-piece-preview=passed' artifacts/sewing-creation-smoke.log
           grep -q 'invalid-mn-partition-preview=passed' artifacts/sewing-creation-smoke.log
       - name: Upload sewing creation smoke evidence
