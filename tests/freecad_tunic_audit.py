@@ -58,13 +58,14 @@ replacements = {
     'front_y = box.YMin - clearance; back_y = box.YMax + clearance;': 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
         'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)',
-    'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):' :
-        '''front_semantic_edge_ids = {index: _semantic_edge_id(front.Sketch, index) for index in (1, 2, 6, 7)}
+    '''    # Same-side side seams and authored shoulder seams; the neckline remains open.
+    seam_records = []
+    front_semantic_edge_ids = {index: _semantic_edge_id(front.Sketch, index) for index in (1, 2, 6, 7)}
     back_semantic_edge_ids = {index: _semantic_edge_id(back.Sketch, index) for index in (1, 2, 6, 7)}
     for authored_a, authored_b, seam_id in ((1, 1, "TunicRightSide"), (2, 2, "TunicRightShoulder"), (6, 6, "TunicLeftShoulder"), (7, 7, "TunicLeftSide")):
         edge_a = front_semantic_edge_ids[authored_a]
         edge_b = back_semantic_edge_ids[authored_b]
-        seam = Seam(str(front.PieceId), authored_a, str(back.PieceId), authored_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")
+        seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         if str(getattr(seam_obj, "EdgeAId", "")) != edge_a or str(getattr(seam_obj, "EdgeBId", "")) != edge_b:
