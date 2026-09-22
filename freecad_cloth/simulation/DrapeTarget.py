@@ -205,6 +205,8 @@ def assign_drape_target(target, source, target_type: Optional[str] = None):
     surface = collision_surface(source, deflection, thickness)
     target.TargetType = kind
     target.SourceObject = source
+    from freecad_cloth.common.GarmentDocument import link_garment_object
+    link_garment_object(source, "Avatar", getattr(target, "Document", None))
     target.SourceSignature = repr(source_signature(source, deflection, thickness))
     target.CollisionVertexCount = len(surface.vertices)
     target.CollisionTriangleCount = len(surface.triangles)
