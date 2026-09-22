@@ -57,7 +57,7 @@ def add_notch():
     import FreeCAD as App
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
     piece = _selected_piece(doc)
-    return add_mark(doc, "Notch", str(piece.PieceId), "bottom", 0.5, depth=3.0)
+    return add_mark(doc, "Notch", str(piece.PieceId), str(piece.PieceId) + ":edge:0", 0.5, depth=3.0)
 
 
 def add_grainline():
@@ -65,14 +65,14 @@ def add_grainline():
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
     piece = _selected_piece(doc)
     length = max(10.0, min(float(piece.Width), float(piece.Height)) * 0.6)
-    return add_mark(doc, "Grainline", str(piece.PieceId), angle=float(piece.GrainlineAngle), length=length)
+    return add_mark(doc, "Grainline", str(piece.PieceId), str(piece.PieceId) + ":edge:0", angle=float(piece.GrainlineAngle), length=length)
 
 
 def add_internal_mark():
     import FreeCAD as App
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
     piece = _selected_piece(doc)
-    return add_mark(doc, "InternalMark", str(piece.PieceId), "bottom", 0.5, depth=3.0, text="Internal mark")
+    return add_mark(doc, "InternalMark", str(piece.PieceId), str(piece.PieceId) + ":edge:0", 0.5, depth=3.0, text="Internal mark")
 
 
 class _FunctionCommand:
