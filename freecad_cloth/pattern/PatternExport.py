@@ -271,7 +271,7 @@ def export_pattern_piece(piece, path, format: str, *, units: str = "mm", curve_s
     else:
         content = to_dxf(
             pattern, curve_samples, units, derived, str(getattr(piece, "PieceId", "")),
-            seam_ids, allowance, internal_mark_ids
+            seam_ids, allowance, internal_mark_ids, semantic_edge_ids
         )
     with open(str(path), "w", encoding="utf-8", newline="") as handle:
         handle.write(content)
