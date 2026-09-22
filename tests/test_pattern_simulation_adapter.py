@@ -291,6 +291,29 @@ def test_native_and_legacy_pieces_can_share_one_simulation_pattern():
     assert pattern.piece("front").boundaries[0].id == "front:bottom"
     assert pattern.piece("back").boundaries[0].id == "back:edge:0"
 
+
+def test_unrelated_document_seams_are_ignored_but_selected_invalid_seams_fail_closed():
+    front = _LegacyPiece("front")
+    back = _LegacyPiece("back")
+    unrelated = _Seam("unrelated", "other-a", "other-b", "", "", "", "")
+    partial = _Seam("partial", "front", "other-b", "", "", "", "")
+
+    resolved = resolve_simulation_pattern(
+        _Doc([front, back, unrelated, partial]),
+        [front, back],
+    )
+    assert resolved.pattern.seams == ()
+
+    invalid = _Seam("invalid", "front", "back", "", "", "", "")
+    invalid.Status = "Changed reference"
+    try:
+        resolve_simulation_pattern(_Doc([front, back, invalid]), [front, back])
+    except ValueError as exc:
+        assert "invalid seam invalid" in str(exc)
+        assert "Changed reference" in str(exc)
+        return
+    raise AssertionError("invalid selected seams must fail closed")
+
 if __name__ == "__main__":
     for name, fn in globals().copy().items():
         if name.startswith("test_"):
