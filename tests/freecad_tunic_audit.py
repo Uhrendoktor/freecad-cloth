@@ -123,7 +123,7 @@ support_pin_patch = '''    stitch_endpoints = {
     ):
         raise RuntimeError("visual tunic support-anchor contract pins both endpoints of a sewn pair")
     scene.PinSelection = [str(i) for i in front_pins + tuple(back_support_pins)]
-    log("back-support-pins=%s back-pinned=true" % tuple(back_support_pins))
+    log("back-support-pins=" + str(tuple(back_support_pins)) + " back-pinned=true")
 '''
 legacy_pin_block = '''    scene.PinSelection = [str(i) for i in front_pins]
     if any(
