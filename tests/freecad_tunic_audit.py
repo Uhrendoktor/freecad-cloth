@@ -125,7 +125,7 @@ support_pin_patch = '''    stitch_endpoints = {
     scene.PinSelection = [str(i) for i in front_pins + tuple(back_support_pins)]
     log("back-support-pins=%s back-pinned=true" % tuple(back_support_pins))
 '''
-    legacy_pin_block = '''    scene.PinSelection = [str(i) for i in front_pins]
+legacy_pin_block = '''    scene.PinSelection = [str(i) for i in front_pins]
     if any(
         int(a) in front_pins and int(b) in front_pins
         for seam_pairs in getattr(proxy, "seam_stitch_pairs", {}).values()
@@ -134,9 +134,9 @@ support_pin_patch = '''    stitch_endpoints = {
         raise RuntimeError("visual tunic pin contract pins both endpoints of a sewn pair")
     log("pin-map authored front=%s back-global=%s back-pinned=false" % (front_pins, back_pins)); doc.recompute()
 '''
-    if legacy_pin_block not in source:
-        raise RuntimeError("visual tunic legacy pin contract block did not match source")
-    source = source.replace(legacy_pin_block, support_pin_patch, 1)
+if legacy_pin_block not in source:
+    raise RuntimeError("visual tunic legacy pin contract block did not match source")
+source = source.replace(legacy_pin_block, support_pin_patch, 1)
 
 seam_check = """    backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
