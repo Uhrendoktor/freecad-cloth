@@ -12,6 +12,7 @@ import FreeCADGui as Gui
 from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_parameters
 from freecad_cloth.pattern.PatternModel import Seam
 from freecad_cloth.pattern.PatternObjects import add_seam
+from freecad_cloth.sewing.SewingCommands import SewingCreationSession
 from freecad_cloth.sewing.SewingObjects import add_sewing_operation
 from freecad_cloth.sewing.SewingGui import SewingTaskPanel
 
@@ -74,6 +75,27 @@ def main():
         assert bool(operation.ReversedB) is True
         assert operation.Status == "Valid"
         assert len(operation.StitchPoints) == 16
+
+        cancelled = SewingCreationSession(doc, "seam", [(piece_a, 0), (piece_b, 1)])
+        assert cancelled.preview() is True
+        seam_count = len([obj for obj in doc.Objects if getattr(obj, "SeamId", "")])
+        assert cancelled.cancel() is True
+        assert len([obj for obj in doc.Objects if getattr(obj, "SeamId", "")]) == seam_count
+
+        invalid = SewingCreationSession(doc, "seam", [(piece_a, 0), (piece_a, 1)])
+        assert invalid.preview() is False
+        assert "different pattern pieces" in invalid.message
+        assert invalid.committed is False
+
+        mn_session = SewingCreationSession(
+            doc, "mn", [(piece_a, 0), (piece_a, 1), (piece_b, 0)]
+        )
+        assert mn_session.preview() is True
+        assert "Preview valid" in mn_session.message
+        network = mn_session.commit()
+        assert mn_session.committed is True
+        assert str(network.SewingType) == "SewingNetwork"
+        assert str(network.RelationshipId).startswith("sewing-")
 
         # Accepted task-panel edits must form one native FreeCAD undo step.
         if hasattr(doc, "undo") and hasattr(doc, "redo"):
