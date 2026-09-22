@@ -97,7 +97,7 @@ try:
     Gui.activateWorkbench("ClothPatternWorkbench")
     process_events()
 
-    for command in ("ClothPattern_CreatePieceWithSketch", "ClothPattern_EditSketch", "ClothPattern_Export"):
+    for command in ("ClothPattern_CreatePieceWithSketch", "ClothPattern_EditSketch", "ClothPattern_Export", "ClothPattern_AddNotch", "ClothPattern_AddGrainline", "ClothPattern_AddInternalMark"):
         if command not in Gui.listCommands():
             raise RuntimeError("missing public Pattern command: " + command)
     if "ClothPattern_CreateDrafting" in Gui.listCommands():
@@ -128,6 +128,16 @@ try:
     else:
         raise RuntimeError("pattern creation task panel remained open before export")
 
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(piece)
+    for command in ("ClothPattern_AddNotch", "ClothPattern_AddGrainline", "ClothPattern_AddInternalMark"):
+        Gui.runCommand(command, 0)
+        process_events()
+    persisted_marks = [obj for obj in doc.Objects if str(getattr(obj, "PatternMarkType", "")) and str(getattr(obj, "PieceId", "")) == str(piece.PieceId)]
+    if {("Notch","Grainline","InternalMark")} != set(str(getattr(obj, "PatternMarkType", "")) for obj in persisted_marks):
+        raise RuntimeError("public Pattern mark commands did not create Notch, Grainline, and InternalMark")
+    record("marks=created-publicly types=Notch,Grainline,InternalMark")
+
     source_before = (
         str(piece.Label),
         str(piece.PieceId),
@@ -138,6 +148,24 @@ try:
     )
 
     with tempfile.TemporaryDirectory() as directory:
+        mark_path = output_dir / "marks-roundtrip.FCStd"
+        doc.recompute()
+        doc.saveAs(str(mark_path))
+        original_doc_name = doc.Name
+        App.closeDocument(original_doc_name)
+        doc = None
+        doc = App.openDocument(str(mark_path))
+        doc.recompute()
+        piece = next((obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece" and str(getattr(obj, "PieceId", "")) == str(piece_id)), None) if False else next((obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"), None)
+        if piece is None:
+            raise RuntimeError("saved/reloaded PatternPiece was not found")
+        reloaded_marks = [obj for obj in doc.Objects if str(getattr(obj, "PatternMarkType", "")) and str(getattr(obj, "PieceId", "")) == str(piece.PieceId)]
+        if set(str(getattr(obj, "PatternMarkType", "")) for obj in reloaded_marks) != set(("Notch", "Grainline", "InternalMark")):
+            raise RuntimeError("persisted Pattern marks did not survive save/reload")
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(piece)
+        record("marks=save-reload-passed")
+
         output_dir = Path(directory)
         panel = open_public_export(piece)
         record("export-panel=opened-initial")
@@ -186,8 +214,10 @@ try:
                 raise RuntimeError(export_format + " export lost seam allowance")
             if not metadata.get("edge_ids"):
                 raise RuntimeError(export_format + " export lost semantic edge IDs")
-            if not metadata.get("mark_ids"):
-                raise RuntimeError(export_format + " export lost construction mark identity")
+            if set(metadata.get("notch_ids", ())) != {"Notch_1"}:
+                raise RuntimeError(export_format + " export lost persisted notch identity")
+            if set(metadata.get("mark_ids", ())) != {"Grainline_1", "InternalMark_1"}:
+                raise RuntimeError(export_format + " export lost persisted mark identity")
             results[export_format] = len(first)
 
         if source_before != (
