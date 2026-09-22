@@ -153,12 +153,6 @@ def run():
         assert garment_root(doc) is not None
         log("production-garment-command=passed")
 
-        from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
-        scene = create_simulation_scene(doc)
-        assert scene.FabricMaterial is not None
-        assert scene.DrapeTarget is not None
-        log("populate-fabric-avatar-simulation=passed")
-
         front = make_piece(doc, "Front", "front", 0)
         back = make_piece(doc, "Back", "back", 130)
 
@@ -170,8 +164,12 @@ def run():
         doc.recompute()
         assert str(seam.Status) == "Valid"
         assert str(operation.Status) == "Valid"
+        scene = create_simulation_scene(doc, build=False)
+        assert scene.FabricMaterial is not None
+        assert scene.DrapeTarget is not None
         scene.ClothPieces = [front, back]
         log("populate-pattern-sewing=passed")
+        log("populate-fabric-avatar-simulation=passed")
 
         before = verify(doc, "before-save")
         doc.recompute()
