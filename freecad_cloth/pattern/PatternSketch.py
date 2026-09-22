@@ -58,6 +58,8 @@ def create_sketch_for_piece(piece, document=None):
                      and getattr(obj, "TypeId", "") == "Sketcher::SketchObject"), None)
     if existing is not None:
         _attach(existing, piece, document)
+        from freecad_cloth.common.GarmentDocument import link_garment_object
+        link_garment_object(existing, "PatternSketch", document)
         return existing
 
     sketch = document.addObject("Sketcher::SketchObject", "PatternSketch_" + piece.id.replace("-", "_"))
@@ -72,6 +74,8 @@ def create_sketch_for_piece(piece, document=None):
     sketch.GeometrySource = "ClothPattern.PatternPiece"
     _add_geometry(sketch, piece.outline)
     _attach(sketch, piece, document)
+    from freecad_cloth.common.GarmentDocument import link_garment_object
+    link_garment_object(sketch, "PatternSketch", document)
     document.recompute()
     return sketch
 

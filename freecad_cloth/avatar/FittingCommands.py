@@ -62,7 +62,6 @@ def _sync_visuals(scene):
     scene.BoundingVolumeObjects = volume_objects
     for obj in point_objects + volume_objects:
         obj.ViewObject.Visibility = True
-    scene.Document.recompute()
 
 
 def create_fitting_scene():
@@ -78,7 +77,7 @@ def create_fitting_scene():
     obj.addProperty("App::PropertyString", "MeasurementData", "Measurements").MeasurementData = BodyMeasurements().to_json()
     obj.addProperty("App::PropertyString", "MeasurementUnit", "Measurements").MeasurementUnit = "mm"
     obj.addProperty("App::PropertyLink", "AvatarProxy", "Fitting")
-    obj.addProperty("App::PropertyLinkList", "PatternPieces", "Fitting")
+    obj.addProperty("App::PropertyLinkListGlobal", "PatternPieces", "Fitting")
     obj.addProperty("App::PropertyStringList", "PiecePlacements", "Fitting").PiecePlacements = []
     obj.addProperty("App::PropertyStringList", "HomePlacements", "Fitting").HomePlacements = []
     obj.addProperty("App::PropertyStringList", "ArrangementPoints", "Arrangement").ArrangementPoints = []
