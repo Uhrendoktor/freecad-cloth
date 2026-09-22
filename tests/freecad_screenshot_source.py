@@ -309,7 +309,23 @@ def pattern_and_sewing():
         raise RuntimeError("pattern fixture produced empty geometry from native sketches")
     activate("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D", "ClothPattern_CreateFromSketch"])
     panel = PatternPieceTaskPanel(front); show_task(panel, "Pattern Workbench", ("Piece name", "Width", "Height", "Seam allowance", "Grainline angle")); Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll(); events(); save("cloth-pattern-design.png", "Pattern Workbench", "native Sketcher tunic pattern adopted into Cloth PatternPiece"); close_task()
-    seam = add_seam(doc, Seam(str(front.PieceId), 7, str(back.PieceId), 7, id="FrontBack", alignment="endpoints", stitch_group="MainSeam")); doc.recompute()
+    front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) if str(value))
+    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) if str(value))
+    if len(front_edge_ids) < 8 or len(back_edge_ids) < 8:
+        raise RuntimeError("canonical garment fixture is missing authored Sketcher semantic edge IDs")
+    seam = add_seam(
+        doc,
+        Seam(
+            str(front.PieceId),
+            front_edge_ids[7],
+            str(back.PieceId),
+            back_edge_ids[7],
+            id="FrontBack",
+            alignment="endpoints",
+            stitch_group="MainSeam",
+        ),
+    )
+    doc.recompute()
     sewing = create_sewing_operation(); doc.recompute()
     if str(seam.Status) != "Valid" or seam.Shape.isNull() or str(sewing.Status) != "Valid" or sewing.Shape.isNull():
         raise RuntimeError("sewing fixture is invalid")
@@ -342,12 +358,30 @@ def simulation():
     def make_piece(name, y, neckline_ratio, neckline_drop):
         sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot); piece.Sketch.Placement = piece.Placement; return piece, outline
     front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)
-    # Same-side side seams and authored shoulder seams; the neckline remains open.
+    # Same-side shoulder seams use the authored Sketcher semantic identities; the neckline remains open.
+    front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) if str(value))
+    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) if str(value))
+    if len(front_edge_ids) < 8 or len(back_edge_ids) < 8:
+        raise RuntimeError("canonical tunic fixture is missing authored Sketcher semantic edge IDs")
+    seam_specs = (
+        (front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"),
+        (front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"),
+    )
     seam_records = []
-    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
-        seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")
+    for edge_a_id, edge_b_id, seam_id in seam_specs:
+        seam = Seam(
+            str(front.PieceId),
+            edge_a_id,
+            str(back.PieceId),
+            edge_b_id,
+            id=seam_id,
+            alignment="uniform",
+            stitch_group="TunicAssembly",
+        )
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
+        if str(getattr(seam_obj, "EdgeAId", "")) != edge_a_id or str(getattr(seam_obj, "EdgeBId", "")) != edge_b_id:
+            raise RuntimeError("canonical tunic seam did not retain authored semantic edge IDs")
         seam_records.append((seam_obj, front, back))
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
     def authored_shoulder_pins(piece, particle_indices, positions):
