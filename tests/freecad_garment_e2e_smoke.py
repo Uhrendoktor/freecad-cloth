@@ -527,11 +527,11 @@ def run_acceptance():
         piece_names = {piece.Name for piece in pieces}
         if {piece.Name for piece in garment.PatternPieces} != piece_names:
             raise RuntimeError("garment hierarchy cloned, dropped, or retargeted PatternPiece objects")
-        if garment.PrimaryFittingScene != fitting:
+        if garment.PrimaryFittingScene is None or garment.PrimaryFittingScene.Name != fitting.Name:
             raise RuntimeError("garment hierarchy did not link the authoritative FittingScene")
-        if garment.PrimaryDrapeTarget != target:
+        if garment.PrimaryDrapeTarget is None or garment.PrimaryDrapeTarget.Name != target.Name:
             raise RuntimeError("garment hierarchy did not link the authoritative DrapeTarget")
-        if garment.PrimarySimulation != scene:
+        if garment.PrimarySimulation is None or garment.PrimarySimulation.Name != scene.Name:
             raise RuntimeError("garment hierarchy did not link the authoritative ClothSimulation")
         if garment.PrimaryAvatar is None or str(getattr(garment.PrimaryAvatar, "AvatarType", "")) != "ClothAvatar":
             raise RuntimeError("garment hierarchy did not link the authoritative avatar")
@@ -598,11 +598,11 @@ def run_acceptance():
                 raise RuntimeError("save/reload changed native garment group identity")
             if {piece.Name for piece in reloaded_garment.PatternPieces} != set(piece_names):
                 raise RuntimeError("save/reload changed Garment PatternPiece links")
-            if reloaded_garment.PrimaryFittingScene is not fitting:
+            if reloaded_garment.PrimaryFittingScene is None or reloaded_garment.PrimaryFittingScene.Name != fitting.Name:
                 raise RuntimeError("save/reload lost Garment -> FittingScene link")
-            if reloaded_garment.PrimaryDrapeTarget is not target:
+            if reloaded_garment.PrimaryDrapeTarget is None or reloaded_garment.PrimaryDrapeTarget.Name != target.Name:
                 raise RuntimeError("save/reload lost Garment -> DrapeTarget link")
-            if reloaded_garment.PrimarySimulation is not scene:
+            if reloaded_garment.PrimarySimulation is None or reloaded_garment.PrimarySimulation.Name != scene.Name:
                 raise RuntimeError("save/reload lost Garment -> ClothSimulation link")
             adopted = adopt_garment(reloaded)
             if adopted.Name != reloaded_garment.Name:
