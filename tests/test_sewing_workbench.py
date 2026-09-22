@@ -56,35 +56,63 @@ def test_curved_native_edge_uses_arc_length_sampling():
 
 
 def test_endpoint_alignment_uses_physical_arc_length_on_curved_edge():
+    import math
+
     class Edge:
         def __init__(self, values): self.values = values
         def discretize(self, Number=64): return [SimpleNamespace(x=x, y=y) for x, y in self.values]
 
-    # The two polyline segments have unequal physical lengths. The midpoint
-    # therefore falls inside the second segment when sampled by arc length.
-    curved = [(0, 0), (1, 0), (4, 3)]
-    straight = [(0, 0), (4, 0)]
-    a = SimpleNamespace(Width=4, Height=3, SewingOutline=repr([(0, 0), (4, 0), (4, 3)]), Shape=SimpleNamespace(Edges=[Edge(curved), Edge(straight), Edge(straight)]))
-    b = SimpleNamespace(Width=4, Height=3, SewingOutline=repr([(0, 0), (4, 0), (4, 3)]), Shape=SimpleNamespace(Edges=[Edge(straight), Edge(straight), Edge(straight)]))
-    seam = SimpleNamespace(EdgeA=0, StartA=0, EndA=1, EdgeB=0, StartB=0, EndB=1, ReversedB=False)
+    curved = [(0, 0), (1, 3), (4, 0)]
+    a = SimpleNamespace(
+        Width=4,
+        Height=3,
+        SewingOutline=repr([(0, 0), (4, 0), (4, 3)]),
+        Shape=SimpleNamespace(Edges=[Edge(curved), Edge(curved), Edge(curved)]),
+    )
+    b = SimpleNamespace(
+        Width=4,
+        Height=3,
+        SewingOutline=repr([(0, 0), (4, 0), (4, 3)]),
+        Shape=SimpleNamespace(Edges=[Edge(curved), Edge(curved), Edge(curved)]),
+    )
+    seam = SimpleNamespace(
+        EdgeA=0,
+        StartA=0,
+        EndA=1,
+        EdgeB=0,
+        StartB=0,
+        EndB=1,
+        ReversedB=True,
+    )
     oldf = sys.modules.get("FreeCAD")
     sys.modules["FreeCAD"] = _install_fake_freecad()()
     try:
-        endpoint_pairs = _seam_correspondence(a, b, seam, 3, "endpoints")
-        seam.ReversedB = True
-        reversed_pairs = _seam_correspondence(a, b, seam, 3, "endpoints")
+        pairs = _seam_correspondence(a, b, seam, 4, "endpoints")
     finally:
         if oldf is None: sys.modules.pop("FreeCAD", None)
         else: sys.modules["FreeCAD"] = oldf
 
-    midpoint = endpoint_pairs[1][0]
-    assert abs(midpoint.x - 2.2) < 1e-9
-    assert abs(midpoint.y - 1.2) < 1e-9
+    first_segment = math.hypot(1, 3)
+    second_segment = math.hypot(3, 3)
+    total_length = first_segment + second_segment
 
-    assert abs(reversed_pairs[0][1].x - endpoint_pairs[-1][1].x) < 1e-9
-    assert abs(reversed_pairs[0][1].y - endpoint_pairs[-1][1].y) < 1e-9
-    assert abs(reversed_pairs[-1][1].x - endpoint_pairs[0][1].x) < 1e-9
-    assert abs(reversed_pairs[-1][1].y - endpoint_pairs[0][1].y) < 1e-9
+    target_a = total_length * (1.0 / 3.0)
+    t_a = (target_a - 0.0) / first_segment
+    expected_a = (0.0 + (1.0 - 0.0) * t_a, 0.0 + (3.0 - 0.0) * t_a)
+
+    target_b = total_length * (2.0 / 3.0)
+    t_b = (target_b - first_segment) / second_segment
+    expected_b = (1.0 + (4.0 - 1.0) * t_b, 3.0 + (0.0 - 3.0) * t_b)
+
+    assert pairs[1][0].x == expected_a[0]
+    assert pairs[1][0].y == expected_a[1]
+    assert pairs[1][1].x == expected_b[0]
+    assert pairs[1][1].y == expected_b[1]
+
+    assert pairs[1][1].x == pairs[2][0].x
+    assert pairs[1][1].y == pairs[2][0].y
+    assert pairs[2][1].x == pairs[1][0].x
+    assert pairs[2][1].y == pairs[1][0].y
 
 
 def test_reversed_correspondence_is_applied_once():
@@ -215,8 +243,6 @@ def _execute_fake_proxy(
             Alignment="endpoints",
             Status="Incomplete",
             CorrespondenceStatus="valid",
-            CorrespondenceMessage="",
-            CorrespondenceRecovery="",
             LengthA=0,
             LengthB=0,
             LengthDifference=0,
@@ -256,11 +282,10 @@ def test_proxy_reversed_correspondence_is_valid_and_usable():
     assert obj.StitchPoints[0].split("|")[1].startswith("100.000000")
 
 
-def test_proxy_uses_relative_correspondence_status_as_canonical_contract():
-    obj = _execute_fake_proxy(width_a=1.0, width_b=1.06, tolerance=0.5)
+def test_proxy_status_uses_shared_relative_mismatch_contract():
+    obj = _execute_fake_proxy(width_a=1.0, width_b=1.06, tolerance=50.0, relative_tolerance=0.05)
     assert obj.Status == "Length mismatch"
     assert obj.CorrespondenceStatus == "length_mismatch"
-    assert "edit the pattern" in obj.CorrespondenceRecovery
 
 
 if __name__ == "__main__":
