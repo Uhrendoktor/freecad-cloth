@@ -158,7 +158,7 @@ def build_triangle_quality_manifest(pieces, panels, proxy, particle_distance, se
                         "seam_id": seam_id,
                         "side": side,
                         "semantic_edge_id": edge_id,
-                        "solver_stitch_pair_indices": [[int(a), int(b)] for a, b in pairs],
+                        "solver_stitch_pair_indices": [[int(a), int(b)] for a, b in sorted(pairs, key=lambda pair: (int(pair[0]), int(pair[1])))],
                     })
 
             chain = boundary_by_id[edge_id]
