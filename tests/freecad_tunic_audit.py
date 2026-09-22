@@ -229,6 +229,7 @@ source = source.replace(
     "    log(\"tunic-mesh-ab=boundary-refinement-48mm max-area-preserved-259.2\")\n",
     1,
 )
-\n# The source uses the production simulation path; this wrapper only stabilizes
+
+# The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
 exec(compile(source, str(source_path), "exec"), globals(), globals())
