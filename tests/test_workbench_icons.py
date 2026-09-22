@@ -32,3 +32,10 @@ def test_all_workbench_tool_commands_have_svg_icons():
         assert icon.is_file(), command
         text = icon.read_text(encoding="utf-8")
         assert "<svg" in text and "viewBox=" in text
+
+
+if __name__ == "__main__":
+    for _name, _value in sorted(globals().items()):
+        if _name.startswith("test_") and callable(_value):
+            _value()
+    print("test_workbench_icons.py passed")

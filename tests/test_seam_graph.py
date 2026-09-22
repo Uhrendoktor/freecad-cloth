@@ -66,3 +66,10 @@ def test_arc_length_stitch_mapping_ignores_nonuniform_boundary_vertex_density():
 def test_missing_mesh_edge_vertices_is_rejected():
     value = graph()
     with pytest.raises(ValueError, match="missing mesh edge"): value.stitch_pairs({("left", 1): (1, 2, 3)})
+
+
+if __name__ == "__main__":
+    for _name, _value in sorted(globals().items()):
+        if _name.startswith("test_") and callable(_value):
+            _value()
+    print("test_seam_graph.py passed")

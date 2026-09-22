@@ -59,6 +59,8 @@ jobs:
                 tests/test_collisions.py \
                 tests/test_pattern_sketch.py \
                 tests/test_pattern_ir.py \
+                tests/test_pattern_simulation_adapter.py \
+                tests/test_seam_graph.py \
                 tests/test_pattern_export_semantics.py \
                 tests/test_sketch_authority.py \
                 tests/test_sewing_workbench.py \
@@ -80,6 +82,7 @@ jobs:
                 tests/test_freecad_objects.py \
                 tests/test_project_structure.py \
                 tests/test_cloth_diagnostics.py \
+                tests/test_workbench_icons.py \
                 tests/test_tunic_audit_contract.py; do
                 python3 "$test"
               done
