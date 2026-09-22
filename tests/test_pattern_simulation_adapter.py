@@ -1,7 +1,5 @@
 import math
 
-import pytest
-
 from freecad_cloth.common.PatternSimulationAdapter import (
     resolve_simulation_pattern,
 )
@@ -21,7 +19,7 @@ class _Line:
         self.EndPoint = _Point(*end)
 
 
-class _Arc:
+class ArcOfCircle:
     FirstParameter = 0.0
     LastParameter = math.pi
 
@@ -154,7 +152,7 @@ def _edge_reference(piece_id, boundary):
 def _square_sketch(prefix, curved=False, bend=1.0):
     geometry = [
         _Line((0.0, 0.0), (10.0, 0.0)),
-        _Arc(bend) if curved else _Line((10.0, 0.0), (10.0, 10.0)),
+        ArcOfCircle(bend) if curved else _Line((10.0, 0.0), (10.0, 10.0)),
         _Line((10.0, 10.0), (0.0, 10.0)),
         _Line((0.0, 10.0), (0.0, 0.0)),
     ]
@@ -239,9 +237,12 @@ def test_native_sketch_edit_with_same_semantic_id_fails_closed():
         _edge_reference("back", back_edge),
     )
 
-    front.Sketch.Geometry[1] = _Arc(2.0)
-    with pytest.raises(ChangedEdgeReference):
+    front.Sketch.Geometry[1] = ArcOfCircle(2.0)
+    try:
         resolve_simulation_pattern(_Doc([front, back, seam]), [front, back])
+    except ChangedEdgeReference:
+        return
+    raise AssertionError("native Sketcher geometry changes must invalidate the simulation reference")
 
 
 def test_native_and_legacy_pieces_can_share_one_simulation_pattern():
