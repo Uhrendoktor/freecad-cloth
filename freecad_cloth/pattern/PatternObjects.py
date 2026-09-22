@@ -282,6 +282,8 @@ def add_seam(doc, seam: Seam):
     obj.Proxy.execute(obj)
     from freecad_cloth.sewing.SewingView import apply_seam_colors
     apply_seam_colors(doc.Objects)
+    from freecad_cloth.common.GarmentDocument import register_garment_object
+    register_garment_object(doc, obj, "Sewing")
     return obj
 
 
