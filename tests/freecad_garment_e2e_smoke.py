@@ -1,4 +1,4 @@
-"""Canonical end-to-end FreeCAD garment acceptance for the Cloth workbenches."""
+"""Canonical public FreeCAD Pattern -> Sewing -> Fitting -> Simulation -> Export acceptance."""
 import hashlib
 import math
 import os
@@ -17,12 +17,22 @@ def _events():
     except ImportError:
         from PySide2 import QtWidgets
     QtWidgets.QApplication.processEvents()
+    Gui.updateGui()
+    QtWidgets.QApplication.processEvents()
 
 
 def _close_task():
     if Gui.Control.activeDialog():
         Gui.Control.closeDialog()
         _events()
+
+
+def _wait_task_close():
+    for _ in range(40):
+        _events()
+        if Gui.Control.activeDialog() is None:
+            return
+    raise RuntimeError("task dialog did not close after the requested public action")
 
 
 def _activate(name, commands):
@@ -33,25 +43,31 @@ def _activate(name, commands):
         raise RuntimeError("commands are not registered: %s" % ",".join(missing))
 
 
-def _show_panel(panel, required):
-    _close_task()
-    Gui.Control.showDialog(panel)
-    _events()
-    widgets = [panel.form]
+def _dialog_text(dialog):
+    form = getattr(dialog, "form", dialog)
+    widgets = [form]
     try:
         from PySide import QtWidgets
     except ImportError:
         from PySide2 import QtWidgets
-    widgets.extend(panel.form.findChildren(QtWidgets.QWidget))
-    text = " | ".join(
+    if hasattr(form, "findChildren"):
+        widgets.extend(form.findChildren(QtWidgets.QWidget))
+    return " | ".join(
         str(getter())
         for widget in widgets
         for getter in [getattr(widget, "text", None)]
         if callable(getter)
     )
-    missing = [item for item in required if item not in text]
+
+
+def _require_dialog(required, label):
+    dialog = Gui.Control.activeDialog()
+    if dialog is None:
+        raise RuntimeError("%s did not open an active public task dialog" % label)
+    missing = [item for item in required if item not in _dialog_text(dialog)]
     if missing:
-        raise RuntimeError("task panel missing visible text: %s" % ",".join(missing))
+        raise RuntimeError("%s task panel missing visible text: %s" % (label, ",".join(missing)))
+    return dialog
 
 
 def _find_pattern_pieces(doc):
@@ -86,7 +102,6 @@ def _make_curved(piece, doc):
 
 
 def _position_signature(scene):
-    """Return the exact rounded solver particle-position sequence produced by the fixture."""
     proxy = getattr(scene, "Proxy", None)
     backend = getattr(proxy, "backend", None)
     getter = getattr(backend, "positions", None)
@@ -113,116 +128,420 @@ def _position_signature_digest(signature):
     return hashlib.sha256(repr(signature).encode("utf-8")).hexdigest()
 
 
+def _select_edges(*items):
+    Gui.Selection.clearSelection()
+    for obj, edge in items:
+        Gui.Selection.addSelection(obj, "Edge%d" % (int(edge) + 1))
+    _events()
+
+
+def _select_objects(*items):
+    Gui.Selection.clearSelection()
+    for obj in items:
+        Gui.Selection.addSelection(obj)
+    _events()
+
+
+def _open_staged(command):
+    _close_task()
+    Gui.runCommand(command, 0)
+    _events()
+    return _require_dialog(("Preview", "Commit", "Cancel", "Selected semantic pattern edges"), command)
+
+
+def _commit_staged(panel):
+    button = getattr(panel, "commit_button", None)
+    if button is None:
+        raise RuntimeError("staged sewing panel did not expose its public Commit control")
+    button.click()
+    _wait_task_close()
+
+
+def _cancel_staged(panel):
+    button = getattr(panel, "cancel_button", None)
+    if button is None:
+        raise RuntimeError("staged sewing panel did not expose its public Cancel control")
+    button.click()
+    _wait_task_close()
+
+
+def _open_quality_panel():
+    _close_task()
+    Gui.runCommand("ClothSimulation_Edit", 0)
+    _events()
+    return _require_dialog(
+        ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset"),
+        "ClothSimulation_Edit",
+    )
+
+
+def _open_diagnostics_panel():
+    _close_task()
+    Gui.runCommand("ClothDrape_Diagnostics", 0)
+    _events()
+    return _require_dialog(
+        ("Refresh analysis", "Create diagnostic map", "Export analysis data"),
+        "ClothDrape_Diagnostics",
+    )
+
+
+def _export_pair(piece, output_dir, export_format):
+    from freecad_cloth.pattern.PatternExport import from_dxf_metadata, from_svg_metadata
+    path_a = output_dir / ("canonical." + export_format.lower())
+    path_b = output_dir / ("canonical-second." + export_format.lower())
+    reader = from_svg_metadata if export_format == "SVG" else from_dxf_metadata
+
+    _select_objects(piece)
+    _close_task()
+    Gui.runCommand("ClothPattern_Export", 0)
+    _events()
+    panel = _require_dialog(("Production Export", "read-only"), "ClothPattern_Export")
+    panel.format.setCurrentText(export_format)
+    panel.path.setText(str(path_a))
+    if not panel.accept():
+        raise RuntimeError("public export task panel rejected %s" % export_format)
+    _events()
+
+    first = path_a.read_bytes()
+    if not first:
+        raise RuntimeError("%s export is empty" % export_format)
+
+    _close_task()
+    Gui.runCommand("ClothPattern_Export", 0)
+    _events()
+    panel = _require_dialog(("Production Export", "read-only"), "ClothPattern_Export")
+    panel.format.setCurrentText(export_format)
+    panel.path.setText(str(path_b))
+    if not panel.accept():
+        raise RuntimeError("second public export rejected %s" % export_format)
+    _events()
+
+    second = path_b.read_bytes()
+    if first != second:
+        raise RuntimeError("%s export is not byte-deterministic" % export_format)
+
+    metadata = reader(first.decode("utf-8"))
+    if metadata.get("piece_id") != str(piece.PieceId):
+        raise RuntimeError("%s export lost piece identity" % export_format)
+    if metadata.get("units") != "mm" or metadata.get("scale") != 1.0:
+        raise RuntimeError("%s export lost units/scale" % export_format)
+    if not metadata.get("edge_ids"):
+        raise RuntimeError("%s export lost semantic edge IDs" % export_format)
+    return len(first), metadata
+
+
 def run_acceptance():
     doc = App.newDocument("CanonicalGarmentAcceptance")
+    path = None
     try:
-        _activate("ClothPatternWorkbench", ["ClothPattern_CreatePieceWithSketch", "ClothPattern_EditPiece"])
-        Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
-        Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
-        doc.recompute()
+        _activate(
+            "ClothPatternWorkbench",
+            [
+                "ClothPattern_CreatePieceWithSketch",
+                "ClothPattern_EditPiece",
+                "ClothPattern_Show2D",
+            ],
+        )
+        for _ in range(4):
+            Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
+            _events()
         pieces = _find_pattern_pieces(doc)
-        if len(pieces) != 2:
-            raise RuntimeError("public Pattern command did not create two PatternPiece objects")
-        curved, mate = pieces
-        curved.Placement.Base.x = -120
-        mate.Placement.Base.x = 20
-        _make_curved(curved, doc)
-        _make_curved(mate, doc)
+        if len(pieces) != 4:
+            raise RuntimeError("public Pattern command did not create four PatternPiece objects")
+        front, back, sleeve_a, sleeve_b = pieces
+        for index, piece in enumerate(pieces):
+            piece.Placement.Base.x = float(index * 170)
+            _make_curved(piece, doc)
+        doc.recompute()
 
-        from freecad_cloth.pattern.PatternGui import PatternPieceTaskPanel
-        _show_panel(PatternPieceTaskPanel(curved), ("Piece name", "Width", "Height", "Seam allowance", "Grainline angle"))
+        before_ids = [tuple(getattr(piece.Sketch, "SemanticEdgeIds", ())) for piece in pieces]
+        if any(len(ids) != 4 for ids in before_ids):
+            raise RuntimeError("native Sketcher semantic edge IDs were not created for all pattern pieces")
+
+        _select_objects(front)
+        Gui.runCommand("ClothPattern_EditPiece", 0)
+        _events()
+        _require_dialog(("Piece name", "Width", "Height", "Seam allowance", "Grainline angle"), "ClothPattern_EditPiece")
         _close_task()
 
-        _activate("ClothSewingWorkbench", ["ClothSewing_CreateSeam", "ClothSewing_CreateOperation", "ClothSewing_Validate"])
-        Gui.Selection.clearSelection()
-        Gui.Selection.addSelection(curved, "Edge3")
-        Gui.Selection.addSelection(mate, "Edge3")
-        Gui.runCommand("ClothSewing_CreateSeam", 0)
+        _activate(
+            "ClothSewingWorkbench",
+            [
+                "ClothSewing_CreateSeam",
+                "ClothSewing_CreateMNSewing",
+                "ClothSewing_CreateOperation",
+                "ClothSewing_EditOperation",
+                "ClothSewing_ReverseSeam",
+                "ClothSewing_ToggleAlignment",
+                "ClothSewing_Validate",
+                "ClothFitting_CreateScene",
+                "ClothFitting_SetMeasurements",
+                "ClothFitting_AddPieces",
+                "ClothFitting_CreateArrangementPoint",
+                "ClothFitting_ApplyArrangementPoint",
+                "ClothFitting_CreateSimulation",
+            ],
+        )
+
+        before = {obj.Name for obj in doc.Objects}
+        _select_edges((front, 0))
+        panel = _open_staged("ClothSewing_CreateSeam")
+        if "Preview rejected" not in str(panel.feedback.text()) or "exactly two edges" not in str(panel.feedback.text()):
+            raise RuntimeError("public staged sewing task panel did not reject invalid edge count")
+        if {obj.Name for obj in doc.Objects} != before:
+            raise RuntimeError("invalid staged sewing preview persisted document objects")
+        _cancel_staged(panel)
+        print("staged-selection=passed", flush=True)
+
+        _select_edges((front, 2), (back, 2))
+        panel = _open_staged("ClothSewing_CreateSeam")
+        created_11 = tuple(panel.session.created)
+        seam_11 = next((obj for obj in created_11 if getattr(obj, "SeamId", "")), None)
+        if seam_11 is None or str(seam_11.Status) != "Valid":
+            raise RuntimeError("public staged Sewing command did not create a valid curved 1:1 seam")
+        print("sewing-1to1-preview=passed type=curved", flush=True)
+        _commit_staged(panel)
         doc.recompute()
-        seam = next((obj for obj in doc.Objects if getattr(obj, "SeamId", "")), None)
-        if seam is None or str(seam.Status) != "Valid":
-            raise RuntimeError("public Sewing command did not create a valid curved seam")
-        Gui.Selection.clearSelection(); Gui.Selection.addSelection(seam)
+        seam_11 = next(obj for obj in doc.Objects if getattr(obj, "SeamId", "") == str(seam_11.SeamId))
+        if seam_11 is None or str(seam_11.Status) != "Valid":
+            raise RuntimeError("curved 1:1 sewing commit did not persist a valid seam")
+        _select_objects(seam_11)
+        Gui.runCommand("ClothSewing_ReverseSeam", 0)
+        Gui.runCommand("ClothSewing_ToggleAlignment", 0)
+        doc.recompute()
+        if not bool(seam_11.ReversedB) or str(seam_11.Alignment) != "uniform":
+            raise RuntimeError("public sewing direction/correspondence controls did not update seam metadata")
+        Gui.runCommand("ClothSewing_ToggleAlignment", 0)
+        Gui.runCommand("ClothSewing_ReverseSeam", 0)
+        doc.recompute()
+        if bool(seam_11.ReversedB) or str(seam_11.Alignment) != "endpoints":
+            raise RuntimeError("public sewing controls did not restore canonical seam metadata")
+        print("sewing-1to1=passed type=curved", flush=True)
+
+        _select_edges((sleeve_a, 2), (sleeve_a, 3), (sleeve_b, 2), (sleeve_b, 3))
+        panel = _open_staged("ClothSewing_CreateMNSewing")
+        created_mn = tuple(panel.session.created)
+        network = next((obj for obj in created_mn if getattr(obj, "SewingType", "") == "SewingNetwork"), None)
+        if network is None or str(network.Status) != "Valid" or len(network.Seams) != 2:
+            raise RuntimeError("public staged M:N preview did not create a valid two-segment network")
+        print("sewing-mn-preview=passed sides=2,2 segments=2", flush=True)
+        _commit_staged(panel)
+        doc.recompute()
+        networks = [obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork"]
+        if len(networks) != 1:
+            raise RuntimeError("expected exactly one committed M:N sewing network")
+        network = networks[0]
+        if str(network.Status) != "Valid" or len(network.Seams) != 2 or int(network.SideACount) != 2 or int(network.SideBCount) != 2:
+            raise RuntimeError("M:N sewing network did not persist valid 2:2 topology")
+        if any(str(getattr(seam, "Status", "")) != "Valid" for seam in network.Seams):
+            raise RuntimeError("M:N network retained an invalid member seam")
+        print("sewing-mn=passed sides=2,2 segments=2", flush=True)
+
+        _select_objects(seam_11)
         Gui.runCommand("ClothSewing_CreateOperation", 0)
-        doc.recompute()
-        operation = next((obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingOperation"), None)
-        if operation is None or str(operation.Status) != "Valid":
+        _events()
+        operations = [obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingOperation"]
+        if len(operations) != 1 or str(operations[0].Status) != "Valid":
             raise RuntimeError("public Sewing operation command did not create a valid operation")
-        from freecad_cloth.sewing.SewingGui import SewingTaskPanel
-        _show_panel(SewingTaskPanel(operation), ("Seam", "Alignment", "Validation tolerance", "Stitch samples", "Status"))
-        _close_task()
+        operation = operations[0]
+        _select_objects(operation)
+        Gui.runCommand("ClothSewing_EditOperation", 0)
+        _events()
+        operation_panel = _require_dialog(
+            ("Seam", "Alignment", "Validation tolerance", "Stitch samples", "Status"),
+            "ClothSewing_EditOperation",
+        )
+        operation_panel.stitches.setValue(12)
+        operation_panel.alignment.setCurrentText("uniform")
+        Gui.Control.accept()
+        _wait_task_close()
+        doc.recompute()
+        if int(operation.StitchCount) != 12 or str(operation.Alignment) != "uniform":
+            raise RuntimeError("public Sewing operation task panel did not persist controls")
+        print("sewing-operation=passed", flush=True)
+
+        _select_objects(front, back, sleeve_a, sleeve_b)
+        Gui.runCommand("ClothFitting_CreateScene", 0)
+        Gui.runCommand("ClothFitting_SetMeasurements", 0)
+        _events()
+        fitting = doc.getObject("FittingScene")
+        if fitting is None:
+            raise RuntimeError("public Fitting command did not create a FittingScene")
+        Gui.runCommand("ClothFitting_AddPieces", 0)
+        Gui.runCommand("ClothFitting_CreateArrangementPoint", 0)
+        _events()
+        point = next((obj for obj in doc.Objects if getattr(obj, "FittingType", "") == "ArrangementPoint"), None)
+        if point is None:
+            raise RuntimeError("public Fitting command did not create an arrangement point")
+        _select_objects(front, point)
+        Gui.runCommand("ClothFitting_ApplyArrangementPoint", 0)
+        _events()
+        doc.recompute()
+        if len(fitting.PatternPieces) != 4 or str(fitting.FitStatus) not in {"Pieces assigned", "Ready"}:
+            raise RuntimeError("public fitting scene did not persist all four pattern pieces")
+        print("arrangement=passed pieces=4", flush=True)
 
         target_body = doc.addObject("Part::Feature", "AcceptanceTarget")
         target_body.Label = "Acceptance Target"
         target_body.Shape = Part.makeCylinder(35, 100, App.Vector(0, 0, -50))
         doc.recompute()
 
-        _activate("ClothSimulationWorkbench", ["ClothSimulation_Create", "ClothSimulation_Step", "ClothSimulation_Reset", "ClothDrape_CreateTarget", "ClothDrape_RefreshTarget"])
-        Gui.Selection.clearSelection()
-        Gui.runCommand("ClothSimulation_Create", 0)
-        doc.recompute()
+        _select_objects(target_body)
+        Gui.runCommand("ClothDrape_CreateTarget", 0)
+        _events()
+        target = doc.getObject("DrapeTarget")
+        if target is None or target.SourceObject != target_body:
+            raise RuntimeError("public DrapeTarget command did not persist CAD target")
+        print("drape-target=passed", flush=True)
+
+        _select_objects(fitting)
+        Gui.runCommand("ClothFitting_CreateSimulation", 0)
+        _events()
         scene = doc.getObject("ClothSimulation")
         if scene is None:
-            raise RuntimeError("public Simulation command did not create ClothSimulation")
-        scene.ClothPieces = [curved, mate]
+            raise RuntimeError("public Fitting simulation command did not create ClothSimulation")
         doc.recompute()
-        Gui.Selection.clearSelection(); Gui.Selection.addSelection(target_body)
-        Gui.runCommand("ClothDrape_CreateTarget", 0)
+        if len(scene.ClothPieces) != 4:
+            raise RuntimeError("fitting-created simulation did not inherit four pattern pieces")
+
+        _select_objects(scene)
+        quality_panel = _open_quality_panel()
+        quality_panel.quality = getattr(quality_panel, "quality", None)
+        if hasattr(quality_panel, "preset"):
+            quality_panel.preset.setCurrentText("Fast")
+        Gui.Control.accept()
+        _wait_task_close()
+        scene.Steps = 1
         doc.recompute()
-        target = doc.getObject("DrapeTarget")
-        if target is None or target.SourceObject != target_body or scene.DrapeTarget != target:
-            raise RuntimeError("public DrapeTarget command did not persist CAD target")
-        from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
-        _show_panel(SimulationQualityTaskPanel(scene), ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset"))
+        if not int(scene.ParticleCount) > 0 or not bool(scene.FiniteState):
+            raise RuntimeError("public Simulation command did not produce a finite one-step state")
+
+        _select_objects(scene)
+        diagnostics_panel = _open_diagnostics_panel()
+        diagnostics_panel.metric.setCurrentText("stress")
+        diagnostics_panel.refresh_button.click()
+        _events()
+        if "Stress" not in str(diagnostics_panel.status.text()):
+            raise RuntimeError("public diagnostics task panel did not produce stress analysis")
+        diagnostics_panel.map_button.click()
+        _events()
+        if "Created" not in str(diagnostics_panel.status.text()):
+            raise RuntimeError("public diagnostics task panel did not create a diagnostic map")
         _close_task()
-        Gui.Selection.clearSelection(); Gui.Selection.addSelection(scene)
-        Gui.runCommand("ClothSimulation_Step", 0)
-        doc.recompute()
-        if int(scene.Steps) < 1 or not bool(scene.FiniteState):
-            raise RuntimeError("public Simulation Step did not produce a finite step")
+        print("diagnostics=passed metric=stress", flush=True)
 
         with tempfile.TemporaryDirectory() as directory:
+            output_dir = __import__("pathlib").Path(directory)
             path = os.path.join(directory, "canonical-garment.FCStd")
+            doc.recompute()
             doc.saveAs(path)
-            piece_name = curved.Name
+            seam_11_name = seam_11.Name
+            network_name = network.Name
+            operation_name = operation.Name
+            fitting_name = fitting.Name
+            scene_name = scene.Name
+            target_name = target.Name
+            piece_names = [piece.Name for piece in pieces]
             App.closeDocument(doc.Name)
             doc = None
             reloaded = App.openDocument(path)
-            scene = reloaded.getObject("ClothSimulation")
-            target = reloaded.getObject("DrapeTarget")
-            curved = reloaded.getObject(piece_name)
-            changed_seam = reloaded.getObject("Seam")
-            if scene is None or target is None or curved is None or changed_seam is None:
-                raise RuntimeError("garment fixture did not survive save/reload")
-            if target.SourceObject is None or target.SourceObject.Name != "AcceptanceTarget":
-                raise RuntimeError("persistent DrapeTarget source was not restored")
-            if curved.Sketch is None or str(curved.GeometryAuthority) != "Sketcher":
-                raise RuntimeError("native Sketcher authority was not restored")
-            if str(changed_seam.Status) != "Valid":
-                raise RuntimeError("reloaded curved seam lost validity: %s" % changed_seam.Status)
+            reloaded.recompute()
 
+            reloaded_pieces = [reloaded.getObject(name) for name in piece_names]
+            if any(piece is None for piece in reloaded_pieces):
+                raise RuntimeError("garment fixture did not preserve all four PatternPiece objects")
+            if [str(piece.PieceId) for piece in reloaded_pieces] != [str(piece.PieceId) for piece in pieces]:
+                raise RuntimeError("save/reload changed persistent PatternPiece identity")
+            seam_11 = reloaded.getObject(seam_11_name)
+            network = reloaded.getObject(network_name)
+            operation = reloaded.getObject(operation_name)
+            fitting = reloaded.getObject(fitting_name)
+            scene = reloaded.getObject(scene_name)
+            target = reloaded.getObject(target_name)
+            if any(obj is None for obj in (seam_11, network, operation, fitting, scene, target)):
+                raise RuntimeError("garment fixture did not preserve sewing/fitting/simulation objects")
+            if str(seam_11.Status) != "Valid" or str(network.Status) != "Valid" or str(operation.Status) != "Valid":
+                raise RuntimeError("save/reload changed sewing validity")
+            if len(network.Seams) != 2 or len(fitting.PatternPieces) != 4 or len(scene.ClothPieces) != 4:
+                raise RuntimeError("save/reload changed sewing/fitting/simulation membership")
+            if target.SourceObject is None or target.SourceObject.Name != target_body.Name:
+                raise RuntimeError("save/reload lost persistent DrapeTarget source")
+            semantic_ids_after_reload = tuple(getattr(reloaded_pieces[0].Sketch, "SemanticEdgeIds", ()))
+            if semantic_ids_after_reload != before_ids[0]:
+                raise RuntimeError("save/reload changed native Sketcher semantic edge IDs")
+            print("save-reload=passed pieces=4 seam=1to1 network=2segment", flush=True)
+
+            curved = reloaded_pieces[0]
+            seam_11 = reloaded.getObject(seam_11_name)
+            semantic_ids = tuple(curved.Sketch.SemanticEdgeIds)
             dimensional = curved.Sketch.addConstraint(Sketcher.Constraint("DistanceY", 2, 2, 50.0))
             curved.Sketch.renameConstraint(dimensional, "UpstreamSeamEndpointY")
             curved.Sketch.setDatum(dimensional, App.Units.Quantity("60 mm"))
             reloaded.recompute()
-            if float(curved.Height) <= 55.0:
-                raise RuntimeError("native Sketcher edit did not update PatternPiece geometry")
-            if str(changed_seam.Status) not in {"Changed reference", "Missing reference"}:
-                raise RuntimeError("native Sketcher parameter edit did not invalidate downstream seam: %s" % changed_seam.Status)
+            if tuple(curved.Sketch.SemanticEdgeIds) != semantic_ids:
+                raise RuntimeError("native Sketcher edit changed semantic edge IDs")
+            if str(seam_11.Status) not in {"Changed reference", "Missing reference"}:
+                raise RuntimeError("native Sketcher edit did not invalidate downstream curved seam: %s" % seam_11.Status)
+            print("invalidation=passed seam=%s" % seam_11.Status, flush=True)
 
-            target_body = reloaded.getObject("AcceptanceTarget")
-            target_body.Placement.Base.x += 15.0
+            curved.Sketch.setDatum(dimensional, App.Units.Quantity("50 mm"))
             reloaded.recompute()
-            from freecad_cloth.simulation.DrapeTarget import target_status
-            if target_status(target)["state"] != "stale":
-                raise RuntimeError("upstream CAD target edit did not invalidate collision target")
+            if str(seam_11.Status) != "Valid":
+                raise RuntimeError("restoring native Sketch geometry did not recover the curved seam")
+            print("invalidation-restore=passed seam=Valid", flush=True)
+
+            network_piece = reloaded.getObject(next(obj.Name for obj in reloaded_pieces if obj.PieceId == "pattern-piece-3"))
+            member_edge_ids_before = [
+                (str(member.EdgeAId), str(member.EdgeBId)) if hasattr(member, "EdgeAId") else ()
+                for member in network.Seams
+            ]
+            if network_piece is None:
+                raise RuntimeError("could not locate an M:N member PatternPiece after reload")
+            network_sketch = network_piece.Sketch
+            network_ids = tuple(network_sketch.SemanticEdgeIds)
+            network_dim = network_sketch.addConstraint(Sketcher.Constraint("DistanceY", 2, 2, 60.0))
+            network_sketch.renameConstraint(network_dim, "UpstreamNetworkEndpointY")
+            network_sketch.setDatum(network_dim, App.Units.Quantity("60 mm"))
+            reloaded.recompute()
+            if tuple(network_sketch.SemanticEdgeIds) != network_ids:
+                raise RuntimeError("M:N native Sketcher edit changed semantic edge IDs")
+            network = reloaded.getObject(network_name)
+            if str(network.Status) != "Invalid" or "Changed reference" not in str(network.InvalidReason):
+                raise RuntimeError("M:N network did not fail closed after upstream native geometry change")
+            stale_piece = next(
+                obj for obj in reloaded_pieces
+                if str(getattr(obj, "PieceId", "")) == "pattern-piece-3"
+            )
+            _select_objects(stale_piece)
+            _close_task()
+            Gui.runCommand("ClothPattern_Export", 0)
+            _events()
+            stale_export_panel = _require_dialog(("Production Export", "read-only"), "ClothPattern_Export stale validation")
+            stale_export_path = output_dir / "stale.svg"
+            stale_export_panel.format.setCurrentText("SVG")
+            stale_export_panel.path.setText(str(stale_export_path))
+            if stale_export_panel.accept():
+                raise RuntimeError("production export did not fail closed for a stale sewing reference")
+            if "Export blocked" not in str(stale_export_panel.status.text()):
+                raise RuntimeError("stale export did not report a deterministic blocked status")
+            _close_task()
+            print("stale-export=blocked", flush=True)
+
+            network_sketch.setDatum(network_dim, App.Units.Quantity("50 mm"))
+            reloaded.recompute()
+            network = reloaded.getObject(network_name)
+            if str(network.Status) != "Valid":
+                raise RuntimeError("restoring network source geometry did not recover M:N validity")
+
+            _select_objects(target)
             Gui.runCommand("ClothDrape_RefreshTarget", 0)
-            reloaded.recompute()
-            Gui.Selection.clearSelection(); Gui.Selection.addSelection(scene)
+            _events()
+            _select_objects(scene)
             Gui.runCommand("ClothSimulation_Reset", 0)
             Gui.runCommand("ClothSimulation_Step", 0)
+            _events()
             reloaded.recompute()
-            if int(scene.Steps) < 1 or not bool(scene.FiniteState):
+            if int(scene.Steps) != 1 or not bool(scene.FiniteState):
                 raise RuntimeError("simulation did not rerun after save/reload and upstream invalidation")
 
             first_signature = _position_signature(scene)
@@ -235,10 +554,8 @@ def run_acceptance():
 
             Gui.runCommand("ClothSimulation_Reset", 0)
             Gui.runCommand("ClothSimulation_Step", 0)
+            _events()
             reloaded.recompute()
-            if int(scene.Steps) != 1 or not bool(scene.FiniteState):
-                raise RuntimeError("repeated deterministic simulation run did not produce a finite one-step state")
-
             second_signature = _position_signature(scene)
             second_digest = _position_signature_digest(second_signature)
             if first_signature != second_signature:
@@ -247,27 +564,51 @@ def run_acceptance():
                     "first_sha256=%s second_sha256=%s" % (first_digest, second_digest)
                 )
             print(
-                "determinism-signature=second rounding=9 vertices=%d sha256=%s"
-                % (len(second_signature), second_digest),
-                flush=True,
-            )
-            print(
                 "determinism-signature=passed rounding=9 vertices=%d sha256=%s"
                 % (len(second_signature), second_digest),
                 flush=True,
             )
+
+            export_results = {}
+            source_before = (
+                str(stale_piece.Label),
+                str(stale_piece.PieceId),
+                str(stale_piece.SewingOutline),
+                float(stale_piece.SeamAllowance),
+                float(stale_piece.GrainlineAngle),
+                str(getattr(stale_piece, "GeometryAuthority", "")),
+            )
+            for export_format in ("SVG", "DXF"):
+                size, metadata = _export_pair(stale_piece, output_dir, export_format)
+                export_results[export_format] = size
+                if metadata.get("piece_id") != str(stale_piece.PieceId):
+                    raise RuntimeError("%s export lost piece identity" % export_format)
+                if float(metadata.get("seam_allowance_mm", 0.0)) != float(stale_piece.SeamAllowance):
+                    raise RuntimeError("%s export lost seam allowance" % export_format)
+            source_after = (
+                str(stale_piece.Label),
+                str(stale_piece.PieceId),
+                str(stale_piece.SewingOutline),
+                float(stale_piece.SeamAllowance),
+                float(stale_piece.GrainlineAngle),
+                str(getattr(stale_piece, "GeometryAuthority", "")),
+            )
+            if source_before != source_after:
+                raise RuntimeError("production export mutated authoritative PatternPiece state")
+            print(
+                "pattern-export=passed formats=SVG,DXF bytes=%s,%s"
+                % (export_results["SVG"], export_results["DXF"]),
+                flush=True,
+            )
+
             App.closeDocument(reloaded.Name)
+            doc = None
+        print("pattern-e2e=passed pieces=4", flush=True)
         print("canonical garment end-to-end acceptance passed", flush=True)
     finally:
         _close_task()
-        if doc is not None:
-            name = None
-            try:
-                name = doc.Name
-            except ReferenceError:
-                pass
-            if name and name in App.listDocuments():
-                App.closeDocument(name)
+        if doc is not None and doc.Name in App.listDocuments():
+            App.closeDocument(doc.Name)
 
 
 if __name__ == "__main__":
