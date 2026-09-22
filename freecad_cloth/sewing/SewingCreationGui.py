@@ -205,10 +205,10 @@ class SewingCreationTaskPanel:
         self.commit_button = QtWidgets.QPushButton("Commit")
         self.cancel_button = QtWidgets.QPushButton("Cancel")
         self.preview_button.clicked.connect(self.preview)
-        # Route visible Commit/Cancel controls through FreeCAD's native task-dialog controller.
-        # Calling accept()/reject() directly from a custom QPushButton bypasses the controller lifecycle.
-        self.commit_button.clicked.connect(self.Gui.Control.accept)
-        self.cancel_button.clicked.connect(self.Gui.Control.reject)
+        # Visible Commit/Cancel controls invoke the task-panel protocol directly.
+        # _close_dialog() defers controller cleanup to the Qt event queue.
+        self.commit_button.clicked.connect(self.accept)
+        self.cancel_button.clicked.connect(self.reject)
         buttons.addWidget(self.preview_button)
         buttons.addWidget(self.commit_button)
         buttons.addWidget(self.cancel_button)
