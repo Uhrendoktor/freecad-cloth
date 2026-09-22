@@ -82,7 +82,7 @@ def to_dxf(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm
             x,y=notch_point(pattern,notch); polyline([(x,y),(x,y+notch.depth)],"MARK",False)
         for mark in derived.marks:
             x,y=mark_point(pattern,mark); angle=radians(mark.angle); dx,dy=cos(angle)*mark.length/2,sin(angle)*mark.length/2; polyline([(x-dx,y-dy),(x+dx,y+dy)],"MARK",False)
-    metadata=json.dumps(_metadata(pattern,units,piece_id,seam_ids,derived,seam_allowance),sort_keys=True,separators=(",",":")); lines=["0","SECTION","2","HEADER","9","$COMMENT","1",metadata,"0","ENDSEC","0","SECTION","2","ENTITIES"]
+    metadata=json.dumps(_metadata(pattern,units,piece_id,seam_ids,derived,seam_allowance,internal_mark_ids,semantic_edge_ids),sort_keys=True,separators=(",",":")); lines=["0","SECTION","2","HEADER","9","$COMMENT","1",metadata,"0","ENDSEC","0","SECTION","2","ENTITIES"]
     for entity in entities: lines.extend(entity)
     lines += ["0","ENDSEC","0","EOF",""]; return "\n".join(lines)
 
