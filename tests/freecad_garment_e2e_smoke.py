@@ -549,8 +549,8 @@ def run_acceptance():
             curved = reloaded_pieces[0]
             seam_11 = reloaded.getObject(seam_11_name)
             semantic_ids = tuple(curved.Sketch.SemanticEdgeIds)
-            dimensional = curved.Sketch.addConstraint(Sketcher.Constraint("DistanceY", 2, 2, 50.0))
-            curved.Sketch.renameConstraint(dimensional, "UpstreamSeamEndpointY")
+            dimensional = curved.Sketch.addConstraint(Sketcher.Constraint("Radius", 2, 50.0))
+            curved.Sketch.renameConstraint(dimensional, "UpstreamSeamRadius")
             curved.Sketch.setDatum(dimensional, App.Units.Quantity("60 mm"))
             reloaded.recompute()
             if tuple(curved.Sketch.SemanticEdgeIds) != semantic_ids:
