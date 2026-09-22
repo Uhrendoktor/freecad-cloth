@@ -97,7 +97,7 @@ try:
     Gui.activateWorkbench("ClothPatternWorkbench")
     process_events()
 
-    for command in ("ClothPattern_CreatePieceWithSketch", "ClothPattern_EditSketch", "ClothPattern_Export"):
+    for command in ("ClothPattern_CreatePieceWithSketch", "ClothPattern_EditSketch", "ClothPattern_Export", "ClothPattern_AddNotch", "ClothPattern_AddInternalMark", "ClothPattern_AddGrainline"):
         if command not in Gui.listCommands():
             raise RuntimeError("missing public Pattern command: " + command)
     if "ClothPattern_CreateDrafting" in Gui.listCommands():
@@ -127,6 +127,36 @@ try:
         process_events()
     else:
         raise RuntimeError("pattern creation task panel remained open before export")
+
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(piece)
+    process_events()
+    for command in ("ClothPattern_AddNotch", "ClothPattern_AddInternalMark", "ClothPattern_AddGrainline"):
+        Gui.runCommand(command, 0)
+        process_events()
+    doc.recompute()
+    persisted_marks = [
+        obj
+        for obj in doc.Objects
+        if str(getattr(obj, "PatternMarkType", "")).strip()
+        and str(getattr(obj, "PieceId", "")) == str(piece.PieceId)
+    ]
+    by_type = {str(obj.PatternMarkType): obj for obj in persisted_marks}
+    for mark_type in ("Notch", "InternalMark", "Grainline"):
+        if mark_type not in by_type:
+            raise RuntimeError("public mark command did not persist " + mark_type)
+    expected_mark_ids = {
+        mark_type: str(by_type[mark_type].Name)
+        for mark_type in ("Notch", "InternalMark", "Grainline")
+    }
+    record(
+        "persisted-marks=ready notch=%s internal=%s grainline=%s"
+        % (
+            expected_mark_ids["Notch"],
+            expected_mark_ids["InternalMark"],
+            expected_mark_ids["Grainline"],
+        )
+    )
 
     source_before = (
         str(piece.Label),
@@ -188,6 +218,17 @@ try:
                 raise RuntimeError(export_format + " export lost semantic edge IDs")
             if not metadata.get("mark_ids"):
                 raise RuntimeError(export_format + " export lost construction mark identity")
+            if expected_mark_ids["Notch"] not in metadata.get("notch_ids", []):
+                raise RuntimeError(export_format + " export lost persisted Notch identity")
+            for mark_type in ("InternalMark", "Grainline"):
+                if expected_mark_ids[mark_type] not in metadata.get("mark_ids", []):
+                    raise RuntimeError(export_format + " export lost persisted " + mark_type + " identity")
+            if export_format == "SVG":
+                exported_svg = first.decode("utf-8")
+                if 'data-kind="InternalMark"' not in exported_svg:
+                    raise RuntimeError("SVG export lost persisted InternalMark type")
+                if 'data-kind="Grainline"' not in exported_svg:
+                    raise RuntimeError("SVG export lost persisted Grainline type")
             results[export_format] = len(first)
 
         if source_before != (
@@ -200,6 +241,10 @@ try:
         ):
             raise RuntimeError("public export mutated authoritative PatternPiece state")
 
+        record(
+            "persisted-marks=passed ids=%s types=Notch,InternalMark,Grainline"
+            % ",".join(expected_mark_ids[key] for key in ("Notch", "InternalMark", "Grainline")),
+        )
         record("pattern-export=passed formats=SVG,DXF bytes=%s,%s" % (results["SVG"], results["DXF"]))
 except Exception:
     record("smoke=exception\n" + traceback.format_exc())
