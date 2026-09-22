@@ -89,6 +89,8 @@ def create_fitting_scene():
     obj.addProperty("App::PropertyString", "FitStatus", "Fitting").FitStatus = "Unassigned"
     obj.Proxy = _FittingProxy()
     FittingScene().validate()
+    from freecad_cloth.common.GarmentDocument import link_garment_object
+    link_garment_object(obj, "Avatar", doc)
     doc.recompute()
     return obj
 
