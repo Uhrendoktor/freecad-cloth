@@ -90,6 +90,27 @@ if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
 source = source.replace(anchor, preview_probe + '\n' + anchor, 1)
 
+continuation_probe = '''    # A/B continuation: exactly one additional block identical to the existing 90 real steps.
+    for batch in (15,15,15,15,15,15):
+        simulation_panel.step(batch); doc.recompute(); events()
+    if int(scene.Steps) != 180 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
+        raise RuntimeError("simulation did not reach a finite 180-step state")
+    log("extra-90-step-continuation=passed total-steps=%d" % int(scene.Steps))
+'''
+loop_block = '''    for batch in (15,15,15,15,15,15):
+        simulation_panel.step(batch); doc.recompute(); events()
+    if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
+        raise RuntimeError("simulation did not reach a finite 90-step state")
+'''
+if loop_block not in source:
+    raise RuntimeError("90-step simulation block missing from source")
+source = source.replace(loop_block, loop_block + continuation_probe, 1)
+source = source.replace(
+    "read-only stress utilization map over the valid 90-step drape",
+    "read-only stress utilization map over the valid 180-step drape",
+    1,
+)
+
 seam_check = """    backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
     if not simulated_positions: raise RuntimeError("Tissu backend returned no simulated particle positions")
