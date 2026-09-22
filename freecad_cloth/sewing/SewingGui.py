@@ -5,6 +5,8 @@ correspondence ranges. All semantic values remain on the document Seam object;
 the task panel is only the interactive frontend.
 """
 
+from freecad_cloth.sewing.SewingCorrespondence import correspondence_recovery
+
 def _gui_modules():
     import FreeCAD as App
     import FreeCADGui as Gui
