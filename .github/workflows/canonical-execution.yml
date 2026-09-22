@@ -124,8 +124,8 @@ jobs:
           grep -q 'cancel-1to1=passed' artifacts/sewing-creation-smoke.log
           grep -q 'preview-mn=passed' artifacts/sewing-creation-smoke.log
           grep -q 'commit-mn=passed' artifacts/sewing-creation-smoke.log
-          grep -q 'invalid-same-piece-feedback=passed' artifacts/sewing-creation-smoke.log
-          grep -q 'invalid-mn-partition-feedback=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'invalid-same-piece-preview=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'invalid-mn-partition-preview=passed' artifacts/sewing-creation-smoke.log
       - name: Upload sewing creation smoke evidence
         if: always()
         uses: actions/upload-artifact@v6
