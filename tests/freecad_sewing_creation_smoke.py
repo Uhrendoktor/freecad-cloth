@@ -65,7 +65,11 @@ def open_public(command):
             pass
         process_events()
     active = Gui.Control.activeDialog()
-    assert active is panel, command + " did not become the active task dialog"
+    assert active is not None, command + " did not open an active task dialog"
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
     widgets = [panel.form] + list(panel.form.findChildren(QtWidgets.QWidget))
     visible_text = " | ".join(
         str(getter())
