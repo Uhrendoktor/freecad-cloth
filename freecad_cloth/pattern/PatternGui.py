@@ -35,7 +35,10 @@ class PatternPieceTaskPanel:
             self.mode.addItem("Sketch")
             self.mode.setEnabled(False)
         else:
-            self.mode.addItems(["Rectangle", "Custom"])
+            self._legacy_custom = str(getattr(obj, "GeometryMode", "")) == "Custom" if obj is not None else False
+            self.mode.addItem("Legacy Custom (read-only)" if self._legacy_custom else "Rectangle")
+            if self._legacy_custom:
+                self.mode.setEnabled(False)
         self.width = QtWidgets.QDoubleSpinBox(); self.width.setRange(.1, 100000); self.width.setDecimals(2); self.width.setSuffix(" mm")
         self.height = QtWidgets.QDoubleSpinBox(); self.height.setRange(.1, 100000); self.height.setDecimals(2); self.height.setSuffix(" mm")
         self.width.setEnabled(not self._sketch_authoritative)
@@ -52,7 +55,7 @@ class PatternPieceTaskPanel:
         self.mode.currentTextChanged.connect(self._mode_changed)
         if obj:
             self.name.setText(obj.Label)
-            current_mode = "Sketch" if self._sketch_authoritative else str(getattr(obj, "GeometryMode", "Rectangle"))
+            current_mode = "Sketch" if self._sketch_authoritative else ("Legacy Custom (read-only)" if self._legacy_custom else "Rectangle")
             if self.mode.findText(current_mode) >= 0:
                 self.mode.setCurrentText(current_mode)
             self.width.setValue(float(obj.Width)); self.height.setValue(float(obj.Height))
@@ -86,9 +89,8 @@ class PatternPieceTaskPanel:
             self.width.setEnabled(False)
             self.height.setEnabled(False)
             return
-        custom = mode == "Custom"
-        self.width.setEnabled(not custom)
-        self.height.setEnabled(not custom)
+        self.width.setEnabled(not self._sketch_authoritative and not getattr(self, "_legacy_custom", False))
+        self.height.setEnabled(not self._sketch_authoritative and not getattr(self, "_legacy_custom", False))
 
     def _validate(self):
         name = self.name.text().strip()
@@ -111,8 +113,8 @@ class PatternPieceTaskPanel:
             if mode == "Rectangle":
                 self.obj.GeometryMode = "Rectangle"
                 self.obj.Width = self.width.value(); self.obj.Height = self.height.value()
-            else:
-                self.obj.GeometryMode = "Custom"
+            elif mode != "Legacy Custom (read-only)":
+                raise ValueError("unsupported pattern geometry mode")
         else:
             # Geometry and dimensions remain owned by the linked Sketcher source.
             self.obj.GeometryMode = "Sketch"
