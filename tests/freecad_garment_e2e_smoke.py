@@ -615,8 +615,18 @@ def run_acceptance():
             network_sketch.setDatum(network_dim, App.Units.Quantity("50 mm"))
             reloaded.recompute()
             network = reloaded.getObject(network_name)
+            invalid_members = [member for member in network.Seams if str(getattr(member, "Status", "Valid")) != "Valid"]
+            if not invalid_members:
+                raise RuntimeError("restoring network source geometry unexpectedly retargeted all M:N seam references")
+            for member in invalid_members:
+                _select_objects(member)
+                Gui.runCommand("ClothSewing_RepairSeam", 0)
+                _events()
+                _wait_task_close()
+                reloaded.recompute()
+            network = reloaded.getObject(network_name)
             if str(network.Status) != "Valid":
-                raise RuntimeError("restoring network source geometry did not recover M:N validity")
+                raise RuntimeError("explicit seam repair did not recover M:N validity")
 
             _select_objects(target)
             Gui.runCommand("ClothDrape_RefreshTarget", 0)
