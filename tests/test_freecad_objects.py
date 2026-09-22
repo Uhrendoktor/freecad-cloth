@@ -119,6 +119,7 @@ def test_native_integer_seam_reference_uses_original_sketch_semantic_ordinal_aft
             Part.LineSegment(App.Vector(0, 0, 0), App.Vector(10, 0, 0)),
             Part.LineSegment(App.Vector(10, 0, 0), App.Vector(10, 10, 0)),
         ], False)
+        # SemanticEdgeIds stay attached to the authored Sketch geometry indices; PatternIR may reorder the cycle.
         sketch_a.SemanticEdgeIds = [
             "native-shuffled-a:edge:2",
             "native-shuffled-a:edge:3",
