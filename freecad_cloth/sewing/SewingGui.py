@@ -55,6 +55,7 @@ class SewingTaskPanel:
         self.form=QtWidgets.QWidget(); layout=QtWidgets.QFormLayout(self.form)
         seam_id=str(getattr(self.seam,"SeamId","")) if self.seam else ""; piece_a=getattr(self.seam,"PieceA",None) if self.seam else None; piece_b=getattr(self.seam,"PieceB",None) if self.seam else None
         self.seam_info=QtWidgets.QLabel("%s: %s ↔ %s"%(seam_id or "Unassigned seam",piece_a or "?",piece_b or "?")); self.seam_info.setWordWrap(True); layout.addRow("Seam",self.seam_info)
+        self.seam_color=QtWidgets.QLabel(); self.seam_color.setFixedSize(28,18); layout.addRow("Seam color",self.seam_color)
         self.alignment=QtWidgets.QComboBox(); self.alignment.addItems(["endpoints","uniform"]); current_alignment=str(getattr(self.seam,"Alignment",getattr(obj,"Alignment","endpoints"))); self.alignment.setCurrentIndex(max(0,self.alignment.findText(current_alignment))); layout.addRow("Alignment",self.alignment)
         self.reversed_b=QtWidgets.QCheckBox("Reverse B correspondence"); self.reversed_b.setChecked(bool(getattr(self.seam,"ReversedB",getattr(obj,"ReversedB",False)))); layout.addRow("Orientation",self.reversed_b)
         self.start_a=self._range_spin(float(getattr(self.seam,"StartA",0.0))); self.end_a=self._range_spin(float(getattr(self.seam,"EndA",1.0))); self.start_b=self._range_spin(float(getattr(self.seam,"StartB",0.0))); self.end_b=self._range_spin(float(getattr(self.seam,"EndB",1.0)))
@@ -82,7 +83,16 @@ class SewingTaskPanel:
         doc=self.App.ActiveDocument; aborter=getattr(doc,"abortTransaction",None) if doc is not None else None
         if callable(aborter): aborter(); self._transaction_active=False; return True
         self._transaction_active=False; return False
+    def _update_seam_color(self):
+        document=getattr(self.obj,"Document",None) or self.App.ActiveDocument
+        seam_ids=[str(candidate.SeamId).strip() for candidate in getattr(document,"Objects",()) if str(getattr(candidate,"SeamId","")).strip()]
+        from freecad_cloth.sewing.SewingView import seam_color_hex
+        seam_id=str(getattr(self.seam,"SeamId","")).strip() if self.seam is not None else ""
+        color=seam_color_hex(seam_id,seam_ids)
+        self.seam_color.setStyleSheet("background-color: %s; border: 1px solid palette(mid);" % color)
+        self.seam_color.setToolTip("Deterministic seam color %s" % color)
     def _refresh(self):
+        self._update_seam_color()
         self.status.setText(str(self.obj.Status)); self.lengths.setText("%.2f / %.2f mm (Δ %.2f)"%(float(self.obj.LengthA),float(self.obj.LengthB),float(self.obj.LengthDifference)))
         report=correspondence_report(self.seam,self.obj.LengthA,self.obj.LengthB,float(getattr(self.obj,"RelativeTolerance",0.05)))
         if report is None: self.correspondence.setText("No seam correspondence"); return
