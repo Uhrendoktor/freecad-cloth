@@ -29,3 +29,12 @@ def test_simulation_cross_scope_dependencies_are_global_and_outputs_have_garment
     assert 'link_garment_object(scene, "Simulation", doc)' in source
     assert 'link_garment_object(panel_a, "SimulationOutput", doc)' in source
     assert 'link_garment_object(panel_b, "SimulationOutput", doc)' in source
+
+def test_fitting_proxy_execute_does_not_sync_derived_visuals():
+    source = (ROOT / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    start = source.index("class _FittingProxy:")
+    end = source.index("\n\nCOMMANDS =", start)
+    execute = source[start:end]
+    assert "def execute(self, obj):" in execute
+    execute_body = execute.split("def execute(self, obj):", 1)[1]
+    assert "_sync_visuals(" not in execute_body
