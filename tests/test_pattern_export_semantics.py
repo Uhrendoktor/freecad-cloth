@@ -221,6 +221,44 @@ def test_pattern_piece_export_metadata_preserves_authored_semantic_edge_order(tm
     assert metadata["edge_ids"] == Sketch.SemanticEdgeIds
 
 
+def test_pattern_piece_export_preserves_authored_semantic_edge_ids_in_both_formats(tmp_path):
+    class Sketch:
+        SemanticEdgeIds = (
+            "piece-front:waist",
+            "piece-front:side",
+            "piece-front:armhole",
+            "piece-front:center",
+        )
+
+    class Piece:
+        PatternType = "PatternPiece"
+        Name = "Front"
+        Label = "Front"
+        PieceId = "piece-front"
+        Width = 100.0
+        Height = 60.0
+        SeamAllowance = 0.0
+        GrainlineAngle = 90.0
+        GeometryAuthority = ""
+        SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)])
+        DraftingBoundary = SewingOutline
+        Sketch = Sketch()
+
+    class Document:
+        Objects = ()
+
+    piece = Piece()
+    piece.Document = Document()
+    piece.Document.Objects = (piece,)
+    expected = list(Sketch.SemanticEdgeIds)
+
+    for fmt, reader in (("svg", from_svg_metadata), ("dxf", from_dxf_metadata)):
+        path = tmp_path / ("semantic.%s" % fmt)
+        export_pattern_piece(piece, path, fmt, curve_samples=16)
+        metadata = reader(path.read_text(encoding="utf-8"))
+        assert metadata["edge_ids"] == expected
+
+
 def test_pattern_piece_export_preserves_legacy_grainline_fallback(tmp_path):
     class Piece:
         PatternType = "PatternPiece"
