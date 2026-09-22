@@ -7,10 +7,10 @@ Jonathan Shewchuk's Triangle library; the rest of this module preserves the
 workbench's semantic boundary/provenance contract.
 """
 from dataclasses import dataclass
-from math import hypot, isclose
+from math import ceil, hypot, isfinite, isclose
 from typing import Dict, List, Sequence, Tuple
 
-from freecad_cloth.pattern.PatternGeometry import ParametricPattern, Point
+from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, Point
 
 
 @dataclass(frozen=True)
@@ -57,14 +57,16 @@ def triangulate(pattern: ParametricPattern, curve_samples: int = 16, max_area: f
         raise ValueError("pattern has zero area")
     if _self_intersects(points):
         raise ValueError("pattern boundary self-intersects")
-    edge_ids = _edge_segment_ids(pattern, points)
+    if all(isinstance(segment, LineSegment) for segment in pattern.segments) and len(points) == len(pattern.segments):
+        edge_ids = [segment.id for segment in pattern.segments]
+    else:
+        edge_ids = _edge_segment_ids(pattern, points)
     if _signed_area(points) < 0:
         points = list(reversed(points))
-        reversed_edge_ids = list(reversed(edge_ids))
-        # Reversing the vertex loop shifts the closing edge to the last slot.
-        # Rotate the reversed provenance left by one so each semantic ID stays
-        # attached to the same geometric segment after winding normalization.
-        edge_ids = reversed_edge_ids[1:] + reversed_edge_ids[:1]
+        # Recompute provenance from geometry after normalization. A refined
+        # authored edge can contain several internal sub-segments, so a fixed
+        # one-slot rotation is not a valid semantic mapping.
+        edge_ids = _edge_segment_ids(pattern, points)
 
     if max_area is not None:
         max_area = float(max_area)
@@ -127,6 +129,25 @@ def triangulate(pattern: ParametricPattern, curve_samples: int = 16, max_area: f
     if abs(mesh.area - expected_area) > 1e-6 * max(1.0, expected_area):
         raise ValueError("triangulation area does not match pattern area")
     return mesh
+
+
+def refine_linear_boundary(pattern: ParametricPattern, max_spacing: float) -> ParametricPattern:
+    """Subdivide straight authored boundary segments without changing semantic identity."""
+    spacing = float(max_spacing)
+    if not isfinite(spacing) or spacing <= 0.0:
+        raise ValueError("max boundary spacing must be positive and finite")
+    segments = []
+    for segment in pattern.segments:
+        if isinstance(segment, LineSegment):
+            steps = max(1, int(ceil(segment.length() / spacing)))
+            for index in range(steps):
+                start = segment.point(index / float(steps))
+                end = segment.point((index + 1) / float(steps))
+                suffix = "" if steps == 1 else "::sub::%d" % index
+                segments.append(LineSegment(segment.id + suffix, start, end))
+        else:
+            segments.append(segment)
+    return ParametricPattern(segments)
 
 
 def _quantize(value: float) -> float:
