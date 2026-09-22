@@ -564,11 +564,34 @@ def run_acceptance():
             if str(seam_11.Status) not in {"Changed reference", "Missing reference"}:
                 raise RuntimeError("restoring native Sketch geometry unexpectedly retargeted the curved seam")
             _select_objects(seam_11)
-            Gui.runCommand("ClothSewing_RepairSeam", 0)
+            Gui.runCommand("ClothPattern_RepairTopology", 0)
             _events()
+            repair_dialog = Gui.Control.activeDialog()
+            if repair_dialog is None or not hasattr(repair_dialog, "rows"):
+                raise RuntimeError("public topology repair task panel did not open")
+            repaired = False
+            for repair_seam, side, combo in repair_dialog.rows:
+                if repair_seam is not seam_11:
+                    continue
+                target_id = str(
+                    getattr(seam_11, "EdgeAId" if str(side).upper() == "A" else "EdgeBId", "")
+                )
+                for index in range(combo.count()):
+                    if str(combo.itemData(index) or "") == target_id:
+                        combo.setCurrentIndex(index)
+                        repaired = True
+                        break
+                if not repaired:
+                    raise RuntimeError("topology repair panel did not expose the existing semantic edge")
+            if not repaired:
+                raise RuntimeError("topology repair panel did not expose the invalid curved seam")
+            if not repair_dialog.accept():
+                raise RuntimeError("explicit topology repair task panel rejected the selected mapping")
+            _events()
+            _wait_task_close()
             reloaded.recompute()
             if str(seam_11.Status) != "Valid":
-                raise RuntimeError("explicit seam repair did not recover the curved seam")
+                raise RuntimeError("explicit topology repair did not recover the curved seam")
             print("invalidation-restore=passed seam=Valid", flush=True)
 
             network_piece = reloaded.getObject(next(obj.Name for obj in reloaded_pieces if obj.PieceId == "pattern-piece-3"))
