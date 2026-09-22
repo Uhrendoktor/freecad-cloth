@@ -49,7 +49,9 @@ replacements = {
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
         'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)',
     'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):' :
-        'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
+        # PatternIR orders this closed boundary as source edges 0,7,6,5,4,3,2,1.
+        # Authored shoulder slopes are source geometry edges 2 and 6, hence ordered ordinals 6 and 2.
+        'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(6,6,"TunicRightShoulder"),(2,2,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
     'front_y = box.YMin - clearance; back_y = box.YMax + clearance;': 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
@@ -111,6 +113,36 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
     if max_seam_gap > 35.0: raise RuntimeError("authoritative tunic seams did not converge: max endpoint gap %.1f mm" % max_seam_gap)
     log("authoritative-seam-max-gap-mm=%.2f" % max_seam_gap)\n"""
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n    ); bounds = []", 1)
+
+shoulder_mapping_probe = '''
+    from freecad_cloth.pattern.PatternObjects import _native_edge_records
+    ordered_ids = tuple(record["id"] for record in _native_edge_records(front))
+    expected_order = tuple(f"{front.PieceId}:edge:{index}" for index in (0, 7, 6, 5, 4, 3, 2, 1))
+    if ordered_ids != expected_order:
+        raise RuntimeError("canonical tunic PatternIR/native-boundary order changed: %s" % (ordered_ids,))
+    expected_shoulder_ids = {"TunicRightShoulder": 2, "TunicLeftShoulder": 6}
+    for seam, _, _ in seam_records:
+        seam_id = str(getattr(seam, "SeamId", ""))
+        if seam_id not in expected_shoulder_ids:
+            continue
+        authored_edge = expected_shoulder_ids[seam_id]
+        expected_front_id = f"{front.PieceId}:edge:{authored_edge}"
+        expected_back_id = f"{back.PieceId}:edge:{authored_edge}"
+        if str(seam.EdgeAId) != expected_front_id or str(seam.EdgeBId) != expected_back_id:
+            raise RuntimeError(
+                "canonical shoulder seam %s relabeled: got %s/%s expected %s/%s"
+                % (seam_id, seam.EdgeAId, seam.EdgeBId, expected_front_id, expected_back_id)
+            )
+        if bool(seam.ReversedB):
+            raise RuntimeError("canonical shoulder seam %s changed orientation unexpectedly" % seam_id)
+    log("tunic-shoulder-edge-map=passed order=%s right=6->edge:2 left=2->edge:6" % (ordered_ids,))
+'''
+source = source.replace(
+    "    scene.StartHeight = 0.0; scene.QualityPreset",
+    shoulder_mapping_probe + "\n    scene.StartHeight = 0.0; scene.QualityPreset",
+    1,
+)
+
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
 exec(compile(source, str(source_path), "exec"), globals(), globals())
