@@ -182,7 +182,7 @@ def test_sketch_authority_resolves_to_pattern_ir_without_reading_legacy_outline(
         "front:top",
         "front:left",
     }
-    curved = piece.boundary("front", "front:side")
+    curved = resolved.pattern.boundary("front", "front:side")
     assert curved.kind == "arc"
     assert len(curved.samples) == 11
 
