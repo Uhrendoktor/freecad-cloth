@@ -258,9 +258,9 @@ def export_pattern_piece(piece, path, format: str, *, units: str = "mm", curve_s
         )
         derived = add_marks(derived, (mark,))
     if normalized_format == "svg":
-        content = to_svg(pattern, curve_samples, units, derived, str(getattr(piece, "PieceId", "")), seam_ids, allowance)
+        content = to_svg(pattern, curve_samples, units, derived, str(getattr(piece, "PieceId", "")), seam_ids, allowance, internal_mark_ids, semantic_edge_ids)
     else:
-        content = to_dxf(pattern, curve_samples, units, derived, str(getattr(piece, "PieceId", "")), seam_ids, allowance)
+        content = to_dxf(pattern, curve_samples, units, derived, str(getattr(piece, "PieceId", "")), seam_ids, allowance, internal_mark_ids, semantic_edge_ids)
     with open(str(path), "w", encoding="utf-8", newline="") as handle:
         handle.write(content)
     return validate_export(
@@ -273,4 +273,6 @@ def export_pattern_piece(piece, path, format: str, *, units: str = "mm", curve_s
         piece_id=str(getattr(piece, "PieceId", "")),
         seam_ids=seam_ids,
         seam_allowance=allowance,
+        internal_mark_ids=internal_mark_ids,
+        semantic_edge_ids=semantic_edge_ids,
     )
