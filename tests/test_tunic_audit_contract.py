@@ -30,3 +30,9 @@ def test_canonical_tunic_pins_exact_front_solver_shoulder_endpoints():
     assert 'for a, b in seam_pairs:' in source
     assert 'for a, b in pair' not in source
     assert 'authored_shoulder_pins(front, front_indices, positions)' not in source
+
+def test_canonical_tunic_rejects_pinned_pinned_stitch_endpoints():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "for a, b in seam_pairs:" in source
+    assert "if int(a) in front_pins and int(b) in front_pins:" in source
+    assert "pins both endpoints of a sewn pair" in source
