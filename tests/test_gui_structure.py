@@ -184,3 +184,21 @@ def test_pattern_drafting_remains_compatibility_only():
 
 
 print("GUI structure checks passed")
+
+
+def test_readme_asset_contract_is_published_on_main_merge():
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    for asset in (
+        "cloth-pattern-design.png",
+        "cloth-sewing.png",
+        "cloth-simulation-arranged.png",
+        "cloth-simulation-draped.png",
+        "cloth-avatar-turntable.gif",
+        "cloth-simulation-arranged-turntable.gif",
+        "cloth-simulation-draped-turntable.gif",
+    ):
+        assert asset in readme
+        assert asset in workflow
+    assert "docs/images/workbench-generated" in workflow
+    assert "github.event_name == 'push' && github.ref == 'refs/heads/main'" in workflow
