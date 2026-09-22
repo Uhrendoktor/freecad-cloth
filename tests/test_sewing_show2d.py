@@ -5,7 +5,7 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.sewing.SewingCommands import show_sewing_2d
-from freecad_cloth.sewing.SewingView import apply_seam_colors, pattern_pieces_for_2d, seam_color_map, seam_visual_markers
+from freecad_cloth.sewing.SewingView import apply_seam_colors, pattern_pieces_for_2d, seam_color_hex, seam_color_map, seam_visual_markers
 
 
 def test_2d_focus_includes_only_authoritative_pattern_pieces_in_document_order():
@@ -34,6 +34,16 @@ def test_seam_colors_are_distinct_and_stable_by_seam_id():
     reverse = seam_color_map(reversed(seam_ids))
     assert forward == reverse
     assert len(set(forward.values())) == len(seam_ids)
+
+
+def test_seam_color_hex_is_stable_and_distinct():
+    seam_ids = ["seam-a", "seam-b"]
+    first = seam_color_hex("seam-a", seam_ids)
+    second = seam_color_hex("seam-b", seam_ids)
+    assert first.startswith("#") and len(first) == 7
+    assert second.startswith("#") and len(second) == 7
+    assert first != second
+    assert first == seam_color_hex("seam-a", reversed(seam_ids))
 
 
 def test_apply_seam_colors_marks_each_seam_pair():
