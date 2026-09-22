@@ -78,7 +78,7 @@ def edge_sample_spacing(edge, parameters=(0.0, 0.07, 0.19, 0.43, 0.71, 1.0)):
         )
     return points, distances
 
-def processprocess_events():
+def process_events():
     try:
         from PySide import QtWidgets
     except ImportError:
