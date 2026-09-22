@@ -26,13 +26,6 @@ def test_2d_focus_ignores_unrelated_objects_without_freecad_runtime():
     assert [obj.Name for obj in result] == ["Pattern"]
 
 
-if __name__ == "__main__":
-    test_2d_focus_includes_only_authoritative_pattern_pieces_in_document_order()
-    test_2d_focus_ignores_unrelated_objects_without_freecad_runtime()
-    test_seam_colors_are_distinct_and_stable_by_seam_id()
-    test_apply_seam_colors_marks_each_seam_pair()
-    test_show_2d_does_not_select_seams_over_their_colors()
-    print("sewing Show 2D tests passed")
 
 
 def test_seam_colors_are_distinct_and_stable_by_seam_id():
@@ -96,3 +89,11 @@ def test_show_2d_does_not_select_seams_over_their_colors():
     assert Selection.added == []
     assert view.top == 1
     assert view.fit == 1
+
+if __name__ == "__main__":
+    test_2d_focus_includes_only_authoritative_pattern_pieces_in_document_order()
+    test_2d_focus_ignores_unrelated_objects_without_freecad_runtime()
+    test_seam_colors_are_distinct_and_stable_by_seam_id()
+    test_apply_seam_colors_marks_each_seam_pair()
+    test_show_2d_does_not_select_seams_over_their_colors()
+    print("sewing Show 2D tests passed")
