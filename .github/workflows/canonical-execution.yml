@@ -152,6 +152,66 @@ jobs:
           if-no-files-found: error
           compression-level: 1
 
+  gui-pattern-production-export:
+    name: Public pattern production export
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Run public export under Xvfb
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/pattern-export
+          mkdir -p artifacts/pattern-export
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_PATTERN_EXPORT_DIR=/workspace/artifacts/pattern-export \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/pattern-export
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb-pattern-export.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox-pattern-export.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 240s /opt/freecad/AppRun /workspace/tests/freecad_pattern_production_export_smoke.py
+            '
+      - name: Inspect generated production artifacts
+        run: |
+          set -euo pipefail
+          test -s artifacts/pattern-export/production-piece.svg
+          test -s artifacts/pattern-export/production-piece.dxf
+          test -s artifacts/pattern-export/production-piece-2.svg
+          test -s artifacts/pattern-export/production-piece-2.dxf
+          test -s artifacts/pattern-export/manifest.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path("artifacts/pattern-export/manifest.json").read_text(encoding="utf-8"))
+          assert manifest["units"] == "mm"
+          assert manifest["scale"] == 1.0
+          assert manifest["source_unchanged"] is True
+          assert manifest["deterministic_round_trip"] is True
+          assert manifest["seam_ids"]
+          assert manifest["edge_ids"]
+          assert manifest["notch_ids"]
+          assert manifest["mark_ids"]
+          assert manifest["source_metadata"]["seam_allowance"] == 6.0
+          assert manifest["source_metadata"]["piece_id"] == manifest["piece_id"]
+          print(json.dumps(manifest, sort_keys=True))
+          PY
+      - name: Upload production export audit
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: pattern-production-export
+          path: artifacts/pattern-export/*
+          if-no-files-found: error
+          compression-level: 1
+
   gui-turntables:
     name: README turntables
     runs-on: ubuntu-latest
