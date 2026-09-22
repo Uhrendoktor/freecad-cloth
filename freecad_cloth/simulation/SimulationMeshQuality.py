@@ -1,5 +1,6 @@
-"""Simulation mesh density delegated to the Triangle constrained-Delaunay library."""
+"""Deterministic simulation mesh density and authored-boundary refinement."""
 import ast
+from math import ceil, isfinite
 
 
 def _outline_points(piece):
@@ -14,11 +15,55 @@ def _outline_points(piece):
     return points
 
 
+
+def refine_linear_boundary(pattern, max_spacing):
+    """Subdivide authored straight edges without changing their semantic IDs.
+
+    The returned ParametricPattern uses temporary mesh-only sub-edge IDs. The
+    second return value maps each temporary ID back to the authored edge ID so
+    simulation sewing continues to address the original edge ordinal.
+    """
+    from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
+
+    spacing = float(max_spacing)
+    if not isfinite(spacing) or spacing <= 0.0:
+        raise ValueError("max boundary spacing must be positive and finite")
+
+    segments = []
+    subedge_to_authored = {}
+    for segment in pattern.segments:
+        if isinstance(segment, LineSegment):
+            steps = max(1, int(ceil(segment.length() / spacing)))
+            for index in range(steps):
+                subedge_id = (
+                    segment.id
+                    if steps == 1
+                    else f"{segment.id}::simulation-sub::{index}"
+                )
+                start_t = index / float(steps)
+                end_t = (index + 1) / float(steps)
+                segments.append(
+                    LineSegment(
+                        subedge_id,
+                        segment.point(start_t),
+                        segment.point(end_t),
+                    )
+                )
+                subedge_to_authored[subedge_id] = segment.id
+        else:
+            segments.append(segment)
+            subedge_to_authored[segment.id] = segment.id
+
+    return ParametricPattern(segments), subedge_to_authored
+
+
 def quality_piece_mesh(piece, start_height, particle_distance):
     from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
     from freecad_cloth.pattern.PatternMesh import triangulate
 
-    spacing = max(0.25, float(particle_distance))
+    spacing = float(particle_distance)
+    if not isfinite(spacing) or spacing <= 0.0:
+        raise ValueError("particle_distance must be positive and finite")
     points = _outline_points(piece)
     segments = [
         LineSegment(f"{piece.PieceId}:edge:{i}", points[i], points[(i + 1) % len(points)])
@@ -27,8 +72,12 @@ def quality_piece_mesh(piece, start_height, particle_distance):
     # For an approximately equilateral triangle lattice, area ~= sqrt(3)/4*d^2.
     # A small safety margin keeps the actual edge spacing below the requested
     # particle distance without hand-written midpoint refinement.
+    pattern = ParametricPattern(segments)
+    refined_pattern, subedge_to_authored = refine_linear_boundary(pattern, spacing)
+    # Triangle still receives Y: all boundary refinement points are authored
+    # inputs, while max_area only adds interior density as a separate concern.
     max_area = 0.45 * spacing * spacing
-    mesh = triangulate(ParametricPattern(segments), max_area=max_area)
+    mesh = triangulate(refined_pattern, max_area=max_area)
     placement = getattr(piece, "Placement", None)
     if placement is None:
         positions = [(x, y, float(start_height)) for x, y in mesh.vertices]
@@ -41,22 +90,21 @@ def quality_piece_mesh(piece, start_height, particle_distance):
     boundary_groups = {}
     boundary = mesh.boundary_vertex_indices
     segment_ids = mesh.boundary_edge_segment_ids
-    if segment_ids and len(segment_ids) != len(boundary):
+    if not segment_ids:
+        raise ValueError("quality mesh boundary provenance is missing")
+    if len(segment_ids) != len(boundary):
         raise ValueError("quality mesh boundary provenance length does not match boundary vertices")
     for index, segment_id in enumerate(segment_ids):
-        key = str(segment_id)
+        raw_key = str(segment_id)
+        key = subedge_to_authored.get(raw_key)
+        if key is None:
+            raise ValueError("quality mesh boundary provenance contains an unknown sub-edge")
         start = int(boundary[index])
         end = int(boundary[(index + 1) % len(boundary)])
         group = boundary_groups.setdefault(key, [start])
         if group[-1] != start:
             raise ValueError("quality mesh semantic edge provenance is not contiguous")
-        group.append(end)
-    if not boundary_groups:
-        boundary_groups = {
-            f"{piece.PieceId}:edge:{index}": [int(boundary[index]), int(boundary[(index + 1) % len(boundary)])]
-            for index in range(len(boundary))
-        }
-    by_index = []
+        group.append(end)    by_index = []
     for edge_index in range(len(points)):
         key = f"{piece.PieceId}:edge:{edge_index}"
         if key in boundary_groups:
