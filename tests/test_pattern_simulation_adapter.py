@@ -48,7 +48,7 @@ class _Sketch:
 
 
 class _Placement:
-    Base = _Point()
+    Base = _Point(0.0, 0.0)
     Rotation = type("_Rotation", (), {
         "Angle": 0.0,
         "Axis": _Point(0.0, 0.0, 1.0),
