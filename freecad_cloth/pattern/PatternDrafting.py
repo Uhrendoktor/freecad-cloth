@@ -1,3 +1,11 @@
+"""Legacy PatternDrafting compatibility helpers.
+
+This module is retained only so legacy documents and migration tests can still
+parse historical DraftingBoundary data. It is not registered as a public
+workbench authoring command; new and editable pattern geometry is native
+FreeCAD Sketcher geometry.
+"""
+
 """Headless-safe helpers for interactive pattern drafting."""
 
 
