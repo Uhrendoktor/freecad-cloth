@@ -508,10 +508,12 @@ def set_avatar_collision_source(scene, source_obj, thickness=2.0, deflection=1.0
     return target
 
 
-def create_simulation_scene(doc):
+def create_simulation_scene(doc, build=True):
     from freecad_cloth.simulation.DrapeTarget import create_drape_target
     scene = doc.addObject("App::FeaturePython", "ClothSimulation")
     scene.Label = "Cloth Simulation"
+    from freecad_cloth.common.GarmentDocument import ensure_fabric_material
+    material = ensure_fabric_material(doc)
     scene.addProperty("App::PropertyInteger", "Iterations", "Solver").Iterations = 8
     scene.addProperty("App::PropertyFloat", "TimeStep", "Solver").TimeStep = 1 / 60
     scene.addProperty("App::PropertyInteger", "Steps", "Solver").Steps = 0
@@ -524,6 +526,7 @@ def create_simulation_scene(doc):
     scene.addProperty("App::PropertyLinkList", "DrapePanels", "Output")
     scene.addProperty("App::PropertyLink", "DrapeTarget", "Selection")
     scene.addProperty("App::PropertyLink", "AvatarProxy", "Compatibility")
+    scene.addProperty("App::PropertyLink", "FabricMaterial", "Fabric")
     scene.addProperty("App::PropertyStringList", "PinSelection", "Selection").PinSelection = []
     scene.addProperty("App::PropertyStringList", "SeamSelection", "Selection").SeamSelection = []
     scene.addProperty("App::PropertyFloat", "SimulatedTime", "State").SimulatedTime = 0.0
@@ -541,12 +544,14 @@ def create_simulation_scene(doc):
     link_garment_object(scene, "Simulation", doc)
     link_garment_object(panel_a, "SimulationOutput", doc)
     link_garment_object(panel_b, "SimulationOutput", doc)
+    scene.FabricMaterial = material
     scene.DrapePanels = [panel_a, panel_b]
     avatar = create_avatar_collision(doc)
     scene.AvatarProxy = avatar
     target = create_drape_target(doc, avatar.SourceObject, "Mannequin", avatar.CollisionDeflection, avatar.CollisionThickness)
     scene.DrapeTarget = target
-    proxy._build(scene, ())
+    if build:
+        proxy._build(scene, ())
     return scene
 
 
