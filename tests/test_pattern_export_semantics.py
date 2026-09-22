@@ -38,6 +38,7 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics():
         "edge_ids": ["bottom", "right", "armhole", "left"],
         "piece_id": "bodice-front",
         "seam_ids": ["seam-neck", "seam-side"],
+        "scale": 1.0,
         "notch_ids": ["notch-1"],
         "mark_ids": ["grain-1"],
     }
@@ -49,6 +50,7 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics():
         "edge_ids": ["bottom", "right", "armhole", "left"],
         "piece_id": "bodice-front",
         "seam_ids": ["seam-neck", "seam-side"],
+        "scale": 1.0,
         "notch_ids": ["notch-1"],
         "mark_ids": ["grain-1"],
     }
@@ -77,6 +79,37 @@ def test_release_gate_validates_deterministic_svg_and_dxf_round_trip():
     result = validate_export(pattern, dxf, "dxf", **kwargs)
     assert result["valid"] is True
     assert result["metadata"]["seam_ids"] == ["seam-neck", "seam-side"]
+
+
+def test_semantic_export_metadata_preserves_scale_and_seam_allowance():
+    pattern = _curved_pattern()
+    derived = _derived(pattern)
+    svg = to_svg(
+        pattern,
+        curve_samples=9,
+        units="cm",
+        scale=2.5,
+        seam_allowance=6.0,
+        derived=derived,
+        piece_id="bodice-front",
+        seam_ids=("seam-neck",),
+    )
+    metadata = from_svg_metadata(svg)
+    assert metadata["units"] == "cm"
+    assert metadata["scale"] == 2.5
+    assert metadata["seam_allowance"] == 6.0
+    assert validate_export(
+        pattern,
+        svg,
+        "svg",
+        curve_samples=9,
+        units="cm",
+        scale=2.5,
+        seam_allowance=6.0,
+        derived=derived,
+        piece_id="bodice-front",
+        seam_ids=("seam-neck",),
+    )["valid"] is True
 
 
 def test_release_gate_rejects_geometry_or_semantic_drift():
