@@ -267,4 +267,6 @@ def add_sewing_operation(doc, seam, piece_a, piece_b, name="SewingOperation"):
     obj.setEditorMode("CorrespondenceStatus", 1)
     obj.Proxy = SewingOperationProxy()
     obj.Proxy.execute(obj)
+    from freecad_cloth.common.GarmentDocument import register_garment_object
+    register_garment_object(doc, obj, "Sewing")
     return obj
