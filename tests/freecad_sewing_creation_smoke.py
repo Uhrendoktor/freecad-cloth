@@ -13,7 +13,7 @@ import FreeCADGui as Gui
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.pattern.PatternObjects import add_pattern_piece
 from freecad_cloth.sewing.SewingCommands import create_mn_sewing_from_selection, create_seam_from_selection
-from freecad_cloth.sewing.SewingCreationGui import SewingCreationTaskPanel, SewingCreationSession
+from freecad_cloth.sewing.SewingCreationGui import SewingCreationTaskPanel
 
 
 LOG_PATH = Path(os.environ.get("CLOTH_SEWING_SMOKE_LOG", ROOT / "artifacts" / "sewing-creation-smoke.log"))
@@ -40,47 +40,47 @@ doc.recompute()
 
 before = {obj.Name for obj in doc.Objects}
 select_edges((piece_a, 0), (piece_b, 0))
-session = SewingCreationSession(doc, Gui, "Create Seam", create_seam_from_selection)
-created = session.preview()
-assert any(getattr(obj, "SeamId", "") for obj in created), "1:1 preview did not create a seam"
+panel = SewingCreationTaskPanel("seam")
+assert any(getattr(obj, "SeamId", "") for obj in panel.session.created), "1:1 preview did not create a seam"
+assert "Preview valid" in panel.feedback.text()
 record("preview-1to1=passed")
-session.commit()
+panel.accept()
 assert any(getattr(obj, "SeamId", "") for obj in doc.Objects if obj.Name not in before), "1:1 commit lost seam"
 record("commit-1to1=passed")
 
 cancel_before = {obj.Name for obj in doc.Objects}
 select_edges((piece_a, 1), (piece_b, 1))
-cancel_session = SewingCreationSession(doc, Gui, "Create Seam", create_seam_from_selection)
-cancel_session.preview()
-assert any(getattr(obj, "SeamId", "") for obj in cancel_session.created)
-cancel_session.cancel()
+cancel_panel = SewingCreationTaskPanel("seam")
+assert any(getattr(obj, "SeamId", "") for obj in cancel_panel.session.created)
+cancel_panel.reject()
 assert {obj.Name for obj in doc.Objects} == cancel_before, "cancel persisted preview objects"
 record("cancel-1to1=passed")
 
+same_piece_before = {obj.Name for obj in doc.Objects}
 select_edges((piece_a, 0), (piece_a, 1))
-invalid_panel = SewingCreationTaskPanel.__new__(SewingCreationTaskPanel)
-invalid_panel.feedback = type("Label", (), {"setText": lambda self, value: setattr(self, "text", value), "setStyleSheet": lambda self, value: None})()
-invalid_panel.commit_button = type("Button", (), {"setEnabled": lambda self, value: setattr(self, "enabled", value)})()
-invalid_panel._show_error(ValueError("a sewing relationship must connect two different pattern pieces"))
-assert "Adjust the selection" in invalid_panel.feedback.text
-record("invalid-same-piece-feedback=passed")
+invalid_panel = SewingCreationTaskPanel("seam")
+assert "Preview rejected" in invalid_panel.feedback.text()
+assert "different pattern pieces" in invalid_panel.feedback.text()
+assert {obj.Name for obj in doc.Objects} == same_piece_before
+invalid_panel.reject()
+assert {obj.Name for obj in doc.Objects} == same_piece_before
+record("invalid-same-piece-preview=passed")
 
-select_edges((piece_a, 0), (piece_b, 1), (piece_c, 2))
 mn_before = {obj.Name for obj in doc.Objects}
-mn_panel = SewingCreationTaskPanel.__new__(SewingCreationTaskPanel)
-mn_panel.feedback = type("Label", (), {"setText": lambda self, value: setattr(self, "text", value), "setStyleSheet": lambda self, value: None})()
-mn_panel.commit_button = type("Button", (), {"setEnabled": lambda self, value: setattr(self, "enabled", value)})()
-mn_panel._show_error(ValueError("select edges from exactly two pattern pieces"))
-assert "Preview rejected" in mn_panel.feedback.text
+select_edges((piece_a, 0), (piece_b, 1), (piece_c, 2))
+invalid_mn_panel = SewingCreationTaskPanel("mn")
+assert "Preview rejected" in invalid_mn_panel.feedback.text()
+assert "exactly two pattern pieces" in invalid_mn_panel.feedback.text()
 assert {obj.Name for obj in doc.Objects} == mn_before
-record("invalid-mn-partition-feedback=passed")
+invalid_mn_panel.reject()
+assert {obj.Name for obj in doc.Objects} == mn_before
+record("invalid-mn-partition-preview=passed")
 
 select_edges((piece_a, 0), (piece_a, 1), (piece_b, 0))
-mn_session = SewingCreationSession(doc, Gui, "Create M:N Sewing", create_mn_sewing_from_selection)
-mn_created = mn_session.preview()
-assert any(getattr(obj, "SewingType", "") == "SewingNetwork" for obj in mn_created)
+mn_panel = SewingCreationTaskPanel("mn")
+assert any(getattr(obj, "SewingType", "") == "SewingNetwork" for obj in mn_panel.session.created)
 record("preview-mn=passed")
-mn_session.commit()
+mn_panel.accept()
 networks = [obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork"]
 assert networks and networks[-1].Status == "Valid", "M:N commit did not leave a valid network"
 record("commit-mn=passed")
