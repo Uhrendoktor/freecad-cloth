@@ -6,9 +6,9 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `7217a2d00e513d4e988b8bb98169a5630b66f328` (product state from merged PR #598 plus docs-only supervisor state synchronization).
-- Latest merged work: PR #598 passed canonical run #2087 (`35580478353`) with both Python/non-GUI and Full tunic visual/simulation audit jobs green; artifact `10629862765` was directly reviewed across all six drape views plus metrics/manifest/log.
-- Open implementation PRs requiring supervisor gates: none after closing duplicate PR #597; #472 remains the active M0 release gate.
+- Current main: `f460ed6fa1e4116d8e345d69eb802e2de2c22d56`.
+- Latest verified artifacts are from PR #645's prior exact heads: production export smoke and full tunic visual/simulation audit passed; current-head run #2284 was cancelled and is not green evidence.
+- Active implementation PR: #645 (`feat: integrate staged sewing and production pattern export`), current head `c653d8d0ba987b9fc71adabb953df49313b2e939`.
 - PR #453 was closed without merge because its validated screenshots remained collapsed/edge-on or not production-ready.
 - PR #438 remains diagnostic-only and must not merge.
 - Python package boundary: `freecad_cloth/` with `avatar`, `pattern`, `sewing`, `simulation`, `common`, `shared` subpackages
