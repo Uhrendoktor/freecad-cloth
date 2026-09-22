@@ -57,7 +57,10 @@ def triangulate(pattern: ParametricPattern, curve_samples: int = 16, max_area: f
         raise ValueError("pattern has zero area")
     if _self_intersects(points):
         raise ValueError("pattern boundary self-intersects")
-    edge_ids = _edge_segment_ids(pattern, points)
+    if all(isinstance(segment, LineSegment) for segment in pattern.segments) and len(points) == len(pattern.segments):
+        edge_ids = [segment.id for segment in pattern.segments]
+    else:
+        edge_ids = _edge_segment_ids(pattern, points)
     if _signed_area(points) < 0:
         points = list(reversed(points))
         reversed_edge_ids = list(reversed(edge_ids))
