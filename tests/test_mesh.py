@@ -63,7 +63,7 @@ def test_clockwise_refined_outline_preserves_subsegment_provenance_membership():
         LineSegment("right", (100, 50), (100, 0)),
         LineSegment("bottom", (100, 0), (0, 0)),
     ])
-    refined = refine_linear_boundary(pattern, 20.0)
+    refined, _subedge_map = refine_linear_boundary(pattern, 20.0)
     mesh = triangulate(refined)
     assert len(mesh.boundary_edge_segment_ids) == len(mesh.boundary_vertex_indices)
     expected_counts = {
