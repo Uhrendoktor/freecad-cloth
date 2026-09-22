@@ -121,9 +121,20 @@ class _DrapeCommand:
         return {"MenuText": labels.get(self.name, self.name.replace("ClothDrape_", "").replace("_", " ").title()), "ToolTip": self.tooltip, "Pixmap": icon_for_command(self.name)}
 
 
-try:
-    import FreeCADGui as Gui
+def register_gui_commands(gui=None):
+    """Register the public drape commands explicitly for workbench initialization."""
+    if gui is None:
+        try:
+            import FreeCADGui as gui
+        except ImportError:
+            return False
     for name, function in _HANDLERS.items():
         active = _has_source_selection if name == "ClothDrape_CreateTarget" else _has_document
-        Gui.addCommand(name, _DrapeCommand(name, function, active, _TOOLTIPS[name]))
-except (ImportError, AttributeError): pass
+        gui.addCommand(name, _DrapeCommand(name, function, active, _TOOLTIPS[name]))
+    return True
+
+
+try:
+    register_gui_commands()
+except (ImportError, AttributeError):
+    pass
