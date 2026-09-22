@@ -336,10 +336,16 @@ def simulation():
     front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
-    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
+    seam_specs = (
+        (f"{front.PieceId}:edge:2", f"{back.PieceId}:edge:2", "TunicRightShoulder"),
+        (f"{front.PieceId}:edge:5", f"{back.PieceId}:edge:5", "TunicLeftShoulder"),
+    )
+    for edge_a, edge_b, seam_id in seam_specs:
         seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
+        if str(seam_obj.EdgeAId) != edge_a or str(seam_obj.EdgeBId) != edge_b:
+            raise RuntimeError("native Sketcher seam semantic IDs were not preserved")
         seam_records.append((seam_obj, front, back))
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
     def authored_shoulder_pins(piece, particle_indices, positions):
