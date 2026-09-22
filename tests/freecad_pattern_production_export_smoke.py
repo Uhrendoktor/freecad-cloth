@@ -87,6 +87,8 @@ def main():
         print("pattern-export-smoke:", message, flush=True)
 
     progress("start")
+    workbench = InitGui.ClothPatternWorkbench()
+    workbench.Initialize()
     Gui.activateWorkbench("Cloth Pattern")
     _process_events()
     assert "ClothPattern_ExportProduction" in Gui.listCommands()
