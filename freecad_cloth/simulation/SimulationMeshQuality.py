@@ -122,7 +122,10 @@ def quality_piece_mesh(piece, start_height, particle_distance, pattern_ir=None):
                     f"quality mesh semantic edge {key} exceeds requested boundary spacing"
                 )
         by_index.append(ordered)
-    return positions, tuple(mesh.triangles), tuple(by_index)
+    legacy_result = (positions, tuple(mesh.triangles), tuple(by_index))
+    if pattern_ir is None:
+        return legacy_result
+    return legacy_result + ({key: tuple(chain) for key, chain in zip(edge_prefixes, by_index)},)
 
 
 
