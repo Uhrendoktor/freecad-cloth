@@ -236,5 +236,6 @@ def test_native_seam_reference_save_reload_curve_edit_and_missing():
 if __name__ == "__main__":
     test_pattern_piece_proxy_recomputes_deterministically()
     test_pattern_piece_proxy_rejects_invalid_dimensions()
+    test_native_integer_seam_reference_uses_original_sketch_semantic_ordinal_after_shuffle()
     test_native_seam_reference_save_reload_curve_edit_and_missing()
     print("FreeCAD object proxy and native seam reference tests passed")
