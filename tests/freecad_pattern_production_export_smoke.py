@@ -15,7 +15,6 @@ try:
 except ImportError:
     from PySide2 import QtWidgets
 
-from freecad_cloth.pattern.PatternCommands import create_pattern_piece
 from freecad_cloth.pattern.PatternExport import from_dxf_metadata, from_svg_metadata, validate_export
 from freecad_cloth.pattern.PatternMarks import add_mark
 from freecad_cloth.pattern.PatternProductionExport import (
@@ -95,7 +94,9 @@ def main():
 
     doc = App.newDocument("PatternProductionExportSmoke")
     progress("document-created")
-    piece = create_pattern_piece()
+    Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
+    _process_events()
+    piece = next(obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece")
     piece.Label = "Production Piece"
     piece.SeamAllowance = 6.0
     piece.GrainlineAngle = 90.0
