@@ -16,7 +16,12 @@ def _sampled_sewing(pattern, curve_samples):
 
 
 def _metadata(pattern, units, piece_id="", seam_ids=(), derived=None, scale=1.0, seam_allowance=None, metadata_scale=None):
-    data={"version":1,"units":units,"edge_ids":[s.id for s in pattern.segments]}\n    if scale is not None:\n        data["scale"] = float(scale if metadata_scale is None else metadata_scale)\n    if seam_allowance is not None:\n        data["seam_allowance"] = float(seam_allowance)
+    data={"version":1,"units":units,"edge_ids":[s.id for s in pattern.segments]}
+    semantic_contract = bool(piece_id or seam_ids or seam_allowance is not None or abs(float(scale) - 1.0) > 1e-12)
+    if semantic_contract:
+        data["scale"] = float(scale if metadata_scale is None else metadata_scale)
+    if seam_allowance is not None:
+        data["seam_allowance"] = float(seam_allowance)
     if piece_id:
         data["piece_id"] = str(piece_id)
     seam_ids = tuple(str(value) for value in seam_ids if str(value))
@@ -32,7 +37,9 @@ def _metadata(pattern, units, piece_id="", seam_ids=(), derived=None, scale=1.0,
 
 def to_svg(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm", derived: DerivedPattern | None = None, piece_id: str = "", seam_ids=(), scale: float = 1.0, seam_allowance=None, metadata_scale=None) -> str:
     if not units.strip(): raise ValueError("units must not be empty")
-    sewing=_sampled_sewing(pattern,curve_samples)\n    scale=float(scale)\n    if scale <= 0: raise ValueError("scale must be greater than zero")
+    sewing=_sampled_sewing(pattern,curve_samples)
+    scale=float(scale)
+    if scale <= 0: raise ValueError("scale must be greater than zero")
     if derived is not None and derived.sewing_boundary is not pattern: raise ValueError("derived pattern belongs to a different sewing boundary")
     cut_edges=derived.cut_boundary if derived is not None else (); xs=[p[0] for p in sewing]; ys=[p[1] for p in sewing]
     for edge in cut_edges: xs.extend(p[0] for p in edge.points); ys.extend(p[1] for p in edge.points)
@@ -63,7 +70,9 @@ def to_dxf(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm
     if not units.strip(): raise ValueError("units must not be empty")
     sewing=_sampled_sewing(pattern,curve_samples)
     if derived is not None and derived.sewing_boundary is not pattern: raise ValueError("derived pattern belongs to a different sewing boundary")
-    scale=float(scale)\n    if scale <= 0: raise ValueError("scale must be greater than zero")\n    entities=[]
+    scale=float(scale)
+    if scale <= 0: raise ValueError("scale must be greater than zero")
+    entities=[]
     def polyline(points,layer,closed=True):
         pts=[(point[0]*scale,point[1]*scale) for point in points]
         if closed and pts[-1]!=pts[0]: pts.append(pts[0])
