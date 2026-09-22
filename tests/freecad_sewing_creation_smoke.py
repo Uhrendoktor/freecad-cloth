@@ -78,7 +78,7 @@ def edge_sample_spacing(edge, parameters=(0.0, 0.07, 0.19, 0.43, 0.71, 1.0)):
         )
     return points, distances
 
-def process_events():
+def processprocess_events():
     try:
         from PySide import QtWidgets
     except ImportError:
@@ -109,6 +109,12 @@ def select_edges(*items):
     Gui.Selection.clearSelection()
     for obj, edge in items:
         Gui.Selection.addSelection(obj, "Edge%d" % (int(edge) + 1))
+    process_events()
+
+
+def select_object(obj):
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(obj)
     process_events()
 
 
@@ -327,7 +333,7 @@ try:
 
     from freecad_cloth.sewing.SewingCorrespondence import map_parameter
     for seam in curved_network.Seams:
-        _select_objects(seam)
+        select_object(seam)
         before_reversed = bool(seam.ReversedB)
         Gui.runCommand("ClothSewing_ReverseSeam", 0)
         _events()
@@ -340,7 +346,7 @@ try:
     assert str(curved_network.Status) == "Valid"
     record("curved-mn-reversal=passed segments=3")
 
-    _select_objects(curved_network)
+    select_object(curved_network)
     Gui.runCommand("ClothSewing_EditNetwork", 0)
     process_events()
     network_dialog = Gui.Control.activeDialog()
@@ -372,7 +378,7 @@ try:
     )
     assert bool(getattr(visual_seam.ViewObject, "Visibility", True))
     record("seam-visual-3d=passed edges=%d" % len(visual_seam.Shape.Edges))
-    _select_objects(visual_seam)
+    select_object(visual_seam)
     Gui.runCommand("ClothSewing_Show2D", 0)
     process_events()
     assert not visual_seam.Shape.isNull()
