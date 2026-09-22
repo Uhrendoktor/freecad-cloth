@@ -403,6 +403,14 @@ def run_acceptance():
         doc.recompute()
         if len(scene.ClothPieces) != 4:
             raise RuntimeError("fitting-created simulation did not inherit four pattern pieces")
+        # The target existed before this simulation was created; bind the same
+        # persistent CAD target to the newly created public simulation object.
+        _select_objects(target_body)
+        Gui.runCommand("ClothDrape_CreateTarget", 0)
+        _events()
+        target = doc.getObject("DrapeTarget")
+        if target is None or scene.DrapeTarget != target or target.SourceObject != target_body:
+            raise RuntimeError("public DrapeTarget command did not attach the persistent CAD target to simulation")
 
         _select_objects(scene)
         quality_panel = _open_quality_panel()
@@ -491,15 +499,11 @@ def run_acceptance():
             print("invalidation-restore=passed seam=Valid", flush=True)
 
             network_piece = reloaded.getObject(next(obj.Name for obj in reloaded_pieces if obj.PieceId == "pattern-piece-3"))
-            member_edge_ids_before = [
-                (str(member.EdgeAId), str(member.EdgeBId)) if hasattr(member, "EdgeAId") else ()
-                for member in network.Seams
-            ]
             if network_piece is None:
                 raise RuntimeError("could not locate an M:N member PatternPiece after reload")
             network_sketch = network_piece.Sketch
             network_ids = tuple(network_sketch.SemanticEdgeIds)
-            network_dim = network_sketch.addConstraint(Sketcher.Constraint("DistanceY", 2, 2, 60.0))
+            network_dim = network_sketch.addConstraint(Sketcher.Constraint("DistanceY", 2, 2, 50.0))
             network_sketch.renameConstraint(network_dim, "UpstreamNetworkEndpointY")
             network_sketch.setDatum(network_dim, App.Units.Quantity("60 mm"))
             reloaded.recompute()
