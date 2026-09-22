@@ -3,7 +3,7 @@ import json
 from html import escape
 from math import cos, radians, sin
 from xml.etree import ElementTree
-from freecad_cloth.pattern.PatternDerivedGeometry import DerivedPattern, PatternMark, add_marks, derive_cut_boundary, mark_point, notch_point
+from freecad_cloth.pattern.PatternDerivedGeometry import DerivedPattern, Notch, PatternMark, add_marks, add_notches, derive_cut_boundary, mark_point, notch_point
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, PolylineSegment
 
 
@@ -187,6 +187,60 @@ def pattern_from_pattern_piece(piece, curve_samples: int = 64) -> ParametricPatt
     ])
 
 
+def _persisted_pattern_marks(piece, pattern):
+    """Collect and validate persisted native PatternMark objects for one piece."""
+    piece_id = str(getattr(piece, "PieceId", "")).strip()
+    document = getattr(piece, "Document", None)
+    if document is None:
+        raise ValueError("pattern piece is not attached to a FreeCAD document")
+    segments = set(pattern.by_id())
+    objects = [
+        obj for obj in getattr(document, "Objects", ())
+        if str(getattr(obj, "PatternMarkType", "")).strip()
+        and str(getattr(obj, "PieceId", "")).strip() == piece_id
+    ]
+    notches = []
+    marks = []
+    for obj in sorted(objects, key=lambda value: (str(getattr(value, "PatternMarkType", "")), str(getattr(value, "Name", "")))):
+        mark_type = str(getattr(obj, "PatternMarkType", "")).strip()
+        mark_id = str(getattr(obj, "MarkId", "") or getattr(obj, "Name", "")).strip()
+        if not mark_id:
+            raise ValueError("persisted pattern mark is missing a stable identity")
+        segment_id = str(getattr(obj, "SegmentId", "") or "").strip()
+        position = float(getattr(obj, "Position", 0.5))
+        depth = float(getattr(obj, "Depth", 0.0))
+        length = float(getattr(obj, "Length", 0.0))
+        angle = float(getattr(obj, "Angle", 0.0))
+        text = str(getattr(obj, "Text", "") or "")
+        if not 0.0 <= position <= 1.0:
+            raise ValueError("persisted mark %s has invalid position" % mark_id)
+        if depth <= 0.0:
+            raise ValueError("persisted mark %s has invalid depth" % mark_id)
+        if length <= 0.0:
+            raise ValueError("persisted mark %s has invalid length" % mark_id)
+        if mark_type == "Notch":
+            notches.append(Notch(mark_id, segment_id, position, depth=depth))
+        else:
+            marks.append(
+                PatternMark(
+                    mark_id,
+                    mark_type,
+                    segment_id=segment_id,
+                    t=position,
+                    angle=angle,
+                    length=length,
+                    text=text,
+                )
+            )
+    for notch in notches:
+        if notch.segment_id not in segments:
+            raise ValueError("notch %s references unknown segment %s" % (notch.id, notch.segment_id))
+    for mark in marks:
+        if mark.segment_id and mark.segment_id not in segments:
+            raise ValueError("pattern mark %s references unknown segment %s" % (mark.id, mark.segment_id))
+    return tuple(notches), tuple(marks)
+
+
 def export_pattern_piece(piece, path, format: str, *, units: str = "mm", curve_samples: int = 64) -> dict:
     """Write and validate an SVG/DXF export derived from an authoritative piece."""
     normalized_format = str(format).strip().lower()
@@ -198,11 +252,16 @@ def export_pattern_piece(piece, path, format: str, *, units: str = "mm", curve_s
     seam_ids = _piece_seams(piece)
     allowance = max(0.0, float(getattr(piece, "SeamAllowance", 0.0)))
     derived = derive_cut_boundary(pattern, allowance, curve_samples=curve_samples)
-    if pattern.segments:
+    persisted_notches, persisted_marks = _persisted_pattern_marks(piece, pattern)
+    if persisted_notches:
+        derived = add_notches(derived, persisted_notches)
+    if persisted_marks:
+        derived = add_marks(derived, persisted_marks)
+    if not any(mark.kind == "Grainline" for mark in persisted_marks):
         mark = PatternMark(
             id="%s:grainline" % str(getattr(piece, "PieceId", "piece")),
             kind="Grainline",
-            segment_id=pattern.segments[0].id,
+            segment_id=pattern.segments[0].id if pattern.segments else "",
             angle=float(getattr(piece, "GrainlineAngle", 0.0)),
             length=40.0,
             text="Grain",
