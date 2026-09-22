@@ -179,14 +179,22 @@ def _seam_coherence(panels, seam_records, proxy=None):
             raise RuntimeError("solver stitch-pair provenance missing for seam %s" % seam_id)
         gap = _post_drape_seam_gap(stitch_pairs, positions)
         sample_count = max(sample_count, len(stitch_pairs))
-        edge_a = int(seam.EdgeA)
-        edge_b = int(seam.EdgeB)
+        edge_a_id = str(getattr(seam, "EdgeAId", "")).strip()
+        edge_b_id = str(getattr(seam, "EdgeBId", "")).strip()
+        if not edge_a_id or not edge_b_id:
+            raise RuntimeError("seam diagnostics require persisted semantic edge IDs")
+        for piece, edge_id in ((piece_a, edge_a_id), (piece_b, edge_b_id)):
+            semantic_ids = tuple(
+                str(value) for value in getattr(getattr(piece, "Sketch", None), "SemanticEdgeIds", ()) or ()
+            )
+            if edge_id not in semantic_ids:
+                raise RuntimeError("seam diagnostic semantic edge ID is not present on its authoritative Sketch")
         records.append({
             "seam": seam_id,
             "piece_a": str(getattr(piece_a, "PieceId", "")),
             "piece_b": str(getattr(piece_b, "PieceId", "")),
-            "edge_a": edge_a,
-            "edge_b": edge_b,
+            "edge_a_id": edge_a_id,
+            "edge_b_id": edge_b_id,
             "stitch_pair_count": len(stitch_pairs),
             "max_correspondence_gap_mm": round(float(gap), 6),
         })
@@ -301,7 +309,14 @@ def pattern_and_sewing():
         raise RuntimeError("pattern fixture produced empty geometry from native sketches")
     activate("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D", "ClothPattern_CreateFromSketch"])
     panel = PatternPieceTaskPanel(front); show_task(panel, "Pattern Workbench", ("Piece name", "Width", "Height", "Seam allowance", "Grainline angle")); Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll(); events(); save("cloth-pattern-design.png", "Pattern Workbench", "native Sketcher tunic pattern adopted into Cloth PatternPiece"); close_task()
-    seam = add_seam(doc, Seam(str(front.PieceId), 7, str(back.PieceId), 7, id="FrontBack", alignment="endpoints", stitch_group="MainSeam")); doc.recompute()
+    front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())
+    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())
+    if len(front_edge_ids) < 8 or len(back_edge_ids) < 8:
+        raise RuntimeError("canonical sewing fixture is missing authored semantic edge IDs")
+    seam = add_seam(
+        doc,
+        Seam(str(front.PieceId), front_edge_ids[7], str(back.PieceId), back_edge_ids[7], id="FrontBack", alignment="endpoints", stitch_group="MainSeam"),
+    ); doc.recompute()
     sewing = create_sewing_operation(); doc.recompute()
     if str(seam.Status) != "Valid" or seam.Shape.isNull() or str(sewing.Status) != "Valid" or sewing.Shape.isNull():
         raise RuntimeError("sewing fixture is invalid")
@@ -335,11 +350,23 @@ def simulation():
         sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot); piece.Sketch.Placement = piece.Placement; return piece, outline
     front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)
     # Same-side side seams and authored shoulder seams; the neckline remains open.
+    front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())
+    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())
+    seam_specs = (
+        (front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),
+        (front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"),
+        (front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"),
+        (front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"),
+    )
+    if any(not value for pair in seam_specs for value in pair[:2]):
+        raise RuntimeError("canonical tunic fixture has an empty semantic seam edge ID")
     seam_records = []
-    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
-        seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")
+    for edge_a_id, edge_b_id, seam_id in seam_specs:
+        seam = Seam(str(front.PieceId), edge_a_id, str(back.PieceId), edge_b_id, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
+        if str(getattr(seam_obj, "EdgeAId", "")) != edge_a_id or str(getattr(seam_obj, "EdgeBId", "")) != edge_b_id:
+            raise RuntimeError("canonical tunic seam did not retain authored semantic edge IDs")
         seam_records.append((seam_obj, front, back))
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
     def authored_shoulder_pins(piece, particle_indices, positions):
