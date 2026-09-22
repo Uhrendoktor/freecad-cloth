@@ -64,8 +64,17 @@ def open_public(command):
         except (AttributeError, RuntimeError):
             pass
         process_events()
-    assert panel.form.isVisible(), command + " task panel is not visible"
-    assert Gui.Control.activeDialog() is not None, command + " did not open a task dialog"
+    active = Gui.Control.activeDialog()
+    assert active is panel, command + " did not become the active task dialog"
+    widgets = [panel.form] + list(panel.form.findChildren(QtWidgets.QWidget))
+    visible_text = " | ".join(
+        str(getter())
+        for widget in widgets
+        for getter in [getattr(widget, "text", None)]
+        if callable(getter)
+    )
+    for required in ("Preview", "Commit", "Cancel", "Selected semantic pattern edges"):
+        assert required in visible_text, command + " task panel is missing visible control text: " + required
     return panel
 
 
