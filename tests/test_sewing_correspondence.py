@@ -11,6 +11,7 @@ from freecad_cloth.sewing.SewingCorrespondence import (
     STATUS_REVERSED,
     STATUS_VALID,
     analyze_correspondence,
+    correspondence_recovery,
     correspondence_samples,
     arc_length_vertex_indices,
     map_parameter,
