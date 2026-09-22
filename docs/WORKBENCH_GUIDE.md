@@ -6,6 +6,12 @@ FreeCAD Cloth has three cooperating native workbenches:
 - **Cloth Sewing** — create, edit and validate semantic sewing relationships.
 - **Cloth Simulation** — choose a fitting target, arrange, mesh, drape and inspect results.
 
+## Production 2D export
+
+In the Cloth Pattern workbench, select a PatternPiece and run the public `ClothPattern_Export` command. The task panel emits deterministic SVG or DXF derived from the authoritative native Sketcher geometry and reports piece/edge/seam identities, units, scale, seam allowance and construction-mark metadata. Export is read-only: source PatternPiece/Sketch state is not mutated.
+
+Exports fail closed when the selected piece has missing native geometry or invalid/stale semantic seam references. Re-running an export with identical document state produces byte-identical output.
+
 ## User workflow
 
 ### 1. Pattern

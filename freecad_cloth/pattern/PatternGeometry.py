@@ -42,7 +42,50 @@ class QuadraticBezier:
         return [self.point(i / (samples - 1)) for i in range(samples)]
 
 
-Segment = LineSegment | QuadraticBezier
+@dataclass(frozen=True)
+class PolylineSegment:
+    """A deterministic sampled native curve segment used for derived export."""
+
+    id: str
+    points: Tuple[Point, ...]
+
+    def __post_init__(self):
+        if len(self.points) < 2:
+            raise ValueError("polyline segment needs at least two points")
+
+    @property
+    def start(self) -> Point:
+        return self.points[0]
+
+    @property
+    def end(self) -> Point:
+        return self.points[-1]
+
+    def point(self, t: float) -> Point:
+        fraction = min(1.0, max(0.0, float(t)))
+        lengths = [0.0]
+        for a, b in zip(self.points, self.points[1:]):
+            lengths.append(lengths[-1] + _distance(a, b))
+        total = lengths[-1]
+        if total <= 1e-12:
+            return self.points[0]
+        target = fraction * total
+        for index in range(1, len(self.points)):
+            if target <= lengths[index]:
+                span = lengths[index] - lengths[index - 1]
+                local = 0.0 if span <= 1e-12 else (target - lengths[index - 1]) / span
+                a, b = self.points[index - 1], self.points[index]
+                return (a[0] + (b[0] - a[0]) * local, a[1] + (b[1] - a[1]) * local)
+        return self.points[-1]
+
+    def polyline(self, samples: int = 32) -> List[Point]:
+        return list(self.points)
+
+    def length(self) -> float:
+        return sum(_distance(a, b) for a, b in zip(self.points, self.points[1:]))
+
+
+Segment = LineSegment | QuadraticBezier | PolylineSegment
 
 
 class ParametricPattern:

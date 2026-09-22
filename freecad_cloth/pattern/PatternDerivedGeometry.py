@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 from math import atan2, cos, hypot
 from typing import Dict, Iterable, List, Tuple
-from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, Point, QuadraticBezier, Segment
+from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, Point, PolylineSegment, QuadraticBezier, Segment
 
 @dataclass(frozen=True)
 class Notch:
@@ -91,6 +91,7 @@ def _sample_segments(segments: Iterable[Segment], curve_samples: int) -> List[Li
     for segment in segments:
         if isinstance(segment,LineSegment): result.append([segment.start,segment.end])
         elif isinstance(segment,QuadraticBezier): result.append(segment.polyline(curve_samples))
+        elif isinstance(segment,PolylineSegment): result.append(segment.polyline(curve_samples))
         else: raise TypeError(f"unsupported segment type: {type(segment).__name__}")
     return result
 
