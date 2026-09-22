@@ -139,6 +139,44 @@ def _mesh_points(mesh):
     return _mesh_geometry(mesh)[0]
 
 
+def _sample_boundary(edge_indices, start, end, samples, points):
+    """Return global boundary vertex indices sampled by arc-length fraction."""
+    if not edge_indices or not points:
+        return []
+    if len(edge_indices) != len(points):
+        raise ValueError("boundary index/point lengths differ")
+    count = max(2, int(samples))
+    if len(edge_indices) == 1:
+        return [int(edge_indices[0])] * count
+    from math import sqrt
+    cumulative = [0.0]
+    for a, b in zip(points, points[1:]):
+        cumulative.append(
+            cumulative[-1]
+            + sqrt(sum((float(b[i]) - float(a[i])) ** 2 for i in range(3)))
+        )
+    total = cumulative[-1]
+    lower = max(0.0, min(1.0, float(start)))
+    upper = max(0.0, min(1.0, float(end)))
+    if upper < lower:
+        lower, upper = upper, lower
+    if total <= 0.0:
+        span = max(1, len(edge_indices) - 1)
+        return [
+            int(edge_indices[round((lower + (upper - lower) * j / (count - 1)) * span)])
+            for j in range(count)
+        ]
+    targets = [total * (lower + (upper - lower) * j / (count - 1)) for j in range(count)]
+    sampled = []
+    for target in targets:
+        best_index = min(
+            range(len(cumulative)),
+            key=lambda index: abs(cumulative[index] - target),
+        )
+        sampled.append(int(edge_indices[best_index]))
+    return sampled
+
+
 def _post_drape_seam_gap(edge_a_indices, edge_b_indices, positions, seam, samples=5):
     from math import sqrt
     from freecad_cloth.sewing.SewingCorrespondence import arc_length_vertex_indices
