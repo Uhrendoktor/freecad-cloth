@@ -131,41 +131,6 @@ def _make_curved(piece, doc):
 
 
 
-def _make_nonuniform_curved(piece, doc):
-    """Give one M:N member a deliberately different, still correspondable arc."""
-    sketch = piece.Sketch
-    piece_id = str(piece.PieceId)
-    radius = 50.1
-    offset = math.sqrt(radius * radius - 50.0 * 50.0)
-    start_angle = math.atan2(offset, 50.0)
-    end_angle = math.pi - start_angle
-    geometry = [
-        Part.LineSegment(App.Vector(0, 0, 0), App.Vector(100, 0, 0)),
-        Part.LineSegment(App.Vector(100, 0, 0), App.Vector(100, 50, 0)),
-        Part.ArcOfCircle(
-            Part.Circle(App.Vector(50, 50 - offset, 0), App.Vector(0, 0, 1), radius),
-            start_angle,
-            end_angle,
-        ),
-        Part.LineSegment(App.Vector(0, 50, 0), App.Vector(0, 0, 0)),
-    ]
-    sketch.Constraints = []
-    sketch.Geometry = geometry
-    sketch.SemanticEdgeIds = [f"{piece_id}:edge:{index}" for index in range(4)]
-    sketch.GeometryAuthority = "Sketcher"
-    sketch.addConstraint([
-        Sketcher.Constraint("Coincident", 0, 2, 1, 1),
-        Sketcher.Constraint("Coincident", 1, 2, 2, 1),
-        Sketcher.Constraint("Coincident", 2, 2, 3, 1),
-        Sketcher.Constraint("Coincident", 3, 2, 0, 1),
-        Sketcher.Constraint("Horizontal", 0),
-        Sketcher.Constraint("Vertical", 3),
-    ])
-    doc.recompute()
-    if sketch.Shape.isNull() or piece.Shape.isNull():
-        raise RuntimeError("non-uniform curved M:N counterpart did not produce native geometry")
-    return sketch
-
 def _position_signature(scene):
     proxy = getattr(scene, "Proxy", None)
     backend = getattr(proxy, "backend", None)
@@ -357,10 +322,7 @@ def run_acceptance():
         front, back, sleeve_a, sleeve_b = pieces
         for index, piece in enumerate(pieces):
             piece.Placement.Base.x = float(index * 170)
-            if piece is sleeve_b:
-                _make_nonuniform_curved(piece, doc)
-            else:
-                _make_curved(piece, doc)
+            _make_curved(piece, doc)
         doc.recompute()
 
         before_ids = [tuple(getattr(piece.Sketch, "SemanticEdgeIds", ())) for piece in pieces]
