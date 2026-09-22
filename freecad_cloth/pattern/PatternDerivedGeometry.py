@@ -91,7 +91,11 @@ def _sample_segments(segments: Iterable[Segment], curve_samples: int) -> List[Li
     for segment in segments:
         if isinstance(segment,LineSegment): result.append([segment.start,segment.end])
         elif isinstance(segment,QuadraticBezier): result.append(segment.polyline(curve_samples))
-        else: raise TypeError(f"unsupported segment type: {type(segment).__name__}")
+        else:
+            polyline = getattr(segment, "polyline", None)
+            if not callable(polyline):
+                raise TypeError(f"unsupported segment type: {type(segment).__name__}")
+            result.append(list(polyline(curve_samples)))
     return result
 
 def _offset_polyline(points: List[Point], width: float, outward_sign: float, miter_limit: float) -> List[Point]:
