@@ -35,16 +35,29 @@ import Sketcher
 
 def _ensure_workbench_registration():
     _record("workbench-bootstrap=starting")
-    expected = ("ClothPatternWorkbench", "ClothSewingWorkbench", "ClothSimulationWorkbench")
-    if any(name not in Gui.listWorkbenches() for name in expected):
-        init_gui = ROOT / "InitGui.py"
-        if not init_gui.is_file():
-            raise RuntimeError("InitGui.py is required for standalone canonical garment acceptance")
-        import InitGui  # noqa: F401
-        _events()
-    missing = [name for name in expected if name not in Gui.listWorkbenches()]
+    expected = (
+        ("ClothPatternWorkbench", "freecad_cloth.pattern.workbench", "ClothPatternWorkbench"),
+        ("ClothSewingWorkbench", "freecad_cloth.sewing.workbench", "ClothSewingWorkbench"),
+        ("ClothSimulationWorkbench", "freecad_cloth.simulation.workbench", "ClothSimulationWorkbench"),
+    )
+    missing = [name for name, _, _ in expected if name not in Gui.listWorkbenches()]
     if missing:
-        raise RuntimeError("InitGui.py did not register: %s" % ",".join(missing))
+        icon_dir = ROOT / "resources" / "icons"
+        if icon_dir.is_dir():
+            Gui.addIconPath(str(icon_dir))
+        import importlib
+
+        for name, module_name, class_name in expected:
+            if name in Gui.listWorkbenches():
+                continue
+            workbench_type = getattr(importlib.import_module(module_name), class_name)
+            Gui.addWorkbench(workbench_type())
+            _events()
+    missing = [name for name, _, _ in expected if name not in Gui.listWorkbenches()]
+    if missing:
+        raise RuntimeError(
+            "standalone workbench bootstrap did not register: %s" % ",".join(missing)
+        )
     _record("workbench-bootstrap=passed")
 
 
