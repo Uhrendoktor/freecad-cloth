@@ -70,7 +70,7 @@ mn_before = {obj.Name for obj in doc.Objects}
 select_edges((piece_a, 0), (piece_b, 1), (piece_c, 2))
 invalid_mn_panel = SewingCreationTaskPanel("mn")
 assert "Preview rejected" in invalid_mn_panel.feedback.text()
-assert "exactly two pattern pieces" in invalid_mn_panel.feedback.text()
+assert "two different pattern pieces" in invalid_mn_panel.feedback.text()
 assert {obj.Name for obj in doc.Objects} == mn_before
 invalid_mn_panel.reject()
 assert {obj.Name for obj in doc.Objects} == mn_before
