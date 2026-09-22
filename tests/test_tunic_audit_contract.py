@@ -27,3 +27,31 @@ def test_canonical_tunic_rejects_integer_seam_mapping_regression():
     assert 'f"{front.PieceId}:edge:5", f"{back.PieceId}:edge:5", "TunicLeftShoulder"' in audit
     assert 'f"{front.PieceId}:edge:6", f"{back.PieceId}:edge:6", "TunicLeftSide"' in audit
     assert '(1,1,"TunicRightSide")' not in audit
+
+
+def test_tunic_audit_rewrite_consumes_legacy_seam_loop_body_and_compiles():
+    import ast
+
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    tree = ast.parse(audit)
+    replacements_node = next(
+        node.value
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "replacements" for target in node.targets)
+    )
+    replacements = ast.literal_eval(replacements_node)
+    legacy = next(key for key in replacements if key.startswith("for edge_a, edge_b, seam_id"))
+    replacement = replacements[legacy]
+    synthetic = "def simulation():\n" + "\n".join("    " + line for line in legacy.splitlines()) + "\n"
+    rewritten = synthetic.replace(legacy, replacement, 1)
+    rewritten = rewritten.replace(
+        'front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"',
+        'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"',
+    )
+    rewritten = rewritten.replace(
+        'front_edge_ids[6], back_edge_ids[6], "TunicLeftSide"',
+        'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"',
+    )
+    assert "edge_a, edge_b" not in rewritten
+    compile(rewritten, "<tunic-audit-rewrite>", "exec")
