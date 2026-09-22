@@ -205,8 +205,10 @@ class SewingCreationTaskPanel:
         self.commit_button = QtWidgets.QPushButton("Commit")
         self.cancel_button = QtWidgets.QPushButton("Cancel")
         self.preview_button.clicked.connect(self.preview)
-        self.commit_button.clicked.connect(self.accept)
-        self.cancel_button.clicked.connect(self.reject)
+        # Route visible Commit/Cancel controls through FreeCAD's native task-dialog controller.
+        # Calling accept()/reject() directly from a custom QPushButton bypasses the controller lifecycle.
+        self.commit_button.clicked.connect(self.Gui.Control.accept)
+        self.cancel_button.clicked.connect(self.Gui.Control.reject)
         buttons.addWidget(self.preview_button)
         buttons.addWidget(self.commit_button)
         buttons.addWidget(self.cancel_button)
@@ -265,21 +267,6 @@ class SewingCreationTaskPanel:
         )
         return True
 
-    def _close_dialog(self):
-        if not self.Gui.activeDocument() or self.Gui.Control.activeDialog() is None:
-            return
-        self.Gui.Control.closeDialog()
-        try:
-            from PySide import QtCore
-        except ImportError:
-            from PySide2 import QtCore
-
-        def finish_close():
-            if self.Gui.activeDocument() and self.Gui.Control.activeDialog() is not None:
-                self.Gui.Control.closeDialog()
-
-        QtCore.QTimer.singleShot(0, finish_close)
-
     def accept(self):
         try:
             self.session.commit()
@@ -289,13 +276,14 @@ class SewingCreationTaskPanel:
         self._show_status("Committed sewing creation.")
         self.commit_button.setEnabled(False)
         self.preview_button.setEnabled(False)
-        self._close_dialog()
+        # Native Control.accept() completes the task-dialog close lifecycle.
         return True
 
     def reject(self):
         self.session.cancel()
         self._show_status("Cancelled. No seam or sewing-network object was persisted.")
-        self._close_dialog()
+        if self.Gui.activeDocument() and self.Gui.Control.activeDialog():
+            self.Gui.Control.closeDialog()
         return True
 
     def getStandardButtons(self):
