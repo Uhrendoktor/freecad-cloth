@@ -16,12 +16,6 @@ source = source_path.read_text(encoding="utf-8")
 from freecad_cloth.simulation import TissuBackend as _tissu_backend
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 
-# Audit-only A/B: bypass #673's boundary tessellation at the quality-mesh call
-# site, without changing PatternMesh or the production simulation path.
-from freecad_cloth.pattern import PatternMesh as _pattern_mesh
-_original_refine_linear_boundary = _pattern_mesh.refine_linear_boundary
-_pattern_mesh.refine_linear_boundary = lambda pattern, _max_spacing: pattern
-
 def _tight_tissu_collision_envelope(surface):
     if surface is None or not surface.vertices:
         return ()
@@ -118,9 +112,32 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
     log("authoritative-seam-max-gap-mm=%.2f" % max_seam_gap)
 """
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n    ); bounds = []", 1)
+
+def _install_boundary_refine_bypass():
+    # The canonical acceptance suite must see production #673 behavior; enable the
+    # A/B only after run_canonical_acceptance() and pattern_and_sewing() complete.
+    from freecad_cloth.pattern import PatternMesh as _pattern_mesh
+    original = _pattern_mesh.refine_linear_boundary
+    _pattern_mesh.refine_linear_boundary = lambda pattern, _max_spacing: pattern
+    return _pattern_mesh, original
+
+visual_anchor = (
+    '    Gui.getMainWindow().show(); events(); init_gui = os.path.join(ROOT, "InitGui.py"); '
+    'exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals()); '
+    'events(); run_canonical_acceptance(); pattern_and_sewing(); simulation(); log("scenario-pass")'
+)
+if visual_anchor not in source:
+    raise RuntimeError("visual simulation anchor missing for boundary-refinement A/B")
+visual_replacement = '''    Gui.getMainWindow().show(); events(); init_gui = os.path.join(ROOT, "InitGui.py"); exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals()); events(); run_canonical_acceptance(); pattern_and_sewing()
+    _ab_pattern_mesh, _ab_original_refine = _install_boundary_refine_bypass()
+    log("ab-boundary-refine-bypass=enabled")
+    try:
+        simulation()
+    finally:
+        _ab_pattern_mesh.refine_linear_boundary = _ab_original_refine
+    log("scenario-pass")'''
+source = source.replace(visual_anchor, visual_replacement, 1)
+
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
-try:
-    exec(compile(source, str(source_path), "exec"), globals(), globals())
-finally:
-    _pattern_mesh.refine_linear_boundary = _original_refine_linear_boundary
+exec(compile(source, str(source_path), "exec"), globals(), globals())
