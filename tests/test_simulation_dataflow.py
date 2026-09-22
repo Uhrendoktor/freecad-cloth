@@ -99,3 +99,89 @@ def test_unrelated_seams_do_not_invalidate_selected_pattern_scene():
 
     unrelated.ReversedB = True
     assert _simulation_source_signature(scene, [piece_a, piece_b]) == baseline
+
+
+def test_quality_proxy_preserves_solver_stitch_provenance():
+    from types import SimpleNamespace
+
+    from freecad_cloth.simulation import SimulationQualityRuntimeV2 as runtime
+
+    class Backend:
+        name = "xpbd-cpu"
+        time = 0.0
+
+        def positions(self):
+            return ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0))
+
+        def finite(self):
+            return True
+
+    class Base:
+        def __init__(self):
+            self.backend = None
+            self.source_signature = None
+            self.last_steps = 0
+            self.seam_stitch_pairs = {}
+
+    base = Base()
+    proxy = runtime.QualitySimulationProxy()
+    proxy._base_or_restore = lambda: base
+    proxy._signature = staticmethod(lambda obj, pattern_ir=None: ("signature",))
+    proxy._build_pattern_scene = lambda obj, pieces, signature, pattern_ir=None: (
+        setattr(base, "backend", Backend()),
+        setattr(base, "seam_stitch_pairs", {"seam-1": ((0, 1),)}),
+    )
+    proxy._apply_material = lambda obj: None
+    proxy._apply_collision = lambda obj: None
+
+    scene = SimpleNamespace(
+        ClothPieces=[SimpleNamespace(PatternType="PatternPiece")],
+        QualityPreset="Balanced",
+        ParticleDistance=4.0,
+        SolverIterations=8,
+        SolverSubsteps=1,
+        FabricDensity=150.0,
+        FabricThickness=0.5,
+        FabricStretch=0.02,
+        FabricShear=0.02,
+        FabricBend=0.01,
+        FabricFriction=0.5,
+        AvatarSkinOffset=0.0,
+        DrapeTarget=None,
+        Steps=0,
+        DrapePanels=[],
+        SimulatedTime=0.0,
+        ParticleCount=0,
+        FiniteState=False,
+        Document=SimpleNamespace(Objects=[]),
+    )
+
+    import freecad_cloth.common.PatternIRDocumentAdapter as adapter
+    original_compile = adapter.compile_pattern_ir
+    adapter.compile_pattern_ir = lambda doc, pieces: SimpleNamespace(validate=lambda: None)
+    try:
+        proxy.execute(scene)
+    finally:
+        adapter.compile_pattern_ir = original_compile
+
+    assert proxy.seam_stitch_pairs == {"seam-1": ((0, 1),)}
+    assert proxy.seam_stitch_pairs is not base.seam_stitch_pairs
+
+
+def test_quality_proxy_keeps_provenance_explicit_after_backend_handoff():
+    from freecad_cloth.simulation import SimulationQualityRuntimeV2 as runtime
+
+    class Base:
+        seam_stitch_pairs = {"seam-2": ((2, 3), (4, 5))}
+
+    proxy = runtime.QualitySimulationProxy()
+    proxy._sync_seam_stitch_provenance(Base())
+
+    assert proxy.seam_stitch_pairs == {"seam-2": ((2, 3), (4, 5))}
+    assert "seam_stitch_pairs" in proxy.__dict__
+
+    replacement = Base()
+    replacement.seam_stitch_pairs = {}
+    proxy._base_or_restore = lambda: replacement
+    assert proxy.seam_stitch_pairs == {"seam-2": ((2, 3), (4, 5))}
+
