@@ -123,6 +123,7 @@ jobs:
           grep -q 'preview-1to1=passed' artifacts/sewing-creation-smoke.log
           grep -q 'commit-1to1=passed' artifacts/sewing-creation-smoke.log
           grep -q 'cancel-1to1=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'selection-count-rejection=passed' artifacts/sewing-creation-smoke.log
           grep -q 'preview-mn=passed' artifacts/sewing-creation-smoke.log
           grep -q 'commit-mn=passed' artifacts/sewing-creation-smoke.log
           grep -q 'invalid-same-piece-preview=passed' artifacts/sewing-creation-smoke.log
