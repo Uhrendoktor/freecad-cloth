@@ -2,7 +2,7 @@ name: Canonical execution
 
 on:
   push:
-    branches: [main]
+    branches: [main, agent/garment-hierarchy-persistence-682-final]
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
@@ -119,7 +119,7 @@ jobs:
       - name: Inspect hierarchy smoke evidence
         run: |
           set -euo pipefail
-          grep -q 'production-garment-command=passed' artifacts/garment-hierarchy-smoke/garment-hierarchy-smoke.log
+          grep -q 'production-garment-path=passed' artifacts/garment-hierarchy-smoke/garment-hierarchy-smoke.log
           grep -q 'populate-pattern-sewing=passed' artifacts/garment-hierarchy-smoke/garment-hierarchy-smoke.log
           grep -q 'populate-fabric-avatar-simulation=passed' artifacts/garment-hierarchy-smoke/garment-hierarchy-smoke.log
           grep -q 'save=passed' artifacts/garment-hierarchy-smoke/garment-hierarchy-smoke.log
