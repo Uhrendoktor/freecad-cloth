@@ -41,6 +41,14 @@ def record(message):
     print(message, flush=True)
 
 
+def wait_for_task_close():
+    for _ in range(20):
+        process_events()
+        if Gui.Control.activeDialog() is None:
+            return
+    raise AssertionError("task dialog did not close after the requested Commit/Cancel action")
+
+
 def select_edges(*items):
     Gui.Selection.clearSelection()
     for obj, edge in items:
@@ -123,7 +131,7 @@ try:
     record("preview-1to1=passed")
     panel.accept()
     process_events()
-    assert Gui.Control.activeDialog() is None
+    wait_for_task_close()
     assert any(
         getattr(obj, "SeamId", "") for obj in doc.Objects if obj.Name not in before
     ), "1:1 commit lost seam"
