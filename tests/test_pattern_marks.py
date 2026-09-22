@@ -29,6 +29,7 @@ class Doc:
 def test_add_mark_persists_semantic_reference():
     doc = Doc()
     mark = add_mark(doc, "Notch", "pattern-piece-1", "bottom", 0.25)
+    assert mark.PatternMarkId == mark.Name
     assert mark.PatternMarkType == "Notch"
     assert mark.PieceId == "pattern-piece-1"
     assert mark.SegmentId == "bottom"
