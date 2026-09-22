@@ -147,6 +147,30 @@ def _make_curved(piece, doc):
     return sketch
 
 
+def _assert_seam_references_current(doc, pieces):
+    from freecad_cloth.common.PatternSimulationAdapter import _resolve_piece_ir, _resolve_seam_edge
+    resolved = {str(piece.PieceId): _resolve_piece_ir(piece, 64) for piece in pieces}
+    seams = [obj for obj in doc.Objects if getattr(obj, "SeamId", "") and str(getattr(obj, "PieceA", "")) in resolved and str(getattr(obj, "PieceB", "")) in resolved]
+    if not seams:
+        raise RuntimeError("simulation boundary contained no authored seams")
+    for seam in seams:
+        if str(getattr(seam, "Status", "")) != "Valid":
+            raise RuntimeError("simulation boundary contains non-valid authored seam %s: %s" % (seam.SeamId, seam.Status))
+        _resolve_seam_edge(
+            next(piece for piece in pieces if str(piece.PieceId) == str(seam.PieceA)),
+            seam,
+            "A",
+            resolved[str(seam.PieceA)],
+        )
+        _resolve_seam_edge(
+            next(piece for piece in pieces if str(piece.PieceId) == str(seam.PieceB)),
+            seam,
+            "B",
+            resolved[str(seam.PieceB)],
+        )
+    print("seam-reference=passed count=%d" % len(seams), flush=True)
+
+
 def _position_signature(scene):
     proxy = getattr(scene, "Proxy", None)
     backend = getattr(proxy, "backend", None)
@@ -531,6 +555,7 @@ def run_acceptance():
             raise RuntimeError("public Simulation quality task panel rejected the selected preset")
         _close_task()
         _wait_task_close()
+        _assert_seam_references_current(doc, pieces)
         scene.Steps = 1
         doc.recompute()
         if not int(scene.ParticleCount) > 0 or not bool(scene.FiniteState):
