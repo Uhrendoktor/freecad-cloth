@@ -34,6 +34,29 @@ class CorrespondenceReport:
         """Return whether the correspondence is usable for sewing."""
         return self.status in {STATUS_VALID, STATUS_REVERSED}
 
+    @property
+    def severity(self) -> str:
+        """Return the shared machine-checkable severity for this report."""
+        return "error" if self.status in {STATUS_LENGTH_MISMATCH, STATUS_INVALID_RANGE} else "info"
+
+    @property
+    def recovery(self) -> str:
+        """Return the shared deterministic recovery guidance."""
+        return correspondence_recovery(self.status)
+
+    def evidence(self) -> dict:
+        """Return the shared headless/GUI correspondence evidence contract."""
+        return {
+            "status": str(self.status),
+            "severity": self.severity,
+            "message": str(self.message),
+            "length_a": float(self.length_a),
+            "length_b": float(self.length_b),
+            "length_ratio": float(self.length_ratio),
+            "reversed_b": bool(self.reversed_b),
+            "recovery": self.recovery,
+        }
+
 
 def correspondence_status_label(report: CorrespondenceReport) -> str:
     """Return the shared persisted Status label for sewing objects."""

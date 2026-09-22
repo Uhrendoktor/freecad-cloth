@@ -81,6 +81,7 @@ jobs:
                 tests/test_project_structure.py \
                 tests/test_cloth_diagnostics.py \
                 tests/test_pattern_simulation_adapter.py \
+                tests/test_sewing_845_contract.py \
                 tests/test_seam_graph.py \
                 tests/test_workbench_icons.py \
                 tests/test_tunic_audit_contract.py; do
@@ -110,6 +111,7 @@ jobs:
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e CLOTH_SEWING_SMOKE_LOG=/workspace/artifacts/sewing-creation-smoke.log \
+            -e CLOTH_SEWING_845_LOG=/workspace/artifacts/sewing-845-acceptance.log \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
@@ -120,7 +122,9 @@ jobs:
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
               timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /workspace/tests/freecad_sewing_creation_smoke.py
+              timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /workspace/tests/freecad_sewing_845_acceptance.py
               test -s /workspace/artifacts/sewing-creation-smoke.log
+              test -s /workspace/artifacts/sewing-845-acceptance.log
             '
       - name: Inspect smoke evidence
         run: |
@@ -136,12 +140,21 @@ jobs:
           grep -q 'cancel-free=passed' artifacts/sewing-creation-smoke.log
           grep -q 'invalid-same-piece-preview=passed' artifacts/sewing-creation-smoke.log
           grep -q 'invalid-mn-partition-preview=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'curved-sampling=passed' artifacts/sewing-845-acceptance.log
+          grep -q 'curved-mn=passed members=2,2 segments=3 physical-length=proportional' artifacts/sewing-845-acceptance.log
+          grep -q 'curved-mn-reversal=passed segments=3' artifacts/sewing-845-acceptance.log
+          grep -q 'correspondence-gui-evidence=passed severity=info' artifacts/sewing-845-acceptance.log
+          grep -q 'seam-visual-3d=passed' artifacts/sewing-845-acceptance.log
+          grep -q 'seam-visual-2d=passed top-view=true' artifacts/sewing-845-acceptance.log
+          grep -q 'seam-direction-notch-correspondence=passed' artifacts/sewing-845-acceptance.log
       - name: Upload sewing creation smoke evidence
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: sewing-creation-smoke
-          path: artifacts/sewing-creation-smoke.log
+          path: |
+            artifacts/sewing-creation-smoke.log
+            artifacts/sewing-845-acceptance.log
           if-no-files-found: error
           compression-level: 1
 
