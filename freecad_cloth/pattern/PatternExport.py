@@ -149,6 +149,50 @@ def _piece_seams(piece):
     return tuple(sorted(set(seams)))
 
 
+def _persisted_construction_marks(piece, derived):
+    """Resolve persisted FreeCAD PatternMark objects into deterministic export IR."""
+    doc = getattr(piece, "Document", None)
+    if doc is None:
+        raise ValueError("pattern piece is not attached to a FreeCAD document")
+    piece_id = str(getattr(piece, "PieceId", "")).strip()
+    records = []
+    for obj in getattr(doc, "Objects", ()):
+        mark_type = str(getattr(obj, "PatternMarkType", "")).strip()
+        if not mark_type or str(getattr(obj, "PieceId", "")).strip() != piece_id:
+            continue
+        mark_id = str(getattr(obj, "PatternMarkId", "")).strip() or str(getattr(obj, "Name", "")).strip()
+        if not mark_id:
+            raise ValueError("persisted pattern mark is missing a stable ID")
+        records.append((mark_id, mark_type, obj))
+    records.sort(key=lambda item: item[0])
+    notches = []
+    marks = []
+    internal_mark_ids = []
+    for mark_id, mark_type, obj in records:
+        segment_id = str(getattr(obj, "SegmentId", "")).strip()
+        if not segment_id:
+            raise ValueError("persisted construction mark %s is missing its semantic edge ID" % mark_id)
+        position = float(getattr(obj, "Position", 0.5))
+        if mark_type.casefold() == "notch":
+            notches.append(Notch(id=mark_id, segment_id=segment_id, t=position, depth=float(getattr(obj, "Depth", 3.0))))
+            continue
+        mark = PatternMark(
+            id=mark_id,
+            kind=mark_type,
+            segment_id=segment_id,
+            t=position,
+            angle=float(getattr(obj, "Angle", 0.0)),
+            length=float(getattr(obj, "Length", 40.0)),
+            text=str(getattr(obj, "Text", "")).strip(),
+        )
+        marks.append(mark)
+        if mark_type.casefold() == "internalmark":
+            internal_mark_ids.append(mark_id)
+    derived = add_notches(derived, notches)
+    derived = add_marks(derived, marks)
+    return derived, tuple(internal_mark_ids)
+
+
 def pattern_from_pattern_piece(piece, curve_samples: int = 64) -> ParametricPattern:
     """Build a deterministic derived export pattern from the authoritative piece."""
     if getattr(piece, "PatternType", "") != "PatternPiece":
