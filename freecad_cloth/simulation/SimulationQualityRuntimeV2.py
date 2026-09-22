@@ -179,7 +179,7 @@ class QualitySimulationProxy:
         from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
         base = self._base_or_restore()
         previous = SimulationObjects._piece_mesh
-        SimulationObjects._piece_mesh = lambda piece, start_height: quality_piece_mesh(piece, start_height, float(obj.ParticleDistance))
+        SimulationObjects._piece_mesh = lambda piece, start_height, piece_ir=None: quality_piece_mesh(piece, start_height, float(obj.ParticleDistance), piece_ir=piece_ir)
         try:
             return base._build_pattern_scene(obj, pieces, signature)
         finally:
