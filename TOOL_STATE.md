@@ -7,9 +7,9 @@ canonical_workflow: .github/workflows/canonical-execution.yml
 workflow_blob_sha: ad6c8789d91ce3ca34825f055087e75b976647b4
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_task: "#647 release lifecycle"
-current_main: 20abd7370e2822ff52767c1a96b5a75ee3ecc9ad
-open_prs: [651, 659, 745, 754, 755, 756, 757, 758, 759, 760, 761, 762, 763]
-merged_release_slices: [687, 732, 735]
+current_main: 7e50a27caf0c7a6fea553e2f3d542cb0e17738f6
+open_prs: [651, 659, 693, 730, 745, 756, 757, 760, 761, 762, 766, 768, 769, 770, 771, 772, 773, 774, 775, 776, 777]
+merged_release_slices: [687, 732, 735, 759]
 historical_closed_release_prs: [695, 701, 702, 708, 713]
 m0_issue_472: closed-complete
 one_workflow_policy: enforced
@@ -35,9 +35,9 @@ workflow_contract:
   policy: preserve_existing_Docker_Xvfb_PNG_path; one_canonical_workflow; no_second_workflow
 
 latest_verified_ci:
-  run_id: 35783765670
-  run_number: 2595
-  commit: 20abd7370e2822ff52767c1a96b5a75ee3ecc9ad
+  run_id: 35785019676
+  run_number: 2636
+  commit: 7e50a27caf0c7a6fea553e2f3d542cb0e17738f6
   status: completed
   conclusion: success
   jobs:
@@ -49,38 +49,41 @@ latest_verified_ci:
     publish-readme-turntables: success
     benchmark: success
   artifacts:
-    readme-turntables: 10719791544
-    sewing-creation-smoke: 10719486915
-    pattern-production-export: 10719482013
-    workbench-benchmark: 10719382485
-    tunic-visual-audit: 10718734057
+    pattern-production-export: 10720125000
+    readme-turntables: 10720120231
+    sewing-creation-smoke: 10719866290
+    workbench-benchmark: 10719504060
+    tunic-visual-audit: 10719494242
 
 release_slices:
   patternir:
-    current_candidate: 745
-    historical_rebuild: 695
+    current_candidates: [745, 773, 774]
+    historical_closed: [695]
   sewing:
-    current_candidates: [759, 651]
-    historical_rebuild: 702
+    current_candidates: [776, 651]
+    merged_baseline: 759
+    historical_closed: [702]
   garment_hierarchy:
-    merged: 732
+    followups: [693, 775]
+    merged_baseline: 732
     historical_closed: [701]
   garment_e2e:
     current_candidates: [762, 761, 756, 659]
     historical_closed: [708]
   pinned_stitch:
-    merged: 687
+    merged_baseline: 687
     historical_closed: [713]
   tunic_validation:
-    current_candidates: [763, 760, 758, 755, 754, 757]
-    diagnostic_policy: no_arbitrary_threshold_changes
+    current_candidates: [777, 760, 768, 766, 757]
+    related_experiments: [769, 770]
 
 outstanding_gates:
-  - keep the single canonical workflow
-  - reconcile PatternIR candidate #745
-  - reconcile sewing candidates #759 and #651
-  - reconcile garment-E2E candidates #762/#761/#756/#659
-  - reconcile tunic-validation candidates without threshold weakening
+  - preserve one canonical workflow
+  - reconcile PatternIR candidates into one validated line
+  - reconcile sewing candidates after merged #759
+  - reconcile hierarchy follow-ups after merged #732
+  - reconcile garment-E2E candidates while keeping one canonical E2E path
+  - reconcile tunic/reversion candidates without threshold weakening
   - require terminal-green exact-head CI and artifact inspection before dependent merges
 
 policy:
@@ -93,7 +96,7 @@ policy:
   - recut_branches_from_current_main
 
 current_focus:
-  ci_status: current main 20abd7370e2822ff52767c1a96b5a75ee3ecc9ad is terminal-green in canonical run 35783765670 (#2595)
-  queue_status: active open PRs are [651,659,745,754,755,756,757,758,759,760,761,762,763]
-  next_supervisor_focus: reconcile the current-main PatternIR, sewing, garment-E2E, and tunic-validation candidates, preserving the one-workflow contract and validating exact heads before merge
+  ci_status: current main 7e50a27caf0c7a6fea553e2f3d542cb0e17738f6 is terminal-green in canonical run 35785019676 (#2636)
+  queue_status: active open PRs are [651,659,693,730,745,756,757,760,761,762,766,768,769,770,771,772,773,774,775,776,777]
+  next_supervisor_focus: reconcile the current-main PatternIR, sewing, hierarchy, garment-E2E, and tunic-validation candidates after the merged release slices #732/#735/#759, preserving the one-workflow contract
 ```
