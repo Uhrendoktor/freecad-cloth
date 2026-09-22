@@ -185,6 +185,7 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
+              echo "freecad-launch=starting" | tee -a "$LOG_PATH"
               timeout --signal=TERM --kill-after=15s 8m /opt/freecad/AppRun /workspace/tests/freecad_garment_e2e_smoke.py 2>&1 | tee -a "$LOG_PATH"
               test -s "$LOG_PATH"
             '
