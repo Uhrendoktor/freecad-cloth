@@ -141,6 +141,7 @@ def _mesh_points(mesh):
 
 def _post_drape_seam_gap(edge_a_indices, edge_b_indices, positions, seam, samples=5):
     from math import sqrt
+    from freecad_cloth.sewing.SewingCorrespondence import arc_length_vertex_indices
     if not edge_a_indices or not edge_b_indices:
         raise ValueError("semantic seam boundary vertices are required")
     points_a = tuple(positions[int(index)] for index in edge_a_indices)
