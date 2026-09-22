@@ -79,7 +79,15 @@ class QualitySimulationProxy:
     Type = "ClothSimulation"
 
     def __init__(self):
+        self._seam_stitch_provenance = {}
         self._restore_base()
+
+    def _sync_seam_stitch_provenance(self, base):
+        """Keep an explicit runtime snapshot of the exact solver stitch provenance."""
+        self._seam_stitch_provenance = {
+            str(seam_id): tuple(stitch_pairs)
+            for seam_id, stitch_pairs in getattr(base, "seam_stitch_pairs", {}).items()
+        }
 
     @staticmethod
     def _new_base():
@@ -104,11 +112,13 @@ class QualitySimulationProxy:
 
     @property
     def seam_stitch_pairs(self):
-        """Expose derived solver stitch provenance without serializing solver state."""
-        return self._base_or_restore().seam_stitch_pairs
+        """Expose exact solver stitch provenance without serializing solver state."""
+        current = getattr(self._base_or_restore(), "seam_stitch_pairs", {})
+        return current or dict(self._seam_stitch_provenance)
 
     def onDocumentRestored(self, obj):
         """Recreate non-serializable solver state after FreeCAD reloads the proxy."""
+        self._seam_stitch_provenance = {}
         self._restore_base()
 
     @staticmethod
@@ -150,6 +160,7 @@ class QualitySimulationProxy:
                 self._build_pattern_scene(obj, pieces, signature, pattern_ir)
             else:
                 self._build_demo(obj, signature)
+            self._sync_seam_stitch_provenance(base)
             self._apply_material(obj)
             self._apply_collision(obj)
         steps = int(obj.Steps)
