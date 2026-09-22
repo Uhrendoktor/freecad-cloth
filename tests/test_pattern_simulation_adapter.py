@@ -3,7 +3,11 @@ import math
 from freecad_cloth.common.PatternSimulationAdapter import (
     resolve_simulation_pattern,
 )
-from freecad_cloth.sewing.SeamReference import ChangedEdgeReference, capture_edge_reference
+from freecad_cloth.sewing.SeamReference import (
+    ChangedEdgeReference,
+    MissingEdgeReference,
+    capture_edge_reference,
+)
 
 
 class _Point:
@@ -248,7 +252,7 @@ def test_sketcher_authority_without_sketch_fails_closed():
     front.GeometryAuthority = "Sketcher"
     try:
         resolve_simulation_pattern(_Doc([front]), [front])
-    except Exception as exc:
+    except MissingEdgeReference as exc:
         assert "Sketch-authoritative" in str(exc)
         return
     raise AssertionError("Sketcher authority without a Sketch must not use legacy fallback")
@@ -287,3 +291,8 @@ def test_native_and_legacy_pieces_can_share_one_simulation_pattern():
     assert pattern.piece("front").boundaries[0].id == "front:bottom"
     assert pattern.piece("back").boundaries[0].id == "back:edge:0"
 
+if __name__ == "__main__":
+    for name, fn in globals().copy().items():
+        if name.startswith("test_"):
+            fn()
+    print("Pattern simulation adapter tests passed")
