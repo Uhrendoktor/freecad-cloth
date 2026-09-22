@@ -7,10 +7,10 @@ Jonathan Shewchuk's Triangle library; the rest of this module preserves the
 workbench's semantic boundary/provenance contract.
 """
 from dataclasses import dataclass
-from math import hypot, isclose
+from math import ceil, hypot, isfinite, isclose
 from typing import Dict, List, Sequence, Tuple
 
-from freecad_cloth.pattern.PatternGeometry import ParametricPattern, Point
+from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, Point
 
 
 @dataclass(frozen=True)
@@ -41,6 +41,28 @@ class TriangleMesh:
         indices = self.boundary_vertex_indices
         return tuple((indices[i], indices[(i + 1) % len(indices)]) for i in range(len(indices)))
 
+
+def refine_linear_boundary(pattern: ParametricPattern, max_spacing: float) -> ParametricPattern:
+    """Return a deterministic pattern with straight authored edges subdivided.
+
+    Generated sub-segments use internal IDs derived from the authored semantic
+    edge ID; consumers must group them back to the authored edge.
+    """
+    spacing = float(max_spacing)
+    if not isfinite(spacing) or spacing <= 0.0:
+        raise ValueError("max boundary spacing must be positive and finite")
+    segments = []
+    for segment in pattern.segments:
+        if not isinstance(segment, LineSegment):
+            segments.append(segment)
+            continue
+        steps = max(1, int(ceil(segment.length() / spacing)))
+        for index in range(steps):
+            start = segment.point(index / float(steps))
+            end = segment.point((index + 1) / float(steps))
+            suffix = "" if steps == 1 else "::sub::%d" % index
+            segments.append(LineSegment(segment.id + suffix, start, end))
+    return ParametricPattern(segments)
 
 def triangulate(pattern: ParametricPattern, curve_samples: int = 16, max_area: float | None = None) -> TriangleMesh:
     """Triangulate a sampled simple polygon with constrained Delaunay Triangle.
