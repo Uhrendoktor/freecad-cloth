@@ -392,7 +392,7 @@ def simulation():
         back_support_pins.append(index)
         available_back.remove(index)
     pinned = tuple(front_pins) + tuple(back_support_pins)
-    if seam_endpoints.intersection(pinned):
+    if seam_endpoints.intersection(back_support_pins):
         raise RuntimeError("visual tunic support-pin contract pins a sewn endpoint")
     scene.PinSelection = [str(i) for i in pinned]
     log(
