@@ -188,14 +188,7 @@ def test_native_seam_reference_save_reload_curve_edit_and_missing():
             App.closeDocument(document.Name)
 
 
-if __name__ == "__main__":
-    test_pattern_piece_proxy_recomputes_deterministically()
-    test_pattern_piece_proxy_rejects_invalid_dimensions()
-    test_native_seam_reference_save_reload_curve_edit_and_missing()
-    print("FreeCAD object proxy and native seam reference tests passed")
-
-
-def test_native_edge_number_uses_authored_semantic_id_after_boundary_reordering(monkeypatch):
+def test_native_edge_number_uses_authored_semantic_id_after_boundary_reordering():
     from types import SimpleNamespace
     import freecad_cloth.pattern.PatternCommands as commands
     import freecad_cloth.pattern.PatternObjects as pattern_objects
@@ -217,7 +210,8 @@ def test_native_edge_number_uses_authored_semantic_id_after_boundary_reordering(
         }
         for ordinal, index in enumerate(resolved_order)
     ]
-    monkeypatch.setattr(pattern_objects, "_native_edge_records", lambda _piece: records)
+    previous_records = pattern_objects._native_edge_records
+    pattern_objects._native_edge_records = lambda _piece: records
 
     class _SelectionEx:
         def __init__(self, names):
@@ -229,14 +223,30 @@ def test_native_edge_number_uses_authored_semantic_id_after_boundary_reordering(
             getSelectionEx=lambda: [_SelectionEx(["Edge%d" % (index + 1)]) for index in (1, 2, 6, 7)]
         )
     )
-    monkeypatch.setitem(sys.modules, "FreeCADGui", fake_gui)
+    previous_gui = sys.modules.get("FreeCADGui")
+    sys.modules["FreeCADGui"] = fake_gui
+    try:
+        selected = commands._selected_seam_edges(SimpleNamespace())
+        assert [edge for _, edge in selected] == [1, 2, 6, 7]
+        resolved = {edge: pattern_objects._seam_edge_id(piece, edge, "A")[0] for _, edge in selected}
+        assert resolved == {
+            1: "native-8:edge:1",
+            2: "native-8:edge:2",
+            6: "native-8:edge:6",
+            7: "native-8:edge:7",
+        }
+    finally:
+        pattern_objects._native_edge_records = previous_records
+        if previous_gui is None:
+            sys.modules.pop("FreeCADGui", None)
+        else:
+            sys.modules["FreeCADGui"] = previous_gui
 
-    selected = commands._selected_seam_edges(SimpleNamespace())
-    assert [edge for _, edge in selected] == [1, 2, 6, 7]
-    resolved = {edge: pattern_objects._seam_edge_id(piece, edge, "A")[0] for _, edge in selected}
-    assert resolved == {
-        1: "native-8:edge:1",
-        2: "native-8:edge:2",
-        6: "native-8:edge:6",
-        7: "native-8:edge:7",
-    }
+if __name__ == "__main__":
+    test_native_edge_number_uses_authored_semantic_id_after_boundary_reordering()
+
+    test_pattern_piece_proxy_recomputes_deterministically()
+    test_pattern_piece_proxy_rejects_invalid_dimensions()
+    test_native_seam_reference_save_reload_curve_edit_and_missing()
+    print("FreeCAD object proxy and native seam reference tests passed")
+
