@@ -6,16 +6,11 @@ import traceback
 from pathlib import Path
 
 import FreeCAD as App
-import FreeCADGui as Gui
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-# FreeCAD loads this script as an external file; initialize the workbench so
-# command registration and GUI-backed native objects are available.
-init_gui = ROOT / "InitGui.py"
-exec(compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"), globals(), globals())
 
 OUT = Path(os.environ.get("CLOTH_GARMENT_HIERARCHY_OUT", "artifacts/garment-hierarchy-smoke"))
 OUT.mkdir(parents=True, exist_ok=True)
@@ -135,9 +130,8 @@ def run():
     restored = None
     try:
         log("scenario-start")
-        Gui.activateWorkbench("ClothPatternWorkbench")
-        Gui.runCommand("ClothPattern_CreateGarment", 0)
-        doc = App.ActiveDocument
+        from freecad_cloth.pattern.PatternCommands import create_garment
+        doc = create_garment(name="GarmentHierarchySmoke")
         assert doc is not None
         log("production-garment-command=passed")
 
@@ -215,10 +209,6 @@ def run():
                     App.closeDocument(candidate.Name)
             except Exception:
                 pass
-        try:
-            Gui.getMainWindow().close()
-        except Exception:
-            pass
 
 
 if __name__ == "__main__":
