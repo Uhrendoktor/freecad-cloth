@@ -204,7 +204,10 @@ def show_diagnostics(scene=None):
     panel = DiagnosticsTaskPanel(scene)
     Gui.Control.showDialog(panel)
     return panel
-\n\n\ndef _merge_results(panels):
+
+
+
+def _merge_results(panels):
     from freecad_cloth.common.ClothDiagnostics import DiagnosticResult
     strain = tuple(value for _panel, _triangles, result in panels for value in result.strain)
     stress = tuple(value for _panel, _triangles, result in panels for value in result.stress)
