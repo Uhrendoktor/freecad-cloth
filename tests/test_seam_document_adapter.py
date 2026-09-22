@@ -35,3 +35,80 @@ def test_document_edge_resolution_rejects_missing_semantic_id():
     piece = _piece()
     with pytest.raises(MissingEdgeReference):
         _resolve_document_edge(piece, "front:edge:99", "deadbeef")
+
+
+class _Point:
+    def __init__(self, x, y):
+        self.x = float(x)
+        self.y = float(y)
+        self.z = 0.0
+
+
+class _LineSegment:
+    def __init__(self, start, end):
+        self.StartPoint = _Point(*start)
+        self.EndPoint = _Point(*end)
+
+
+class _ShuffledSketch:
+    Geometry = (
+        _LineSegment((0, 0), (10, 0)),   # authored edge 0
+        _LineSegment((0, 10), (0, 0)),   # authored edge 1
+        _LineSegment((10, 0), (10, 10)), # authored edge 2
+        _LineSegment((10, 10), (0, 10)), # authored edge 3
+    )
+    SemanticEdgeIds = (
+        "piece:edge:0",
+        "piece:edge:1",
+        "piece:edge:2",
+        "piece:edge:3",
+    )
+
+    @staticmethod
+    def getConstruction(_index):
+        return False
+
+
+class _NativePiece:
+    PieceId = "piece"
+    Label = "piece"
+    Width = 10.0
+    Height = 10.0
+    SeamAllowance = 0.0
+    GrainlineAngle = 0.0
+    GeometryAuthority = "Sketcher"
+    DraftingBoundary = repr([(0, 0), (10, 0), (10, 10), (0, 10)])
+    Sketch = _ShuffledSketch()
+
+
+def test_sketcher_integer_seam_reference_uses_original_geometry_index():
+    from freecad_cloth.pattern.PatternObjects import _edge_records, _seam_edge_id
+
+    piece = _NativePiece()
+    records = _edge_records(piece)
+    assert [record["id"] for record in records] != [
+        "piece:edge:0",
+        "piece:edge:1",
+        "piece:edge:2",
+        "piece:edge:3",
+    ]
+    assert _seam_edge_id(piece, 1, "A")[0] == "piece:edge:1"
+    assert _seam_edge_id(piece, 2, "A")[0] == "piece:edge:2"
+    assert {record["ordinal"] for record in records} == {0, 1, 2, 3}
+
+
+def test_sketcher_semantic_seam_reference_preserves_native_provenance_signature():
+    from freecad_cloth.pattern.PatternObjects import _seam_edge_id
+    from freecad_cloth.sewing.SeamReference import capture_edge_reference
+
+    piece = _NativePiece()
+    edge_id, signature = _seam_edge_id(piece, "piece:edge:1", "A")
+    assert edge_id == "piece:edge:1"
+    record = next(record for record in __import__("freecad_cloth.pattern.PatternObjects", fromlist=["_edge_records"])._edge_records(piece) if record["id"] == edge_id)
+    expected = capture_edge_reference(
+        piece.PieceId,
+        edge_id,
+        record["points"],
+        record["provenance"],
+    ).signature
+    assert signature == expected
