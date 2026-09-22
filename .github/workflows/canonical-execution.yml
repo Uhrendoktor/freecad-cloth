@@ -60,6 +60,7 @@ jobs:
                 tests/test_pattern_sketch.py \
                 tests/test_pattern_ir.py \
                 tests/test_pattern_export_semantics.py \
+                tests/test_pattern_marks.py \
                 tests/test_sketch_authority.py \
                 tests/test_sewing_workbench.py \
                 tests/test_sewing_correspondence.py \
