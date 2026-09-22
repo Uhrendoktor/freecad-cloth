@@ -89,6 +89,7 @@ class QualitySimulationProxy:
     def _restore_base(self):
         base = self._new_base()
         _RUNTIME_BASES[self] = base
+        self.seam_stitch_pairs = {}
         return base
 
     def _base_or_restore(self):
@@ -141,6 +142,7 @@ class QualitySimulationProxy:
                 self._build_pattern_scene(obj, pieces, signature)
             else:
                 self._build_demo(obj, signature)
+            self.seam_stitch_pairs = dict(getattr(base, "seam_stitch_pairs", {}))
             self._apply_material(obj)
             self._apply_collision(obj)
         steps = int(obj.Steps)
@@ -179,7 +181,7 @@ class QualitySimulationProxy:
         from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
         base = self._base_or_restore()
         previous = SimulationObjects._piece_mesh
-        SimulationObjects._piece_mesh = lambda piece, start_height: quality_piece_mesh(piece, start_height, float(obj.ParticleDistance))
+        SimulationObjects._piece_mesh = lambda piece, start_height, piece_ir=None: quality_piece_mesh(piece, start_height, float(obj.ParticleDistance), piece_ir=piece_ir)
         try:
             return base._build_pattern_scene(obj, pieces, signature)
         finally:
