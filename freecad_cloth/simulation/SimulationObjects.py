@@ -535,8 +535,8 @@ def create_simulation_scene(doc):
     panel_b = _mesh_object(doc, "DrapePanelB", "Drape Panel B")
     from freecad_cloth.common.GarmentDocument import link_garment_object
     link_garment_object(scene, "Simulation", doc)
-    link_garment_object(panel_a, "PatternMesh", doc)
-    link_garment_object(panel_b, "PatternMesh", doc)
+    link_garment_object(panel_a, "SimulationOutput", doc)
+    link_garment_object(panel_b, "SimulationOutput", doc)
     scene.DrapePanels = [panel_a, panel_b]
     avatar = create_avatar_collision(doc)
     scene.AvatarProxy = avatar
