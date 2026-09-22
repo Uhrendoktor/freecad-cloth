@@ -131,15 +131,22 @@ def _make_curved(piece, doc):
 
 
 
-def _make_straight_equal_length(piece, doc):
-    """Build the straight M:N counterpart with the same physical edge-2 length."""
+def _make_nonuniform_curved(piece, doc):
+    """Give one M:N member a deliberately different, still correspondable arc."""
     sketch = piece.Sketch
     piece_id = str(piece.PieceId)
-    span = 50.0 * math.pi
+    radius = 50.1
+    offset = math.sqrt(radius * radius - 50.0 * 50.0)
+    start_angle = math.atan2(offset, 50.0)
+    end_angle = math.pi - start_angle
     geometry = [
-        Part.LineSegment(App.Vector(0, 0, 0), App.Vector(span, 0, 0)),
-        Part.LineSegment(App.Vector(span, 0, 0), App.Vector(span, 50, 0)),
-        Part.LineSegment(App.Vector(span, 50, 0), App.Vector(0, 50, 0)),
+        Part.LineSegment(App.Vector(0, 0, 0), App.Vector(100, 0, 0)),
+        Part.LineSegment(App.Vector(100, 0, 0), App.Vector(100, 50, 0)),
+        Part.ArcOfCircle(
+            Part.Circle(App.Vector(50, 50 - offset, 0), App.Vector(0, 0, 1), radius),
+            start_angle,
+            end_angle,
+        ),
         Part.LineSegment(App.Vector(0, 50, 0), App.Vector(0, 0, 0)),
     ]
     sketch.Constraints = []
@@ -351,7 +358,7 @@ def run_acceptance():
         for index, piece in enumerate(pieces):
             piece.Placement.Base.x = float(index * 170)
             if piece is sleeve_b:
-                _make_straight_equal_length(piece, doc)
+                _make_nonuniform_curved(piece, doc)
             else:
                 _make_curved(piece, doc)
         doc.recompute()
@@ -451,6 +458,22 @@ def run_acceptance():
         if curved_length <= curved_chord * 1.10:
             raise RuntimeError("M:N canonical side A edge 2 did not retain deliberate curved arc length")
 
+        variant_points = _edge_polyline(sleeve_b, 2)
+        variant_length = _edge_length(sleeve_b, 2)
+        variant_chord = math.hypot(
+            variant_points[-1][0] - variant_points[0][0],
+            variant_points[-1][1] - variant_points[0][1],
+        )
+        if variant_length <= variant_chord * 1.05:
+            raise RuntimeError("M:N canonical side B edge 2 did not retain deliberate non-uniform curved arc length")
+        variant_samples = _edge_samples(sleeve_b, 2, 0.0, 1.0, 5)
+        variant_dx = [
+            round(abs(variant_samples[index + 1].x - variant_samples[index].x), 6)
+            for index in range(len(variant_samples) - 1)
+        ]
+        if len(set(variant_dx)) < 2:
+            raise RuntimeError("M:N side B edge 2 did not retain non-uniform physical arc-length samples")
+
         arc_samples = _edge_samples(sleeve_a, 2, 0.0, 1.0, 5)
         sample_dx = [
             round(abs(arc_samples[index + 1].x - arc_samples[index].x), 6)
@@ -540,8 +563,8 @@ def run_acceptance():
                 "%s:reversed=%s:edges=%d" % (member.SeamId, bool(member.ReversedB), len(member.Shape.Edges))
             )
         print(
-            "sewing-mn-curved=passed curved_side=A edge=2 arc_length=%.6f chord=%.6f non_uniform_samples=%s"
-            % (curved_length, curved_chord, sample_dx),
+            "sewing-mn-curved=passed curved_side=A,B edge=2 arc_length_A=%.6f arc_length_B=%.6f chord_A=%.6f chord_B=%.6f non_uniform_samples=%s"
+            % (curved_length, variant_length, curved_chord, variant_chord, sample_dx + ["B:" + str(variant_dx)]),
             flush=True,
         )
         print(
