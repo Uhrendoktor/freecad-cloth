@@ -138,6 +138,23 @@ def test_native_integer_seam_reference_uses_original_sketch_semantic_ordinal_aft
         assert str(seam.EdgeAId) == "native-shuffled-a:edge:3"
         assert str(seam.EdgeBId) == "native-shuffled-b:edge:0"
         assert str(seam.Status) == "Valid"
+
+        semantic_seam = add_seam(
+            document,
+            Seam(
+                obj_a.PieceId,
+                "native-shuffled-a:edge:3",
+                obj_b.PieceId,
+                "native-shuffled-b:edge:0",
+                id="native-shuffled-semantic-seam",
+            ),
+        )
+        document.recompute()
+        assert str(semantic_seam.EdgeAId) == "native-shuffled-a:edge:3"
+        assert str(semantic_seam.EdgeBId) == "native-shuffled-b:edge:0"
+        assert str(semantic_seam.EdgeASignature).startswith("native-v1:")
+        assert str(semantic_seam.EdgeBSignature).startswith("native-v1:")
+        assert str(semantic_seam.Status) == "Valid"
     finally:
         if document.Name in App.listDocuments():
             App.closeDocument(document.Name)
