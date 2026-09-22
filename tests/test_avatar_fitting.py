@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 import tempfile
 import unittest
 
@@ -11,6 +12,19 @@ from freecad_cloth.avatar.HumanoidMesh import MeshData, MAKEHUMAN_BASE_SHA256, M
 
 
 class AvatarFittingTests(unittest.TestCase):
+
+    def test_fitting_proxy_is_validation_only_during_recompute(self):
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+        proxy_start = source.index("class _FittingProxy")
+        proxy_end = source.index("\n\nCOMMANDS =", proxy_start)
+        proxy_body = source[proxy_start:proxy_end]
+        self.assertNotIn("_sync_visuals(obj)", proxy_body)
+        sync_start = source.index("def _sync_visuals(")
+        sync_end = source.index("\n\ndef create_fitting_scene", sync_start)
+        self.assertNotIn("Document.recompute()", source[sync_start:sync_end])
+        self.assertIn("scene.Document.addObject", source[sync_start:sync_end])
+
     def test_measurements_are_valid_and_canonical(self):
         measurements = BodyMeasurements({"waist": 760, "height": 1700, "chest": 900})
         self.assertEqual(measurements.normalized(), (("chest", 900.0), ("height", 1700.0), ("waist", 760.0)))
