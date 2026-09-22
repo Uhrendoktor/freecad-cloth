@@ -124,6 +124,15 @@ def test_polygon_drafting_round_trip_and_editing():
     assert bounds(points) == (0.0, 0.0, 100.0, 70.0)
 
 
+def test_garment_pattern_sketch_scope_contract():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "freecad_cloth" / "pattern" / "PatternSketch.py").read_text(encoding="utf-8")
+    garment = (root / "freecad_cloth" / "common" / "GarmentDocument.py").read_text(encoding="utf-8")
+    assert 'App::PropertyLinkGlobal", "Sketch", "Cloth"' in source
+    assert '"PatternSketch": "Patterns"' in garment
+    assert 'link_garment_object(existing, "PatternSketch", document)' in source
+    assert 'link_garment_object(sketch, "PatternSketch", document)' in source
+
 def test_legacy_pattern_boundary_remains_readable_by_sketch_authority():
     from freecad_cloth.common.SketchAuthority import _piece_model
 
@@ -150,4 +159,5 @@ if __name__ == "__main__":
     test_edit_sketch_enters_native_editor_for_selected_piece()
     test_polygon_drafting_round_trip_and_editing()
     test_legacy_pattern_boundary_remains_readable_by_sketch_authority()
+    test_garment_pattern_sketch_scope_contract()
     print("pattern sketch tests passed")
