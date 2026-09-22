@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Iterable, List, Sequence, Tuple
 
 from freecad_cloth.pattern.PatternModel import Seam
-from freecad_cloth.sewing.SewingCorrespondence import analyze_correspondence, correspondence_recovery, correspondence_status_label
+from freecad_cloth.sewing.SewingCorrespondence import analyze_correspondence, correspondence_status_label
 
 
 @dataclass(frozen=True)
@@ -246,7 +246,9 @@ class SewingNetworkProxy:
         if hasattr(obj, "CorrespondenceMessage"):
             obj.CorrespondenceMessage = report.message
         if hasattr(obj, "CorrespondenceRecovery"):
-            obj.CorrespondenceRecovery = correspondence_recovery(report.status)
+            obj.CorrespondenceRecovery = report.recovery
+        if hasattr(obj, "CorrespondenceSeverity"):
+            obj.CorrespondenceSeverity = report.severity
 
 
 def add_sewing_network(doc, seams, relationship_id, name="SewingNetwork"):
@@ -271,6 +273,7 @@ def add_sewing_network(doc, seams, relationship_id, name="SewingNetwork"):
     obj.addProperty("App::PropertyString", "CorrespondenceStatus", "Validation").CorrespondenceStatus = "valid"
     obj.addProperty("App::PropertyString", "CorrespondenceMessage", "Validation").CorrespondenceMessage = "seam correspondence is valid"
     obj.addProperty("App::PropertyString", "CorrespondenceRecovery", "Validation").CorrespondenceRecovery = "no repair required"
+    obj.addProperty("App::PropertyString", "CorrespondenceSeverity", "Validation").CorrespondenceSeverity = "info"
     obj.addProperty("App::PropertyLength", "LengthA", "Validation").LengthA = 0.0
     obj.addProperty("App::PropertyLength", "LengthB", "Validation").LengthB = 0.0
     obj.addProperty("App::PropertyLength", "LengthDifference", "Validation").LengthDifference = 0.0
@@ -280,6 +283,7 @@ def add_sewing_network(doc, seams, relationship_id, name="SewingNetwork"):
     obj.setEditorMode("CorrespondenceStatus", 1)
     obj.setEditorMode("CorrespondenceMessage", 1)
     obj.setEditorMode("CorrespondenceRecovery", 1)
+    obj.setEditorMode("CorrespondenceSeverity", 1)
     obj.Proxy = SewingNetworkProxy()
     obj.Proxy.execute(obj)
     from freecad_cloth.common.GarmentDocument import link_garment_object
