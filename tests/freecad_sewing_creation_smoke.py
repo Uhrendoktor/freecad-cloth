@@ -129,7 +129,7 @@ try:
     assert "Preview valid" in panel.feedback.text()
     assert Gui.Control.activeDialog() is not None
     record("preview-1to1=passed")
-    panel.accept()
+    panel.commit_button.click()
     process_events()
     wait_for_task_close()
     assert any(
@@ -141,7 +141,7 @@ try:
     select_edges((piece_a, 1), (piece_b, 1))
     cancel_panel = open_public("ClothSewing_CreateSeam")
     assert any(getattr(obj, "SeamId", "") for obj in cancel_panel.session.created)
-    cancel_panel.reject()
+    cancel_panel.cancel_button.click()
     wait_for_task_close()
     assert {obj.Name for obj in doc.Objects} == cancel_before, "cancel persisted preview objects"
     record("cancel-1to1=passed")
@@ -152,7 +152,7 @@ try:
     assert "Preview rejected" in invalid_count_panel.feedback.text()
     assert "exactly two edges" in invalid_count_panel.feedback.text()
     assert {obj.Name for obj in doc.Objects} == count_before
-    invalid_count_panel.reject()
+    invalid_count_panel.cancel_button.click()
     wait_for_task_close()
     assert {obj.Name for obj in doc.Objects} == count_before
     record("selection-count-rejection=passed")
@@ -163,7 +163,7 @@ try:
     assert "Preview rejected" in invalid_panel.feedback.text()
     assert "different pattern pieces" in invalid_panel.feedback.text()
     assert {obj.Name for obj in doc.Objects} == same_piece_before
-    invalid_panel.reject()
+    invalid_panel.cancel_button.click()
     wait_for_task_close()
     assert {obj.Name for obj in doc.Objects} == same_piece_before
     record("invalid-same-piece-preview=passed")
@@ -174,7 +174,7 @@ try:
     assert "Preview rejected" in invalid_mn_panel.feedback.text()
     assert "two different pattern pieces" in invalid_mn_panel.feedback.text()
     assert {obj.Name for obj in doc.Objects} == mn_before
-    invalid_mn_panel.reject()
+    invalid_mn_panel.cancel_button.click()
     wait_for_task_close()
     assert {obj.Name for obj in doc.Objects} == mn_before
     record("invalid-mn-partition-preview=passed")
@@ -187,7 +187,7 @@ try:
     )
     assert "Preview valid" in mn_panel.feedback.text()
     record("preview-mn=passed")
-    mn_panel.accept()
+    mn_panel.commit_button.click()
     wait_for_task_close()
     networks = [
         obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork"
