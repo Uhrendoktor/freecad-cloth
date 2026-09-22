@@ -202,11 +202,20 @@ def show_pattern_2d():
     show_pattern_view()
 
 
+_ACTIVE_PATTERN_EXPORT_TASK_PANEL = None
+
+
+def get_active_pattern_export_task_panel():
+    """Return the task panel most recently opened by the public export command."""
+    return _ACTIVE_PATTERN_EXPORT_TASK_PANEL
+
+
 def export_pattern():
     """Open the public production SVG/DXF export task panel."""
     import FreeCAD as App
     import FreeCADGui as Gui
     from freecad_cloth.pattern.PatternExportGui import show_pattern_export_task
+    global _ACTIVE_PATTERN_EXPORT_TASK_PANEL
     doc = App.ActiveDocument
     if doc is None:
         raise ValueError("open a pattern document before exporting")
