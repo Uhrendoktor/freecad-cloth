@@ -30,7 +30,7 @@ def _close_task():
 def _wait_task_close():
     for _ in range(40):
         _events()
-        if not Gui.Control.activeDialog():
+        if Gui.Control.activeDialog() is None:
             return
     raise RuntimeError("task dialog did not close after the requested public action")
 
