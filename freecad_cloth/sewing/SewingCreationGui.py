@@ -205,12 +205,18 @@ class SewingCreationTaskPanel:
         self.commit_button = QtWidgets.QPushButton("Commit")
         self.cancel_button = QtWidgets.QPushButton("Cancel")
         self.preview_button.clicked.connect(self.preview)
-        # Route visible buttons through the public panel lifecycle methods.
-        # The FreeCAD task controller does not expose a reject() API on all supported
-        # runtimes, so using the panel's own accept/reject handlers keeps the
-        # transaction and dialog lifecycle inside the public task-panel contract.
-        self.commit_button.clicked.connect(self.accept)
-        self.cancel_button.clicked.connect(self.reject)
+        # The native task controller must own the dialog close. Queue its
+        # accept/reject calls until the QPushButton signal has returned.
+        try:
+            from PySide import QtCore
+        except ImportError:
+            from PySide2 import QtCore
+        self.commit_button.clicked.connect(
+            lambda: QtCore.QTimer.singleShot(0, self.Gui.Control.accept)
+        )
+        self.cancel_button.clicked.connect(
+            lambda: QtCore.QTimer.singleShot(0, self.Gui.Control.reject)
+        )
         buttons.addWidget(self.preview_button)
         buttons.addWidget(self.commit_button)
         buttons.addWidget(self.cancel_button)
@@ -269,21 +275,6 @@ class SewingCreationTaskPanel:
         )
         return True
 
-    def _close_dialog(self):
-        if not self.Gui.activeDocument() or self.Gui.Control.activeDialog() is None:
-            return
-        self.Gui.Control.closeDialog()
-        try:
-            from PySide import QtCore
-        except ImportError:
-            from PySide2 import QtCore
-
-        def finish_close():
-            if self.Gui.activeDocument() and self.Gui.Control.activeDialog() is not None:
-                self.Gui.Control.closeDialog()
-
-        QtCore.QTimer.singleShot(0, finish_close)
-
     def accept(self):
         try:
             self.session.commit()
@@ -293,13 +284,11 @@ class SewingCreationTaskPanel:
         self._show_status("Committed sewing creation.")
         self.commit_button.setEnabled(False)
         self.preview_button.setEnabled(False)
-        self._close_dialog()
         return True
 
     def reject(self):
         self.session.cancel()
         self._show_status("Cancelled. No seam or sewing-network object was persisted.")
-        self._close_dialog()
         return True
 
 
