@@ -44,7 +44,7 @@ def test_canonical_tunic_replacement_consumes_legacy_seam_loop_body():
         for key in replacements.keys
         if isinstance(key, ast.Constant)
         and isinstance(key.value, str)
-        and key.value.startswith("for edge_a, edge_b, seam_id in ((2,2,\\"TunicRightShoulder\\")")
+        and key.value.startswith('for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder")')
     )
     assert "seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b" in legacy_key
     assert "seam_records.append((seam_obj, front, back))" in legacy_key
