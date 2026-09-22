@@ -4,7 +4,17 @@ import sys
 import tempfile
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+try:
+    import FreeCADGui as Gui
+    if not hasattr(Gui, "Workbench"):
+        init_gui = ROOT / "InitGui.py"
+        exec(compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"), globals(), globals())
+except ImportError:
+    Gui = None
 
 try:
     import FreeCAD as App
