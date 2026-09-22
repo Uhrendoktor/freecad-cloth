@@ -48,17 +48,6 @@ replacements = {
     'front_y = box.YMin - clearance; back_y = box.YMax + clearance;': 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
         'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)',
-    'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):' :
-        'front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())\n'
-        '    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())\n'
-        '    if len(front_edge_ids) < 8 or len(back_edge_ids) < 8 or any(not front_edge_ids[index] or not back_edge_ids[index] for index in (1, 2, 5, 6)): raise RuntimeError("canonical tunic fixture is missing authored semantic edge IDs")\n'
-        '    seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"),(front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"),(front_edge_ids[6], back_edge_ids[6], "TunicLeftSide"))\n'
-        '    for edge_a_id, edge_b_id, seam_id in seam_specs:\n'
-        '        seam = Seam(str(front.PieceId), edge_a_id, str(back.PieceId), edge_b_id, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
-        '        add_seam(doc, seam)\n'
-        '        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)\n'
-        '        if str(getattr(seam_obj, "EdgeAId", "")) != edge_a_id or str(getattr(seam_obj, "EdgeBId", "")) != edge_b_id: raise RuntimeError("canonical tunic seam %s did not retain authored semantic edge IDs" % seam_id)\n'
-        '        seam_records.append((seam_obj, front, back))',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
     'front_y = box.YMin - clearance; back_y = box.YMax + clearance;': 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
@@ -99,31 +88,28 @@ if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
 source = source.replace(anchor, preview_probe + '\n' + anchor, 1)
 
-seam_check = """    backend_state = scene.Proxy._base_or_restore()
-    simulated_positions = tuple(backend_state.backend.positions())
-    if not simulated_positions: raise RuntimeError("Tissu backend returned no simulated particle positions")
-    stitch_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
-    if not stitch_pairs_by_seam: raise RuntimeError("authoritative seam check has no exact solver stitch provenance")
-    seam_gaps = []
-    for seam, piece_a, piece_b in seam_records:
-        expected_a = f"{piece_a.PieceId}:edge:"
-        expected_b = f"{piece_b.PieceId}:edge:"
-        edge_a_id = str(getattr(seam, "EdgeAId", ""))
-        edge_b_id = str(getattr(seam, "EdgeBId", ""))
-        if not edge_a_id.startswith(expected_a) or not edge_b_id.startswith(expected_b):
-            raise RuntimeError("authoritative tunic seam lost semantic edge identity")
-        pairs = tuple(stitch_pairs_by_seam.get(str(seam.SeamId), ()))
-        if not pairs:
-            raise RuntimeError("authoritative seam check cannot resolve exact solver pairs for %s" % seam.SeamId)
-        for ga, gb in pairs:
-            a = simulated_positions[int(ga)]
-            b = simulated_positions[int(gb)]
-            seam_gaps.append(((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2)**0.5)
-    max_seam_gap = max(seam_gaps) if seam_gaps else 0.0
-    if max_seam_gap > 35.0: raise RuntimeError("authoritative tunic seams did not converge: max endpoint gap %.1f mm" % max_seam_gap)
-    log("authoritative-seam-max-gap-mm=%.2f seam-ids=%s" % (max_seam_gap, tuple(str(seam.SeamId) for seam, _a, _b in seam_records)))\n"""
-
-source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n    ); bounds = []", 1)
+seam_check = """    seam_coherence = _seam_coherence(panels, seam_records, proxy=scene.Proxy)
+    max_seam_gap = float(seam_coherence["max_correspondence_gap_mm"] or 0.0)
+    if max_seam_gap > 35.0:
+        raise RuntimeError("authoritative tunic seams did not converge: max solver-stitch gap %.1f mm" % max_seam_gap)
+    log("authoritative-seam-max-gap-mm=%.2f" % max_seam_gap)
+"""
+write_anchor = """    write_drape_metrics(
+        panels,
+        avatar,
+        x_mid,
+        shoulder_z=shoulder_z,
+        hem_z=hem_z,
+        seam_records=seam_records,
+        proxy=proxy,
+    ); bounds = []"""
+if write_anchor not in source:
+    raise RuntimeError("tunic seam-gate injection anchor missing from canonical source")
+source = source.replace(
+    write_anchor,
+    seam_check + "\n" + write_anchor,
+    1,
+)
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
 exec(compile(source, str(source_path), "exec"), globals(), globals())
