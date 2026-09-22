@@ -130,6 +130,58 @@ def _make_curved(piece, doc):
     return sketch
 
 
+
+
+def _make_nonuniform_curved(piece, doc):
+    """Use a different cubic curve with exactly the canonical semicircle arc length."""
+    sketch = piece.Sketch
+    piece_id = str(piece.PieceId)
+    target_length = 50.0 * math.pi
+    low, high = 0.0, 120.0
+    for _ in range(36):
+        bulge = 0.5 * (low + high)
+        curve = Part.BezierCurve()
+        curve.setPoles([
+            App.Vector(100, 50, 0),
+            App.Vector(75, 50 + bulge, 0),
+            App.Vector(25, 50 + bulge, 0),
+            App.Vector(0, 50, 0),
+        ])
+        if curve.toShape().Length < target_length:
+            low = bulge
+        else:
+            high = bulge
+    bulge = 0.5 * (low + high)
+    curve = Part.BezierCurve()
+    curve.setPoles([
+        App.Vector(100, 50, 0),
+        App.Vector(75, 50 + bulge, 0),
+        App.Vector(25, 50 + bulge, 0),
+        App.Vector(0, 50, 0),
+    ])
+    geometry = [
+        Part.LineSegment(App.Vector(0, 0, 0), App.Vector(100, 0, 0)),
+        Part.LineSegment(App.Vector(100, 0, 0), App.Vector(100, 50, 0)),
+        curve,
+        Part.LineSegment(App.Vector(0, 50, 0), App.Vector(0, 0, 0)),
+    ]
+    sketch.Constraints = []
+    sketch.Geometry = geometry
+    sketch.SemanticEdgeIds = [f"{piece_id}:edge:{index}" for index in range(4)]
+    sketch.GeometryAuthority = "Sketcher"
+    sketch.addConstraint([
+        Sketcher.Constraint("Coincident", 0, 2, 1, 1),
+        Sketcher.Constraint("Coincident", 1, 2, 2, 1),
+        Sketcher.Constraint("Coincident", 2, 2, 3, 1),
+        Sketcher.Constraint("Coincident", 3, 2, 0, 1),
+        Sketcher.Constraint("Horizontal", 0),
+        Sketcher.Constraint("Vertical", 3),
+    ])
+    doc.recompute()
+    if sketch.Shape.isNull() or piece.Shape.isNull():
+        raise RuntimeError("non-uniform curved M:N counterpart did not produce native geometry")
+    return sketch
+
 def _position_signature(scene):
     proxy = getattr(scene, "Proxy", None)
     backend = getattr(proxy, "backend", None)
@@ -322,6 +374,7 @@ def run_acceptance():
         for index, piece in enumerate(pieces):
             piece.Placement.Base.x = float(index * 170)
             _make_curved(piece, doc)
+        _make_nonuniform_curved(sleeve_b, doc)
         doc.recompute()
 
         before_ids = [tuple(getattr(piece.Sketch, "SemanticEdgeIds", ())) for piece in pieces]
@@ -406,6 +459,61 @@ def run_acceptance():
         if any(str(getattr(seam, "Status", "")) != "Valid" for seam in network.Seams):
             raise RuntimeError("M:N network retained an invalid member seam")
         print("sewing-mn=passed sides=2,2 segments=2", flush=True)
+
+        from freecad_cloth.sewing.SewingObjects import _edge_length, _edge_polyline, _edge_samples, _resolved_edge
+        from freecad_cloth.sewing.SewingView import build_seam_visual_shape, seam_visual_markers
+
+        curved_points = _edge_polyline(sleeve_a, 2)
+        curved_length = _edge_length(sleeve_a, 2)
+        curved_chord = math.hypot(curved_points[-1][0] - curved_points[0][0], curved_points[-1][1] - curved_points[0][1])
+        variant_points = _edge_polyline(sleeve_b, 2)
+        variant_length = _edge_length(sleeve_b, 2)
+        variant_chord = math.hypot(variant_points[-1][0] - variant_points[0][0], variant_points[-1][1] - variant_points[0][1])
+        if curved_length <= curved_chord * 1.10 or variant_length <= variant_chord * 1.05:
+            raise RuntimeError("curved M:N fixture did not retain deliberate arc-length geometry")
+        variant_samples = _edge_samples(sleeve_b, 2, 0.0, 1.0, 5)
+        variant_dx = [round(abs(variant_samples[i + 1].x - variant_samples[i].x), 6) for i in range(4)]
+        sample_a = _edge_samples(sleeve_a, 2, 0.0, 1.0, 5)
+        sample_dx = [round(abs(sample_a[i + 1].x - sample_a[i].x), 6) for i in range(4)]
+        if len(set(sample_dx)) < 2 or len(set(variant_dx)) < 2:
+            raise RuntimeError("curved M:N edges did not exercise non-uniform physical sampling")
+
+        mn_members = tuple(network.Seams)
+        if len(mn_members) != 2:
+            raise RuntimeError("M:N network member count changed before metadata checks")
+        for member, (start, end) in zip(mn_members, ((0.0, 0.65), (0.65, 1.0))):
+            member.StartA, member.EndA = start, end
+            member.StartB, member.EndB = start, end
+            member.Alignment = "uniform"
+        _select_objects(mn_members[0])
+        Gui.runCommand("ClothSewing_ReverseSeam", 0)
+        doc.recompute()
+        expected_mn_metadata = tuple(sorted((str(member.SeamId), str(member.PieceA), int(member.EdgeA), float(member.StartA), float(member.EndA), str(member.PieceB), int(member.EdgeB), float(member.StartB), float(member.EndB), bool(member.ReversedB), str(member.Alignment), str(member.StitchGroup)) for member in mn_members))
+        if expected_mn_metadata[0][9] is not True or expected_mn_metadata[1][9] is not False or any(item[10] != "uniform" for item in expected_mn_metadata):
+            raise RuntimeError("M:N direction/correspondence metadata did not persist expected orientation")
+        if abs(float(mn_members[0].EndA) - 0.65) > 1e-9 or abs(float(mn_members[1].StartA) - 0.65) > 1e-9:
+            raise RuntimeError("M:N member ranges did not retain the deliberate 65/35 split")
+
+        Gui.runCommand("ClothSewing_Show2D", 0)
+        _events()
+        public_marker_checks = []
+        for member in mn_members:
+            a = _edge_samples(sleeve_a, _resolved_edge(sleeve_a, member, "A"), float(member.StartA), float(member.EndA), 5)
+            b = _edge_samples(sleeve_b, _resolved_edge(sleeve_b, member, "B"), float(member.StartB), float(member.EndB), 5)
+            if bool(member.ReversedB): b.reverse()
+            marker_data = seam_visual_markers(tuple((float(p.x), float(p.y), float(p.z)) for p in a), tuple((float(p.x), float(p.y), float(p.z)) for p in b))
+            expected_shape = build_seam_visual_shape(sleeve_a, sleeve_b, member, sample_count=5)
+            if member.Shape.isNull() or len(member.Shape.Edges) != len(expected_shape.Edges) or len(member.Shape.Edges) < 15:
+                raise RuntimeError("public sewing 2D path did not expose deterministic direction/notch/correspondence geometry")
+            vertices = {(round(vertex.Point.x, 6), round(vertex.Point.y, 6), round(vertex.Point.z, 6)) for vertex in member.Shape.Vertexes}
+            if tuple(round(value, 6) for value in marker_data["notch_A"][0]) not in vertices or tuple(round(value, 6) for value in marker_data["notch_B"][0]) not in vertices:
+                raise RuntimeError("public sewing 2D path omitted deterministic notch marker anchors")
+            if len(marker_data["correspondence"]) != 5:
+                raise RuntimeError("public sewing 2D path omitted deterministic correspondence samples")
+            public_marker_checks.append("%s:reversed=%s:edges=%d" % (member.SeamId, bool(member.ReversedB), len(member.Shape.Edges)))
+        print("sewing-mn-curved=passed curved_side=A,B edge=2 arc_length_A=%.6f arc_length_B=%.6f chord_A=%.6f chord_B=%.6f non_uniform_samples=%s" % (curved_length, variant_length, curved_chord, variant_chord, sample_dx + ["B:" + str(variant_dx)]), flush=True)
+        print("sewing-mn-metadata=passed split=65/35 alignment=uniform reversed_first=true members=%d" % len(mn_members), flush=True)
+        print("sewing-mn-markers=passed public_view=ClothSewing_Show2D checks=%s" % ",".join(public_marker_checks), flush=True)
 
         _select_objects(seam_11)
         Gui.runCommand("ClothSewing_CreateOperation", 0)
