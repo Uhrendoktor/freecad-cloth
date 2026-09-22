@@ -251,13 +251,12 @@ def repair_selected_seam():
             length_b = _edge_length(pieces[str(seam.PieceB)], int(seam.EdgeB))
         except (KeyError, ValueError, TypeError, IndexError) as exc:
             raise ValueError("cannot determine seam lengths for repair: %s" % exc) from exc
-    # A seam may be stale because its native Sketcher geometry changed while
-    # retaining the same semantic edge IDs.  Refresh both captured fingerprints
-    # only after resolving both sides successfully, so repair is atomic.
+    # Refresh only the existing semantic edge IDs. Never use a changed ordinal
+    # to retarget a seam to another edge; topology repair is an explicit operation.
     pieces = _pieces_by_id(doc)
     refreshed = []
     try:
-        from freecad_cloth.pattern.PatternObjects import _seam_edge_id
+        from freecad_cloth.pattern.PatternObjects import _edge_records, refresh_edge_reference_signature
         for side, edge_attr, piece_attr, id_attr, sig_attr in (
             ("A", "EdgeA", "PieceA", "EdgeAId", "EdgeASignature"),
             ("B", "EdgeB", "PieceB", "EdgeBId", "EdgeBSignature"),
@@ -266,15 +265,21 @@ def repair_selected_seam():
             piece = pieces.get(piece_id)
             if piece is None:
                 raise ValueError("cannot repair seam %s: pattern piece %s is missing" % (side, piece_id))
-            edge_index = int(getattr(seam, edge_attr, -1))
-            if edge_index < 0:
-                raise ValueError("cannot repair seam %s: native edge index is unavailable" % side)
-            edge_id, signature = _seam_edge_id(piece, edge_index, side)
-            refreshed.append((id_attr, sig_attr, edge_id, signature))
+            edge_id = str(getattr(seam, id_attr, "")).strip()
+            if not edge_id:
+                raise ValueError("cannot repair seam %s: semantic edge ID is missing" % side)
+            signature = refresh_edge_reference_signature(piece, edge_id)
+            record = next(
+                (item for item in _edge_records(piece) if str(item.get("id")) == edge_id),
+                None,
+            )
+            if record is None:
+                raise ValueError("cannot repair seam %s: semantic edge ID disappeared" % side)
+            refreshed.append((edge_attr, sig_attr, int(record["ordinal"]), signature))
     except (KeyError, IndexError, TypeError, ValueError, RuntimeError) as exc:
         raise ValueError("cannot refresh stale seam edge references: %s" % exc) from exc
-    for id_attr, sig_attr, edge_id, signature in refreshed:
-        setattr(seam, id_attr, edge_id)
+    for edge_attr, sig_attr, edge_index, signature in refreshed:
+        setattr(seam, edge_attr, edge_index)
         setattr(seam, sig_attr, signature)
 
     report = correspondence_report(seam, length_a, length_b, 0.05)
