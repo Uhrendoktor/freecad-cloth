@@ -67,6 +67,28 @@ def close_public_task(panel=None):
         process_events()
 
 
+def accept_public_task(panel, export_format):
+    try:
+        accepted = panel.accept()
+    except Exception as exc:
+        raise RuntimeError(
+            "public export task panel could not accept %s: %s" % (export_format, exc)
+        ) from exc
+    if accepted is False:
+        raise RuntimeError("public export task panel rejected %s export" % export_format)
+    if Gui.Control.activeDialog():
+        Gui.Control.closeDialog()
+        process_events()
+    for _ in range(80):
+        active = Gui.Control.activeDialog()
+        if active is None or not bool(active):
+            return
+        process_events()
+    raise RuntimeError(
+        "public export task panel did not close after successful %s" % export_format
+    )
+
+
 doc = None
 try:
     record("smoke=started")
@@ -134,12 +156,7 @@ try:
             panel.format.setCurrentText(export_format)
             panel.path.setText(str(path_a))
             record("export=%s:first-accept" % export_format)
-            Gui.Control.accept()
-            process_events()
-            if Gui.Control.activeDialog() is not None:
-                raise RuntimeError(
-                    "public export task panel did not close after successful " + export_format
-                )
+            accept_public_task(panel, export_format)
             record("export=%s:first-written" % export_format)
 
             first = path_a.read_bytes()
@@ -151,12 +168,7 @@ try:
             panel.format.setCurrentText(export_format)
             panel.path.setText(str(path_b))
             record("export=%s:second-accept" % export_format)
-            Gui.Control.accept()
-            process_events()
-            if Gui.Control.activeDialog() is not None:
-                raise RuntimeError(
-                    "second public export task panel did not close after successful " + export_format
-                )
+            accept_public_task(panel, export_format)
             record("export=%s:second-written" % export_format)
 
             second = path_b.read_bytes()

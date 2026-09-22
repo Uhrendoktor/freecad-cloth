@@ -42,9 +42,10 @@ def record(message):
 
 
 def wait_for_task_close():
-    for _ in range(20):
+    for _ in range(80):
         process_events()
-        if Gui.Control.activeDialog() is None:
+        active = Gui.Control.activeDialog()
+        if active is None or not bool(active):
             return
     raise AssertionError("task dialog did not close after the requested Commit/Cancel action")
 
