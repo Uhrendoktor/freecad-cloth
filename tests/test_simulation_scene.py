@@ -168,3 +168,70 @@ def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision():
             proxy.collision_surface,
         )
     ]
+
+
+def test_simulation_pattern_runtime_prefers_sketch_authority_and_preserves_semantic_ids():
+    from freecad_cloth.common.PatternRuntime import resolve_piece_ir, resolve_piece_pattern
+
+    class Point:
+        def __init__(self, x, y, z=0.0):
+            self.x, self.y, self.z = x, y, z
+
+    class Line:
+        def __init__(self, start, end):
+            self.StartPoint = Point(*start)
+            self.EndPoint = Point(*end)
+
+    class Sketch:
+        Geometry = [
+            Line((100, 60), (0, 60)),
+            Line((0, 0), (100, 0)),
+            Line((0, 60), (0, 0)),
+            Line((100, 0), (100, 60)),
+        ]
+        SemanticEdgeIds = ("front:top", "front:bottom", "front:left", "front:right")
+
+        def getConstruction(self, index):
+            return False
+
+    piece = type("Piece", (), {
+        "PieceId": "front",
+        "Label": "Front",
+        "Name": "Front",
+        "GeometryAuthority": "Sketcher",
+        "Sketch": Sketch(),
+        "SeamAllowance": 0.0,
+        "GrainlineAngle": 0.0,
+        "SewingOutline": repr([(0, 0), (100, 0), (100, 60), (0, 60)]),
+        "Width": 100.0,
+        "Height": 60.0,
+    })()
+    piece_ir = resolve_piece_ir(piece)
+    assert tuple(boundary.id for boundary in piece_ir.boundaries) == (
+        "front:bottom", "front:right", "front:top", "front:left"
+    )
+    pattern = resolve_piece_pattern(piece)
+    assert tuple(segment.id for segment in pattern.segments) == (
+        "front:bottom", "front:right", "front:top", "front:left"
+    )
+
+
+def test_simulation_pattern_runtime_legacy_fallback_is_explicit():
+    from freecad_cloth.common.PatternRuntime import resolve_piece_ir
+
+    piece = type("Piece", (), {
+        "PieceId": "legacy",
+        "Label": "Legacy",
+        "Name": "Legacy",
+        "GeometryAuthority": "PatternParameters",
+        "Sketch": None,
+        "SeamAllowance": 0.0,
+        "GrainlineAngle": 0.0,
+        "SewingOutline": repr([(0, 0), (100, 0), (100, 60), (0, 60)]),
+        "Width": 100.0,
+        "Height": 60.0,
+    })()
+    result = resolve_piece_ir(piece)
+    assert tuple(boundary.id for boundary in result.boundaries) == (
+        "legacy:edge:0", "legacy:edge:1", "legacy:edge:2", "legacy:edge:3"
+    )
