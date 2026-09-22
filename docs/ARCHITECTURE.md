@@ -80,6 +80,36 @@ Native FCStd is the project authority. JSON-like structures may support headless
 
 Production adapters may target DXF/AAMA/ASTM-oriented pattern exchange, SVG/TechDraw/PDF sheets and standard 3D avatar formats. External formats are adapters, not authorities.
 
+## Native Garment document hierarchy
+
+Production garment creation uses a single native FreeCAD document hierarchy:
+
+```text
+Garment (App::Part)
+├── Patterns (App::DocumentObjectGroup)
+│   ├── PatternPiece (Part::FeaturePython) → Sketcher::SketchObject
+│   └── PatternPiece (Part::FeaturePython) → Sketcher::SketchObject
+├── Sewing (App::DocumentObjectGroup)
+│   ├── Seam (Part::FeaturePython)
+│   └── SewingOperation / SewingNetwork
+├── Fabric (App::DocumentObjectGroup)
+│   └── FabricMaterial (App::FeaturePython)
+├── Avatar (App::DocumentObjectGroup)
+│   ├── ClothAvatar
+│   ├── AvatarCollision
+│   └── DrapeTarget
+└── Simulation (App::DocumentObjectGroup)
+    ├── ClothSimulation
+    └── DrapePanel* (derived output)
+```
+
+Container membership is the hierarchy authority. Semantic relationships use native
+FreeCAD Links between persistent objects; the adapter does not add back-links from
+children/groups to the Garment root, so the document dependency graph remains a DAG.
+The FCStd document is the only persistence authority. Smoke-test JSON is evidence only,
+not a second project database. Existing standalone PatternPiece, Seam, Avatar and
+Simulation creation paths remain valid when no Garment root is present.
+
 ## UI consequence
 
 Task panels use **Context → Primary action → Secondary actions → Parameters → Recovery**. Persistent data remains inspectable in the document tree/Property Editor. Transient selection/previews never replace the document model.
