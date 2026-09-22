@@ -87,7 +87,7 @@ class SewingTaskPanel:
         report=correspondence_report(self.seam,self.obj.LengthA,self.obj.LengthB,float(getattr(self.obj,"RelativeTolerance",0.05)))
         if report is None: self.correspondence.setText("No seam correspondence"); return
         from freecad_cloth.sewing.SewingCorrespondence import correspondence_recovery as _correspondence_recovery
-        self.correspondence.setText("%s — %s (ratio %.4f); recovery: %s"%(report.status,report.message,report.length_ratio,_correspondence_recovery(report.status)))
+        self.correspondence.setText("%s — %s (severity %s, ratio %.4f); recovery: %s"%(report.status,report.message,report.severity,report.length_ratio,report.recovery))
         self.reverse_button.setText("Unreverse B" if bool(getattr(self.seam,"ReversedB",False)) else "Reverse B")
         self.reset_ranges_button.setEnabled(any(abs(float(getattr(self.seam,name,default))-default)>1e-9 for name,default in (("StartA",0.0),("EndA",1.0),("StartB",0.0),("EndB",1.0))))
     def update(self): self._refresh()

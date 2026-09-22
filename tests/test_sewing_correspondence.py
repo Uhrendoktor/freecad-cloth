@@ -65,6 +65,30 @@ def test_arc_length_vertex_sampling_uses_physical_distance_not_vertex_index():
     assert arc_length_vertex_indices(values, points, 3) == (10, 13, 14)
 
 
+def test_mismatch_recovery_and_severity_are_shared_machine_contract():
+    report = analyze_correspondence(100.0, 120.0, length_tolerance=0.05)
+    assert report.severity == "error"
+    assert report.recovery == correspondence_recovery(report.status)
+    assert report.evidence() == {
+        "status": STATUS_LENGTH_MISMATCH,
+        "severity": "error",
+        "message": "seam lengths differ by 20.00% (limit 5.00%)",
+        "length_a": 100.0,
+        "length_b": 120.0,
+        "length_ratio": 1.2,
+        "reversed_b": False,
+        "recovery": "edit the pattern geometry or seam ranges; do not hide the mismatch with tolerance",
+    }
+
+
+def test_reversal_keeps_forward_contract_and_recovery_is_stable():
+    report = analyze_correspondence(100.0, 100.0, reversed_b=True)
+    assert report.severity == "info"
+    assert report.valid
+    assert report.recovery == "keep the explicit B reversal or use Reverse B"
+    assert report.evidence()["reversed_b"] is True
+
+
 def test_bad_length_inputs_are_rejected():
     with pytest.raises(ValueError, match="positive"):
         analyze_correspondence(0.0, 10.0)
