@@ -113,7 +113,7 @@ def from_svg_metadata(svg: str) -> dict:
     return data
 
 
-def validate_export(pattern: ParametricPattern, exported: str, format: str, curve_samples: int = 32, units: str = "mm", derived: DerivedPattern | None = None, piece_id: str = "", seam_ids=(), seam_allowance: float = 0.0) -> dict:
+def validate_export(pattern: ParametricPattern, exported: str, format: str, curve_samples: int = 32, units: str = "mm", derived: DerivedPattern | None = None, piece_id: str = "", seam_ids=(), seam_allowance: float = 0.0, internal_mark_ids=None, semantic_edge_ids=None) -> dict:
     """Validate an export against its authoritative pattern model.
 
     The exporter is deterministic, so byte equality with a freshly generated
