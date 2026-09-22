@@ -1,0 +1,158 @@
+"""Real-FreeCAD smoke coverage for the public production SVG/DXF export."""
+from pathlib import Path
+import os
+import tempfile
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+import FreeCAD as App
+import FreeCADGui as Gui
+import InitGui
+
+from freecad_cloth.pattern.PatternExport import from_dxf_metadata, from_svg_metadata
+
+LOG_PATH = Path(os.environ.get("CLOTH_PATTERN_EXPORT_LOG", ROOT / "artifacts" / "pattern-production-export.log"))
+LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+LOG = []
+LOG_PATH.write_text("", encoding="utf-8")
+
+
+def process_events():
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
+    QtWidgets.QApplication.processEvents()
+    Gui.updateGui()
+    QtWidgets.QApplication.processEvents()
+
+
+def record(message):
+    LOG.append(message)
+    with LOG_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(message + "\n")
+        handle.flush()
+    print(message, flush=True)
+
+
+def open_public_export(piece):
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(piece)
+    process_events()
+    Gui.runCommand("ClothPattern_Export", 0)
+    process_events()
+    panel = Gui.Control.activeDialog()
+    if panel is None or getattr(panel, "form", None) is None:
+        raise RuntimeError("public Pattern export command did not open a task panel")
+    return panel
+
+
+def close_public_task():
+    if Gui.Control.activeDialog():
+        Gui.Control.closeDialog()
+        process_events()
+
+
+InitGui.ClothPatternWorkbench()
+Gui.activateWorkbench("ClothPatternWorkbench")
+process_events()
+
+for command in ("ClothPattern_CreatePieceWithSketch", "ClothPattern_Export"):
+    if command not in Gui.listCommands():
+        raise RuntimeError("missing public Pattern command: " + command)
+
+doc = App.newDocument("PatternProductionExportSmoke")
+try:
+    Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
+    process_events()
+    piece = next(
+        (obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"),
+        None,
+    )
+    if piece is None:
+        raise RuntimeError("public Pattern command did not create a PatternPiece")
+    doc.recompute()
+
+    source_before = (
+        str(piece.Label),
+        str(piece.PieceId),
+        str(piece.SewingOutline),
+        float(piece.SeamAllowance),
+        float(piece.GrainlineAngle),
+        str(getattr(piece, "GeometryAuthority", "")),
+    )
+
+    with tempfile.TemporaryDirectory() as directory:
+        output_dir = Path(directory)
+        panel = open_public_export(piece)
+        if "Production Export" not in panel.form.windowTitle():
+            raise RuntimeError("export task panel title is not visible")
+        if "read-only" not in panel.status.text().lower():
+            raise RuntimeError("export task panel does not state that source geometry is read-only")
+        panel.reject()
+        close_public_task()
+
+        results = {}
+        readers = {"SVG": from_svg_metadata, "DXF": from_dxf_metadata}
+        for export_format in ("SVG", "DXF"):
+            path_a = output_dir / ("piece." + export_format.lower())
+            path_b = output_dir / ("piece-second." + export_format.lower())
+
+            panel = open_public_export(piece)
+            panel.format.setCurrentText(export_format)
+            panel.path.setText(str(path_a))
+            if not panel.accept():
+                raise RuntimeError("public export task panel rejected " + export_format)
+            close_public_task()
+
+            first = path_a.read_bytes()
+            if not first:
+                raise RuntimeError(export_format + " export is empty")
+
+            panel = open_public_export(piece)
+            panel.format.setCurrentText(export_format)
+            panel.path.setText(str(path_b))
+            if not panel.accept():
+                raise RuntimeError("second public export rejected " + export_format)
+            close_public_task()
+
+            second = path_b.read_bytes()
+            if first != second:
+                raise RuntimeError(export_format + " export is not byte-deterministic")
+
+            metadata = readers[export_format](first.decode("utf-8"))
+            if metadata.get("piece_id") != str(piece.PieceId):
+                raise RuntimeError(export_format + " export lost piece identity")
+            if metadata.get("units") != "mm" or metadata.get("scale") != 1.0:
+                raise RuntimeError(export_format + " export lost units/scale")
+            if float(metadata.get("seam_allowance_mm", -1.0)) != float(piece.SeamAllowance):
+                raise RuntimeError(export_format + " export lost seam allowance")
+            if not metadata.get("edge_ids"):
+                raise RuntimeError(export_format + " export lost semantic edge IDs")
+            if not metadata.get("mark_ids"):
+                raise RuntimeError(export_format + " export lost construction mark identity")
+            results[export_format] = len(first)
+
+        if source_before != (
+            str(piece.Label),
+            str(piece.PieceId),
+            str(piece.SewingOutline),
+            float(piece.SeamAllowance),
+            float(piece.GrainlineAngle),
+            str(getattr(piece, "GeometryAuthority", "")),
+        ):
+            raise RuntimeError("public export mutated authoritative PatternPiece state")
+
+        record("pattern-export=passed formats=SVG,DXF bytes=%s,%s" % (results["SVG"], results["DXF"]))
+finally:
+    try:
+        close_public_task()
+        if App.ActiveDocument is not None and App.ActiveDocument.Name == doc.Name:
+            App.closeDocument(doc.Name)
+        process_events()
+    finally:
+        LOG_PATH.write_text("\n".join(LOG) + "\n", encoding="utf-8")
+        print("pattern-export-smoke=completed", flush=True)
