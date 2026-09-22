@@ -808,9 +808,13 @@ def run_acceptance():
             App.closeDocument(doc.Name)
 
 
-_ensure_workbench_registration()
-run_acceptance()
-_record("scenario-complete=passed")
-_record("freecad-process-exit=forced")
-sys.stdout.flush()
-os._exit(0)
+if __name__ == "__main__":
+    _ensure_workbench_registration()
+    run_acceptance()
+    _record("scenario-complete=passed")
+    _record("freecad-process-exit=forced")
+    sys.stdout.flush()
+    os._exit(0)
+else:
+    _ensure_workbench_registration()
+    run_acceptance()
