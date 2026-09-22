@@ -113,7 +113,15 @@ def test_semantic_seam_status_distinguishes_changed_from_missing(monkeypatch):
     import sys
     from freecad_cloth.pattern.PatternObjects import SeamProxy
 
-    monkeypatch.setitem(sys.modules, "Part", SimpleNamespace(Shape=lambda: "empty-shape"))
+    monkeypatch.setitem(
+        sys.modules,
+        "Part",
+        SimpleNamespace(
+            Shape=lambda: "empty-shape",
+            makeLine=lambda *_points: "line",
+            makeCompound=lambda _shapes: "compound",
+        ),
+    )
     original = _native_piece(1.0)
     edge_id, signature = _seam_edge_id(original, 1, "A")
     obj = SimpleNamespace(PatternA=original, PatternB=original, EdgeAId=edge_id, EdgeASignature=signature,
