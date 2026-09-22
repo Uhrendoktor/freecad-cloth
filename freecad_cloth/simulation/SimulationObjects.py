@@ -76,49 +76,44 @@ def _placement_signature(piece):
 
 def _simulation_source_signature(obj, pieces):
     """Return deterministic inputs that require rebuilding the cloth scene."""
-    piece_ids = {str(getattr(piece, "PieceId", "")) for piece in pieces}
-    piece_signature = tuple(
-        (
-            str(getattr(piece, "Name", "")),
-            str(getattr(piece, "PieceId", "")),
-            str(getattr(piece, "SewingOutline", "")),
-            str(getattr(piece, "DraftingBoundary", "")),
-            _placement_signature(piece),
+    if pieces:
+        from freecad_cloth.common.PatternSimulationAdapter import resolve_simulation_pattern
+        resolved = resolve_simulation_pattern(
+            getattr(obj, "Document", None),
+            tuple(pieces),
         )
-        for piece in pieces
-    )
-    seam_signature = tuple(sorted(
-        (
-            str(getattr(seam, "SeamId", "")),
-            str(getattr(seam, "PieceA", "")),
-            int(getattr(seam, "EdgeA", 0)),
-            float(getattr(seam, "StartA", 0.0)),
-            float(getattr(seam, "EndA", 1.0)),
-            str(getattr(seam, "PieceB", "")),
-            int(getattr(seam, "EdgeB", 0)),
-            float(getattr(seam, "StartB", 0.0)),
-            float(getattr(seam, "EndB", 1.0)),
-            bool(getattr(seam, "ReversedB", False)),
-        )
-        for seam in getattr(getattr(obj, "Document", None), "Objects", ())
-        if getattr(seam, "SeamId", "")
-        and (str(getattr(seam, "PieceA", "")) in piece_ids or str(getattr(seam, "PieceB", "")) in piece_ids)
-    ))
+        pattern_signature = resolved.signature
+    else:
+        pattern_signature = ((), ())
     target = getattr(obj, "DrapeTarget", None)
     target_signature = ()
     if target is not None:
         try:
             from freecad_cloth.simulation.DrapeTarget import source_signature
             source = getattr(target, "SourceObject", None)
-            target_signature = source_signature(source, float(getattr(target, "CollisionDeflection", 1.0)), float(getattr(target, "CollisionThickness", 0.0))) if source is not None else ("unassigned",)
+            target_signature = source_signature(
+                source,
+                float(getattr(target, "CollisionDeflection", 1.0)),
+                float(getattr(target, "CollisionThickness", 0.0)),
+            ) if source is not None else ("unassigned",)
         except (ImportError, AttributeError, TypeError, ValueError):
             target_signature = ("invalid-target",)
     else:
         avatar = getattr(obj, "AvatarProxy", None)
         source = getattr(avatar, "SourceObject", None) if avatar is not None else None
-        target_signature = ("legacy-avatar", str(getattr(source, "Name", "")), float(getattr(avatar, "CollisionDeflection", 0.0)) if avatar is not None else 0.0, float(getattr(avatar, "CollisionThickness", 0.0)) if avatar is not None else 0.0)
+        target_signature = (
+            "legacy-avatar",
+            str(getattr(source, "Name", "")),
+            float(getattr(avatar, "CollisionDeflection", 0.0)) if avatar is not None else 0.0,
+            float(getattr(avatar, "CollisionThickness", 0.0)) if avatar is not None else 0.0,
+        )
     pin_signature = _parse_int_list(getattr(obj, "PinSelection", ()))
-    return piece_signature, seam_signature, target_signature, int(getattr(obj, "StitchSamples", 8)), pin_signature
+    return (
+        pattern_signature,
+        target_signature,
+        int(getattr(obj, "StitchSamples", 8)),
+        pin_signature,
+    )
 
 
 def _piece_mesh(piece, start_height):
