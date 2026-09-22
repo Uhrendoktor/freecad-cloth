@@ -97,7 +97,14 @@ try:
     Gui.activateWorkbench("ClothPatternWorkbench")
     process_events()
 
-    for command in ("ClothPattern_CreatePieceWithSketch", "ClothPattern_EditSketch", "ClothPattern_Export"):
+    for command in (
+        "ClothPattern_CreatePieceWithSketch",
+        "ClothPattern_EditSketch",
+        "ClothPattern_Export",
+        "ClothPattern_AddNotch",
+        "ClothPattern_AddGrainline",
+        "ClothPattern_AddInternalMark",
+    ):
         if command not in Gui.listCommands():
             raise RuntimeError("missing public Pattern command: " + command)
     if "ClothPattern_CreateDrafting" in Gui.listCommands():
@@ -127,6 +134,23 @@ try:
         process_events()
     else:
         raise RuntimeError("pattern creation task panel remained open before export")
+
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(piece)
+    process_events()
+    for command in ("ClothPattern_AddNotch", "ClothPattern_AddGrainline", "ClothPattern_AddInternalMark"):
+        Gui.runCommand(command, 0)
+        process_events()
+    persisted_marks = [
+        obj for obj in doc.Objects
+        if str(getattr(obj, "PatternMarkType", "")).strip() and str(getattr(obj, "PieceId", "")).strip() == str(piece.PieceId)
+    ]
+    mark_types = {str(getattr(obj, "PatternMarkType", "")) for obj in persisted_marks}
+    if mark_types != {"Notch", "Grainline", "InternalMark"}:
+        raise RuntimeError("public Pattern mark commands did not persist the expected Notch/Grainline/InternalMark objects")
+    if any(not str(getattr(obj, "SegmentId", "")).strip() for obj in persisted_marks):
+        raise RuntimeError("public Pattern mark command persisted an empty authoritative segment ID")
+    record("construction-marks=passed types=Notch,Grainline,InternalMark")
 
     source_before = (
         str(piece.Label),
@@ -186,8 +210,10 @@ try:
                 raise RuntimeError(export_format + " export lost seam allowance")
             if not metadata.get("edge_ids"):
                 raise RuntimeError(export_format + " export lost semantic edge IDs")
-            if not metadata.get("mark_ids"):
-                raise RuntimeError(export_format + " export lost construction mark identity")
+            if metadata.get("notch_ids") != ["Notch_1"]:
+                raise RuntimeError(export_format + " export lost persisted notch identity: %r" % metadata.get("notch_ids"))
+            if metadata.get("mark_ids") != ["Grainline_1", "InternalMark_1"]:
+                raise RuntimeError(export_format + " export lost persisted mark identity: %r" % metadata.get("mark_ids"))
             results[export_format] = len(first)
 
         if source_before != (
