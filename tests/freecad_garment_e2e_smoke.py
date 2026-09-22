@@ -2,12 +2,24 @@
 import hashlib
 import math
 import os
+import sys
 import tempfile
 
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
 import Sketcher
+
+print("bootstrap=python-imports-ready", flush=True)
+
+
+def _ensure_workbench_registered():
+    if "ClothPatternWorkbench" in Gui.listWorkbenches():
+        return
+    import InitGui  # noqa: F401
+
+
+_ensure_workbench_registered()
 
 
 def _events():
@@ -288,6 +300,7 @@ def _export_pair(piece, output_dir, export_format):
 
 
 def run_acceptance():
+    print("bootstrap=run-acceptance-start", flush=True)
     doc = App.newDocument("CanonicalGarmentAcceptance")
     path = None
     try:
@@ -723,4 +736,11 @@ def run_acceptance():
 
 
 if __name__ == "__main__":
+    if "ClothPatternWorkbench" not in Gui.listWorkbenches():
+        import InitGui
     run_acceptance()
+    # FreeCAD can retain a GUI event-loop object after a successful script run.
+    # Exit only for the standalone CI entry point; imported acceptance keeps
+    # control of the surrounding visual-audit process.
+    sys.stdout.flush()
+    os._exit(0)
