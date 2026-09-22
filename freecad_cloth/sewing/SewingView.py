@@ -80,6 +80,8 @@ def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5):
                       int(sample_count), z=0.4)
     if bool(getattr(seam, "ReversedB", False)):
         b.reverse()
+    if len(a) < 2 or len(b) < 2:
+        return Part.Shape()
     shapes = [Part.makePolygon(list(a)), Part.makePolygon(list(b))]
     for pa, pb in zip(a, b):
         shapes.append(Part.makeLine(pa, pb))
