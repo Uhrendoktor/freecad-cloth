@@ -103,7 +103,7 @@ try:
     record("workbench=initialized")
     Gui.activateWorkbench("ClothSewingWorkbench")
     process_events()
-    for command in ("ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing"):
+    for command in ("ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing", "ClothSewing_FreeSewing"):
         assert command in Gui.listCommands(), "missing public sewing command: " + command
     record("commands=registered")
 
@@ -195,6 +195,20 @@ try:
     ]
     assert networks and networks[-1].Status == "Valid", "M:N commit did not leave a valid network"
     record("commit-mn=passed")
+
+    select_edges((piece_a, 3), (piece_b, 3))
+    free_panel = open_public("ClothSewing_FreeSewing")
+    assert any(getattr(obj, "SewingType", "") == "SewingNetwork" for obj in free_panel.session.created)
+    assert "Preview valid" in free_panel.feedback.text()
+    record("preview-free=passed")
+    free_panel.commit_button.click()
+    wait_for_task_close()
+    free_networks = [
+        obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork"
+    ]
+    assert any(len(network.Seams) == 1 and network.Status == "Valid" for network in free_networks)
+    record("commit-free=passed")
+
     _success = True
 except Exception:
     record("smoke=exception\n" + traceback.format_exc())
