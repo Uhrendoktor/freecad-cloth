@@ -7,7 +7,7 @@ Jonathan Shewchuk's Triangle library; the rest of this module preserves the
 workbench's semantic boundary/provenance contract.
 """
 from dataclasses import dataclass
-from math import hypot, isclose
+from math import ceil, hypot, isfinite, isclose
 from typing import Dict, List, Sequence, Tuple
 
 from freecad_cloth.pattern.PatternGeometry import ParametricPattern, Point
@@ -203,3 +203,27 @@ def _segments_intersect(a: Point, b: Point, c: Point, d: Point) -> bool:
     ab1, ab2 = _cross(a, b, c), _cross(a, b, d)
     cd1, cd2 = _cross(c, d, a), _cross(c, d, b)
     return ab1 * ab2 < -1e-10 and cd1 * cd2 < -1e-10
+
+def refine_linear_boundary(pattern: ParametricPattern, max_spacing: float) -> ParametricPattern:
+    """Subdivide straight boundary segments so simulation seams have interior particles.
+
+    The returned pattern preserves each authored segment's semantic identity by
+    encoding deterministic subsegment suffixes. Callers that consume boundary
+    provenance can group ``<segment-id>::sub::<index>`` back to the authored
+    segment.
+    """
+    spacing = float(max_spacing)
+    if not isfinite(spacing) or spacing <= 0.0:
+        raise ValueError("max boundary spacing must be positive and finite")
+    segments = []
+    for segment in pattern.segments:
+        if isinstance(segment, LineSegment):
+            steps = max(1, int(ceil(segment.length() / spacing)))
+            for index in range(steps):
+                start = segment.point(index / float(steps))
+                end = segment.point((index + 1) / float(steps))
+                suffix = "" if steps == 1 else "::sub::%d" % index
+                segments.append(LineSegment(segment.id + suffix, start, end))
+        else:
+            segments.append(segment)
+    return ParametricPattern(segments)
