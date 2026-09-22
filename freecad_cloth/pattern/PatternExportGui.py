@@ -96,9 +96,13 @@ class PatternExportTaskPanel:
                 metadata.get("scale", 1.0),
             )
         )
+        if self.Gui.activeDocument() and self.Gui.Control.activeDialog():
+            self.Gui.Control.closeDialog()
         return True
 
     def reject(self):
+        if self.Gui.activeDocument() and self.Gui.Control.activeDialog():
+            self.Gui.Control.closeDialog()
         return True
 
     def getStandardButtons(self):
