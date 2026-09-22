@@ -388,6 +388,23 @@ def run_acceptance():
             raise RuntimeError("public sewing controls did not restore canonical seam metadata")
         print("sewing-1to1=passed type=curved", flush=True)
 
+        original_range_b = (float(seam_11.StartB), float(seam_11.EndB))
+        seam_11.StartB = 0.0
+        seam_11.EndB = 0.5
+        doc.recompute()
+        if str(getattr(seam_11, "Status", "")) != "Length mismatch":
+            raise RuntimeError("real FreeCAD seam did not expose the shared length-mismatch status")
+        if str(getattr(seam_11, "CorrespondenceStatus", "")) != "length_mismatch":
+            raise RuntimeError("real FreeCAD seam did not expose the shared correspondence status")
+        recovery = str(getattr(seam_11, "CorrespondenceRecovery", ""))
+        if "edit" not in recovery.lower() or "mismatch" not in recovery.lower():
+            raise RuntimeError("real FreeCAD seam did not expose actionable mismatch recovery guidance")
+        seam_11.StartB, seam_11.EndB = original_range_b
+        doc.recompute()
+        if str(getattr(seam_11, "Status", "")) != "Valid":
+            raise RuntimeError("real FreeCAD seam did not recover after restoring the authored range")
+        print("sewing-correspondence-recovery=passed status=length_mismatch", flush=True)
+
         _select_edges((sleeve_a, 2), (sleeve_a, 3), (sleeve_b, 2), (sleeve_b, 3))
         panel = _open_staged("ClothSewing_CreateMNSewing")
         created_mn = tuple(panel.session.created)
@@ -405,6 +422,52 @@ def run_acceptance():
             raise RuntimeError("M:N sewing network did not persist valid 2:2 topology")
         if any(str(getattr(seam, "Status", "")) != "Valid" for seam in network.Seams):
             raise RuntimeError("M:N network retained an invalid member seam")
+
+        from freecad_cloth.sewing.SewingObjects import _edge_length, _edge_samples
+        curved_seam = next(
+            seam for seam in network.Seams
+            if int(getattr(seam, "EdgeA", -1)) == 2 or int(getattr(seam, "EdgeB", -1)) == 2
+        )
+        curved_length = _edge_length(sleeve_a, 2)
+        curved_chord = 100.0
+        if curved_length <= curved_chord * 1.4:
+            raise RuntimeError(
+                "curved M:N validation used endpoint/chord distance instead of physical arc length: %.3f"
+                % curved_length
+            )
+        samples = _edge_samples(
+            sleeve_a,
+            2,
+            float(getattr(curved_seam, "StartA", 0.0)),
+            float(getattr(curved_seam, "EndA", 1.0)),
+            9,
+            z=0.4,
+        )
+        spacing = [
+            ((b.x - a.x) ** 2 + (b.y - a.y) ** 2 + (b.z - a.z) ** 2) ** 0.5
+            for a, b in zip(samples, samples[1:])
+        ]
+        if not spacing or min(spacing) <= 0.0 or max(spacing) / min(spacing) > 1.2:
+            raise RuntimeError("curved M:N correspondence was not approximately uniform in physical arc length")
+        print(
+            "sewing-mn-arc-length=passed curved-edge-length=%.3f spacing-ratio=%.3f"
+            % (curved_length, max(spacing) / min(spacing)),
+            flush=True,
+        )
+
+        if seam_11.Shape.isNull() or len(seam_11.Shape.Edges) < 10:
+            raise RuntimeError("3D seam presentation did not contain correspondence/direction/notch geometry")
+        _select_objects(seam_11)
+        Gui.runCommand("ClothSewing_Show2D", 0)
+        _events()
+        seam_color = getattr(getattr(seam_11, "ViewObject", None), "LineColor", None)
+        if seam_color is None:
+            raise RuntimeError("public Sewing 2D command did not apply deterministic seam presentation")
+        print(
+            "sewing-visuals=passed 3d-edges=%d 2d-seam-color=applied"
+            % len(seam_11.Shape.Edges),
+            flush=True,
+        )
         print("sewing-mn=passed sides=2,2 segments=2", flush=True)
 
         _select_objects(seam_11)
