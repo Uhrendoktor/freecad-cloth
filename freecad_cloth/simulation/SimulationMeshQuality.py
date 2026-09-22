@@ -104,7 +104,8 @@ def quality_piece_mesh(piece, start_height, particle_distance):
         group = boundary_groups.setdefault(key, [start])
         if group[-1] != start:
             raise ValueError("quality mesh semantic edge provenance is not contiguous")
-        group.append(end)    by_index = []
+        group.append(end)
+    by_index = []
     for edge_index in range(len(points)):
         key = f"{piece.PieceId}:edge:{edge_index}"
         if key in boundary_groups:
