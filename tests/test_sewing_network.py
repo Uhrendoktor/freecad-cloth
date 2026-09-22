@@ -137,6 +137,9 @@ class SewingNetworkTests(unittest.TestCase):
             Seams=(a,), RelationshipId="rel-1", Status="Valid", InvalidReason="",
             SegmentCount=1, LengthA=100.0, LengthB=106.0, LengthDifference=6.0,
             RelativeTolerance=0.05,
+            CorrespondenceMessage="seam correspondence is valid",
+            CorrespondenceRecovery="no repair required",
+            CorrespondenceSeverity="info",
         )
         import freecad_cloth.sewing.SewingNetwork as module
         old = module._network_lengths
