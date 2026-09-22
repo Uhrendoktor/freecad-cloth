@@ -182,13 +182,20 @@ def create_sewing_operation():
     return obj
 
 
+def get_active_sewing_operation_task_panel():
+    """Return the task panel most recently opened by the public sewing-operation command."""
+    return _ACTIVE_SEWING_OPERATION_TASK_PANEL
+
+
 def edit_sewing_operation():
+    global _ACTIVE_SEWING_OPERATION_TASK_PANEL
     import FreeCADGui as Gui
     obj = next((o for o in Gui.Selection.getSelection() if getattr(o, "SewingType", "") == "SewingOperation"), None)
     if obj is None:
         raise ValueError("select a sewing operation before editing it")
     from freecad_cloth.sewing.SewingGui import show_sewing_task
-    return show_sewing_task(obj)
+    _ACTIVE_SEWING_OPERATION_TASK_PANEL = show_sewing_task(obj)
+    return _ACTIVE_SEWING_OPERATION_TASK_PANEL
 
 
 def reverse_selected_seam():
