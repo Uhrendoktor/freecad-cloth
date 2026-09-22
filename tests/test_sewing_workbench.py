@@ -55,7 +55,7 @@ def test_curved_native_edge_uses_arc_length_sampling():
     assert abs(_edge_length(p, 0) - (8.0 ** 0.5 * 2.0)) < 1e-9
 
 
-def test_uniform_alignment_follows_curved_edge():
+def test_endpoint_alignment_uses_physical_arc_length_on_curved_edge():
     class Edge:
         def __init__(self, values): self.values = values
         def discretize(self, Number=64): return [SimpleNamespace(x=x, y=y) for x, y in self.values]
@@ -73,11 +73,8 @@ def test_uniform_alignment_follows_curved_edge():
     finally:
         if oldf is None: sys.modules.pop("FreeCAD", None)
         else: sys.modules["FreeCAD"] = oldf
+    assert endpoint_pairs == uniform_pairs
     assert endpoint_pairs[1][0].y > 0
-    assert endpoint_pairs[1][0].x == uniform_pairs[1][0].x
-    assert endpoint_pairs[1][0].y == uniform_pairs[1][0].y
-    assert endpoint_pairs[1][1].x == uniform_pairs[1][1].x
-    assert endpoint_pairs[1][1].y == uniform_pairs[1][1].y
 
 
 def test_reversed_correspondence_is_applied_once():
@@ -208,6 +205,8 @@ def _execute_fake_proxy(
             Alignment="endpoints",
             Status="Incomplete",
             CorrespondenceStatus="valid",
+            CorrespondenceMessage="",
+            CorrespondenceRecovery="",
             LengthA=0,
             LengthB=0,
             LengthDifference=0,
@@ -247,17 +246,18 @@ def test_proxy_reversed_correspondence_is_valid_and_usable():
     assert obj.StitchPoints[0].split("|")[1].startswith("100.000000")
 
 
-def test_proxy_status_uses_shared_relative_mismatch_contract():
-    obj = _execute_fake_proxy(width_a=1.0, width_b=1.06, tolerance=50.0, relative_tolerance=0.05)
+def test_proxy_uses_relative_correspondence_status_as_canonical_contract():
+    obj = _execute_fake_proxy(width_a=1.0, width_b=1.06, tolerance=0.5)
     assert obj.Status == "Length mismatch"
     assert obj.CorrespondenceStatus == "length_mismatch"
+    assert "edit the pattern" in obj.CorrespondenceRecovery
 
 
 if __name__ == "__main__":
     test_rectangular_seam_lengths()
     test_polygon_seam_length_uses_stored_outline()
     test_curved_native_edge_uses_arc_length_sampling()
-    test_uniform_alignment_follows_curved_edge()
+    test_endpoint_alignment_uses_physical_arc_length_on_curved_edge()
     test_reversed_correspondence_is_applied_once()
     test_boundary_sampling_honors_normalized_range()
     test_proxy_validation_and_reversal()

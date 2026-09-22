@@ -233,7 +233,7 @@ class SewingCreationTaskPanel:
             from freecad_cloth.sewing.SewingCommands import create_mn_sewing_from_selection
             return create_mn_sewing_from_selection()
         from freecad_cloth.sewing.SewingNetworkCommands import create_free_sewing_from_selection
-        return create_free_sewing_from_selection(open_editor=False)
+        return create_free_sewing_from_selection()
 
     def _refresh_selection(self):
         try:

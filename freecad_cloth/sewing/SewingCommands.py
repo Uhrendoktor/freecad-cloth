@@ -91,11 +91,10 @@ def start_staged_mn_sewing_creation():
     _ACTIVE_STAGED_SEWING_TASK_PANEL = show_sewing_creation_task("mn")
     return _ACTIVE_STAGED_SEWING_TASK_PANEL
 
-
 def start_staged_free_sewing_creation():
     global _ACTIVE_STAGED_SEWING_TASK_PANEL
-    from freecad_cloth.sewing.SewingCreationGui import show_sewing_creation_task
-    _ACTIVE_STAGED_SEWING_TASK_PANEL = show_sewing_creation_task("free")
+    from freecad_cloth.sewing.SewingNetworkCommands import start_staged_free_sewing_creation as _start
+    _ACTIVE_STAGED_SEWING_TASK_PANEL = _start()
     return _ACTIVE_STAGED_SEWING_TASK_PANEL
 
 

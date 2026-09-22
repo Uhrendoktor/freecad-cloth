@@ -38,12 +38,11 @@ def create_network_from_selection():
     return network
 
 
-def create_free_sewing_from_selection(open_editor=True):
-    """Create a 1:1 free-sewing relationship from two selected pattern edges."""
+def create_free_sewing_from_selection():
+    """Create a 1:1 free-sewing relationship and open its range editor."""
     import FreeCAD as App
     from freecad_cloth.pattern.PatternObjects import add_seam
     from freecad_cloth.sewing.SewingNetwork import SewingMember, add_sewing_network, build_mn_seams
-    from freecad_cloth.sewing.SewingNetworkGui import show_sewing_network_task
     from freecad_cloth.sewing.SewingObjects import _edge_length
 
     doc = App.ActiveDocument
@@ -67,9 +66,15 @@ def create_free_sewing_from_selection(open_editor=True):
     seam_objects = [add_seam(doc, model) for model in models]
     network = add_sewing_network(doc, seam_objects, relationship_id, "SewingNetwork%d" % index)
     doc.recompute()
-    if open_editor:
-        show_sewing_network_task(network)
     return network
+
+
+
+
+def start_staged_free_sewing_creation():
+    """Open the public staged Preview/Commit/Cancel flow for Free Sewing."""
+    from freecad_cloth.sewing.SewingCreationGui import show_sewing_creation_task
+    return show_sewing_creation_task("free")
 
 
 def edit_selected_network():
@@ -119,9 +124,7 @@ try:
             return {"MenuText": "Create Sewing Network", "ToolTip": "Group selected canonical seam segments into an M:N sewing network"}
 
     class _FreeSewingCommand:
-        def Activated(self):
-            from freecad_cloth.sewing.SewingCommands import start_staged_free_sewing_creation
-            return start_staged_free_sewing_creation()
+        def Activated(self): return start_staged_free_sewing_creation()
         def IsActive(self):
             try:
                 import FreeCAD as App

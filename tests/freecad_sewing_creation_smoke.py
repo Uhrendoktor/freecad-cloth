@@ -196,18 +196,25 @@ try:
     assert networks and networks[-1].Status == "Valid", "M:N commit did not leave a valid network"
     record("commit-mn=passed")
 
-    select_edges((piece_a, 3), (piece_b, 3))
+    free_before = {obj.Name for obj in doc.Objects}
+    select_edges((piece_a, 0), (piece_b, 3))
     free_panel = open_public("ClothSewing_FreeSewing")
     assert any(getattr(obj, "SewingType", "") == "SewingNetwork" for obj in free_panel.session.created)
     assert "Preview valid" in free_panel.feedback.text()
-    record("preview-free=passed")
+    free_panel.cancel_button.click()
+    wait_for_task_close()
+    assert {obj.Name for obj in doc.Objects} == free_before
+    record("cancel-free-sewing=passed")
+
+    select_edges((piece_a, 1), (piece_b, 2))
+    free_panel = open_public("ClothSewing_FreeSewing")
+    free_networks = [obj for obj in free_panel.session.created if getattr(obj, "SewingType", "") == "SewingNetwork"]
+    assert free_networks and str(free_networks[0].Status) == "Valid"
     free_panel.commit_button.click()
     wait_for_task_close()
-    free_networks = [
-        obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork"
-    ]
-    assert any(len(network.Seams) == 1 and network.Status == "Valid" for network in free_networks)
-    record("commit-free=passed")
+    committed_free = [obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork" and str(getattr(obj, "RelationshipId", "")).startswith("free-sewing-")]
+    assert committed_free and committed_free[-1].Status == "Valid"
+    record("commit-free-sewing=passed")
 
     _success = True
 except Exception:

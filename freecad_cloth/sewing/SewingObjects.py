@@ -2,7 +2,7 @@
 import ast
 from math import atan2, degrees, hypot
 
-from freecad_cloth.sewing.SewingCorrespondence import analyze_correspondence, correspondence_status_label
+from freecad_cloth.sewing.SewingCorrespondence import analyze_correspondence
 
 
 def _outline_points(piece):
@@ -170,6 +170,10 @@ def _seam_correspondence(piece_a, piece_b, seam, count, alignment="endpoints"):
         raise ValueError(f"unsupported sewing alignment: {alignment}")
     edge_a = _resolved_edge(piece_a, seam, "A")
     edge_b = _resolved_edge(piece_b, seam, "B")
+    # Both persisted alignment values use the same physical correspondence
+    # contract. "endpoints" remains accepted for document compatibility, but
+    # interior samples are always proportional to physical arc length rather
+    # than linearly interpolated between endpoint coordinates.
     a_points = _edge_samples(piece_a, edge_a, seam.StartA, seam.EndA, count)
     b_points = _edge_samples(piece_b, edge_b, seam.StartB, seam.EndB, count)
     if bool(getattr(seam, "ReversedB", False)):
@@ -220,9 +224,19 @@ class SewingOperationProxy:
         )
         if hasattr(obj, "CorrespondenceStatus"):
             obj.CorrespondenceStatus = correspondence.status
+        if hasattr(obj, "CorrespondenceMessage"):
+            obj.CorrespondenceMessage = correspondence.message
+        if hasattr(obj, "CorrespondenceRecovery"):
+            from freecad_cloth.sewing.SewingCorrespondence import correspondence_recovery
+            obj.CorrespondenceRecovery = correspondence_recovery(correspondence.status)
 
         obj.StitchCount = max(2, int(obj.Stitches))
-        obj.Status = correspondence_status_label(correspondence)
+        # One semantic mismatch contract drives both headless and GUI status.
+        # Tolerance remains a legacy persisted property for document compatibility;
+        # RelativeTolerance is the canonical sewing validation threshold.
+        obj.Status = "Valid" if correspondence.valid else (
+            "Invalid ranges" if correspondence.status == "invalid_range" else "Length mismatch"
+        )
         if hasattr(obj, "ReversedB"):
             obj.ReversedB = bool(getattr(seam, "ReversedB", False))
         if hasattr(obj, "Alignment"):
@@ -252,6 +266,8 @@ def add_sewing_operation(doc, seam, piece_a, piece_b, name="SewingOperation"):
     obj.addProperty("App::PropertyLength", "Tolerance", "Validation").Tolerance = 0.5
     obj.addProperty("App::PropertyFloat", "RelativeTolerance", "Validation").RelativeTolerance = 0.05
     obj.addProperty("App::PropertyString", "CorrespondenceStatus", "Validation").CorrespondenceStatus = "valid"
+    obj.addProperty("App::PropertyString", "CorrespondenceMessage", "Validation").CorrespondenceMessage = "seam correspondence is valid"
+    obj.addProperty("App::PropertyString", "CorrespondenceRecovery", "Validation").CorrespondenceRecovery = "no repair required"
     obj.addProperty("App::PropertyInteger", "Stitches", "Stitching").Stitches = 8
     obj.addProperty("App::PropertyLength", "LengthA", "Validation").LengthA = 0
     obj.addProperty("App::PropertyLength", "LengthB", "Validation").LengthB = 0
@@ -265,6 +281,8 @@ def add_sewing_operation(doc, seam, piece_a, piece_b, name="SewingOperation"):
     obj.setEditorMode("StitchGroup", 1)
     obj.setEditorMode("AssemblyPlacementB", 1)
     obj.setEditorMode("CorrespondenceStatus", 1)
+    obj.setEditorMode("CorrespondenceMessage", 1)
+    obj.setEditorMode("CorrespondenceRecovery", 1)
     obj.Proxy = SewingOperationProxy()
     obj.Proxy.execute(obj)
     return obj
