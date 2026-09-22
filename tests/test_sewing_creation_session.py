@@ -67,6 +67,8 @@ class SewingCreationSessionContractTests(unittest.TestCase):
         session.commit()
         self.assertEqual([call[0] for call in doc.calls], ["open", "recompute", "recompute", "commit"])
         self.assertEqual(len(doc.Objects), 1)
+        with self.assertRaisesRegex(ValueError, "already been committed"):
+            session.commit()
 
         doc_cancel = _Document()
         gui_cancel = SimpleNamespace(Selection=_Selection([anchor]))
