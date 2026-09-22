@@ -274,3 +274,9 @@ def test_sewing_task_panel_reject_preserves_persisted_relative_tolerance():
     assert obj.Tolerance == 0.5
     assert obj.Stitches == 8
     assert obj.RelativeTolerance == 0.05
+
+
+if __name__ == "__main__":
+    test_sewing_task_panel_accept_cannot_broaden_mismatch_with_legacy_tolerance()
+    test_sewing_task_panel_reject_preserves_persisted_relative_tolerance()
+    print("sewing GUI relative-tolerance regression passed")
