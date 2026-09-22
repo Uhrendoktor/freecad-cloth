@@ -115,7 +115,7 @@ def _simulation_source_signature(obj, pieces):
         source = getattr(avatar, "SourceObject", None) if avatar is not None else None
         target_signature = ("legacy-avatar", str(getattr(source, "Name", "")), float(getattr(avatar, "CollisionDeflection", 0.0)) if avatar is not None else 0.0, float(getattr(avatar, "CollisionThickness", 0.0)) if avatar is not None else 0.0)
     pin_signature = _parse_int_list(getattr(obj, "PinSelection", ()))
-    return piece_signature, seam_signature, target_signature, int(getattr(obj, "StitchSamples", 8)), pin_signature
+    return pattern_signature, seam_signature, target_signature, int(getattr(obj, "StitchSamples", 8)), pin_signature
 
 
 def _piece_mesh(piece, start_height):
