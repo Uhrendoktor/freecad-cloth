@@ -204,6 +204,8 @@ def add_pattern_piece(doc, piece: PatternPiece):
     obj.addProperty("App::PropertyString", "SewingBoundary", "Cloth")
     obj.addProperty("App::PropertyString", "SewingOutline", "Cloth")
     obj.Proxy = PatternPieceProxy(); obj.Proxy.execute(obj)
+    from freecad_cloth.common.GarmentDocument import register_garment_object
+    register_garment_object(doc, obj, "Patterns")
     return obj
 
 
