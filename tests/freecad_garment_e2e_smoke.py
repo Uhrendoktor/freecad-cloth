@@ -524,7 +524,8 @@ def run_acceptance():
             raise RuntimeError("sewing-network authority was not retained in Garment Sewing")
         if target not in tuple(getattr(garment_groups["Fitting"], "Group", ())):
             raise RuntimeError("DrapeTarget authority was not retained in Garment Fitting")
-        if avatar not in tuple(getattr(garment_groups["Avatar"], "Group", ())):
+        avatar = getattr(fitting, "AvatarProxy", None)
+        if avatar is None or avatar not in tuple(getattr(garment_groups["Avatar"], "Group", ())):
             raise RuntimeError("avatar authority was not retained in Garment Avatar")
         if scene not in tuple(getattr(garment_groups["Simulation"], "Group", ())):
             raise RuntimeError("simulation authority was not retained in Garment Simulation")
