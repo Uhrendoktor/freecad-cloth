@@ -80,6 +80,17 @@ class SewingNetworkTests(unittest.TestCase):
             "Invalid member seam(s): rel-1-1-1: Changed reference",
         )
 
+    def test_mn_changed_member_status_is_deterministic(self):
+        seams = (
+            _SeamStatus("rel-1-1-1", "Changed reference"),
+            _SeamStatus("rel-1-2-1", "Valid"),
+            _SeamStatus("rel-1-3-1", "Changed reference"),
+        )
+        self.assertEqual(
+            network_invalid_reason(seams),
+            "Invalid member seam(s): rel-1-1-1: Changed reference; rel-1-3-1: Changed reference",
+        )
+
     def test_all_valid_member_statuses_have_no_invalid_reason(self):
         seam = _SeamStatus("rel-1-1-1", "Valid")
         self.assertEqual(network_invalid_reason([seam]), "")
