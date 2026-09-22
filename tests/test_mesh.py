@@ -66,6 +66,7 @@ def test_linear_boundary_refinement_preserves_authored_segment_identity_and_spac
     mesh = triangulate(refined)
     assert len(mesh.boundary_vertex_indices) > 4
     ids = mesh.boundary_edge_segment_ids
+    assert ids == tuple(segment.id for segment in refined.segments)
     assert all(
         identifier == authored or identifier.startswith(authored + "::sub::")
         for authored in ("side", "back", "top", "left")
