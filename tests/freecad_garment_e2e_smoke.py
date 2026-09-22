@@ -4,6 +4,7 @@ import math
 import os
 import tempfile
 
+import InitGui  # registers the public Cloth workbenches for standalone AppRun
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
