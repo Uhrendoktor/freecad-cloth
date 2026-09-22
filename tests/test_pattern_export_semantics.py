@@ -42,6 +42,7 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics():
         "seam_allowance_mm": 0.0,
         "notch_ids": ["notch-1"],
         "mark_ids": ["grain-1"],
+        "mark_types": [{"id": "grain-1", "kind": "Grainline"}],
     }
 
     dxf = to_dxf(pattern, curve_samples=9, derived=derived, piece_id="bodice-front", seam_ids=("seam-neck", "seam-side"))
@@ -142,6 +143,93 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path):
         assert metadata["mark_ids"] == ["piece-front:grainline"]
 
     assert before == (piece.Label, piece.SeamAllowance, piece.GrainlineAngle, piece.SewingOutline)
+
+
+def _piece_with_marks(mark_objects):
+    class Piece:
+        PatternType = "PatternPiece"
+        Name = "Front"
+        Label = "Front"
+        PieceId = "piece-front"
+        Width = 100.0
+        Height = 60.0
+        SeamAllowance = 5.0
+        GrainlineAngle = 90.0
+        GeometryAuthority = ""
+        SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)])
+        DraftingBoundary = SewingOutline
+
+    class Document:
+        Objects = ()
+
+    piece = Piece()
+    document = Document()
+    document.Objects = tuple([piece, *mark_objects])
+    piece.Document = document
+    return piece
+
+
+def _mark(name, mark_type="InternalMark", segment_id="piece-front:edge:0", position=0.5, depth=3.0, angle=0.0, length=25.0, text=""):
+    class Mark:
+        pass
+    obj = Mark()
+    obj.Name = name
+    obj.PatternMarkType = mark_type
+    obj.PieceId = "piece-front"
+    obj.SegmentId = segment_id
+    obj.Position = position
+    obj.Depth = depth
+    obj.Angle = angle
+    obj.Length = length
+    obj.Text = text
+    return obj
+
+
+def test_pattern_piece_export_round_trips_persisted_notch_and_internal_mark(tmp_path):
+    piece = _piece_with_marks([
+        _mark("InternalMark_1", "InternalMark", text="Construction"),
+        _mark("Notch_1", "Notch", position=0.25, depth=4.0),
+    ])
+    result = export_pattern_piece(piece, tmp_path / "piece.svg", "svg", curve_samples=16)
+    metadata = from_svg_metadata((tmp_path / "piece.svg").read_text(encoding="utf-8"))
+    assert result["valid"] is True
+    assert metadata["notch_ids"] == ["Notch_1"]
+    assert metadata["mark_ids"] == ["InternalMark_1", "piece-front:grainline"]
+    assert metadata["mark_types"] == [
+        {"id": "InternalMark_1", "kind": "InternalMark"},
+        {"id": "piece-front:grainline", "kind": "Grainline"},
+    ]
+
+
+def test_persisted_grainline_replaces_synthesized_grainline(tmp_path):
+    piece = _piece_with_marks([
+        _mark("Grainline_1", "Grainline", segment_id="piece-front:edge:1", angle=15.0, length=55.0, text="Bias"),
+    ])
+    export_pattern_piece(piece, tmp_path / "piece.svg", "svg", curve_samples=16)
+    metadata = from_svg_metadata((tmp_path / "piece.svg").read_text(encoding="utf-8"))
+    assert metadata["mark_ids"] == ["Grainline_1"]
+    assert metadata["mark_types"] == [{"id": "Grainline_1", "kind": "Grainline"}]
+
+
+def test_persisted_pattern_mark_rejects_unknown_segment(tmp_path):
+    piece = _piece_with_marks([_mark("Notch_1", "Notch", segment_id="missing-edge")])
+    with TestCase().assertRaisesRegex(ValueError, "references unknown segment"):
+        export_pattern_piece(piece, tmp_path / "piece.svg", "svg")
+
+
+def test_persisted_pattern_mark_rejects_invalid_position(tmp_path):
+    piece = _piece_with_marks([_mark("Mark_1", position=1.5)])
+    with TestCase().assertRaisesRegex(ValueError, "invalid position"):
+        export_pattern_piece(piece, tmp_path / "piece.svg", "svg")
+
+
+def test_persisted_pattern_mark_rejects_invalid_depth_and_length(tmp_path):
+    bad_depth = _piece_with_marks([_mark("Mark_1", depth=0.0)])
+    with TestCase().assertRaisesRegex(ValueError, "invalid depth"):
+        export_pattern_piece(bad_depth, tmp_path / "depth.svg", "svg")
+    bad_length = _piece_with_marks([_mark("Mark_2", length=0.0)])
+    with TestCase().assertRaisesRegex(ValueError, "invalid length"):
+        export_pattern_piece(bad_length, tmp_path / "length.svg", "svg")
 
 
 def test_pattern_piece_export_blocks_invalid_semantic_seams(tmp_path):
