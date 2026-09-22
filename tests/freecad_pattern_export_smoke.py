@@ -137,6 +137,34 @@ try:
         str(getattr(piece, "GeometryAuthority", "")),
     )
 
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(piece)
+    Gui.runCommand("ClothPattern_AddNotch", 0)
+    Gui.runCommand("ClothPattern_AddInternalMark", 0)
+    process_events()
+    persisted_marks = tuple(
+        obj for obj in doc.Objects
+        if str(getattr(obj, "PieceId", "")) == str(piece.PieceId)
+        and str(getattr(obj, "PatternMarkType", ""))
+    )
+    if {str(getattr(obj, "PatternMarkType", "")) for obj in persisted_marks} != {"Notch", "InternalMark"}:
+        raise RuntimeError("public Pattern mark commands did not persist the requested Notch/InternalMark objects")
+    mark_sources_before = tuple(
+        (
+            str(getattr(obj, "Name", "")),
+            str(getattr(obj, "PatternMarkType", "")),
+            str(getattr(obj, "PieceId", "")),
+            str(getattr(obj, "SegmentId", "")),
+            float(getattr(obj, "Position", 0.0)),
+            float(getattr(obj, "Depth", 0.0)),
+            float(getattr(obj, "Angle", 0.0)),
+            float(getattr(obj, "Length", 0.0)),
+            str(getattr(obj, "Text", "")),
+        )
+        for obj in sorted(persisted_marks, key=lambda value: str(getattr(value, "Name", "")))
+    )
+    record("marks=created types=Notch,InternalMark count=%d" % len(persisted_marks))
+
     with tempfile.TemporaryDirectory() as directory:
         output_dir = Path(directory)
         panel = open_public_export(piece)
@@ -186,8 +214,13 @@ try:
                 raise RuntimeError(export_format + " export lost seam allowance")
             if not metadata.get("edge_ids"):
                 raise RuntimeError(export_format + " export lost semantic edge IDs")
-            if not metadata.get("mark_ids"):
-                raise RuntimeError(export_format + " export lost construction mark identity")
+            if "Notch_1" not in metadata.get("notch_ids", []):
+                raise RuntimeError(export_format + " export lost persisted Notch_1 identity")
+            if "InternalMark_1" not in metadata.get("mark_ids", []):
+                raise RuntimeError(export_format + " export lost persisted InternalMark_1 identity")
+            mark_types = {str(value.get("id")): str(value.get("kind")) for value in metadata.get("mark_types", [])}
+            if mark_types.get("InternalMark_1") != "InternalMark":
+                raise RuntimeError(export_format + " export lost persisted InternalMark type")
             results[export_format] = len(first)
 
         if source_before != (
@@ -199,8 +232,24 @@ try:
             str(getattr(piece, "GeometryAuthority", "")),
         ):
             raise RuntimeError("public export mutated authoritative PatternPiece state")
+        mark_sources_after = tuple(
+            (
+                str(getattr(obj, "Name", "")),
+                str(getattr(obj, "PatternMarkType", "")),
+                str(getattr(obj, "PieceId", "")),
+                str(getattr(obj, "SegmentId", "")),
+                float(getattr(obj, "Position", 0.0)),
+                float(getattr(obj, "Depth", 0.0)),
+                float(getattr(obj, "Angle", 0.0)),
+                float(getattr(obj, "Length", 0.0)),
+                str(getattr(obj, "Text", "")),
+            )
+            for obj in sorted(persisted_marks, key=lambda value: str(getattr(value, "Name", "")))
+        )
+        if mark_sources_before != mark_sources_after:
+            raise RuntimeError("public export mutated persisted PatternMark source objects")
 
-        record("pattern-export=passed formats=SVG,DXF bytes=%s,%s" % (results["SVG"], results["DXF"]))
+        record("pattern-export=passed formats=SVG,DXF bytes=%s,%s persisted-marks=%d" % (results["SVG"], results["DXF"], len(persisted_marks)))
 except Exception:
     record("smoke=exception\n" + traceback.format_exc())
     raise
