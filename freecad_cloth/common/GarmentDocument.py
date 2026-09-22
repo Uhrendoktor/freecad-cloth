@@ -72,10 +72,16 @@ def classify_object(obj: Any) -> str | None:
 def classify_members(objects: Iterable[Any]) -> dict[str, tuple[Any, ...]]:
     """Classify document objects into deterministic garment roles."""
     result = {key: [] for key, _name, _label in GROUP_SPECS}
+    seen = {key: set() for key, _name, _label in GROUP_SPECS}
     for obj in objects:
         role = classify_object(obj)
-        if role is not None:
-            result[role].append(obj)
+        if role is None:
+            continue
+        token = str(getattr(obj, "Name", "")).strip() or str(id(obj))
+        if token in seen[role]:
+            continue
+        seen[role].add(token)
+        result[role].append(obj)
 
     for role in result:
         result[role] = tuple(
