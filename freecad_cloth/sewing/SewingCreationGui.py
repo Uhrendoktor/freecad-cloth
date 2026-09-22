@@ -266,8 +266,19 @@ class SewingCreationTaskPanel:
         return True
 
     def _close_dialog(self):
-        if self.Gui.activeDocument() and self.Gui.Control.activeDialog() is not None:
-            self.Gui.Control.closeDialog()
+        if not self.Gui.activeDocument() or self.Gui.Control.activeDialog() is None:
+            return
+        self.Gui.Control.closeDialog()
+        try:
+            from PySide import QtCore
+        except ImportError:
+            from PySide2 import QtCore
+
+        def finish_close():
+            if self.Gui.activeDocument() and self.Gui.Control.activeDialog() is not None:
+                self.Gui.Control.closeDialog()
+
+        QtCore.QTimer.singleShot(0, finish_close)
 
     def accept(self):
         try:
