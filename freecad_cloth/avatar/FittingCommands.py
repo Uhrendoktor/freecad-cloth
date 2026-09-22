@@ -9,7 +9,7 @@ def _safe_name(value):
     return "".join(ch if ch.isalnum() else "_" for ch in str(value)) or "Item"
 
 
-def _sync_visuals(scene):
+def _sync_visuals(scene, *, recompute=True):
     """Synchronize visible FreeCAD point/volume adapters from canonical strings."""
     import FreeCAD as App
     import Part
