@@ -179,14 +179,22 @@ def _seam_coherence(panels, seam_records, proxy=None):
             raise RuntimeError("solver stitch-pair provenance missing for seam %s" % seam_id)
         gap = _post_drape_seam_gap(stitch_pairs, positions)
         sample_count = max(sample_count, len(stitch_pairs))
-        edge_a = int(seam.EdgeA)
-        edge_b = int(seam.EdgeB)
+        edge_a_id = str(getattr(seam, "EdgeAId", "")).strip()
+        edge_b_id = str(getattr(seam, "EdgeBId", "")).strip()
+        if not edge_a_id or not edge_b_id:
+            raise RuntimeError("semantic seam edge identity is missing for %s" % seam_id)
+        ids_a = tuple(str(value) for value in (getattr(getattr(piece_a, "Sketch", None), "SemanticEdgeIds", ()) or ()))
+        ids_b = tuple(str(value) for value in (getattr(getattr(piece_b, "Sketch", None), "SemanticEdgeIds", ()) or ()))
+        if edge_a_id not in ids_a or edge_b_id not in ids_b:
+            raise RuntimeError("semantic seam edge identity is not present on its authoritative Sketch")
         records.append({
             "seam": seam_id,
             "piece_a": str(getattr(piece_a, "PieceId", "")),
             "piece_b": str(getattr(piece_b, "PieceId", "")),
-            "edge_a": edge_a,
-            "edge_b": edge_b,
+            "edge_a_id": edge_a_id,
+            "edge_b_id": edge_b_id,
+            "edge_a": ids_a.index(edge_a_id),
+            "edge_b": ids_b.index(edge_b_id),
             "stitch_pair_count": len(stitch_pairs),
             "max_correspondence_gap_mm": round(float(gap), 6),
         })
