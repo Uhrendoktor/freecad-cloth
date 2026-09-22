@@ -52,7 +52,13 @@ replacements = {
         'front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())\n'
         '    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())\n'
         '    if len(front_edge_ids) < 8 or len(back_edge_ids) < 8 or any(not front_edge_ids[index] or not back_edge_ids[index] for index in (1, 2, 5, 6)): raise RuntimeError("canonical tunic fixture is missing authored semantic edge IDs")\n'
-        '    seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"),(front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"),(front_edge_ids[6], back_edge_ids[6], "TunicLeftSide"))\n'
+        '    # Native Sketcher edge order for the canonical 8-edge panel is:
+    # 0 hem, 1 right side, 2 right shoulder, 3/4/5 neckline, 6 left shoulder, 7 left side.
+    seam_indices = ((1, "TunicRightSide"), (2, "TunicRightShoulder"), (6, "TunicLeftShoulder"), (7, "TunicLeftSide"))
+    seam_specs = tuple(
+        (front_edge_ids[index], back_edge_ids[index], seam_id)
+        for index, seam_id in seam_indices
+    )\n'
         '    for edge_a_id, edge_b_id, seam_id in seam_specs:\n'
         '        seam = Seam(str(front.PieceId), edge_a_id, str(back.PieceId), edge_b_id, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
         '        add_seam(doc, seam)\n'
