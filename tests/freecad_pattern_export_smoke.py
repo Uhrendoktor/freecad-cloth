@@ -255,6 +255,30 @@ try:
                 raise RuntimeError(export_format + " export lost semantic edge IDs")
             if not metadata.get("mark_ids"):
                 raise RuntimeError(export_format + " export lost construction mark identity")
+            if metadata.get("seam_ids") != [seam_id]:
+                raise RuntimeError(export_format + " export lost persisted seam identity")
+            if metadata.get("notch_ids") != [notch_id]:
+                raise RuntimeError(export_format + " export lost persisted notch identity")
+            if metadata.get("mark_ids") != [mark_id]:
+                raise RuntimeError(export_format + " export lost persisted construction mark identity")
+            output = first.decode("utf-8")
+            edge_id = piece_id + ":edge:0"
+            if export_format == "SVG":
+                if 'id="notch-%s"' % notch_id not in output:
+                    raise RuntimeError("SVG export lost persisted notch identity/geometry")
+                if 'id="mark-%s"' % mark_id not in output or 'data-kind="InternalMark"' not in output:
+                    raise RuntimeError("SVG export lost persisted construction-mark identity/geometry")
+                if 'data-segment="%s" data-t="0.500000"' % edge_id not in output:
+                    raise RuntimeError("SVG export lost persisted construction-mark reference")
+                if 'cx="55.000000" cy="65.000000"' not in output:
+                    raise RuntimeError("SVG export lost persisted notch coordinates")
+                if 'x1="35.000000" y1="65.000000" x2="75.000000" y2="65.000000"' not in output:
+                    raise RuntimeError("SVG export lost persisted construction-mark coordinates")
+            else:
+                if "10\n50.000000\n20\n0.000000\n10\n50.000000\n20\n3.000000" not in output:
+                    raise RuntimeError("DXF export lost persisted notch coordinates")
+                if "10\n30.000000\n20\n0.000000\n10\n70.000000\n20\n0.000000" not in output:
+                    raise RuntimeError("DXF export lost persisted construction-mark coordinates")
             results[export_format] = len(first)
 
         if source_before != (
