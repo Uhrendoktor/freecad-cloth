@@ -265,7 +265,11 @@ try:
     )
     doc.recompute()
     a_line_length = float(curved_a.Shape.Edges[0].Length)
-    a_curve_length = float(curved_a.Shape.Edges[2].Length)
+    a_curve_points = curved_a.Shape.Edges[2].discretize(Number=64)
+    a_curve_length = sum(
+        ((left.x - right.x) ** 2 + (left.y - right.y) ** 2 + (left.z - right.z) ** 2) ** 0.5
+        for left, right in zip(a_curve_points, a_curve_points[1:])
+    )
 
     probe_curve = Part.BezierCurve()
     probe_curve.setPoles([
@@ -274,7 +278,14 @@ try:
         App.Vector(-80, 160, 0),
         App.Vector(-80, 40, 0),
     ])
-    b_curve_length = float(probe_curve.toShape().Length)
+    b_curve_edge = probe_curve.toShape()
+    b_curve_points = b_curve_edge.discretize(Number=64)
+    b_curve_length = sum(
+        ((left.x - right.x) ** 2 + (left.y - right.y) ** 2 + (left.z - right.z) ** 2) ** 0.5
+        for left, right in zip(b_curve_points, b_curve_points[1:])
+    )
+    # Match the exact 64-point normalization used by the sewing engine while
+    # keeping the individual member lengths deliberately different.
     b_line_length = a_line_length + a_curve_length - b_curve_length
     assert b_line_length > 1.0
 
