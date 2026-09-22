@@ -298,6 +298,9 @@ def run_acceptance():
                 "ClothPattern_CreatePieceWithSketch",
                 "ClothPattern_EditPiece",
                 "ClothPattern_Show2D",
+                "ClothPattern_AddNotch",
+                "ClothPattern_AddGrainline",
+                "ClothPattern_AddInternalMark",
             ],
         )
         Gui.runCommand("ClothPattern_CreateGarment", 0)
@@ -323,6 +326,30 @@ def run_acceptance():
             piece.Placement.Base.x = float(index * 170)
             _make_curved(piece, doc)
         doc.recompute()
+
+        _select_objects(front)
+        for command in ("ClothPattern_AddNotch", "ClothPattern_AddGrainline", "ClothPattern_AddInternalMark"):
+            Gui.runCommand(command, 0)
+            _events()
+        doc.recompute()
+        front_marks = [
+            obj for obj in doc.Objects
+            if str(getattr(obj, "PatternMarkType", "")).strip()
+            and str(getattr(obj, "PieceId", "")) == str(front.PieceId)
+        ]
+        if len(front_marks) != 3:
+            raise RuntimeError("public Pattern mark commands did not persist the garment construction marks")
+        front_mark_ids = tuple(sorted(str(obj.PatternMarkId) for obj in front_marks))
+        front_notch_id = str(next(obj for obj in front_marks if obj.PatternMarkType == "Notch").PatternMarkId)
+        front_internal_id = str(next(obj for obj in front_marks if obj.PatternMarkType == "InternalMark").PatternMarkId)
+        front_edge_ids = tuple(str(value) for value in front.Sketch.SemanticEdgeIds if str(value))
+        if any(str(obj.SegmentId) not in front_edge_ids for obj in front_marks):
+            raise RuntimeError("public Pattern mark commands did not persist semantic Sketcher edge references")
+        print(
+            "construction-marks=passed notch=%s grainline=%s internal=%s"
+            % (front_notch_id, str(next(obj for obj in front_marks if obj.PatternMarkType == "Grainline").PatternMarkId), front_internal_id),
+            flush=True,
+        )
 
         before_ids = [tuple(getattr(piece.Sketch, "SemanticEdgeIds", ())) for piece in pieces]
         if any(len(ids) != 4 for ids in before_ids):
@@ -556,6 +583,15 @@ def run_acceptance():
                 raise RuntimeError("garment fixture did not preserve all four PatternPiece objects")
             if [str(piece.PieceId) for piece in reloaded_pieces] != expected_piece_ids:
                 raise RuntimeError("save/reload changed persistent PatternPiece identity")
+            reloaded_front_marks = [
+                obj for obj in reloaded.Objects
+                if str(getattr(obj, "PatternMarkType", "")).strip()
+                and str(getattr(obj, "PieceId", "")) == str(reloaded_pieces[0].PieceId)
+            ]
+            if tuple(sorted(str(obj.PatternMarkId) for obj in reloaded_front_marks)) != front_mark_ids:
+                raise RuntimeError("save/reload changed persisted garment construction-mark IDs")
+            if str(next(obj for obj in reloaded_front_marks if obj.PatternMarkType == "Notch").SegmentId) not in tuple(str(v) for v in reloaded_pieces[0].Sketch.SemanticEdgeIds):
+                raise RuntimeError("save/reload lost the persisted notch semantic edge reference")
             seam_11 = reloaded.getObject(seam_11_name)
             network = reloaded.getObject(network_name)
             operation = reloaded.getObject(operation_name)
@@ -589,6 +625,13 @@ def run_acceptance():
 
             curved = reloaded_pieces[0]
             seam_11 = reloaded.getObject(seam_11_name)
+            reloaded_front_marks = [
+                obj for obj in reloaded.Objects
+                if str(getattr(obj, "PatternMarkType", "")).strip()
+                and str(getattr(obj, "PieceId", "")) == str(curved.PieceId)
+            ]
+            if tuple(sorted(str(obj.PatternMarkId) for obj in reloaded_front_marks)) != front_mark_ids:
+                raise RuntimeError("reloaded garment is missing persisted construction marks")
             semantic_ids = tuple(curved.Sketch.SemanticEdgeIds)
             dimensional = curved.Sketch.addConstraint(Sketcher.Constraint("Radius", 2, 50.0))
             curved.Sketch.renameConstraint(dimensional, "UpstreamSeamRadius")
@@ -719,36 +762,90 @@ def run_acceptance():
             )
 
             export_results = {}
+            marked_piece = curved
             source_before = (
-                str(stale_piece.Label),
-                str(stale_piece.PieceId),
-                str(stale_piece.SewingOutline),
-                float(stale_piece.SeamAllowance),
-                float(stale_piece.GrainlineAngle),
-                str(getattr(stale_piece, "GeometryAuthority", "")),
+                str(marked_piece.Label),
+                str(marked_piece.PieceId),
+                str(marked_piece.SewingOutline),
+                float(marked_piece.SeamAllowance),
+                float(marked_piece.GrainlineAngle),
+                str(getattr(marked_piece, "GeometryAuthority", "")),
+                tuple(
+                    (
+                        str(getattr(obj, "PatternMarkId", "")),
+                        str(getattr(obj, "PatternMarkType", "")),
+                        str(getattr(obj, "SegmentId", "")),
+                        float(getattr(obj, "Position", 0.0)),
+                    )
+                    for obj in reloaded_front_marks
+                ),
             )
             for export_format in ("SVG", "DXF"):
-                size, metadata = _export_pair(stale_piece, output_dir, export_format)
+                size, metadata = _export_pair(marked_piece, output_dir, export_format)
                 export_results[export_format] = size
-                if metadata.get("piece_id") != str(stale_piece.PieceId):
+                if metadata.get("piece_id") != str(marked_piece.PieceId):
                     raise RuntimeError("%s export lost piece identity" % export_format)
-                if float(metadata.get("seam_allowance_mm", 0.0)) != float(stale_piece.SeamAllowance):
+                if metadata.get("units") != "mm" or metadata.get("scale") != 1.0:
+                    raise RuntimeError("%s export lost units/scale" % export_format)
+                if float(metadata.get("seam_allowance_mm", 0.0)) != float(marked_piece.SeamAllowance):
                     raise RuntimeError("%s export lost seam allowance" % export_format)
+                expected_edge_ids = {
+                    str(v) for v in marked_piece.Sketch.SemanticEdgeIds if str(v)
+                }
+                exported_edge_ids = {
+                    str(v) for v in metadata.get("edge_ids", ()) if str(v)
+                }
+                if exported_edge_ids != expected_edge_ids:
+                    raise RuntimeError("%s export lost semantic edge IDs" % export_format)
+                if metadata.get("seam_ids") != [str(seam_11.SeamId)]:
+                    raise RuntimeError("%s export lost seam ID" % export_format)
+                if metadata.get("notch_ids") != [front_notch_id]:
+                    raise RuntimeError("%s export lost persisted notch ID" % export_format)
+                if metadata.get("internal_mark_ids") != [front_internal_id]:
+                    raise RuntimeError("%s export lost persisted internal-mark ID" % export_format)
+                if front_internal_id not in metadata.get("mark_ids", []):
+                    raise RuntimeError("%s export omitted the persisted internal mark" % export_format)
             source_after = (
-                str(stale_piece.Label),
-                str(stale_piece.PieceId),
-                str(stale_piece.SewingOutline),
-                float(stale_piece.SeamAllowance),
-                float(stale_piece.GrainlineAngle),
-                str(getattr(stale_piece, "GeometryAuthority", "")),
+                str(marked_piece.Label),
+                str(marked_piece.PieceId),
+                str(marked_piece.SewingOutline),
+                float(marked_piece.SeamAllowance),
+                float(marked_piece.GrainlineAngle),
+                str(getattr(marked_piece, "GeometryAuthority", "")),
+                tuple(
+                    (
+                        str(getattr(obj, "PatternMarkId", "")),
+                        str(getattr(obj, "PatternMarkType", "")),
+                        str(getattr(obj, "SegmentId", "")),
+                        float(getattr(obj, "Position", 0.0)),
+                    )
+                    for obj in reloaded_front_marks
+                ),
             )
             if source_before != source_after:
-                raise RuntimeError("production export mutated authoritative PatternPiece state")
+                raise RuntimeError("production export mutated authoritative PatternPiece or PatternMark state")
             print(
-                "pattern-export=passed formats=SVG,DXF bytes=%s,%s"
-                % (export_results["SVG"], export_results["DXF"]),
+                "pattern-export=passed formats=SVG,DXF bytes=%s,%s notch=%s internal=%s seam=%s"
+                % (
+                    export_results["SVG"], export_results["DXF"],
+                    front_notch_id, front_internal_id, str(seam_11.SeamId)
+                ),
                 flush=True,
             )
+            evidence_path = os.environ.get("CLOTH_PRODUCTION_EXPORT_EVIDENCE", "").strip()
+            if evidence_path:
+                with open(evidence_path, "w", encoding="utf-8") as handle:
+                    handle.write("pattern-export-route=public-ui-task-panel\n")
+                    handle.write("formats=SVG,DXF\n")
+                    handle.write("piece_id=%s\n" % str(marked_piece.PieceId))
+                    handle.write("units=mm\n")
+                    handle.write("scale=1.0\n")
+                    handle.write("edge_ids=%s\n" % ",".join(metadata.get("edge_ids", ())))
+                    handle.write("seam_ids=%s\n" % ",".join(metadata.get("seam_ids", ())))
+                    handle.write("notch_ids=%s\n" % ",".join(metadata.get("notch_ids", ())))
+                    handle.write("internal_mark_ids=%s\n" % ",".join(metadata.get("internal_mark_ids", ())))
+                    handle.write("export-immutable=true\n")
+                    handle.write("deterministic=true\n")
 
             App.closeDocument(reloaded.Name)
             doc = None
