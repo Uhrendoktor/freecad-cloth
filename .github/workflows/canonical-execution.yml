@@ -167,10 +167,10 @@ jobs:
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
               cat >/tmp/run-canonical-garment-e2e.py <<PYTHON
-            import InitGui
-            import runpy
-            runpy.run_path("/workspace/tests/freecad_garment_e2e_smoke.py", run_name="__main__")
-            PYTHON
+          import InitGui
+          import runpy
+          runpy.run_path("/workspace/tests/freecad_garment_e2e_smoke.py", run_name="__main__")
+          PYTHON
               timeout --signal=TERM --kill-after=15s 8m /opt/freecad/AppRun /tmp/run-canonical-garment-e2e.py 2>&1 | tee -a /workspace/artifacts/canonical-garment-e2e.log
               test -s /workspace/artifacts/canonical-garment-e2e.log
             '
