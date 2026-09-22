@@ -88,6 +88,32 @@ def _native_edge_records(piece):
     return records
 
 
+def _native_edge_record_for_sketch_index(piece, edge):
+    """Resolve native Sketcher EdgeN through the authored semantic edge identity."""
+    sketch = getattr(piece, "Sketch", None)
+    if sketch is None or str(getattr(piece, "GeometryAuthority", "")) != "Sketcher":
+        return None
+    semantic_ids = tuple(
+        str(value).strip() for value in (getattr(sketch, "SemanticEdgeIds", ()) or ())
+    )
+    if edge < 0 or edge >= len(semantic_ids):
+        raise MissingEdgeReference(
+            f"native Sketcher seam edge {edge} is outside pattern piece {piece.PieceId}"
+        )
+    semantic_id = semantic_ids[edge]
+    if not semantic_id:
+        raise MissingEdgeReference(
+            f"native Sketcher seam edge {edge} is construction geometry on {piece.PieceId}"
+        )
+    records = _native_edge_records(piece) or ()
+    record = next((value for value in records if str(value["id"]) == semantic_id), None)
+    if record is None:
+        raise MissingEdgeReference(
+            f"native Sketcher semantic edge {semantic_id} is missing from pattern piece {piece.PieceId}"
+        )
+    return record
+
+
 def _edge_records(piece):
     """Expose native semantic edge records, with a legacy outline fallback."""
     native = _native_edge_records(piece)
@@ -121,9 +147,13 @@ def _seam_edge_id(piece, edge, prefix):
             execute(piece)
             records = _edge_records(piece)
     if isinstance(edge, int):
-        if edge < 0 or edge >= len(records):
-            raise MissingEdgeReference(f"seam edge {edge} is outside pattern piece {piece.PieceId}")
-        record = records[edge]
+        native = _native_edge_record_for_sketch_index(piece, edge)
+        if native is not None:
+            record = native
+        else:
+            if edge < 0 or edge >= len(records):
+                raise MissingEdgeReference(f"seam edge {edge} is outside pattern piece {piece.PieceId}")
+            record = records[edge]
         return record["id"], capture_edge_reference(piece.PieceId, record["id"], record["points"], record.get("provenance")).signature
     reference_id = str(edge)
     for record in records:
