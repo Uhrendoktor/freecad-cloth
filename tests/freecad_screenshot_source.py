@@ -366,7 +366,7 @@ def simulation():
         back,
         back_indices,
         positions,
-        targets=((0.30 * panel_width, 0.86 * garment_height), (0.70 * panel_width, 0.86 * garment_height)),
+        targets=((0.14 * panel_width, 0.97 * garment_height), (0.86 * panel_width, 0.97 * garment_height)),
     )
     # Keep the sewn shoulder endpoints one-sided while adding two deterministic
     # interior supports on the back panel to preserve its upper-torso shape.
