@@ -361,7 +361,14 @@ def simulation():
     panel_indices = proxy.panel_indices
     front_indices = tuple(panel_indices[pin_panels[0].Name])
     back_indices = tuple(panel_indices[pin_panels[1].Name])
-    front_pins = authored_shoulder_pins(front, front_indices, positions)
+    front_boundary_indices = tuple(dict.fromkeys(
+        index
+        for edge in getattr(proxy, "panel_boundary_edges", {}).get(pin_panels[0].Name, ())
+        for index in edge
+    ))
+    if not front_boundary_indices:
+        raise RuntimeError("visual tunic front panel has no authored boundary particle candidates")
+    front_pins = authored_shoulder_pins(front, front_boundary_indices, positions)
     back_pins = authored_shoulder_pins(back, back_indices, positions)
     # The two panels begin on opposite sides of the avatar. Pinning both sewn
     # shoulder endpoints would freeze each endpoint at its separated start
