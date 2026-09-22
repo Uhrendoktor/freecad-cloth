@@ -33,9 +33,9 @@ def select_edges(*items):
 
 
 doc = App.newDocument("SewingCreationSmoke")
-piece_a = add_pattern_piece(doc, PatternPiece("SmokeA", [(0, 0), (100, 0), (100, 80), (0, 80)], id="smoke-a"))
-piece_b = add_pattern_piece(doc, PatternPiece("SmokeB", [(0, 0), (100, 0), (100, 80), (0, 80)], id="smoke-b"))
-piece_c = add_pattern_piece(doc, PatternPiece("SmokeC", [(0, 0), (100, 0), (100, 80), (0, 80)], id="smoke-c"))
+piece_a = add_pattern_piece(doc, PatternPiece("SmokeA", [(0, 0), (100, 0), (100, 100), (0, 100)], id="smoke-a"))
+piece_b = add_pattern_piece(doc, PatternPiece("SmokeB", [(0, 0), (100, 0), (100, 100), (0, 100)], id="smoke-b"))
+piece_c = add_pattern_piece(doc, PatternPiece("SmokeC", [(0, 0), (100, 0), (100, 100), (0, 100)], id="smoke-c"))
 doc.recompute()
 
 before = {obj.Name for obj in doc.Objects}
@@ -76,7 +76,7 @@ invalid_mn_panel.reject()
 assert {obj.Name for obj in doc.Objects} == mn_before
 record("invalid-mn-partition-preview=passed")
 
-select_edges((piece_a, 0), (piece_a, 1), (piece_b, 0))
+select_edges((piece_a, 0), (piece_a, 1), (piece_b, 0), (piece_b, 1))
 mn_panel = SewingCreationTaskPanel("mn")
 assert any(getattr(obj, "SewingType", "") == "SewingNetwork" for obj in mn_panel.session.created)
 record("preview-mn=passed")
@@ -85,7 +85,11 @@ networks = [obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "Sew
 assert networks and networks[-1].Status == "Valid", "M:N commit did not leave a valid network"
 record("commit-mn=passed")
 
-LOG_PATH.write_text("\n".join(LOG) + "\n", encoding="utf-8")
-Gui.Selection.clearSelection()
-App.closeDocument(doc.Name)
-print("sewing-creation-smoke=passed", flush=True)
+try:
+    pass
+finally:
+    LOG_PATH.write_text("\n".join(LOG) + "\n", encoding="utf-8")
+    Gui.Selection.clearSelection()
+    if App.ActiveDocument is not None and App.ActiveDocument.Name == doc.Name:
+        App.closeDocument(doc.Name)
+    print("sewing-creation-smoke=completed", flush=True)
