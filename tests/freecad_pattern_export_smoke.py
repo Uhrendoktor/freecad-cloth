@@ -60,9 +60,9 @@ def close_public_task():
 doc = None
 try:
     record("smoke=started")
-    InitGui.ClothPatternWorkbench()
+    assert InitGui.ClothPatternWorkbench is not None
+    Gui.activateWorkbench("Cloth Pattern")
     record("workbench=initialized")
-    Gui.activateWorkbench("ClothPatternWorkbench")
     process_events()
 
     for command in ("ClothPattern_CreatePieceWithSketch", "ClothPattern_Export"):
