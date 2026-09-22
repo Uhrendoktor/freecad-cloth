@@ -52,7 +52,7 @@ replacements = {
         'front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())\n'
         '    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())\n'
         '    if len(front_edge_ids) < 8 or len(back_edge_ids) < 8 or any(not front_edge_ids[index] or not back_edge_ids[index] for index in (1, 2, 5, 6)): raise RuntimeError("canonical tunic fixture is missing authored semantic edge IDs")\n'
-        '    seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"),(front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"),(front_edge_ids[6], back_edge_ids[6], "TunicLeftSide"))\n'
+        '    seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"),(front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"),(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"))\n'
         '    for edge_a_id, edge_b_id, seam_id in seam_specs:\n'
         '        seam = Seam(str(front.PieceId), edge_a_id, str(back.PieceId), edge_b_id, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
         '        add_seam(doc, seam)\n'
@@ -104,14 +104,19 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
     if not simulated_positions: raise RuntimeError("Tissu backend returned no simulated particle positions")
     stitch_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
     if not stitch_pairs_by_seam: raise RuntimeError("authoritative seam check has no exact solver stitch provenance")
+    expected_edge_ids = {
+        "TunicRightSide": (f"{front.PieceId}:edge:1", f"{back.PieceId}:edge:1"),
+        "TunicRightShoulder": (f"{front.PieceId}:edge:2", f"{back.PieceId}:edge:2"),
+        "TunicLeftShoulder": (f"{front.PieceId}:edge:6", f"{back.PieceId}:edge:6"),
+        "TunicLeftSide": (f"{front.PieceId}:edge:7", f"{back.PieceId}:edge:7"),
+    }
     seam_gaps = []
     for seam, piece_a, piece_b in seam_records:
-        expected_a = f"{piece_a.PieceId}:edge:"
-        expected_b = f"{piece_b.PieceId}:edge:"
         edge_a_id = str(getattr(seam, "EdgeAId", ""))
         edge_b_id = str(getattr(seam, "EdgeBId", ""))
-        if not edge_a_id.startswith(expected_a) or not edge_b_id.startswith(expected_b):
-            raise RuntimeError("authoritative tunic seam lost semantic edge identity")
+        expected = expected_edge_ids.get(str(seam.SeamId))
+        if expected is None or (edge_a_id, edge_b_id) != expected:
+            raise RuntimeError("authoritative tunic seam has incorrect authored semantic edge identity")
         pairs = tuple(stitch_pairs_by_seam.get(str(seam.SeamId), ()))
         if not pairs:
             raise RuntimeError("authoritative seam check cannot resolve exact solver pairs for %s" % seam.SeamId)
