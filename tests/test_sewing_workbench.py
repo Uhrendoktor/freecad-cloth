@@ -96,18 +96,18 @@ def test_endpoint_alignment_uses_physical_arc_length_on_curved_edge():
     second_segment = math.hypot(3, 3)
     total_length = first_segment + second_segment
 
-    target_a = total_length / 3.0
-    t_a = target_a / first_segment
-    expected_a = (t_a, 3.0 * t_a)
+    target_a = total_length * (1.0 / 3.0)
+    t_a = (target_a - 0.0) / first_segment
+    expected_a = (0.0 + (1.0 - 0.0) * t_a, 0.0 + (3.0 - 0.0) * t_a)
 
-    target_b = total_length * 2.0 / 3.0
+    target_b = total_length * (2.0 / 3.0)
     t_b = (target_b - first_segment) / second_segment
-    expected_b = (1.0 + 3.0 * t_b, 3.0 * (1.0 - t_b))
+    expected_b = (1.0 + (4.0 - 1.0) * t_b, 3.0 + (0.0 - 3.0) * t_b)
 
-    assert abs(pairs[1][0].x - expected_a[0]) < 1e-9
-    assert abs(pairs[1][0].y - expected_a[1]) < 1e-9
-    assert abs(pairs[1][1].x - expected_b[0]) < 1e-9
-    assert abs(pairs[1][1].y - expected_b[1]) < 1e-9
+    assert pairs[1][0].x == expected_a[0]
+    assert pairs[1][0].y == expected_a[1]
+    assert pairs[1][1].x == expected_b[0]
+    assert pairs[1][1].y == expected_b[1]
 
     assert pairs[1][1].x == pairs[2][0].x
     assert pairs[1][1].y == pairs[2][0].y
