@@ -205,19 +205,12 @@ class SewingCreationTaskPanel:
         self.commit_button = QtWidgets.QPushButton("Commit")
         self.cancel_button = QtWidgets.QPushButton("Cancel")
         self.preview_button.clicked.connect(self.preview)
-        # Defer the native controller call until the QPushButton signal returns.
-        # This avoids closing the FreeCAD task view from inside its own custom
-        # button callback while retaining the visible Commit/Cancel controls.
-        try:
-            from PySide import QtCore
-        except ImportError:
-            from PySide2 import QtCore
-        self.commit_button.clicked.connect(
-            lambda: QtCore.QTimer.singleShot(0, self.Gui.Control.accept)
-        )
-        self.cancel_button.clicked.connect(
-            lambda: QtCore.QTimer.singleShot(0, self.Gui.Control.reject)
-        )
+        # Route visible buttons through the public panel lifecycle methods.
+        # The FreeCAD task controller does not expose a reject() API on all supported
+        # runtimes, so using the panel's own accept/reject handlers keeps the
+        # transaction and dialog lifecycle inside the public task-panel contract.
+        self.commit_button.clicked.connect(self.accept)
+        self.cancel_button.clicked.connect(self.reject)
         buttons.addWidget(self.preview_button)
         buttons.addWidget(self.commit_button)
         buttons.addWidget(self.cancel_button)
