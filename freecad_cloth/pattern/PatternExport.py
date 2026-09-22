@@ -3,7 +3,7 @@ import json
 from html import escape
 from math import cos, radians, sin
 from xml.etree import ElementTree
-from freecad_cloth.pattern.PatternDerivedGeometry import DerivedPattern, PatternMark, add_marks, derive_cut_boundary, mark_point, notch_point
+from freecad_cloth.pattern.PatternDerivedGeometry import DerivedPattern, Notch, PatternMark, add_marks, add_notches, derive_cut_boundary, mark_point, notch_point
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, PolylineSegment
 
 
@@ -15,8 +15,9 @@ def _sampled_sewing(pattern, curve_samples):
     return points
 
 
-def _metadata(pattern, units, piece_id="", seam_ids=(), derived=None, seam_allowance=0.0):
-    data={"version":1,"units":units,"edge_ids":[s.id for s in pattern.segments]}
+def _metadata(pattern, units, piece_id="", seam_ids=(), derived=None, seam_allowance=0.0, internal_mark_ids=None, semantic_edge_ids=None):
+    edge_values = [str(value) for value in (semantic_edge_ids if semantic_edge_ids is not None else (s.id for s in pattern.segments))]
+    data={"version":1,"units":units,"edge_ids":edge_values}
     if piece_id:
         data["piece_id"] = str(piece_id)
     seam_ids = tuple(str(value) for value in seam_ids if str(value))
@@ -29,6 +30,8 @@ def _metadata(pattern, units, piece_id="", seam_ids=(), derived=None, seam_allow
         data["seam_allowance_mm"] = float(seam_allowance)
         data["notch_ids"] = [str(value.id) for value in derived.notches]
         data["mark_ids"] = [str(value.id) for value in derived.marks]
+        if internal_mark_ids is not None:
+            data["internal_mark_ids"] = [str(value) for value in internal_mark_ids]
     return data
 
 
