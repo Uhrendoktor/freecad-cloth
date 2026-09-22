@@ -384,6 +384,23 @@ jobs:
           fi
           git commit -m "ci: publish stable README turntables"
           git push origin "HEAD:$branch"
+  agent-close-negative-814:
+    name: Close negative tunic A/B bookkeeping
+    if: ${{ github.event_name == 'pull_request' && github.head_ref == 'agent/admin-close-814' }}
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Close negative experiment and this temporary PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/pulls/817" -f state=closed
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/issues/814" -f state=closed -f state_reason=not_planned
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/pulls/${{ github.event.pull_request.number }}" -f state=closed
+
   benchmark:
     name: Measured FreeCAD workbench benchmark
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
