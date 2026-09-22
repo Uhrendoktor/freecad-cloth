@@ -173,3 +173,18 @@ def test_curved_correspondence_rejects_invalid_range():
         StartA=0.8; EndA=0.2; StartB=0.0; EndB=1.0; ReversedB=False
     report=correspondence_report(Seam(),100.0,100.0,0.05)
     assert report.status=="invalid_range" and not report.valid
+
+
+def test_sewing_gui_uses_persisted_relative_tolerance_contract():
+    from pathlib import Path
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "freecad_cloth"
+        / "sewing"
+        / "SewingGui.py"
+    ).read_text(encoding="utf-8")
+    assert 'getattr(obj,"RelativeTolerance",0.05)' in source
+    assert 'self.obj.RelativeTolerance=self.tolerance.value()/100.0' in source
+    assert 'float(getattr(self.obj,"RelativeTolerance",0.05))' in source
+    assert 'self.obj.Tolerance=self.tolerance.value()' not in source
+    assert 'float(self.obj.Tolerance))/max(1.0,float(self.obj.LengthA))' not in source
