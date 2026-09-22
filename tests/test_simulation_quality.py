@@ -81,6 +81,38 @@ class SimulationQualityTests(unittest.TestCase):
                 20.000001,
             )
 
+    def test_long_non_rectangular_authored_boundary_reconstructs_contiguous_chain(self):
+        piece = PatternPiece(
+            "LongNonRect",
+            [(0, 0), (130, 30), (100, 80), (40, 95), (0, 45)],
+            id="long-nonrect",
+        )
+        piece_obj = type("Piece", (), {
+            "SewingOutline": repr(piece.outline),
+            "DraftingBoundary": repr(piece.outline),
+            "PieceId": piece.id,
+            "Placement": None,
+        })()
+        positions, _triangles, boundary = quality_piece_mesh(piece_obj, 100.0, 20.0)
+
+        self.assertEqual(len(boundary), len(piece.outline))
+        self.assertGreaterEqual(len(boundary[0]), 3)
+        for edge_index, chain in enumerate(boundary):
+            self.assertGreaterEqual(len(chain), 2)
+            self.assertEqual(positions[chain[0]][:2], piece.outline[edge_index])
+            self.assertEqual(
+                positions[chain[-1]][:2],
+                piece.outline[(edge_index + 1) % len(piece.outline)],
+            )
+            spans = [
+                (
+                    (positions[left][0] - positions[right][0]) ** 2
+                    + (positions[left][1] - positions[right][1]) ** 2
+                ) ** 0.5
+                for left, right in zip(chain, chain[1:])
+            ]
+            self.assertLessEqual(max(spans), 20.000001)
+
     def test_refinement_preserves_authored_boundary_and_materially_tessellates(self):
         piece = PatternPiece("Test", [(0, 0), (100, 0), (100, 60), (0, 60)], id="test")
         piece_obj = type("Piece", (), {
