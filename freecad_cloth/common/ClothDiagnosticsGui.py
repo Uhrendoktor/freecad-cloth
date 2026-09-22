@@ -17,14 +17,28 @@ def _scene(doc):
 
 def _simulation_data(scene):
     from freecad_cloth.common.ClothDiagnostics import analyze_mesh
+    if not bool(getattr(scene, "FiniteState", True)):
+        raise RuntimeError("diagnostics blocked: simulation state is non-finite")
+    target = getattr(scene, "DrapeTarget", None)
+    if target is None:
+        raise RuntimeError("diagnostics blocked: no persistent DrapeTarget is assigned")
+    try:
+        from freecad_cloth.simulation.DrapeTarget import target_status
+        status = target_status(target)
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        raise RuntimeError("diagnostics blocked: cannot inspect DrapeTarget: %s" % exc)
+    if status["state"] != "ready":
+        raise RuntimeError("diagnostics blocked: %s" % status["message"])
     proxy = getattr(scene, "Proxy", None)
     backend = getattr(proxy, "backend", None)
-    system = getattr(backend, "system", None)
-    initial_backend = getattr(proxy, "backend", None)
-    initial = getattr(initial_backend, "_initial", None)
-    if system is None or initial is None:
+    initial = getattr(backend, "_initial", None)
+    if backend is None or initial is None:
         raise RuntimeError("run or step the simulation before opening diagnostics")
-    current = tuple(p.position() for p in system.particles)
+    system = getattr(backend, "system", None)
+    if system is not None:
+        current = tuple(p.position() for p in system.particles)
+    else:
+        current = tuple(backend.positions())
     rest = tuple(p.position() for p in initial.particles)
     stretch_limit = float(getattr(scene, "FabricStretch", 0.02))
     panels = []
@@ -61,7 +75,7 @@ def _metric_color(value, lo, hi):
 def create_diagnostic_map(scene, metric="stress"):
     """Create a derived Mesh::Feature colored by one diagnostic metric."""
     App, _Gui, _QtWidgets = _qt()
-    from freecad_cloth.common.ClothDiagnostics import summarize
+    from freecad_cloth.common.ClothDiagnostics import metric_definition, summarize
     panels = _simulation_data(scene)
     created = []
     for panel, triangles, result in panels:
@@ -74,10 +88,17 @@ def create_diagnostic_map(scene, metric="stress"):
         obj.Label = "Diagnostic %s: %s" % (metric.title(), getattr(panel, "Label", panel.Name))
         obj.addProperty("App::PropertyString", "DiagnosticType", "Diagnostics").DiagnosticType = metric
         obj.addProperty("App::PropertyString", "Summary", "Diagnostics").Summary = repr(summarize(result))
+        definition = metric_definition(metric)
+        obj.addProperty("App::PropertyString", "MetricFormula", "Diagnostics").MetricFormula = definition["formula"]
+        obj.addProperty("App::PropertyString", "MetricUnits", "Diagnostics").MetricUnits = definition["units"]
         obj.Mesh = source_mesh.copy()
         colors = [_metric_color(value, lo, hi) for value in values]
         if len(colors) == obj.Mesh.CountFacets:
-            obj.ViewObject.DiffuseColor = colors
+            if "FaceColors" not in getattr(obj, "PropertiesList", ()):
+                obj.addProperty("App::PropertyColorList", "FaceColors", "Diagnostics")
+            obj.FaceColors = colors
+            if hasattr(obj.ViewObject, "Coloring"):
+                obj.ViewObject.Coloring = True
         created.append(obj)
     scene.Document.recompute()
     return created
@@ -92,26 +113,37 @@ class DiagnosticsTaskPanel:
         self.metric = QtWidgets.QComboBox()
         self.metric.addItems(("stress", "strain", "fit", "pressure"))
         layout.addWidget(self.metric)
+        self.definition = QtWidgets.QLabel()
+        self.definition.setWordWrap(True)
+        layout.addWidget(self.definition)
         self.status = QtWidgets.QLabel("Select a diagnostic map.")
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
         self.refresh_button = QtWidgets.QPushButton("Refresh analysis")
         self.map_button = QtWidgets.QPushButton("Create diagnostic map")
+        self.export_button = QtWidgets.QPushButton("Export analysis data…")
         layout.addWidget(self.refresh_button)
         layout.addWidget(self.map_button)
+        layout.addWidget(self.export_button)
         self.refresh_button.clicked.connect(self.refresh)
         self.map_button.clicked.connect(self.create_map)
+        self.export_button.clicked.connect(self.export_data)
         layout.addStretch(1)
         self.refresh()
 
     def refresh(self):
         try:
-            from freecad_cloth.common.ClothDiagnostics import summarize
+            from freecad_cloth.common.ClothDiagnostics import metric_definition, summarize
             panels = _simulation_data(self.scene)
             summaries = [summarize(result) for _panel, _triangles, result in panels]
             metric = str(self.metric.currentText())
             values = [value for _panel, _triangles, result in panels for value in result.metric(metric)]
             lo, hi = _metric_range(values)
+            definition = metric_definition(metric)
+            self.definition.setText(
+                "Formula: %s | Units: %s | Read-only derived analysis" %
+                (definition["formula"], definition["units"])
+            )
             self.status.setText(
                 "%s map: %d faces | range %.5g … %.5g | panels %d" %
                 (metric.title(), len(values), lo, hi, len(summaries))
@@ -120,6 +152,26 @@ class DiagnosticsTaskPanel:
         except RuntimeError as exc:
             self.status.setText(str(exc))
             return []
+
+    def export_data(self):
+        try:
+            from freecad_cloth.common.ClothDiagnostics import export_json
+            panels = _simulation_data(self.scene)
+            if not panels:
+                raise RuntimeError("simulation has no diagnostic results")
+            _App, _Gui, QtWidgets = _qt()
+            path, _selected = QtWidgets.QFileDialog.getSaveFileName(
+                self.form, "Export Cloth Analysis", "", "JSON (*.json)"
+            )
+            if not path:
+                return []
+            export_json(_merge_results(panels), path)
+            self.status.setText("Exported deterministic analysis data: %s" % path)
+            return path
+        except (OSError, RuntimeError, ValueError, TypeError) as exc:
+            self.status.setText(str(exc))
+            return []
+
 
     def create_map(self):
         try:
@@ -152,3 +204,18 @@ def show_diagnostics(scene=None):
     panel = DiagnosticsTaskPanel(scene)
     Gui.Control.showDialog(panel)
     return panel
+\n\n\ndef _merge_results(panels):
+    from freecad_cloth.common.ClothDiagnostics import DiagnosticResult
+    strain = tuple(value for _panel, _triangles, result in panels for value in result.strain)
+    stress = tuple(value for _panel, _triangles, result in panels for value in result.stress)
+    fit = tuple(value for _panel, _triangles, result in panels for value in result.fit)
+    pressure = tuple(value for _panel, _triangles, result in panels for value in result.pressure)
+    values = strain + stress + fit + pressure
+    return DiagnosticResult(
+        strain=strain,
+        stress=stress,
+        fit=fit,
+        pressure=pressure,
+        minimum=min(values) if values else 0.0,
+        maximum=max(values) if values else 0.0,
+    )
