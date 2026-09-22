@@ -344,7 +344,7 @@ def simulation():
     front_pins = authored_shoulder_pins(front, front_indices, positions)
     back_pins = authored_shoulder_pins(back, back_indices, positions)
     scene.PinSelection = [str(i) for i in front_pins + back_pins]
-    log("pin-map authored front=%s back-local=%s back-global=%s" % (front_pins, back_pins_local, back_pins)); doc.recompute()
+    log("pin-map authored front=%s back-global=%s" % (front_pins, back_pins)); doc.recompute()
     for source in (doc.getObject("VisualTunicFront"), doc.getObject("VisualTunicBack")):
         if source is not None: source.ViewObject.Visibility = False
         sketch = getattr(source, "Sketch", None) if source is not None else None
