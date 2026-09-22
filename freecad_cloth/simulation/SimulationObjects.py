@@ -140,12 +140,12 @@ def _simulation_source_signature(obj, pieces):
 
 
 def _piece_mesh(piece, start_height):
-    from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
     from freecad_cloth.pattern.PatternMesh import triangulate
+    from freecad_cloth.common.PatternRuntime import resolve_piece_pattern
     import FreeCAD as App
-    points = _outline_points(piece)
-    segments = [LineSegment(f"{piece.PieceId}:edge:{i}", points[i], points[(i + 1) % len(points)]) for i in range(len(points))]
-    mesh = triangulate(ParametricPattern(segments))
+    pattern = resolve_piece_pattern(piece)
+    semantic_ids = tuple(segment.id for segment in pattern.segments)
+    mesh = triangulate(pattern)
     placement = getattr(piece, "Placement", None)
     vertices = []
     for x, y in mesh.vertices:
@@ -172,15 +172,11 @@ def _piece_mesh(piece, start_height):
             boundary_groups[key] = [int(boundary[index]), int(boundary[(index + 1) % len(boundary)])]
     semantic_order = tuple(boundary_groups)
     by_index = {}
-    for edge_index in range(len(points)):
-        key = f"{piece.PieceId}:edge:{edge_index}"
-        if key in boundary_groups:
-            by_index[edge_index] = tuple(boundary_groups[key])
-        elif edge_index < len(boundary):
-            by_index[edge_index] = (int(boundary[edge_index]), int(boundary[(edge_index + 1) % len(boundary)]))
-        else:
-            raise ValueError(f"pattern mesh has no boundary provenance for edge {edge_index}")
-    return vertices, mesh.triangles, tuple(tuple(v for v in by_index[index]) for index in range(len(points)))
+    for edge_index, semantic_id in enumerate(semantic_ids):
+        if semantic_id not in boundary_groups:
+            raise ValueError(f"pattern mesh has no boundary provenance for edge {edge_index}: {semantic_id}")
+        by_index[edge_index] = tuple(boundary_groups[semantic_id])
+    return vertices, mesh.triangles, tuple(tuple(v for v in by_index[index]) for index in range(len(semantic_ids)))
 
 
 def _mesh_constraints(positions, triangles):
