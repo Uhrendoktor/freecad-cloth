@@ -23,6 +23,12 @@ def _close_task():
     if Gui.Control.activeDialog():
         Gui.Control.closeDialog()
         _events()
+        invalid_panel = begin_seam_creation()
+        invalid_panel.session.selected = [(curved, 2), (curved, 3)]
+        if invalid_panel.refresh_preview() or "different pattern pieces" not in invalid_panel.preview.text():
+            raise RuntimeError("staged Sewing preview did not visibly reject same-piece selection")
+        invalid_panel.reject()
+        _events()
 
 
 def _activate(name, commands):
