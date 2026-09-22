@@ -70,6 +70,7 @@ def _has_any_selected_pattern_edges():
 
 
 _ACTIVE_STAGED_SEWING_TASK_PANEL = None
+_ACTIVE_SEWING_OPERATION_TASK_PANEL = None
 
 
 def get_active_staged_sewing_task_panel():
