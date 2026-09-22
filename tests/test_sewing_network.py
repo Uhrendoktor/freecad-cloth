@@ -65,7 +65,7 @@ class SewingNetworkTests(unittest.TestCase):
         self.assertAlmostEqual(seam.start_b, 0.1)
         self.assertAlmostEqual(seam.end_b, 0.7)
 
-    def test_two_to_two_physical_member_ranges_are_proportional():
+    def test_two_to_two_physical_member_ranges_are_proportional(self):
         seams = build_mn_seams(
             "mn-22",
             [SewingMember("A", 0), SewingMember("A", 1)],
