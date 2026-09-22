@@ -131,7 +131,31 @@ def _outline(piece):
     return [(float(x), float(y)) for x, y in ast.literal_eval(str(piece.SewingOutline))]
 
 
-def _seam_overlay(doc, name, seam_records, simulated=None):
+def _polyline_range(points, start, end):
+    if len(points) < 2:
+        return list(points)
+    cumulative=[0.0]
+    for left,right in zip(points,points[1:]): cumulative.append(cumulative[-1]+(right-left).Length)
+    total=cumulative[-1]
+    if total <= 1e-9: return [points[0],points[-1]]
+    start=float(start); end=float(end)
+    def sample(t):
+        target=max(0.0,min(1.0,t))*total
+        for i in range(len(points)-1):
+            span=cumulative[i+1]-cumulative[i]
+            if target <= cumulative[i+1] or i == len(points)-2:
+                u=0.0 if span <= 1e-9 else (target-cumulative[i])/span
+                return points[i]+(points[i+1]-points[i])*u
+        return points[-1]
+    result=[sample(start)]
+    for i in range(1,len(points)-1):
+        t=cumulative[i]/total
+        if start < t < end: result.append(points[i])
+    result.append(sample(end))
+    return result
+
+
+def _seam_overlay(doc, name, seam_records, simulated=None, proxy=None):
     import Part
     seam_ids = [str(getattr(seam, "SeamId", "")).strip() for seam, _, _ in seam_records]
     if not seam_ids or any(not seam_id for seam_id in seam_ids):
@@ -162,22 +186,27 @@ def _seam_overlay(doc, name, seam_records, simulated=None):
                     )
                     return piece.Placement.multVec(local)
             else:
-                vertices = simulated[piece.Name]
-                edge_a = vertices[edge]
-                edge_b = vertices[(edge + 1) % len(vertices)]
-                def point(t):
-                    return App.Vector(
-                        edge_a.x + (edge_b.x - edge_a.x) * t,
-                        edge_a.y + (edge_b.y - edge_a.y) * t,
-                        edge_a.z + (edge_b.z - edge_a.z) * t + 2.0,
-                    )
+                if proxy is None:
+                    raise RuntimeError("simulated seam overlay requires solver boundary provenance")
+                panel_name = next((panel for panel, source in proxy.panel_piece_names.items() if source == piece.Name), None)
+                if panel_name is None:
+                    raise RuntimeError("missing simulated panel mapping for %s" % piece.Name)
+                positions = proxy.backend.positions()
+                edge_points = [App.Vector(*positions[index]) for index in proxy.panel_boundary_edges[panel_name][edge]]
+                if reverse:
+                    start, end = 1.0 - end, 1.0 - start
+                sampled = _polyline_range(edge_points, start, end)
+                if reverse:
+                    sampled.reverse()
+                segments.append(Part.makePolygon([App.Vector(point.x, point.y, point.z + 2.0) for point in sampled]))
+                continue
             if reverse:
                 start, end = 1.0 - end, 1.0 - start
             segments.append(Part.makeLine(point(start), point(end)))
 
         obj_name = "%s%02d" % (name, index)
         obj = doc.getObject(obj_name) or doc.addObject("Part::Feature", obj_name)
-        obj.Label = "Tunic seam %s â€” %s" % (seam_id, "simulated" if simulated is not None else "authored")
+        obj.Label = "Tunic seam %s"éÝyø§yÔ %s" % (seam_id, "simulated" if simulated is not None else "authored")
         obj.Shape = Part.makeCompound(segments) if segments else Part.Shape()
         obj.ViewObject.LineColor = colors[seam_id]
         obj.ViewObject.LineWidth = 5.0
@@ -186,27 +215,14 @@ def _seam_overlay(doc, name, seam_records, simulated=None):
         overlays.append(obj)
     return overlays
 
-def _boundary_points(panel, count):
-    points = panel.Mesh.Points
-    if len(points) < count:
-        raise RuntimeError("drape panel exposes fewer mesh points than pattern boundary vertices")
-    return tuple(points[i] for i in range(count))
-
-
-def _seam_endpoint_gap(panels, seam_records):
-    front_points = _boundary_points(panels[0], 8)
-    back_points = _boundary_points(panels[1], 8)
+def _seam_endpoint_gap(proxy, seam_records):
+    if proxy is None or proxy.backend is None:
+        raise RuntimeError("simulation seam gap requires a live solver proxy")
+    positions = proxy.backend.positions()
     gaps = []
     for seam, _, _ in seam_records:
-        ea, eb = int(seam.EdgeA), int(seam.EdgeB)
-        a0, a1 = front_points[ea], front_points[(ea + 1) % 8]
-        b0, b1 = back_points[eb], back_points[(eb + 1) % 8]
-        if bool(seam.ReversedB):
-            b0, b1 = b1, b0
-        gaps.extend([
-            (App.Vector(a0.x, a0.y, a0.z) - App.Vector(b0.x, b0.y, b0.z)).Length,
-            (App.Vector(a1.x, a1.y, a1.z) - App.Vector(b1.x, b1.y, b1.z)).Length,
-        ])
+        seam_id = str(getattr(seam, "SeamId", "")).strip()
+        gaps.extend((App.Vector(*positions[left]) - App.Vector(*positions[right])).Length for left,right in proxy.seam_stitch_pairs.get(seam_id, ()))
     return max(gaps) if gaps else 0.0
 
 
@@ -249,8 +265,8 @@ def build_simulation_state(doc):
     seam_records = []
     seam_specs = (
         (1, 1, False, "TunicRightSide"),
-        (3, 3, False, "TunicRightShoulder"),
-        (5, 5, False, "TunicLeftShoulder"),
+        (2, 2, False, "TunicRightShoulder"),
+        (6, 6, False, "TunicLeftShoulder"),
         (7, 7, False, "TunicLeftSide"),
     )
     for edge_a, edge_b, reversed_b, seam_id in seam_specs:
@@ -350,12 +366,10 @@ def main():
         if any(panel.Mesh.CountFacets <= 10 for panel in panels):
             raise RuntimeError("draped tunic panel mesh is empty")
         front, back = pieces
-        simulated = {
-            front.Name: _boundary_points(panels[0], len(_outline(front))),
-            back.Name: _boundary_points(panels[1], len(_outline(back))),
-        }
-        _seam_overlay(doc, "TunicSeamsSimulated", seam_records, simulated)
-        seam_gap = _seam_endpoint_gap(panels, seam_records)
+        simulated = True
+        proxy = getattr(scene, "Proxy", None)
+        _seam_overlay(doc, "TunicSeamsSimulated", seam_records, simulated, proxy=proxy)
+        seam_gap = _seam_endpoint_gap(proxy, seam_records)
         log("simulation-seam-diagnostic max_endpoint_gap_mm=%.2f" % seam_gap)
         backend = getattr(getattr(scene, "Proxy", None), "_base_or_restore", lambda: None)()
         backend_name = getattr(getattr(backend, "backend", None), "name", "unknown") if backend is not None else "unknown"
