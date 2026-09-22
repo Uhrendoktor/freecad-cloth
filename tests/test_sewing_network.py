@@ -97,31 +97,31 @@ class SewingNetworkTests(unittest.TestCase):
         self.assertEqual(network.Status, "Invalid")
         self.assertEqual(network.InvalidReason, "Invalid member seam(s): rel-1-1-1: Changed reference")
 
+    def test_network_uses_same_relative_correspondence_contract(self):
+        piece_a = SimpleNamespace(PieceId="A", PatternType="PatternPiece", Width=100.0, Height=60.0, SewingOutline=repr([(0,0),(100,0),(100,60),(0,60)]))
+        piece_b = SimpleNamespace(PieceId="B", PatternType="PatternPiece", Width=106.0, Height=60.0, SewingOutline=repr([(0,0),(106,0),(106,60),(0,60)]))
+        seam = SimpleNamespace(
+            SeamId="rel-2-1-1", Status="Valid", StitchGroup="rel-2", PieceA="A", PieceB="B",
+            EdgeA=0, EdgeB=0, StartA=0.0, EndA=1.0, StartB=0.0, EndB=1.0,
+        )
+        doc = SimpleNamespace(Objects=[piece_a, piece_b, seam])
+        piece_a.Document = doc
+        piece_b.Document = doc
+        seam.Document = doc
+        network = SimpleNamespace(
+            Seams=(seam,), RelationshipId="rel-2", Status="Valid", InvalidReason="", SegmentCount=0,
+            LengthA=0.0, LengthB=0.0, LengthDifference=0.0, RelativeTolerance=0.05,
+            CorrespondenceStatus="valid", CorrespondenceMessage="", CorrespondenceRecovery="",
+            Tolerance=0.5,
+        )
+        SewingNetworkProxy().execute(network)
+        self.assertEqual(network.CorrespondenceStatus, "length_mismatch")
+        self.assertEqual(network.Status, "Length mismatch")
+        self.assertIn("edit the pattern", network.CorrespondenceRecovery)
+
     def test_all_valid_member_statuses_have_no_invalid_reason(self):
         seam = _SeamStatus("rel-1-1-1", "Valid")
         self.assertEqual(network_invalid_reason([seam]), "")
-
-    def test_network_uses_shared_relative_mismatch_contract(self):
-        class Doc:
-            Objects = ()
-        a = SimpleNamespace(
-            SeamId="rel-1-1-1", Status="Valid", StitchGroup="rel-1", Document=Doc(),
-            PieceA="A", PieceB="B", EdgeA=0, EdgeB=0, StartA=0.0, EndA=1.0, StartB=0.0, EndB=1.0,
-        )
-        network = SimpleNamespace(
-            Seams=(a,), RelationshipId="rel-1", Status="Valid", InvalidReason="",
-            SegmentCount=1, LengthA=100.0, LengthB=106.0, LengthDifference=6.0,
-            RelativeTolerance=0.05,
-        )
-        import freecad_cloth.sewing.SewingNetwork as module
-        old = module._network_lengths
-        module._network_lengths = lambda seams: (100.0, 106.0)
-        try:
-            SewingNetworkProxy().execute(network)
-        finally:
-            module._network_lengths = old
-        self.assertEqual(network.Status, "Length mismatch")
-        self.assertEqual(network.CorrespondenceStatus, "length_mismatch")
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Iterable, List, Sequence, Tuple
 
 from freecad_cloth.pattern.PatternModel import Seam
-from freecad_cloth.sewing.SewingCorrespondence import analyze_correspondence, correspondence_status_label
+from freecad_cloth.sewing.SewingCorrespondence import analyze_correspondence, correspondence_recovery
 
 
 @dataclass(frozen=True)
@@ -236,13 +236,21 @@ class SewingNetworkProxy:
         obj.LengthA = total_a
         obj.LengthB = total_b
         obj.LengthDifference = abs(total_a - total_b)
-        report = analyze_correspondence(
+        relative_tolerance = max(
+            0.0, min(0.999999, float(getattr(obj, "RelativeTolerance", 0.05)))
+        )
+        correspondence = analyze_correspondence(
             total_a,
             total_b,
-            length_tolerance=max(0.0, min(0.99, float(getattr(obj, "RelativeTolerance", 0.05)))),
+            length_tolerance=relative_tolerance,
         )
-        obj.Status = correspondence_status_label(report)
-        obj.CorrespondenceStatus = str(report.status)
+        if hasattr(obj, "CorrespondenceStatus"):
+            obj.CorrespondenceStatus = correspondence.status
+        if hasattr(obj, "CorrespondenceMessage"):
+            obj.CorrespondenceMessage = correspondence.message
+        if hasattr(obj, "CorrespondenceRecovery"):
+            obj.CorrespondenceRecovery = correspondence_recovery(correspondence.status)
+        obj.Status = "Valid" if correspondence.valid else "Length mismatch"
 
 
 def add_sewing_network(doc, seams, relationship_id, name="SewingNetwork"):
@@ -265,12 +273,17 @@ def add_sewing_network(doc, seams, relationship_id, name="SewingNetwork"):
     obj.addProperty("App::PropertyLength", "Tolerance", "Validation").Tolerance = 0.5
     obj.addProperty("App::PropertyFloat", "RelativeTolerance", "Validation").RelativeTolerance = 0.05
     obj.addProperty("App::PropertyString", "CorrespondenceStatus", "Validation").CorrespondenceStatus = "valid"
+    obj.addProperty("App::PropertyString", "CorrespondenceMessage", "Validation").CorrespondenceMessage = "seam correspondence is valid"
+    obj.addProperty("App::PropertyString", "CorrespondenceRecovery", "Validation").CorrespondenceRecovery = "no repair required"
     obj.addProperty("App::PropertyLength", "LengthA", "Validation").LengthA = 0.0
     obj.addProperty("App::PropertyLength", "LengthB", "Validation").LengthB = 0.0
     obj.addProperty("App::PropertyLength", "LengthDifference", "Validation").LengthDifference = 0.0
     obj.addProperty("App::PropertyString", "Status", "Validation").Status = "Incomplete"
     obj.addProperty("App::PropertyString", "InvalidReason", "Validation").InvalidReason = ""
     obj.setEditorMode("InvalidReason", 1)
+    obj.setEditorMode("CorrespondenceStatus", 1)
+    obj.setEditorMode("CorrespondenceMessage", 1)
+    obj.setEditorMode("CorrespondenceRecovery", 1)
     obj.Proxy = SewingNetworkProxy()
     obj.Proxy.execute(obj)
     return obj

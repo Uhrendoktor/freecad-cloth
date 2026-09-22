@@ -11,6 +11,7 @@ from freecad_cloth.sewing.SewingCorrespondence import (
     STATUS_REVERSED,
     STATUS_VALID,
     analyze_correspondence,
+    correspondence_recovery,
     correspondence_samples,
     arc_length_vertex_indices,
     map_parameter,
@@ -69,3 +70,10 @@ def test_bad_length_inputs_are_rejected():
         analyze_correspondence(0.0, 10.0)
     with pytest.raises(ValueError, match="tolerance"):
         analyze_correspondence(10.0, 10.0, length_tolerance=1.0)
+
+
+def test_recovery_message_is_deterministic_by_status():
+    assert correspondence_recovery(STATUS_VALID) == "no repair required"
+    assert "reverse B" in correspondence_recovery(STATUS_REVERSED)
+    assert "edit the pattern" in correspondence_recovery(STATUS_LENGTH_MISMATCH)
+    assert "reset the seam ranges" in correspondence_recovery(STATUS_INVALID_RANGE)

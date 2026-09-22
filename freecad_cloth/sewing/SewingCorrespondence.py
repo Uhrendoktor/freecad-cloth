@@ -18,6 +18,22 @@ STATUS_LENGTH_MISMATCH = "length_mismatch"
 STATUS_INVALID_RANGE = "invalid_range"
 
 
+_RECOVERY_BY_STATUS = {
+    STATUS_VALID: "no repair required",
+    STATUS_REVERSED: "reverse B correspondence or keep the explicit reversal",
+    STATUS_LENGTH_MISMATCH: "edit the pattern geometry or seam ranges; do not hide the mismatch with tolerance",
+    STATUS_INVALID_RANGE: "reset the seam ranges to 0..1 or edit them to a positive normalized interval",
+}
+
+
+def correspondence_recovery(status: str) -> str:
+    """Return one deterministic recovery instruction for a correspondence status."""
+    try:
+        return _RECOVERY_BY_STATUS[str(status)]
+    except KeyError as exc:
+        raise ValueError("unknown sewing correspondence status: %s" % status) from exc
+
+
 @dataclass(frozen=True)
 class CorrespondenceReport:
     """Deterministic validation result for a pair of seam ranges."""
@@ -34,16 +50,6 @@ class CorrespondenceReport:
         """Return whether the correspondence is usable for sewing."""
         return self.status in {STATUS_VALID, STATUS_REVERSED}
 
-
-def correspondence_status_label(report: CorrespondenceReport) -> str:
-    """Return the shared persisted Status label for sewing objects."""
-    if report.status in {STATUS_VALID, STATUS_REVERSED}:
-        return "Valid"
-    if report.status == STATUS_LENGTH_MISMATCH:
-        return "Length mismatch"
-    if report.status == STATUS_INVALID_RANGE:
-        return "Invalid range"
-    return "Invalid"
 
 def _range_is_valid(start: float, end: float) -> bool:
     return (
