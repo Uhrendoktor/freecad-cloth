@@ -168,14 +168,14 @@ jobs:
               set -euo pipefail
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
-              python3 -c '\''import triangle; print("triangle-import=passed", flush=True)'\''
+              python3 -c '\''import triangle; print("triangle-import=passed", flush=True)'\'' | tee -a /workspace/artifacts/canonical-garment-e2e.log
               printf "freecad-launch=starting\\n" >> /workspace/artifacts/canonical-garment-e2e.log
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              printf "%s\\n" "import InitGui" "import runpy" "runpy.run_path(\"/workspace/tests/freecad_garment_e2e_smoke.py\", run_name=\"__main__\")" >/tmp/run-canonical-garment-e2e.py
+              printf "%s\\n" "init_gui = \"/workspace/InitGui.py\"" "exec(compile(open(init_gui, encoding=\"utf-8\").read(), init_gui, \"exec\"), globals(), globals())" "import runpy" "runpy.run_path(\"/workspace/tests/freecad_garment_e2e_smoke.py\", run_name=\"__main__\")" >/tmp/run-canonical-garment-e2e.py
               timeout --signal=TERM --kill-after=15s 8m /opt/freecad/AppRun /tmp/run-canonical-garment-e2e.py 2>&1 | tee -a /workspace/artifacts/canonical-garment-e2e.log
               test -s /workspace/artifacts/canonical-garment-e2e.log
             '
