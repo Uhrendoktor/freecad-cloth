@@ -15,8 +15,8 @@ def _sampled_sewing(pattern, curve_samples):
     return points
 
 
-def _metadata(pattern, units, piece_id="", seam_ids=(), derived=None, seam_allowance=0.0, internal_mark_ids=None):
-    data={"version":1,"units":units,"edge_ids":[s.id for s in pattern.segments]}
+def _metadata(pattern, units, piece_id="", seam_ids=(), derived=None, seam_allowance=0.0, internal_mark_ids=None, semantic_edge_ids=None):
+    data={"version":1,"units":units,"edge_ids":[str(value) for value in (semantic_edge_ids if semantic_edge_ids is not None else (s.id for s in pattern.segments))]}
     if piece_id:
         data["piece_id"] = str(piece_id)
     seam_ids = tuple(str(value) for value in seam_ids if str(value))
@@ -34,7 +34,7 @@ def _metadata(pattern, units, piece_id="", seam_ids=(), derived=None, seam_allow
     return data
 
 
-def to_svg(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm", derived: DerivedPattern | None = None, piece_id: str = "", seam_ids=(), seam_allowance: float = 0.0, internal_mark_ids=None) -> str:
+def to_svg(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm", derived: DerivedPattern | None = None, piece_id: str = "", seam_ids=(), seam_allowance: float = 0.0, internal_mark_ids=None, semantic_edge_ids=None) -> str:
     if not units.strip(): raise ValueError("units must not be empty")
     sewing=_sampled_sewing(pattern,curve_samples)
     if derived is not None and derived.sewing_boundary is not pattern: raise ValueError("derived pattern belongs to a different sewing boundary")
@@ -45,7 +45,7 @@ def to_svg(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm
     def xy(point): return (point[0]-min_x,height-(point[1]-min_y))
     def path(points,closed=True):
         coords=[xy(p) for p in points]; return "M "+" L ".join(f"{_fmt(x)},{_fmt(y)}" for x,y in coords)+(" Z" if closed else "")
-    edge_ids=" ".join(escape(s.id,quote=True) for s in pattern.segments); metadata=json.dumps(_metadata(pattern,units,piece_id,seam_ids,derived,seam_allowance,internal_mark_ids),sort_keys=True,separators=(",",":"))
+    edge_values=tuple(str(value) for value in (semantic_edge_ids if semantic_edge_ids is not None else (s.id for s in pattern.segments))); edge_ids=" ".join(escape(value,quote=True) for value in edge_values); metadata=json.dumps(_metadata(pattern,units,piece_id,seam_ids,derived,seam_allowance,internal_mark_ids,edge_values),sort_keys=True,separators=(",",":"))
     lines=[f'<svg xmlns="http://www.w3.org/2000/svg" width="{_dim(width)}{escape(units)}" height="{_dim(height)}{escape(units)}" viewBox="0 0 {_fmt(width)} {_fmt(height)}" data-units="{escape(units,quote=True)}" data-edge-ids="{edge_ids}" data-piece-id="{escape(str(piece_id),quote=True)}">',f'  <metadata>{escape(metadata)}</metadata>',f'  <g id="sewing-boundary" data-edge-ids="{edge_ids}"><path d="{path(sewing)}" fill="none"/></g>']
     if cut_edges:
         lines.append('  <g id="cut-boundary">')
@@ -63,7 +63,7 @@ def to_svg(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm
     lines.append('</svg>'); return "\n".join(lines)+"\n"
 
 
-def to_dxf(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm", derived: DerivedPattern | None = None, piece_id: str = "", seam_ids=(), seam_allowance: float = 0.0, internal_mark_ids=None) -> str:
+def to_dxf(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm", derived: DerivedPattern | None = None, piece_id: str = "", seam_ids=(), seam_allowance: float = 0.0, internal_mark_ids=None, semantic_edge_ids=None) -> str:
     if not units.strip(): raise ValueError("units must not be empty")
     sewing=_sampled_sewing(pattern,curve_samples)
     if derived is not None and derived.sewing_boundary is not pattern: raise ValueError("derived pattern belongs to a different sewing boundary")
@@ -81,7 +81,7 @@ def to_dxf(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm
             x,y=notch_point(pattern,notch); polyline([(x,y),(x,y+notch.depth)],"MARK",False)
         for mark in derived.marks:
             x,y=mark_point(pattern,mark); angle=radians(mark.angle); dx,dy=cos(angle)*mark.length/2,sin(angle)*mark.length/2; polyline([(x-dx,y-dy),(x+dx,y+dy)],"MARK",False)
-    metadata=json.dumps(_metadata(pattern,units,piece_id,seam_ids,derived,seam_allowance,internal_mark_ids),sort_keys=True,separators=(",",":")); lines=["0","SECTION","2","HEADER","9","$COMMENT","1",metadata,"0","ENDSEC","0","SECTION","2","ENTITIES"]
+    metadata=json.dumps(_metadata(pattern,units,piece_id,seam_ids,derived,seam_allowance,internal_mark_ids,semantic_edge_ids),sort_keys=True,separators=(",",":")); lines=["0","SECTION","2","HEADER","9","$COMMENT","1",metadata,"0","ENDSEC","0","SECTION","2","ENTITIES"]
     for entity in entities: lines.extend(entity)
     lines += ["0","ENDSEC","0","EOF",""]; return "\n".join(lines)
 
@@ -112,7 +112,7 @@ def from_svg_metadata(svg: str) -> dict:
     return data
 
 
-def validate_export(pattern: ParametricPattern, exported: str, format: str, curve_samples: int = 32, units: str = "mm", derived: DerivedPattern | None = None, piece_id: str = "", seam_ids=(), seam_allowance: float = 0.0, internal_mark_ids=None) -> dict:
+def validate_export(pattern: ParametricPattern, exported: str, format: str, curve_samples: int = 32, units: str = "mm", derived: DerivedPattern | None = None, piece_id: str = "", seam_ids=(), seam_allowance: float = 0.0, internal_mark_ids=None, semantic_edge_ids=None) -> dict:
     """Validate an export against its authoritative pattern model.
 
     The exporter is deterministic, so byte equality with a freshly generated
@@ -122,7 +122,7 @@ def validate_export(pattern: ParametricPattern, exported: str, format: str, curv
     normalized_format=str(format).strip().lower()
     if normalized_format not in {"svg", "dxf"}:
         raise ValueError("format must be 'svg' or 'dxf'")
-    expected = to_svg(pattern, curve_samples, units, derived, piece_id, seam_ids, seam_allowance, internal_mark_ids) if normalized_format == "svg" else to_dxf(pattern, curve_samples, units, derived, piece_id, seam_ids, seam_allowance, internal_mark_ids)
+    expected = to_svg(pattern, curve_samples, units, derived, piece_id, seam_ids, seam_allowance, internal_mark_ids, semantic_edge_ids) if normalized_format == "svg" else to_dxf(pattern, curve_samples, units, derived, piece_id, seam_ids, seam_allowance, internal_mark_ids, semantic_edge_ids)
     if exported != expected:
         raise ValueError("export does not match the deterministic authoritative pattern output")
     metadata = from_svg_metadata(exported) if normalized_format == "svg" else from_dxf_metadata(exported)
@@ -253,10 +253,20 @@ def export_pattern_piece(piece, path, format: str, *, units: str = "mm", curve_s
     allowance = max(0.0, float(getattr(piece, "SeamAllowance", 0.0)))
     derived = derive_cut_boundary(pattern, allowance, curve_samples=curve_samples)
     derived, internal_mark_ids = _persisted_construction_marks(piece, pattern, derived)
+    semantic_edge_ids = tuple(str(value).strip() for value in getattr(getattr(piece, "Sketch", None), "SemanticEdgeIds", ()) or () if str(value).strip())
+    if not any(mark.kind.casefold() == "grainline" for mark in derived.marks) and pattern.segments:
+        derived = add_marks(derived, (PatternMark(
+            id="%s:grainline" % str(getattr(piece, "PieceId", "piece")),
+            kind="Grainline",
+            segment_id=pattern.segments[0].id,
+            angle=float(getattr(piece, "GrainlineAngle", 0.0)),
+            length=40.0,
+            text="Grain",
+        ),))
     if normalized_format == "svg":
         content = to_svg(
             pattern, curve_samples, units, derived, str(getattr(piece, "PieceId", "")),
-            seam_ids, allowance, internal_mark_ids
+            seam_ids, allowance, internal_mark_ids, semantic_edge_ids
         )
     else:
         content = to_dxf(
@@ -276,4 +286,5 @@ def export_pattern_piece(piece, path, format: str, *, units: str = "mm", curve_s
         seam_ids=seam_ids,
         seam_allowance=allowance,
         internal_mark_ids=internal_mark_ids,
+        semantic_edge_ids=semantic_edge_ids,
     )
