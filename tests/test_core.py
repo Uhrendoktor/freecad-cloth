@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
@@ -9,6 +10,40 @@ from freecad_cloth.simulation.SimulationBackend import ClothState, NullSolver
 from freecad_cloth.pattern import PatternCommands as _PatMod
 from freecad_cloth.sewing import SewingCommands as _SewMod
 from freecad_cloth.simulation import SimulationCommands as _SimMod
+
+
+
+
+def test_garment_hierarchy_classifies_authoritative_objects():
+    from freecad_cloth.common.GarmentDocument import classify_members, classify_object
+
+    def obj(name, **props):
+        return SimpleNamespace(Name=name, Label=name, **props)
+
+    front = obj("Front", PatternType="PatternPiece")
+    seam = obj("Seam", SeamId="side")
+    network = obj("SewingNetwork", SewingType="SewingNetwork")
+    fitting = obj("FittingScene", FittingType="FittingScene")
+    point = obj("ArrangementPoint_waist", FittingType="ArrangementPoint")
+    avatar = obj("ClothAvatar", AvatarType="ClothAvatar")
+    target = obj("DrapeTarget")
+    simulation = obj("ClothSimulation", Proxy=SimpleNamespace(Type="ClothSimulation"))
+
+    assert classify_object(front) == "pattern"
+    assert classify_object(seam) == "sewing"
+    assert classify_object(network) == "sewing"
+    assert classify_object(fitting) == "fitting"
+    assert classify_object(point) == "fitting"
+    assert classify_object(avatar) == "avatar"
+    assert classify_object(target) == "simulation"
+    assert classify_object(simulation) == "simulation"
+
+    members = classify_members((front, seam, network, fitting, point, avatar, target, simulation, front))
+    assert [item.Name for item in members["pattern"]] == ["Front"]
+    assert [item.Name for item in members["sewing"]] == ["Seam", "SewingNetwork"]
+    assert [item.Name for item in members["fitting"]] == ["ArrangementPoint_waist", "FittingScene"]
+    assert [item.Name for item in members["avatar"]] == ["ClothAvatar"]
+    assert [item.Name for item in members["simulation"]] == ["ClothSimulation", "DrapeTarget"]
 
 
 def test_pattern_piece_validation():
