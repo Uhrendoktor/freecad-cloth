@@ -251,6 +251,32 @@ def repair_selected_seam():
             length_b = _edge_length(pieces[str(seam.PieceB)], int(seam.EdgeB))
         except (KeyError, ValueError, TypeError, IndexError) as exc:
             raise ValueError("cannot determine seam lengths for repair: %s" % exc) from exc
+    # A seam may be stale because its native Sketcher geometry changed while
+    # retaining the same semantic edge IDs.  Refresh both captured fingerprints
+    # only after resolving both sides successfully, so repair is atomic.
+    pieces = _pieces_by_id(doc)
+    refreshed = []
+    try:
+        from freecad_cloth.pattern.PatternObjects import _seam_edge_id
+        for side, edge_attr, piece_attr, id_attr, sig_attr in (
+            ("A", "EdgeA", "PieceA", "EdgeAId", "EdgeASignature"),
+            ("B", "EdgeB", "PieceB", "EdgeBId", "EdgeBSignature"),
+        ):
+            piece_id = str(getattr(seam, piece_attr, ""))
+            piece = pieces.get(piece_id)
+            if piece is None:
+                raise ValueError("cannot repair seam %s: pattern piece %s is missing" % (side, piece_id))
+            edge_index = int(getattr(seam, edge_attr, -1))
+            if edge_index < 0:
+                raise ValueError("cannot repair seam %s: native edge index is unavailable" % side)
+            edge_id, signature = _seam_edge_id(piece, edge_index, side)
+            refreshed.append((id_attr, sig_attr, edge_id, signature))
+    except (KeyError, IndexError, TypeError, ValueError, RuntimeError) as exc:
+        raise ValueError("cannot refresh stale seam edge references: %s" % exc) from exc
+    for id_attr, sig_attr, edge_id, signature in refreshed:
+        setattr(seam, id_attr, edge_id)
+        setattr(seam, sig_attr, signature)
+
     report = correspondence_report(seam, length_a, length_b, 0.05)
     message = repair_correspondence_settings(seam, report)
     doc.recompute()
