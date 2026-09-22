@@ -64,10 +64,28 @@ def _require_dialog(required, label):
     dialog = Gui.Control.activeDialog()
     if dialog is None:
         raise RuntimeError("%s did not open an active public task dialog" % label)
-    missing = [item for item in required if item not in _dialog_text(dialog)]
-    if missing:
-        raise RuntimeError("%s task panel missing visible text: %s" % (label, ",".join(missing)))
-    return dialog
+
+    visible_text = _dialog_text(dialog)
+    if all(item in visible_text for item in required):
+        return dialog
+
+    # FreeCAD's Control.activeDialog() may return a native task wrapper while
+    # the actual Python panel is hosted in the Tasks dock. Validate the visible
+    # user-facing UI through that dock rather than depending on private wrapper
+    # attributes.
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
+    main_window = Gui.getMainWindow()
+    dock = None if main_window is None else main_window.findChild(QtWidgets.QDockWidget, "Tasks")
+    if dock is not None:
+        dock_text = _dialog_text(dock)
+        if all(item in dock_text for item in required):
+            return dialog
+
+    missing = [item for item in required if item not in (dock_text if dock is not None else visible_text)]
+    raise RuntimeError("%s task panel missing visible text: %s" % (label, ",".join(missing)))
 
 
 def _find_pattern_pieces(doc):
