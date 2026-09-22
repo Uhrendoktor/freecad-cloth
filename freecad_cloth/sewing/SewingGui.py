@@ -106,7 +106,7 @@ class SewingTaskPanel:
         self._apply_seam_settings(); self.App.ActiveDocument.recompute(); self._refresh(); return True
     def repair(self):
         validate_seam_for_accept(self.seam)
-        report=correspondence_report(self.seam,self.obj.LengthA,self.obj.LengthB,max(0.0,float(self.obj.Tolerance))/max(1.0,float(self.obj.LengthA)))
+        report=correspondence_report(self.seam,self.obj.LengthA,self.obj.LengthB,float(getattr(self.obj,"RelativeTolerance",0.05)))
         message=repair_correspondence_settings(self.seam, report)
         self.reversed_b.setChecked(bool(getattr(self.seam,"ReversedB",False)))
         for widget,name,default in ((self.start_a,"StartA",0.0),(self.end_a,"EndA",1.0),(self.start_b,"StartB",0.0),(self.end_b,"EndB",1.0)):
