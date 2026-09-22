@@ -36,13 +36,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if ! labels="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/runners?per_page=100" --jq '.runners[] | select(.status == "online" and .busy == false) | [.labels[].name] | @json' 2>/tmp/runner-api-error); then
+          if ! gh api "repos/${GITHUB_REPOSITORY}/actions/runners?per_page=100" >/tmp/runner-inventory.json 2>/tmp/runner-api-error; then
             echo "Runner inventory API unavailable; using GitHub-hosted ubuntu-latest."
             cat /tmp/runner-api-error >&2 || true
             echo 'runner=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if printf '%s\n' "$labels" | jq -e 'select(index("self-hosted") != null and index("linux") != null and index("x64") != null and index("docker") != null)' >/dev/null; then
+          if jq -e 'any(.runners[]?; .status == "online" and .busy == false and (([.labels[]?.name] | index("self-hosted")) != null) and (([.labels[]?.name] | index("linux")) != null) and (([.labels[]?.name] | index("x64")) != null) and (([.labels[]?.name] | index("docker")) != null))' /tmp/runner-inventory.json >/dev/null; then
             echo 'runner=["self-hosted","linux","x64","docker"]' >> "$GITHUB_OUTPUT"
             echo "Using an online idle local Docker runner."
           else
