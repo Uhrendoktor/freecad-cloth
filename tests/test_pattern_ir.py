@@ -141,6 +141,15 @@ def test_native_sketch_curve_kinds_are_preserved():
         assert boundary.samples[-1] == (10.0, 10.0, 0.0)
 
 
+def test_native_bezier_boundary_uses_physical_arc_length_not_endpoint_chord():
+    graph, sketch = _sketch_graph(BezierCurve((10, 0), (10, 10), bend=8.0), "piece:bezier")
+    ir = PatternIR.from_sketches(graph, {"piece": sketch, "other": _other_sketch()}, curve_samples=17)
+    boundary = ir.boundary("piece", "piece:bezier")
+    chord = ((boundary.samples[-1][0] - boundary.samples[0][0]) ** 2 + (boundary.samples[-1][1] - boundary.samples[0][1]) ** 2) ** 0.5
+    assert boundary.kind == "bezier"
+    assert boundary.length > chord
+
+
 def _pattern_ir_edge_record(boundary):
     samples = tuple(tuple(point) for point in boundary.samples)
     return {
