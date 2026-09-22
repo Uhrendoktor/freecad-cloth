@@ -1,7 +1,9 @@
 """Native FreeCAD Garment document hierarchy.
 
-The FCStd document is the persistence authority.  This module only creates
-native FreeCAD containers/links; it does not maintain a second project database.
+The FCStd document is the persistence authority.  Container membership is the
+hierarchy authority; semantic FreeCAD Links remain acyclic.  This module only
+creates native FreeCAD containers/links; it does not maintain a second project
+database.
 Standalone object creation remains valid when no Garment root is present.
 """
 
