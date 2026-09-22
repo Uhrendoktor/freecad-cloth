@@ -287,6 +287,7 @@ try:
     assert curved_preview.SideBCount == 2
     assert len(curved_preview.Seams) == 3
     assert curved_preview.Status == "Valid"
+    curved_relationship_id = str(curved_preview.RelationshipId)
     curved_panel.commit_button.click()
     wait_for_task_close()
     doc.recompute()
@@ -365,7 +366,6 @@ try:
     record("seam-visual-2d=passed top-view=true")
 
     import tempfile
-    curved_relationship_id = str(curved_network.RelationshipId)
     save_fd, save_path = tempfile.mkstemp(suffix=".FCStd")
     os.close(save_fd)
     try:
@@ -377,7 +377,7 @@ try:
         curved_network = next(
             obj for obj in reloaded.Objects
             if getattr(obj, "SewingType", "") == "SewingNetwork"
-            and str(getattr(obj, "RelationshipId", "")) == str(curved_preview.RelationshipId)
+            and str(getattr(obj, "RelationshipId", "")) == curved_relationship_id
         )
         assert curved_network.Status == "Valid"
         assert all(str(seam.Status) == "Valid" for seam in curved_network.Seams)
