@@ -67,6 +67,7 @@ def open_public(command):
     assert getattr(panel, "form", None) is not None
     active = Gui.Control.activeDialog()
     assert active is not None, command + " did not open an active task dialog"
+    assert panel.form.isVisible(), command + " task panel form is not visible"
     try:
         from PySide import QtWidgets
     except ImportError:
@@ -142,8 +143,7 @@ try:
     cancel_panel = open_public("ClothSewing_CreateSeam")
     assert any(getattr(obj, "SeamId", "") for obj in cancel_panel.session.created)
     cancel_panel.reject()
-    process_events()
-    assert Gui.Control.activeDialog() is None
+    wait_for_task_close()
     assert {obj.Name for obj in doc.Objects} == cancel_before, "cancel persisted preview objects"
     record("cancel-1to1=passed")
 
@@ -154,8 +154,7 @@ try:
     assert "exactly two edges" in invalid_count_panel.feedback.text()
     assert {obj.Name for obj in doc.Objects} == count_before
     invalid_count_panel.reject()
-    process_events()
-    assert Gui.Control.activeDialog() is None
+    wait_for_task_close()
     assert {obj.Name for obj in doc.Objects} == count_before
     record("selection-count-rejection=passed")
 
@@ -166,8 +165,7 @@ try:
     assert "different pattern pieces" in invalid_panel.feedback.text()
     assert {obj.Name for obj in doc.Objects} == same_piece_before
     invalid_panel.reject()
-    process_events()
-    assert Gui.Control.activeDialog() is None
+    wait_for_task_close()
     assert {obj.Name for obj in doc.Objects} == same_piece_before
     record("invalid-same-piece-preview=passed")
 
@@ -178,8 +176,7 @@ try:
     assert "two different pattern pieces" in invalid_mn_panel.feedback.text()
     assert {obj.Name for obj in doc.Objects} == mn_before
     invalid_mn_panel.reject()
-    process_events()
-    assert Gui.Control.activeDialog() is None
+    wait_for_task_close()
     assert {obj.Name for obj in doc.Objects} == mn_before
     record("invalid-mn-partition-preview=passed")
 
@@ -192,8 +189,7 @@ try:
     assert "Preview valid" in mn_panel.feedback.text()
     record("preview-mn=passed")
     mn_panel.accept()
-    process_events()
-    assert Gui.Control.activeDialog() is None
+    wait_for_task_close()
     networks = [
         obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork"
     ]
