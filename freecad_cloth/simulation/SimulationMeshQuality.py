@@ -72,14 +72,14 @@ def quality_piece_mesh(piece, start_height, particle_distance):
             f"expected={expected_ids!r} actual={segment_ids!r}"
         )
     boundary_groups = {}
-    for original_index in range(len(points)):
+    for original_index in range(len(deduped)):
         prefix = f"{piece.PieceId}:edge:{original_index}"
         matches = [i for i, segment_id in enumerate(expected_ids)
                    if segment_id == prefix or segment_id.startswith(prefix + "::sub::")]
         if not matches or matches != list(range(matches[0], matches[-1] + 1)):
             raise ValueError(f"quality mesh semantic edge provenance is not contiguous for {prefix}")
         boundary_groups[prefix] = list(boundary[matches[0]:matches[-1] + 2])
-    by_index = [tuple(boundary_groups[f"{piece.PieceId}:edge:{edge_index}"]) for edge_index in range(len(points))]
+    by_index = [tuple(boundary_groups[f"{piece.PieceId}:edge:{edge_index}"]) for edge_index in range(len(deduped))]
     return positions, tuple(mesh.triangles), tuple(by_index)
 
 
