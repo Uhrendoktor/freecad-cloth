@@ -21,3 +21,10 @@ def test_canonical_tunic_rejects_known_shoulder_mapping_regressions():
     assert '((1,1,"TunicRightSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide"))' not in audit
     assert '((1,1,"TunicRightSide"),(2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide"))' not in audit
     assert '((1,1,"TunicRightSide"),(3,3,"TunicRightShoulder"),(6,6,"TunicLeftShoulder"),(7,7,"TunicLeftSide"))' not in audit
+def test_canonical_tunic_pins_exact_front_solver_shoulder_endpoints():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert 'stitch_map = getattr(proxy, "seam_stitch_pairs", {})' in source
+    assert 'for seam_id in ("TunicRightShoulder", "TunicLeftShoulder"):' in source
+    assert 'front_pins.extend((int(seam_pairs[0][0]), int(seam_pairs[-1][0])))' in source
+    assert 'pin-map solver-seam-endpoints front=' in source
+    assert 'authored_shoulder_pins(front, front_indices, positions)' not in source
