@@ -39,7 +39,7 @@ def create_network_from_selection():
 
 
 def create_free_sewing_from_selection():
-    """Create a 1:1 free-sewing relationship and open its range editor."""
+    """Create the 1:1 free-sewing relationship used by the staged builder."""
     import FreeCAD as App
     from freecad_cloth.pattern.PatternObjects import add_seam
     from freecad_cloth.sewing.SewingNetwork import SewingMember, add_sewing_network, build_mn_seams
