@@ -60,8 +60,10 @@ def _sync_visuals(scene):
         volume_objects.append(obj)
     scene.ArrangementPointObjects = point_objects
     scene.BoundingVolumeObjects = volume_objects
+    from freecad_cloth.common.GarmentDocument import register_garment_object
     for obj in point_objects + volume_objects:
         obj.ViewObject.Visibility = True
+        register_garment_object(scene.Document, obj, "Fitting")
     scene.Document.recompute()
 
 
@@ -89,6 +91,8 @@ def create_fitting_scene():
     obj.addProperty("App::PropertyString", "FitStatus", "Fitting").FitStatus = "Unassigned"
     obj.Proxy = _FittingProxy()
     FittingScene().validate()
+    from freecad_cloth.common.GarmentDocument import register_garment_object
+    register_garment_object(doc, obj, "Fitting")
     doc.recompute()
     return obj
 
