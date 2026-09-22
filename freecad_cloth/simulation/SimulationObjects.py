@@ -294,11 +294,19 @@ class SimulationProxy:
             self._build(obj, signature)
         steps = int(obj.Steps)
         if steps > self.last_steps:
+            fallback_sphere = None
+            if self.collision_surface is None:
+                fallback_sphere = (
+                    float(obj.CollisionX),
+                    float(obj.CollisionY),
+                    float(obj.CollisionZ),
+                    float(obj.CollisionRadius),
+                )
             for _ in range(steps - self.last_steps):
                 self.backend.step(
                     float(obj.TimeStep), int(obj.Iterations),
                     (float(obj.GravityX), float(obj.GravityY), float(obj.GravityZ)),
-                    (float(obj.CollisionX), float(obj.CollisionY), float(obj.CollisionZ), float(obj.CollisionRadius)),
+                    fallback_sphere,
                     self.collision_surface,
                 )
             self.last_steps = steps
