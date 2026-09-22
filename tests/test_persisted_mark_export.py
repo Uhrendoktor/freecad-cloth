@@ -25,7 +25,7 @@ class _Piece:
 
 
 class _Mark:
-    def __init__(self, name, kind, segment="bottom", position=0.5, depth=3.0, angle=0.0, length=40.0, text="", piece_id="piece-front"):
+    def __init__(self, name, kind, segment="piece-front:edge:0", position=0.5, depth=3.0, angle=0.0, length=40.0, text="", piece_id="piece-front"):
         self.Name = name
         self.PatternMarkType = kind
         self.PieceId = piece_id
@@ -59,7 +59,7 @@ def test_persisted_marks_are_collected_deterministically_and_by_piece():
         ("InternalMark", "InternalMark_2"),
         ("Notch", "Notch_1"),
     ]
-    assert marks[0].segment_id == "bottom"
+    assert marks[0].segment_id == "piece-front:edge:0"
     assert marks[2].depth == 4.0
 
 
