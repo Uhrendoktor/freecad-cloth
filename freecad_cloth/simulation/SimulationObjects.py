@@ -94,17 +94,12 @@ def _placement_signature(piece):
 
 def _simulation_source_signature(obj, pieces):
     """Return deterministic inputs that require rebuilding the cloth scene."""
-    piece_ids = {str(getattr(piece, "PieceId", "")) for piece in pieces}
-    piece_signature = tuple(
-        (
-            str(getattr(piece, "Name", "")),
-            str(getattr(piece, "PieceId", "")),
-            str(getattr(piece, "SewingOutline", "")),
-            str(getattr(piece, "DraftingBoundary", "")),
-            _placement_signature(piece),
-        )
-        for piece in pieces
-    )
+    if pieces:
+        from freecad_cloth.common.PatternSimulationAdapter import resolve_simulation_pattern
+        resolved = resolve_simulation_pattern(getattr(obj, "Document", None), tuple(pieces))
+        pattern_signature = resolved.signature
+    else:
+        pattern_signature = ((), ())
     seam_signature = tuple(sorted(
         (
             str(getattr(seam, "SeamId", "")),
