@@ -196,6 +196,7 @@ def test_native_edge_number_uses_authored_semantic_id_after_boundary_reordering(
     semantic_ids = tuple("native-8:edge:%d" % index for index in range(8))
     piece = SimpleNamespace(
         PieceId="native-8",
+        PatternType="PatternPiece",
         GeometryAuthority="Sketcher",
         Sketch=SimpleNamespace(SemanticEdgeIds=semantic_ids),
     )
