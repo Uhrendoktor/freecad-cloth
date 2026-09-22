@@ -119,7 +119,9 @@ try:
             return {"MenuText": "Create Sewing Network", "ToolTip": "Group selected canonical seam segments into an M:N sewing network"}
 
     class _FreeSewingCommand:
-        def Activated(self): return create_free_sewing_from_selection()
+        def Activated(self):
+            from freecad_cloth.sewing.SewingCommands import start_staged_free_sewing_creation
+            return start_staged_free_sewing_creation()
         def IsActive(self):
             try:
                 import FreeCAD as App
