@@ -57,13 +57,7 @@ def open_public(command):
     panel = get_active_staged_sewing_task_panel()
     assert panel is not None, command + " did not retain a task panel"
     assert getattr(panel, "form", None) is not None
-    if hasattr(panel.form, "show") and not panel.form.isVisible():
-        panel.form.show()
-        try:
-            panel.form.raise_()
-        except (AttributeError, RuntimeError):
-            pass
-        process_events()
+    assert panel.form.isVisible(), command + " task panel form is not visible"
     active = Gui.Control.activeDialog()
     assert active is not None, command + " did not open an active task dialog"
     try:
