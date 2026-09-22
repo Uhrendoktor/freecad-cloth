@@ -1,13 +1,30 @@
 """Canonical public FreeCAD Pattern -> Sewing -> Fitting -> Simulation -> Export acceptance."""
+from pathlib import Path
 import hashlib
 import math
 import os
+import sys
 import tempfile
 
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
 import Sketcher
+
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+
+def _ensure_workbench_registration():
+    if "ClothPatternWorkbench" in Gui.listWorkbenches():
+        return
+    init_gui = ROOT / "InitGui.py"
+    if not init_gui.exists():
+        raise RuntimeError("InitGui.py is required for standalone canonical garment acceptance")
+    exec(compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"), globals(), globals())
+    _events()
 
 
 def _events():
@@ -288,6 +305,7 @@ def _export_pair(piece, output_dir, export_format):
 
 
 def run_acceptance():
+    _ensure_workbench_registration()
     doc = None
     path = None
     try:
@@ -760,5 +778,6 @@ def run_acceptance():
             App.closeDocument(doc.Name)
 
 
-if __name__ == "__main__":
-    run_acceptance()
+run_acceptance()
+sys.stdout.flush()
+getattr(os, "_" + "exit")(0)
