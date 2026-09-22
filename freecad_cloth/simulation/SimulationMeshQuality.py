@@ -166,8 +166,11 @@ def install_quality_mesh_patch():
 
     def build_pattern_scene(self, obj, pieces, signature):
         previous = SimulationObjects._piece_mesh
-        SimulationObjects._piece_mesh = lambda piece, start_height: quality_piece_mesh(
-            piece, start_height, float(obj.ParticleDistance)
+        SimulationObjects._piece_mesh = lambda piece, start_height, piece_ir=None: quality_piece_mesh(
+            piece,
+            start_height,
+            float(obj.ParticleDistance),
+            piece_ir=piece_ir,
         )
         try:
             return original(self, obj, pieces, signature)
