@@ -154,8 +154,16 @@ class SimulationQualityTests(unittest.TestCase):
         # semantic boundary; refinement adds interior vertices and triangles.
         self.assertEqual(len(boundary), len(piece.outline))
         self.assertGreater(len(triangles), 100)
-        self.assertEqual([positions[i][:2] for i in range(len(piece.outline))], piece.outline)
-        self.assertGreater(len(positions), len(boundary))
+        self.assertGreater(sum(len(chain) for chain in boundary), len(piece.outline))
+        self.assertGreater(len(positions), len(piece.outline))
+        for edge_index, chain in enumerate(boundary):
+            start = positions[chain[0]][:2]
+            end = positions[chain[-1]][:2]
+            expected_end = piece.outline[(edge_index + 1) % len(piece.outline)]
+            for actual, expected in zip(start, piece.outline[edge_index]):
+                self.assertAlmostEqual(actual, expected, places=7)
+            for actual, expected in zip(end, expected_end):
+                self.assertAlmostEqual(actual, expected, places=7)
 
     def test_quality_proxy_keeps_solver_state_outside_serialized_object_dict(self):
         """Guard the reload path without placing the non-serializable solver in __dict__."""
