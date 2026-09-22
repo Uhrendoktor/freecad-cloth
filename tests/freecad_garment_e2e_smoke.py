@@ -3,11 +3,21 @@ import hashlib
 import math
 import os
 import tempfile
+import sys
 
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
 import Sketcher
+
+
+def _ensure_workbench_registered():
+    if "ClothPatternWorkbench" in Gui.listWorkbenches():
+        return
+    init_gui = os.path.join(os.path.dirname(os.path.dirname(__file__)), "InitGui.py")
+    with open(init_gui, "r", encoding="utf-8") as handle:
+        source = handle.read()
+    exec(compile(source, init_gui, "exec"), globals(), globals())
 
 
 def _events():
@@ -761,4 +771,9 @@ def run_acceptance():
 
 
 if __name__ == "__main__":
+    _ensure_workbench_registered()
     run_acceptance()
+    # Only the standalone CI entry point terminates the FreeCAD process.
+    # Imported acceptance returns control to the caller for visual-audit use.
+    sys.stdout.flush()
+    os._exit(0)
