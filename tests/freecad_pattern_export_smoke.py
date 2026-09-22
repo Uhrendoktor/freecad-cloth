@@ -93,6 +93,11 @@ try:
         raise RuntimeError("public Pattern command did not create a PatternPiece")
     doc.recompute()
     record("piece=ready")
+    if Gui.Control.activeDialog():
+        Gui.Control.closeDialog()
+        process_events()
+    if Gui.Control.activeDialog() is not None:
+        raise RuntimeError("pattern creation task panel remained open before export")
 
     source_before = (
         str(piece.Label),

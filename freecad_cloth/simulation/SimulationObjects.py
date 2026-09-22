@@ -295,7 +295,10 @@ class SimulationProxy:
         steps = int(obj.Steps)
         if steps > self.last_steps:
             fallback_sphere = None
-            if getattr(self, "collision_surface", None) is None:
+            if (
+                getattr(self.backend, "name", "") != "tissu"
+                and getattr(self, "collision_surface", None) is None
+            ):
                 fallback_sphere = (
                     float(obj.CollisionX),
                     float(obj.CollisionY),
