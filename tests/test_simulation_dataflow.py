@@ -184,3 +184,31 @@ def test_unrelated_seams_do_not_invalidate_selected_pattern_scene():
 
     unrelated.ReversedB = True
     assert _simulation_source_signature(scene, [piece_a, piece_b]) == baseline
+
+
+def test_quality_proxy_preserves_seam_provenance_after_base_state_is_replaced():
+    from freecad_cloth.simulation import SimulationQualityRuntimeV2 as runtime
+
+    class Base:
+        def __init__(self, pairs):
+            self.seam_stitch_pairs = pairs
+
+    proxy = runtime.QualitySimulationProxy()
+    first = Base({"seam-1": ((0, 1), (2, 3))})
+    proxy._sync_seam_stitch_provenance(first)
+    assert proxy.seam_stitch_pairs == {"seam-1": ((0, 1), (2, 3))}
+
+    empty = Base({})
+    proxy._base_or_restore = lambda: empty
+    assert proxy.seam_stitch_pairs == {"seam-1": ((0, 1), (2, 3))}
+
+
+def test_quality_proxy_requires_exact_provenance_when_no_snapshot_exists():
+    from freecad_cloth.simulation import SimulationQualityRuntimeV2 as runtime
+
+    class Base:
+        seam_stitch_pairs = {}
+
+    proxy = runtime.QualitySimulationProxy()
+    proxy._base_or_restore = lambda: Base()
+    assert proxy.seam_stitch_pairs == {}
