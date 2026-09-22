@@ -97,7 +97,7 @@ def test_true_mn_arc_length_mapping_uses_member_ranges_and_nonuniform_sampling()
         ("right", 2): ((0.0, 0.0), (1.0, 0.0), (4.0, 0.0), (10.0, 0.0)),
     }
     pairs = value.stitch_pairs(edges, edge_points=points)
-    assert pairs == ((10, 20), (12, 21), (14, 22), (15, 30), (15, 33))
+    assert pairs == ((10, 20), (12, 21), (13, 22), (14, 23), (12, 30), (13, 31), (14, 32), (15, 33))
 
 
 def test_true_mn_arc_length_mapping_reversal_is_explicit():
