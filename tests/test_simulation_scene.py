@@ -168,3 +168,18 @@ def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision():
             proxy.collision_surface,
         )
     ]
+\n\ndef test_impossible_pinned_sewing_stitch_is_rejected():
+    from freecad_cloth.simulation.ClothSolver import Particle
+    from freecad_cloth.simulation.SimulationObjects import _validate_seam_pin_configuration
+
+    particles = [Particle(0.0, 0.0, 0.0, 1.0), Particle(0.0, 100.0, 0.0, 1.0)]
+    records = (("seam-impossible", "PieceA", "PieceB", ((0, 1),)),)
+    try:
+        _validate_seam_pin_configuration(particles, records, (0, 1))
+    except ValueError as exc:
+        message = str(exc)
+        assert "seam-impossible" in message
+        assert "0-1" in message
+        assert "100.000000000 mm" in message
+    else:
+        raise AssertionError("separated pinned sewing endpoints must fail closed")

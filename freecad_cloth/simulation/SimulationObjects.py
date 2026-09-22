@@ -1,5 +1,6 @@
 """FreeCAD-facing deterministic cloth simulation scene objects."""
 import ast
+from math import sqrt
 
 
 def _mesh_object(doc, name, label):
@@ -257,6 +258,31 @@ def _seam_pairs(doc, panel_data, seam_samples=8):
     return _seam_pair_records(doc, panel_data, seam_samples)[0]
 
 
+def _validate_seam_pin_configuration(particles, seam_pair_records, pin_indices, epsilon=1e-7):
+    """Reject zero-rest stitches whose two endpoints are fixed apart in space."""
+    pinned = {int(index) for index in pin_indices}
+    if not pinned:
+        return
+    for seam_id, _piece_a_name, _piece_b_name, stitch_pairs in seam_pair_records:
+        for left, right in stitch_pairs:
+            left = int(left)
+            right = int(right)
+            if left not in pinned or right not in pinned:
+                continue
+            a = particles[left].position()
+            b = particles[right].position()
+            separation = sqrt(
+                (float(a[0]) - float(b[0])) ** 2
+                + (float(a[1]) - float(b[1])) ** 2
+                + (float(a[2]) - float(b[2])) ** 2
+            )
+            if separation > float(epsilon):
+                raise ValueError(
+                    "impossible sewing constraint: seam %s stitch %d-%d has both endpoints "
+                    "pinned at %.9f mm apart" % (seam_id, left, right, separation)
+                )
+
+
 def _collision_for_scene(obj):
     """Resolve collision strictly from the persistent DrapeTarget."""
     target = getattr(obj, "DrapeTarget", None)
@@ -353,18 +379,19 @@ class SimulationProxy:
         seam_pairs, seam_pair_records = _seam_pair_records(
             obj.Document, panel_data, int(getattr(obj, "StitchSamples", 8))
         )
-        system.add_stitches(seam_pairs)
         explicit_pins = _parse_int_list(getattr(obj, "PinSelection", ()), len(particles))
         if explicit_pins:
             pins = explicit_pins
-            system.pin(pins)
         elif pieces:
             first = panel_data[pieces[0]]
             boundary = list(dict.fromkeys(i for edge in first["boundary_edges"] for i in edge))
             pins = tuple(boundary[:2] + boundary[-2:])
-            system.pin(pins)
         else:
             pins = ()
+        _validate_seam_pin_configuration(particles, seam_pair_records, pins)
+        system.add_stitches(seam_pairs)
+        if pins:
+            system.pin(pins)
         collision_surface = _collision_for_scene(obj)
         registry = default_backend_registry()
         backend_name = preferred_backend_name(registry)
