@@ -63,7 +63,7 @@ class SewingCreationSessionContractTests(unittest.TestCase):
         preview = session.preview()
         self.assertEqual(len(preview), 1)
         self.assertEqual(doc.Objects[0].Status, "Valid")
-        self.assertEqual(gui.Selection.selected, preview)
+        self.assertEqual(tuple(gui.Selection.selected), preview)
         session.commit()
         self.assertEqual([call[0] for call in doc.calls], ["open", "recompute", "recompute", "commit"])
         self.assertEqual(len(doc.Objects), 1)
