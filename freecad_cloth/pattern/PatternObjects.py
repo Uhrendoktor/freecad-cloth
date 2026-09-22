@@ -254,6 +254,8 @@ def add_seam(doc, seam: Seam):
         obj.EdgeBId, obj.EdgeBSignature = _seam_edge_id(piece_b, seam.edge_b, "B")
     obj.Proxy = SeamProxy()
     obj.Proxy.execute(obj)
+    from freecad_cloth.sewing.SewingView import apply_seam_colors
+    apply_seam_colors(doc.Objects)
     return obj
 
 
