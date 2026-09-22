@@ -14,6 +14,7 @@ source = source_path.read_text(encoding="utf-8")
 # The screenshot wrapper's historical string replacement targets text that is no
 # longer present in freecad_screenshot_source.py, so patch the executable adapter.
 from freecad_cloth.simulation import TissuBackend as _tissu_backend
+from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 
 def _tight_tissu_collision_envelope(surface):
     if surface is None or not surface.vertices:
@@ -92,6 +93,27 @@ if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
 source = source.replace(anchor, preview_probe + '\n' + anchor, 1)
 
+seam_check = """    backend_state = scene.Proxy._base_or_restore()
+    simulated_positions = tuple(backend_state.backend.positions())
+    if not simulated_positions: raise RuntimeError("Tissu backend returned no simulated particle positions")
+    boundary_cache = {}
+    for piece in (front, back):
+        _local_positions, _triangles, boundary_edges = quality_piece_mesh(piece, 0.0, scene.ParticleDistance)
+        panel = next((candidate for candidate in panels if candidate.Label.endswith(piece.Label)), None)
+        if panel is None: raise RuntimeError("authoritative seam check cannot resolve drape panel")
+        boundary_cache[piece.PieceId] = (boundary_edges, scene.Proxy.panel_indices[panel.Name])
+    seam_gaps = []
+    for seam, piece_a, piece_b in seam_records:
+        edges_a, global_a = boundary_cache[piece_a.PieceId]; edges_b, global_b = boundary_cache[piece_b.PieceId]
+        edge_a = int(getattr(seam, "EdgeA", 0)); edge_b = int(getattr(seam, "EdgeB", 0))
+        if edge_a >= len(edges_a) or edge_b >= len(edges_b): raise RuntimeError("authoritative seam check cannot resolve seam edge")
+        for ia, ib in ((edges_a[edge_a][0], edges_b[edge_b][0]), (edges_a[edge_a][-1], edges_b[edge_b][-1])):
+            ga = global_a[ia]; gb = global_b[ib]; a = simulated_positions[ga]; b = simulated_positions[gb]
+            seam_gaps.append(((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2)**0.5)
+    max_seam_gap = max(seam_gaps) if seam_gaps else 0.0
+    if max_seam_gap > 35.0: raise RuntimeError("authoritative tunic seams did not converge: max endpoint gap %.1f mm" % max_seam_gap)
+    log("authoritative-seam-max-gap-mm=%.2f" % max_seam_gap)\n"""
+source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n    ); bounds = []", 1)
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
 exec(compile(source, str(source_path), "exec"), globals(), globals())
