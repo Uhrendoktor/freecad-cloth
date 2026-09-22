@@ -16,6 +16,7 @@ from pivy import coin
 ROOT = "/workspace"
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
+from freecad_cloth.sewing.SewingView import seam_color_map
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 os.makedirs(OUT, exist_ok=True)
 LOG = os.path.join(OUT, "simulation-turntable-progress.log")
@@ -132,8 +133,19 @@ def _outline(piece):
 
 def _seam_overlay(doc, name, seam_records, simulated=None):
     import Part
-    segments = []
-    for seam, piece_a, piece_b in seam_records:
+    seam_ids = [str(getattr(seam, "SeamId", "")).strip() for seam, _, _ in seam_records]
+    if not seam_ids or any(not seam_id for seam_id in seam_ids):
+        raise RuntimeError("turntable seam overlay is missing semantic SeamId")
+    if len(set(seam_ids)) != len(seam_ids):
+        raise RuntimeError("turntable seam overlay contains duplicate SeamId values")
+    colors = seam_color_map(seam_ids)
+    if len(set(colors.values())) != len(seam_ids):
+        raise RuntimeError("turntable seam palette did not produce distinct colors")
+
+    overlays = []
+    for index, (seam, piece_a, piece_b) in enumerate(seam_records):
+        seam_id = str(getattr(seam, "SeamId", "")).strip()
+        segments = []
         records = (
             (piece_a, int(seam.EdgeA), float(seam.StartA), float(seam.EndA), False),
             (piece_b, int(seam.EdgeB), float(seam.StartB), float(seam.EndB), bool(seam.ReversedB)),
@@ -162,15 +174,17 @@ def _seam_overlay(doc, name, seam_records, simulated=None):
             if reverse:
                 start, end = 1.0 - end, 1.0 - start
             segments.append(Part.makeLine(point(start), point(end)))
-    obj = doc.getObject(name) or doc.addObject("Part::Feature", name)
-    obj.Label = "Tunic seams — %s" % ("simulated" if simulated is not None else "authored")
-    obj.Shape = Part.makeCompound(segments) if segments else Part.Shape()
-    obj.ViewObject.LineColor = (1.0, 0.72, 0.05)
-    obj.ViewObject.LineWidth = 5.0
-    obj.ViewObject.DisplayMode = "Flat Lines"
-    obj.ViewObject.Visibility = True
-    return obj
 
+        obj_name = "%s%02d" % (name, index)
+        obj = doc.getObject(obj_name) or doc.addObject("Part::Feature", obj_name)
+        obj.Label = "Tunic seam %s — %s" % (seam_id, "simulated" if simulated is not None else "authored")
+        obj.Shape = Part.makeCompound(segments) if segments else Part.Shape()
+        obj.ViewObject.LineColor = colors[seam_id]
+        obj.ViewObject.LineWidth = 5.0
+        obj.ViewObject.DisplayMode = "Flat Lines"
+        obj.ViewObject.Visibility = True
+        overlays.append(obj)
+    return overlays
 
 def _boundary_points(panel, count):
     points = panel.Mesh.Points
@@ -306,7 +320,8 @@ def build_simulation_state(doc):
     avatar.ViewObject.Visibility = True
     doc.recompute()
     authored = _seam_overlay(doc, "TunicSeamsAuthored", seam_records)
-    authored.ViewObject.Visibility = True
+    for seam_obj in authored:
+        seam_obj.ViewObject.Visibility = True
     return scene, avatar, panels, seam_records, authored, (front, back)
 
 
@@ -325,7 +340,8 @@ def main():
         view = Gui.activeDocument().activeView(); view.setCameraType("Orthographic")
         objects = [avatar] + panels
         render_turntable(view, objects, os.path.join(OUT, "cloth-simulation-arranged-turntable-frames"))
-        authored.ViewObject.Visibility = False
+        for seam_obj in authored:
+            seam_obj.ViewObject.Visibility = False
         steps = int(os.environ.get("CLOTH_TUNIC_STEPS", "120"))
         scene.Steps = steps
         doc.recompute(); events()
