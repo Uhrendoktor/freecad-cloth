@@ -42,6 +42,7 @@ def add_mark(doc, mark_type, piece_id, segment_id="", position=0.5, depth=3.0, a
     name = "%s_%d" % (mark_type, 1 + len([o for o in doc.Objects if getattr(o, "PatternMarkType", "") == mark_type]))
     obj = doc.addObject("App::FeaturePython", name)
     obj.Label = text.strip() or name
+    obj.addProperty("App::PropertyString", "PatternMarkId", "Pattern Mark").PatternMarkId = name
     obj.addProperty("App::PropertyString", "PatternMarkType", "Pattern Mark").PatternMarkType = mark_type
     obj.addProperty("App::PropertyString", "PieceId", "Pattern Mark").PieceId = piece_id
     obj.addProperty("App::PropertyString", "SegmentId", "Pattern Mark").SegmentId = segment_id
