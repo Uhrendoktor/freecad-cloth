@@ -87,6 +87,8 @@ def _select_preview_backend(scene):
     )
     base.backend = backend
     base.last_steps = 0
+    if proxy is not None and hasattr(proxy, "_sync_seam_stitch_provenance"):
+        proxy._sync_seam_stitch_provenance(base)
     return backend
 
 
