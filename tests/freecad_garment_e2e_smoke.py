@@ -466,13 +466,13 @@ def run_acceptance():
             scene_name = scene.Name
             target_name = target.Name
             piece_names = [piece.Name for piece in pieces]
+            expected_piece_ids = [str(piece.PieceId) for piece in pieces]
+            target_body_name = target_body.Name
             App.closeDocument(doc.Name)
             doc = None
             reloaded = App.openDocument(path)
             reloaded.recompute()
 
-            expected_piece_ids = [str(piece.PieceId) for piece in pieces]
-            target_body_name = target_body.Name
             reloaded_pieces = [reloaded.getObject(name) for name in piece_names]
             if any(piece is None for piece in reloaded_pieces):
                 raise RuntimeError("garment fixture did not preserve all four PatternPiece objects")
