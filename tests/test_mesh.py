@@ -3,8 +3,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, rectangle
-from freecad_cloth.pattern.PatternMesh import triangulate
-from freecad_cloth.simulation.SimulationMeshQuality import refine_linear_boundary
+from freecad_cloth.pattern.PatternMesh import refine_linear_boundary, triangulate
 from freecad_cloth.pattern.PatternModel import Seam
 from freecad_cloth.sewing.SewingConstraints import build_sewing_constraints
 
@@ -54,6 +53,32 @@ def test_clockwise_outline_keeps_segment_provenance_on_normalization():
     ])
     mesh = triangulate(pattern)
     assert mesh.boundary_edge_segment_ids == ("right", "top", "left", "bottom")
+
+
+def test_linear_boundary_refinement_preserves_authored_segment_identity_and_spacing():
+    pattern = ParametricPattern([
+        LineSegment("side", (0, 0), (100, 0)),
+        LineSegment("back", (100, 0), (100, 50)),
+        LineSegment("top", (100, 50), (0, 50)),
+        LineSegment("left", (0, 50), (0, 0)),
+    ])
+    refined = refine_linear_boundary(pattern, 20.0)
+    mesh = triangulate(refined)
+    assert len(mesh.boundary_vertex_indices) > 4
+    ids = mesh.boundary_edge_segment_ids
+    assert all(
+        identifier == authored or identifier.startswith(authored + "::sub::")
+        for authored in ("side", "back", "top", "left")
+        for identifier in ids
+        if identifier.startswith(authored)
+    )
+    assert any(identifier.startswith("side::sub::") for identifier in ids)
+    points = mesh.vertices
+    boundary = mesh.boundary_vertex_indices
+    assert max(
+        ((points[a][0] - points[b][0]) ** 2 + (points[a][1] - points[b][1]) ** 2) ** 0.5
+        for a, b in mesh.boundary_edges()
+    ) <= 20.000001
 
 
 def test_seam_generates_stitches():
