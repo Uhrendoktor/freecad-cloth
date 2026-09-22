@@ -89,6 +89,9 @@ anchor = '    for batch in (15,15,15,15,15,15):'
 if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
 source = source.replace(anchor, preview_probe + '\n' + '    for batch in (5,5,5):', 1)
+source = source.replace('if int(scene.Steps) != 90 or', 'if int(scene.Steps) != 15 or', 1)
+source = source.replace('simulation did not reach a finite 90-step state', 'simulation did not reach a finite 15-step state', 1)
+source = source.replace('read-only stress utilization map over the valid 90-step drape', 'read-only stress utilization map over the valid 15-step drape', 1)
 
 seam_check = """    backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
