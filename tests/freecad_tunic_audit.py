@@ -15,6 +15,13 @@ source = source_path.read_text(encoding="utf-8")
 # longer present in freecad_screenshot_source.py, so patch the executable adapter.
 from freecad_cloth.simulation import TissuBackend as _tissu_backend
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
+from freecad_cloth.pattern import PatternMesh as _pattern_mesh
+
+# Audit-only A/B: bypass the #673 boundary refinement while preserving the
+# production implementation and every solver/collision/pin/threshold setting.
+_original_refine_linear_boundary = _pattern_mesh.refine_linear_boundary
+_pattern_mesh.refine_linear_boundary = lambda pattern, max_spacing: pattern
+print("boundary-refinement-ab=disabled", flush=True)
 
 def _tight_tissu_collision_envelope(surface):
     if surface is None or not surface.vertices:
