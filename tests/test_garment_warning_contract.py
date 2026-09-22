@@ -29,3 +29,12 @@ def test_simulation_cross_scope_dependencies_are_global_and_outputs_have_garment
     assert 'link_garment_object(scene, "Simulation", doc)' in source
     assert 'link_garment_object(panel_a, "SimulationOutput", doc)' in source
     assert 'link_garment_object(panel_b, "SimulationOutput", doc)' in source
+
+
+def test_fitting_proxy_keeps_visual_sync_out_of_execute():
+    source = (ROOT / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    execute_start = source.index("    def execute(self, obj):")
+    on_changed = source.index("    def onChanged(self, obj, prop):")
+    execute_source = source[execute_start:on_changed]
+    assert "_sync_visuals(obj)" not in execute_source
+    assert "if prop in {"ArrangementPoints", "BoundingVolumes"}" in source
