@@ -27,3 +27,10 @@ def test_canonical_tunic_rejects_integer_seam_mapping_regression():
     assert 'f"{front.PieceId}:edge:5", f"{back.PieceId}:edge:5", "TunicLeftShoulder"' in audit
     assert 'f"{front.PieceId}:edge:6", f"{back.PieceId}:edge:6", "TunicLeftSide"' in audit
     assert '(1,1,"TunicRightSide")' not in audit
+
+
+def test_tunic_audit_replaces_full_seam_block_and_active_gate():
+    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "proxy=proxy" in source
+    assert "authoritative tunic seams did not converge" in source
+    assert 'seam_records.append((seam_obj, front, back))' in source
