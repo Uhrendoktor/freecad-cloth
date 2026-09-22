@@ -1,4 +1,5 @@
 """Static checks for the real FreeCAD GUI layer."""
+import ast
 from pathlib import Path
 
 from InitGui import SEWING_COMMAND_GROUPS, SEWING_TOOLBAR_COMMANDS, ClothSewingWorkbench
@@ -147,5 +148,39 @@ def test_workbench_icons_are_present_and_valid_svg_resources():
         content = path.read_text(encoding="utf-8").lstrip()
         assert content.startswith("<svg "), path
         assert "xmlns=\"http://www.w3.org/2000/svg\"" in content
+
+
+def test_pattern_authoring_command_surface_is_sketcher_backed():
+    tree = ast.parse(commands)
+    command_list = next(
+        ast.literal_eval(node.value)
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "COMMANDS" for target in node.targets)
+    )
+    native_commands = {
+        "ClothPattern_CreatePieceTask",
+        "ClothPattern_EditPiece",
+        "ClothPattern_EditSketch",
+        "ClothPattern_CreateSketch",
+        "ClothPattern_CreatePieceWithSketch",
+        "ClothPattern_CreateFromSketch",
+        "ClothPattern_CreatePiece",
+        "ClothPattern_CreateCustomPiece",
+    }
+    assert "ClothPattern_CreateDrafting" not in command_list
+    assert native_commands <= set(command_list)
+    assert '"ClothPattern_EditSketch": edit_pattern_sketch' in commands
+    assert '"ClothPattern_CreatePiece": create_pattern_piece_with_sketch' in commands
+    assert '"ClothPattern_CreatePieceWithSketch": create_pattern_piece_with_sketch' in commands
+    assert '"ClothPattern_CreateFromSketch": create_pattern_piece_from_selected_sketch' in commands
+    assert "Edit native Sketch" in pattern_gui
+    assert "Compatibility-only editor for legacy PatternDrafting state" in pattern_gui
+
+def test_pattern_drafting_remains_compatibility_only():
+    drafting_source = (ROOT / "freecad_cloth" / "pattern" / "PatternDrafting.py").read_text()
+    assert "Compatibility-only helpers for legacy pattern-drafting documents" in drafting_source
+    assert "ClothPattern_CreateDrafting" not in commands
+
 
 print("GUI structure checks passed")

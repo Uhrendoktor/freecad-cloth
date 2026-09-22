@@ -124,6 +124,24 @@ def test_polygon_drafting_round_trip_and_editing():
     assert bounds(points) == (0.0, 0.0, 100.0, 70.0)
 
 
+def test_legacy_pattern_boundary_remains_readable_by_sketch_authority():
+    from freecad_cloth.common.SketchAuthority import _piece_model
+
+    legacy = type("LegacyPatternPiece", (), {
+        "Label": "Legacy Front",
+        "PieceId": "legacy-front",
+        "DraftingBoundary": "[(0.0, 0.0), (120.0, 0.0), (120.0, 70.0), (0.0, 70.0)]",
+        "Width": 120.0,
+        "Height": 70.0,
+        "SeamAllowance": 8.0,
+        "GrainlineAngle": 0.0,
+    })()
+    piece = _piece_model(legacy)
+    assert piece.outline == [(0.0, 0.0), (120.0, 0.0), (120.0, 70.0), (0.0, 70.0)]
+    assert piece.id == "legacy-front"
+
+
+
 if __name__ == "__main__":
     test_pattern_sketch_module_is_headless_safe()
     test_pattern_sketch_requires_freecad_when_called()
@@ -131,4 +149,5 @@ if __name__ == "__main__":
     test_native_sketch_adoption_command_is_public()
     test_edit_sketch_enters_native_editor_for_selected_piece()
     test_polygon_drafting_round_trip_and_editing()
+    test_legacy_pattern_boundary_remains_readable_by_sketch_authority()
     print("pattern sketch tests passed")

@@ -96,7 +96,7 @@ def create_native_sketch(piece):
 
 
 def run():
-    from freecad_cloth.pattern.PatternGui import PatternDraftingTaskPanel
+    from freecad_cloth.pattern.PatternGui import PatternPieceTaskPanel
     from freecad_cloth.sewing.SewingGui import SewingTaskPanel
     from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
     doc = App.newDocument("CanonicalClothE2E")
@@ -113,7 +113,7 @@ def run():
         sleeve_b.Placement.Base.x = 210
         doc.recompute()
 
-        activate("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D", "ClothPattern_AddSeam", "ClothPattern_CreateSketch"])
+        activate("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_EditSketch", "ClothPattern_Show2D", "ClothPattern_AddSeam", "ClothPattern_CreateSketch"])
         front_sketch = create_native_sketch(front)
         back_sketch = create_native_sketch(back)
         sleeve_a_sketch = create_native_sketch(sleeve_a)
@@ -121,8 +121,19 @@ def run():
         for sketch in (front_sketch, back_sketch, sleeve_a_sketch, sleeve_b_sketch):
             if getattr(sketch, "GeometryAuthority", "") != "Sketcher":
                 raise AssertionError("Sketcher authority was not persisted")
-        show_panel(PatternDraftingTaskPanel(front), "Pattern Design")
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(front)
+        process_events()
+        if "ClothPattern_CreateDrafting" in Gui.listCommands():
+            raise AssertionError("legacy PatternDrafting command is still publicly registered")
+        show_panel(PatternPieceTaskPanel(front), "Pattern Piece")
         close_panel()
+        Gui.runCommand("ClothPattern_EditSketch", 0)
+        process_events()
+        if Gui.activeDocument().getInEdit() is None:
+            raise AssertionError("public Pattern Edit Sketch command did not enter native Sketcher")
+        Gui.activeDocument().resetEdit()
+        process_events()
 
         select_edges((front, 0), (back, 0))
         Gui.runCommand("ClothPattern_AddSeam", 0); process_events()

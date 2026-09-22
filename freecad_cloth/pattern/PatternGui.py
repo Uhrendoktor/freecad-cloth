@@ -137,7 +137,12 @@ class PatternPieceTaskPanel:
 
 
 class PatternDraftingTaskPanel:
-    """Sketch-like 2D polygon editor with persistent semantic boundary points."""
+    """Compatibility-only editor for legacy PatternDrafting state.
+
+    New pattern authoring/editing must use native FreeCAD Sketcher. This panel
+    is retained only so explicit migration/legacy-document tooling can still
+    interpret and repair persisted drafting data.
+    """
     def __init__(self, obj):
         App, Gui, QtWidgets, QtGui, QtCore = _gui_modules()
         self.App, self.Gui, self.obj = App, Gui, obj
@@ -243,6 +248,7 @@ def show_pattern_piece_task(obj=None):
 
 
 def show_pattern_drafting_task(obj=None):
+    """Open the compatibility-only legacy drafting panel explicitly."""
     App, Gui, _, _, _ = _gui_modules()
     if obj is None: obj = next((o for o in App.ActiveDocument.Objects if getattr(o, "PatternType", "") == "PatternPiece"), None)
     if obj is None: raise ValueError("create a pattern piece before opening the drafting canvas")

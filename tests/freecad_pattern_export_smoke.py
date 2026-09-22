@@ -97,10 +97,12 @@ try:
     Gui.activateWorkbench("ClothPatternWorkbench")
     process_events()
 
-    for command in ("ClothPattern_CreatePieceWithSketch", "ClothPattern_Export"):
+    for command in ("ClothPattern_CreatePieceWithSketch", "ClothPattern_EditSketch", "ClothPattern_Export"):
         if command not in Gui.listCommands():
             raise RuntimeError("missing public Pattern command: " + command)
-    record("commands=registered")
+    if "ClothPattern_CreateDrafting" in Gui.listCommands():
+        raise RuntimeError("legacy PatternDrafting command leaked into the public workbench surface")
+    record("commands=registered sketcher-only")
 
     doc = App.newDocument("PatternProductionExportSmoke")
     record("document=created")
