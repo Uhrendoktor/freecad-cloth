@@ -9,6 +9,9 @@ try:
 except ImportError:  # pragma: no cover - exercised outside FreeCAD
     Gui = None
 
+if Gui is not None and not hasattr(Gui, "Workbench"):
+    Gui = None
+
 
 class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
     """Small common registration shell for all Cloth workbenches."""
