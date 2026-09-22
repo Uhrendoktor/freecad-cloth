@@ -56,22 +56,6 @@ def _parse_int_list(values, particle_count=None):
     return tuple(dict.fromkeys(result))
 
 
-def _outline_points(piece):
-    for attribute in ("SewingOutline", "DraftingBoundary"):
-        raw = getattr(piece, attribute, "")
-        if not raw:
-            continue
-        try:
-            values = ast.literal_eval(str(raw))
-            points = [(float(p[0]), float(p[1])) for p in values]
-            if len(points) >= 3:
-                return points
-        except (ValueError, SyntaxError, TypeError, IndexError):
-            pass
-    width, height = float(piece.Width), float(piece.Height)
-    return [(0.0, 0.0), (width, 0.0), (width, height), (0.0, height)]
-
-
 def _placement_signature(piece):
     placement = getattr(piece, "Placement", None)
     if placement is None:
