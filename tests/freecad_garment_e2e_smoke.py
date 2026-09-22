@@ -459,6 +459,10 @@ def run_acceptance():
         target_body.Shape = Part.makeCylinder(35, 100, App.Vector(0, 0, -50))
         doc.recompute()
 
+        _activate(
+            "ClothSimulationWorkbench",
+            ["ClothDrape_CreateTarget", "ClothDrape_RefreshTarget", "ClothSimulation_Step", "ClothSimulation_Reset", "ClothSimulation_Edit"],
+        )
         _select_objects(target_body)
         Gui.runCommand("ClothDrape_CreateTarget", 0)
         _events()
