@@ -114,7 +114,7 @@ class SewingTaskPanel:
         self.App.ActiveDocument.recompute(); self._refresh(); return message
     def accept(self):
         validate_seam_for_accept(self.seam); self._apply_seam_settings(); self.obj.RelativeTolerance=self.tolerance.value()/100.0; self.obj.Stitches=self.stitches.value(); self.App.ActiveDocument.recompute(); validate_seam_for_accept(self.seam)
-        report=correspondence_report(self.seam,self.obj.LengthA,self.obj.LengthB,max(0.0,float(self.obj.Tolerance))/max(1.0,float(self.obj.LengthA)))
+        report=correspondence_report(self.seam,self.obj.LengthA,self.obj.LengthB,float(getattr(self.obj,"RelativeTolerance",0.05)))
         if report is None or not report.valid: raise ValueError("cannot accept seam correspondence: %s"%(report.message if report else "missing seam"))
         self._commit_transaction(); self._refresh(); return True
     def reject(self):
