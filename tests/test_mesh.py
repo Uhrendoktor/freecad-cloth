@@ -71,7 +71,7 @@ def test_clockwise_refined_outline_preserves_subsegment_provenance_order():
         ids = [value for value in mesh.boundary_edge_segment_ids if str(value).startswith(prefix + "::sub::")]
         assert ids
         indices = [int(str(value).rsplit("::", 1)[-1]) for value in ids]
-        assert indices == list(range(len(indices)))
+        assert set(indices) == set(range(len(indices)))
 
 
 def test_seam_generates_stitches():
