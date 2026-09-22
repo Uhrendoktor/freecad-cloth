@@ -55,6 +55,25 @@ def test_clockwise_outline_keeps_segment_provenance_on_normalization():
     assert mesh.boundary_edge_segment_ids == ("right", "top", "left", "bottom")
 
 
+def test_clockwise_refined_outline_preserves_subsegment_provenance_order():
+    from freecad_cloth.pattern.PatternMesh import refine_linear_boundary
+
+    pattern = ParametricPattern([
+        LineSegment("left", (0, 0), (0, 50)),
+        LineSegment("top", (0, 50), (100, 50)),
+        LineSegment("right", (100, 50), (100, 0)),
+        LineSegment("bottom", (100, 0), (0, 0)),
+    ])
+    refined = refine_linear_boundary(pattern, 20.0)
+    mesh = triangulate(refined)
+    assert len(mesh.boundary_edge_segment_ids) == len(mesh.boundary_vertex_indices)
+    for prefix in ("right", "top", "left", "bottom"):
+        ids = [value for value in mesh.boundary_edge_segment_ids if str(value).startswith(prefix + "::sub::")]
+        assert ids
+        indices = [int(str(value).rsplit("::", 1)[-1]) for value in ids]
+        assert indices == list(range(len(indices)))
+
+
 def test_seam_generates_stitches():
     a = rectangle(100.0, 50.0)
     b = rectangle(100.0, 50.0)
