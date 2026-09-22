@@ -73,6 +73,29 @@ def semantic_edge_id(piece_id: str, ordinal: int) -> str:
     return "%s:edge:%d" % (piece_id, ordinal)
 
 
+def native_curve_signature(
+    kind: str,
+    parameter_range: Sequence[float],
+    samples: Sequence[Point],
+    precision: int = 9,
+) -> str:
+    """Fingerprint native curve provenance plus deterministic sampled shape."""
+    if len(parameter_range) != 2:
+        raise ValueError("native curve parameter range must contain two values")
+    if len(samples) < 2:
+        raise ValueError("native curve needs at least two samples")
+    normalized = {
+        "kind": str(kind),
+        "parameters": tuple(round(float(value), precision) for value in parameter_range),
+        "samples": [
+            tuple(round(float(coordinate), precision) for coordinate in sample[:2])
+            for sample in samples
+        ],
+    }
+    payload = json.dumps(normalized, separators=(",", ":"), ensure_ascii=True)
+    return "native-v1:" + hashlib.sha256(payload.encode("ascii")).hexdigest()
+
+
 def edge_signature(points: Sequence[Point], precision: int = 9) -> str:
     """Hash an ordered edge polyline after deterministic float normalization."""
     if len(points) < 2:
