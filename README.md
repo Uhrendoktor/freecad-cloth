@@ -2,9 +2,9 @@
 
 Open-source FreeCAD workbenches for parametric sewing-pattern design and 3D cloth draping/simulation.
 
-- **Cloth Pattern**+ßuÁ‚ùÁT parametric 2D pattern pieces, seam allowances, notches, grainlines and sewing metadata.
-- **Cloth Sewing** ∫w^~)ﬁt semantic seam operations, correspondence, fitting-scene preparation and validation.
-- **Cloth Simulation**"È›y¯ßy‘ meshing, target selection, body collision and cloth simulation.
+- **Cloth Pattern** ‚Äî parametric 2D pattern pieces, seam allowances, notches, grainlines and sewing metadata.
+- **Cloth Sewing** ‚Äî semantic seam operations, correspondence, fitting-scene preparation and validation.
+- **Cloth Simulation** ‚Äî meshing, target selection, body collision and cloth simulation.
 
 ## Python runtime
 
@@ -14,13 +14,13 @@ For local FreeCAD development, use a FreeCAD build whose embedded Python runtime
 
 ## Workflow
 
-`Pattern ∫w^~)ﬁv Sewing ∫w^~)ﬁv Arrange/Fit+ßuÁ‚ùÁR Simulate"È›y¯ßy“ Diagnose ∫w^~)ﬁv Output`
+`Pattern ‚Üí Sewing ‚Üí Arrange/Fit ‚Üí Simulate ‚Üí Diagnose ‚Üí Output`
 
 FreeCAD/Sketcher owns editable geometry and document persistence; Cloth owns garment semantics; the solver owns physics. Simulation meshes and collision data are derived and rebuildable. A native human mannequin and generic FreeCAD Shape/PartDesign/Body/Mesh are interchangeable providers of the same target-neutral `DrapeTarget` contract.
 
 ## Screenshots
 
-The canonical FreeCAD/Xvfb workflow publishes the validated workbench screenshots and 360∞ renders to a stable `docs/screenshots` branch. The simulation views are rendered as complete 360∞ camera paths for both the arranged and draped states, so the garment, mannequin and silhouette can be inspected continuously rather than from disconnected stills. The avatar is rendered the same way, with the orthographic captures retained for CI audit evidence.
+The canonical FreeCAD/Xvfb workflow publishes the validated workbench screenshots and 360¬∞ renders to a stable `docs/screenshots` branch. The simulation views are rendered as complete 360¬∞ camera paths for both the arranged and draped states, so the garment, mannequin and silhouette can be inspected continuously rather than from disconnected stills. The avatar is rendered the same way, with the orthographic captures retained for CI audit evidence.
 
 ### Pattern design
 
@@ -30,25 +30,25 @@ The canonical FreeCAD/Xvfb workflow publishes the validated workbench screenshot
 
 ![Cloth Sewing](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-sewing.png)
 
-### Simulation+ßuÁ‚ùÁT arranged
+### Simulation ‚Äî arranged
 
 ![Cloth Simulation arranged](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged.png)
 
-### Simulation ∫w^~)ﬁt draped
+### Simulation ‚Äî draped
 
 ![Cloth Simulation draped](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped.png)
 
-### Simulation"È›y¯ßy‘ arranged 360∞
+### Simulation ‚Äî arranged 360¬∞
 
-![Cloth Simulation arranged 360∞](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged-turntable.gif)
+![Cloth Simulation arranged 360¬∞](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged-turntable.gif)
 
-### Simulation"È›y¯ßy‘ draped 360∞
+### Simulation ‚Äî draped 360¬∞
 
-![Cloth Simulation draped 360∞](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-turntable.gif)
+![Cloth Simulation draped 360¬∞](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-turntable.gif)
 
-### Avatar ∫w^~)ﬁt 360∞ turntable
+### Avatar ‚Äî 360¬∞ turntable
 
-![Cloth Avatar 360∞ turntable](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-turntable.gif)
+![Cloth Avatar 360¬∞ turntable](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-turntable.gif)
 
 ## Module architecture
 
@@ -66,7 +66,7 @@ This project is licensed under the GNU Lesser General Public License v2.1 or lat
 
 ## Development
 
-There is one canonical GitHub Actions workflow: `.github/workflows/canonical-execution.yml`. It runs Python/core checks and real FreeCAD/Xvfb GUI coverage. The GUI path captures the README workbench screenshots plus 360∞ simulation turntables for arranged and draped states and a 360∞ avatar turntable.
+There is one canonical GitHub Actions workflow: `.github/workflows/canonical-execution.yml`. It runs Python/core checks and real FreeCAD/Xvfb GUI coverage. The GUI path captures the README workbench screenshots plus 360¬∞ simulation turntables for arranged and draped states and a 360¬∞ avatar turntable.
 
 ## Documentation
 

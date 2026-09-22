@@ -206,7 +206,7 @@ def _seam_overlay(doc, name, seam_records, simulated=None, proxy=None):
 
         obj_name = "%s%02d" % (name, index)
         obj = doc.getObject(obj_name) or doc.addObject("Part::Feature", obj_name)
-        obj.Label = "Tunic seam %s"ιέyψ§yΤ %s" % (seam_id, "simulated" if simulated is not None else "authored")
+        obj.Label = "Tunic seam %s β€” %s" % (seam_id, "simulated" if simulated is not None else "authored")
         obj.Shape = Part.makeCompound(segments) if segments else Part.Shape()
         obj.ViewObject.LineColor = colors[seam_id]
         obj.ViewObject.LineWidth = 5.0
