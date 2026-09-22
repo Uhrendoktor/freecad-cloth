@@ -14,6 +14,7 @@ import FreeCADGui as Gui
 import InitGui
 
 from freecad_cloth.pattern.PatternExport import from_dxf_metadata, from_svg_metadata
+from freecad_cloth.pattern.PatternCommands import get_active_pattern_export_task_panel
 
 LOG_PATH = Path(os.environ.get("CLOTH_PATTERN_EXPORT_LOG", ROOT / "artifacts" / "pattern-production-export.log"))
 LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -45,13 +46,22 @@ def open_public_export(piece):
     process_events()
     Gui.runCommand("ClothPattern_Export", 0)
     process_events()
-    panel = Gui.Control.activeDialog()
+    panel = get_active_pattern_export_task_panel()
     if panel is None or getattr(panel, "form", None) is None:
-        raise RuntimeError("public Pattern export command did not open a task panel")
+        raise RuntimeError("public Pattern export command did not retain its task panel")
+    if not panel.form.isVisible():
+        raise RuntimeError("public Pattern export task panel is not visible")
+    if Gui.Control.activeDialog() is None:
+        raise RuntimeError("public Pattern export command did not open a task dialog")
     return panel
 
 
-def close_public_task():
+def close_public_task(panel=None):
+    if panel is not None:
+        try:
+            panel.reject()
+        except Exception:
+            pass
     if Gui.Control.activeDialog():
         Gui.Control.closeDialog()
         process_events()
@@ -101,8 +111,7 @@ try:
             raise RuntimeError("export task panel title is not visible")
         if "read-only" not in panel.status.text().lower():
             raise RuntimeError("export task panel does not state that source geometry is read-only")
-        panel.reject()
-        close_public_task()
+        close_public_task(panel)
 
         results = {}
         readers = {"SVG": from_svg_metadata, "DXF": from_dxf_metadata}
@@ -117,7 +126,7 @@ try:
             record("export=%s:first-accept" % export_format)
             if not panel.accept():
                 raise RuntimeError("public export task panel rejected " + export_format)
-            close_public_task()
+            close_public_task(panel)
             record("export=%s:first-written" % export_format)
 
             first = path_a.read_bytes()
