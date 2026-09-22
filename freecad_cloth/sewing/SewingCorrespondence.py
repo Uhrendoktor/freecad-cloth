@@ -51,6 +51,20 @@ class CorrespondenceReport:
         return self.status in {STATUS_VALID, STATUS_REVERSED}
 
 
+def correspondence_status_label(report: CorrespondenceReport) -> str:
+    """Return the persisted user-facing Status label for a correspondence report.
+
+    Kept as a compatibility helper for callers outside the current task-panel path.
+    """
+    if report.status in {STATUS_VALID, STATUS_REVERSED}:
+        return "Valid"
+    if report.status == STATUS_LENGTH_MISMATCH:
+        return "Length mismatch"
+    if report.status == STATUS_INVALID_RANGE:
+        return "Invalid range"
+    return "Invalid"
+
+
 def _range_is_valid(start: float, end: float) -> bool:
     return (
         math.isfinite(start)
