@@ -113,3 +113,58 @@ def test_seam_pair_records_preserve_exact_solver_stitch_provenance():
     assert records == (
         ("seam-1", "PieceA", "PieceB", ((0, 5), (1, 4), (2, 3))),
     )
+
+def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision():
+    from types import SimpleNamespace
+    from freecad_cloth.simulation.SimulationObjects import SimulationProxy, _simulation_source_signature
+
+    class FakeBackend:
+        def __init__(self):
+            self.calls = []
+
+        def step(self, dt, iterations, gravity, sphere, surface):
+            self.calls.append((dt, iterations, gravity, sphere, surface))
+
+        def positions(self):
+            return ()
+
+        @property
+        def time(self):
+            return 0.0
+
+        def finite(self):
+            return True
+
+    scene = SimpleNamespace(
+        ClothPieces=[],
+        Document=SimpleNamespace(Objects=[]),
+        DrapeTarget=None,
+        PinSelection=[],
+        StitchSamples=8,
+        Steps=1,
+        TimeStep=1.0 / 60.0,
+        Iterations=8,
+        GravityX=0.0,
+        GravityY=0.0,
+        GravityZ=-9810.0,
+        CollisionX=0.0,
+        CollisionY=0.0,
+        CollisionZ=0.0,
+        CollisionRadius=38.0,
+        DrapePanels=[],
+    )
+    proxy = SimulationProxy()
+    proxy.backend = FakeBackend()
+    proxy.collision_surface = object()
+    proxy.source_signature = _simulation_source_signature(scene, [])
+    proxy.execute(scene)
+
+    assert proxy.backend.calls == [
+        (
+            scene.TimeStep,
+            scene.Iterations,
+            (scene.GravityX, scene.GravityY, scene.GravityZ),
+            None,
+            proxy.collision_surface,
+        )
+    ]
