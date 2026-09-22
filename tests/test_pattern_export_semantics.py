@@ -172,3 +172,22 @@ def test_pattern_piece_export_blocks_invalid_semantic_seams(tmp_path):
     piece.Document.Objects = (piece, Seam())
     with TestCase().assertRaisesRegex(ValueError, "cannot export pattern piece"):
         export_pattern_piece(piece, tmp_path / "invalid.svg", "svg")
+
+def test_export_boundary_is_closed_and_continuous():
+    pattern = _curved_pattern()
+    points = pattern.sampled_outline(24)
+    assert len(points) >= 3
+    for start, end in zip(points, points[1:] + points[:1]):
+        assert ((start[0] - end[0]) ** 2 + (start[1] - end[1]) ** 2) <= 1e-12
+
+
+def test_export_rejects_disconnected_boundary_segments():
+    with TestCase().assertRaisesRegex(ValueError, "boundary is not closed"):
+        ParametricPattern(
+            [
+                LineSegment("a", (0.0, 0.0), (10.0, 0.0)),
+                LineSegment("b", (10.0, 0.0), (10.0, 10.0)),
+                LineSegment("c", (10.0, 10.0), (0.0, 10.0)),
+                LineSegment("d", (0.0, 9.0), (0.0, 0.0)),
+            ]
+        )
