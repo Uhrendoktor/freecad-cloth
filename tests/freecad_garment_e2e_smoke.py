@@ -137,11 +137,17 @@ def run_acceptance():
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(curved, "Edge3")
         Gui.Selection.addSelection(mate, "Edge3")
-        Gui.runCommand("ClothSewing_CreateSeam", 0)
+        from freecad_cloth.sewing.SewingCommands import begin_seam_creation
+        creation_panel = begin_seam_creation()
+        creation_panel.session.selected = [(curved, 2), (mate, 2)]
+        if not creation_panel.refresh_preview():
+            raise RuntimeError("public Sewing creation preview was invalid")
+        seam = creation_panel.accept()
         doc.recompute()
-        seam = next((obj for obj in doc.Objects if getattr(obj, "SeamId", "")), None)
         if seam is None or str(seam.Status) != "Valid":
-            raise RuntimeError("public Sewing command did not create a valid curved seam")
+            raise RuntimeError("public staged Sewing commit did not create a valid curved seam")
+        Gui.Control.closeDialog()
+        _events()
         Gui.Selection.clearSelection(); Gui.Selection.addSelection(seam)
         Gui.runCommand("ClothSewing_CreateOperation", 0)
         doc.recompute()
