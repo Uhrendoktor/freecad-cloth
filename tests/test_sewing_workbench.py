@@ -93,7 +93,7 @@ def test_endpoint_alignment_uses_physical_arc_length_on_curved_edge():
         else: sys.modules["FreeCAD"] = oldf
 
     first_segment = math.hypot(1, 3)
-    second_segment = 4.0
+    second_segment = math.hypot(3, 3)
     total_length = first_segment + second_segment
 
     target_a = total_length / 3.0
