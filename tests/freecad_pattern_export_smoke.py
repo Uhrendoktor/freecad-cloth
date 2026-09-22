@@ -152,6 +152,7 @@ try:
         float(piece.SeamAllowance),
         float(piece.GrainlineAngle),
         str(getattr(piece, "GeometryAuthority", "")),
+        mark_ids,
     )
 
     with tempfile.TemporaryDirectory() as directory:
@@ -205,6 +206,11 @@ try:
                 raise RuntimeError(export_format + " export lost semantic edge IDs")
             if not metadata.get("mark_ids"):
                 raise RuntimeError(export_format + " export lost construction mark identity")
+            if metadata.get("notch_ids") != [str(next(obj for obj in construction_marks if obj.PatternMarkType == "Notch").PatternMarkId)]:
+                raise RuntimeError(export_format + " export lost persisted notch identity")
+            internal_id = str(next(obj for obj in construction_marks if obj.PatternMarkType == "InternalMark").PatternMarkId)
+            if metadata.get("internal_mark_ids") != [internal_id] or internal_id not in metadata.get("mark_ids", []):
+                raise RuntimeError(export_format + " export lost persisted internal-mark identity")
             results[export_format] = len(first)
 
         if source_before != (
@@ -214,6 +220,7 @@ try:
             float(piece.SeamAllowance),
             float(piece.GrainlineAngle),
             str(getattr(piece, "GeometryAuthority", "")),
+            mark_ids,
         ):
             raise RuntimeError("public export mutated authoritative PatternPiece state")
 
