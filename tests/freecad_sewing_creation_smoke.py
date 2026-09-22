@@ -26,18 +26,25 @@ LOG = []
 LOG_PATH.write_text("", encoding="utf-8")
 
 
-def set_native_bezier_boundary(sketch, piece_id, span, height):
+def set_native_bspline_boundary(sketch, piece_id, span, height):
     p0 = App.Vector(0, 0, 0)
     p1 = App.Vector(span, 0, 0)
     p2 = App.Vector(span, 40, 0)
     p3 = App.Vector(0, 40, 0)
-    curve = Part.BezierCurve()
-    curve.setPoles([
-        p2,
-        App.Vector(span * 1.35, 40 + height, 0),
-        App.Vector(-span * 0.35, 40 + height, 0),
-        p3,
-    ])
+    curve = Part.BSplineCurve(
+        [
+            p2,
+            App.Vector(span * 1.35, 40 + height, 0),
+            App.Vector(-span * 0.35, 40 + height, 0),
+            p3,
+        ],
+        [4, 4],
+        [0.0, 1.0],
+        False,
+        3,
+        None,
+        False,
+    )
     for geometry_index in range(len(sketch.Geometry) - 1, -1, -1):
         sketch.delGeometry(geometry_index)
     sketch.addGeometry([
@@ -259,20 +266,20 @@ try:
         PatternPiece("CurvedB", [(0, 0), (160, 0), (160, 40), (0, 40)], id="curved-b"),
         doc,
     )
-    set_native_bezier_boundary(curved_sketch_a, "curved-a", 100.0, 80.0)
+    set_native_bspline_boundary(curved_sketch_a, "curved-a", 100.0, 80.0)
     set_native_bezier_boundary(curved_sketch_b, "curved-b", 160.0, 10.0)
     doc.recompute()
 
     assert str(getattr(curved_a, "GeometryAuthority", "")) == "Sketcher"
-    assert str(type(curved_sketch_a.Geometry[2]).__name__).lower() == "beziercurve"
+    assert str(type(curved_sketch_a.Geometry[2]).__name__).lower() == "bsplinecurve"
     from freecad_cloth.pattern.PatternIR import PatternIR
     from freecad_cloth.sewing.SeamGraph import SeamGraph
     graph = SeamGraph()
     graph.add_piece(PatternPiece("CurvedA", [(0, 0), (100, 0), (100, 40), (0, 40)], id="curved-a"))
     graph.add_piece(PatternPiece("CurvedB", [(0, 0), (160, 0), (160, 40), (0, 40)], id="curved-b"))
     ir_a = PatternIR.from_sketches(graph, {"curved-a": curved_sketch_a, "curved-b": curved_sketch_b}, curve_samples=32)
-    assert ir_a.boundary("curved-a", "curved-a:edge:2").kind == "bezier"
-    record("curved-native-sketch=passed kind=bezier")
+    assert ir_a.boundary("curved-a", "curved-a:edge:2").kind == "bspline"
+    record("curved-native-sketch=passed kind=bspline")
 
     curve_spacings = edge_sample_spacing(curved_a.Shape.Edges[2])
     assert max(curve_spacings) / min(curve_spacings) > 1.20
