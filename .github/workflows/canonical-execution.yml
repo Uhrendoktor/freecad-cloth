@@ -6,9 +6,11 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'
 
 concurrency:
-  group: canonical-${{ github.event.pull_request.number || github.ref }}
+  group: canonical-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -24,31 +26,48 @@ permissions:
   packages: write
 
 jobs:
+  runner_heartbeat:
+    name: Local Docker runner heartbeat
+    if: ${{ github.event_name == 'schedule' }}
+    runs-on: [self-hosted, linux, x64, docker]
+    timeout-minutes: 2
+    steps:
+      - name: Verify local Docker runner is usable
+        run: docker info >/dev/null
+
   runner_selection:
     name: Select available runner
+    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     outputs:
       runner: ${{ steps.select.outputs.runner }}
     steps:
-      - name: Prefer an online idle local runner, otherwise GitHub-hosted
+      - name: Prefer a recently healthy local Docker runner, otherwise GitHub-hosted
         id: select
         env:
           GH_TOKEN: ${{ github.token }}
+          HEARTBEAT_MAX_AGE_SECONDS: 720
         run: |
           set -euo pipefail
-          if ! gh api "repos/${GITHUB_REPOSITORY}/actions/runners?per_page=100" >/tmp/runner-inventory.json 2>/tmp/runner-api-error; then
-            echo "Runner inventory API unavailable; using GitHub-hosted ubuntu-latest."
+          if ! gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=schedule&branch=main&per_page=10" >/tmp/runner-heartbeats.json 2>/tmp/runner-api-error; then
+            echo "Heartbeat inventory unavailable; using GitHub-hosted ubuntu-latest."
             cat /tmp/runner-api-error >&2 || true
             echo 'runner=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if jq -e 'any(.runners[]?; .status == "online" and .busy == false and (([.labels[]?.name] | index("self-hosted")) != null) and (([.labels[]?.name] | index("linux")) != null) and (([.labels[]?.name] | index("x64")) != null) and (([.labels[]?.name] | index("docker")) != null))' /tmp/runner-inventory.json >/dev/null; then
-            echo 'runner=["self-hosted","linux","x64","docker"]' >> "$GITHUB_OUTPUT"
-            echo "Using an online idle local Docker runner."
-          else
-            echo 'runner=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
-            echo "No online idle local Docker runner found; using GitHub-hosted ubuntu-latest."
+          latest_success="$(jq -r '[.workflow_runs[]? | select(.conclusion == "success") | .updated_at] | max // empty' /tmp/runner-heartbeats.json)"
+          now="$(date +%s)"
+          if [ -n "$latest_success" ]; then
+            heartbeat_epoch="$(date -d "$latest_success" +%s)"
+            age=$((now - heartbeat_epoch))
+            if [ "$age" -ge 0 ] && [ "$age" -le "$HEARTBEAT_MAX_AGE_SECONDS" ]; then
+              echo "Recent local Docker runner heartbeat: age=${age}s."
+              echo 'runner=["self-hosted","linux","x64","docker"]' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
           fi
+          echo "No recent local Docker runner heartbeat; using GitHub-hosted ubuntu-latest."
+          echo 'runner=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
 
   python:
     name: Python and FreeCAD non-GUI tests
