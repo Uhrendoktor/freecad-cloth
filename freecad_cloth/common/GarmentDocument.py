@@ -48,11 +48,11 @@ def classify_object(obj: Any) -> str | None:
     if fitting_type in {"FittingScene", "ArrangementPoint", "BoundingVolume"}:
         return "fitting"
     name = str(getattr(obj, "Name", ""))
-    if str(getattr(obj, "AvatarType", "")) == "ClothAvatar" or name in {"DrapeTarget", "AvatarCollision"}:
+    if str(getattr(obj, "AvatarType", "")) == "ClothAvatar" or name == "AvatarCollision":
         return "avatar"
     cloth_mesh_type = str(getattr(obj, "ClothMeshType", ""))
     if (
-        name == "ClothSimulation"
+        name in {"DrapeTarget", "ClothSimulation"}
         or name.startswith("DrapePanel")
         or cloth_mesh_type == "DrapedCloth"
         or _proxy_type(obj) == "ClothSimulation"
@@ -221,7 +221,7 @@ def adopt_garment(doc=None, garment=None):
     root.PrimaryFabric = _primary(members["fabric"], lambda obj: str(getattr(obj, "FabricType", "")) == "FabricMaterial")
     root.PrimaryFittingScene = _primary(members["fitting"], lambda obj: str(getattr(obj, "FittingType", "")) == "FittingScene")
     root.PrimaryAvatar = _primary(members["avatar"], lambda obj: str(getattr(obj, "AvatarType", "")) == "ClothAvatar")
-    root.PrimaryDrapeTarget = _primary(members["avatar"], lambda obj: str(getattr(obj, "Name", "")) == "DrapeTarget")
+    root.PrimaryDrapeTarget = _primary(members["simulation"], lambda obj: str(getattr(obj, "Name", "")) == "DrapeTarget")
     root.PrimarySimulation = _primary(
         members["simulation"],
         lambda obj: str(getattr(obj, "Name", "")) == "ClothSimulation" or _proxy_type(obj) == "ClothSimulation",
