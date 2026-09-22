@@ -136,6 +136,15 @@ jobs:
           grep -q 'cancel-free=passed' artifacts/sewing-creation-smoke.log
           grep -q 'invalid-same-piece-preview=passed' artifacts/sewing-creation-smoke.log
           grep -q 'invalid-mn-partition-preview=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'curved-native-sketch=passed kind=bezier' artifacts/sewing-creation-smoke.log
+          grep -q 'curved-sampling=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'curved-mn=passed members=2,2 segments=3 physical-length=proportional' artifacts/sewing-creation-smoke.log
+          grep -q 'curved-mn-reversal=passed segments=3' artifacts/sewing-creation-smoke.log
+          grep -q 'seam-visual-3d=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'seam-visual-2d=passed top-view=true' artifacts/sewing-creation-smoke.log
+          grep -q 'curved-mn-save-reload=passed status=Valid' artifacts/sewing-creation-smoke.log
+          grep -q 'curved-mn-invalidation=passed changed=1 network=Invalid' artifacts/sewing-creation-smoke.log
+          grep -q 'curved-mn-explicit-repair=passed status=Valid' artifacts/sewing-creation-smoke.log
       - name: Upload sewing creation smoke evidence
         if: always()
         uses: actions/upload-artifact@v6
