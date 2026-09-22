@@ -75,7 +75,9 @@ jobs:
                 tests/test_humanoid_mesh.py \
                 tests/test_drape_quality.py \
                 tests/test_freecad_objects.py \
-                tests/test_project_structure.py; do
+                tests/test_project_structure.py \
+                tests/test_cloth_diagnostics.py \
+                tests/test_tunic_audit_contract.py; do
                 python3 "$test"
               done
             '
