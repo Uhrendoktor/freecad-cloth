@@ -1,8 +1,14 @@
 """Canonical public FreeCAD Pattern -> Sewing -> Fitting -> Simulation -> Export acceptance."""
+from pathlib import Path
 import hashlib
 import math
 import os
+import sys
 import tempfile
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -760,5 +766,6 @@ def run_acceptance():
             App.closeDocument(doc.Name)
 
 
-if __name__ == "__main__":
-    run_acceptance()
+run_acceptance()
+sys.stdout.flush()
+getattr(os, "_" + "exit")(0)
