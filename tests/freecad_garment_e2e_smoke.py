@@ -815,6 +815,3 @@ if __name__ == "__main__":
     _record("freecad-process-exit=forced")
     sys.stdout.flush()
     os._exit(0)
-else:
-    _ensure_workbench_registration()
-    run_acceptance()
