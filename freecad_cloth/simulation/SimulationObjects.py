@@ -1,6 +1,4 @@
 """FreeCAD-facing deterministic cloth simulation scene objects."""
-import ast
-
 
 def _mesh_object(doc, name, label):
     import Mesh
