@@ -152,6 +152,16 @@ def edit_pattern_piece():
     show_pattern_piece_task(obj)
 
 
+def export_pattern_production():
+    """Open the public deterministic SVG/DXF production export task panel."""
+    import FreeCADGui as Gui
+    obj = next((candidate for candidate in Gui.Selection.getSelection() if getattr(candidate, "PatternType", "") == "PatternPiece"), None)
+    if obj is None:
+        raise ValueError("select a pattern piece before exporting")
+    from freecad_cloth.pattern.PatternGui import show_pattern_export_task
+    return show_pattern_export_task(obj)
+
+
 def edit_pattern_sketch():
     """Enter the native Sketcher editor for the selected pattern piece."""
     import FreeCADGui as Gui
@@ -286,7 +296,7 @@ class _FunctionCommand:
 
 
 COMMANDS = [
-    "ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_EditSketch",
+    "ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_ExportProduction", "ClothPattern_EditSketch",
     "ClothPattern_CreateSketch", "ClothPattern_CreatePieceWithSketch", "ClothPattern_CreateFromSketch",
     "ClothPattern_CreateDrafting", "ClothPattern_Show2D", "ClothPattern_CreatePiece", "ClothPattern_CreateCustomPiece",
     "ClothPattern_CreateMesh", "ClothPattern_AddSeam", "ClothPattern_RepairTopology",
@@ -304,6 +314,7 @@ try:
         for name, handler in {
             "ClothPattern_CreatePieceTask": create_pattern_piece_task,
             "ClothPattern_EditPiece": edit_pattern_piece,
+            "ClothPattern_ExportProduction": export_pattern_production,
             "ClothPattern_EditSketch": edit_pattern_sketch,
             "ClothPattern_CreateSketch": create_pattern_sketch,
             "ClothPattern_CreatePieceWithSketch": create_pattern_piece_with_sketch,
