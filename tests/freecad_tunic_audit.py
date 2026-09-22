@@ -110,7 +110,22 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
     max_seam_gap = max(seam_gaps) if seam_gaps else 0.0
     if max_seam_gap > 35.0: raise RuntimeError("authoritative tunic seams did not converge: max endpoint gap %.1f mm" % max_seam_gap)
     log("authoritative-seam-max-gap-mm=%.2f" % max_seam_gap)\n"""
-source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n    ); bounds = []", 1)
+write_anchor = """    write_drape_metrics(
+        panels,
+        avatar,
+        x_mid,
+        shoulder_z=shoulder_z,
+        hem_z=hem_z,
+        seam_records=seam_records,
+        proxy=proxy,
+    ); bounds = []"""
+if write_anchor not in source:
+    raise RuntimeError("tunic seam-gate injection anchor missing from canonical source")
+source = source.replace(
+    write_anchor,
+    seam_check + "\n" + write_anchor,
+    1,
+)
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
 exec(compile(source, str(source_path), "exec"), globals(), globals())
