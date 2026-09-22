@@ -151,16 +151,16 @@ def _make_nonuniform_curved(piece, doc):
         else:
             high = bulge
     bezier_bulge = 0.5 * (low + high)
+    curve = Part.BezierCurve()
+    curve.setPoles([
+        App.Vector(100, 50, 0),
+        App.Vector(75, 50 + bezier_bulge, 0),
+        App.Vector(25, 50 + bezier_bulge, 0),
+        App.Vector(0, 50, 0),
+    ])
     geometry = [
         Part.LineSegment(App.Vector(0, 0, 0), App.Vector(100, 0, 0)),
         Part.LineSegment(App.Vector(100, 0, 0), App.Vector(100, 50, 0)),
-        curve = Part.BezierCurve()
-        curve.setPoles([
-            App.Vector(100, 50, 0),
-            App.Vector(75, 50 + bezier_bulge, 0),
-            App.Vector(25, 50 + bezier_bulge, 0),
-            App.Vector(0, 50, 0),
-        ])
         curve,
         Part.LineSegment(App.Vector(0, 50, 0), App.Vector(0, 0, 0)),
     ]
