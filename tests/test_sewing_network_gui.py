@@ -173,3 +173,96 @@ def test_curved_correspondence_rejects_invalid_range():
         StartA=0.8; EndA=0.2; StartB=0.0; EndB=1.0; ReversedB=False
     report=correspondence_report(Seam(),100.0,100.0,0.05)
     assert report.status=="invalid_range" and not report.valid
+
+
+def test_sewing_task_panel_accept_persists_relative_tolerance():
+    from freecad_cloth.sewing.SewingGui import SewingTaskPanel
+
+    class Seam:
+        Status = "Valid"
+        StartA = 0.0
+        EndA = 1.0
+        StartB = 0.0
+        EndB = 1.0
+        Alignment = "uniform"
+        ReversedB = False
+
+    class Obj:
+        Status = "Valid"
+        LengthA = 100.0
+        LengthB = 102.0
+        LengthDifference = 2.0
+        Tolerance = 0.5
+        RelativeTolerance = 0.05
+        Stitches = 8
+        Seam = Seam()
+
+    class Doc:
+        def __init__(self):
+            self.calls = []
+
+        def recompute(self):
+            self.calls.append("recompute")
+
+        def commitTransaction(self):
+            self.calls.append("commit")
+
+    class App:
+        pass
+
+    class Spin:
+        def __init__(self, value):
+            self._value = value
+
+        def value(self):
+            return self._value
+
+    class Combo:
+        def currentText(self):
+            return "uniform"
+
+    class Check:
+        def isChecked(self):
+            return False
+
+    class Label:
+        def __init__(self):
+            self.text = ""
+
+        def setText(self, text):
+            self.text = text
+
+    class Button:
+        def setText(self, text):
+            self.text = text
+
+        def setEnabled(self, enabled):
+            self.enabled = enabled
+
+    app_doc = Doc()
+    App.ActiveDocument = app_doc
+    obj = Obj()
+    panel = SewingTaskPanel.__new__(SewingTaskPanel)
+    panel.App = App
+    panel.obj = obj
+    panel.seam = obj.Seam
+    panel.alignment = Combo()
+    panel.reversed_b = Check()
+    panel.start_a = Spin(0.0)
+    panel.end_a = Spin(1.0)
+    panel.start_b = Spin(0.0)
+    panel.end_b = Spin(1.0)
+    panel.tolerance = Spin(12.5)
+    panel.stitches = Spin(12)
+    panel.status = Label()
+    panel.lengths = Label()
+    panel.correspondence = Label()
+    panel.reverse_button = Button()
+    panel.reset_ranges_button = Button()
+    panel._transaction_active = True
+
+    assert panel.accept() is True
+    assert obj.RelativeTolerance == 0.125
+    assert obj.Tolerance == 0.5
+    assert obj.Stitches == 12
+    assert app_doc.calls == ["recompute", "commit"]
