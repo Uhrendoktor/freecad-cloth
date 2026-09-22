@@ -5,6 +5,7 @@ from freecad_cloth.sewing.SeamReference import (
     ChangedEdgeReference,
     MissingEdgeReference,
     capture_edge_reference,
+    native_curve_signature,
     semantic_edge_id,
     resolve_edge_reference,
 )
@@ -46,8 +47,44 @@ def _boundary_shape(points, allowance=0.0):
     return Part.Face(wire)
 
 
+def _native_edge_provenance(piece):
+    """Resolve current native Sketcher provenance through the PatternIR authority path."""
+    sketch = getattr(piece, "Sketch", None)
+    if sketch is None or str(getattr(piece, "GeometryAuthority", "")) != "Sketcher":
+        return None, set()
+
+    geometry = tuple(getattr(sketch, "Geometry", ()) or ())
+    semantic_ids = tuple(getattr(sketch, "SemanticEdgeIds", ()) or ())
+    native_ids = set()
+    for index, _native in enumerate(geometry):
+        if callable(getattr(sketch, "getConstruction", None)):
+            try:
+                if bool(sketch.getConstruction(index)):
+                    continue
+            except (IndexError, TypeError):
+                continue
+        edge_id = str(semantic_ids[index]).strip() if index < len(semantic_ids) else ""
+        if edge_id:
+            native_ids.add(edge_id)
+
+    try:
+        from freecad_cloth.common.SketchAuthority import _resolve_sketch_ir
+        piece_ir = _resolve_sketch_ir(piece)
+        signatures = {
+            boundary.id: native_curve_signature(
+                boundary.kind,
+                boundary.parameter_range,
+                tuple((sample[0], sample[1]) for sample in boundary.samples),
+            )
+            for boundary in piece_ir.boundaries
+        }
+    except (ImportError, AttributeError, TypeError, ValueError, RuntimeError):
+        signatures = {}
+    return signatures, native_ids
+
+
 def _edge_records(piece):
-    """Expose pattern edges through persistent semantic ids."""
+    """Expose pattern edges through persistent ids plus native Sketcher provenance."""
     points = _parse_points(getattr(piece, "SewingOutline", ""))
     drafting = _parse_points(getattr(piece, "DraftingBoundary", ""))
     if len(drafting) > len(points):
@@ -55,12 +92,18 @@ def _edge_records(piece):
     if len(points) < 2:
         return []
     piece_id = str(getattr(piece, "PieceId", ""))
+    native_provenance, native_ids = _native_edge_provenance(piece)
+    native_signatures = native_provenance or {}
+    native_authoritative = native_provenance is not None
     return [
         {
             "piece_id": piece_id,
             "id": semantic_edge_id(piece_id, index),
             "points": (points[index], points[(index + 1) % len(points)]),
             "ordinal": index,
+            "native_signature": native_signatures.get(semantic_edge_id(piece_id, index), ""),
+            "native_present": semantic_edge_id(piece_id, index) in native_ids,
+            "native_authoritative": native_authoritative,
         }
         for index in range(len(points))
     ]
@@ -79,18 +122,53 @@ def _seam_edge_id(piece, edge, prefix):
         if edge < 0 or edge >= len(records):
             raise MissingEdgeReference(f"seam edge {edge} is outside pattern piece {piece.PieceId}")
         record = records[edge]
-        return record["id"], capture_edge_reference(piece.PieceId, record["id"], record["points"]).signature
+        signature = record.get("native_signature", "")
+        if not signature:
+            if record.get("native_authoritative"):
+                raise ChangedEdgeReference(
+                    f"native Sketcher edge reference {record['id']} provenance is unavailable"
+                )
+            signature = capture_edge_reference(piece.PieceId, record["id"], record["points"]).signature
+        return record["id"], signature
     reference_id = str(edge)
     for record in records:
         if record["id"] == reference_id:
-            return reference_id, capture_edge_reference(piece.PieceId, reference_id, record["points"]).signature
+            signature = record.get("native_signature", "")
+        if not signature:
+            if record.get("native_authoritative"):
+                raise ChangedEdgeReference(
+                    f"native Sketcher edge reference {reference_id} provenance is unavailable"
+                )
+            signature = capture_edge_reference(piece.PieceId, reference_id, record["points"]).signature
+        return reference_id, signature
     raise MissingEdgeReference(f"semantic edge reference {reference_id} is missing from pattern piece {piece.PieceId}")
 
 
 def _resolve_document_edge(piece, edge_id, signature):
+    records = _edge_records(piece)
+    if str(signature).startswith("native-v1:"):
+        match = next((record for record in records if record["id"] == str(edge_id)), None)
+        if match is None:
+            raise MissingEdgeReference(
+                f"semantic edge reference {edge_id} is missing from pattern piece {piece.PieceId}"
+            )
+        if not match.get("native_authoritative", False):
+            raise ChangedEdgeReference(
+                f"native Sketcher edge reference {edge_id} lost native geometry authority"
+            )
+        if not match.get("native_present", False):
+            raise MissingEdgeReference(
+                f"native Sketcher edge reference {edge_id} geometry is missing"
+            )
+        current = str(match.get("native_signature", ""))
+        if current != str(signature):
+            raise ChangedEdgeReference(
+                f"native Sketcher edge reference {edge_id} geometry changed"
+            )
+        return match
     reference = capture_edge_reference(piece.PieceId, edge_id, ((0.0, 0.0), (1.0, 0.0)))
     reference = type(reference)(reference.piece_id, reference.edge_id, signature)
-    return resolve_edge_reference(reference, _edge_records(piece))
+    return resolve_edge_reference(reference, records)
 
 
 class PatternPieceProxy:
