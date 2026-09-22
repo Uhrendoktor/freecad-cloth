@@ -1,9 +1,9 @@
 """Dependency-free, deterministic SVG/DXF interchange for sewing patterns."""
 import json
 from html import escape
-from math import cos, radians, sin
+from math import cos, isfinite, radians, sin
 from xml.etree import ElementTree
-from freecad_cloth.pattern.PatternDerivedGeometry import DerivedPattern, PatternMark, add_marks, derive_cut_boundary, mark_point, notch_point
+from freecad_cloth.pattern.PatternDerivedGeometry import DerivedPattern, Notch, PatternMark, add_marks, add_notches, derive_cut_boundary, mark_point, notch_point
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, PolylineSegment
 
 
@@ -187,6 +187,48 @@ def pattern_from_pattern_piece(piece, curve_samples: int = 64) -> ParametricPatt
     ])
 
 
+def _persisted_construction_marks(piece, pattern):
+    """Collect native PatternMark objects for one piece, failing closed on stale data."""
+    document = getattr(piece, "Document", None)
+    if document is None:
+        return ()
+    piece_id = str(getattr(piece, "PieceId", "")).strip()
+    by_id = pattern.by_id()
+    collected = []
+    for obj in getattr(document, "Objects", ()):
+        kind = str(getattr(obj, "PatternMarkType", "")).strip()
+        if not kind:
+            continue
+        if str(getattr(obj, "PieceId", "")).strip() != piece_id:
+            continue
+        mark_id = str(getattr(obj, "Name", "")).strip()
+        if not mark_id:
+            raise ValueError("persisted pattern mark has no stable object name")
+        segment_id = str(getattr(obj, "SegmentId", "")).strip()
+        if segment_id and segment_id not in by_id:
+            raise ValueError(
+                "persisted pattern mark %s references unknown segment %s" % (mark_id, segment_id)
+            )
+        try:
+            position = float(getattr(obj, "Position", 0.5))
+            depth = float(getattr(obj, "Depth", 3.0))
+            angle = float(getattr(obj, "Angle", 0.0))
+            length = float(getattr(obj, "Length", 40.0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("persisted pattern mark %s contains invalid numeric metadata" % mark_id) from exc
+        if not all(isfinite(value) for value in (position, depth, angle, length)):
+            raise ValueError("persisted pattern mark %s contains non-finite numeric metadata" % mark_id)
+        text = str(getattr(obj, "Text", "") or "").strip()
+        if kind == "Notch":
+            if not segment_id:
+                raise ValueError("persisted notch %s does not identify a sewing segment" % mark_id)
+            mark = Notch(mark_id, segment_id, position, depth=depth)
+        else:
+            mark = PatternMark(mark_id, kind, segment_id, position, angle, length, text)
+        collected.append(mark)
+    return tuple(sorted(collected, key=lambda mark: (mark.kind, mark.id)))
+
+
 def export_pattern_piece(piece, path, format: str, *, units: str = "mm", curve_samples: int = 64) -> dict:
     """Write and validate an SVG/DXF export derived from an authoritative piece."""
     normalized_format = str(format).strip().lower()
@@ -198,16 +240,25 @@ def export_pattern_piece(piece, path, format: str, *, units: str = "mm", curve_s
     seam_ids = _piece_seams(piece)
     allowance = max(0.0, float(getattr(piece, "SeamAllowance", 0.0)))
     derived = derive_cut_boundary(pattern, allowance, curve_samples=curve_samples)
-    if pattern.segments:
-        mark = PatternMark(
-            id="%s:grainline" % str(getattr(piece, "PieceId", "piece")),
-            kind="Grainline",
-            segment_id=pattern.segments[0].id,
-            angle=float(getattr(piece, "GrainlineAngle", 0.0)),
-            length=40.0,
-            text="Grain",
+    persisted = _persisted_construction_marks(piece, pattern)
+    persisted_notches = tuple(mark for mark in persisted if isinstance(mark, Notch))
+    persisted_marks = tuple(mark for mark in persisted if isinstance(mark, PatternMark))
+    if persisted_notches:
+        derived = add_notches(derived, persisted_notches)
+    if persisted_marks:
+        derived = add_marks(derived, persisted_marks)
+    if pattern.segments and not any(mark.kind == "Grainline" for mark in persisted_marks):
+        derived = add_marks(
+            derived,
+            (PatternMark(
+                id="%s:grainline" % str(getattr(piece, "PieceId", "piece")),
+                kind="Grainline",
+                segment_id=pattern.segments[0].id,
+                angle=float(getattr(piece, "GrainlineAngle", 0.0)),
+                length=40.0,
+                text="Grain",
+            ),),
         )
-        derived = add_marks(derived, (mark,))
     if normalized_format == "svg":
         content = to_svg(pattern, curve_samples, units, derived, str(getattr(piece, "PieceId", "")), seam_ids, allowance)
     else:
