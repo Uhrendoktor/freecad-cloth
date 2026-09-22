@@ -69,14 +69,26 @@ def _has_any_selected_pattern_edges():
         return False
 
 
+_ACTIVE_STAGED_SEWING_TASK_PANEL = None
+
+
+def get_active_staged_sewing_task_panel():
+    """Return the task panel most recently opened by a public staged-sewing command."""
+    return _ACTIVE_STAGED_SEWING_TASK_PANEL
+
+
 def start_staged_seam_creation():
+    global _ACTIVE_STAGED_SEWING_TASK_PANEL
     from freecad_cloth.sewing.SewingCreationGui import show_sewing_creation_task
-    return show_sewing_creation_task("seam")
+    _ACTIVE_STAGED_SEWING_TASK_PANEL = show_sewing_creation_task("seam")
+    return _ACTIVE_STAGED_SEWING_TASK_PANEL
 
 
 def start_staged_mn_sewing_creation():
+    global _ACTIVE_STAGED_SEWING_TASK_PANEL
     from freecad_cloth.sewing.SewingCreationGui import show_sewing_creation_task
-    return show_sewing_creation_task("mn")
+    _ACTIVE_STAGED_SEWING_TASK_PANEL = show_sewing_creation_task("mn")
+    return _ACTIVE_STAGED_SEWING_TASK_PANEL
 
 
 def _has_two_selected_pattern_edges():
