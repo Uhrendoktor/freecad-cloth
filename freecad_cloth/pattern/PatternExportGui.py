@@ -103,11 +103,14 @@ class PatternExportTaskPanel:
 
     def getStandardButtons(self):
         _, _, QtWidgets = _qt()
-        return QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+        buttons = QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+        return int(getattr(buttons, "value", buttons))
 
 
 def show_pattern_export_task(piece=None):
     _, Gui, _ = _qt()
     panel = PatternExportTaskPanel(piece)
     Gui.Control.showDialog(panel)
+    if hasattr(panel.form, "isVisible") and not panel.form.isVisible():
+        panel.form.show()
     return panel
