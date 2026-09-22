@@ -502,7 +502,7 @@ def set_avatar_collision_source(scene, source_obj, thickness=2.0, deflection=1.0
     return target
 
 
-def create_simulation_scene(doc):
+def create_simulation_scene(doc, build=True):
     from freecad_cloth.simulation.DrapeTarget import create_drape_target
     from freecad_cloth.common.GarmentDocument import ensure_fabric_material, garment_group, link_garment_object
     scene = doc.addObject("App::FeaturePython", "ClothSimulation")
@@ -549,7 +549,8 @@ def create_simulation_scene(doc):
     patterns = garment_group(doc, "Patterns")
     if patterns is not None:
         scene.ClothPieces = [obj for obj in patterns.Group if getattr(obj, "PatternType", "") == "PatternPiece"]
-    proxy._build(scene, ())
+    if build:
+        proxy._build(scene, ())
     return scene
 
 
