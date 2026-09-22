@@ -96,7 +96,12 @@ try:
     if Gui.Control.activeDialog():
         Gui.Control.closeDialog()
         process_events()
-    if Gui.Control.activeDialog() is not None:
+    for _ in range(40):
+        active = Gui.Control.activeDialog()
+        if active is None or not bool(active):
+            break
+        process_events()
+    else:
         raise RuntimeError("pattern creation task panel remained open before export")
 
     source_before = (
