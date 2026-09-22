@@ -205,6 +205,8 @@ def _execute_fake_proxy(
             Alignment="endpoints",
             Status="Incomplete",
             CorrespondenceStatus="valid",
+            CorrespondenceMessage="",
+            CorrespondenceRecovery="",
             LengthA=0,
             LengthB=0,
             LengthDifference=0,
