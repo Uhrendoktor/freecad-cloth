@@ -100,23 +100,7 @@ def _simulation_source_signature(obj, pieces):
         pattern_signature = resolved.signature
     else:
         pattern_signature = ((), ())
-    seam_signature = tuple(sorted(
-        (
-            str(getattr(seam, "SeamId", "")),
-            str(getattr(seam, "PieceA", "")),
-            int(getattr(seam, "EdgeA", 0)),
-            float(getattr(seam, "StartA", 0.0)),
-            float(getattr(seam, "EndA", 1.0)),
-            str(getattr(seam, "PieceB", "")),
-            int(getattr(seam, "EdgeB", 0)),
-            float(getattr(seam, "StartB", 0.0)),
-            float(getattr(seam, "EndB", 1.0)),
-            bool(getattr(seam, "ReversedB", False)),
-        )
-        for seam in getattr(getattr(obj, "Document", None), "Objects", ())
-        if getattr(seam, "SeamId", "")
-        and (str(getattr(seam, "PieceA", "")) in piece_ids or str(getattr(seam, "PieceB", "")) in piece_ids)
-    ))
+    seam_signature = pattern_signature[1] if pattern_signature else ()
     target = getattr(obj, "DrapeTarget", None)
     target_signature = ()
     if target is not None:
