@@ -26,6 +26,7 @@ def test_canonical_tunic_rejects_known_shoulder_mapping_regressions():
 def test_canonical_tunic_enforces_authoritative_solver_seam_gate():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert 'if max_seam_gap > 35.0:' in audit
+    assert '_seam_coherence(panels, seam_records, proxy=scene.Proxy)' in audit
     assert 'write_drape_metrics(' in audit
     assert 'seam_records=seam_records,\\n        proxy=proxy,' in audit
     assert 'tunic seam-gate injection anchor missing from canonical source' in audit
