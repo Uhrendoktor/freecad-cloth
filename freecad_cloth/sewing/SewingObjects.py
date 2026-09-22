@@ -2,7 +2,7 @@
 import ast
 from math import atan2, degrees, hypot
 
-from freecad_cloth.sewing.SewingCorrespondence import analyze_correspondence
+from freecad_cloth.sewing.SewingCorrespondence import analyze_correspondence, correspondence_status_label
 
 
 def _outline_points(piece):
@@ -222,13 +222,7 @@ class SewingOperationProxy:
             obj.CorrespondenceStatus = correspondence.status
 
         obj.StitchCount = max(2, int(obj.Stitches))
-        obj.Status = (
-            "Valid"
-            if correspondence.valid
-            else "Length mismatch"
-            if correspondence.status == "length_mismatch"
-            else "Invalid range"
-        )
+        obj.Status = correspondence_status_label(correspondence)
         if hasattr(obj, "ReversedB"):
             obj.ReversedB = bool(getattr(seam, "ReversedB", False))
         if hasattr(obj, "Alignment"):
