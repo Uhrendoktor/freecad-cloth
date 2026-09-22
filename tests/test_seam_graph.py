@@ -123,3 +123,4 @@ def test_true_mn_arc_length_mapping_reversal_is_explicit():
 def test_missing_mesh_edge_vertices_is_rejected():
     value = graph()
     with pytest.raises(ValueError, match="missing mesh edge"): value.stitch_pairs({("left", 1): (1, 2, 3)})
+
