@@ -1,3 +1,10 @@
+def _doc_object(doc, name):
+    getter = getattr(doc, "getObject", None)
+    if callable(getter):
+        return getter(name)
+    return next((obj for obj in tuple(getattr(doc, "Objects", ())) if getattr(obj, "Name", "") == name), None)
+
+
 """Native FreeCAD garment hierarchy adapter.
 
 The hierarchy groups existing authoritative document objects. It never creates
@@ -28,7 +35,7 @@ def garment_domain(obj):
 
 def ensure_garment_structure(doc):
     """Return the native Garment root and its six stable child groups."""
-    root = doc.getObject("Garment")
+    root = _doc_object(doc, "Garment")
     if root is None:
         root = doc.addObject("App::Part", "Garment")
         root.Label = "Garment"
@@ -42,7 +49,7 @@ def ensure_garment_structure(doc):
     groups = {}
     for domain in GROUP_NAMES:
         name = GROUP_OBJECT_NAMES[domain]
-        group = doc.getObject(name)
+        group = _doc_object(doc, name)
         if group is None:
             group = doc.addObject("App::DocumentObjectGroup", name)
             group.Label = domain
