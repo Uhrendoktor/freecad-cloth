@@ -139,108 +139,55 @@ def _mesh_points(mesh):
     return _mesh_geometry(mesh)[0]
 
 
-def _sample_boundary(edge_indices, start, end, samples, points):
-    """Return global boundary vertex indices sampled by arc-length fraction."""
-    if not edge_indices or not points:
-        return []
-    if len(edge_indices) != len(points):
-        raise ValueError("boundary index/point lengths differ")
-    count = max(2, int(samples))
-    if len(edge_indices) == 1:
-        return [int(edge_indices[0])] * count
+def _post_drape_seam_gap(stitch_pairs, positions):
+    """Measure the gap on the exact particle pairs passed to the solver."""
+    if not stitch_pairs:
+        raise ValueError("solver stitch pair provenance is required")
     from math import sqrt
-    cumulative = [0.0]
-    for a, b in zip(points, points[1:]):
-        cumulative.append(
-            cumulative[-1]
-            + sqrt(sum((float(b[i]) - float(a[i])) ** 2 for i in range(3)))
-        )
-    total = cumulative[-1]
-    lower = max(0.0, min(1.0, float(start)))
-    upper = max(0.0, min(1.0, float(end)))
-    if upper < lower:
-        lower, upper = upper, lower
-    if total <= 0.0:
-        span = max(1, len(edge_indices) - 1)
-        return [
-            int(edge_indices[round((lower + (upper - lower) * j / (count - 1)) * span)])
-            for j in range(count)
-        ]
-    targets = [total * (lower + (upper - lower) * j / (count - 1)) for j in range(count)]
-    sampled = []
-    for target in targets:
-        best_index = min(
-            range(len(cumulative)),
-            key=lambda index: abs(cumulative[index] - target),
-        )
-        sampled.append(int(edge_indices[best_index]))
-    return sampled
-
-
-def _post_drape_seam_gap(edge_a_indices, edge_b_indices, positions, seam, samples=5):
-    from math import sqrt
-    from freecad_cloth.sewing.SewingCorrespondence import arc_length_vertex_indices
-    if not edge_a_indices or not edge_b_indices:
-        raise ValueError("semantic seam boundary vertices are required")
-    points_a = tuple(positions[int(index)] for index in edge_a_indices)
-    points_b = tuple(positions[int(index)] for index in edge_b_indices)
-    sampled_a = arc_length_vertex_indices(
-        edge_a_indices,
-        points_a,
-        samples,
-        float(getattr(seam, "StartA", 0.0)),
-        float(getattr(seam, "EndA", 1.0)),
-    )
-    sampled_b = arc_length_vertex_indices(
-        edge_b_indices,
-        points_b,
-        samples,
-        float(getattr(seam, "StartB", 0.0)),
-        float(getattr(seam, "EndB", 1.0)),
-    )
-    if bool(getattr(seam, "ReversedB", False)):
-        sampled_b = tuple(reversed(sampled_b))
     maximum = 0.0
-    for a_index, b_index in zip(sampled_a, sampled_b):
+    for a_index, b_index in stitch_pairs:
+        if not (0 <= int(a_index) < len(positions) and 0 <= int(b_index) < len(positions)):
+            raise ValueError("solver stitch pair is outside backend particle positions")
         a = positions[int(a_index)]
         b = positions[int(b_index)]
-        maximum = max(maximum, sqrt(sum((float(a[i]) - float(b[i])) ** 2 for i in range(3))))
+        maximum = max(
+            maximum,
+            sqrt(sum((float(a[i]) - float(b[i])) ** 2 for i in range(3))),
+        )
     return maximum
 
 
 def _seam_coherence(panels, seam_records, proxy=None):
     if not seam_records:
-        return {"sample_count": 0, "seams": [], "max_correspondence_gap_mm": None, "method": "semantic-boundary-provenance"}
-    if proxy is None or not getattr(proxy, "panel_boundary_edges", None):
-        raise RuntimeError("semantic seam diagnostics require simulation boundary provenance")
+        return {
+            "sample_count": 0,
+            "seams": [],
+            "max_correspondence_gap_mm": None,
+            "method": "solver-stitch-pairs",
+        }
+    if proxy is None or not getattr(proxy, "seam_stitch_pairs", None):
+        raise RuntimeError("seam diagnostics require exact solver stitch-pair provenance")
     positions = tuple(proxy.backend.positions())
-    panel_by_piece = {
-        str(getattr(proxy, "panel_piece_names", {}).get(panel.Name, "")): panel
-        for panel in panels
-        if panel.Name in getattr(proxy, "panel_piece_names", {})
-    }
+    stitch_pairs_by_seam = proxy.seam_stitch_pairs
     records = []
     maximum = 0.0
-    sample_count = 5
+    sample_count = 0
     for seam, piece_a, piece_b in seam_records:
-        panel_a = panel_by_piece.get(str(getattr(piece_a, "Name", "")))
-        panel_b = panel_by_piece.get(str(getattr(piece_b, "Name", "")))
-        if panel_a is None or panel_b is None:
-            raise RuntimeError("semantic seam diagnostics could not map seam pieces to drape panels")
-        boundary_a = getattr(proxy, "panel_boundary_edges", {}).get(panel_a.Name, ())
-        boundary_b = getattr(proxy, "panel_boundary_edges", {}).get(panel_b.Name, ())
+        seam_id = str(getattr(seam, "SeamId", getattr(seam, "Label", "")))
+        stitch_pairs = tuple(stitch_pairs_by_seam.get(seam_id, ()))
+        if not stitch_pairs:
+            raise RuntimeError("solver stitch-pair provenance missing for seam %s" % seam_id)
+        gap = _post_drape_seam_gap(stitch_pairs, positions)
+        sample_count = max(sample_count, len(stitch_pairs))
         edge_a = int(seam.EdgeA)
         edge_b = int(seam.EdgeB)
-        if edge_a < 0 or edge_a >= len(boundary_a) or edge_b < 0 or edge_b >= len(boundary_b):
-            raise RuntimeError("semantic seam diagnostics found an out-of-range seam edge")
-        gap = _post_drape_seam_gap(boundary_a[edge_a], boundary_b[edge_b], positions, seam, sample_count)
-        seam_id = str(getattr(seam, "SeamId", getattr(seam, "Label", "")))
         records.append({
             "seam": seam_id,
             "piece_a": str(getattr(piece_a, "PieceId", "")),
             "piece_b": str(getattr(piece_b, "PieceId", "")),
             "edge_a": edge_a,
             "edge_b": edge_b,
+            "stitch_pair_count": len(stitch_pairs),
             "max_correspondence_gap_mm": round(float(gap), 6),
         })
         maximum = max(maximum, float(gap))
@@ -248,7 +195,7 @@ def _seam_coherence(panels, seam_records, proxy=None):
         "sample_count": sample_count,
         "seams": records,
         "max_correspondence_gap_mm": round(maximum, 6),
-        "method": "semantic-boundary-provenance",
+        "method": "solver-stitch-pairs",
     }
 
 def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=None, seam_records=(), proxy=None):
