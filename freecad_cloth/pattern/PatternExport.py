@@ -123,7 +123,7 @@ def validate_export(pattern: ParametricPattern, exported: str, format: str, curv
     normalized_format=str(format).strip().lower()
     if normalized_format not in {"svg", "dxf"}:
         raise ValueError("format must be 'svg' or 'dxf'")
-    expected = to_svg(pattern, curve_samples, units, derived, piece_id, seam_ids, seam_allowance) if normalized_format == "svg" else to_dxf(pattern, curve_samples, units, derived, piece_id, seam_ids, seam_allowance)
+    expected = to_svg(pattern, curve_samples, units, derived, piece_id, seam_ids, seam_allowance, internal_mark_ids, semantic_edge_ids) if normalized_format == "svg" else to_dxf(pattern, curve_samples, units, derived, piece_id, seam_ids, seam_allowance, internal_mark_ids, semantic_edge_ids)
     if exported != expected:
         raise ValueError("export does not match the deterministic authoritative pattern output")
     metadata = from_svg_metadata(exported) if normalized_format == "svg" else from_dxf_metadata(exported)
