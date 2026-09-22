@@ -66,7 +66,8 @@ def _sync_visuals(scene, *, recompute=True):
     scene.BoundingVolumeObjects = volume_objects
     for obj in point_objects + volume_objects:
         obj.ViewObject.Visibility = True
-    scene.Document.recompute()
+    if recompute:
+        scene.Document.recompute()
 
 
 def create_fitting_scene():
