@@ -24,8 +24,8 @@ def _pieces_by_id(doc):
     return {getattr(o, "PieceId", ""): o for o in doc.Objects if getattr(o, "PatternType", "") == "PatternPiece"}
 
 
-def _selected_pattern_edges(allow_many=False):
-    """Return selected pattern-piece edge references in selection order."""
+def _collect_selected_pattern_edges():
+    """Return all selected semantic pattern-piece edges in selection order."""
     import FreeCADGui as Gui
     edges = []
     seen = set()
@@ -48,12 +48,24 @@ def _selected_pattern_edges(allow_many=False):
                 continue
             seen.add(key)
             edges.append((obj, edge))
+    return edges
+
+
+def _selected_pattern_edges(allow_many=False):
+    """Return selected pattern-piece edge references after count/piece validation."""
+    edges = _collect_selected_pattern_edges()
     if (not allow_many and len(edges) != 2) or (allow_many and len(edges) < 2):
         count = "at least two" if allow_many else "exactly two"
         raise ValueError("select %s edges on pattern pieces" % count)
     if len({id(obj) for obj, _edge in edges}) != 2:
         raise ValueError("a sewing relationship must connect two different pattern pieces")
     return edges
+
+def _has_any_selected_pattern_edges():
+    try:
+        return bool(_collect_selected_pattern_edges())
+    except (ImportError, ValueError):
+        return False
 
 
 def _has_two_selected_pattern_edges():
@@ -70,6 +82,16 @@ def _has_mn_selection():
         return True
     except (ImportError, ValueError):
         return False
+
+
+def start_staged_seam_creation():
+    from freecad_cloth.sewing.SewingCreationGui import show_sewing_creation_task
+    return show_sewing_creation_task("seam")
+
+
+def start_staged_mn_sewing_creation():
+    from freecad_cloth.sewing.SewingCreationGui import show_sewing_creation_task
+    return show_sewing_creation_task("mn")
 
 
 def create_seam_from_selection():
@@ -237,8 +259,8 @@ COMMANDS = [
     "ClothSewing_Validate", "ClothSewing_RepairSeam", "ClothSewing_Show2D",
 ]
 _COMMAND_HANDLERS = {
-    "ClothSewing_CreateSeam": create_seam_from_selection,
-    "ClothSewing_CreateMNSewing": create_mn_sewing_from_selection,
+    "ClothSewing_CreateSeam": start_staged_seam_creation,
+    "ClothSewing_CreateMNSewing": start_staged_mn_sewing_creation,
     "ClothSewing_CreateOperation": create_sewing_operation,
     "ClothSewing_EditOperation": edit_sewing_operation,
     "ClothSewing_ReverseSeam": reverse_selected_seam,
@@ -259,8 +281,8 @@ _MENU_TEXT = {
     "ClothSewing_Show2D": "Show Sewing 2D",
 }
 _TOOLTIPS = {
-    "ClothSewing_CreateSeam": "Create a persistent seam from two selected pattern edges",
-    "ClothSewing_CreateMNSewing": "Create a deterministic 1:N, M:1, or M:N sewing relationship from selected edges",
+    "ClothSewing_CreateSeam": "Preview, validate, and commit a seam from two selected pattern edges",
+    "ClothSewing_CreateMNSewing": "Preview, validate, and commit a deterministic 1:N, M:1, or M:N sewing relationship",
     "ClothSewing_CreateOperation": "Create a sewing operation from the selected seam",
     "ClothSewing_EditOperation": "Edit seam alignment, orientation, tolerance, and stitch samples",
     "ClothSewing_ReverseSeam": "Reverse the B-side stitch correspondence",
@@ -303,8 +325,8 @@ class _SewingCommand:
         return resources
 
 _ACTIVATION = {
-    "ClothSewing_CreateSeam": lambda: _has_active_document() and _has_two_selected_pattern_edges(),
-    "ClothSewing_CreateMNSewing": lambda: _has_active_document() and _has_mn_selection(),
+    "ClothSewing_CreateSeam": lambda: _has_active_document() and _has_any_selected_pattern_edges(),
+    "ClothSewing_CreateMNSewing": lambda: _has_active_document() and _has_any_selected_pattern_edges(),
     "ClothSewing_CreateOperation": lambda: _has_active_document() and _has_selected_seam(),
     "ClothSewing_EditOperation": lambda: _has_active_document() and _has_selected_operation(),
     "ClothSewing_ReverseSeam": lambda: _has_active_document() and _has_selected_seam(),

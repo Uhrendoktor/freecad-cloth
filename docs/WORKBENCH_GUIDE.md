@@ -14,7 +14,7 @@ Create at least two PatternPieces. Use the native Sketcher representation for ed
 
 ### 2. Sewing
 
-Select compatible pattern edges/ranges and explicitly create a seam or M:N/free sewing relationship. Review direction, reversal, correspondence and length diagnostics before committing. Use the task panel for staged operations and the Property Editor for persistent state.
+Select compatible pattern edges/ranges and explicitly create a seam or M:N/free sewing relationship. The public sewing command opens a staged task panel: **Preview** creates and validates the normal semantic objects in one undo transaction, **Commit** persists the validated relationship, and **Cancel** removes the preview and restores the prior selection. Invalid selection or seam/network validation is rejected before persistence. Review direction, reversal, correspondence and length diagnostics before continuing. Use the Property Editor for persistent state.
 
 If a Sketch edit invalidates a semantic edge reference, the seam remains invalid until explicitly repaired/recreated. Never rely on generated mesh edge order.
 
