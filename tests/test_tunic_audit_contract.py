@@ -47,3 +47,10 @@ def test_tunic_audit_seam_rewrite_compiles_after_source_substitution():
     rewritten = dummy.replace(seam_old, seam_new, 1)
     assert rewritten != dummy
     compile(rewritten, "<tunic-audit-rewrite>", "exec")
+
+
+def test_tunic_audit_replaces_full_legacy_seam_block_and_gate_anchor():
+    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'seam_records.append((seam_obj, front, back))' in source
+    assert 'proxy=proxy' in source
+    assert 'authoritative tunic seams did not converge' in source
