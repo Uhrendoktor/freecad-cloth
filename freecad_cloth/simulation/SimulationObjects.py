@@ -508,7 +508,7 @@ def set_avatar_collision_source(scene, source_obj, thickness=2.0, deflection=1.0
     return target
 
 
-def create_simulation_scene(doc, build=True):
+def create_simulation_scene(doc, build=True, avatar_source=None):
     from freecad_cloth.simulation.DrapeTarget import create_drape_target
     scene = doc.addObject("App::FeaturePython", "ClothSimulation")
     scene.Label = "Cloth Simulation"
@@ -546,7 +546,7 @@ def create_simulation_scene(doc, build=True):
     link_garment_object(panel_b, "SimulationOutput", doc)
     scene.FabricMaterial = material
     scene.DrapePanels = [panel_a, panel_b]
-    avatar = create_avatar_collision(doc)
+    avatar = create_avatar_collision(doc, source_obj=avatar_source)
     scene.AvatarProxy = avatar
     target = create_drape_target(doc, avatar.SourceObject, "Mannequin", avatar.CollisionDeflection, avatar.CollisionThickness)
     scene.DrapeTarget = target
