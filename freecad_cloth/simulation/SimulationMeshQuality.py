@@ -43,8 +43,13 @@ def quality_piece_mesh(piece, start_height, particle_distance):
     segment_ids = mesh.boundary_edge_segment_ids
     if segment_ids and len(segment_ids) != len(boundary):
         raise ValueError("quality mesh boundary provenance length does not match boundary vertices")
+    edge_prefixes = [f"{piece.PieceId}:edge:{index}" for index in range(len(points))]
     for index, segment_id in enumerate(segment_ids):
-        key = str(segment_id)
+        raw_key = str(segment_id)
+        key = next(
+            prefix for prefix in edge_prefixes
+            if raw_key == prefix or raw_key.startswith(prefix + "::sub::")
+        )
         start = int(boundary[index])
         end = int(boundary[(index + 1) % len(boundary)])
         group = boundary_groups.setdefault(key, [start])
