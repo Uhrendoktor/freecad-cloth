@@ -1,7 +1,7 @@
 """Dependency-free, deterministic SVG/DXF interchange for sewing patterns."""
 import json
 from html import escape
-from math import cos, radians, sin
+from math import cos, isfinite, radians, sin
 from xml.etree import ElementTree
 from freecad_cloth.pattern.PatternDerivedGeometry import DerivedPattern, PatternMark, add_marks, derive_cut_boundary, mark_point, notch_point
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, PolylineSegment
@@ -29,6 +29,10 @@ def _metadata(pattern, units, piece_id="", seam_ids=(), derived=None, seam_allow
         data["seam_allowance_mm"] = float(seam_allowance)
         data["notch_ids"] = [str(value.id) for value in derived.notches]
         data["mark_ids"] = [str(value.id) for value in derived.marks]
+        data["mark_types"] = [
+            {"id": str(value.id), "kind": str(value.kind)}
+            for value in derived.marks
+        ]
     return data
 
 
@@ -146,6 +150,71 @@ def _piece_seams(piece):
     return tuple(sorted(set(seams)))
 
 
+def _persisted_construction_marks(piece, pattern):
+    """Adapt persisted PatternMark document objects into deterministic export marks."""
+    doc = getattr(piece, "Document", None)
+    if doc is None:
+        raise ValueError("pattern piece is not attached to a FreeCAD document")
+    piece_id = str(getattr(piece, "PieceId", "")).strip()
+    persisted = []
+    for obj in getattr(doc, "Objects", ()):
+        if str(getattr(obj, "PieceId", "")).strip() != piece_id:
+            continue
+        mark_type = str(getattr(obj, "PatternMarkType", "")).strip()
+        if not mark_type:
+            continue
+        mark_id = str(getattr(obj, "PatternMarkId", "")).strip() or str(getattr(obj, "Name", "")).strip()
+        if not mark_id:
+            raise ValueError("persisted pattern mark has no stable identity")
+        segment_id = str(getattr(obj, "SegmentId", "")).strip()
+        if segment_id and segment_id not in pattern.by_id():
+            raise ValueError(
+                "persisted pattern mark %s references unknown segment: %s"
+                % (mark_id, segment_id)
+            )
+        try:
+            position = float(getattr(obj, "Position", 0.5))
+            depth = float(getattr(obj, "Depth", 3.0))
+            angle = float(getattr(obj, "Angle", 0.0))
+            length = float(getattr(obj, "Length", 40.0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("persisted pattern mark %s has invalid numeric values" % mark_id) from exc
+        if not isfinite(position) or not 0.0 <= position <= 1.0:
+            raise ValueError("persisted pattern mark %s has invalid position" % mark_id)
+        if not isfinite(angle):
+            raise ValueError("persisted pattern mark %s has invalid angle" % mark_id)
+        if not isfinite(depth) or depth <= 0.0:
+            raise ValueError("persisted pattern mark %s has invalid depth" % mark_id)
+        if not isfinite(length) or length <= 0.0:
+            raise ValueError("persisted pattern mark %s has invalid length" % mark_id)
+        persisted.append((str(getattr(obj, "Name", mark_id)), mark_id, mark_type, segment_id, position, depth, angle, length, str(getattr(obj, "Text", "")).strip()))
+    persisted.sort(key=lambda value: (value[0], value[1], value[2]))
+    ids = set()
+    notches = []
+    marks = []
+    for _name, mark_id, mark_type, segment_id, position, depth, angle, length, text in persisted:
+        if mark_id in ids:
+            raise ValueError("duplicate persisted construction mark ID: %s" % mark_id)
+        ids.add(mark_id)
+        if mark_type.casefold() == "notch":
+            if not segment_id:
+                raise ValueError("persisted notch %s must reference a segment" % mark_id)
+            notches.append(Notch(mark_id, segment_id, position, depth=depth))
+        else:
+            marks.append(
+                PatternMark(
+                    mark_id,
+                    mark_type,
+                    segment_id=segment_id,
+                    t=position,
+                    angle=angle,
+                    length=length,
+                    text=text,
+                )
+            )
+    return tuple(notches), tuple(marks)
+
+
 def pattern_from_pattern_piece(piece, curve_samples: int = 64) -> ParametricPattern:
     """Build a deterministic derived export pattern from the authoritative piece."""
     if getattr(piece, "PatternType", "") != "PatternPiece":
@@ -198,7 +267,12 @@ def export_pattern_piece(piece, path, format: str, *, units: str = "mm", curve_s
     seam_ids = _piece_seams(piece)
     allowance = max(0.0, float(getattr(piece, "SeamAllowance", 0.0)))
     derived = derive_cut_boundary(pattern, allowance, curve_samples=curve_samples)
-    if pattern.segments:
+    persisted_notches, persisted_marks = _persisted_construction_marks(piece, pattern)
+    if persisted_notches:
+        derived = add_notches(derived, persisted_notches)
+    if persisted_marks:
+        derived = add_marks(derived, persisted_marks)
+    if not any(str(mark.kind).strip().casefold() == "grainline" for mark in derived.marks) and pattern.segments:
         mark = PatternMark(
             id="%s:grainline" % str(getattr(piece, "PieceId", "piece")),
             kind="Grainline",
