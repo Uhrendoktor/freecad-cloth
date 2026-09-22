@@ -29,6 +29,9 @@ def test_2d_focus_ignores_unrelated_objects_without_freecad_runtime():
 if __name__ == "__main__":
     test_2d_focus_includes_only_authoritative_pattern_pieces_in_document_order()
     test_2d_focus_ignores_unrelated_objects_without_freecad_runtime()
+    test_seam_colors_are_distinct_and_stable_by_seam_id()
+    test_apply_seam_colors_marks_each_seam_pair()
+    test_show_2d_does_not_select_seams_over_their_colors()
     print("sewing Show 2D tests passed")
 
 
@@ -49,7 +52,7 @@ def test_apply_seam_colors_marks_each_seam_pair():
     assert first.ViewObject.LineColor != second.ViewObject.LineColor
 
 
-def test_show_2d_does_not_select_seams_over_their_colors(monkeypatch):
+def test_show_2d_does_not_select_seams_over_their_colors():
     seam = SimpleNamespace(SeamId="seam-1", ViewObject=SimpleNamespace(LineColor=None))
     piece = SimpleNamespace(PatternType="PatternPiece")
 
@@ -79,9 +82,15 @@ def test_show_2d_does_not_select_seams_over_their_colors(monkeypatch):
     view = View()
     active = SimpleNamespace(Document=SimpleNamespace(Objects=[piece, seam]), activeView=lambda: view)
     gui = SimpleNamespace(Selection=Selection, activeDocument=lambda: active)
-    monkeypatch.setitem(sys.modules, "FreeCADGui", gui)
-
-    show_sewing_2d()
+    previous_gui = sys.modules.get("FreeCADGui")
+    sys.modules["FreeCADGui"] = gui
+    try:
+        show_sewing_2d()
+    finally:
+        if previous_gui is None:
+            sys.modules.pop("FreeCADGui", None)
+        else:
+            sys.modules["FreeCADGui"] = previous_gui
 
     assert Selection.cleared == 1
     assert Selection.added == []
