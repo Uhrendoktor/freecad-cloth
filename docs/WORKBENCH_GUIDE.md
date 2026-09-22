@@ -18,6 +18,8 @@ Exports fail closed when the selected piece has missing native geometry or inval
 
 Create at least two PatternPieces. Use the native Sketcher representation for editable dimensions, constraints and curves. Add seam allowance, notches, grainline and internal-mark metadata as needed. Recompute and validate before sewing.
 
+Pattern authoring is Sketcher-only on the normal workbench path. Use `ClothPattern_CreatePieceWithSketch` and `ClothPattern_EditSketch` for editable geometry, constraints and curves. Historical `PatternDrafting` helpers remain only for legacy-document compatibility and are not registered as a normal workbench command.
+
 ### 2. Sewing
 
 Select compatible pattern edges/ranges and explicitly create a seam or M:N/free sewing relationship. Review direction, reversal, correspondence and length diagnostics before committing. Use the task panel for staged operations and the Property Editor for persistent state.
