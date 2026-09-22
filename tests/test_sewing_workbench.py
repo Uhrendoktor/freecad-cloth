@@ -262,3 +262,4 @@ if __name__ == "__main__":
     test_boundary_sampling_honors_normalized_range()
     test_proxy_validation_and_reversal()
     print("sewing tests passed")
+
