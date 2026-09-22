@@ -41,6 +41,16 @@ def _tight_tissu_collision_envelope(surface):
 
 _tissu_backend._collision_envelope = _tight_tissu_collision_envelope
 
+def _semantic_edge_id(sketch, authored_edge):
+    semantic_ids = tuple(str(value).strip() for value in getattr(sketch, "SemanticEdgeIds", ()) or ())
+    if authored_edge < 0 or authored_edge >= len(semantic_ids):
+        raise RuntimeError("authored Sketcher edge %d is outside SemanticEdgeIds" % authored_edge)
+    edge_id = semantic_ids[authored_edge]
+    expected_suffix = ":edge:%d" % authored_edge
+    if not edge_id or not edge_id.endswith(expected_suffix):
+        raise RuntimeError("Sketcher semantic edge %d resolved to unexpected id %r" % (authored_edge, edge_id))
+    return edge_id
+
 # Use the known-stable tunic arrangement from the last passing visual audit.
 replacements = {
     'chest = 980.0; hip = 1020.0; ease = 55.0;': 'chest = 860.0; hip = 880.0; ease = 10.0;',
@@ -49,18 +59,20 @@ replacements = {
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
         'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)',
     'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):' :
-        '''authored_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()))
-    if len(authored_edge_ids) < 8 or any(not authored_edge_ids[index] for index in (1, 2, 6, 7)):
-        raise RuntimeError("canonical tunic fixture is missing authored semantic edge IDs")
-    for edge_index, seam_id in ((1, "TunicRightSide"), (2, "TunicRightShoulder"), (6, "TunicLeftShoulder"), (7, "TunicLeftSide")):
-        edge_id = authored_edge_ids[edge_index]
-        seam = Seam(str(front.PieceId), edge_id, str(back.PieceId), edge_id, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")
+        '''front_semantic_edge_ids = {index: _semantic_edge_id(front.Sketch, index) for index in (1, 2, 6, 7)}
+    back_semantic_edge_ids = {index: _semantic_edge_id(back.Sketch, index) for index in (1, 2, 6, 7)}
+    for authored_a, authored_b, seam_id in ((1, 1, "TunicRightSide"), (2, 2, "TunicRightShoulder"), (6, 6, "TunicLeftShoulder"), (7, 7, "TunicLeftSide")):
+        edge_a = front_semantic_edge_ids[authored_a]
+        edge_b = back_semantic_edge_ids[authored_b]
+        seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
-        if str(getattr(seam_obj, "EdgeAId", "")) != edge_id or str(getattr(seam_obj, "EdgeBId", "")) != edge_id:
-            raise RuntimeError("canonical tunic seam %s did not retain authored semantic edge %s" % (seam_id, edge_id))
+        if str(getattr(seam_obj, "EdgeAId", "")) != edge_a or str(getattr(seam_obj, "EdgeBId", "")) != edge_b:
+            raise RuntimeError("canonical tunic seam %s did not retain authored semantic edge IDs: %s ↔ %s" % (seam_id, edge_a, edge_b))
+        log("tunic-seam-map=%s authored-a=%d edge-a=%s authored-b=%d edge-b=%s" % (seam_id, authored_a, edge_a, authored_b, edge_b))
         seam_records.append((seam_obj, front, back))''',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
+    '        edge_a = int(seam.EdgeA)\n        edge_b = int(seam.EdgeB)': '        edge_a = str(getattr(seam, "EdgeAId", "")).strip()\n        edge_b = str(getattr(seam, "EdgeBId", "")).strip()\n        if not edge_a or not edge_b:\n            raise RuntimeError("solver seam diagnostics require semantic edge IDs")',
     'front_y = box.YMin - clearance; back_y = box.YMax + clearance;': 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
 }
