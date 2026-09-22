@@ -362,20 +362,43 @@ def simulation():
     front_indices = tuple(panel_indices[pin_panels[0].Name])
     back_indices = tuple(panel_indices[pin_panels[1].Name])
     front_pins = authored_shoulder_pins(front, front_indices, positions)
-    back_pins = authored_shoulder_pins(back, back_indices, positions)
-    # The two panels begin on opposite sides of the avatar. Pinning both sewn
-    # shoulder endpoints would freeze each endpoint at its separated start
-    # position, making the zero-rest stitch constraint unsatisfiable. Anchor
-    # only the front shoulder endpoints; the back panel must follow through the
-    # authored shoulder stitches.
-    scene.PinSelection = [str(i) for i in front_pins]
-    if any(
-        int(a) in front_pins and int(b) in front_pins
-        for seam_pairs in getattr(proxy, "seam_stitch_pairs", {}).values()
-        for a, b in seam_pairs
-    ):
-        raise RuntimeError("visual tunic pin contract pins both endpoints of a sewn pair")
-    log("pin-map authored front=%s back-global=%s back-pinned=false" % (front_pins, back_pins)); doc.recompute()
+    seam_endpoints = {
+        int(index)
+        for stitch_pairs in getattr(proxy, "seam_stitch_pairs", {}).values()
+        for pair in stitch_pairs
+        for index in pair
+    }
+    back_support_targets = (
+        (0.14 * panel_width, 0.90 * garment_height),
+        (0.86 * panel_width, 0.90 * garment_height),
+    )
+    back_support_pins = []
+    available_back = [index for index in back_indices if index not in seam_endpoints]
+    for local_x, local_y in back_support_targets:
+        if not available_back:
+            raise RuntimeError("visual tunic back-support pin candidates exhausted")
+        target_point = back.Placement.multVec(
+            App.Vector(float(local_x), float(local_y), 0.0)
+        )
+        index = min(
+            available_back,
+            key=lambda i: (
+                (positions[i][0] - target_point.x) ** 2
+                + (positions[i][1] - target_point.y) ** 2
+                + (positions[i][2] - target_point.z) ** 2,
+                i,
+            ),
+        )
+        back_support_pins.append(index)
+        available_back.remove(index)
+    pinned = tuple(front_pins) + tuple(back_support_pins)
+    if seam_endpoints.intersection(pinned):
+        raise RuntimeError("visual tunic support-pin contract pins a sewn endpoint")
+    scene.PinSelection = [str(i) for i in pinned]
+    log(
+        "pin-map authored front=%s back-support=%s back-endpoints-pinned=false"
+        % (front_pins, tuple(back_support_pins))
+    ); doc.recompute()
     for source in (doc.getObject("VisualTunicFront"), doc.getObject("VisualTunicBack")):
         if source is not None: source.ViewObject.Visibility = False
         sketch = getattr(source, "Sketch", None) if source is not None else None
