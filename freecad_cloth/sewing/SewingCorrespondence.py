@@ -35,8 +35,17 @@ class CorrespondenceReport:
         return self.status in {STATUS_VALID, STATUS_REVERSED}
 
 
+def correspondence_recovery(status: str) -> str:
+    """Return deterministic recovery guidance for a correspondence status."""
+    return {
+        STATUS_VALID: "no repair required",
+        STATUS_REVERSED: "keep the explicit B reversal or use Reverse B",
+        STATUS_LENGTH_MISMATCH: "edit the pattern geometry or seam ranges; do not hide the mismatch with tolerance",
+        STATUS_INVALID_RANGE: "reset the seam ranges or edit them to a positive normalized interval",
+    }.get(str(status), "inspect the seam reference before accepting")
+
+
 def correspondence_status_label(report: CorrespondenceReport) -> str:
-    """Return the shared persisted Status label for sewing objects."""
     if report.status in {STATUS_VALID, STATUS_REVERSED}:
         return "Valid"
     if report.status == STATUS_LENGTH_MISMATCH:
