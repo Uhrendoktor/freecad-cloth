@@ -15,6 +15,7 @@ source = source_path.read_text(encoding="utf-8")
 # longer present in freecad_screenshot_source.py, so patch the executable adapter.
 from freecad_cloth.simulation import TissuBackend as _tissu_backend
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
+from tunic_triangle_quality import build_triangle_quality_manifest, persist_triangle_quality_manifest
 
 def _tight_tissu_collision_envelope(surface):
     if surface is None or not surface.vertices:
@@ -68,6 +69,22 @@ for old, new in replacements.items():
         raise RuntimeError(f"audit replacement did not match source: {old}")
     source = source.replace(old, new, 1)
 
+# Fail closed if the current production fixture still exposes the legacy integer seam loop.
+legacy_seam_loop = 'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):'
+authored_seam_loop = '''front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())
+    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())
+    if len(front_edge_ids) < 8 or len(back_edge_ids) < 8 or any(not front_edge_ids[index] or not back_edge_ids[index] for index in (1, 2, 5, 6)): raise RuntimeError("canonical tunic fixture is missing authored semantic edge IDs")
+    seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"),(front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"),(front_edge_ids[6], back_edge_ids[6], "TunicLeftSide"))
+    for edge_a_id, edge_b_id, seam_id in seam_specs:
+        seam = Seam(str(front.PieceId), edge_a_id, str(back.PieceId), edge_b_id, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")
+        add_seam(doc, seam)
+        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
+        if str(getattr(seam_obj, "EdgeAId", "")) != edge_a_id or str(getattr(seam_obj, "EdgeBId", "")) != edge_b_id: raise RuntimeError("canonical tunic seam %s did not retain authored semantic edge IDs" % seam_id)
+        seam_records.append((seam_obj, front, back))'''
+if legacy_seam_loop in source:
+    source = source.replace(legacy_seam_loop, authored_seam_loop, 1)
+if legacy_seam_loop in source:
+    raise RuntimeError("canonical tunic fixture retained legacy integer seam references")
 
 preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
     if "ClothRealtimePreview" not in Gui.listCommands():
@@ -124,6 +141,38 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
     log("authoritative-seam-max-gap-mm=%.2f seam-ids=%s" % (max_seam_gap, tuple(str(seam.SeamId) for seam, _a, _b in seam_records)))\n"""
 
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n    ); bounds = []", 1)
+triangle_quality_anchor = """    write_drape_metrics(
+        panels,
+        avatar,
+        x_mid,
+        shoulder_z=shoulder_z,
+        hem_z=hem_z,
+        seam_records=seam_records,
+        proxy=proxy,
+    ); bounds = []"""
+if triangle_quality_anchor not in source:
+    raise RuntimeError("triangle-quality manifest insertion anchor missing from current canonical source")
+source = source.replace(
+    triangle_quality_anchor,
+    """    write_drape_metrics(
+        panels,
+        avatar,
+        x_mid,
+        shoulder_z=shoulder_z,
+        hem_z=hem_z,
+        seam_records=seam_records,
+        proxy=proxy,
+    )
+    persist_triangle_quality_manifest(
+        build_triangle_quality_manifest(
+            (front, back), panels, proxy, scene.ParticleDistance, seam_records
+        ),
+        METRICS,
+        log,
+    ); bounds = []""",
+    1,
+)
+
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
 exec(compile(source, str(source_path), "exec"), globals(), globals())
