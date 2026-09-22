@@ -28,6 +28,19 @@ def _has_selected_piece():
         return True
 
 
+def _default_segment_id(piece):
+    sketch = getattr(piece, "Sketch", None)
+    for value in tuple(getattr(sketch, "SemanticEdgeIds", ()) or ()):
+        segment_id = str(value).strip()
+        if segment_id:
+            return segment_id
+    for value in str(getattr(piece, "SewingBoundary", "")).split(","):
+        segment_id = value.strip()
+        if segment_id:
+            return segment_id
+    return ""
+
+
 def add_mark(doc, mark_type, piece_id, segment_id="", position=0.5, depth=3.0, angle=0.0, length=40.0, text=""):
     if not mark_type.strip():
         raise ValueError("mark type must not be empty")
@@ -57,7 +70,7 @@ def add_notch():
     import FreeCAD as App
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
     piece = _selected_piece(doc)
-    return add_mark(doc, "Notch", str(piece.PieceId), "bottom", 0.5, depth=3.0)
+    return add_mark(doc, "Notch", str(piece.PieceId), _default_segment_id(piece), 0.5, depth=3.0)
 
 
 def add_grainline():
