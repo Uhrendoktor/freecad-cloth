@@ -80,9 +80,23 @@ def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5):
                       int(sample_count), z=0.4)
     if bool(getattr(seam, "ReversedB", False)):
         b.reverse()
+    def polyline_shapes(points):
+        segments = []
+        for start, end in zip(points, points[1:]):
+            try:
+                if start.distanceToPoint(end) <= 1.0e-9:
+                    continue
+            except AttributeError:
+                if start == end:
+                    continue
+            segments.append(Part.makeLine(start, end))
+        return segments
+
     if len(a) < 2 or len(b) < 2:
         return Part.Shape()
-    shapes = [Part.makePolygon(list(a)), Part.makePolygon(list(b))]
+    shapes = polyline_shapes(a) + polyline_shapes(b)
+    if not shapes:
+        return Part.Shape()
     for pa, pb in zip(a, b):
         shapes.append(Part.makeLine(pa, pb))
     mid = len(a) // 2
