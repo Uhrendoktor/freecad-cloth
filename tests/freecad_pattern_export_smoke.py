@@ -126,7 +126,7 @@ try:
             record("export=%s:first-accept" % export_format)
             if not panel.accept():
                 raise RuntimeError("public export task panel rejected " + export_format)
-            close_public_task(panel)
+            process_events()
             record("export=%s:first-written" % export_format)
 
             first = path_a.read_bytes()
@@ -140,7 +140,7 @@ try:
             record("export=%s:second-accept" % export_format)
             if not panel.accept():
                 raise RuntimeError("second public export rejected " + export_format)
-            close_public_task()
+            process_events()
             record("export=%s:second-written" % export_format)
 
             second = path_b.read_bytes()
@@ -175,14 +175,14 @@ except Exception:
     record("smoke=exception\n" + traceback.format_exc())
     raise
 finally:
+    LOG.append("pattern-export-smoke=completed")
+    LOG_PATH.write_text("\n".join(LOG) + "\n", encoding="utf-8")
+    print("pattern-export-smoke=completed", flush=True)
     try:
-        close_public_task()
-        if App.ActiveDocument is not None and App.ActiveDocument.Name == doc.Name:
+        if App.ActiveDocument is not None and doc is not None and App.ActiveDocument.Name == doc.Name:
             App.closeDocument(doc.Name)
-        process_events()
-    finally:
-        LOG_PATH.write_text("\n".join(LOG) + "\n", encoding="utf-8")
-        print("pattern-export-smoke=completed", flush=True)
+    except Exception:
+        pass
 
 # FreeCAD can retain a GUI event-loop/task-panel object after the script has finished.
 # Force a clean process exit on the successful path, matching the existing real-GUI
