@@ -19,6 +19,146 @@ def _is_sketch_authoritative(obj):
     )
 
 
+class PatternExportTaskPanel:
+    """Public SVG/DXF production export task panel for one selected PatternPiece."""
+
+    def __init__(self, obj=None):
+        from pathlib import Path
+        App, Gui, QtWidgets, _, _ = _gui_modules()
+        self.App, self.Gui = App, Gui
+        if obj is None:
+            obj = next(
+                (candidate for candidate in Gui.Selection.getSelection()
+                 if getattr(candidate, "PatternType", "") == "PatternPiece"),
+                None,
+            )
+        if obj is None:
+            raise ValueError("select a pattern piece before exporting")
+        self.obj = obj
+        self.form = QtWidgets.QWidget()
+        self.form.setWindowTitle("Cloth Pattern — Production Export")
+        layout = QtWidgets.QFormLayout(self.form)
+
+        self.source = QtWidgets.QLabel(
+            "%s (%s)" % (str(getattr(obj, "Label", "PatternPiece")), str(getattr(obj, "PieceId", "")))
+        )
+        self.source.setWordWrap(True)
+        layout.addRow("Source", self.source)
+
+        self.output_prefix = QtWidgets.QLineEdit()
+        document = getattr(obj, "Document", None)
+        file_name = str(getattr(document, "FileName", "") or "").strip()
+        default_dir = Path(file_name).expanduser().parent if file_name else Path.cwd()
+        default_prefix = default_dir / (str(getattr(obj, "Label", "PatternPiece")) + "-export")
+        self.output_prefix.setText(str(default_prefix))
+        browse = QtWidgets.QPushButton("Browse…")
+        browse.clicked.connect(self._browse)
+        row = QtWidgets.QHBoxLayout()
+        row.addWidget(self.output_prefix)
+        row.addWidget(browse)
+        wrapper = QtWidgets.QWidget()
+        wrapper.setLayout(row)
+        layout.addRow("Output prefix", wrapper)
+
+        self.units = QtWidgets.QComboBox()
+        self.units.addItems(["mm", "cm", "in"])
+        layout.addRow("Output units", self.units)
+
+        self.scale = QtWidgets.QDoubleSpinBox()
+        self.scale.setRange(0.000001, 1000000.0)
+        self.scale.setDecimals(6)
+        self.scale.setSingleStep(0.1)
+        self.scale.setValue(1.0)
+        layout.addRow("Scale factor", self.scale)
+        layout.addRow(
+            "",
+            QtWidgets.QLabel(
+                "Scale is applied after the source geometry is resolved; output remains derived/read-only."
+            ),
+        )
+
+        self.status = QtWidgets.QLabel()
+        self.status.setWordWrap(True)
+        layout.addRow("Validation", self.status)
+        self._refresh_validation()
+
+    def _browse(self):
+        _, _, QtWidgets, _, _ = _gui_modules()
+        current = str(self.output_prefix.text() or "")
+        directory = QtWidgets.QFileDialog.getExistingDirectory(
+            self.form, "Choose export directory", str(Path(current).expanduser().parent)
+        )
+        if directory:
+            name = Path(current).name or str(getattr(self.obj, "Label", "PatternPiece"))
+            self.output_prefix.setText(str(Path(directory) / name))
+
+    def _paths(self):
+        from pathlib import Path
+        prefix = str(self.output_prefix.text()).strip()
+        if not prefix:
+            raise ValueError("choose an output prefix")
+        base = Path(prefix).expanduser()
+        return base.with_suffix(".svg"), base.with_suffix(".dxf")
+
+    def _refresh_validation(self):
+        from freecad_cloth.pattern.PatternProductionExport import build_export_source
+        try:
+            source = build_export_source(
+                self.obj, units=self.units.currentText(), scale=self.scale.value()
+            )
+            self.status.setText(
+                "Ready: %d edges, %d seams, %d notches, %d marks. Native Sketcher source is authoritative."
+                % (
+                    len(source.pattern.segments),
+                    len(source.seam_ids),
+                    len(source.derived.notches),
+                    len(source.derived.marks),
+                )
+            )
+            self.status.setToolTip(
+                "Authoritative Sketch: %s" % (source.sketch_name or "<unnamed>")
+            )
+            return True
+        except Exception as exc:
+            self.status.setText("Not exportable: " + str(exc))
+            return False
+
+    def _close_dialog(self):
+        if self.Gui.activeDocument() and self.Gui.Control.activeDialog() is not None:
+            self.Gui.Control.closeDialog()
+
+    def accept(self):
+        from freecad_cloth.pattern.PatternProductionExport import (
+            PatternExportValidationError,
+            export_pattern_piece,
+        )
+        try:
+            svg_path, dxf_path = self._paths()
+            export_pattern_piece(
+                self.obj,
+                svg_path,
+                dxf_path,
+                units=self.units.currentText(),
+                scale=self.scale.value(),
+            )
+        except PatternExportValidationError as exc:
+            self.status.setText("Export blocked: " + str(exc))
+            return False
+        except (OSError, ValueError, RuntimeError) as exc:
+            self.status.setText("Export failed: " + str(exc))
+            return False
+        self.status.setText("Exported SVG and DXF: %s / %s" % (svg_path, dxf_path))
+        self._close_dialog()
+        return True
+
+    def reject(self):
+        self._close_dialog()
+        return True
+
+    def getStandardButtons(self):
+        return 0x00000400 | 0x00800000
+
+
 class PatternPieceTaskPanel:
     def __init__(self, obj=None):
         App, Gui, QtWidgets, _, _ = _gui_modules()
@@ -236,6 +376,13 @@ class PatternDraftingTaskPanel:
     def accept(self): self._persist(); return True
     def reject(self): self._restore(); return True
     def getStandardButtons(self): return 0x00000400 | 0x00800000
+
+
+def show_pattern_export_task(obj=None):
+    _App, Gui, _QtWidgets, _, _ = _gui_modules()
+    panel = PatternExportTaskPanel(obj)
+    Gui.Control.showDialog(panel)
+    return panel
 
 
 def show_pattern_piece_task(obj=None):
