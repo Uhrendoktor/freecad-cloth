@@ -8,6 +8,20 @@ Standalone object creation remains valid when no Garment root is present.
 GARMENT_SCHEMA_VERSION = "1"
 GARMENT_ROOT_NAME = "Garment"
 GARMENT_GROUPS = ("Patterns", "Sewing", "Fabric", "Avatar", "Simulation")
+_ROLE_TO_GROUP = {
+    "PatternPiece": "Patterns",
+    "PatternSketch": "Patterns",
+    "PatternMesh": "Patterns",
+    "Seam": "Sewing",
+    "SewingOperation": "Sewing",
+    "SewingNetwork": "Sewing",
+    "FabricMaterial": "Fabric",
+    "Avatar": "Avatar",
+    "AvatarCollision": "Avatar",
+    "DrapeTarget": "Avatar",
+    "Simulation": "Simulation",
+    "SimulationOutput": "Simulation",
+}
 
 
 def _ensure_string(obj, name, group, value):
@@ -133,10 +147,14 @@ def link_garment_object(obj, role, doc=None):
     root = garment_root(doc)
     if root is None:
         return obj
-    group = garment_group(doc, role)
+    role = str(role)
+    group_role = _ROLE_TO_GROUP.get(role, role if role in GARMENT_GROUPS else None)
+    if group_role is None:
+        raise ValueError("unsupported Garment hierarchy role: %s" % role)
+    group = garment_group(doc, group_role)
     if group is None:
-        group = _ensure_group(doc, root, str(role))
-    _ensure_string(obj, "GarmentRole", "Garment", str(role))
+        group = _ensure_group(doc, root, group_role)
+    _ensure_string(obj, "GarmentRole", "Garment", role)
     _ensure_link(obj, "Garment", "Garment", root)
     if obj not in _children(group):
         group.addObject(obj)
