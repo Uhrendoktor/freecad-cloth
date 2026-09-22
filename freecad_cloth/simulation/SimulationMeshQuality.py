@@ -38,7 +38,34 @@ def quality_piece_mesh(piece, start_height, particle_distance):
         for x, y in mesh.vertices:
             point = placement.multVec(App.Vector(x, y, float(start_height)))
             positions.append((float(point.x), float(point.y), float(point.z)))
-    return positions, tuple(mesh.triangles), tuple(mesh.boundary_vertex_indices)
+    boundary_groups = {}
+    boundary = mesh.boundary_vertex_indices
+    segment_ids = mesh.boundary_edge_segment_ids
+    if segment_ids and len(segment_ids) != len(boundary):
+        raise ValueError("quality mesh boundary provenance length does not match boundary vertices")
+    for index, segment_id in enumerate(segment_ids):
+        key = str(segment_id)
+        start = int(boundary[index])
+        end = int(boundary[(index + 1) % len(boundary)])
+        group = boundary_groups.setdefault(key, [start])
+        if group[-1] != start:
+            raise ValueError("quality mesh semantic edge provenance is not contiguous")
+        group.append(end)
+    if not boundary_groups:
+        boundary_groups = {
+            f"{piece.PieceId}:edge:{index}": [int(boundary[index]), int(boundary[(index + 1) % len(boundary)])]
+            for index in range(len(boundary))
+        }
+    by_index = []
+    for edge_index in range(len(points)):
+        key = f"{piece.PieceId}:edge:{edge_index}"
+        if key in boundary_groups:
+            by_index.append(tuple(boundary_groups[key]))
+        elif edge_index < len(boundary):
+            by_index.append((int(boundary[edge_index]), int(boundary[(edge_index + 1) % len(boundary)])))
+        else:
+            raise ValueError(f"quality mesh has no boundary provenance for edge {edge_index}")
+    return positions, tuple(mesh.triangles), tuple(by_index)
 
 
 def install_quality_mesh_patch():

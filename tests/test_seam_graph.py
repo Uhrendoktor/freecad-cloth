@@ -53,6 +53,16 @@ def test_invalid_seam_piece_or_edge_is_rejected():
     with pytest.raises(ValueError, match="outside"): value.add_seam(Seam("left", 9, "right", 0, id="bad-edge"))
 
 
+def test_arc_length_stitch_mapping_ignores_nonuniform_boundary_vertex_density():
+    value = graph()
+    edges = {("left", 1): (10, 11, 12, 13), ("right", 3): (20, 21, 22)}
+    points = {
+        ("left", 1): ((0.0, 0.0), (1.0, 0.0), (3.0, 0.0), (10.0, 0.0)),
+        ("right", 3): ((0.0, 0.0), (5.0, 0.0), (10.0, 0.0)),
+    }
+    assert value.stitch_pairs(edges, edge_points=points) == ((10, 20), (12, 21), (13, 22))
+
+
 def test_missing_mesh_edge_vertices_is_rejected():
     value = graph()
     with pytest.raises(ValueError, match="missing mesh edge"): value.stitch_pairs({("left", 1): (1, 2, 3)})

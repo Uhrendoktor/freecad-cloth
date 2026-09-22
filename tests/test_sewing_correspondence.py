@@ -12,6 +12,7 @@ from freecad_cloth.sewing.SewingCorrespondence import (
     STATUS_VALID,
     analyze_correspondence,
     correspondence_samples,
+    arc_length_vertex_indices,
     map_parameter,
 )
 
@@ -55,6 +56,12 @@ def test_partial_ranges_map_proportionally():
 def test_samples_are_deterministic_and_include_endpoints():
     expected = ((0.2, 0.8), (0.4, 0.6), (0.6, 0.4), (0.8, 0.2))
     assert correspondence_samples(4, 0.2, 0.8, 0.2, 0.8, True) == pytest.approx(expected)
+
+
+def test_arc_length_vertex_sampling_uses_physical_distance_not_vertex_index():
+    values = (10, 11, 12, 13, 14)
+    points = ((0.0, 0.0), (0.2, 0.1), (3.0, 1.0), (4.4, 4.0), (10.0, 4.0))
+    assert arc_length_vertex_indices(values, points, 3) == (10, 13, 14)
 
 
 def test_bad_length_inputs_are_rejected():

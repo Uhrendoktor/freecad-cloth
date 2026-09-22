@@ -301,7 +301,6 @@ def simulation():
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
     from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
     from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
-    from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
     from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternObjects import add_seam
     doc = App.newDocument("ClothSimulationVisualRegression"); scene = create_quality_simulation_scene(doc); avatar = getattr(scene.AvatarProxy, "SourceObject", None); target = scene.DrapeTarget
@@ -323,12 +322,12 @@ def simulation():
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
-    def authored_shoulder_pins(piece, positions):
+    def authored_shoulder_pins(piece, particle_indices, positions):
         targets = (
             (0.14 * panel_width, 0.97 * garment_height),
             (0.86 * panel_width, 0.97 * garment_height),
         )
-        available = list(range(len(positions)))
+        available = list(particle_indices)
         result = []
         for local_x, local_y in targets:
             target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
@@ -336,13 +335,16 @@ def simulation():
             result.append(index)
             available.remove(index)
         return tuple(result)
-    front_positions, _front_triangles, _front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
-    back_positions, _back_triangles, _back_boundary = quality_piece_mesh(back, 0.0, scene.ParticleDistance)
-    front_pins = authored_shoulder_pins(front, front_positions)
-    back_pins_local = authored_shoulder_pins(back, back_positions)
-    back_pins = tuple(len(front_positions) + i for i in back_pins_local)
+    proxy = scene.Proxy
+    positions = tuple(proxy.backend.positions())
+    pin_panels = list(scene.DrapePanels)
+    panel_indices = proxy.panel_indices
+    front_indices = tuple(panel_indices[pin_panels[0].Name])
+    back_indices = tuple(panel_indices[pin_panels[1].Name])
+    front_pins = authored_shoulder_pins(front, front_indices, positions)
+    back_pins = authored_shoulder_pins(back, back_indices, positions)
     scene.PinSelection = [str(i) for i in front_pins + back_pins]
-    log("pin-map authored front=%s back-local=%s back-global=%s" % (front_pins, back_pins_local, back_pins)); doc.recompute()
+    log("pin-map authored front=%s back-global=%s" % (front_pins, back_pins)); doc.recompute()
     for source in (doc.getObject("VisualTunicFront"), doc.getObject("VisualTunicBack")):
         if source is not None: source.ViewObject.Visibility = False
         sketch = getattr(source, "Sketch", None) if source is not None else None
