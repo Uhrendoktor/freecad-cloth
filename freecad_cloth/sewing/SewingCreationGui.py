@@ -205,17 +205,18 @@ class SewingCreationTaskPanel:
         self.commit_button = QtWidgets.QPushButton("Commit")
         self.cancel_button = QtWidgets.QPushButton("Cancel")
         self.preview_button.clicked.connect(self.preview)
-        # The native task controller must own the dialog close. Queue its
-        # accept/reject calls until the QPushButton signal has returned.
+        # FreeCAD's task controller exposes accept() inconsistently and does not
+        # expose reject() on the supported 1.1.0 runtime. Queue the panel's own
+        # lifecycle methods until the QPushButton signal has returned.
         try:
             from PySide import QtCore
         except ImportError:
             from PySide2 import QtCore
         self.commit_button.clicked.connect(
-            lambda: QtCore.QTimer.singleShot(0, self.Gui.Control.accept)
+            lambda: QtCore.QTimer.singleShot(0, self.accept)
         )
         self.cancel_button.clicked.connect(
-            lambda: QtCore.QTimer.singleShot(0, self.Gui.Control.reject)
+            lambda: QtCore.QTimer.singleShot(0, self.reject)
         )
         buttons.addWidget(self.preview_button)
         buttons.addWidget(self.commit_button)
