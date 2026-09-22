@@ -126,6 +126,9 @@ def main():
     sketch = piece.Sketch
     before = _source_snapshot(piece, sketch, marks, seam)
     progress("source-snapshotted")
+    preflight = build_export_source(piece, units="mm", scale=1.0)
+    assert preflight.piece_id == str(piece.PieceId)
+    progress("preflight-source-built")
 
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(piece)
