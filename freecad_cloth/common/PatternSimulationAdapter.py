@@ -35,10 +35,9 @@ class ResolvedSimulationPattern:
 
 
 def is_sketch_authoritative(piece) -> bool:
-    return (
-        getattr(piece, "Sketch", None) is not None
-        and str(getattr(piece, "GeometryAuthority", "")).strip() == "Sketcher"
-    )
+    # The persisted authority flag is itself part of the fail-closed contract:
+    # a missing Sketch on a Sketcher-authoritative piece must not trigger legacy fallback.
+    return str(getattr(piece, "GeometryAuthority", "")).strip() == "Sketcher"
 
 
 def resolve_simulation_pattern(doc, pieces: Sequence[object], curve_samples: int = CURVE_SAMPLES):
