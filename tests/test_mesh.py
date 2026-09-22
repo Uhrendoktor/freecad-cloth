@@ -73,6 +73,13 @@ def test_linear_boundary_refinement_preserves_authored_segment_identity_and_spac
         if identifier.startswith(authored)
     )
     assert any(identifier.startswith("side::sub::") for identifier in ids)
+    for authored in ("side", "back", "top", "left"):
+        subedge_indices = sorted(
+            int(identifier.rsplit("::", 1)[1])
+            for identifier in ids
+            if identifier.startswith(authored + "::sub::")
+        )
+        assert subedge_indices == list(range(len(subedge_indices)))
     points = mesh.vertices
     boundary = mesh.boundary_vertex_indices
     assert max(
