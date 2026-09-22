@@ -1,6 +1,6 @@
 """Deterministic simulation mesh density and authored-boundary refinement."""
 import ast
-from math import ceil, isfinite
+from math import ceil, hypot, isfinite
 
 
 def _outline_points(piece):
@@ -87,33 +87,73 @@ def quality_piece_mesh(piece, start_height, particle_distance):
         for x, y in mesh.vertices:
             point = placement.multVec(App.Vector(x, y, float(start_height)))
             positions.append((float(point.x), float(point.y), float(point.z)))
-    boundary_groups = {}
-    boundary = mesh.boundary_vertex_indices
-    segment_ids = mesh.boundary_edge_segment_ids
+    boundary = tuple(int(index) for index in mesh.boundary_vertex_indices)
+    segment_ids = tuple(str(value) for value in mesh.boundary_edge_segment_ids)
     if not segment_ids:
         raise ValueError("quality mesh boundary provenance is missing")
     if len(segment_ids) != len(boundary):
         raise ValueError("quality mesh boundary provenance length does not match boundary vertices")
+
+    edge_pairs = {}
     for index, segment_id in enumerate(segment_ids):
-        raw_key = str(segment_id)
-        key = subedge_to_authored.get(raw_key)
+        key = subedge_to_authored.get(segment_id)
         if key is None:
             raise ValueError("quality mesh boundary provenance contains an unknown sub-edge")
-        start = int(boundary[index])
-        end = int(boundary[(index + 1) % len(boundary)])
-        group = boundary_groups.setdefault(key, [start])
-        if group[-1] != start:
-            raise ValueError("quality mesh semantic edge provenance is not contiguous")
-        group.append(end)
+        pair = (boundary[index], boundary[(index + 1) % len(boundary)])
+        edge_pairs.setdefault(key, []).append(pair)
+
     by_index = []
-    for edge_index in range(len(points)):
+    mesh_vertices = tuple(mesh.vertices)
+    for edge_index, start_point in enumerate(points):
+        end_point = points[(edge_index + 1) % len(points)]
         key = f"{piece.PieceId}:edge:{edge_index}"
-        if key in boundary_groups:
-            by_index.append(tuple(boundary_groups[key]))
-        elif edge_index < len(boundary):
-            by_index.append((int(boundary[edge_index]), int(boundary[(edge_index + 1) % len(boundary)])))
-        else:
+        pairs = edge_pairs.get(key)
+        if not pairs:
             raise ValueError(f"quality mesh has no boundary provenance for edge {edge_index}")
+
+        vertex_indices = {vertex for pair in pairs for vertex in pair}
+        dx = float(end_point[0]) - float(start_point[0])
+        dy = float(end_point[1]) - float(start_point[1])
+        length_squared = dx * dx + dy * dy
+        if length_squared <= 1e-18:
+            raise ValueError(f"quality mesh authored edge {edge_index} has zero length")
+
+        def parameter(vertex_index):
+            vertex = mesh_vertices[vertex_index]
+            return (
+                (float(vertex[0]) - float(start_point[0])) * dx
+                + (float(vertex[1]) - float(start_point[1])) * dy
+            ) / length_squared
+
+        ordered = tuple(sorted(vertex_indices, key=parameter))
+        if len(ordered) < 2:
+            raise ValueError(f"quality mesh semantic edge {edge_index} has too few boundary vertices")
+
+        endpoint_tolerance = 1e-7 * max(1.0, hypot(dx, dy))
+        first = mesh_vertices[ordered[0]]
+        last = mesh_vertices[ordered[-1]]
+        if hypot(float(first[0]) - float(start_point[0]), float(first[1]) - float(start_point[1])) > endpoint_tolerance:
+            raise ValueError(f"quality mesh semantic edge {edge_index} does not start at its authored vertex")
+        if hypot(float(last[0]) - float(end_point[0]), float(last[1]) - float(end_point[1])) > endpoint_tolerance:
+            raise ValueError(f"quality mesh semantic edge {edge_index} does not end at its authored vertex")
+
+        actual_pairs = {frozenset(pair) for pair in pairs}
+        ordered_pairs = {frozenset((left, right)) for left, right in zip(ordered, ordered[1:])}
+        if ordered_pairs != actual_pairs:
+            raise ValueError(f"quality mesh semantic edge {edge_index} boundary chain is disconnected")
+
+        max_segment = 0.0
+        for left, right in zip(ordered, ordered[1:]):
+            max_segment = max(
+                max_segment,
+                hypot(
+                    float(mesh_vertices[left][0]) - float(mesh_vertices[right][0]),
+                    float(mesh_vertices[left][1]) - float(mesh_vertices[right][1]),
+                ),
+            )
+        if max_segment > spacing + endpoint_tolerance:
+            raise ValueError(f"quality mesh semantic edge {edge_index} exceeds requested boundary spacing")
+        by_index.append(ordered)
     return positions, tuple(mesh.triangles), tuple(by_index)
 
 
