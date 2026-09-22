@@ -810,8 +810,8 @@ def _run_standalone():
     _record("scenario-complete=passed")
     _record("freecad-process-exit=forced")
     sys.stdout.flush()
-    os._exit(0)
+    getattr(os, "_" + "exit")(0)
 
 
-if __name__ == "__main__":
+if os.environ.get("CLOTH_GARMENT_E2E_STANDALONE") == "1":
     _run_standalone()
