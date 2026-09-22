@@ -76,6 +76,10 @@ class SewingNetworkTaskPanel:
             if errors else ""
         )
         layout.addWidget(self.warning)
+        self.correspondence = QtWidgets.QLabel()
+        self.correspondence.setWordWrap(True)
+        self.correspondence.setObjectName("ClothSewingNetworkCorrespondenceEvidence")
+        layout.addWidget(self.correspondence)
 
         columns = ("A piece", "A edge", "A start", "A end", "B piece", "B edge", "B start", "B end", "Direction", "Status")
         self.table = QtWidgets.QTableWidget(len(seam_values), len(columns))
@@ -204,6 +208,15 @@ class SewingNetworkTaskPanel:
 
     def _refresh_status(self):
         errors = network_reference_errors(self.network)
+        self.correspondence.setText(
+            "%s — severity %s — %s — recovery: %s"
+            % (
+                str(getattr(self.network, "CorrespondenceStatus", "")),
+                str(getattr(self.network, "CorrespondenceSeverity", "")),
+                str(getattr(self.network, "CorrespondenceMessage", "")),
+                str(getattr(self.network, "CorrespondenceRecovery", "")),
+            )
+        )
         self.warning.setText(
             "Invalid seam references: " + "; ".join("%s (%s)" % item for item in errors)
             if errors else ""
