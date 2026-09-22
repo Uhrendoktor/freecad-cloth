@@ -17,7 +17,8 @@ def main():
     workbench.Initialize()
     assert workbench.MenuText == "Cloth Pattern"
     assert "ClothPattern_CreatePieceTask" in workbench.commands
-    assert "ClothPattern_CreateDrafting" in workbench.commands
+    assert "ClothPattern_CreateDrafting" not in workbench.commands
+    assert "ClothPattern_CreatePieceWithSketch" in workbench.commands
 
     doc = App.newDocument("PatternWorkbenchSmoke")
     piece = create_pattern_piece()
