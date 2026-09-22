@@ -1,6 +1,12 @@
 """Commands for the Cloth Pattern workbench."""
 import ast
 from freecad_cloth.common.CommandAdapter import icon_for_command
+from freecad_cloth.common.GarmentDocument import create_garment_document
+
+
+def create_garment(name="Garment"):
+    """Create a new production FreeCAD document with the native garment hierarchy."""
+    return create_garment_document(name=name, label="Garment")
 
 
 def create_pattern_piece_from_parameters(name, width, height, allowance, grainline):
@@ -354,7 +360,7 @@ class _PatternExportCommand:
 
 
 COMMANDS = [
-    "ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_EditSketch",
+    "ClothPattern_CreateGarment", "ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_EditSketch",
     "ClothPattern_CreateSketch", "ClothPattern_CreatePieceWithSketch", "ClothPattern_CreateFromSketch",
     "ClothPattern_CreateDrafting", "ClothPattern_Show2D", "ClothPattern_CreatePiece", "ClothPattern_CreateCustomPiece",
     "ClothPattern_CreateMesh", "ClothPattern_AddSeam", "ClothPattern_RepairTopology", "ClothPattern_Export",
@@ -370,6 +376,7 @@ try:
     import FreeCADGui as Gui
     if hasattr(Gui, "addCommand"):
         for name, handler in {
+            "ClothPattern_CreateGarment": create_garment,
             "ClothPattern_CreatePieceTask": create_pattern_piece_task,
             "ClothPattern_EditPiece": edit_pattern_piece,
             "ClothPattern_EditSketch": edit_pattern_sketch,
