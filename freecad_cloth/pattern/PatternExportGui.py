@@ -106,8 +106,13 @@ class PatternExportTaskPanel:
         return QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
 
 
+LAST_TASK_PANEL = None
+
+
 def show_pattern_export_task(piece=None):
+    global LAST_TASK_PANEL
     _, Gui, _ = _qt()
     panel = PatternExportTaskPanel(piece)
+    LAST_TASK_PANEL = panel
     Gui.Control.showDialog(panel)
     return panel

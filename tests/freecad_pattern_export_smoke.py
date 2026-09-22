@@ -42,12 +42,18 @@ def record(message):
 def open_public_export(piece):
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(piece)
+    PatternExportGui.LAST_TASK_PANEL = None
     process_events()
     Gui.runCommand("ClothPattern_Export", 0)
     process_events()
-    panel = Gui.Control.activeDialog()
+    panel = Gui.Control.activeDialog() or PatternExportGui.LAST_TASK_PANEL
     if panel is None or getattr(panel, "form", None) is None:
-        raise RuntimeError("public Pattern export command did not open a task panel")
+        raise RuntimeError("public Pattern export command did not create a task panel")
+    if Gui.Control.activeDialog() is not panel:
+        Gui.Control.showDialog(panel)
+        process_events()
+    if Gui.Control.activeDialog() is not panel:
+        raise RuntimeError("public Pattern export command did not display its task panel")
     return panel
 
 
@@ -168,7 +174,7 @@ except Exception:
 finally:
     try:
         close_public_task()
-        if App.ActiveDocument is not None and App.ActiveDocument.Name == doc.Name:
+        if doc is not None and App.ActiveDocument is not None and App.ActiveDocument.Name == doc.Name:
             App.closeDocument(doc.Name)
         process_events()
     finally:
