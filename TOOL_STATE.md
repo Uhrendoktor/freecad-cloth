@@ -4,29 +4,26 @@
 schema: 6
 repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
+workflow_blob_sha: ad6c8789d91ce3ca34825f055087e75b976647b4
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
-supervisor_task: cloth-sewing-workbench-structure-and-roadmap
-current_main: 7217a2d00e513d4e988b8bb98169a5630b66f328
-open_prs: []
-active_release_gates: [155, 278, 284, 298, 297, 145]
-queued_release_gates: [275, 162, 360]
-non_blocking: [148]
-closed_this_pass: [600-created, 598, 595, 597, 594, 590, 593, 572, 581, 571, 592, 495, 556, 560, 567, 563, 565, 568, 574, 578, 579, 580]
-
-architecture:
-  package_root: freecad_cloth/
-  domain_packages: [avatar, pattern, sewing, simulation]
-  shared_packages: [common, shared]
-  root_python: [Init.py, InitGui.py, sitecustomize.py]
-  root_domain_implementations: forbidden
-  root_compatibility_shims: forbidden
-  drape_target_owner: freecad_cloth.simulation.DrapeTarget
-  diagnostics_owner: freecad_cloth.common.ClothDiagnostics
-  policy: migrate_callers_to_package_namespace; never_restore_root_domain_modules
+supervisor_task: "#647 release lifecycle"
+current_main: 5acc453e12e1462481b85df49ba16a9c31483ee1
+open_prs: [695, 702, 704, 706, 711, 719, 721, 722]
+historical_closed_release_prs: [708, 701]
+m0_issue_472: closed-complete
+one_workflow_policy: enforced
 
 workflow_contract:
   workflow_count: 1
-  workflow: .github/workflows/canonical-execution.yml
+  triggers: [push, pull_request, workflow_dispatch]
+  jobs:
+    - python: "Python and FreeCAD non-GUI tests"
+    - gui-sewing-creation: "Sewing staged creation smoke"
+    - gui-pattern-export: "Pattern production export smoke"
+    - gui-tunic-visual: "Full tunic visual and simulation audit"
+    - gui-turntables: "README turntables"
+    - publish-readme-turntables: "Publish README turntables"
+    - benchmark: "Measured FreeCAD workbench benchmark"
   image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
   image_policy: publish_on_main_when_missing; PR validation may build locally with the same tag
   screenshot_display: 1280x720
@@ -48,16 +45,48 @@ workflow_contract:
   policy: preserve_existing_Docker_Xvfb_PNG_path; one_canonical_tunic_visual_audit; PR_turntable_validation; publish_stable_turntables_after_main_merge; no_second_workflow
 
 latest_verified_ci:
-  run_id: 35580478353
-  run_number: 2087
-  commit: 226fb38f2795450af42c6d2429dddc8c1429627f
+  run_id: 35782037267
+  run_number: 2520
+  commit: 5acc453e12e1462481b85df49ba16a9c31483ee1
   status: completed
   conclusion: success
-  python_job: success
-  gui_job: success
-  artifact_id: 10629862765
-  artifact_sha256: e6d420236b42407855d06624e41a532a1c46ae56990c31b496183a3f1c4266a7
-  note: PR #598 merged to main as 35cb29db06e57fdf58a137fbe4e20279fb8225dd after terminal-green canonical verification and direct six-view artifact inspection. State-only synchronization commits now put main at 7217a2d00e513d4e988b8bb98169a5630b66f328. Drape panels are finite with one connected component each; seam correspondence diagnostics report a maximum gap of 452.652642 mm. These measurements remain diagnostic-only; #472 visual trust remains unresolved.
+  event: push
+  jobs:
+    python: success
+    gui-sewing-creation: success
+    gui-pattern-export: success
+    gui-tunic-visual: success
+    gui-turntables: success
+    publish-readme-turntables: success
+    benchmark: success
+  artifact_id: 10718318860
+  artifact_name: tunic-visual-audit
+  artifacts:
+    pattern-production-export: 10718573486
+    sewing-creation-smoke: 10718403724
+    tunic-visual-audit: 10718318860
+    readme-turntables: 10718134220
+    workbench-benchmark: 10717974490
+
+release_slices:
+  - "#695 open; current-main PatternIR runtime boundary"
+  - "#702 open; stale-base sewing release slice; currently unmergeable"
+  - "#704 open; current-main single-scene PatternIR follow-up"
+  - "#706 open; current-main canonical garment E2E candidate"
+  - "#711 open; stale-base PatternIR simulation-boundary overlap"
+  - "#719 open; current-main pinned-stitch feasibility guard"
+  - "#721 open; current-main right-shoulder seam-edge A/B"
+  - "#722 open; current-main solver seam-sampling A/B"
+  - "#708 closed without merge; historical garment-E2E workflow attempt"
+  - "#701 closed without merge; historical garment-hierarchy attempt"
+
+outstanding_gates:
+  - reconcile overlapping PatternIR PRs #695/#704/#711 before merging duplicate implementations
+  - rebase/reassess stale #702 and #711 against current main
+  - validate #706 on its exact current-main head before any workflow contract change
+  - validate #719 independently; keep #721/#722 diagnostic experiments bounded
+  - continue M1/M2 release gates #473/#475/#476
+  - preserve one canonical workflow and fail-closed validation
 
 policy:
   - inspect_open_prs_and_issues_before_changes
@@ -69,10 +98,8 @@ policy:
   - recut_branches_from_current_main
 
 current_focus:
-  queue_cleanup: #595 is complete; duplicate PR #597 is closed without merge; no open implementation PR remains
-  imports: package-qualified module namespace is authoritative
-  structure: package-tree cleanup remains historical; current active release focus is M0 garment visual trust (#472)
-  ci_status: latest verified canonical run is 35580478353 (#2087) on PR head 226fb38f2795450af42c6d2429dddc8c1429627f; product merge is 35cb29db06e57fdf58a137fbe4e20279fb8225dd; docs-only state head is 7217a2d00e513d4e988b8bb98169a5630b66f328
-  visual_regression: canonical GUI audit is green and all six drape views are present; both panels are connected/finite and structurally-plausible, while post-drape seam evidence exposes large correspondence gaps. #472 remains unresolved; do not resume blind fixture A/B churn.
-  next_supervisor_focus: issue #600 localizes post-drape seam/target coherence root cause without solver redesign, fixture A/B churn, or a second workflow.
+  ci_status: current main 5acc453e12e1462481b85df49ba16a9c31483ee1 is terminal-green in canonical run 35782037267 (#2520)
+  queue_status: open_prs_are_695_702_704_706_711_719_721_722
+  m0_status: "#472 closed-complete"
+  next_supervisor_focus: reconcile PatternIR overlaps, stale-base release slices, and the current-main pinned-stitch/E2E work without multiplying workflows
 ```

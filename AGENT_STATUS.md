@@ -6,37 +6,49 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `f460ed6fa1e4116d8e345d69eb802e2de2c22d56`.
-- #645 has passed its Python, production-export, tunic-audit and turntable stages on prior exact heads, but no exact-head terminal-green canonical run is accepted yet; run #2309 on head `4c58cc63aee387ff75afdccdc15d5f81670f3c85` was cancelled before terminal evidence.
-- Active implementation PR: #645 (`feat: integrate staged sewing and production pattern export`), current head `4c58cc63aee387ff75afdccdc15d5f81670f3c85`.
-- PR #453 was closed without merge because its validated screenshots remained collapsed/edge-on or not production-ready.
-- PR #438 remains diagnostic-only and must not merge.
-- Python package boundary: `freecad_cloth/` with `avatar`, `pattern`, `sewing`, `simulation`, `common`, `shared` subpackages
-- Root Python files: `Init.py`, `InitGui.py`, and interpreter-level `sitecustomize.py` only
-- Canonical CI: `.github/workflows/canonical-execution.yml`
-- CI policy: preserve the Docker/Xvfb FreeCAD screenshot/PNG path; never add a second workflow.
+- Current main: `5acc453e12e1462481b85df49ba16a9c31483ee1`.
+- Latest verified canonical workflow: run #2520 / run ID `35782037267`, terminal-success on current main. All seven workflow jobs completed successfully.
+- Latest verified canonical artifacts: `pattern-production-export` 10718573486, `sewing-creation-smoke` 10718403724, `tunic-visual-audit` 10718318860, `readme-turntables` 10718134220, `workbench-benchmark` 10717974490.
+- Canonical CI workflow: `.github/workflows/canonical-execution.yml` (workflow blob `ad6c8789d91ce3ca34825f055087e75b976647b4`).
+- Exactly one workflow exists under `.github/workflows/`.
+- Canonical jobs: Python and FreeCAD non-GUI tests; Sewing staged creation smoke; Pattern production export smoke; Full tunic visual and simulation audit; README turntables; Publish README turntables; Measured FreeCAD workbench benchmark.
+- CI policy: preserve the Docker/Xvfb FreeCAD path and do not add a second workflow.
 
-## Supervisor epic / milestones
+## Current release / PR state
 
-- Epic: #471 — release-grade CLO-style garment workflow hardening.
-- M0 — baseline / unblock visual truth: #472; metric implementations #484/#501 are complete and retained as diagnostics.
-- M1 — release vertical slice: #473, #474.
-- M2 — production parity foundations: #475, #476.
-- M3 — fit/analysis layer: #477.
-- M4 — evidence-led scale/performance: #478.
+- #695 is open on current main (`5acc453e12e1462481b85df49ba16a9c31483ee1`), head `c339429a5ed5f5bbee097ae5e2f2b4fd1ba08859`; it is the active PatternIR runtime-boundary slice.
+- #702 is open but stale against main (base `6b3733ec5f794e652fb03ef4db1d156ecf57c3cd`), head `de2cfbbf64c54c2f9e834137cd11677d5df93893`, and currently not mergeable.
+- #704 is open on current main, head `b55029a2aca2be2a85b1ba68f5c94fac47579e11`; it is the focused single-scene PatternIR follow-up.
+- #706 is open on current main, head `95db75ce1866c3a8d9f806cee11cfb79c5b9bfc9`; it is the current canonical garment E2E candidate.
+- #711 is open but based on stale main `6b3733ec5f794e652fb03ef4db1d156ecf57c3cd`, head `1b7b294a13899f5d4a4e89510dc01b1a24ad19f5`; it overlaps the PatternIR simulation-boundary work and needs reconciliation before merge.
+- #719 is open on current main, head `c239ae9857b0b3853b275139ba66889e7169b370`; it is the current pinned-stitch feasibility guard candidate.
+- #721 is open on current main, head `aed954e897a38d68b7a42d90cf0647b7300be43e`; it is a bounded right-shoulder seam-edge A/B experiment.
+- #722 is open on current main, head `87ac91766305257f5a0a96444eb68058eac598fb`; it is the bounded solver seam-sampling A/B experiment.
+- #708 is closed without merge; its garment-E2E workflow addition is not part of current main. Treat its head `9ff93cbf56e56f90ea6b44ad7dd2c82f81de26cd` as historical.
+- #701 is closed without merge; its hierarchy branch is not part of current main. Treat its head `f95f3ce6bf780e7a031c7b75276a782c36f64a5c` as historical.
+- #472 is closed as complete; the current supervisor record no longer treats M0 visual trust as unresolved.
 
-## Active focused work
+## Architecture invariants
 
-- Keep DrapeTarget source signatures topology-sensitive; use complete mesh topology where available and `hashCode()` only for lightweight test doubles.
-- Do not add provider-specific readiness exceptions that bypass target invalidation.
-- Treat CI-green screenshot capture as necessary but insufficient: visual validity must show a sane avatar and a convincingly worn garment (#472).
-- Canonical GUI acceptance emits `drape-visual-metrics.json` with deterministic bounds, centroid, span ratios, finite-state, target-proximity, connected-component and failure-classification evidence. Post-drape seam correspondence is now recorded diagnostically; do not turn those observations into hard pass/fail thresholds without reviewed baseline evidence.
-- `trimesh` remains optional/lazy; CPU reference remains correctness baseline.
-- Tissu remains sandbox-only until runtime compatibility, constraint/collision parity, determinism, visual parity and performance are demonstrated.
-- Re-cut implementation branches from current `main`; one focused concern per PR.
-- Latest verified canonical result: PR #598 head `226fb38f2795450af42c6d2429dddc8c1429627f` passed run #2087 / `35580478353`; artifact `10629862765` was directly inspected. Both drape panels are finite/connected and classified structurally-plausible, while the four seam diagnostics show maximum gaps up to `452.652642 mm`. #472 remains unresolved.
-- Fresh supervisor continuation: issue #600 localizes the post-drape seam/target coherence root cause. No fixture A/B churn, solver redesign, collision-model swap, or second workflow.
+- Package root: `freecad_cloth/`
+- Domain packages: `avatar`, `pattern`, `sewing`, `simulation`
+- Shared packages: `common`, `shared`
+- Root Python files: `Init.py`, `InitGui.py`, `sitecustomize.py` only
+- Root domain implementations and root compatibility shims are forbidden.
+- FreeCAD owns editable geometry and persistence; Cloth owns semantics; the solver owns physics.
+- `PatternIR`, `SewingGraph`, `SimulationScene`, and `DrapeTarget` remain the semantic boundaries.
+- `trimesh` remains optional/lazy; CPU reference remains the correctness baseline.
+- Tissu remains sandbox-only until runtime compatibility, constraint/collision parity, determinism, visual parity, and performance are demonstrated.
+
+## Current focus
+
+- The current main head and its canonical validation are terminal-green.
+- Do not describe any open PR as merged without live GitHub confirmation.
+- First reconcile overlapping PatternIR work in #695/#704/#711 and the stale sewing release slice #702.
+- Keep #706 as the current canonical garment-E2E candidate without claiming garment E2E is on main until its exact head is validated and merged.
+- Validate the current-main pinned-stitch guard #719 separately from diagnostic A/B experiments #721/#722.
+- Continue release work through M1/M2 issues #473/#475/#476 after the active implementation queue is reconciled.
 
 ## Agent rules
 
-Inspect → plan → execute → persist → verify. Do not report completion while a required workflow/PR/CI verification is non-terminal. If CI fails, inspect logs/artifacts, repair in scope, rerun, wait for terminal status, and reassess before progressing dependent work. Never weaken tests or multiply workflows. Close issues only with an explicit state reason and a reason recorded in the conversation.
+Inspect → plan → execute → persist → verify. Do not report completion while a required workflow/PR/CI verification is non-terminal. If CI fails, inspect logs/artifacts, repair in scope, rerun, wait for terminal state, and reassess before progressing dependent work. Never weaken tests or multiply workflows. Close issues only with an explicit state reason and a reason recorded in the conversation.
