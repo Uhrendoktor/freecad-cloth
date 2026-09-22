@@ -121,6 +121,19 @@ def _seam_edge_id(piece, edge, prefix):
             execute(piece)
             records = _edge_records(piece)
     if isinstance(edge, int):
+        sketch = getattr(piece, "Sketch", None)
+        if sketch is not None and str(getattr(piece, "GeometryAuthority", "")) == "Sketcher":
+            semantic_ids = tuple(str(value).strip() for value in getattr(sketch, "SemanticEdgeIds", ()) or ())
+            if edge < 0 or edge >= len(semantic_ids):
+                raise MissingEdgeReference("authored Sketcher edge %d is outside SemanticEdgeIds for pattern piece %s" % (edge, piece.PieceId))
+            reference_id = semantic_ids[edge]
+            if not reference_id:
+                raise MissingEdgeReference("authored Sketcher edge %d has no semantic edge id on pattern piece %s" % (edge, piece.PieceId))
+            record = next((candidate for candidate in records if str(candidate.get("id", "")) == reference_id), None)
+            if record is None:
+                raise MissingEdgeReference("semantic edge reference %s is missing from pattern piece %s" % (reference_id, piece.PieceId))
+            signature = capture_edge_reference(piece.PieceId, reference_id, record["points"], record.get("provenance")).signature
+            return reference_id, signature
         if edge < 0 or edge >= len(records):
             raise MissingEdgeReference(f"seam edge {edge} is outside pattern piece {piece.PieceId}")
         record = records[edge]
