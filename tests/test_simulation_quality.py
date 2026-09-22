@@ -61,6 +61,26 @@ class SimulationQualityTests(unittest.TestCase):
         fine = quality_piece_mesh(piece_obj, 100.0, 5.0)
         self.assertGreater(len(fine[0]), len(coarse[0]))
 
+    def test_quality_seam_edges_have_interior_particles(self):
+        piece = PatternPiece("Test", [(0, 0), (120, 0), (120, 60), (0, 60)], id="test")
+        piece_obj = type("Piece", (), {
+            "SewingOutline": repr(piece.outline),
+            "DraftingBoundary": repr(piece.outline),
+            "PieceId": piece.id,
+            "Placement": None,
+        })()
+        positions, _triangles, boundary = quality_piece_mesh(piece_obj, 100.0, 20.0)
+        self.assertEqual(len(boundary), 4)
+        self.assertTrue(all(len(edge) >= 3 for edge in boundary))
+        for edge in boundary:
+            self.assertLessEqual(
+                max(
+                    ((positions[a][0] - positions[b][0]) ** 2 + (positions[a][1] - positions[b][1]) ** 2) ** 0.5
+                    for a, b in zip(edge, edge[1:])
+                ),
+                20.000001,
+            )
+
     def test_refinement_preserves_authored_boundary_and_materially_tessellates(self):
         piece = PatternPiece("Test", [(0, 0), (100, 0), (100, 60), (0, 60)], id="test")
         piece_obj = type("Piece", (), {
@@ -70,12 +90,19 @@ class SimulationQualityTests(unittest.TestCase):
             "Placement": None,
         })()
         positions, triangles, boundary = quality_piece_mesh(piece_obj, 100.0, 2.0)
-        # Constrained Delaunay keeps the authored pattern vertices as the
-        # semantic boundary; refinement adds interior vertices and triangles.
+        # Constrained Delaunay preserves the authored outline as semantic
+        # boundary chains; refinement adds interior vertices and triangles.
         self.assertEqual(len(boundary), len(piece.outline))
         self.assertGreater(len(triangles), 100)
-        self.assertEqual([positions[i][:2] for i in range(len(piece.outline))], piece.outline)
-        self.assertGreater(len(positions), len(boundary))
+        self.assertGreater(sum(len(chain) for chain in boundary), len(piece.outline))
+        self.assertGreater(len(positions), len(piece.outline))
+        for edge_index, chain in enumerate(boundary):
+            self.assertGreaterEqual(len(chain), 2)
+            self.assertEqual(positions[chain[0]][:2], piece.outline[edge_index])
+            self.assertEqual(
+                positions[chain[-1]][:2],
+                piece.outline[(edge_index + 1) % len(piece.outline)],
+            )
 
     def test_quality_proxy_keeps_solver_state_outside_serialized_object_dict(self):
         """Guard the reload path without placing the non-serializable solver in __dict__."""
