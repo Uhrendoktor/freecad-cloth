@@ -154,8 +154,7 @@ jobs:
           set -euo pipefail
           rm -rf artifacts
           mkdir -p artifacts
-          printf 'e2e-launch=starting
-' > artifacts/canonical-garment-e2e.log
+          printf 'e2e-launch=starting\n' > artifacts/canonical-garment-e2e.log
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
@@ -164,8 +163,7 @@ jobs:
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               python3 -c '"'"'import triangle; print("triangle-import=passed", flush=True)'"'"'
-              printf "freecad-launch=starting
-" >> /workspace/artifacts/canonical-garment-e2e.log
+              printf "freecad-launch=starting\n" >> /workspace/artifacts/canonical-garment-e2e.log
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
