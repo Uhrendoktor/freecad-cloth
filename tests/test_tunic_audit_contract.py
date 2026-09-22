@@ -59,3 +59,8 @@ def test_canonical_tunic_source_rewrite_compiles_headless():
         source = source.replace(old, new, 1)
     assert "edge_a, edge_b" not in source
     compile(source, str(source_path), "exec")
+
+
+def test_canonical_tunic_gate_anchors_current_proxy_provenance():
+    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "seam_records=seam_records,\\n        proxy=proxy," in source
