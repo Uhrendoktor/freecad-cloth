@@ -89,6 +89,42 @@ anchor = '    for batch in (15,15,15,15,15,15):'
 if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
 source = source.replace(anchor, preview_probe + '\n' + anchor, 1)
+support_pin_patch = '''    stitch_endpoints = {
+        int(endpoint)
+        for pairs in getattr(proxy, "seam_stitch_pairs", {}).values()
+        for pair in pairs
+        for endpoint in pair
+    }
+    back_support_targets = (
+        (0.20 * panel_width, 0.82 * garment_height),
+        (0.80 * panel_width, 0.82 * garment_height),
+    )
+    available_back_support = [int(index) for index in back_indices if int(index) not in stitch_endpoints]
+    back_support_pins = []
+    for local_x, local_y in back_support_targets:
+        if not available_back_support:
+            raise RuntimeError("visual tunic support-anchor contract has no non-seam back candidates")
+        target_point = back.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
+        selected = min(
+            available_back_support,
+            key=lambda i: (positions[i][0] - target_point.x) ** 2
+            + (positions[i][1] - target_point.y) ** 2
+            + (positions[i][2] - target_point.z) ** 2,
+        )
+        back_support_pins.append(selected)
+        available_back_support.remove(selected)
+    if len(back_support_pins) != 2 or any(int(index) in stitch_endpoints for index in back_support_pins):
+        raise RuntimeError("visual tunic support-anchor contract selected a sewn endpoint")
+    all_tunic_pins = set(int(index) for index in front_pins + tuple(back_support_pins))
+    if any(
+        int(a) in all_tunic_pins and int(b) in all_tunic_pins
+        for seam_pairs in getattr(proxy, "seam_stitch_pairs", {}).values()
+        for a, b in seam_pairs
+    ):
+        raise RuntimeError("visual tunic support-anchor contract pins both endpoints of a sewn pair")
+    scene.PinSelection = [str(i) for i in front_pins + tuple(back_support_pins)]
+    log("back-support-pins=%s back-pinned=true" % tuple(back_support_pins))'''
+source = source.replace("    scene.PinSelection = [str(i) for i in front_pins]\n", support_pin_patch, 1)
 
 seam_check = """    backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
