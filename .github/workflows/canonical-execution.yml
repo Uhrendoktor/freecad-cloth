@@ -191,6 +191,8 @@ jobs:
         run: |
           set -euo pipefail
           grep -q 'triangle-preflight=passed' artifacts/canonical-garment-e2e/canonical-garment-e2e.log
+          grep -q 'workbench-bootstrap=starting' artifacts/canonical-garment-e2e/canonical-garment-e2e.log
+          grep -q 'workbench-bootstrap=passed' artifacts/canonical-garment-e2e/canonical-garment-e2e.log
           grep -q 'staged-selection=passed' artifacts/canonical-garment-e2e/canonical-garment-e2e.log
           grep -q 'sewing-1to1=passed type=curved' artifacts/canonical-garment-e2e/canonical-garment-e2e.log
           grep -q 'sewing-mn=passed sides=2,2 segments=2' artifacts/canonical-garment-e2e/canonical-garment-e2e.log
