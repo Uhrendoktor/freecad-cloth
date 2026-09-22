@@ -64,7 +64,7 @@ def to_svg(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm
     lines.append('</svg>'); return "\n".join(lines)+"\n"
 
 
-def to_dxf(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm", derived: DerivedPattern | None = None, piece_id: str = "", seam_ids=(), seam_allowance: float = 0.0) -> str:
+def to_dxf(pattern: ParametricPattern, curve_samples: int = 32, units: str = "mm", derived: DerivedPattern | None = None, piece_id: str = "", seam_ids=(), seam_allowance: float = 0.0, internal_mark_ids=None, semantic_edge_ids=None) -> str:
     if not units.strip(): raise ValueError("units must not be empty")
     sewing=_sampled_sewing(pattern,curve_samples)
     if derived is not None and derived.sewing_boundary is not pattern: raise ValueError("derived pattern belongs to a different sewing boundary")
