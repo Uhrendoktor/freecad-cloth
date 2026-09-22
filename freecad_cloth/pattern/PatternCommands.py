@@ -202,6 +202,23 @@ def show_pattern_2d():
     show_pattern_view()
 
 
+def export_pattern():
+    """Open the public production SVG/DXF export task panel."""
+    import FreeCAD as App
+    import FreeCADGui as Gui
+    from freecad_cloth.pattern.PatternExportGui import show_pattern_export_task
+    doc = App.ActiveDocument
+    if doc is None:
+        raise ValueError("open a pattern document before exporting")
+    piece = next(
+        (o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"),
+        next((o for o in doc.Objects if getattr(o, "PatternType", "") == "PatternPiece"), None),
+    )
+    if piece is None:
+        raise ValueError("create or select a pattern piece before exporting")
+    return show_pattern_export_task(piece)
+
+
 def create_pattern_mesh():
     """Generate a solver-ready surface mesh for the selected pattern."""
     import FreeCAD as App
@@ -289,7 +306,7 @@ COMMANDS = [
     "ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_EditSketch",
     "ClothPattern_CreateSketch", "ClothPattern_CreatePieceWithSketch", "ClothPattern_CreateFromSketch",
     "ClothPattern_CreateDrafting", "ClothPattern_Show2D", "ClothPattern_CreatePiece", "ClothPattern_CreateCustomPiece",
-    "ClothPattern_CreateMesh", "ClothPattern_AddSeam", "ClothPattern_RepairTopology",
+    "ClothPattern_CreateMesh", "ClothPattern_AddSeam", "ClothPattern_RepairTopology", "ClothPattern_Export",
 ]
 
 
@@ -315,6 +332,7 @@ try:
             "ClothPattern_CreateMesh": create_pattern_mesh,
             "ClothPattern_AddSeam": add_seam,
             "ClothPattern_RepairTopology": repair_pattern_topology,
+            "ClothPattern_Export": export_pattern,
         }.items():
             Gui.addCommand(name, _FunctionCommand(handler, name))
 except (ImportError, AttributeError):
