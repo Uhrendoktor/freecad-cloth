@@ -92,6 +92,13 @@ def start_staged_mn_sewing_creation():
     return _ACTIVE_STAGED_SEWING_TASK_PANEL
 
 
+def start_staged_free_sewing_creation():
+    global _ACTIVE_STAGED_SEWING_TASK_PANEL
+    from freecad_cloth.sewing.SewingCreationGui import show_sewing_creation_task
+    _ACTIVE_STAGED_SEWING_TASK_PANEL = show_sewing_creation_task("free")
+    return _ACTIVE_STAGED_SEWING_TASK_PANEL
+
+
 def _has_two_selected_pattern_edges():
     try:
         _selected_pattern_edges()
