@@ -1,4 +1,9 @@
-"""Headless-safe helpers for interactive pattern drafting."""
+"""Compatibility-only helpers for legacy pattern-drafting documents.
+
+These parsers remain load/migration support for older documents. They are not
+part of the normal user-facing Pattern workbench authoring path. Native
+FreeCAD Sketcher is authoritative for new pattern geometry.
+"""
 
 
 def default_points(width, height):
