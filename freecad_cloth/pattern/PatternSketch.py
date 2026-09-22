@@ -13,8 +13,17 @@ def _piece_object(document, piece_id):
 def _ensure_piece_properties(obj):
     if obj is None:
         return
-    if "Sketch" not in obj.PropertiesList:
-        obj.addProperty("App::PropertyLink", "Sketch", "Cloth")
+    existing_sketch = getattr(obj, "Sketch", None)
+    try:
+        sketch_type = obj.getTypeIdOfProperty("Sketch")
+    except (AttributeError, RuntimeError):
+        sketch_type = ""
+    if "Sketch" not in obj.PropertiesList or str(sketch_type) != "App::PropertyLinkGlobal":
+        if "Sketch" in obj.PropertiesList:
+            obj.removeProperty("Sketch")
+        obj.addProperty("App::PropertyLinkGlobal", "Sketch", "Cloth")
+        if existing_sketch is not None:
+            obj.Sketch = existing_sketch
     if "GeometryAuthority" not in obj.PropertiesList:
         obj.addProperty("App::PropertyEnumeration", "GeometryAuthority", "Cloth")
         obj.GeometryAuthority = ["PatternParameters", "Sketcher"]
