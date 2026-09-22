@@ -167,7 +167,12 @@ def _open_staged(command):
     _close_task()
     Gui.runCommand(command, 0)
     _events()
-    return _require_dialog(("Preview", "Commit", "Cancel", "Selected semantic pattern edges"), command)
+    _require_dialog(("Preview", "Commit", "Cancel", "Selected semantic pattern edges"), command)
+    from freecad_cloth.sewing.SewingCommands import get_active_staged_sewing_task_panel
+    panel = get_active_staged_sewing_task_panel()
+    if panel is None:
+        raise RuntimeError(command + " did not expose its public staged sewing task panel")
+    return panel
 
 
 def _commit_staged(panel):
