@@ -117,5 +117,26 @@ class SimulationQualityTests(unittest.TestCase):
         self.assertEqual(proxy.last_steps, 0)
 
 
+    def test_pinned_pinned_stitch_rejects_nonzero_initial_separation(self):
+        from freecad_cloth.simulation.ClothBackend import validate_pinned_stitch_pairs
+
+        positions = ((0.0, 0.0, 0.0), (327.943695, 0.0, 0.0))
+        records = (("TunicRightShoulder", "Front", "Back", ((0, 1),)),)
+        with self.assertRaisesRegex(
+            ValueError,
+            r"impossible pinned-pinned sewing constraint: seam=TunicRightShoulder "
+            r"particle_a=0 particle_b=1 initial_separation=327\.943695000 mm",
+        ):
+            validate_pinned_stitch_pairs(positions, (0, 1), records)
+
+    def test_pinned_pinned_stitch_allows_numerical_zero(self):
+        from freecad_cloth.simulation.ClothBackend import validate_pinned_stitch_pairs
+
+        positions = ((0.0, 0.0, 0.0), (1.0e-12, 0.0, 0.0))
+        records = (("test-seam", "A", "B", ((0, 1),)),)
+        validate_pinned_stitch_pairs(positions, (0, 1), records)
+
+
+
 if __name__ == "__main__":
     unittest.main()
