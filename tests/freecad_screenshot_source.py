@@ -342,27 +342,55 @@ def simulation():
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
-    def authored_shoulder_pins(piece, particle_indices, positions):
-        targets = (
-            (0.14 * panel_width, 0.97 * garment_height),
-            (0.86 * panel_width, 0.97 * garment_height),
-        )
-        available = list(particle_indices)
-        result = []
-        for local_x, local_y in targets:
-            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
-            index = min(available, key=lambda i: (positions[i][0] - target_point.x) ** 2 + (positions[i][1] - target_point.y) ** 2 + (positions[i][2] - target_point.z) ** 2)
-            result.append(index)
-            available.remove(index)
-        return tuple(result)
+    def front_shoulder_pins_from_solver_provenance(proxy, shoulder_seams):
+        """
+        Resolve the two front shoulder endpoint pins from the authoritative
+        solver stitch-pair provenance. Each authored shoulder seam stores
+        pairs in (front-particle, back-particle) order, so only the first
+        component of the first/last solver stitch pair is eligible.
+        """
+        provenance = getattr(proxy, "seam_stitch_pairs", None)
+        if not provenance:
+            raise RuntimeError("pin contract requires exact solver seam provenance")
+        front_pins = []
+        endpoint_records = []
+        for seam_obj, front_piece, back_piece in shoulder_seams:
+            seam_id = str(getattr(seam_obj, "SeamId", getattr(seam_obj, "Label", "")))
+            stitch_pairs = tuple(provenance.get(seam_id, ()))
+            if len(stitch_pairs) < 2:
+                raise RuntimeError(
+                    "pin contract missing first/last solver stitch pairs for %s" % seam_id
+                )
+            first_pair = tuple(int(i) for i in stitch_pairs[0])
+            last_pair = tuple(int(i) for i in stitch_pairs[-1])
+            if len(first_pair) != 2 or len(last_pair) != 2:
+                raise RuntimeError("pin contract received malformed solver stitch provenance for %s" % seam_id)
+            first_front, first_back = first_pair
+            last_front, last_back = last_pair
+            front_pins.extend((first_front, last_front))
+            endpoint_records.append((seam_id, first_pair, last_pair))
+            if first_front == first_back or last_front == last_back:
+                raise RuntimeError("pin contract found a self-paired endpoint for %s" % seam_id)
+            if first_front < 0 or last_front < 0:
+                raise RuntimeError("pin contract received invalid front endpoint for %s" % seam_id)
+            if first_back in (first_front, last_front) or last_back in (first_front, last_front):
+                raise RuntimeError("pin contract selected a paired back-side endpoint for %s" % seam_id)
+        front_pins = tuple(dict.fromkeys(front_pins))
+        if len(front_pins) != 4:
+            raise RuntimeError(
+                "pin contract expected four exact front shoulder endpoints, got %s" % (front_pins,)
+            )
+        return front_pins, tuple(endpoint_records)
+
     proxy = scene.Proxy
-    positions = tuple(proxy.backend.positions())
-    pin_panels = list(scene.DrapePanels)
-    panel_indices = proxy.panel_indices
-    front_indices = tuple(panel_indices[pin_panels[0].Name])
-    back_indices = tuple(panel_indices[pin_panels[1].Name])
-    front_pins = authored_shoulder_pins(front, front_indices, positions)
-    back_pins = authored_shoulder_pins(back, back_indices, positions)
+    shoulder_seams = tuple(
+        record for record in seam_records
+        if str(getattr(record[0], "SeamId", getattr(record[0], "Label", "")))
+        in ("TunicRightShoulder", "TunicLeftShoulder")
+    )
+    if len(shoulder_seams) != 2:
+        raise RuntimeError("pin contract expected exactly two authored shoulder seams")
+    front_pins, pin_provenance = front_shoulder_pins_from_solver_provenance(proxy, shoulder_seams)
     # The two panels begin on opposite sides of the avatar. Pinning both sewn
     # shoulder endpoints would freeze each endpoint at its separated start
     # position, making the zero-rest stitch constraint unsatisfiable. Anchor
@@ -375,7 +403,22 @@ def simulation():
         for a, b in seam_pairs
     ):
         raise RuntimeError("visual tunic pin contract pins both endpoints of a sewn pair")
-    log("pin-map authored front=%s back-global=%s back-pinned=false" % (front_pins, back_pins)); doc.recompute()
+    back_endpoints = tuple(
+        int(pair[index])
+        for _seam_id, first_pair, last_pair in pin_provenance
+        for pair, index in ((first_pair, 1), (last_pair, 1))
+    )
+    if any(int(pin) in back_endpoints for pin in front_pins):
+        raise RuntimeError("visual tunic pin contract selected a paired back-side endpoint")
+    log(
+        "pin-map solver-seam-provenance=true seams=%s endpoints=%s front-pins=%s back-pinned=false"
+        % (
+            ",".join(seam_id for seam_id, _first, _last in pin_provenance),
+            pin_provenance,
+            front_pins,
+        )
+    )
+    doc.recompute()
     for source in (doc.getObject("VisualTunicFront"), doc.getObject("VisualTunicBack")):
         if source is not None: source.ViewObject.Visibility = False
         sketch = getattr(source, "Sketch", None) if source is not None else None
