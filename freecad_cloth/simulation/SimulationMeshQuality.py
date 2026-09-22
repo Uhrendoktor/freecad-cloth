@@ -49,37 +49,99 @@ def quality_piece_mesh(piece, start_height, particle_distance):
         for x, y in mesh.vertices:
             point = placement.multVec(App.Vector(x, y, float(start_height)))
             positions.append((float(point.x), float(point.y), float(point.z)))
-    boundary = mesh.boundary_vertex_indices
+    boundary = tuple(int(index) for index in mesh.boundary_vertex_indices)
     segment_ids = tuple(str(value) for value in mesh.boundary_edge_segment_ids)
     if len(segment_ids) != len(boundary):
         raise ValueError("quality mesh boundary provenance length does not match boundary vertices")
-    refined_ids = tuple(segment.id for segment in refined.segments)
-    if len(refined_ids) != len(boundary):
-        raise ValueError("quality mesh refined boundary count does not match boundary vertices")
-    expected_ids = list(refined_ids)
-    signed_area = sum(
-        deduped[i][0] * deduped[(i + 1) % len(deduped)][1]
-        - deduped[(i + 1) % len(deduped)][0] * deduped[i][1]
-        for i in range(len(deduped))
-    )
-    if signed_area < 0.0:
-        expected_ids = list(reversed(expected_ids))
-        expected_ids = expected_ids[1:] + expected_ids[:1]
-    expected_ids = tuple(expected_ids)
-    if segment_ids != expected_ids:
-        raise ValueError(
-            "quality mesh boundary provenance disagrees with authored order: "
-            f"expected={expected_ids!r} actual={segment_ids!r}"
+
+    edge_prefixes = tuple(f"{piece.PieceId}:edge:{index}" for index in range(len(deduped)))
+    edge_pairs = {}
+    for index, segment_id in enumerate(segment_ids):
+        key = next(
+            (
+                prefix
+                for prefix in edge_prefixes
+                if segment_id == prefix or segment_id.startswith(prefix + "::sub::")
+            ),
+            None,
         )
-    boundary_groups = {}
-    for original_index in range(len(deduped)):
-        prefix = f"{piece.PieceId}:edge:{original_index}"
-        matches = [i for i, segment_id in enumerate(expected_ids)
-                   if segment_id == prefix or segment_id.startswith(prefix + "::sub::")]
-        if not matches or matches != list(range(matches[0], matches[-1] + 1)):
-            raise ValueError(f"quality mesh semantic edge provenance is not contiguous for {prefix}")
-        boundary_groups[prefix] = list(boundary[matches[0]:matches[-1] + 2])
-    by_index = [tuple(boundary_groups[f"{piece.PieceId}:edge:{edge_index}"]) for edge_index in range(len(deduped))]
+        if key is None:
+            raise ValueError(
+                f"quality mesh returned unknown semantic boundary ID: {segment_id}"
+            )
+        pair = (boundary[index], boundary[(index + 1) % len(boundary)])
+        edge_pairs.setdefault(key, []).append(pair)
+
+    mesh_vertices = tuple(mesh.vertices)
+    by_index = []
+    for edge_index, start_point in enumerate(deduped):
+        key = f"{piece.PieceId}:edge:{edge_index}"
+        pairs = edge_pairs.get(key)
+        if not pairs:
+            raise ValueError(f"quality mesh has no boundary provenance for edge {edge_index}")
+
+        end_point = deduped[(edge_index + 1) % len(deduped)]
+        dx = float(end_point[0]) - float(start_point[0])
+        dy = float(end_point[1]) - float(start_point[1])
+        length_squared = dx * dx + dy * dy
+        if length_squared <= 1e-18:
+            raise ValueError(f"quality mesh authored edge {edge_index} has zero length")
+
+        vertex_indices = {vertex for pair in pairs for vertex in pair}
+
+        def parameter(vertex_index):
+            vertex = mesh_vertices[vertex_index]
+            return (
+                (float(vertex[0]) - float(start_point[0])) * dx
+                + (float(vertex[1]) - float(start_point[1])) * dy
+            ) / length_squared
+
+        ordered = tuple(sorted(vertex_indices, key=parameter))
+        if len(ordered) < 2:
+            raise ValueError(
+                f"quality mesh semantic edge {edge_index} has too few boundary vertices"
+            )
+
+        endpoint_tolerance = 1e-7 * max(1.0, hypot(dx, dy))
+        first = mesh_vertices[ordered[0]]
+        last = mesh_vertices[ordered[-1]]
+        if hypot(
+            float(first[0]) - float(start_point[0]),
+            float(first[1]) - float(start_point[1]),
+        ) > endpoint_tolerance:
+            raise ValueError(
+                f"quality mesh semantic edge {edge_index} does not start at its authored vertex"
+            )
+        if hypot(
+            float(last[0]) - float(end_point[0]),
+            float(last[1]) - float(end_point[1]),
+        ) > endpoint_tolerance:
+            raise ValueError(
+                f"quality mesh semantic edge {edge_index} does not end at its authored vertex"
+            )
+
+        actual_pairs = {frozenset(pair) for pair in pairs}
+        ordered_pairs = {
+            frozenset((left, right)) for left, right in zip(ordered, ordered[1:])
+        }
+        if ordered_pairs != actual_pairs:
+            raise ValueError(
+                f"quality mesh semantic edge {edge_index} boundary chain is disconnected"
+            )
+
+        max_segment = max(
+            hypot(
+                float(mesh_vertices[left][0]) - float(mesh_vertices[right][0]),
+                float(mesh_vertices[left][1]) - float(mesh_vertices[right][1]),
+            )
+            for left, right in zip(ordered, ordered[1:])
+        )
+        if max_segment > spacing + endpoint_tolerance:
+            raise ValueError(
+                f"quality mesh semantic edge {edge_index} exceeds requested boundary spacing"
+            )
+
+        by_index.append(ordered)
     return positions, tuple(mesh.triangles), tuple(by_index)
 
 
