@@ -2,6 +2,14 @@
 from freecad_cloth.common.CommandAdapter import icon_for_command
 
 
+_ACTIVE_DIAGNOSTICS_TASK_PANEL = None
+
+
+def get_active_diagnostics_task_panel():
+    """Return the diagnostics task panel opened by the public command."""
+    return _ACTIVE_DIAGNOSTICS_TASK_PANEL
+
+
 def _selected_source():
     import FreeCADGui as Gui
     for obj in Gui.Selection.getSelection():
@@ -78,11 +86,13 @@ def set_drape_target_enabled(enabled=True):
 
 def show_diagnostics():
     """Open post-simulation stress/strain/fit/pressure diagnostics."""
+    global _ACTIVE_DIAGNOSTICS_TASK_PANEL
     import FreeCAD as App
     from freecad_cloth.common.ClothDiagnosticsGui import show_diagnostics as show_panel
     doc = App.ActiveDocument
     if doc is None: raise ValueError("create a simulation before opening diagnostics")
-    return show_panel()
+    _ACTIVE_DIAGNOSTICS_TASK_PANEL = show_panel()
+    return _ACTIVE_DIAGNOSTICS_TASK_PANEL
 
 
 def _has_document():
@@ -111,9 +121,20 @@ class _DrapeCommand:
         return {"MenuText": labels.get(self.name, self.name.replace("ClothDrape_", "").replace("_", " ").title()), "ToolTip": self.tooltip, "Pixmap": icon_for_command(self.name)}
 
 
-try:
-    import FreeCADGui as Gui
+def register_gui_commands(gui=None):
+    """Register the public drape commands explicitly for workbench initialization."""
+    if gui is None:
+        try:
+            import FreeCADGui as gui
+        except ImportError:
+            return False
     for name, function in _HANDLERS.items():
         active = _has_source_selection if name == "ClothDrape_CreateTarget" else _has_document
-        Gui.addCommand(name, _DrapeCommand(name, function, active, _TOOLTIPS[name]))
-except (ImportError, AttributeError): pass
+        gui.addCommand(name, _DrapeCommand(name, function, active, _TOOLTIPS[name]))
+    return True
+
+
+try:
+    register_gui_commands()
+except (ImportError, AttributeError):
+    pass

@@ -82,6 +82,104 @@ jobs:
               done
             '
 
+  gui-sewing-creation:
+    name: Sewing staged creation smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Run staged creation smoke
+        run: |
+          set -euo pipefail
+          rm -rf artifacts
+          mkdir -p artifacts
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SEWING_SMOKE_LOG=/workspace/artifacts/sewing-creation-smoke.log \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /workspace/tests/freecad_sewing_creation_smoke.py
+              test -s /workspace/artifacts/sewing-creation-smoke.log
+            '
+      - name: Inspect smoke evidence
+        run: |
+          set -euo pipefail
+          grep -q 'preview-1to1=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'commit-1to1=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'cancel-1to1=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'selection-count-rejection=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'preview-mn=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'commit-mn=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'invalid-same-piece-preview=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'invalid-mn-partition-preview=passed' artifacts/sewing-creation-smoke.log
+      - name: Upload sewing creation smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: sewing-creation-smoke
+          path: artifacts/sewing-creation-smoke.log
+          if-no-files-found: error
+          compression-level: 1
+
+  gui-pattern-export:
+    name: Pattern production export smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Run public export smoke
+        run: |
+          set -euo pipefail
+          rm -rf artifacts
+          mkdir -p artifacts
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1             -e CLOTH_PATTERN_EXPORT_LOG=/workspace/artifacts/pattern-production-export.log             -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 5m /opt/freecad/AppRun /workspace/tests/freecad_pattern_export_smoke.py
+              test -s /workspace/artifacts/pattern-production-export.log
+            '
+      - name: Inspect export evidence
+        run: |
+          set -euo pipefail
+          grep -q 'pattern-export=passed formats=SVG,DXF' artifacts/pattern-production-export.log
+          grep -q 'pattern-export-smoke=completed' artifacts/pattern-production-export.log
+      - name: Upload pattern export evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: pattern-production-export
+          path: artifacts/pattern-production-export.log
+          if-no-files-found: error
+          compression-level: 1
+
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
     runs-on: ubuntu-latest

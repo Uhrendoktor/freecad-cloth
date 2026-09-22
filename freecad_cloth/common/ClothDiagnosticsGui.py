@@ -12,7 +12,17 @@ def _qt():
 
 
 def _scene(doc):
-    return next((obj for obj in doc.Objects if getattr(obj, "Type", "") == "ClothSimulation"), None)
+    """Return the authoritative cloth simulation object used by diagnostics."""
+    return next(
+        (
+            obj
+            for obj in doc.Objects
+            if getattr(obj, "Name", "") == "ClothSimulation"
+            or getattr(getattr(obj, "Proxy", None), "Type", "") == "ClothSimulation"
+            or getattr(obj, "Type", "") == "ClothSimulation"
+        ),
+        None,
+    )
 
 
 def _simulation_data(scene):

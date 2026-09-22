@@ -24,8 +24,8 @@ def _pieces_by_id(doc):
     return {getattr(o, "PieceId", ""): o for o in doc.Objects if getattr(o, "PatternType", "") == "PatternPiece"}
 
 
-def _selected_pattern_edges(allow_many=False):
-    """Return selected pattern-piece edge references in selection order."""
+def _collect_selected_pattern_edges():
+    """Return all selected semantic pattern-piece edges in selection order."""
     import FreeCADGui as Gui
     edges = []
     seen = set()
@@ -48,12 +48,48 @@ def _selected_pattern_edges(allow_many=False):
                 continue
             seen.add(key)
             edges.append((obj, edge))
+    return edges
+
+
+def _selected_pattern_edges(allow_many=False):
+    """Return selected pattern-piece edge references after count/piece validation."""
+    edges = _collect_selected_pattern_edges()
     if (not allow_many and len(edges) != 2) or (allow_many and len(edges) < 2):
         count = "at least two" if allow_many else "exactly two"
         raise ValueError("select %s edges on pattern pieces" % count)
     if len({id(obj) for obj, _edge in edges}) != 2:
         raise ValueError("a sewing relationship must connect two different pattern pieces")
     return edges
+
+
+def _has_any_selected_pattern_edges():
+    try:
+        return bool(_collect_selected_pattern_edges())
+    except (ImportError, ValueError):
+        return False
+
+
+_ACTIVE_STAGED_SEWING_TASK_PANEL = None
+_ACTIVE_SEWING_OPERATION_TASK_PANEL = None
+
+
+def get_active_staged_sewing_task_panel():
+    """Return the task panel most recently opened by a public staged-sewing command."""
+    return _ACTIVE_STAGED_SEWING_TASK_PANEL
+
+
+def start_staged_seam_creation():
+    global _ACTIVE_STAGED_SEWING_TASK_PANEL
+    from freecad_cloth.sewing.SewingCreationGui import show_sewing_creation_task
+    _ACTIVE_STAGED_SEWING_TASK_PANEL = show_sewing_creation_task("seam")
+    return _ACTIVE_STAGED_SEWING_TASK_PANEL
+
+
+def start_staged_mn_sewing_creation():
+    global _ACTIVE_STAGED_SEWING_TASK_PANEL
+    from freecad_cloth.sewing.SewingCreationGui import show_sewing_creation_task
+    _ACTIVE_STAGED_SEWING_TASK_PANEL = show_sewing_creation_task("mn")
+    return _ACTIVE_STAGED_SEWING_TASK_PANEL
 
 
 def _has_two_selected_pattern_edges():
@@ -146,13 +182,20 @@ def create_sewing_operation():
     return obj
 
 
+def get_active_sewing_operation_task_panel():
+    """Return the task panel most recently opened by the public sewing-operation command."""
+    return _ACTIVE_SEWING_OPERATION_TASK_PANEL
+
+
 def edit_sewing_operation():
+    global _ACTIVE_SEWING_OPERATION_TASK_PANEL
     import FreeCADGui as Gui
     obj = next((o for o in Gui.Selection.getSelection() if getattr(o, "SewingType", "") == "SewingOperation"), None)
     if obj is None:
         raise ValueError("select a sewing operation before editing it")
     from freecad_cloth.sewing.SewingGui import show_sewing_task
-    return show_sewing_task(obj)
+    _ACTIVE_SEWING_OPERATION_TASK_PANEL = show_sewing_task(obj)
+    return _ACTIVE_SEWING_OPERATION_TASK_PANEL
 
 
 def reverse_selected_seam():
@@ -208,6 +251,37 @@ def repair_selected_seam():
             length_b = _edge_length(pieces[str(seam.PieceB)], int(seam.EdgeB))
         except (KeyError, ValueError, TypeError, IndexError) as exc:
             raise ValueError("cannot determine seam lengths for repair: %s" % exc) from exc
+    # Refresh only the existing semantic edge IDs. Never use a changed ordinal
+    # to retarget a seam to another edge; topology repair is an explicit operation.
+    pieces = _pieces_by_id(doc)
+    refreshed = []
+    try:
+        from freecad_cloth.pattern.PatternObjects import _edge_records, refresh_edge_reference_signature
+        for side, edge_attr, piece_attr, id_attr, sig_attr in (
+            ("A", "EdgeA", "PieceA", "EdgeAId", "EdgeASignature"),
+            ("B", "EdgeB", "PieceB", "EdgeBId", "EdgeBSignature"),
+        ):
+            piece_id = str(getattr(seam, piece_attr, ""))
+            piece = pieces.get(piece_id)
+            if piece is None:
+                raise ValueError("cannot repair seam %s: pattern piece %s is missing" % (side, piece_id))
+            edge_id = str(getattr(seam, id_attr, "")).strip()
+            if not edge_id:
+                raise ValueError("cannot repair seam %s: semantic edge ID is missing" % side)
+            signature = refresh_edge_reference_signature(piece, edge_id)
+            record = next(
+                (item for item in _edge_records(piece) if str(item.get("id")) == edge_id),
+                None,
+            )
+            if record is None:
+                raise ValueError("cannot repair seam %s: semantic edge ID disappeared" % side)
+            refreshed.append((edge_attr, sig_attr, int(record["ordinal"]), signature))
+    except (KeyError, IndexError, TypeError, ValueError, RuntimeError) as exc:
+        raise ValueError("cannot refresh stale seam edge references: %s" % exc) from exc
+    for edge_attr, sig_attr, edge_index, signature in refreshed:
+        setattr(seam, edge_attr, edge_index)
+        setattr(seam, sig_attr, signature)
+
     report = correspondence_report(seam, length_a, length_b, 0.05)
     message = repair_correspondence_settings(seam, report)
     doc.recompute()
@@ -233,8 +307,8 @@ COMMANDS = [
     "ClothSewing_Validate", "ClothSewing_RepairSeam", "ClothSewing_Show2D",
 ]
 _COMMAND_HANDLERS = {
-    "ClothSewing_CreateSeam": create_seam_from_selection,
-    "ClothSewing_CreateMNSewing": create_mn_sewing_from_selection,
+    "ClothSewing_CreateSeam": start_staged_seam_creation,
+    "ClothSewing_CreateMNSewing": start_staged_mn_sewing_creation,
     "ClothSewing_CreateOperation": create_sewing_operation,
     "ClothSewing_EditOperation": edit_sewing_operation,
     "ClothSewing_ReverseSeam": reverse_selected_seam,
@@ -255,8 +329,8 @@ _MENU_TEXT = {
     "ClothSewing_Show2D": "Show Sewing 2D",
 }
 _TOOLTIPS = {
-    "ClothSewing_CreateSeam": "Create a persistent seam from two selected pattern edges",
-    "ClothSewing_CreateMNSewing": "Create a deterministic 1:N, M:1, or M:N sewing relationship from selected edges",
+    "ClothSewing_CreateSeam": "Preview, validate, and commit a seam from two selected pattern edges",
+    "ClothSewing_CreateMNSewing": "Preview, validate, and commit a deterministic 1:N, M:1, or M:N sewing relationship",
     "ClothSewing_CreateOperation": "Create a sewing operation from the selected seam",
     "ClothSewing_EditOperation": "Edit seam alignment, orientation, tolerance, and stitch samples",
     "ClothSewing_ReverseSeam": "Reverse the B-side stitch correspondence",
@@ -299,8 +373,8 @@ class _SewingCommand:
         return resources
 
 _ACTIVATION = {
-    "ClothSewing_CreateSeam": lambda: _has_active_document() and _has_two_selected_pattern_edges(),
-    "ClothSewing_CreateMNSewing": lambda: _has_active_document() and _has_mn_selection(),
+    "ClothSewing_CreateSeam": lambda: _has_active_document() and _has_any_selected_pattern_edges(),
+    "ClothSewing_CreateMNSewing": lambda: _has_active_document() and _has_any_selected_pattern_edges(),
     "ClothSewing_CreateOperation": lambda: _has_active_document() and _has_selected_seam(),
     "ClothSewing_EditOperation": lambda: _has_active_document() and _has_selected_operation(),
     "ClothSewing_ReverseSeam": lambda: _has_active_document() and _has_selected_seam(),

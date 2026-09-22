@@ -17,6 +17,10 @@ class ClothSimulationWorkbench(ClothWorkbenchBase):
         super().__init__()
         self.Icon = str(Path(__file__).resolve().parents[2] / "resources" / "icons" / "ClothSimulation.svg")
 
+    def Activated(self):
+        import freecad_cloth.simulation.DrapeCommands as DrapeCommands
+        DrapeCommands.register_gui_commands()
+
     def Initialize(self):
         if self.commands:
             return
@@ -24,4 +28,5 @@ class ClothSimulationWorkbench(ClothWorkbenchBase):
         import freecad_cloth.simulation.SimulationCommands as SimulationCommands
         import freecad_cloth.simulation.DrapeCommands as DrapeCommands
         import freecad_cloth.simulation.RealtimePreview as RealtimePreview
+        DrapeCommands.register_gui_commands()
         self.register((("Simulation", SimulationCommands.COMMANDS + ["ClothRealtimePreview"] + DrapeCommands.COMMANDS),))
