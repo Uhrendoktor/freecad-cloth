@@ -38,7 +38,8 @@ def set_native_bezier_boundary(sketch, piece_id, span, height):
         App.Vector(-span * 0.35, 40 + height, 0),
         p3,
     ])
-    sketch.clear()
+    for geometry_index in range(len(sketch.Geometry) - 1, -1, -1):
+        sketch.delGeometry(geometry_index)
     sketch.addGeometry([
         Part.LineSegment(p0, p1),
         Part.LineSegment(p1, p2),
