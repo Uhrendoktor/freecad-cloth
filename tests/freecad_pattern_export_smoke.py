@@ -155,6 +155,7 @@ try:
         process_events()
         Gui.runCommand("ClothPattern_AddSeam", 0)
         process_events()
+        piece.SeamAllowance = 5.0
         doc.recompute()
 
         pre_save_seams = [obj for obj in doc.Objects if str(getattr(obj, "SeamId", "")).strip()]
