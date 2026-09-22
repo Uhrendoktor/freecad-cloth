@@ -35,16 +35,24 @@ import Sketcher
 
 def _ensure_workbench_registration():
     _record("workbench-bootstrap=starting")
-    expected = ("ClothPatternWorkbench", "ClothSewingWorkbench", "ClothSimulationWorkbench")
-    if any(name not in Gui.listWorkbenches() for name in expected):
-        init_gui = ROOT / "InitGui.py"
-        if not init_gui.is_file():
-            raise RuntimeError("InitGui.py is required for standalone canonical garment acceptance")
-        import InitGui  # noqa: F401
-        _events()
-    missing = [name for name in expected if name not in Gui.listWorkbenches()]
+    workbenches = Gui.listWorkbenches()
+    facades = (
+        ("ClothPatternWorkbench", "freecad_cloth.pattern.workbench", "ClothPatternWorkbench"),
+        ("ClothSewingWorkbench", "freecad_cloth.sewing.workbench", "ClothSewingWorkbench"),
+        ("ClothSimulationWorkbench", "freecad_cloth.simulation.workbench", "ClothSimulationWorkbench"),
+    )
+    missing = [name for name, _module, _class_name in facades if name not in workbenches]
     if missing:
-        raise RuntimeError("InitGui.py did not register: %s" % ",".join(missing))
+        import freecad_cloth.simulation.DrapeTarget  # noqa: F401
+        for name, module_name, class_name in facades:
+            if name in workbenches:
+                continue
+            module = __import__(module_name, fromlist=[class_name])
+            Gui.addWorkbench(getattr(module, class_name)())
+    _events()
+    missing = [name for name, _module, _class_name in facades if name not in Gui.listWorkbenches()]
+    if missing:
+        raise RuntimeError("standalone workbench bootstrap did not register: %s" % ",".join(missing))
     _record("workbench-bootstrap=passed")
 
 
@@ -796,9 +804,14 @@ def run_acceptance():
             App.closeDocument(doc.Name)
 
 
-_record("standalone-fixture=start")
-run_acceptance()
-_record("scenario-complete=passed")
-_record("freecad-process-exit=forced")
-sys.stdout.flush()
-os._exit(0)
+def _run_standalone():
+    _record("standalone-fixture=start")
+    run_acceptance()
+    _record("scenario-complete=passed")
+    _record("freecad-process-exit=forced")
+    sys.stdout.flush()
+    os._exit(0)
+
+
+if __name__ == "__main__":
+    _run_standalone()
