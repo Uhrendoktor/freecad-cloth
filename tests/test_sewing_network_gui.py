@@ -280,3 +280,9 @@ if __name__ == "__main__":
     test_sewing_task_panel_accept_cannot_broaden_mismatch_with_legacy_tolerance()
     test_sewing_task_panel_reject_preserves_persisted_relative_tolerance()
     print("sewing GUI relative-tolerance regression passed")
+
+
+def test_sewing_network_gui_recovery_metadata_is_deterministic():
+    from freecad_cloth.sewing.SewingCorrespondence import correspondence_recovery
+    assert correspondence_recovery("valid") == "no repair required"
+    assert "length mismatch" in correspondence_recovery("length_mismatch")
