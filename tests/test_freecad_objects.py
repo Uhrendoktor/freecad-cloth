@@ -194,35 +194,6 @@ def test_native_seam_reference_save_reload_curve_edit_and_missing():
             App.closeDocument(document.Name)
 
 
-            assert str(restored_line.Status) == "Valid"
-            assert str(restored_arc.EdgeASignature) == arc_signature
-
-            sketch.clear()
-            sketch.addGeometry([
-                Part.LineSegment(App.Vector(0, 0, 0), App.Vector(10, 0, 0)),
-                Part.LineSegment(App.Vector(10, 10, 0), App.Vector(0, 10, 0)),
-                Part.LineSegment(App.Vector(0, 10, 0), App.Vector(0, 0, 0)),
-            ], False)
-            sketch.SemanticEdgeIds = [
-                "native-a:edge:0",
-                "native-a:edge:2",
-                "native-a:edge:3",
-            ]
-            sketch.GeometryAuthority = "Sketcher"
-            reloaded.recompute()
-            assert str(restored_arc.Status) == "Missing reference"
-            assert str(restored_line.Status) == "Valid"
-            App.closeDocument(reloaded.Name)
-        finally:
-            try:
-                os.unlink(path)
-            except OSError:
-                pass
-    finally:
-        if document is not None and document.Name in App.listDocuments():
-            App.closeDocument(document.Name)
-
-
 def test_native_mn_network_save_reload_curve_edit_invalidates_and_repairs():
     if App is None or Part is None:
         return
@@ -312,6 +283,18 @@ def test_native_mn_network_save_reload_curve_edit_invalidates_and_repairs():
         )
         reloaded.recompute()
         assert all(str(seam.Status) == "Valid" for seam in network.Seams)
+        assert str(network.Status) == "Valid"
+        assert str(changed_seam.EdgeAId) == "native-mn-a:edge:1"
+        App.closeDocument(reloaded.Name)
+    finally:
+        try:
+            if path is not None:
+                os.unlink(path)
+        except OSError:
+            pass
+        if document is not None and document.Name in App.listDocuments():
+            App.closeDocument(document.Name)
+
 
 if __name__ == "__main__":
     test_pattern_piece_proxy_recomputes_deterministically()
@@ -319,3 +302,4 @@ if __name__ == "__main__":
     test_native_seam_reference_save_reload_curve_edit_and_missing()
     test_native_mn_network_save_reload_curve_edit_invalidates_and_repairs()
     print("FreeCAD object proxy and native seam reference tests passed")
+
