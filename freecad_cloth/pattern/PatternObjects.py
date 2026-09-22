@@ -134,13 +134,13 @@ def _seam_edge_id(piece, edge, prefix):
     for record in records:
         if record["id"] == reference_id:
             signature = record.get("native_signature", "")
-        if not signature:
-            if record.get("native_authoritative"):
-                raise ChangedEdgeReference(
-                    f"native Sketcher edge reference {reference_id} provenance is unavailable"
-                )
-            signature = capture_edge_reference(piece.PieceId, reference_id, record["points"]).signature
-        return reference_id, signature
+            if not signature:
+                if record.get("native_authoritative"):
+                    raise ChangedEdgeReference(
+                        f"native Sketcher edge reference {reference_id} provenance is unavailable"
+                    )
+                signature = capture_edge_reference(piece.PieceId, reference_id, record["points"]).signature
+            return reference_id, signature
     raise MissingEdgeReference(f"semantic edge reference {reference_id} is missing from pattern piece {piece.PieceId}")
 
 
