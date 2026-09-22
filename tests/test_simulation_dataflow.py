@@ -1,5 +1,7 @@
 """Regression tests for Pattern/Sewing -> Simulation source invalidation."""
 
+from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR, PieceIR
+from freecad_cloth.common import PatternIRDocumentAdapter
 from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
 
 
@@ -57,6 +59,89 @@ class _Scene:
 
     def __init__(self, objects):
         self.Document = type("_Doc", (), {"Objects": objects})()
+
+
+
+def _test_pattern_ir(piece_id="piece-a", x_offset=0.0):
+    return PatternIR(
+        (
+            PieceIR(
+                piece_id,
+                "Pattern IR Piece",
+                (
+                    BoundaryIR("edge:0", "line", ((x_offset + 0.0, 0.0, 0.0), (x_offset + 100.0, 0.0, 0.0))),
+                    BoundaryIR("edge:1", "line", ((x_offset + 100.0, 0.0, 0.0), (x_offset + 100.0, 60.0, 0.0))),
+                    BoundaryIR("edge:2", "line", ((x_offset + 100.0, 60.0, 0.0), (x_offset + 0.0, 60.0, 0.0))),
+                    BoundaryIR("edge:3", "line", ((x_offset + 0.0, 60.0, 0.0), (x_offset + 0.0, 0.0, 0.0))),
+                ),
+            ),
+        )
+    )
+
+
+def test_simulation_signature_uses_compiled_pattern_ir_not_legacy_outlines():
+    piece = _Piece("A", "piece-a")
+    scene = _Scene([])
+    pattern_ir = _test_pattern_ir()
+    calls = []
+
+    original = PatternIRDocumentAdapter.compile_pattern_ir
+    PatternIRDocumentAdapter.compile_pattern_ir = lambda doc, pieces: (calls.append(tuple(pieces)) or pattern_ir)
+    try:
+        baseline = _simulation_source_signature(scene, [piece])
+        piece.SewingOutline = "invalid legacy outline"
+        piece.DraftingBoundary = "another invalid legacy outline"
+        assert _simulation_source_signature(scene, [piece]) == baseline
+    finally:
+        PatternIRDocumentAdapter.compile_pattern_ir = original
+
+    assert calls == [(piece,), (piece,)]
+
+
+def test_simulation_signature_fails_closed_on_invalid_pattern_ir():
+    piece = _Piece("A", "piece-a")
+    scene = _Scene([])
+    invalid_ir = PatternIR((PieceIR("piece-a", "invalid", ()),), ())
+    original = PatternIRDocumentAdapter.compile_pattern_ir
+    PatternIRDocumentAdapter.compile_pattern_ir = lambda doc, pieces: invalid_ir
+    try:
+        try:
+            _simulation_source_signature(scene, [piece])
+        except ValueError as exc:
+            assert "piece needs at least one boundary" in str(exc)
+        else:
+            raise AssertionError("invalid PatternIR reached the simulation signature")
+    finally:
+        PatternIRDocumentAdapter.compile_pattern_ir = original
+
+
+def test_simulation_document_adapter_fails_closed_on_missing_semantic_seam_edge():
+    from freecad_cloth.common.PatternIRDocumentAdapter import compile_pattern_ir
+
+    piece_a = _Piece("A", "piece-a")
+    piece_b = _Piece("B", "piece-b")
+    seam = _Seam()
+    seam.EdgeAId = "missing-edge"
+    scene = _Scene([seam])
+    try:
+        compile_pattern_ir(scene.Document, [piece_a, piece_b])
+    except ValueError as exc:
+        assert "missing semantic edge" in str(exc)
+        return
+    raise AssertionError("simulation accepted a seam with a missing semantic edge")
+
+
+def test_simulation_document_adapter_ignores_seams_outside_selected_scene():
+    from freecad_cloth.common.PatternIRDocumentAdapter import compile_pattern_ir
+
+    piece_a = _Piece("A", "piece-a")
+    piece_b = _Piece("B", "piece-b")
+    seam = _Seam()
+    seam.PieceB = "unselected-piece"
+    scene = _Scene([seam])
+    ir = compile_pattern_ir(scene.Document, [piece_a, piece_b])
+    assert ir.seams == ()
+
 
 
 def test_signature_changes_when_piece_geometry_or_placement_changes():

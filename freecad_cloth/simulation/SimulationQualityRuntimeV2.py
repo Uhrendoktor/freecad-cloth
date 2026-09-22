@@ -102,17 +102,22 @@ class QualitySimulationProxy:
             raise AttributeError(name)
         return getattr(self._base_or_restore(), name)
 
+    @property
+    def seam_stitch_pairs(self):
+        """Expose derived solver stitch provenance without serializing solver state."""
+        return self._base_or_restore().seam_stitch_pairs
+
     def onDocumentRestored(self, obj):
         """Recreate non-serializable solver state after FreeCAD reloads the proxy."""
         self._restore_base()
 
     @staticmethod
-    def _signature(obj):
+    def _signature(obj, pattern_ir=None):
         from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
         pieces = [p for p in getattr(obj, "ClothPieces", ()) if getattr(p, "PatternType", "") == "PatternPiece"]
         material = _material(obj)
         return (
-            _simulation_source_signature(obj, pieces),
+            _simulation_source_signature(obj, pieces, pattern_ir),
             preset(obj.QualityPreset),
             float(obj.ParticleDistance), int(obj.SolverIterations), int(obj.SolverSubsteps),
             material, float(obj.AvatarSkinOffset),
@@ -121,8 +126,12 @@ class QualitySimulationProxy:
     def execute(self, obj):
         ensure_quality_properties(obj)
         base = self._base_or_restore()
-        signature = self._signature(obj)
         pieces = [p for p in getattr(obj, "ClothPieces", ()) if getattr(p, "PatternType", "") == "PatternPiece"]
+        pattern_ir = None
+        if pieces:
+            from freecad_cloth.common.PatternIRDocumentAdapter import compile_pattern_ir
+            pattern_ir = compile_pattern_ir(getattr(obj, "Document", None), pieces)
+        signature = self._signature(obj, pattern_ir)
         if base.backend is None or signature != base.source_signature or int(obj.Steps) < base.last_steps:
             target = getattr(obj, "DrapeTarget", None)
             source = getattr(target, "SourceObject", None) if target is not None else None
@@ -138,7 +147,7 @@ class QualitySimulationProxy:
                     from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
                     refresh_drape_target(target)
             if pieces:
-                self._build_pattern_scene(obj, pieces, signature)
+                self._build_pattern_scene(obj, pieces, signature, pattern_ir)
             else:
                 self._build_demo(obj, signature)
             self._apply_material(obj)
@@ -173,15 +182,20 @@ class QualitySimulationProxy:
         obj.ParticleCount = len(positions)
         obj.FiniteState = base.backend.finite()
 
-    def _build_pattern_scene(self, obj, pieces, signature):
+    def _build_pattern_scene(self, obj, pieces, signature, pattern_ir=None):
         """Use the authoritative base scene builder with quality tessellation."""
         from freecad_cloth.simulation import SimulationObjects
         from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
         base = self._base_or_restore()
         previous = SimulationObjects._piece_mesh
-        SimulationObjects._piece_mesh = lambda piece, start_height: quality_piece_mesh(piece, start_height, float(obj.ParticleDistance))
+        SimulationObjects._piece_mesh = lambda piece, start_height, _pattern_ir=None: quality_piece_mesh(
+            piece,
+            start_height,
+            float(obj.ParticleDistance),
+            pattern_ir=_pattern_ir if _pattern_ir is not None else pattern_ir,
+        )
         try:
-            return base._build_pattern_scene(obj, pieces, signature)
+            return base._build_pattern_scene(obj, pieces, signature, pattern_ir)
         finally:
             SimulationObjects._piece_mesh = previous
 

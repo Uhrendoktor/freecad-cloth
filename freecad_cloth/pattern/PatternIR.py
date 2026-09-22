@@ -140,6 +140,29 @@ class PatternIR:
                 return edge
         raise KeyError(f"{piece_id}:{edge_id}")
 
+    def to_parametric_pattern(self, piece_id: str):
+        """Return sampled piece geometry for derived simulation meshing.
+
+        Each PatternIR boundary remains one semantic edge; sampled curve points
+        are expanded into derived line segments whose IDs retain that edge ID.
+        The returned ParametricPattern is runtime data only and never persisted.
+        """
+        from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
+
+        self.validate()
+        piece = self.piece(piece_id)
+        segments = []
+        for boundary in piece.boundaries:
+            samples = tuple((float(point[0]), float(point[1])) for point in boundary.samples)
+            if len(samples) < 2:
+                raise ValueError(f"PatternIR boundary has too few samples: {piece_id}:{boundary.id}")
+            for index, (start, end) in enumerate(zip(samples, samples[1:])):
+                if start == end:
+                    raise ValueError(f"PatternIR boundary contains a zero-length segment: {piece_id}:{boundary.id}")
+                suffix = "" if len(samples) == 2 else f"::sub::{index}"
+                segments.append(LineSegment(f"{boundary.id}{suffix}", start, end))
+        return ParametricPattern(segments)
+
     @classmethod
     def from_graph(
         cls,
