@@ -27,6 +27,7 @@ def test_all_registered_sewing_commands_have_stable_user_facing_labels():
     expected = {
         "ClothSewing_CreateSeam": "Create Seam",
         "ClothSewing_CreateMNSewing": "Create M:N Sewing",
+        "ClothSewing_FreeSewing": "Free Sewing",
         "ClothSewing_CreateOperation": "Create Sewing Operation",
         "ClothSewing_EditOperation": "Edit Sewing Operation",
         "ClothSewing_ReverseSeam": "Reverse Seam",
