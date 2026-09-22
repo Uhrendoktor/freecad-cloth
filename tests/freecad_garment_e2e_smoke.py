@@ -33,6 +33,7 @@ import Part
 import Sketcher
 
 
+# Standalone AppRun does not source InitGui.py automatically; the public bootstrap is part of the acceptance contract.
 def _ensure_workbench_registration():
     _record("workbench-bootstrap=starting")
     workbenches = Gui.listWorkbenches()
