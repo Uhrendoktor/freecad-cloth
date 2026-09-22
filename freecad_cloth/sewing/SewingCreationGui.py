@@ -205,19 +205,11 @@ class SewingCreationTaskPanel:
         self.commit_button = QtWidgets.QPushButton("Commit")
         self.cancel_button = QtWidgets.QPushButton("Cancel")
         self.preview_button.clicked.connect(self.preview)
-        # FreeCAD's task controller exposes accept() inconsistently and does not
-        # expose reject() on the supported 1.1.0 runtime. Queue the panel's own
-        # lifecycle methods until the QPushButton signal has returned.
-        try:
-            from PySide import QtCore
-        except ImportError:
-            from PySide2 import QtCore
-        self.commit_button.clicked.connect(
-            lambda: QtCore.QTimer.singleShot(0, self.accept)
-        )
-        self.cancel_button.clicked.connect(
-            lambda: QtCore.QTimer.singleShot(0, self.reject)
-        )
+        # Use explicit in-panel lifecycle buttons. The supported FreeCAD 1.1.0
+        # runtime does not expose Gui.Control.accept()/reject(); the panel owns
+        # the public Commit/Cancel actions and closes itself on completion.
+        self.commit_button.clicked.connect(self.accept)
+        self.cancel_button.clicked.connect(self.reject)
         buttons.addWidget(self.preview_button)
         buttons.addWidget(self.commit_button)
         buttons.addWidget(self.cancel_button)
@@ -277,19 +269,12 @@ class SewingCreationTaskPanel:
         return True
 
     def _close_dialog(self):
-        if self.Gui.Control.activeDialog() is None:
-            return
-        self.Gui.Control.closeDialog()
+        if self.Gui.activeDocument() and self.Gui.Control.activeDialog():
+            self.Gui.Control.closeDialog()
         try:
-            from PySide import QtCore
-        except ImportError:
-            from PySide2 import QtCore
-
-        def finish_close():
-            if self.Gui.Control.activeDialog() is not None:
-                self.Gui.Control.closeDialog()
-
-        QtCore.QTimer.singleShot(0, finish_close)
+            self.form.hide()
+        except Exception:
+            pass
 
     def accept(self):
         try:
