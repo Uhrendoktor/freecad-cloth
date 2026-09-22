@@ -277,7 +277,7 @@ class SewingCreationTaskPanel:
         return True
 
     def _close_dialog(self):
-        if self.Gui.activeDocument() and self.Gui.Control.activeDialog():
+        if self.Gui.Control.activeDialog():
             self.Gui.Control.closeDialog()
 
     def accept(self):
