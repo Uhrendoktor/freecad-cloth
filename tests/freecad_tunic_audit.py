@@ -14,6 +14,7 @@ source = source_path.read_text(encoding="utf-8")
 # The screenshot wrapper's historical string replacement targets text that is no
 # longer present in freecad_screenshot_source.py, so patch the executable adapter.
 from freecad_cloth.simulation import TissuBackend as _tissu_backend
+from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 
 def _tight_tissu_collision_envelope(surface):
     if surface is None or not surface.vertices:
