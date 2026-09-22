@@ -139,46 +139,68 @@ def _mesh_points(mesh):
     return _mesh_geometry(mesh)[0]
 
 
-def _boundary_points(panel, count):
-    points = panel.Mesh.Points
-    if len(points) < count:
-        raise RuntimeError("drape panel exposes fewer mesh points than pattern boundary vertices")
-    return tuple((float(point.x), float(point.y), float(point.z)) for point in points[:count])
+def _post_drape_seam_gap(edge_a_indices, edge_b_indices, positions, seam, samples=5):
+    from math import sqrt
+    if not edge_a_indices or not edge_b_indices:
+        raise ValueError("semantic seam boundary vertices are required")
+    points_a = tuple(positions[int(index)] for index in edge_a_indices)
+    points_b = tuple(positions[int(index)] for index in edge_b_indices)
+    sampled_a = _sample_boundary(edge_a_indices, float(getattr(seam, "StartA", 0.0)), float(getattr(seam, "EndA", 1.0)), samples, points_a)
+    sampled_b = _sample_boundary(edge_b_indices, float(getattr(seam, "StartB", 0.0)), float(getattr(seam, "EndB", 1.0)), samples, points_b)
+    if bool(getattr(seam, "ReversedB", False)):
+        sampled_b.reverse()
+    maximum = 0.0
+    for a_index, b_index in zip(sampled_a, sampled_b):
+        a = positions[int(a_index)]
+        b = positions[int(b_index)]
+        maximum = max(maximum, sqrt(sum((float(a[i]) - float(b[i])) ** 2 for i in range(3))))
+    return maximum
 
 
-def _seam_coherence(panels, seam_records):
-    from freecad_cloth.common.DrapeVisualSanity import seam_correspondence_gap
+def _seam_coherence(panels, seam_records, proxy=None):
     if not seam_records:
-        return {"sample_count": 0, "seams": [], "max_correspondence_gap_mm": None}
-    front_points = _boundary_points(panels[0], 8)
-    back_points = _boundary_points(panels[1], 8)
-    sample_count = 5
+        return {"sample_count": 0, "seams": [], "max_correspondence_gap_mm": None, "method": "semantic-boundary-provenance"}
+    if proxy is None or not getattr(proxy, "panel_boundary_edges", None):
+        raise RuntimeError("semantic seam diagnostics require simulation boundary provenance")
+    positions = tuple(proxy.backend.positions())
+    panel_by_piece = {
+        str(getattr(proxy, "panel_piece_names", {}).get(panel.Name, "")): panel
+        for panel in panels
+        if panel.Name in getattr(proxy, "panel_piece_names", {})
+    }
     records = []
     maximum = 0.0
-    for seam, _, _ in seam_records:
-        gap = seam_correspondence_gap(
-            front_points,
-            back_points,
-            int(seam.EdgeA),
-            int(seam.EdgeB),
-            reversed_b=bool(getattr(seam, "ReversedB", False)),
-            start_a=float(getattr(seam, "StartA", 0.0)),
-            end_a=float(getattr(seam, "EndA", 1.0)),
-            start_b=float(getattr(seam, "StartB", 0.0)),
-            end_b=float(getattr(seam, "EndB", 1.0)),
-            samples=sample_count,
-        )
+    sample_count = 5
+    for seam, piece_a, piece_b in seam_records:
+        panel_a = panel_by_piece.get(str(getattr(piece_a, "Name", "")))
+        panel_b = panel_by_piece.get(str(getattr(piece_b, "Name", "")))
+        if panel_a is None or panel_b is None:
+            raise RuntimeError("semantic seam diagnostics could not map seam pieces to drape panels")
+        boundary_a = getattr(proxy, "panel_boundary_edges", {}).get(panel_a.Name, ())
+        boundary_b = getattr(proxy, "panel_boundary_edges", {}).get(panel_b.Name, ())
+        edge_a = int(seam.EdgeA)
+        edge_b = int(seam.EdgeB)
+        if edge_a < 0 or edge_a >= len(boundary_a) or edge_b < 0 or edge_b >= len(boundary_b):
+            raise RuntimeError("semantic seam diagnostics found an out-of-range seam edge")
+        gap = _post_drape_seam_gap(boundary_a[edge_a], boundary_b[edge_b], positions, seam, sample_count)
         seam_id = str(getattr(seam, "SeamId", getattr(seam, "Label", "")))
-        records.append({"seam": seam_id, "max_correspondence_gap_mm": round(float(gap), 6)})
+        records.append({
+            "seam": seam_id,
+            "piece_a": str(getattr(piece_a, "PieceId", "")),
+            "piece_b": str(getattr(piece_b, "PieceId", "")),
+            "edge_a": edge_a,
+            "edge_b": edge_b,
+            "max_correspondence_gap_mm": round(float(gap), 6),
+        })
         maximum = max(maximum, float(gap))
     return {
         "sample_count": sample_count,
         "seams": records,
         "max_correspondence_gap_mm": round(maximum, 6),
+        "method": "semantic-boundary-provenance",
     }
 
-
-def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=None, seam_records=()):
+def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=None, seam_records=(), proxy=None):
     from freecad_cloth.common.DrapeFailureClassifier import classify_drape, summarize_classification
     from freecad_cloth.common.DrapeVisualSanity import inspect_drape, summarize
     from freecad_cloth.common.MeshValidation import validate_mesh
@@ -228,7 +250,7 @@ def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=No
         "shoulder_z": shoulder_z,
         "hem_z": hem_z,
         "panels": records,
-        "seam_coherence": _seam_coherence(panels, seam_records),
+        "seam_coherence": _seam_coherence(panels, seam_records, proxy=proxy),
     }
     with open(METRICS, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, sort_keys=True)
@@ -404,6 +426,7 @@ def simulation():
         shoulder_z=shoulder_z,
         hem_z=hem_z,
         seam_records=seam_records,
+        proxy=proxy,
     ); bounds = []
     for panel in scene.DrapePanels:
         b = panel.Mesh.BoundBox; bounds.append((b.XMin,b.XMax,b.YMin,b.YMax,b.ZMin,b.ZMax))
