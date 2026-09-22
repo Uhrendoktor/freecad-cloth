@@ -13,6 +13,61 @@ from freecad_cloth.simulation.ClothSolver import ClothSystem
 from freecad_cloth.sewing.SeamGraph import SeamGraph
 
 
+PINNED_STITCH_EPSILON_MM = 1.0e-9
+
+
+def _position_tuple(value):
+    position = value.position() if callable(getattr(value, "position", None)) else value
+    values = tuple(float(component) for component in position)
+    if len(values) != 3:
+        raise ValueError("simulation stitch positions must be three-dimensional")
+    return values
+
+
+def validate_pinned_stitch_pairs(
+    positions,
+    pinned_indices,
+    seam_pair_records=(),
+    *,
+    epsilon=PINNED_STITCH_EPSILON_MM,
+):
+    """Reject physically impossible zero-rest stitches between pinned particles."""
+    positions = tuple(_position_tuple(value) for value in positions)
+    if float(epsilon) < 0.0:
+        raise ValueError("stitch validation epsilon must be non-negative")
+    pinned = frozenset(int(index) for index in pinned_indices)
+    records = tuple(seam_pair_records)
+    candidates = (
+        (str(record[0]), tuple(pair))
+        for record in records
+        for pair in record[3]
+    )
+    seen = set()
+    for seam_id, pair in candidates:
+        if len(pair) != 2:
+            raise ValueError("simulation stitch pair must contain two particle indices")
+        a, b = int(pair[0]), int(pair[1])
+        if a < 0 or b < 0 or a >= len(positions) or b >= len(positions):
+            raise ValueError(
+                "stitch pair is outside the simulation particle set: "
+                f"seam={seam_id} particle_a={a} particle_b={b}"
+            )
+        key = (a, b)
+        if key in seen:
+            continue
+        seen.add(key)
+        if a not in pinned or b not in pinned:
+            continue
+        pa, pb = positions[a], positions[b]
+        separation = sum((pa[index] - pb[index]) ** 2 for index in range(3)) ** 0.5
+        if separation > float(epsilon):
+            raise ValueError(
+                "impossible pinned-pinned sewing constraint: "
+                f"seam={seam_id} particle_a={a} particle_b={b} "
+                f"initial_separation={separation:.9f} mm"
+            )
+
+
 class ClothSimulationBackend(ABC):
     name = "abstract"
 
