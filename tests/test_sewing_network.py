@@ -65,6 +65,31 @@ class SewingNetworkTests(unittest.TestCase):
         self.assertAlmostEqual(seam.start_b, 0.1)
         self.assertAlmostEqual(seam.end_b, 0.7)
 
+    def test_two_to_two_physical_member_ranges_are_proportional(self):
+        seams = build_mn_seams(
+            "mn-22",
+            [SewingMember("A", 0), SewingMember("A", 1)],
+            [SewingMember("B", 0), SewingMember("B", 1)],
+            lengths({
+                ("A", 0): 150.0, ("A", 1): 100.0,
+                ("B", 0): 100.0, ("B", 1): 150.0,
+            }),
+            reversed_b=True,
+            alignment="uniform",
+        )
+        assert len(seams) == 3
+        assert [
+            (round(seam.start_a, 8), round(seam.end_a, 8), round(seam.start_b, 8), round(seam.end_b, 8))
+            for seam in seams
+        ] == [
+            (0.0, round(2 / 3, 8), 0.0, 1.0),
+            (round(2 / 3, 8), 1.0, 0.0, round(1 / 3, 8)),
+            (0.0, 1.0, round(1 / 3, 8), 1.0),
+        ]
+        assert all(seam.reversed_b for seam in seams)
+        assert all(seam.alignment == "uniform" for seam in seams)
+
+
     def test_members_must_belong_to_one_piece_per_side(self):
         with self.assertRaisesRegex(ValueError, "exactly one pattern piece"):
             build_mn_seams(
@@ -112,6 +137,9 @@ class SewingNetworkTests(unittest.TestCase):
             Seams=(a,), RelationshipId="rel-1", Status="Valid", InvalidReason="",
             SegmentCount=1, LengthA=100.0, LengthB=106.0, LengthDifference=6.0,
             RelativeTolerance=0.05,
+            CorrespondenceMessage="seam correspondence is valid",
+            CorrespondenceRecovery="no repair required",
+            CorrespondenceSeverity="info",
         )
         import freecad_cloth.sewing.SewingNetwork as module
         old = module._network_lengths
@@ -122,6 +150,11 @@ class SewingNetworkTests(unittest.TestCase):
             module._network_lengths = old
         self.assertEqual(network.Status, "Length mismatch")
         self.assertEqual(network.CorrespondenceStatus, "length_mismatch")
+        self.assertEqual(network.CorrespondenceSeverity, "error")
+        self.assertEqual(
+            network.CorrespondenceRecovery,
+            "edit the pattern geometry or seam ranges; do not hide the mismatch with tolerance",
+        )
 
 
 if __name__ == "__main__":

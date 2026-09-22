@@ -393,7 +393,25 @@ def run_acceptance():
         created_mn = tuple(panel.session.created)
         network = next((obj for obj in created_mn if getattr(obj, "SewingType", "") == "SewingNetwork"), None)
         if network is None or str(network.Status) != "Valid" or len(network.Seams) != 2:
-            raise RuntimeError("public staged M:N preview did not create a valid two-segment network")
+            detail = "missing"
+            if network is not None:
+                detail = "status=%s invalid=%s segments=%d length_a=%.6f length_b=%.6f seams=%s" % (
+                    str(getattr(network, "Status", "")),
+                    str(getattr(network, "InvalidReason", "")),
+                    len(getattr(network, "Seams", ()) or ()),
+                    float(getattr(network, "LengthA", 0.0)),
+                    float(getattr(network, "LengthB", 0.0)),
+                    tuple(
+                        (
+                            str(getattr(seam, "SeamId", "")),
+                            str(getattr(seam, "EdgeAId", "")),
+                            str(getattr(seam, "EdgeBId", "")),
+                            str(getattr(seam, "Status", "")),
+                        )
+                        for seam in (getattr(network, "Seams", ()) or ())
+                    ),
+                )
+            raise RuntimeError("public staged M:N preview did not create a valid two-segment network: " + detail)
         print("sewing-mn-preview=passed sides=2,2 segments=2", flush=True)
         _commit_staged(panel)
         doc.recompute()
