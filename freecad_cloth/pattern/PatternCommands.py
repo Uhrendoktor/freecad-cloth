@@ -214,7 +214,7 @@ def export_pattern():
     """Open the public production SVG/DXF export task panel."""
     import FreeCAD as App
     import FreeCADGui as Gui
-    from freecad_cloth.pattern.PatternExportGui import show_pattern_export_task
+    from freecad_cloth.pattern.PatternExportGui import PatternExportTaskPanel, show_pattern_export_task
     global _ACTIVE_PATTERN_EXPORT_TASK_PANEL
     doc = App.ActiveDocument
     if doc is None:
@@ -225,8 +225,25 @@ def export_pattern():
     )
     if piece is None:
         raise ValueError("create or select a pattern piece before exporting")
-    _ACTIVE_PATTERN_EXPORT_TASK_PANEL = show_pattern_export_task(piece)
-    return _ACTIVE_PATTERN_EXPORT_TASK_PANEL
+    panel = show_pattern_export_task(piece)
+    # FreeCAD task-dialog APIs have returned a boolean wrapper in some GUI
+    # lifecycles even though the public panel itself is still available. Keep
+    # the production command fail-closed, then recreate the same public panel
+    # class explicitly rather than exposing a boolean as the task-panel ABI.
+    if not hasattr(panel, "format") or not callable(getattr(panel, "accept", None)):
+        try:
+            if Gui.Control.activeDialog() is not None:
+                Gui.Control.closeDialog()
+        except Exception:
+            pass
+        panel = PatternExportTaskPanel(piece)
+        Gui.Control.showDialog(panel)
+        if hasattr(panel.form, "isVisible") and not panel.form.isVisible():
+            panel.form.show()
+    if not hasattr(panel, "format") or not callable(getattr(panel, "accept", None)):
+        raise RuntimeError("public pattern export command did not create a valid task panel")
+    _ACTIVE_PATTERN_EXPORT_TASK_PANEL = panel
+    return panel
 
 
 def create_pattern_mesh():
