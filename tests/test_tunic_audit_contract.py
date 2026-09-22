@@ -27,3 +27,17 @@ def test_canonical_tunic_rejects_known_shoulder_mapping_regressions():
     assert 'proxy=proxy' in audit
     assert 'write_anchor not in source' in audit
     assert '((1,1,"TunicRightSide"),(3,3,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"),(7,7,"TunicLeftSide"))' not in audit
+
+
+def test_tunic_triangle_quality_manifest_contract():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "_TRIANGLE_QUALITY_EDGE_ORDINALS = (2, 4, 5, 6)" in audit
+    assert '_TRIANGLE_QUALITY_SCHEMA = "tunic-triangle-quality/v1"' in audit
+    assert '"triangle_global_particle_indices"' in audit
+    assert '"signed_area_mm2"' in audit
+    assert '"minimum_angle_deg"' in audit
+    assert '"aspect_ratio"' in audit
+    assert '"semantic_boundary_ids"' in audit
+    assert '"solver_stitch_pair_indices"' in audit
+    assert '"overall_assessment"' in audit
+    assert "json.dumps(payload, indent=2, sort_keys=True)" in audit
