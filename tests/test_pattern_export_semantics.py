@@ -185,7 +185,7 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path):
     )
 
 
-def test_pattern_piece_export_does_not_synthesize_grainline(tmp_path):
+def test_pattern_piece_export_preserves_legacy_grainline_fallback(tmp_path):
     class Piece:
         PatternType = "PatternPiece"
         Name = "Front"
@@ -209,7 +209,7 @@ def test_pattern_piece_export_does_not_synthesize_grainline(tmp_path):
     export_pattern_piece(piece, path, "svg", curve_samples=16)
     metadata = from_svg_metadata(path.read_text(encoding="utf-8"))
     assert metadata["notch_ids"] == []
-    assert metadata["mark_ids"] == []
+    assert metadata["mark_ids"] == ["piece-front:grainline"]
     assert metadata["internal_mark_ids"] == []
 
 
