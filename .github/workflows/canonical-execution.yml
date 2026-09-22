@@ -83,6 +83,7 @@ jobs:
                 tests/test_pattern_simulation_adapter.py \
                 tests/test_seam_graph.py \
                 tests/test_workbench_icons.py \
+                tests/test_native_mark_export.py \
                 tests/test_tunic_audit_contract.py; do
                 python3 "$test"
               done
