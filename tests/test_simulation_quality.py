@@ -107,7 +107,7 @@ class SimulationQualityTests(unittest.TestCase):
 
     def test_sewing_semantic_edge_lookup_remains_authored_ordinal(self):
         from types import SimpleNamespace
-        from freecad_cloth.pattern.PatternObjects import _edge_records
+        from freecad_cloth.pattern.PatternObjects import _edge_records, _seam_edge_id
         from freecad_cloth.sewing.SewingObjects import _seam_edge_index
 
         piece = SimpleNamespace(
@@ -123,7 +123,8 @@ class SimulationQualityTests(unittest.TestCase):
             "test:edge:2",
             "test:edge:3",
         ])
-        seam = SimpleNamespace(EdgeAId="test:edge:0", EdgeASignature="", EdgeA=0)
+        edge_id, signature = _seam_edge_id(piece, 0, "A")
+        seam = SimpleNamespace(EdgeAId=edge_id, EdgeASignature=signature, EdgeA=0)
         resolved = _seam_edge_index(piece, seam, "A")
         self.assertEqual(resolved, 0)
         self.assertNotIn("::simulation-sub::", seam.EdgeAId)
