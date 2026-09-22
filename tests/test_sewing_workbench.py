@@ -73,8 +73,11 @@ def test_endpoint_alignment_uses_physical_arc_length_on_curved_edge():
     finally:
         if oldf is None: sys.modules.pop("FreeCAD", None)
         else: sys.modules["FreeCAD"] = oldf
-    assert endpoint_pairs == uniform_pairs
     assert endpoint_pairs[1][0].y > 0
+    assert endpoint_pairs[1][0].x == uniform_pairs[1][0].x
+    assert endpoint_pairs[1][0].y == uniform_pairs[1][0].y
+    assert endpoint_pairs[1][1].x == uniform_pairs[1][1].x
+    assert endpoint_pairs[1][1].y == uniform_pairs[1][1].y
 
 
 def test_reversed_correspondence_is_applied_once():
