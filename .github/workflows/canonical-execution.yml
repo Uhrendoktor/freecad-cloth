@@ -164,7 +164,9 @@ jobs:
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
               timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /workspace/tests/freecad_garment_hierarchy_smoke.py
+              timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /workspace/tests/test_garment_document.py | tee /workspace/artifacts/garment-hierarchy-smoke/test-garment-document.log
               test -s /workspace/artifacts/garment-hierarchy-smoke/garment-hierarchy-smoke.log
+              test -s /workspace/artifacts/garment-hierarchy-smoke/test-garment-document.log
               test -s /workspace/artifacts/garment-hierarchy-smoke/garment-hierarchy-smoke.json
               test -s /workspace/artifacts/garment-hierarchy-smoke/garment-hierarchy-smoke.FCStd
             '
@@ -179,6 +181,7 @@ jobs:
           grep -q 'hierarchy-verification=passed' artifacts/garment-hierarchy-smoke/garment-hierarchy-smoke.log
           grep -q 'standalone-backcompat=passed' artifacts/garment-hierarchy-smoke/garment-hierarchy-smoke.log
           grep -q 'scenario-complete' artifacts/garment-hierarchy-smoke/garment-hierarchy-smoke.log
+          grep -q 'native Garment document contract passed' artifacts/garment-hierarchy-smoke/test-garment-document.log
       - name: Upload hierarchy smoke artifact
         if: always()
         uses: actions/upload-artifact@v6
