@@ -173,3 +173,110 @@ def test_curved_correspondence_rejects_invalid_range():
         StartA=0.8; EndA=0.2; StartB=0.0; EndB=1.0; ReversedB=False
     report=correspondence_report(Seam(),100.0,100.0,0.05)
     assert report.status=="invalid_range" and not report.valid
+
+
+def test_sewing_task_panel_accept_cannot_broaden_mismatch_with_legacy_tolerance():
+    from types import SimpleNamespace
+    from freecad_cloth.sewing.SewingGui import SewingTaskPanel
+
+    class Seam:
+        SeamId = "s1"
+        Status = "Valid"
+        StartA = 0.0
+        EndA = 1.0
+        StartB = 0.0
+        EndB = 1.0
+        ReversedB = False
+
+    class Widget:
+        def __init__(self, value):
+            self.value_ = value
+
+        def value(self):
+            return self.value_
+
+    class Document:
+        def recompute(self):
+            pass
+
+    class App:
+        ActiveDocument = Document()
+
+    obj = SimpleNamespace(
+        Seam=Seam(),
+        Tolerance=0.5,
+        RelativeTolerance=0.05,
+        Stitches=8,
+        LengthA=100.0,
+        LengthB=106.0,
+        LengthDifference=6.0,
+    )
+    panel = SewingTaskPanel.__new__(SewingTaskPanel)
+    panel.App = App
+    panel.obj = obj
+    panel.seam = obj.Seam
+    panel.tolerance = Widget(5000.0)
+    panel.stitches = Widget(8)
+    panel._apply_seam_settings = lambda: None
+    panel._commit_transaction = lambda: None
+
+    try:
+        panel.accept()
+    except ValueError as exc:
+        assert "6.00%" in str(exc)
+    else:
+        raise AssertionError("accept() broadened mismatch validation using legacy Tolerance")
+
+
+def test_sewing_task_panel_reject_preserves_persisted_relative_tolerance():
+    from types import SimpleNamespace
+    from freecad_cloth.sewing.SewingGui import SewingTaskPanel
+
+    class Seam:
+        Alignment = "endpoints"
+        ReversedB = False
+        StartA = 0.0
+        EndA = 1.0
+        StartB = 0.0
+        EndB = 1.0
+
+    class Document:
+        def recompute(self):
+            pass
+
+    class App:
+        ActiveDocument = Document()
+
+    obj = SimpleNamespace(
+        Tolerance=50.0,
+        RelativeTolerance=0.05,
+        Stitches=12,
+    )
+    panel = SewingTaskPanel.__new__(SewingTaskPanel)
+    panel.App = App
+    panel.obj = obj
+    panel.seam = Seam()
+    panel._transaction_active = False
+    panel._original = {
+        "Tolerance": 0.5,
+        "Stitches": 8,
+        "Alignment": "endpoints",
+        "ReversedB": False,
+        "StartA": 0.0,
+        "EndA": 1.0,
+        "StartB": 0.0,
+        "EndB": 1.0,
+    }
+    panel._refresh = lambda: None
+
+    panel.reject()
+
+    assert obj.Tolerance == 0.5
+    assert obj.Stitches == 8
+    assert obj.RelativeTolerance == 0.05
+
+
+if __name__ == "__main__":
+    test_sewing_task_panel_accept_cannot_broaden_mismatch_with_legacy_tolerance()
+    test_sewing_task_panel_reject_preserves_persisted_relative_tolerance()
+    print("sewing GUI relative-tolerance regression passed")
