@@ -8,8 +8,8 @@ def test_canonical_tunic_uses_semantic_edge_mapping():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert 'f"{front.PieceId}:edge:1", f"{back.PieceId}:edge:1", "TunicRightSide"' in source
     assert 'f"{front.PieceId}:edge:2", f"{back.PieceId}:edge:2", "TunicRightShoulder"' in source
-    assert 'f"{front.PieceId}:edge:5", f"{back.PieceId}:edge:5", "TunicLeftShoulder"' in source
-    assert 'f"{front.PieceId}:edge:6", f"{back.PieceId}:edge:6", "TunicLeftSide"' in source
+    assert 'f"{front.PieceId}:edge:6", f"{back.PieceId}:edge:6", "TunicLeftShoulder"' in source
+    assert 'f"{front.PieceId}:edge:7", f"{back.PieceId}:edge:7", "TunicLeftSide"' in source
     assert '(1,1,"TunicRightSide")' not in source
 
 def test_canonical_tunic_pins_only_one_side_of_sewn_shoulders():
