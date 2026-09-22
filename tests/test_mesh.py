@@ -95,3 +95,18 @@ if __name__ == "__main__":
         if name.startswith("test_"):
             fn()
     print("mesh tests passed")
+
+
+def test_refined_quality_mesh_avoids_acute_interior_triangles():
+    pattern = rectangle(100.0, 50.0)
+    mesh = triangulate(pattern, max_area=180.0)
+    from math import acos, degrees, hypot
+
+    minimum = 180.0
+    for a, b, c in mesh.triangles:
+        points = [mesh.vertices[i] for i in (a, b, c)]
+        sides = [hypot(points[(i + 1) % 3][0] - points[i][0], points[(i + 1) % 3][1] - points[i][1]) for i in range(3)]
+        for opposite, left, right in ((sides[0], sides[1], sides[2]), (sides[1], sides[2], sides[0]), (sides[2], sides[0], sides[1])):
+            cosine = max(-1.0, min(1.0, (left * left + right * right - opposite * opposite) / (2.0 * left * right)))
+            minimum = min(minimum, degrees(acos(cosine)))
+    assert minimum >= 29.0

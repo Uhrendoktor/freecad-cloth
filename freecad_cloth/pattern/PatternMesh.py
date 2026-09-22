@@ -88,6 +88,7 @@ def triangulate(pattern: ParametricPattern, curve_samples: int = 16, max_area: f
     )
     options = "pQ"
     if max_area is not None:
+        options += "q30"
         options += "Ya%.12g" % max_area
     result = tr.triangulate({"vertices": vertices_in, "segments": segments}, options)
     result_vertices = np.asarray(result.get("vertices", ()), dtype=np.float64)
