@@ -14,6 +14,7 @@ import InitGui
 
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.pattern.PatternObjects import add_pattern_piece
+from freecad_cloth.sewing.SewingCommands import get_active_staged_sewing_task_panel
 
 
 LOG_PATH = Path(os.environ.get("CLOTH_SEWING_SMOKE_LOG", ROOT / "artifacts" / "sewing-creation-smoke.log"))
@@ -53,13 +54,20 @@ def open_public(command):
         process_events()
     Gui.runCommand(command, 0)
     process_events()
-    panel = Gui.Control.activeDialog()
-    assert panel is not None, command + " did not open a task panel"
+    panel = get_active_staged_sewing_task_panel()
+    assert panel is not None, command + " did not retain a task panel"
     assert getattr(panel, "form", None) is not None
+    assert panel.form.isVisible(), command + " task panel is not visible"
+    assert Gui.Control.activeDialog() is not None, command + " did not open a task dialog"
     return panel
 
 
-def close_public_task():
+def close_public_task(panel=None):
+    if panel is not None:
+        try:
+            panel.reject()
+        except Exception:
+            pass
     if Gui.Control.activeDialog():
         Gui.Control.closeDialog()
         process_events()
