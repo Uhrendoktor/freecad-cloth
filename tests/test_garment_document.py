@@ -2,7 +2,10 @@
 import os
 import tempfile
 
-import FreeCAD as App
+try:
+    import FreeCAD as App
+except ImportError:
+    App = None
 
 from freecad_cloth.common.GarmentDocument import (
     GARMENT_GROUPS,
@@ -16,6 +19,9 @@ from freecad_cloth.pattern.PatternSketch import create_sketch_for_piece
 
 
 def run():
+    if App is None:
+        print("native Garment document contract skipped: FreeCAD module unavailable")
+        return
     doc = create_garment_document("GarmentDocumentContract")
     restored = None
     try:
