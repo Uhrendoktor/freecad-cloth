@@ -135,7 +135,7 @@ def _make_nonuniform_curved(piece, doc):
     """Give one M:N member a deliberately different, still correspondable arc."""
     sketch = piece.Sketch
     piece_id = str(piece.PieceId)
-    radius = 50.1
+    radius = 50.02
     offset = math.sqrt(radius * radius - 50.0 * 50.0)
     start_angle = math.atan2(offset, 50.0)
     end_angle = math.pi - start_angle
