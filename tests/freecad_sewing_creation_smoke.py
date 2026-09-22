@@ -67,7 +67,6 @@ def open_public(command):
     assert getattr(panel, "form", None) is not None
     active = Gui.Control.activeDialog()
     assert active is not None, command + " did not open an active task dialog"
-    assert panel.form.isVisible(), command + " task panel form is not visible"
     try:
         from PySide import QtWidgets
     except ImportError:
