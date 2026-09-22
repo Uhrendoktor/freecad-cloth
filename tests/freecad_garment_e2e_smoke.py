@@ -80,6 +80,9 @@ def _require_dialog(required, label):
     main_window = Gui.getMainWindow()
     dock = None if main_window is None else main_window.findChild(QtWidgets.QDockWidget, "Tasks")
     if dock is not None:
+        dock.show()
+        dock.raise_()
+        _events()
         dock_text = _dialog_text(dock)
         if all(item in dock_text for item in required):
             return dialog
