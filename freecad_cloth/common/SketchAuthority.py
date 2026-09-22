@@ -15,7 +15,7 @@ def _piece_model(obj):
     except (ValueError, SyntaxError, TypeError, IndexError):
         outline = [(0.0, 0.0), (float(obj.Width), 0.0), (float(obj.Width), float(obj.Height)), (0.0, float(obj.Height))]
     return PatternPiece(
-        str(obj.Label), outline,
+        str(getattr(obj, "Label", getattr(obj, "Name", getattr(obj, "PieceId", "PatternPiece")))), outline,
         id=str(obj.PieceId),
         seam_allowance=float(getattr(obj, "SeamAllowance", 0.0)),
         grainline_angle=float(getattr(obj, "GrainlineAngle", 0.0)),
