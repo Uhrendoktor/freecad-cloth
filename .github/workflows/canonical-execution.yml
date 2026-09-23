@@ -2,7 +2,7 @@ name: Canonical execution
 
 on:
   push:
-    branches: [main]
+    branches: [main, supervisor/release-final-20260923]
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
