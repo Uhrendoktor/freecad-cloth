@@ -351,7 +351,8 @@ def run_acceptance():
         if not any(item["role"] == "FabricMaterial" for item in fabric_members):
             raise RuntimeError("public Garment creation command did not create the native FabricMaterial member")
         fabric_material = next(obj for obj in doc.Objects if str(getattr(obj, "GarmentRole", "")) == "FabricMaterial")
-        fabric_material.Color = (0.14, 0.32, 0.78)
+        expected_color = (36.0 / 255.0, 82.0 / 255.0, 199.0 / 255.0)
+        fabric_material.Color = expected_color
         fabric_material.Specular = 0.70
         fabric_material.Roughness = 0.20
         fabric_material.Transparency = 12.0
@@ -659,7 +660,6 @@ def run_acceptance():
             if fabric_material is None or str(getattr(fabric_material, "GarmentRole", "")) != "FabricMaterial":
                 raise RuntimeError("save/reload lost the native FabricMaterial object")
             restored_color = tuple(float(value) for value in fabric_material.Color[:3])
-            expected_color = (0.14, 0.32, 0.78)
             if any(abs(restored_color[index] - expected_color[index]) > 1e-6 for index in range(3)):
                 raise RuntimeError("save/reload changed native FabricMaterial color")
             if abs(float(fabric_material.Specular) - 0.70) > 1e-6:
@@ -668,7 +668,7 @@ def run_acceptance():
                 raise RuntimeError("save/reload changed native FabricMaterial roughness")
             if abs(float(fabric_material.Transparency) - 12.0) > 1e-6:
                 raise RuntimeError("save/reload changed native FabricMaterial transparency")
-            print("material-presentation=passed native=true color=0.14,0.32,0.78 specular=0.70 roughness=0.20 transparency=12", flush=True)
+            print("material-presentation=passed native=true color=36/255,82/255,199/255 specular=0.70 roughness=0.20 transparency=12", flush=True)
             if any(obj is None for obj in (seam_11, network, operation, fitting, scene, target)):
                 raise RuntimeError("garment fixture did not preserve sewing/fitting/simulation objects")
             if str(seam_11.Status) != "Valid" or str(network.Status) != "Valid" or str(operation.Status) != "Valid":
