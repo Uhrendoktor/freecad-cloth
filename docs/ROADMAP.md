@@ -2,7 +2,7 @@
 
 The release target is a complete, public FreeCAD workflow, not a feature-count clone of CLO.
 
-## Current release order
+## Release order
 
 | Stage | Goal | Main work |
 |---|---|---|
@@ -10,7 +10,7 @@ The release target is a complete, public FreeCAD workflow, not a feature-count c
 | P1 | Repeatable garment-CAD workflow | curved authoring, Sketcher constraints, robust semantic repair, 1:N/M:N/free sewing, arrangement points, material/quality lifecycle, production 2D export |
 | Production | Manufacturing + fidelity | higher-fidelity avatar provider, richer targets, diagnostics, grading/nesting/validation, advanced construction, optional solver backends |
 
-## P0 release gates
+## P0 release gates — COMPLETE FOR THE RELEASE-CLOSEOUT SCENARIO
 
 1. Native Sketcher-backed PatternPieces can form a multi-piece garment.
 2. Semantic seams persist through recompute/save/reload and never silently retarget invalid topology.
@@ -21,7 +21,7 @@ The release target is a complete, public FreeCAD workflow, not a feature-count c
 7. Target/pattern/sewing edits produce explicit stale derived state; document recompute remains safe.
 8. One canonical FreeCAD/Xvfb scenario proves the public workflow and preserves the four PNG artifacts.
 
-## P1 priorities
+## P1 priorities — FUTURE ENHANCEMENTS
 
 - Curved pattern authoring through native Sketcher/Part geometry.
 - Explicit topology repair/remap UI for semantic edge IDs.
@@ -31,7 +31,7 @@ The release target is a complete, public FreeCAD workflow, not a feature-count c
 - Particle-distance and physical fabric presets.
 - Seam allowance, notches, grainline/internal marks, grading foundations and TechDraw/DXF/SVG output.
 
-## Production priorities
+## Production priorities — FUTURE ENHANCEMENTS
 
 - Replaceable high-fidelity human provider behind the existing `DrapeTarget` contract.
 - Multiple collision targets and optional face/subelement targeting.
@@ -50,14 +50,9 @@ A feature moves from prototype to MVP when it is required for a repeatable garme
 
 Do not pull a visible CLO feature forward merely because it exists in CLO. Stabilize authority, invalidation, recovery, persistence and public-workbench acceptance first.
 
-## Current queue
+## Current release state
 
-- P0: #284 — canonical DrapeTarget-authoritative public workflow and invalidation acceptance.
-- P0: #155 / #278 — canonical end-to-end garment fixture.
-- P0: #298 / #297 — Sketcher GUI acceptance and topology repair.
-- P0: #145 — simulation quality/material lifecycle.
-- P1: #275 — sewing completion and correspondence repair UX.
-- P1: #162 / #360 — pattern production parity.
-- Later: #374 — production avatar fidelity; #362 — diagnostics/manufacturing; #148 — optional solver benchmark; #404 — optional PositionBasedDynamics evaluation with collision parity.
-
-Completed this supervisor pass: documentation consolidation, #322 duplicate cleanup, #289 stale-target recompute safety (#397), audit/closure of stale solver PR #401, and supervisor-state reconciliation. Canonical CI remains unchanged and the latest main push passed both Python/FreeCAD tests and all four GUI screenshot checks.
+- No open project issues or pull requests remain.
+- The P0 release-closeout scenario is implemented and terminal-green in canonical CI, including Python/FreeCAD checks, staged sewing creation, production export, the full tunic visual/simulation audit, and README turntables.
+- The P1 and Production items listed above are future enhancements rather than active release blockers; they must preserve the existing Pattern/Sewing/DrapeTarget contracts.
+- Completed supervisor work includes documentation consolidation, stale-target/recompute hardening, sewing correspondence diagnostics, canonical garment E2E acceptance, CI runner-selection reconciliation, and durable-state reconciliation.

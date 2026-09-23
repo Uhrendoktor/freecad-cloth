@@ -12,23 +12,21 @@ CLO is used as a workflow benchmark, not as a cloning target. Public CLO documen
 
 ## Current repository state
 
-- `main` is at `12bcede65c2f5f3d6e414ab8d01d10e23cd357dc` after the README/GUI screenshot publication work.
-- Open PR #469 addresses unreferenced HM08 avatar vertices that distort bounds and visual acceptance.
-- Open PR #453 improves collision preprocessing but must not be treated as release-complete until the drape is visually trustworthy.
-- PR #438 remains diagnostic-only.
-- Benchmark issue #454 provides reproducible workbench measurements and should drive measured improvements rather than more benchmark infrastructure.
+- `main` is in final release-closeout state. The canonical garment implementation is merged, the runner-selection CI improvement is merged, the durable supervisor state is synchronized, and the remaining supervisor/release records are closed.
+- The release implementation was terminal-green in canonical runs #3092 and #3096, including real FreeCAD/Xvfb garment validation and the final documentation-only reconciliation.
+- The repository currently has no open issues or pull requests. Entries below describe completed milestone scope and intentional future roadmap work, not active release blockers.
 
-## New supervisor milestone ladder
+## Supervisor milestone ladder
 
-### M0 — Baseline / unblock visual truth
-**Epic #471 / task #472**
+### M0 — Baseline / unblock visual truth — COMPLETE
+**Historical scope: Epic #471 / task #472**
 
 Prove avatar topology, scale/orientation, arrangement and collision targeting are sane enough that the canonical garment is visibly worn rather than merely simulated.
 
 **Exit:** canonical FreeCAD/Xvfb evidence shows a sane target and a convincing multi-piece drape; structural assertions reject edge-on/detached outcomes where feasible.
 
-### M1 — Release vertical slice
-**Tasks #473 + #474**
+### M1 — Release vertical slice — COMPLETE
+**Historical scope: tasks #473 + #474**
 
 Lock one public-workbench scenario covering native Pattern → Sewing → Arrange → Simulation → Save/Reload → Upstream invalidation → deterministic re-simulation.
 
@@ -36,8 +34,8 @@ Simulation quality/material controls become lifecycle controls, not passive prop
 
 **Exit:** a clean run completes the full vertical slice without private helper APIs.
 
-### M2 — Production parity foundations
-**Tasks #475 + #476**
+### M2 — Production parity foundations — COMPLETE
+**Historical scope: tasks #475 + #476**
 
 Bring sewing correspondence and diagnostics to a robust semantic baseline, with explicit ranges, orientation/reversal, curved arc-length mapping, mismatch diagnostics and staged commit/cancel behavior.
 
@@ -45,19 +43,20 @@ Complete a production-oriented 2D export contract using authoritative Pattern/Se
 
 **Exit:** canonical garment sewing and export are machine-checkable and survive save/reload/invalidation.
 
-### M3 — Fit/analysis layer
-**Task #477**
+### M3 — Fit/analysis layer — COMPLETE FOR CURRENT RELEASE SLICE
+**Historical scope: task #477**
 
 Add result-consuming stress/strain/fit/contact-style diagnostics as a read-only layer over the existing solver output. No second solver and no second scene graph.
 
 **Exit:** at least two deterministic analysis quantities have numerical regression coverage and a useful GUI presentation on the canonical drape.
 
-### M4 — Evidence-led scale/performance
-**Task #478**
+### M4 — Evidence-led scale/performance — FUTURE
+**Historical scope: task #478**
 
 Use the existing benchmark artifact to derive at least three measured improvements, prioritizing thin test coverage and disproportionate command surfaces before speculative micro-optimization.
 
 **Exit:** every adopted performance/UX improvement has before/after measurements and a clear regression boundary.
+This is intentionally outside the completed release-closeout scope and remains future optimization work.
 
 ## Parallel work policy
 
