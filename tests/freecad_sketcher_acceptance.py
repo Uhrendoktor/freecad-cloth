@@ -1,4 +1,11 @@
 """Canonical FreeCAD/Xvfb acceptance for native Sketcher pattern authoring."""
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 import math
 import os
 import tempfile
@@ -7,6 +14,10 @@ import FreeCAD as App
 import FreeCADGui as Gui
 import Part
 import Sketcher
+
+
+def _stage(label):
+    print("sketcher-stage=%s" % label, flush=True)
 
 
 def _events():
@@ -136,27 +147,40 @@ def _exercise_constraint_families(doc, reference_sketch):
 
 
 def run_acceptance():
+    _stage("begin")
     doc = App.newDocument("NativeSketcherAcceptance")
     try:
+        _stage("activate-pattern")
         _activate("ClothPatternWorkbench", ["ClothPattern_CreatePieceWithSketch", "ClothPattern_EditSketch"])
+        _stage("create-pattern-piece-1-before")
         Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
+        _stage("create-pattern-piece-1-after")
+        _stage("create-pattern-piece-2-before")
         Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
+        _stage("create-pattern-piece-2-after")
         doc.recompute()
+        _stage("recompute-pattern")
         pieces = _pattern_pieces(doc)
         if len(pieces) != 2:
             raise RuntimeError("public Pattern command did not create two PatternPiece objects")
         curved, mate = pieces
         curved.Placement.Base = App.Vector(-130, 17, 0)
         mate.Placement.Base = App.Vector(35, -29, 0)
+        _stage("build-curved-sketch-before")
         curved_sketch, width_index, height_index = _make_curved_piece_sketch(curved, doc)
+        _stage("build-curved-sketch-after")
         reference = mate.Sketch
         if reference is None:
             raise RuntimeError("second PatternPiece has no native Sketcher source")
+        _stage("constraint-audit-before")
         audit, audit_span, audit_scaled = _exercise_constraint_families(doc, reference)
+        _stage("constraint-audit-after")
 
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(curved)
+        _stage("edit-sketch-before")
         Gui.runCommand("ClothPattern_EditSketch", 0)
+        _stage("edit-sketch-after")
         _events()
         if not Gui.activeDocument().getInEdit():
             raise RuntimeError("public Pattern Edit Sketch command did not enter native Sketcher")
@@ -171,7 +195,9 @@ def run_acceptance():
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(curved, "Edge3")
         Gui.Selection.addSelection(mate, "Edge1")
+        _stage("create-seam-before")
         Gui.runCommand("ClothSewing_CreateSeam", 0)
+        _stage("create-seam-after")
         doc.recompute()
         seam = next((obj for obj in doc.Objects if getattr(obj, "SeamId", "")), None)
         if seam is None or str(seam.Status) != "Valid":
@@ -182,7 +208,9 @@ def run_acceptance():
         semantic_ids = tuple(str(item) for item in curved_sketch.SemanticEdgeIds)
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(seam)
+        _stage("focus-seam-before")
         Gui.runCommand("ClothSewing_FocusSeam3D", 0)
+        _stage("focus-seam-after")
         if seam.Shape.isNull():
             raise RuntimeError("seam focus command did not retain world-space presentation geometry")
         from freecad_cloth.sewing.SewingView import seam_color_map
@@ -216,7 +244,9 @@ def run_acceptance():
         local_mate_start = mate_geometry[0].StartPoint
         if _has_vertex(local_mate_start):
             raise RuntimeError("seam presentation still contains the mate Sketcher endpoint in local coordinates")
+        _stage("edit-seam-side-a-before")
         Gui.runCommand("ClothSewing_EditSeamSideA", 0)
+        _stage("edit-seam-side-a-after")
         if not Gui.activeDocument().getInEdit():
             raise RuntimeError("seam Sketcher-side command did not enter native Sketcher")
         selection = Gui.Selection.getSelectionEx()
@@ -228,10 +258,14 @@ def run_acceptance():
 
         with tempfile.TemporaryDirectory() as directory:
             path = os.path.join(directory, "native-sketcher-acceptance.FCStd")
+            _stage("save-before")
             doc.saveAs(path)
+            _stage("save-after")
             App.closeDocument(doc.Name)
             doc = None
+            _stage("reload-before")
             reloaded = App.openDocument(path)
+            _stage("reload-after")
             curved = next((obj for obj in reloaded.Objects if str(getattr(obj, "PieceId", "")) == original_piece_id), None)
             if curved is None or curved.Sketch is None:
                 raise RuntimeError("PatternPiece native Sketcher source did not survive save/reload")
@@ -271,8 +305,11 @@ def run_acceptance():
                 raise RuntimeError("seam did not survive save/reload")
             if str(changed_seam.Status) == "Valid":
                 raise RuntimeError("native Sketcher edit did not invalidate downstream seam")
+            _stage("close-reload-before")
             App.closeDocument(reloaded.Name)
+            _stage("close-reload-after")
             doc = None
+        _stage("passed")
         print("native Sketcher acceptance passed", flush=True)
     finally:
         _close_task()
