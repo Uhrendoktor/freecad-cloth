@@ -85,8 +85,12 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
     preview_backend = getattr(preview_base, "backend", None)
     if getattr(preview_backend, "name", None) != "tissu":
         raise RuntimeError("Realtime Cloth Preview did not select the Tissu backend")
-    for _ in range(12):
+    from time import monotonic, sleep
+    deadline = monotonic() + 2.0
+    while int(scene.Steps) <= 0 and monotonic() < deadline:
         events()
+        sleep(0.04)
+    events()
     preview_steps = int(scene.Steps)
     if preview_steps <= 0:
         RealtimePreview.stop_realtime_preview()
