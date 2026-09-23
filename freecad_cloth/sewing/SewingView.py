@@ -66,7 +66,7 @@ def seam_visual_markers(points_a, points_b):
     }
 
 
-def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5):
+def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5, world_space=False):
     """Build native presentation geometry for one semantic seam."""
     import FreeCAD as App
     import Part
@@ -79,6 +79,13 @@ def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5):
                       int(sample_count), z=0.4)
     if bool(getattr(seam, "ReversedB", False)):
         b.reverse()
+    if world_space:
+        placement_a = getattr(piece_a, "Placement", None)
+        placement_b = getattr(piece_b, "Placement", None)
+        if placement_a is not None:
+            a = [placement_a.multVec(point) for point in a]
+        if placement_b is not None:
+            b = [placement_b.multVec(point) for point in b]
 
     def distinct(points, tolerance=1e-9):
         result = []
