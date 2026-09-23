@@ -1,0 +1,38 @@
+name: Supervisor rebase PR 1023
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  rebase:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Merge current main into PR branch
+        run: |
+          set -euo pipefail
+          target="agent/supervisor-release-integration-20260923"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin "refs/heads/main:refs/remotes/origin/main" "refs/heads/$target:refs/remotes/origin/$target"
+          git checkout -B "$target" "refs/remotes/origin/$target"
+          git merge --no-ff --no-edit refs/remotes/origin/main
+          test "$(git status --porcelain)" = ""
+          git push --force-with-lease origin "HEAD:refs/heads/$target"
+      - name: Remove temporary workflow from main
+        if: always()
+        run: |
+          set +e
+          git checkout main
+          if [ -f .github/workflows/supervisor-rebase-1023.yml ]; then
+            git rm .github/workflows/supervisor-rebase-1023.yml
+            git commit -m "chore: remove supervisor rebase workflow"
+            git push origin HEAD:refs/heads/main
+          fi
