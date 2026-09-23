@@ -1,7 +1,7 @@
 import unittest
 
 from freecad_cloth.common.DrapeFailureClassifier import classify_drape, summarize_classification
-from freecad_cloth.common.DrapeVisualSanity import inspect_drape, seam_correspondence_gap, summarize
+from freecad_cloth.common.DrapeVisualSanity import inspect_drape, mesh_shape_sanity, seam_correspondence_gap, summarize
 from freecad_cloth.common.MeshValidation import validate_mesh
 
 
@@ -63,6 +63,28 @@ class DrapeVisualSanityTests(unittest.TestCase):
         result = inspect_drape(garment, self.target, target_height=1750.0, target_width=200.0)
         self.assertEqual(result.state, "detached-candidate")
         self.assertGreater(result.target_vertex_clearance, 100.0)
+
+    def test_mesh_shape_sanity_rejects_long_edge_spike(self):
+        vertices = (
+            (0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (10.0, 10.0, 0.0),
+            (0.0, 10.0, 0.0), (80.0, 80.0, 0.0),
+        )
+        triangles = ((0, 1, 2), (0, 2, 3), (2, 4, 3))
+        result = mesh_shape_sanity(vertices, triangles)
+        self.assertTrue(result["finite"])
+        self.assertGreater(result["edge_spike_ratio"], 4.0)
+        self.assertGreater(result["spike_edge_fraction"], 0.0)
+
+    def test_mesh_shape_sanity_accepts_regular_grid(self):
+        vertices = (
+            (0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (20.0, 0.0, 0.0),
+            (0.0, 10.0, 0.0), (10.0, 10.0, 0.0), (20.0, 10.0, 0.0),
+        )
+        triangles = ((0, 1, 4), (0, 4, 3), (1, 2, 5), (1, 5, 4))
+        result = mesh_shape_sanity(vertices, triangles)
+        self.assertTrue(result["finite"])
+        self.assertLess(result["edge_spike_ratio"], 2.0)
+        self.assertAlmostEqual(result["footprint_aspect_ratio"], 2.0)
 
     def test_clean_canonical_style_mesh_has_one_component(self):
         vertices = (
