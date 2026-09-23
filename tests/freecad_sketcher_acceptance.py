@@ -1,4 +1,5 @@
 """Canonical FreeCAD/Xvfb acceptance for native Sketcher pattern authoring."""
+# Diagnostic branch: stage markers are flushed so GUI hangs remain observable in CI.
 import math
 import os
 import site
