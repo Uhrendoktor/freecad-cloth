@@ -359,6 +359,7 @@ jobs:
           grep -q 'seam-markers=passed 3d-and-2d=true' artifacts/garment-e2e.log
           grep -q 'arrangement=passed pieces=4' artifacts/garment-e2e.log
           grep -q 'garment-hierarchy=passed groups=Patterns,Sewing,Fabric,Avatar,Simulation' artifacts/garment-e2e.log
+          grep -q 'material-presentation=passed native=true' artifacts/garment-e2e.log
           grep -q 'drape-target=passed type=Mannequin' artifacts/garment-e2e.log
           grep -q 'diagnostics=passed metric=stress' artifacts/garment-e2e.log
           grep -q 'save-reload=passed pieces=4 seam=1to1 network=2segment' artifacts/garment-e2e.log
@@ -539,6 +540,7 @@ jobs:
           grep -q 'blanket-visual-acceptance=passed' docs/images/generated/blanket-example/blanket-visual.log
           grep -q 'mesh=passed' docs/images/generated/blanket-example/blanket-visual.log
           grep -q 'movement=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'material-presentation=passed viewport=true' docs/images/generated/blanket-example/blanket-visual.log
           test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'checkpoint-*.png' | wc -l)" -eq 5
           test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'motion-*.png' | wc -l)" -eq 16
       - name: Build blanket motion GIF
