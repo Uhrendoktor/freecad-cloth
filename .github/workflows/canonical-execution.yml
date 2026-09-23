@@ -351,6 +351,8 @@ jobs:
       - name: Render turntable frames
         env:
           CLOTH_SIMULATION_BACKEND: tissu
+          CLOTH_TISSU_SUBSTEPS: 10
+          CLOTH_TISSU_COLLISION_MODE: torso-envelope
         run: |
           set -euo pipefail
           rm -rf docs/images/generated
@@ -358,7 +360,10 @@ jobs:
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
-            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
+            -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
+            -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" \
+            -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
@@ -378,6 +383,42 @@ jobs:
           test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
           test -d docs/images/generated/cloth-simulation-draped-turntable-frames
           test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
+      - name: Validate turntable semantic and camera evidence
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import re
+
+          log = Path("docs/images/generated/simulation-turntable-progress.log").read_text(encoding="utf-8")
+          if "semantic-provenance=true" not in log:
+              raise SystemExit("missing semantic seam provenance marker")
+          match = re.findall(r"simulation-seam-diagnostic max_endpoint_gap_mm=([0-9.]+)", log)
+          if not match:
+              raise SystemExit("missing simulation seam diagnostic")
+          seam_gap = float(match[-1])
+          print(f"simulation seam gap mm={seam_gap:.2f}")
+          if seam_gap > 35.0:
+              raise SystemExit(f"simulation seam gap {seam_gap:.2f} mm exceeds 35 mm")
+
+          for directory in (
+              "cloth-avatar-turntable-frames",
+              "cloth-simulation-arranged-turntable-frames",
+              "cloth-simulation-draped-turntable-frames",
+          ):
+              hashes = []
+              for frame in (0, 18, 36, 54):
+                  path = Path("docs/images/generated") / directory / f"frame-{frame:03d}.png"
+                  if not path.is_file():
+                      raise SystemExit(f"missing turntable checkpoint {path}")
+                  hashes.append(hashlib.sha256(path.read_bytes()).hexdigest())
+              unique = len(set(hashes))
+              print(f"{directory} checkpoint-hashes={unique}")
+              if unique != 4:
+                  raise SystemExit(f"{directory} did not show four distinct turntable checkpoints")
+              print(f"{directory} checkpoint-uniqueness=passed hashes={unique}")
+          PY
       - name: Build turntable GIFs
         run: |
           set -euo pipefail
@@ -416,6 +457,18 @@ jobs:
             docs/images/generated/cloth-avatar-turntable.gif
             docs/images/generated/cloth-simulation-arranged-turntable.gif
             docs/images/generated/cloth-simulation-draped-turntable.gif
+            docs/images/generated/cloth-avatar-turntable-frames/frame-000.png
+            docs/images/generated/cloth-avatar-turntable-frames/frame-018.png
+            docs/images/generated/cloth-avatar-turntable-frames/frame-036.png
+            docs/images/generated/cloth-avatar-turntable-frames/frame-054.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-000.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-018.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-036.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-054.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-000.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-018.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-036.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-054.png
             docs/images/generated/avatar-gui-progress.log
             docs/images/generated/simulation-turntable-progress.log
           if-no-files-found: ignore
