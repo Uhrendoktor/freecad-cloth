@@ -9,7 +9,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - Current main: `ccac198eae37bb162830895b1d8259ca84d7047f`
 - Canonical workflow: `.github/workflows/canonical-execution.yml`; exactly one workflow.
 - Supervisor completion issue: #1017.
-- Active release candidate: PR #1066, branch `supervisor/complete-audit-20260923`, live head `dd6de74062515e952f9c4675c8b9bb4fafba6e84`.
+- Active release candidate: PR #1066, branch `supervisor/complete-audit-20260923`, live head `f64013e4100c93265bbae534b82de29bb284c178`.
 
 ## Implemented release slice
 
@@ -25,7 +25,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - In that same run, the older README turntable source failed its fail-closed drape sanity gate with a detached-candidate state. That source used a 20 mm particle-distance / 32-iteration CPU configuration and is not the current release head.
 - The current release branch now uses the 200 mm fixture and the canonical Tissu backend for the README turntable, with no relaxation of drape, motion, mesh, frame-count, timeout, or artifact assertions.
 - Exact-head PR #1066 currently has no commit status and no pull_request workflow run. Controlled close/reopen also produced no run.
-- Main/release push runs `35848880387` and `35849087425` failed before job allocation with zero jobs/artifacts.
+- Main/release push runs `35848880387`, `35849087425`, and `35855453586` failed before job allocation with zero jobs/artifacts. Retrying `35855453586` through the connector returned GitHub 403: `This workflow run cannot be retried`.
 
 ## Branch cleanup
 
