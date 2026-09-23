@@ -449,6 +449,7 @@ class SimulationProxy:
                 for i in range(len(panels), len(pieces))
             )
         obj.DrapePanels = panels[:len(pieces)]
+        panels = list(obj.DrapePanels)
 
         particles = [Particle(*p) for p in positions]
         system = ClothSystem(particles, _mesh_constraints(positions, triangles_global))
