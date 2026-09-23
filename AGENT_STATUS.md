@@ -6,7 +6,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `379a89fca4d331e985ddec88987217c0bde920ef`
+- Current main: `87c66b67c870d70ce478e083104f6db18eaf59af`
 - Canonical workflow: `.github/workflows/canonical-execution.yml`; exactly one workflow.
 - Supervisor completion issue: #1017.
 - Active release candidate: PR #1066, branch `supervisor/complete-audit-20260923`, live head `7141ed6a8c9e49dd3e85c171401aeebf28ff17c6`.
