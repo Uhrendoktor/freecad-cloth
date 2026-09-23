@@ -9,7 +9,7 @@ Machine-readable supervisor/release record. Durable guidance lives in docs/DEVEL
 - Current main at this reconciliation: 6893d1b1867cc9a1381dd3f484bba3f7e853acc2.
 - Canonical workflow: .github/workflows/canonical-execution.yml; exactly one workflow.
 - Supervisor completion issue: #1017.
-- Current continuation: #1098.
+- Current continuation ledger: none; #1098 is closed and root #1017 remains active.
 - Active release candidate: PR #1075, branch supervisor/final-release-fixed-main-20260923; live head 1433f343089dc794e297c1c5fa27094dc1333c07.
 - Timing-fix PR: #1090, branch supervisor/readme-gif-delay-fix-20260923; head a5cb1a82cba839a853c37bd4abeda5e91937a860.
 - Candidate relation at audit time: 3 commits ahead / 17 behind main. The behind side is later supervisor/documentation history. Do not rebase merely to remove the behind count; validate the actual live PR head.
@@ -42,7 +42,7 @@ Machine-readable supervisor/release record. Durable guidance lives in docs/DEVEL
 
 ## Repository hygiene
 
-- Fresh branch pagination currently observes 498 remote branches.
+- Fresh branch pagination currently observes 501 remote branches.
 - The installed GitHub connector exposes branch listing but no branch-delete operation; branch cleanup is therefore not claimed complete.
 - TODO/FIXME/XXX repository searches on current main returned no matches.
 - Release duplicate PRs #1093, #1095 and #1096 are closed unmerged; #1075 remains the sole geometry release path.

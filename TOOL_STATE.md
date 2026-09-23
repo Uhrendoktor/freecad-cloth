@@ -6,7 +6,7 @@ repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_issue: 1017
-continuation_issue: 1098
+continuation_issue: null
 active_release_pr: 1075
 active_release_branch: supervisor/final-release-fixed-main-20260923
 current_main: 6893d1b1867cc9a1381dd3f484bba3f7e853acc2
@@ -27,7 +27,7 @@ release_gate:
   external_ci_blocker: exact-head pull_request delivery remains absent and push attempts fail before job allocation; connector exposes no workflow dispatch or Actions policy administration
 final_gate: exact_head_canonical_pr_green; inspect_jobs_logs_artifacts; merge; merged_main_canonical_pr_green; fresh_repo_audit
 open_actionable_issues: [1017, 1020, 1043, 1053, 1075, 1084, 1088, 1090, 1098]
-remote_branch_count_observed: 498
+remote_branch_count_observed: 501
 last_schedule_run: 3225/35839191664; success; 12 jobs instantiated; daily retention job skipped because event was the */5-minute schedule
 daily_0300_utc: no run evidenced for 2026-09-23
 published_asset_gap: docs/screenshots:docs/images/generated/cloth-blanket-motion.gif
@@ -39,4 +39,4 @@ timing_fix_ci: no pull_request workflow/status delivered
 ```
 
 closed_research_issues: [1042, 1055]
-stale_branch_cleanup: unavailable_via_current_connector; current full branch pagination observes 498 remote branches; no fresh daily 03:00 UTC retention run evidenced
+stale_branch_cleanup: unavailable_via_current_connector; current full branch pagination observes 501 remote branches; no fresh daily 03:00 UTC retention run evidenced
