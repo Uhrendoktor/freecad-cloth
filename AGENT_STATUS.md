@@ -37,12 +37,8 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 ## Current task
 
-- Supervisor issue: #1017
-- Implementation branch: `agent/issue-1017-release-foundation-20260923`
-- Pull request: #1018
-- Canonical verification: `.github/workflows/canonical-execution.yml`
-- Current state: implementation is complete on branch head `d8682f98afdad2d4e22646b1af5c12337f336009`; exact-head canonical validation is the remaining supervisor gate. Earlier exact-head-equivalent run #3153 (`35834714836`) was terminal-green across the functional FreeCAD jobs, including README turntables and the tunic visual/simulation audit.
-
-## Agent rules
-
-Inspect → plan → execute → persist → verify. Do not report completion while a required workflow/PR/CI verification is non-terminal. If CI fails, inspect logs/artifacts, repair in scope, rerun, wait for terminal status, and reassess before progressing dependent work. Never weaken tests or multiply workflows. Close issues only with an explicit state reason and a reason recorded in the conversation.
+- Supervisor issue: #1017 remains the durable complete-project criterion until the release candidate is merged and merged-main canonical verification is terminal-green.
+- Active release candidate: PR #1040, cut from the current default branch and kept on the repository's single canonical workflow.
+- Current candidate scope includes the human-facing User Guide, native Sketch idempotence/regression coverage, world-space seam acceptance, and the deterministic Blanket-over-Cube visual fixture with generic-geometry mesh collision, effective solver iterations, stable launch height, and unchanged fail-closed mesh spike thresholds.
+- Validation policy: inspect the exact PR head, all terminal CI jobs, generated artifacts and logs, then merge only on terminal-green evidence.
+- After merge, re-audit open issues/PRs, stale durable state, documentation, tests, workflows and branch hygiene before closing #1017.
