@@ -169,7 +169,7 @@ jobs:
           grep -q 'stale-endpoint-invalidation=passed commit-blocked=true' artifacts/sewing-creation-smoke.log
       - name: Upload sewing creation smoke evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: sewing-creation-smoke
           path: artifacts/sewing-creation-smoke.log
@@ -215,7 +215,7 @@ jobs:
           grep -q "native Sketcher acceptance passed" artifacts/sketcher-acceptance.log
       - name: Upload Sketcher acceptance evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: sketcher-acceptance
           path: artifacts/sketcher-acceptance.log
@@ -258,7 +258,7 @@ jobs:
           grep -q 'pattern-export-smoke=completed' artifacts/pattern-production-export.log
       - name: Upload pattern export evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: pattern-production-export
           path: artifacts/pattern-production-export.log
@@ -342,7 +342,7 @@ jobs:
           grep -q 'canonical garment end-to-end acceptance passed' artifacts/garment-e2e.log
       - name: Upload tunic visual audit
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: tunic-visual-audit
           path: |
@@ -439,7 +439,7 @@ jobs:
           identify -format '%n\n' docs/images/generated/cloth-simulation-draped-turntable.gif | head -n 1 | grep -qx '73'
       - name: Upload README turntable evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: readme-turntables
           path: |
@@ -523,7 +523,7 @@ jobs:
           test -s docs/images/generated/blanket-example/blanket-motion.gif
       - name: Upload blanket visual evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: blanket-visual-example
           path: |
@@ -719,7 +719,7 @@ jobs:
         run: "$RUNNER_TEMP/workbench-benchmark-venv/bin/python" tools/plot_workbench_benchmark.py artifacts/workbench-benchmark/benchmark.json artifacts/workbench-benchmark/plots
       - name: Upload benchmark measurements and plots
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: workbench-benchmark
           path: artifacts/workbench-benchmark
