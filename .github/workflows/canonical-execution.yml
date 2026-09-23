@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -116,7 +116,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -181,7 +181,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -226,7 +226,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -270,7 +270,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -359,7 +359,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -469,7 +469,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -643,7 +643,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Pull published FreeCAD image
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
