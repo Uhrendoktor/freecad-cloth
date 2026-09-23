@@ -156,8 +156,8 @@ source = source.replace(anchor, preview_probe + '\n' + anchor, 1)
 source = source.replace("\n\ndef main():", "\n" + ab_helper + "\n\ndef main():", 1)
 source = source.replace('pattern_and_sewing(); simulation(); log("scenario-pass")', 'pattern_and_sewing(); _ab_tunic_simulation(); log("scenario-pass")', 1)
 source = source.replace(
-    '    task_dock.show(); task_dock.raise_(); events(); close_task(); App.closeDocument(doc.Name)',
-    authoritative_seam_gate + "\n    task_dock.show(); task_dock.raise_(); events(); close_task(); App.closeDocument(doc.Name)',
+    "    task_dock.show(); task_dock.raise_(); events(); close_task(); App.closeDocument(doc.Name)",
+    authoritative_seam_gate + "\n    task_dock.show(); task_dock.raise_(); events(); close_task(); App.closeDocument(doc.Name)",
     1,
 )
 
