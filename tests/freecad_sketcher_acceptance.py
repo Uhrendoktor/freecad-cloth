@@ -141,6 +141,11 @@ def _stage(name):
 
 
 def _bootstrap_workbenches():
+    window = Gui.getMainWindow()
+    if window is None or not window.isVisible():
+        raise RuntimeError(
+            "FreeCAD GUI main window must be visible before InitGui.py workbench registration"
+        )
     if "ClothPatternWorkbench" in Gui.listWorkbenches():
         return
     root = Path(__file__).resolve().parents[1]
