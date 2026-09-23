@@ -191,3 +191,107 @@ def test_export_rejects_disconnected_boundary_segments():
                 LineSegment("d", (0.0, 9.0), (0.0, 0.0)),
             ]
         )
+
+
+
+def test_pattern_piece_export_uses_persisted_native_construction_marks(tmp_path):
+    class Piece:
+        PatternType = "PatternPiece"
+        Name = "Front"
+        Label = "Front"
+        PieceId = "piece-front"
+        Width = 100.0
+        Height = 60.0
+        SeamAllowance = 5.0
+        GrainlineAngle = 0.0
+        GeometryAuthority = ""
+        SewingOutline = repr(
+            [(0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)]
+        )
+        DraftingBoundary = SewingOutline
+
+    class Mark:
+        def __init__(self, name, mark_type, text="", length=40.0):
+            self.Name = name
+            self.PatternMarkId = name
+            self.PatternMarkType = mark_type
+            self.PieceId = "piece-front"
+            self.SegmentId = "piece-front:edge:0"
+            self.Position = 0.5
+            self.Depth = 3.0
+            self.Angle = 0.0
+            self.Length = length
+            self.Text = text
+
+    class Document:
+        Objects = ()
+
+    piece = Piece()
+    notch = Mark("notch-front", "Notch")
+    grainline = Mark("grain-front", "Grainline", length=36.0)
+    internal = Mark("mark-front", "InternalMark", text="Internal mark")
+    piece.Document = Document()
+    piece.Document.Objects = (piece, notch, grainline, internal)
+
+    for fmt, reader in (("svg", from_svg_metadata), ("dxf", from_dxf_metadata)):
+        output = tmp_path / ("front.%s" % fmt)
+        export_pattern_piece(piece, output, fmt)
+        payload = output.read_text(encoding="utf-8")
+        metadata = reader(payload)
+        assert metadata["piece_id"] == "piece-front"
+        assert metadata["notch_ids"] == ["notch-front"]
+        assert metadata["mark_ids"] == ["grain-front", "mark-front"]
+
+        if fmt == "svg":
+            assert 'id="notch-notch-front"' in payload
+            assert 'id="mark-grain-front"' in payload
+            assert 'id="mark-mark-front"' in payload
+            assert 'data-segment="piece-front:edge:0" data-t="0.500000"' in payload
+            assert 'cx="55.000000" cy="65.000000"' in payload
+            assert 'x1="35.000000" y1="65.000000" x2="75.000000" y2="65.000000"' in payload
+        else:
+            assert '"notch_ids":["notch-front"]' in payload
+            assert '"mark_ids":["grain-front","mark-front"]' in payload
+            assert "10\n50.000000\n20\n3.000000" in payload
+            assert "10\n30.000000\n20\n0.000000\n10\n70.000000\n20\n0.000000" in payload
+
+
+def test_pattern_piece_export_blocks_missing_persisted_mark_edge(tmp_path):
+    class Piece:
+        PatternType = "PatternPiece"
+        Name = "Front"
+        Label = "Front"
+        PieceId = "piece-front"
+        Width = 100.0
+        Height = 60.0
+        SeamAllowance = 0.0
+        GrainlineAngle = 0.0
+        GeometryAuthority = ""
+        SewingOutline = repr(
+            [(0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)]
+        )
+        DraftingBoundary = SewingOutline
+
+    class Mark:
+        PatternMarkId = "mark-front"
+        PatternMarkType = "InternalMark"
+        PieceId = "piece-front"
+        SegmentId = "piece-front:edge:stale"
+        Position = 0.5
+        Depth = 3.0
+        Angle = 0.0
+        Length = 40.0
+        Text = "Internal mark"
+
+    class Document:
+        Objects = ()
+
+    piece = Piece()
+    mark = Mark()
+    piece.Document = Document()
+    piece.Document.Objects = (piece, mark)
+
+    output = tmp_path / "blocked.svg"
+    with TestCase().assertRaisesRegex(ValueError, "references missing edge"):
+        export_pattern_piece(piece, output, "svg")
+    assert not output.exists()

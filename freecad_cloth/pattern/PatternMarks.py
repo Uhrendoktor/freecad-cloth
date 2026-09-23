@@ -20,6 +20,21 @@ def _selected_piece(doc):
     raise ValueError("create or select a pattern piece before adding a mark")
 
 
+def _native_default_segment_id(piece):
+    piece_id = str(getattr(piece, "PieceId", "")).strip()
+    sketch = getattr(piece, "Sketch", None)
+    semantic_ids = tuple(
+        str(value).strip()
+        for value in (getattr(sketch, "SemanticEdgeIds", ()) or ())
+    )
+    if not piece_id:
+        raise ValueError("selected pattern piece has no authored native edge identity")
+    for semantic_id in semantic_ids:
+        if semantic_id:
+            return semantic_id
+    raise ValueError("selected pattern piece has no authored native edge identity")
+
+
 def _has_selected_piece():
     try:
         import FreeCADGui as Gui
@@ -42,6 +57,7 @@ def add_mark(doc, mark_type, piece_id, segment_id="", position=0.5, depth=3.0, a
     name = "%s_%d" % (mark_type, 1 + len([o for o in doc.Objects if getattr(o, "PatternMarkType", "") == mark_type]))
     obj = doc.addObject("App::FeaturePython", name)
     obj.Label = text.strip() or name
+    obj.addProperty("App::PropertyString", "PatternMarkId", "Pattern Mark").PatternMarkId = str(obj.Name)
     obj.addProperty("App::PropertyString", "PatternMarkType", "Pattern Mark").PatternMarkType = mark_type
     obj.addProperty("App::PropertyString", "PieceId", "Pattern Mark").PieceId = piece_id
     obj.addProperty("App::PropertyString", "SegmentId", "Pattern Mark").SegmentId = segment_id
@@ -57,7 +73,14 @@ def add_notch():
     import FreeCAD as App
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
     piece = _selected_piece(doc)
-    return add_mark(doc, "Notch", str(piece.PieceId), "bottom", 0.5, depth=3.0)
+    return add_mark(
+        doc,
+        "Notch",
+        str(piece.PieceId),
+        _native_default_segment_id(piece),
+        0.5,
+        depth=3.0,
+    )
 
 
 def add_grainline():
@@ -65,14 +88,29 @@ def add_grainline():
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
     piece = _selected_piece(doc)
     length = max(10.0, min(float(piece.Width), float(piece.Height)) * 0.6)
-    return add_mark(doc, "Grainline", str(piece.PieceId), angle=float(piece.GrainlineAngle), length=length)
+    return add_mark(
+        doc,
+        "Grainline",
+        str(piece.PieceId),
+        segment_id=_native_default_segment_id(piece),
+        angle=float(piece.GrainlineAngle),
+        length=length,
+    )
 
 
 def add_internal_mark():
     import FreeCAD as App
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
     piece = _selected_piece(doc)
-    return add_mark(doc, "InternalMark", str(piece.PieceId), "bottom", 0.5, depth=3.0, text="Internal mark")
+    return add_mark(
+        doc,
+        "InternalMark",
+        str(piece.PieceId),
+        _native_default_segment_id(piece),
+        0.5,
+        depth=3.0,
+        text="Internal mark",
+    )
 
 
 class _FunctionCommand:
