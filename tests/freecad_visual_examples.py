@@ -1,8 +1,11 @@
 """Deterministic basic cloth example: a blanket draped over a cube."""
 
 import os
+import site
 import traceback
 from pathlib import Path
+
+site.addsitedir(str(Path(__file__).resolve().parents[1]))
 
 import FreeCAD as App
 import FreeCADGui as Gui
