@@ -321,5 +321,4 @@ def run_acceptance():
                 pass
 
 
-if __name__ == "__main__":
-    run_acceptance()
+run_acceptance()
