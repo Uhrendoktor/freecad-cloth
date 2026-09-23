@@ -311,7 +311,7 @@ def main():
         objects = [cube, panel]
         render_turntable(view, objects, os.path.join(OUT, "cloth-simulation-arranged-turntable-frames"))
 
-        steps = int(os.environ.get("CLOTH_BLANKET_STEPS", "120"))
+        steps = int(os.environ.get("CLOTH_BLANKET_STEPS", "180"))
         scene.Steps = steps
         doc.recompute()
         events()
