@@ -1,4 +1,5 @@
 """Canonical public FreeCAD Pattern -> Sewing -> Fitting -> Simulation -> Export acceptance."""
+from pathlib import Path
 import hashlib
 import math
 import os
@@ -9,6 +10,42 @@ import FreeCAD as App
 import FreeCADGui as Gui
 import Part
 import Sketcher
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+
+def _record(message):
+    print(str(message), flush=True)
+
+
+def _ensure_workbench_registration():
+    _record("workbench-bootstrap=starting")
+    expected = (
+        ("ClothPatternWorkbench", "freecad_cloth.pattern.workbench", "ClothPatternWorkbench"),
+        ("ClothSewingWorkbench", "freecad_cloth.sewing.workbench", "ClothSewingWorkbench"),
+        ("ClothSimulationWorkbench", "freecad_cloth.simulation.workbench", "ClothSimulationWorkbench"),
+    )
+    missing = [name for name, _, _ in expected if name not in Gui.listWorkbenches()]
+    if missing:
+        icon_dir = ROOT / "resources" / "icons"
+        if icon_dir.is_dir():
+            Gui.addIconPath(str(icon_dir))
+        import importlib
+
+        for name, module_name, class_name in expected:
+            if name in Gui.listWorkbenches():
+                continue
+            workbench_type = getattr(importlib.import_module(module_name), class_name)
+            Gui.addWorkbench(workbench_type())
+            _events()
+    missing = [name for name, _, _ in expected if name not in Gui.listWorkbenches()]
+    if missing:
+        raise RuntimeError(
+            "standalone workbench bootstrap did not register: %s" % ",".join(missing)
+        )
+    _record("workbench-bootstrap=passed")
 
 
 def _events():
@@ -799,6 +836,7 @@ def run_acceptance():
 
 if __name__ == "__main__":
     try:
+        _ensure_workbench_registration()
         run_acceptance()
     except BaseException:
         import traceback
