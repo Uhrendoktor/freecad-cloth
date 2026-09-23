@@ -581,7 +581,7 @@ def run_acceptance():
             target_name = target.Name
             piece_names = [piece.Name for piece in pieces]
             expected_piece_ids = [str(piece.PieceId) for piece in pieces]
-            target_body_name = target_body.Name
+            target_body_name = target.SourceObject.Name if target.SourceObject is not None else ""
             App.closeDocument(doc.Name)
             doc = None
             reloaded = App.openDocument(path)
