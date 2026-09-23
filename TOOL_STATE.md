@@ -1,7 +1,7 @@
 # Tool State
 
 ```yaml
-schema: 14
+schema: 15
 repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
@@ -9,18 +9,18 @@ supervisor_issue: 1017
 continuation_issue: 1098
 active_release_pr: 1075
 active_release_branch: supervisor/final-release-fixed-main-20260923
-current_main: 52cbbd5f8c0653a89f49abab98f90f430ef3b002
+current_main: 6893d1b1867cc9a1381dd3f484bba3f7e853acc2
 workflow_count: 1
 workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; inspect_jobs_logs_artifacts; no_second_workflow
 release_gate:
   candidate: PR_1075
-  live_head: fc03722e61bc7184fc0a25ef137f44c562a5a022
-  pr_run_state: no pull_request run/status at live head; latest live-head push run #3588 / 35905788417 failed pre-job with zero jobs/artifacts
-  candidate_relation_to_main: ahead_by_7; behind_by_16; behind side is subsequent supervisor/documentation history plus current main drift
+  live_head: 1433f343089dc794e297c1c5fa27094dc1333c07
+  pr_run_state: no pull_request run/status at live head; latest live-head push run #3594 / 35906114777 failed pre-job with zero jobs/artifacts
+  candidate_relation_to_main: ahead_by_3; behind_by_17; behind side is subsequent supervisor/documentation history
   timing_fix_pr: PR_1090
   timing_fix_head: a5cb1a82cba839a853c37bd4abeda5e91937a860
-  timing_fix_ci: no pull_request workflow run/status delivered
+  timing_fix_ci: no pull_request workflow/run status delivered
   supporting_run: 35845226384
   supporting_artifact: 10743635540
   supporting_run_result: 200 mm Blanket-over-Cube real FreeCAD/Xvfb acceptance passed; 16 distinct motion frames and representative checkpoints inspected
