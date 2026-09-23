@@ -248,7 +248,7 @@ def test_pattern_piece_export_uses_persisted_native_construction_marks(tmp_path)
             assert 'id="mark-mark-front"' in payload
             assert 'data-segment="piece-front:edge:0" data-t="0.500000"' in payload
             assert 'cx="55.000000" cy="65.000000"' in payload
-            assert 'x1="30.000000" y1="65.000000" x2="70.000000" y2="65.000000"' in payload
+            assert 'x1="35.000000" y1="65.000000" x2="75.000000" y2="65.000000"' in payload
         else:
             assert '"notch_ids":["notch-front"]' in payload
             assert '"mark_ids":["grain-front","mark-front"]' in payload
