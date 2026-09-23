@@ -660,8 +660,9 @@ def run_acceptance():
                 raise RuntimeError("save/reload lost the native FabricMaterial object")
             restored_color = tuple(float(value) for value in fabric_material.Color[:3])
             expected_color = (0.14, 0.32, 0.78)
-            if any(abs(restored_color[index] - expected_color[index]) > 1e-6 for index in range(3)):
-                raise RuntimeError("save/reload changed native FabricMaterial color")
+            color_quantization = (1.0 / 255.0) + 1e-6
+            if any(abs(restored_color[index] - expected_color[index]) > color_quantization for index in range(3)):
+                raise RuntimeError("save/reload changed native FabricMaterial color beyond FreeCAD color quantization")
             if abs(float(fabric_material.Specular) - 0.70) > 1e-6:
                 raise RuntimeError("save/reload changed native FabricMaterial specular")
             if abs(float(fabric_material.Roughness) - 0.20) > 1e-6:
