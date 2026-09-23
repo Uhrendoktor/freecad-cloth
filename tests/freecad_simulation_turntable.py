@@ -262,7 +262,7 @@ def build_simulation_state(doc):
     scene.ParticleDistance = float(os.environ.get("CLOTH_BLANKET_PARTICLE_DISTANCE_MM", "20.0"))
     scene.SolverIterations = int(os.environ.get("CLOTH_BLANKET_SOLVER_ITERATIONS", "32"))
     scene.SolverSubsteps = int(os.environ.get("CLOTH_BLANKET_SOLVER_SUBSTEPS", "1"))
-    scene.TimeStep = float(os.environ.get("CLOTH_BLANKET_TIMESTEP", str(1.0 / 120.0)))
+    scene.TimeStep = float(os.environ.get("CLOTH_BLANKET_TIMESTEP", str(1.0 / 60.0)))
     scene.StitchSamples = 4
     scene.GravityX = scene.GravityY = 0.0
     scene.GravityZ = -9810.0
