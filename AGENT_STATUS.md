@@ -6,7 +6,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `be031fdaeb590046f4b6b7f558a4d7b727406e29` (resolved at audit time).
+- Current main: `f63b58b123ddc5f8cfd895ec5253eea4afba76c8` (resolved at audit time).
 - Canonical workflow: `.github/workflows/canonical-execution.yml`; exactly one workflow.
 - Supervisor completion issue: #1017.
 - Current continuation: #1086.
@@ -28,7 +28,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - Supporting canonical run #3297 / `35844023654` executed real FreeCAD/Xvfb jobs. Python, sewing, pattern export, basic blanket, README turntable and tunic audit passed; Native Sketcher acceptance timed out after its 8-minute fail-closed limit.
 - Supporting real FreeCAD/Xvfb run #3331 / `35845226384`, artifact `10743635540`, validates the 200 mm Blanket-over-Cube fixture. The artifact contains 16 distinct motion frames and was visually inspected; it is supporting evidence for the basic example only, not exact-head README-turntable proof.
 - Current PR #1075 exact head `69215e7…` has no pull_request workflow run or commit status. Latest exact-head push run #3507 / `35879364633` failed before job allocation with 0 jobs and 0 artifacts.
-- Fresh supervisor state-sync pushes #3508 / `35902921024` and #3509 / `35903456264` also failed before job allocation with 0 jobs and 0 artifacts.
+- Fresh supervisor state-sync pushes #3508 / `35902921024`, #3509 / `35903456264`, #3510 / `35903560622`, and #3537 / `35904391656` also failed before job allocation with 0 jobs and 0 artifacts.nd #3509 / `35903456264` also failed before job allocation with 0 jobs and 0 artifacts.
 - Historical scheduled run #3225 / `35839191664` succeeded and instantiated 12 jobs, but its retention-cleanup job was skipped because the run used the 5-minute schedule. No later daily 03:00 UTC retention run is currently evidenced.
 - An independent challenge review on PR #1075 and researcher issue #1083 both identify the strongest alternative as an Actions control-plane/policy problem rather than a job-level repository defect. The falsifier is a real exact-head run with a non-zero job graph or control-plane metadata showing a later-stage failure. No validation gate was weakened.
 
@@ -50,9 +50,10 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 ## Current gate
 
 - Do not merge or close #1017 or #1086.
+- Do not merge #1075 or #1090 until the relevant canonical validation gates become terminal-green.
 - Exact-head PR #1075 must receive a terminal canonical run with non-zero jobs; inspect every required job, step/log and artifact.
 - After merge, merged-main canonical validation must be terminal-green before closing supervisor issues.
 - #1020 and #1043 remain open until their stated acceptance gates are verified on merged main.
 - #1053 remains the external Actions control-plane/event-execution blocker and carries current head/run/branch-count evidence.
-- #1083 is the completed independent challenge child; #1084 owns README GIF publication; #1090 owns the isolated GIF timing fix.
+- #1083 is the completed independent challenge child; #1084 owns README GIF publication; #1090 owns the isolated GIF timing fix. Duplicate timing PRs #1089, #1091, #1092 were closed unmerged.
 - Stale state in this file was refreshed from live GitHub state in the 2026-09-23 recovery audit.
