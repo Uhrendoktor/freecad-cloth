@@ -369,6 +369,21 @@ try:
     doc = App.openDocument(str(curved_save))
     process_events()
     doc.recompute()
+    reloaded_piece_a = next(
+        obj for obj in doc.Objects
+        if str(getattr(obj, "PatternType", "")) == "PatternPiece"
+        and str(getattr(obj, "PieceId", "")) == "smoke-a"
+    )
+    reloaded_piece_b = next(
+        obj for obj in doc.Objects
+        if str(getattr(obj, "PatternType", "")) == "PatternPiece"
+        and str(getattr(obj, "PieceId", "")) == "smoke-b"
+    )
+    assert reloaded_piece_a is not piece_a
+    assert reloaded_piece_b is not piece_b
+    piece_a = reloaded_piece_a
+    piece_b = reloaded_piece_b
+    record("post-reload-selection-objects=refreshed")
     reloaded_network = next(obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork" and str(getattr(obj, "RelationshipId", "")) == relationship_id)
     reloaded_pairs = tuple(sorted(
         (
