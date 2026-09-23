@@ -115,13 +115,16 @@ def main():
     try:
         sketch, outline = make_rectangle_sketch(doc, "BlanketSketch", 260.0, 260.0)
         piece = adopt_sketch(doc, sketch)
-        placement = App.Placement(App.Vector(-130.0, -130.0, 150.0), App.Rotation())
+        placement = App.Placement(App.Vector(-210.0, -160.0, 220.0), App.Rotation())
         piece.Placement = placement
         piece.Sketch.Placement = placement
 
-        cube = doc.addObject("Part::Feature", "BlanketTargetCube")
+        cube = doc.addObject("Part::Box", "BlanketTargetCube")
         cube.Label = "Collision Target — Cube"
-        cube.Shape = __import__("Part").makeBox(180.0, 180.0, 60.0, App.Vector(-90.0, -90.0, 0.0))
+        cube.Length = 240.0
+        cube.Width = 160.0
+        cube.Height = 120.0
+        cube.Placement = App.Placement(App.Vector(-120.0, -80.0, 0.0), App.Rotation())
         doc.recompute()
 
         scene = create_simulation_scene(doc)
