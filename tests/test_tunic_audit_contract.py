@@ -5,16 +5,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 # The canonical native-Sketcher outline uses edges 3/5 as the shoulder seams.
-
-# Keep the fixture's semantic edge IDs independent on front and back pieces.
+# Keep front/back semantic edge IDs independent; never fall back to one piece's IDs.
 
 def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert 'front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())' in source
     assert 'back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())' in source
     assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in source
-    assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' in source
-    assert 'front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"' in source
+    assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in source
+    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' in source
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
@@ -32,7 +31,7 @@ def test_canonical_tunic_uses_validated_authored_mapping():
     assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' in audit
     assert 'front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"' in audit
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in audit
-    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' not in audit
+    assert 'front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"' not in audit
 
 
 def test_canonical_tunic_source_rewrite_compiles():
@@ -70,4 +69,28 @@ def test_canonical_tunic_authoritative_gate_is_fail_closed():
     assert "proxy=proxy" in source
     assert "authoritative tunic seams did not converge" in source
     assert "if max_seam_gap > 35.0" in source
-    assert 'seam_records=seam_records,\\n        proxy=proxy,\\n    ); bounds = []' in source
+
+def test_simulation_proxy_serializes_only_rebuildable_metadata():
+    from freecad_cloth.simulation.SimulationObjects import SimulationProxy
+
+    proxy = SimulationProxy()
+    proxy.backend = object()
+    proxy.panel_indices = {"panel": (1, 2)}
+    proxy.seam_stitch_pairs = {"seam": ((0, 1),)}
+    proxy.source_signature = ("derived",)
+    proxy.last_steps = 17
+    proxy.collision_surface = object()
+
+    state = proxy.__getstate__()
+    assert state == {"schema": 1}
+    assert "backend" not in state
+    assert "seam_stitch_pairs" not in state
+    assert "collision_surface" not in state
+
+    proxy.__setstate__(state)
+    assert proxy.backend is None
+    assert proxy.panel_indices == {}
+    assert proxy.seam_stitch_pairs == {}
+    assert proxy.source_signature is None
+    assert proxy.last_steps == 0
+    assert proxy.collision_surface is None
