@@ -127,9 +127,9 @@ def main():
         scene.TimeStep = 1.0 / 120.0
         scene.Iterations = 10
 
-        _, _, boundary = quality_piece_mesh(piece, 0.0, scene.ParticleDistance)
+        mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, scene.ParticleDistance)
         boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
-        top = sorted(boundary_vertices, key=lambda index: float(scene.Proxy._base_or_restore().piece_positions[piece.Name][index][1]), reverse=True)[:2]
+        top = sorted(boundary_vertices, key=lambda index: float(mesh_positions[index][1]), reverse=True)[:2]
         scene.PinSelection = [str(int(index)) for index in top]
         doc.recompute()
 
