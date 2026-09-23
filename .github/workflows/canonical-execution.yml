@@ -70,6 +70,64 @@ jobs:
           echo "No recent local Docker runner heartbeat; using GitHub-hosted ubuntu-latest."
           echo 'runner=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
 
+  research-sketcher-boundary:
+    name: Research Sketcher startup boundary
+    needs: runner_selection
+    runs-on: ${{ fromJSON(needs.runner_selection.outputs.runner) }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Probe AppRun and first GUI boundaries
+        run: |
+          set -u
+          rm -rf artifacts/sketcher-boundary
+          mkdir -p artifacts/sketcher-boundary
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -u
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/sketcher-boundary
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              log=/workspace/artifacts/sketcher-boundary/startup-boundary.log
+              : > "$log"
+              probe() {
+                name="$1"
+                code="$2"
+                printf "probe=%s begin\\n" "$name" | tee -a "$log"
+                if timeout --signal=TERM --kill-after=3s 30s /opt/freecad/AppRun -c "$code" >>"$log" 2>&1; then
+                  printf "probe=%s pass\\n" "$name" | tee -a "$log"
+                else
+                  status=$?
+                  printf "probe=%s fail status=%s\\n" "$name" "$status" | tee -a "$log"
+                fi
+              }
+              probe cli "print(\"AppRun CLI ready\", flush=True)"
+              probe combined "import FreeCAD, FreeCADGui, Part, Sketcher; print(\"all imports complete\", flush=True)"
+              probe new_document "import FreeCAD; doc=FreeCAD.newDocument(\"SketcherBoundaryProbe\"); print(\"newDocument complete\", flush=True); FreeCAD.closeDocument(doc.Name)"
+              probe workbench_then_new_document "import FreeCAD, FreeCADGui; FreeCADGui.activateWorkbench(\"ClothPatternWorkbench\"); FreeCADGui.updateGui(); doc=FreeCAD.newDocument(\"SketcherBoundaryWorkbenchProbe\"); print(\"workbench-plus-newDocument complete\", flush=True); FreeCAD.closeDocument(doc.Name)"
+              probe script_import "import runpy; runpy.run_path(\"tests/freecad_sketcher_acceptance.py\", run_name=\"__probe__\"); print(\"acceptance script import complete\", flush=True)"
+            '
+      - name: Upload startup-boundary evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: sketcher-startup-boundary
+          path: artifacts/sketcher-boundary/startup-boundary.log
+          if-no-files-found: error
+          compression-level: 1
+
   python:
     name: Python and FreeCAD non-GUI tests
     needs: runner_selection
