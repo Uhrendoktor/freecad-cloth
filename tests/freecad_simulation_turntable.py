@@ -17,7 +17,6 @@ from pivy import coin
 # Keep the README fixture on the same conservative torso-envelope profile used by
 # the canonical tunic visual audit. This is test/visual-fixture policy only; the
 # production backend remains unchanged.
-from freecad_cloth.simulation import TissuBackend as _tissu_backend
 
 
 def _tight_tissu_collision_envelope(surface):
@@ -49,6 +48,7 @@ _tissu_backend._collision_envelope = _tight_tissu_collision_envelope
 ROOT = "/workspace"
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
+from freecad_cloth.simulation import TissuBackend as _tissu_backend
 from freecad_cloth.sewing.SewingView import seam_color_map
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 os.makedirs(OUT, exist_ok=True)
