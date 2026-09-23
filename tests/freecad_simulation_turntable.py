@@ -257,7 +257,7 @@ def _seam_overlay(doc, name, seam_records, simulated=None):
     for index, (seam, piece_a, piece_b) in enumerate(seam_records):
         seam_id = str(getattr(seam, "SeamId", "")).strip()
         sides = []
-        for side, piece in ((\"A\", piece_a), (\"B\", piece_b)):
+        for side, piece in (("A", piece_a), ("B", piece_b)):
             edge_index = int(getattr(seam, "Edge%s" % side, 0))
             start = float(getattr(seam, "Start%s" % side, 0.0))
             end = float(getattr(seam, "End%s" % side, 1.0))
