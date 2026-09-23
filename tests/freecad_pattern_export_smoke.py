@@ -13,7 +13,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 import InitGui
 
-from freecad_cloth.pattern.PatternExport import from_dxf_metadata, from_svg_metadata, pattern_from_pattern_piece
+from freecad_cloth.pattern.PatternExport import from_dxf_metadata, from_svg_metadata
 from freecad_cloth.pattern.PatternCommands import get_active_pattern_export_task_panel
 
 LOG_PATH = Path(os.environ.get("CLOTH_PATTERN_EXPORT_LOG", ROOT / "artifacts" / "pattern-production-export.log"))
@@ -321,45 +321,23 @@ try:
                     raise RuntimeError("SVG export lost persisted construction-mark identity/geometry")
                 if 'data-segment="%s" data-t="0.500000"' % edge_id not in output:
                     raise RuntimeError("SVG export lost persisted semantic mark reference")
-                import xml.etree.ElementTree as ElementTree
-                root = ElementTree.fromstring(output)
-                view_box = [float(value) for value in root.attrib["viewBox"].split()]
-                svg_height = view_box[3]
-                pattern_model = pattern_from_pattern_piece(piece)
-                segment = pattern_model.by_id()[edge_id]
-                mark_point_xy = segment.point(0.5)
-                outline_points = [
-                    point
-                    for candidate in pattern_model.segments
-                    for point in (candidate.point(0.0), candidate.point(1.0))
-                ]
-                min_x = min(point[0] for point in outline_points)
-                min_y = min(point[1] for point in outline_points)
-                expected_x = mark_point_xy[0] - min_x
-                expected_y = svg_height - (mark_point_xy[1] - min_y)
-                notch_node = next(node for node in root.iter() if node.attrib.get("id") == "notch-%s" % notch_id)
-                if abs(float(notch_node.attrib["cx"]) - expected_x) > 1e-6 or abs(float(notch_node.attrib["cy"]) - expected_y) > 1e-6:
+                if 'cx="55.000000" cy="65.000000"' not in output:
                     raise RuntimeError("SVG export lost persisted notch coordinates")
-                for mark_id_value, mark_object in ((grainline_id, grainline), (mark_id, construction_mark)):
-                    mark_node = next(node for node in root.iter() if node.attrib.get("id") == "mark-%s" % mark_id_value)
-                    if abs((float(mark_node.attrib["x1"]) + float(mark_node.attrib["x2"])) / 2.0 - expected_x) > 1e-6:
-                        raise RuntimeError("SVG export lost persisted construction-mark center")
-                    if abs((float(mark_node.attrib["y1"]) + float(mark_node.attrib["y2"])) / 2.0 - expected_y) > 1e-6:
-                        raise RuntimeError("SVG export lost persisted construction-mark center")
-                    expected_half_length = float(mark_object.Length) / 2.0
-                    if abs(abs(float(mark_node.attrib["x2"]) - float(mark_node.attrib["x1"])) - 2.0 * expected_half_length) > 1e-6:
-                        raise RuntimeError("SVG export lost persisted construction-mark length")
+                if 'x1="35.000000" y1="65.000000" x2="75.000000" y2="65.000000"' not in output:
+                    raise RuntimeError("SVG export lost persisted construction-mark coordinates")
+                if 'x1="37.000000" y1="65.000000" x2="73.000000" y2="65.000000"' not in output:
+                    raise RuntimeError("SVG export lost persisted grainline coordinates")
             else:
                 if '"notch_ids":["%s"]' % notch_id not in output:
                     raise RuntimeError("DXF export lost persisted notch identity")
                 if '"mark_ids":%s' % str(sorted([grainline_id, mark_id])).replace("'", '"') not in output:
                     raise RuntimeError("DXF export lost persisted mark identity")
-                entity_lines = output.splitlines()
-                coordinate_values = [entity_lines[index + 1] for index, value in enumerate(entity_lines[:-1]) if value == "10"]
-                if not any(abs(float(value) - float(mark_point_xy[0])) < 1e-6 for value in coordinate_values):
+                if "10\n50.000000\n20\n0.000000\n10\n50.000000\n20\n3.000000" not in output:
                     raise RuntimeError("DXF export lost persisted notch coordinates")
-                if entity_lines.count("MARK") < 3:
-                    raise RuntimeError("DXF export lost persisted construction-mark geometry")
+                if "10\n30.000000\n20\n0.000000\n10\n70.000000\n20\n0.000000" not in output:
+                    raise RuntimeError("DXF export lost persisted construction-mark coordinates")
+                if "10\n32.000000\n20\n0.000000\n10\n68.000000\n20\n0.000000" not in output:
+                    raise RuntimeError("DXF export lost persisted grainline coordinates")
 
             results[export_format] = len(first)
 
