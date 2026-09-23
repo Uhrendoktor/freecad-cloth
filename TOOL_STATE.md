@@ -9,7 +9,7 @@ supervisor_issue: 1017
 continuation_issue: 1086
 active_release_pr: 1093
 active_release_branch: supervisor/release-candidate-69215e7-recovery-20260923
-current_main: 1b9af2dd8bb6554fcefcf30f0d723ae46fac9a65
+current_main: 6bb93b323c440b071d69cde884d4ee0a4269cb8b
 workflow_count: 1
 workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; inspect_jobs_logs_artifacts; no_second_workflow
