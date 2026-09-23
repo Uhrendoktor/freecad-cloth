@@ -12,10 +12,13 @@ CLO is used as a workflow benchmark, not as a cloning target. Public CLO documen
 
 ## Current repository state
 
-- Supervisor issue #1017 remains the complete-project criterion. PR #1058 is the current clean release candidate, cut from main at `dad152e634bcf454bc71aa02f4c1bfa858c154c1`.
-- Supporting canonical run #3297 / `35844023654` executed the real FreeCAD/Xvfb release jobs: Python, sewing, export, blanket visual, README turntable and tunic audit passed; only Native Sketcher acceptance timed out.
-- The Sketcher timeout has a bounded software diagnosis and fix in PR #1058: bootstrap `InitGui.py` before workbench activation and emit flushed stage markers so startup failures cannot remain silent.
-- Repeated zero-job push workflow failures are recorded as an external Actions orchestration blocker. They do not count as successful validation, and the production workflow remains unchanged.
+- Supervisor issue #1017 remains the complete-project criterion.
+- Current main is `8cee5774c25110448675e7b45d651869f3921692`, merged from PR #1059 at 2026-09-23T10:09:55Z.
+- Active release-closeout PR is #1066, head `af1e98d12a2287e9042aebb3ef9cb163bf97354c`, which aligns the basic Blanket-over-Cube and README blanket fixtures with the validated 200 mm geometry.
+- The canonical workflow remains exactly one workflow: `.github/workflows/canonical-execution.yml`.
+- Supporting canonical run #35845226384 validated the 200 mm basic blanket fixture successfully (mesh, drape, motion, material presentation and 16 motion frames), while the same run still exposed unrelated README-turntable and Native Sketcher failures.
+- Current branch/PR push runs #3394 (merged main) and #3397 (PR #1066 head) both terminate immediately with failure and zero jobs. The connector currently exposes no corresponding pull_request execution for #1066.
+- Issue #1053 records the reproducible Actions event-delivery/orchestration blocker and the administrator-side restoration path. No workflow duplication, threshold relaxation, or timeout weakening has been introduced.
 
 ## Supervisor milestone ladder
 

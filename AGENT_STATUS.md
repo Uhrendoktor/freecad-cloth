@@ -6,29 +6,29 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `dad152e634bcf454bc71aa02f4c1bfa858c154c1`
+- Current main: `8cee5774c25110448675e7b45d651869f3921692`
 - Canonical workflow: `.github/workflows/canonical-execution.yml`; exactly one workflow.
 - Supervisor completion issue: #1017.
-- Active release candidate: PR #1058, branch `supervisor/root-completion-20260923`.
+- Active release-closeout PR: #1066, branch `supervisor/complete-audit-20260923`, head `af1e98d12a2287e9042aebb3ef9cb163bf97354c`.
 
-## Implemented release slice
+## Implemented release slice on main
 
-- Native `CreatePieceWithSketch` is idempotent and has focused headless regression coverage.
-- Native Sketcher acceptance explicitly bootstraps `InitGui.py`, emits flushed stage markers, verifies placed/world-space seam endpoints, Sketcher-side editing, save/reload and downstream invalidation.
-- Blanket-over-Cube acceptance uses geometry-appropriate mesh collision, effective solver iterations, stable integration, opposite top-edge corner pins, and the existing fail-closed mesh thresholds.
-- README turntable uses the same blanket fixture, requires finite connected mesh/drape sanity, and rejects duplicate turntable frames.
-- Installation/docs index points users to the human-facing User Guide.
+- Public PatternPiece creation with native Sketcher authority is idempotent and has focused regression coverage.
+- Native Sketcher acceptance bootstraps the workbench, emits stage markers, validates placed/world-space seam endpoints, deterministic seam color, save/reload authority and downstream invalidation.
+- Blanket-over-Cube validation uses generic FreeCAD geometry with mesh collision, opposite top-edge corner pins, finite connected mesh/drape checks, real motion and material-presentation evidence.
+- README turntable generation requires 73 distinct frames, camera checkpoint distinctness and mesh-quality evidence.
+- Human-facing installation/user-guide/example documentation is present.
+- Current release-closeout correction (#1066) restores the evidence-backed 200 mm blanket fixture for both basic visual validation and README turntable generation.
 
 ## CI evidence
 
-- Supporting canonical run #3297 / `35844023654` executed real FreeCAD/Xvfb jobs. Python, sewing, pattern export, blanket visual, README turntable and tunic audit passed; only Native Sketcher acceptance timed out after its 8-minute fail-closed limit.
-- The timeout job log showed the FreeCAD process reached the test invocation but emitted no acceptance-stage output. The bounded fix in PR #1058 bootstraps the workbench registration before activation.
-- Repeated non-main and main push workflow runs terminate with zero jobs. PR-triggered runs exist and execute normally on other branches, so the zero-job state is recorded as an Actions orchestration blocker rather than test success.
+- Supporting canonical run #35845226384 ran real FreeCAD/Xvfb jobs. The 200 mm Basic blanket visual job passed, including material presentation and 16 motion frames.
+- In that supporting run, README turntable failed its drape sanity gate and Native Sketcher acceptance failed; the logs/artifacts were inspected. Later production changes addressed the fixture/runtime bugs, but no exact-head terminal-green run has yet been obtained.
+- Merged-main push run #3394 and PR #1066 push run #3397 both fail before job allocation with zero jobs.
+- Existing research run #3360 proved AppRun CLI/FreeCAD/GUI/Part/Sketcher imports succeed, while the full Sketcher acceptance still timed out at the unchanged 8-minute limit with an empty acceptance log.
 
 ## Current gate
 
-- Do not merge or close #1017 yet.
-- Exact-head PR #1058 must receive a terminal canonical run and its jobs/artifacts/logs must be inspected.
-- After merge, merged-main canonical validation must be terminal-green before closing supervisor issues.
-- Stale/overlapping PRs are being closed; only targeted research #1057 remains active while its evidence is useful.
-
+- Do not close #1017 or merge #1066 until exact-head canonical validation and merged-main canonical validation are terminal-green.
+- Issue #1053 remains the external Actions event-delivery blocker. The repository-side response is to preserve the single canonical workflow and leave the reproducible admin/Actions-policy restoration path documented.
+- Open actionable issues currently include #1017, #1020, #1041, #1042, #1043, #1048, #1053 and #1055.

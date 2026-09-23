@@ -1,26 +1,31 @@
 # Tool State
 
 ```yaml
-schema: 10
+schema: 11
 repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_issue: 1017
-active_release_pr: 1058
-active_release_branch: supervisor/root-completion-20260923
-current_main: dad152e634bcf454bc71aa02f4c1bfa858c154c1
+active_release_pr: 1066
+active_release_branch: supervisor/complete-audit-20260923
+active_release_head: af1e98d12a2287e9042aebb3ef9cb163bf97354c
+current_main: 8cee5774c25110448675e7b45d651869f3921692
 workflow_count: 1
 workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; inspect_jobs_logs_artifacts; no_second_workflow
 release_gate:
-  candidate: PR_1058
-  exact_head: 63eb2d4c7e8336855fa2b3b0c7d476cd0ee5ff70
-  pr_run_state: not_exposed_after_open; older unrelated PR runs are consuming the Actions pool
-  supporting_run: 35844023654
-  supporting_run_result: all canonical jobs passed except native Sketcher acceptance timeout
-  supporting_timeout_root_cause: acceptance activated Cloth workbenches without explicitly bootstrapping InitGui.py
-  candidate_fix: bootstrap InitGui.py and emit stage markers before GUI activation
-  external_ci_blocker: repeated zero-job push runs; keep production workflow unchanged
-final_gate: exact_head_canonical_pr_green; inspect_artifacts; merge; merged_main_canonical_pr_green; fresh_repo_audit
-open_actionable_issues: [1017, 1020, 1041, 1042, 1053]
+  candidate: PR_1066
+  candidate_scope: evidence-backed 200 mm blanket fixture for basic visual and README turntable
+  candidate_push_run: 35847473050
+  candidate_push_state: failure_zero_jobs
+  merged_main_push_run: 35847198318
+  merged_main_push_state: failure_zero_jobs
+  supporting_run: 35845226384
+  supporting_blanket_fixture: 200_mm_basic_visual
+  supporting_blanket_fixture_result: passed
+  supporting_readme_turntable_result: failed_drape_sanity_on_old_fixture
+  supporting_sketcher_result: failed_timeout_empty_log
+  external_ci_blocker: github_actions_event_delivery_or_policy; no_pull_request_run_for_current_supervisor_branches
+final_gate: exact_head_canonical_pr_green; inspect_artifacts; merge; merged_main_canonical_green; fresh_repo_audit
+open_actionable_issues: [1017, 1020, 1041, 1042, 1043, 1048, 1053, 1055]
 ```
