@@ -24,3 +24,6 @@ release_gate:
 final_gate: exact_head_canonical_pr_green; inspect_jobs_logs_artifacts; merge; merged_main_canonical_pr_green; fresh_repo_audit
 open_actionable_issues: [1017, 1020, 1042, 1043, 1053, 1055, 1067]
 ```
+
+closed_research_issues: [1042, 1055]
+stale_branch_cleanup: unavailable_via_current_connector
