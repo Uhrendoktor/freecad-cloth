@@ -65,6 +65,9 @@ class SewingTaskPanel:
         self.reverse_button=QtWidgets.QPushButton("Reverse B"); self.reverse_button.setToolTip("Toggle the direction of seam B correspondence"); self.reverse_button.clicked.connect(self.reverse_b); layout.addRow("Orientation",self.reverse_button)
         self.reset_ranges_button=QtWidgets.QPushButton("Reset ranges"); self.reset_ranges_button.setToolTip("Reset both seam ranges to the complete referenced edges"); self.reset_ranges_button.clicked.connect(self.reset_ranges); layout.addRow("Ranges",self.reset_ranges_button)
         self.repair_button=QtWidgets.QPushButton("Repair correspondence"); self.repair_button.setToolTip("Repair reversible/invalid-range correspondence without hiding physical length mismatch"); self.repair_button.clicked.connect(self.repair); layout.addRow("Repair",self.repair_button)
+        self.focus_3d_button=QtWidgets.QPushButton("Focus seam in 3D"); self.focus_3d_button.setToolTip("Fit the 3D viewport to this seam while keeping the deterministic seam color"); self.focus_3d_button.clicked.connect(self.focus_3d); layout.addRow("3D focus",self.focus_3d_button)
+        self.edit_a_button=QtWidgets.QPushButton("Edit side A in Sketcher"); self.edit_a_button.clicked.connect(lambda: self.edit_sketch_side("A")); layout.addRow("Sketcher A",self.edit_a_button)
+        self.edit_b_button=QtWidgets.QPushButton("Edit side B in Sketcher"); self.edit_b_button.clicked.connect(lambda: self.edit_sketch_side("B")); layout.addRow("Sketcher B",self.edit_b_button)
         self._original={"Tolerance":float(obj.Tolerance),"RelativeTolerance":float(getattr(obj,"RelativeTolerance",0.05)),"Stitches":int(obj.Stitches),"Alignment":str(getattr(self.seam,"Alignment","endpoints")) if self.seam else "endpoints","ReversedB":bool(getattr(self.seam,"ReversedB",False)) if self.seam else False,"StartA":float(getattr(self.seam,"StartA",0.0)) if self.seam else 0.0,"EndA":float(getattr(self.seam,"EndA",1.0)) if self.seam else 1.0,"StartB":float(getattr(self.seam,"StartB",0.0)) if self.seam else 0.0,"EndB":float(getattr(self.seam,"EndB",1.0)) if self.seam else 1.0}
         self._begin_transaction(); self._refresh()
     def _range_spin(self,value):
@@ -89,6 +92,24 @@ class SewingTaskPanel:
         self.correspondence.setText("%s — %s (severity %s, ratio %.4f); recovery: %s"%(report.status,report.message,report.severity,report.length_ratio,report.recovery))
         self.reverse_button.setText("Unreverse B" if bool(getattr(self.seam,"ReversedB",False)) else "Reverse B")
         self.reset_ranges_button.setEnabled(any(abs(float(getattr(self.seam,name,default))-default)>1e-9 for name,default in (("StartA",0.0),("EndA",1.0),("StartB",0.0),("EndB",1.0))))
+    def focus_3d(self):
+        if self.seam is None:
+            raise ValueError("no seam is assigned to this sewing operation")
+        self.Gui.Selection.clearSelection()
+        self.Gui.Selection.addSelection(self.seam)
+        from freecad_cloth.sewing.SewingCommands import focus_selected_seam_3d
+        focus_selected_seam_3d()
+        self._refresh("3D seam focus applied; seam color is preserved.")
+
+    def edit_sketch_side(self, side):
+        if self.seam is None:
+            raise ValueError("no seam is assigned to this sewing operation")
+        self.Gui.Selection.clearSelection()
+        self.Gui.Selection.addSelection(self.seam)
+        from freecad_cloth.sewing.SewingCommands import _edit_selected_seam_side
+        _edit_selected_seam_side(side)
+        self._refresh("Opened seam side %s in the authoritative Sketcher source." % side)
+
     def update(self): self._refresh()
     def _apply_seam_settings(self):
         if self.seam is None: return

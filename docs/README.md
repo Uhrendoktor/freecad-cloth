@@ -5,7 +5,7 @@ This directory is intentionally small. Read the documents in this order:
 1. **WORKBENCH_GUIDE.md** — user workflow and UI behavior.
 2. **ARCHITECTURE.md** — authoritative data, dependency and invalidation contracts.
 3. **PROJECT_STRUCTURE.md** — canonical package/module tree and FreeCAD bootstrap layout.
-4. **ROADMAP.md** — prototype → MVP → production scope and release gates.
+4. **[ROADMAP.md](../ROADMAP.md)** — prototype → MVP → production scope and release gates.
 5. **RESEARCH.md** — condensed CLO/garment-workflow research and FreeCAD mapping.
 6. **DEVELOPMENT.md** — testing, CI, screenshots, agent handoff and contribution rules.
 
@@ -38,3 +38,5 @@ The project aims for a CLO-like garment workflow while remaining FreeCAD-native:
 ## Module model
 
 All implementation code lives under `freecad_cloth/`. Root `Init.py` and `InitGui.py` are FreeCAD bootstrap adapters, and root `sitecustomize.py` is an interpreter/CI hook. Root-level domain modules and compatibility copies are not part of the supported architecture.
+
+- `USER_GUIDE.md` — human-facing workflow from first run through seams, materials, simulation and recovery.

@@ -2,7 +2,7 @@
 from math import ceil
 import weakref
 
-from freecad_cloth.simulation.SimulationQuality import FabricMaterial, QUALITY_PRESETS, preset
+from freecad_cloth.simulation.SimulationQuality import FabricMaterial, QUALITY_PRESETS, normalize_color_rgb, preset
 
 QUALITY_NAMES = tuple(QUALITY_PRESETS)
 _RUNTIME_BASES = weakref.WeakKeyDictionary()
@@ -20,6 +20,10 @@ def ensure_quality_properties(scene):
         ("FabricShear", "App::PropertyFloat", "Fabric", None, 0.02),
         ("FabricBend", "App::PropertyFloat", "Fabric", None, 0.01),
         ("FabricFriction", "App::PropertyFloat", "Fabric", None, 0.5),
+        ("FabricColor", "App::PropertyColor", "Fabric", None, (0.72, 0.34, 0.46)),
+        ("FabricSpecular", "App::PropertyFloat", "Fabric", None, 0.25),
+        ("FabricRoughness", "App::PropertyFloat", "Fabric", None, 0.65),
+        ("FabricTransparency", "App::PropertyInteger", "Fabric", None, 0),
         ("AvatarSkinOffset", "App::PropertyFloat", "Collision", None, 0.0),
     )
     for name, type_name, group, values, default in specs:
@@ -38,8 +42,10 @@ def _validate_properties(scene):
     scene.SolverSubsteps = max(1, int(scene.SolverSubsteps))
     scene.FabricDensity = max(1e-9, float(scene.FabricDensity))
     scene.FabricThickness = max(1e-9, float(scene.FabricThickness))
-    for name in ("FabricStretch", "FabricShear", "FabricBend", "FabricFriction"):
+    for name in ("FabricStretch", "FabricShear", "FabricBend", "FabricFriction", "FabricSpecular", "FabricRoughness"):
         setattr(scene, name, min(1.0, max(0.0, float(getattr(scene, name)))))
+    scene.FabricTransparency = min(100, max(0, int(scene.FabricTransparency)))
+    scene.FabricColor = normalize_color_rgb(getattr(scene, "FabricColor", (0.72, 0.34, 0.46)))
     scene.AvatarSkinOffset = max(0.0, float(scene.AvatarSkinOffset))
 
 
@@ -70,6 +76,10 @@ def _material(scene):
         shear=float(scene.FabricShear),
         bend=float(scene.FabricBend),
         friction=float(scene.FabricFriction),
+        color_rgb=normalize_color_rgb(scene.FabricColor),
+        specular=float(scene.FabricSpecular),
+        roughness=float(scene.FabricRoughness),
+        transparency=float(scene.FabricTransparency),
     ).validate()
 
 
@@ -178,6 +188,7 @@ class QualitySimulationProxy:
         from freecad_cloth.simulation.SimulationObjects import _write_mesh
         for panel in getattr(obj, "DrapePanels", ()):
             _write_mesh(panel, positions, base.panel_triangles.get(panel.Name, ()))
+        self._apply_presentation(obj)
         obj.SimulatedTime = base.backend.time
         obj.ParticleCount = len(positions)
         obj.FiniteState = base.backend.finite()
@@ -231,6 +242,21 @@ class QualitySimulationProxy:
         positions = base.backend.positions()
         for panel, key in zip(getattr(obj, "DrapePanels", ()), ("DrapePanelA", "DrapePanelB")):
             _write_grid_mesh(panel, positions, base.panel_indices[key], nx, ny)
+
+    def _apply_presentation(self, obj):
+        color = tuple(float(value) for value in getattr(obj, "FabricColor", (0.72, 0.34, 0.46)))
+        transparency = int(getattr(obj, "FabricTransparency", 0))
+        for panel in getattr(obj, "DrapePanels", ()):
+            try:
+                view = panel.ViewObject
+                view.ShapeColor = color
+                view.Transparency = transparency
+                if hasattr(view, "SpecularColor"):
+                    view.SpecularColor = (float(getattr(obj, "FabricSpecular", 0.25)),) * 3
+                if hasattr(view, "Shininess"):
+                    view.Shininess = float(max(0.0, min(100.0, (1.0 - float(getattr(obj, "FabricRoughness", 0.65))) * 100.0)))
+            except (AttributeError, TypeError, ValueError):
+                pass
 
     def _apply_material(self, obj):
         base = self._base_or_restore()

@@ -7,7 +7,7 @@ from freecad_cloth.gui import ClothWorkbenchBase
 COMMAND_GROUPS = (
     ("Sewing Creation", ("ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing", "ClothSewing_CreateNetwork", "ClothSewing_FreeSewing")),
     ("Sewing Editing", ("ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_EditNetwork", "ClothSewing_ReverseSeam", "ClothSewing_ToggleAlignment")),
-    ("Validation & View", ("ClothSewing_Validate", "ClothSewing_RepairSeam", "ClothSewing_Show2D")),
+    ("Validation & View", ("ClothSewing_Validate", "ClothSewing_RepairSeam", "ClothSewing_FocusSeam3D", "ClothSewing_EditSeamSideA", "ClothSewing_EditSeamSideB", "ClothSewing_Show2D")),
     ("Fitting & Avatar", ()),
 )
 TOOLBAR_COMMANDS = ("ClothSewing_CreateSeam", "ClothSewing_CreateOperation", "ClothSewing_Validate")

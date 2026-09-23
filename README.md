@@ -18,9 +18,13 @@ For local FreeCAD development, use a FreeCAD build whose embedded Python runtime
 
 FreeCAD/Sketcher owns editable geometry and document persistence; Cloth owns garment semantics; the solver owns physics. Simulation meshes and collision data are derived and rebuildable. A native human mannequin and generic FreeCAD Shape/PartDesign/Body/Mesh are interchangeable providers of the same target-neutral `DrapeTarget` contract.
 
-## Screenshots
+## Installation and examples
 
-The canonical FreeCAD/Xvfb workflow publishes the validated GUI states to a stable `docs/screenshots` branch. The simulation views are rendered as complete 360° camera paths for both the arranged and draped states, so the garment, mannequin and silhouette can be inspected continuously rather than from disconnected stills. The avatar is rendered the same way, with the orthographic captures retained for CI audit evidence.
+Start with [Installation](docs/INSTALLATION.md), then run the [Blanket over Cube](docs/EXAMPLES.md) example before the full tunic acceptance path. The [Release gates](docs/RELEASE_GATES.md) define what “complete” means for this repository and explicitly separate implemented behavior from the commercial-feature roadmap.
+
+## Screenshots and simulation media
+
+The canonical FreeCAD/Xvfb workflow publishes validated GUI states to a stable `docs/screenshots` branch. The basic example proves real cloth motion; the advanced tunic example is published from the authoritative tunic visual audit.
 
 ### Pattern design
 
@@ -30,13 +34,13 @@ The canonical FreeCAD/Xvfb workflow publishes the validated GUI states to a stab
 
 ![Cloth Sewing](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-sewing.png)
 
-### Simulation — arranged 360°
+### Basic example — blanket over cube
 
-![Cloth Simulation arranged 360°](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged-turntable.gif)
+![Blanket over cube motion](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-blanket-motion.gif)
 
-### Simulation — draped 360°
+### Advanced example — tunic
 
-![Cloth Simulation draped 360°](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-turntable.gif)
+![Advanced tunic validation](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-front.png)
 
 ### Avatar — 360° turntable
 
@@ -50,7 +54,9 @@ Internal imports use the canonical namespace, for example `freecad_cloth.pattern
 
 ## Current implementation
 
-The Pattern workbench creates native, recomputable PatternPieces with semantic IDs and pattern metadata. Sewing persists seam relationships and supports direction/correspondence operations. Simulation uses a persistent DrapeTarget and exposes target status in the public task panel. The deterministic CPU solver remains the correctness reference.
+The Pattern workbench creates native, recomputable PatternPieces with semantic IDs and pattern metadata. Sewing persists seam relationships and supports direction/correspondence operations. Simulation uses a persistent DrapeTarget and exposes target status in the public task panel. Fabric materials now persist presentation controls in addition to physical parameters. The deterministic CPU solver remains the correctness reference.
+
+The repository does not claim full commercial garment-suite parity. Advanced capabilities remain tracked in the roadmap and must pass their own executable/visual acceptance gates before being described as complete.
 
 ## License
 
@@ -58,8 +64,8 @@ This project is licensed under the GNU Lesser General Public License v2.1 or lat
 
 ## Development
 
-There is one canonical GitHub Actions workflow: `.github/workflows/canonical-execution.yml`. It runs Python/core checks and real FreeCAD/Xvfb GUI coverage. The GUI path preserves the existing static workflow screenshots plus 360° simulation turntables for arranged and draped states and a 360° avatar turntable in the `cloth-gui-screenshots` artifact.
+There is one canonical GitHub Actions workflow: `.github/workflows/canonical-execution.yml`. It runs Python/core checks, real FreeCAD/Xvfb GUI coverage, the basic blanket visual fixture, semantic seam/mesh sanity checks, 360° turntables and actual step-by-step simulation motion GIFs.
 
 ## Documentation
 
-Start at [docs/README.md](docs/README.md). It links the compact user guide, architecture contract, roadmap, research summary and development/agent rules. `AGENT_STATUS.md` and `TOOL_STATE.md` remain the durable machine-readable coordination records.
+Start at [docs/README.md](docs/README.md). It links installation, examples, the user guide, release gates, architecture, roadmap, research and development guidance. GitHub issue/PR templates and automated dependency updates are part of the repository hygiene baseline. `AGENT_STATUS.md` and `TOOL_STATE.md` remain the durable machine-readable coordination records.
