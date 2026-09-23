@@ -181,3 +181,118 @@ def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision():
             proxy.collision_surface,
         )
     ]
+
+
+def test_pattern_scene_truncates_stale_demo_panels_before_mesh_write():
+    """A one-piece pattern replaces a two-panel demo state without a stale-panel write."""
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    import freecad_cloth.simulation.SimulationObjects as simulation_objects
+
+    class FakeSystem:
+        def __init__(self, particles, constraints):
+            self.particles = particles
+            self.constraints = constraints
+
+        def add_stitches(self, pairs):
+            self.stitches = tuple(pairs)
+
+        def pin(self, pins):
+            self.pins = tuple(pins)
+
+    class FakeBackend:
+        name = "xpbd-cpu"
+
+        def positions(self):
+            return (
+                (0.0, 0.0, 120.0),
+                (10.0, 0.0, 120.0),
+                (0.0, 10.0, 120.0),
+            )
+
+        @property
+        def time(self):
+            return 0.0
+
+        def finite(self):
+            return True
+
+    class FakeRegistry:
+        def create(self, name, system, **kwargs):
+            assert name == "xpbd-cpu"
+            return FakeBackend()
+
+    piece = SimpleNamespace(
+        PieceId="piece-a",
+        PatternType="PatternPiece",
+        Label="PieceA",
+        Name="PieceA",
+    )
+    panel_a = SimpleNamespace(Name="DrapePanelA", Label="old")
+    panel_b = SimpleNamespace(Name="DrapePanelB", Label="old")
+    obj = SimpleNamespace(
+        Document=SimpleNamespace(),
+        DrapePanels=[panel_a, panel_b],
+        StartHeight=120.0,
+        StitchSamples=8,
+        PinSelection=[],
+        DrapeTarget=None,
+        ClothPieces=[piece],
+    )
+    piece_ir = SimpleNamespace()
+    resolved = SimpleNamespace(
+        pattern=SimpleNamespace(),
+        signature=("test",),
+        piece=lambda _piece_id: piece_ir,
+    )
+    writes = []
+
+    def fake_write_mesh(panel, positions, triangles):
+        writes.append((panel.Name, tuple(triangles)))
+
+    with (
+        patch.object(
+            simulation_objects,
+            "_piece_mesh",
+            return_value=(
+                (
+                    (0.0, 0.0, 120.0),
+                    (10.0, 0.0, 120.0),
+                    (0.0, 10.0, 120.0),
+                ),
+                ((0, 1, 2),),
+                ((0, 1), (1, 2), (2, 0)),
+            ),
+        ),
+        patch.object(simulation_objects, "_mesh_constraints", return_value=()),
+        patch.object(simulation_objects, "_seam_pair_records", return_value=((), ())),
+        patch.object(simulation_objects, "_collision_for_scene", return_value=None),
+        patch.object(simulation_objects, "_write_mesh", side_effect=fake_write_mesh),
+        patch(
+            "freecad_cloth.common.PatternSimulationAdapter.resolve_simulation_pattern",
+            return_value=resolved,
+        ),
+        patch(
+            "freecad_cloth.simulation.ClothBackend.default_backend_registry",
+            return_value=FakeRegistry(),
+        ),
+        patch(
+            "freecad_cloth.simulation.ClothBackend.preferred_backend_name",
+            return_value="xpbd-cpu",
+        ),
+        patch(
+            "freecad_cloth.simulation.ClothSolver.ClothSystem",
+            FakeSystem,
+        ),
+        patch(
+            "freecad_cloth.simulation.ClothSolver.Particle",
+            lambda *values: tuple(values),
+        ),
+    ):
+        proxy = simulation_objects.SimulationProxy()
+        proxy._build_pattern_scene(obj, [piece], signature=("test",))
+
+    assert obj.DrapePanels == [panel_a]
+    assert list(proxy.panel_triangles) == ["DrapePanelA"]
+    assert writes == [("DrapePanelA", ((0, 1, 2),))]

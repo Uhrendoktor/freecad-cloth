@@ -1,0 +1,236 @@
+"""Deterministic basic cloth example: a blanket draped over a cube."""
+
+import os
+import traceback
+from pathlib import Path
+
+import FreeCAD as App
+import FreeCADGui as Gui
+from pivy import coin
+
+try:
+    from PySide import QtWidgets
+except ImportError:
+    from PySide2 import QtWidgets
+
+from freecad_cloth.common.DrapeVisualSanity import inspect_drape, mesh_shape_sanity
+from freecad_cloth.common.MeshValidation import validate_mesh
+from freecad_cloth.pattern.PatternGeometry import rectangle
+from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
+from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
+from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
+from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, ensure_quality_properties
+
+
+OUT = Path(os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")) / "blanket-example"
+OUT.mkdir(parents=True, exist_ok=True)
+LOG = OUT / "blanket-visual.log"
+
+
+def log(message):
+    with LOG.open("a", encoding="utf-8") as handle:
+        handle.write(message + "\n")
+
+
+def events():
+    Gui.updateGui()
+    app = QtWidgets.QApplication.instance()
+    if app is not None:
+        app.processEvents()
+
+
+def save_png(view, path, state):
+    view.saveImage(str(path), 640, 480, "White")
+    if not path.is_file() or path.stat().st_size < 5000:
+        raise RuntimeError("failed screenshot: %s" % state)
+    header = path.read_bytes()[:24]
+    if header[:8] != b"\x89PNG\r\n\x1a\n":
+        raise RuntimeError("invalid PNG capture: %s" % state)
+
+
+def make_rectangle_sketch(doc, name, width, height):
+    import Part
+    import Sketcher
+
+    sketch = doc.addObject("Sketcher::SketchObject", name)
+    points = ((0.0, 0.0), (width, 0.0), (width, height), (0.0, height))
+    sketch.addGeometry([
+        Part.LineSegment(
+            App.Vector(points[index][0], points[index][1], 0),
+            App.Vector(points[(index + 1) % 4][0], points[(index + 1) % 4][1], 0),
+        )
+        for index in range(4)
+    ], False)
+    sketch.addConstraint([Sketcher.Constraint("Coincident", index, 2, (index + 1) % 4, 1) for index in range(4)])
+    doc.recompute()
+    return sketch, points
+
+
+def adopt_sketch(doc, sketch):
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(sketch)
+    piece = create_pattern_piece_from_selected_sketch(name="Blanket", allowance=0.0, grainline=0.0)
+    if piece.Sketch is not sketch:
+        raise RuntimeError("Blanket PatternPiece did not retain native Sketcher authority")
+    doc.recompute()
+    return piece
+
+
+def mesh_snapshot(panel):
+    vertices, triangles = panel.Mesh.Topology
+    points = tuple((float(vertex.x), float(vertex.y), float(vertex.z)) for vertex in vertices)
+    faces = tuple(tuple(int(index) for index in triangle) for triangle in triangles)
+    return points, faces
+
+
+def render_motion(view, scene, frame_count=16, final_steps=120):
+    steps = tuple(dict.fromkeys(
+        round(index * final_steps / float(frame_count - 1))
+        for index in range(frame_count)
+    ))
+    view.setCameraType("Orthographic")
+    view.viewAxonometric()
+    view.fitAll()
+    events()
+    for index, target_step in enumerate(steps):
+        scene.Steps = int(target_step)
+        scene.Document.recompute()
+        if not bool(scene.FiniteState):
+            raise RuntimeError("blanket simulation became non-finite at step %d" % target_step)
+        save_png(view, OUT / ("motion-%03d.png" % index), "blanket motion step %d" % target_step)
+    log("motion-frames=passed count=%d final_steps=%d" % (len(steps), final_steps))
+
+
+def main():
+    window = Gui.getMainWindow()
+    if window is None or not window.isVisible():
+        raise RuntimeError("FreeCAD GUI did not launch")
+    doc = App.newDocument("ClothBlanketExample")
+    try:
+        sketch, outline = make_rectangle_sketch(doc, "BlanketSketch", 260.0, 260.0)
+        piece = adopt_sketch(doc, sketch)
+        placement = App.Placement(App.Vector(-130.0, -130.0, 150.0), App.Rotation())
+        piece.Placement = placement
+        piece.Sketch.Placement = placement
+
+        cube = doc.addObject("Part::Feature", "BlanketTargetCube")
+        cube.Label = "Collision Target — Cube"
+        cube.Shape = __import__("Part").makeBox(180.0, 180.0, 60.0, App.Vector(-90.0, -90.0, 0.0))
+        doc.recompute()
+
+        scene = create_simulation_scene(doc)
+        set_avatar_collision_source(scene, cube, thickness=2.0, deflection=1.0)
+        ensure_quality_properties(scene)
+        scene.Proxy = QualitySimulationProxy()
+        scene.ClothPieces = [piece]
+        scene.GravityX = 0.0
+        scene.GravityY = 0.0
+        scene.GravityZ = -9810.0
+        scene.TimeStep = 1.0 / 120.0
+        scene.Iterations = 10
+
+        mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, scene.ParticleDistance)
+        boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
+        top = sorted(boundary_vertices, key=lambda index: float(mesh_positions[index][1]), reverse=True)[:2]
+        scene.PinSelection = [str(int(index)) for index in top]
+        scene.FabricColor = (0.14, 0.32, 0.78)
+        scene.FabricSpecular = 0.70
+        scene.FabricRoughness = 0.20
+        scene.FabricTransparency = 12
+        doc.recompute()
+
+        for source in (piece, sketch):
+            source.ViewObject.Visibility = False
+        cube.ViewObject.ShapeColor = (0.62, 0.62, 0.62)
+        panels = list(scene.DrapePanels)
+        if len(panels) != 1:
+            raise RuntimeError("blanket scenario must create one drape panel")
+        panel = panels[0]
+        for obj in doc.Objects:
+            if obj is not panel:
+                if str(getattr(obj, "ClothMeshType", "")) in {"DrapedCloth", "DrapePanel"}:
+                    obj.ViewObject.Visibility = False
+                if str(getattr(obj, "AvatarType", "")) == "ClothAvatar" and obj is not cube:
+                    obj.ViewObject.Visibility = False
+        panel.ViewObject.ShapeColor = (0.72, 0.34, 0.46)
+        panel.ViewObject.DisplayMode = "Flat Lines"
+        panel.ViewObject.Visibility = True
+        cube.ViewObject.Visibility = True
+        doc.recompute()
+        events()
+
+        view = Gui.activeDocument().activeView()
+        view.viewAxonometric()
+        view.fitAll()
+        events()
+        save_png(view, OUT / "checkpoint-000.png", "blanket initial state")
+
+        initial_points = tuple(tuple(float(value) for value in point) for point in scene.Proxy._base_or_restore().backend.positions())
+        render_steps = (15, 30, 60, 120)
+        for step in render_steps:
+            scene.Steps = step
+            doc.recompute()
+            events()
+            save_png(view, OUT / ("checkpoint-%03d.png" % step), "blanket step %d" % step)
+
+        final_points = tuple(tuple(float(value) for value in point) for point in scene.Proxy._base_or_restore().backend.positions())
+        if not initial_points or not final_points:
+            raise RuntimeError("blanket simulation produced no particles")
+        max_displacement = max(
+            sum((final_points[index][axis] - initial_points[index][axis]) ** 2 for axis in range(3)) ** 0.5
+            for index in range(min(len(initial_points), len(final_points)))
+        )
+        if max_displacement <= 1.0:
+            raise RuntimeError("blanket simulation did not materially move the cloth")
+
+        vertices, triangles = mesh_snapshot(panel)
+        mesh_result = validate_mesh(vertices, triangles, prefer_trimesh=False)
+        shape = mesh_shape_sanity(vertices, triangles)
+        avatar_points = tuple(
+            (float(vertex.Point.x), float(vertex.Point.y), float(vertex.Point.z))
+            for vertex in cube.Shape.Vertexes
+        )
+        drape = inspect_drape(vertices, avatar_points, target_height=60.0, target_width=180.0)
+        if not mesh_result.finite or mesh_result.components != 1 or mesh_result.degenerate_faces:
+            raise RuntimeError("blanket mesh failed structural validation: %r" % mesh_result)
+        if not shape["finite"] or shape["edge_spike_ratio"] > 4.0 or shape["spike_edge_fraction"] > 0.02:
+            raise RuntimeError("blanket mesh has spike outliers: %r" % shape)
+        if shape["footprint_aspect_ratio"] > 4.0:
+            raise RuntimeError("blanket footprint became excessively elongated: %r" % shape)
+        if not bool(scene.FiniteState):
+            raise RuntimeError("blanket final simulation state is non-finite")
+        log("mesh=passed vertices=%d faces=%d components=%d spikes=%.3f aspect=%.3f" % (
+            mesh_result.vertices, mesh_result.faces, mesh_result.components,
+            shape["edge_spike_ratio"], shape["footprint_aspect_ratio"],
+        ))
+        log("drape=passed state=%s vertical_ratio=%.3f lateral_ratio=%.3f" % (
+            drape.state, drape.vertical_span_ratio, drape.lateral_span_ratio,
+        ))
+        log("movement=passed max_displacement_mm=%.3f" % max_displacement)
+        applied_color = tuple(float(value) for value in panel.ViewObject.ShapeColor[:3])
+        expected_color = (0.14, 0.32, 0.78)
+        if any(abs(applied_color[index] - expected_color[index]) > 0.02 for index in range(3)):
+            raise RuntimeError("simulation viewport did not apply persisted fabric color")
+        if int(panel.ViewObject.Transparency) != 12:
+            raise RuntimeError("simulation viewport did not apply persisted fabric transparency")
+        log("material-presentation=passed viewport=true color=0.14,0.32,0.78 transparency=12")
+
+        render_motion(view, scene, frame_count=16, final_steps=120)
+        log("blanket-visual-acceptance=passed")
+    finally:
+        if doc.Name in App.listDocuments():
+            App.closeDocument(doc.Name)
+        events()
+        window.close()
+        app = QtWidgets.QApplication.instance()
+        if app is not None:
+            app.quit()
+
+
+try:
+    main()
+except BaseException as error:
+    print("BLANKET VISUAL FAILURE: %r" % (error,), flush=True)
+    print(traceback.format_exc(), flush=True)
+    log("blanket-visual-fail exception=%r" % (error,))
+    raise

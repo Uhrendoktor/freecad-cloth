@@ -19,6 +19,8 @@ def test_quality_preset_updates_solver_controls():
         FabricDensity=150.0, FabricThickness=0.5,
         FabricStretch=0.02, FabricShear=0.02,
         FabricBend=0.01, FabricFriction=0.5,
+        FabricColor=(0.72, 0.34, 0.46), FabricSpecular=0.25,
+        FabricRoughness=0.65, FabricTransparency=0,
         AvatarSkinOffset=0.0,
     )
     quality = apply_quality_preset(scene, "Final")

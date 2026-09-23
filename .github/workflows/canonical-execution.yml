@@ -8,9 +8,10 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '*/5 * * * *'
+    - cron: '0 3 * * *'
 
 concurrency:
-  group: canonical-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  group: canonical-${{ github.event_name }}-${{ github.event.schedule || github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -22,8 +23,8 @@ env:
 
 permissions:
   actions: read
-  contents: write
-  packages: write
+  contents: read
+  packages: read
 
 jobs:
   runner_heartbeat:
@@ -118,6 +119,7 @@ jobs:
                 tests/test_gui_structure.py \
                 tests/test_simulation_scene.py \
                 tests/test_simulation_quality.py \
+                tests/test_simulation_quality_runtime.py \
                 tests/test_avatar_fitting.py \
                 tests/test_avatar_shoulder_pose.py \
                 tests/test_avatar_hierarchical_pose.py \
@@ -129,7 +131,8 @@ jobs:
                 tests/test_pattern_simulation_adapter.py \
                 tests/test_seam_graph.py \
                 tests/test_workbench_icons.py \
-                tests/test_tunic_audit_contract.py; do
+                tests/test_tunic_audit_contract.py \
+                tests/test_readme_visual_contract.py; do
                 python3 "$test"
               done
             '
@@ -200,6 +203,52 @@ jobs:
           if-no-files-found: error
           compression-level: 1
 
+  gui-sketcher-acceptance:
+    name: Native Sketcher seam presentation acceptance
+    needs: runner_selection
+    runs-on: ${{ fromJSON(needs.runner_selection.outputs.runner) }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Run native Sketcher acceptance
+        run: |
+          set -euo pipefail
+          rm -rf artifacts
+          mkdir -p artifacts
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun tests/freecad_sketcher_acceptance.py > /workspace/artifacts/sketcher-acceptance.log 2>&1
+              grep -q "native Sketcher acceptance passed" /workspace/artifacts/sketcher-acceptance.log
+            '
+      - name: Inspect Sketcher evidence
+        run: |
+          set -euo pipefail
+          test -s artifacts/sketcher-acceptance.log
+          grep -q "native Sketcher acceptance passed" artifacts/sketcher-acceptance.log
+      - name: Upload Sketcher acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: sketcher-acceptance
+          path: artifacts/sketcher-acceptance.log
+          if-no-files-found: error
+          compression-level: 1
   gui-pattern-export:
     name: Pattern production export smoke
     needs: runner_selection
@@ -310,6 +359,7 @@ jobs:
           grep -q 'seam-markers=passed 3d-and-2d=true' artifacts/garment-e2e.log
           grep -q 'arrangement=passed pieces=4' artifacts/garment-e2e.log
           grep -q 'garment-hierarchy=passed groups=Patterns,Sewing,Fabric,Avatar,Simulation' artifacts/garment-e2e.log
+          grep -q 'material-presentation=passed native=true' artifacts/garment-e2e.log
           grep -q 'drape-target=passed type=Mannequin' artifacts/garment-e2e.log
           grep -q 'diagnostics=passed metric=stress' artifacts/garment-e2e.log
           grep -q 'save-reload=passed pieces=4 seam=1to1 network=2segment' artifacts/garment-e2e.log
@@ -335,7 +385,7 @@ jobs:
           compression-level: 1
 
   gui-turntables:
-    name: README turntables
+    name: README simulation turntable
     needs: runner_selection
     runs-on: ${{ fromJSON(needs.runner_selection.outputs.runner) }}
     timeout-minutes: 25
@@ -348,11 +398,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Pull FreeCAD image
         run: docker pull "$FREECAD_IMAGE"
-      - name: Render turntable frames
+      - name: Render avatar and blanket turntable frames
         env:
           CLOTH_SIMULATION_BACKEND: tissu
           CLOTH_TISSU_SUBSTEPS: 10
-          CLOTH_TISSU_COLLISION_MODE: torso-envelope
+          CLOTH_TISSU_COLLISION_MODE: mesh
         run: |
           set -euo pipefail
           rm -rf docs/images/generated
@@ -360,10 +410,8 @@ jobs:
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
-            -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
-            -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" \
-            -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
+            -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
@@ -377,79 +425,50 @@ jobs:
               timeout --signal=TERM --kill-after=15s 300s /opt/freecad/AppRun tests/freecad_avatar_screenshot.py
               timeout --signal=TERM --kill-after=15s 300s /opt/freecad/AppRun tests/freecad_simulation_turntable.py
             '
-          test -d docs/images/generated/cloth-avatar-turntable-frames
           test "$(find docs/images/generated/cloth-avatar-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
-          test -d docs/images/generated/cloth-simulation-arranged-turntable-frames
           test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
-          test -d docs/images/generated/cloth-simulation-draped-turntable-frames
           test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
-      - name: Validate turntable semantic and camera evidence
+      - name: Validate blanket motion and camera evidence
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          import hashlib
-          import re
-
+          import hashlib, re
           log = Path("docs/images/generated/simulation-turntable-progress.log").read_text(encoding="utf-8")
-          if "semantic-provenance=true" not in log:
-              raise SystemExit("missing semantic seam provenance marker")
-          match = re.findall(r"simulation-seam-diagnostic max_endpoint_gap_mm=([0-9.]+)", log)
-          if not match:
-              raise SystemExit("missing simulation seam diagnostic")
-          seam_gap = float(match[-1])
-          print(f"simulation seam gap mm={seam_gap:.2f}")
-          if seam_gap > 35.0:
-              raise SystemExit(f"simulation seam gap {seam_gap:.2f} mm exceeds 35 mm")
-
-          for directory in (
-              "cloth-avatar-turntable-frames",
-              "cloth-simulation-arranged-turntable-frames",
-              "cloth-simulation-draped-turntable-frames",
-          ):
-              hashes = []
-              for frame in (0, 18, 36, 54):
-                  path = Path("docs/images/generated") / directory / f"frame-{frame:03d}.png"
-                  if not path.is_file():
-                      raise SystemExit(f"missing turntable checkpoint {path}")
-                  hashes.append(hashlib.sha256(path.read_bytes()).hexdigest())
-              unique = len(set(hashes))
-              print(f"{directory} checkpoint-hashes={unique}")
-              if unique != 4:
-                  raise SystemExit(f"{directory} did not show four distinct turntable checkpoints")
-              print(f"{directory} checkpoint-uniqueness=passed hashes={unique}")
+          m = re.findall(r"blanket-motion-diagnostic max_centroid_displacement_mm=([0-9.]+).*min_z_mm=([0-9.]+).*cube_top_z_mm=([0-9.]+)", log)
+          if not m: raise SystemExit("missing blanket motion diagnostic")
+          displacement, minimum_z, cube_top = (float(x) for x in m[-1])
+          if displacement < 40.0: raise SystemExit("blanket displacement below 40 mm")
+          if minimum_z > cube_top + 35.0: raise SystemExit("blanket did not approach cube")
+          if "blanket-turntable-pass" not in log: raise SystemExit("blanket turntable incomplete")
+          for directory in ("cloth-avatar-turntable-frames","cloth-simulation-arranged-turntable-frames","cloth-simulation-draped-turntable-frames"):
+            hashes=[]
+            for frame in (0,18,36,54):
+              p=Path("docs/images/generated")/directory/("frame-%03d.png"%frame)
+              if not p.is_file(): raise SystemExit("missing "+str(p))
+              hashes.append(hashlib.sha256(p.read_bytes()).hexdigest())
+            if len(set(hashes)) != 4: raise SystemExit("camera checkpoints not distinct for "+directory)
           PY
-      - name: Build turntable GIFs
+      - name: Build README turntable GIFs
         run: |
           set -euo pipefail
-          if command -v magick >/dev/null 2>&1; then
-            IM=(magick)
-          elif command -v convert >/dev/null 2>&1; then
-            IM=(convert)
-          else
-            sudo apt-get update
-            sudo apt-get install -y imagemagick
-            IM=(convert)
+          if command -v magick >/dev/null 2>&1; then IM=(magick)
+          elif command -v convert >/dev/null 2>&1; then IM=(convert)
+          else sudo apt-get update && sudo apt-get install -y imagemagick && IM=(convert)
           fi
           for spec in \
             "cloth-avatar-turntable-frames cloth-avatar-turntable.gif" \
             "cloth-simulation-arranged-turntable-frames cloth-simulation-arranged-turntable.gif" \
             "cloth-simulation-draped-turntable-frames cloth-simulation-draped-turntable.gif"; do
-            set -- $spec
-            "${IM[@]}" "docs/images/generated/$1"/frame-*.png \
+            read -r frame_dir gif <<< "$spec"
+            "${IM[@]}" "docs/images/generated/$frame_dir"/frame-*.png \
               -delay 8 -loop 0 -colors 128 -layers Optimize \
-              "docs/images/generated/$2"
-            test -s "docs/images/generated/$2"
-          done
-      - name: Validate turntable GIFs
-        run: |
-          set -euo pipefail
-          for gif in cloth-avatar-turntable.gif cloth-simulation-arranged-turntable.gif cloth-simulation-draped-turntable.gif; do
-            identify -format '%n\n' "docs/images/generated/$gif" | head -n 1 | grep -qx '73'
-            python3 -c 'import os,sys; p=sys.argv[1]; d=open(p,"rb").read(6); assert d in (b"GIF87a", b"GIF89a"); assert os.path.getsize(p)>=50000' "docs/images/generated/$gif"
-          done
-      - name: Upload README turntables
-        if: ${{ always() }}
+              "docs/images/generated/$gif"
+            test -s "docs/images/generated/$gif"
+          identify -format '%n\n' docs/images/generated/cloth-simulation-arranged-turntable.gif | head -n 1 | grep -qx '73'
+          identify -format '%n\n' docs/images/generated/cloth-simulation-draped-turntable.gif | head -n 1 | grep -qx '73'
+      - name: Upload README turntable evidence
+        if: always()
         uses: actions/upload-artifact@v6
         with:
           name: readme-turntables
@@ -474,10 +493,83 @@ jobs:
           if-no-files-found: ignore
           compression-level: 1
 
+
+  gui-visual-examples:
+    name: Basic blanket visual example
+    needs: runner_selection
+    runs-on: ${{ fromJSON(needs.runner_selection.outputs.runner) }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Run blanket visual example
+        run: |
+          set -euo pipefail
+          rm -rf docs/images/generated/blanket-example
+          mkdir -p docs/images/generated/blanket-example
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated/blanket-example
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /workspace/tests/freecad_visual_examples.py
+            '
+          test -s docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'blanket-visual-acceptance=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'mesh=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'movement=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'material-presentation=passed viewport=true' docs/images/generated/blanket-example/blanket-visual.log
+          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'checkpoint-*.png' | wc -l)" -eq 5
+          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'motion-*.png' | wc -l)" -eq 16
+      - name: Build blanket motion GIF
+        run: |
+          set -euo pipefail
+          if command -v magick >/dev/null 2>&1; then
+            IM=(magick)
+          elif command -v convert >/dev/null 2>&1; then
+            IM=(convert)
+          else
+            sudo apt-get update
+            sudo apt-get install -y imagemagick
+            IM=(convert)
+          fi
+          "${IM[@]}" docs/images/generated/blanket-example/motion-*.png \
+            -delay 10 -loop 0 -colors 128 -layers Optimize \
+            docs/images/generated/blanket-example/blanket-motion.gif
+          identify -format '%n\n' docs/images/generated/blanket-example/blanket-motion.gif | head -n 1 | grep -qx '16'
+          test -s docs/images/generated/blanket-example/blanket-motion.gif
+      - name: Upload blanket visual evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: blanket-visual-example
+          path: |
+            docs/images/generated/blanket-example/*.png
+            docs/images/generated/blanket-example/blanket-motion.gif
+            docs/images/generated/blanket-example/blanket-visual.log
+          if-no-files-found: error
+          compression-level: 1
   publish-readme-turntables:
-    name: Publish README turntables
-    needs: [runner_selection, gui-tunic-visual, gui-turntables]
+    name: Publish README turntables and example motion
+    needs: [runner_selection, gui-tunic-visual, gui-turntables, gui-visual-examples]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    permissions:
+      contents: write
+      packages: read
     runs-on: ${{ fromJSON(needs.runner_selection.outputs.runner) }}
     timeout-minutes: 10
     steps:
@@ -486,6 +578,16 @@ jobs:
         with:
           name: readme-turntables
           path: turntables
+      - name: Download blanket visual example
+        uses: actions/download-artifact@v6
+        with:
+          name: blanket-visual-example
+          path: blanket
+      - name: Download tunic visual audit
+        uses: actions/download-artifact@v6
+        with:
+          name: tunic-visual-audit
+          path: tunic
       - name: Update stable README asset branch
         env:
           GH_TOKEN: ${{ github.token }}
@@ -505,17 +607,67 @@ jobs:
           cp ../turntables/cloth-avatar-turntable.gif docs/images/generated/
           cp ../turntables/cloth-simulation-arranged-turntable.gif docs/images/generated/
           cp ../turntables/cloth-simulation-draped-turntable.gif docs/images/generated/
+          cp ../turntables/cloth-simulation-motion.gif docs/images/generated/
+          cp ../blanket/blanket-example/blanket-motion.gif docs/images/generated/cloth-blanket-motion.gif
+          cp ../tunic/docs/images/generated/cloth-simulation-draped-front.png docs/images/generated/cloth-simulation-draped-front.png
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/images/generated/cloth-avatar-turntable.gif \
             docs/images/generated/cloth-simulation-arranged-turntable.gif \
-            docs/images/generated/cloth-simulation-draped-turntable.gif
+            docs/images/generated/cloth-simulation-draped-turntable.gif \
+            docs/images/generated/cloth-blanket-motion.gif \
+            docs/images/generated/cloth-simulation-draped-front.png
           if git diff --cached --quiet; then
             echo "README turntables are already current."
             exit 0
           fi
           git commit -m "ci: publish stable README turntables"
           git push origin "HEAD:$branch"
+  maintenance-cleanup:
+    name: Repository retention cleanup
+    if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * *' }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+    timeout-minutes: 10
+    steps:
+      - name: Remove stale agent branches and old completed workflow runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH_RETENTION_DAYS: 14
+          RUN_RETENTION_DAYS: 30
+        run: |
+          set -euo pipefail
+          branch_cutoff="$(date -u -d "-${BRANCH_RETENTION_DAYS} days" +%s)"
+          run_cutoff="$(date -u -d "-${RUN_RETENTION_DAYS} days" +%s)"
+          open_heads="$(gh pr list --repo "$REPO" --state open --limit 100 --json headRefName --jq '.[].headRefName')"
+          gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name' |
+          while IFS= read -r branch_name; do
+            case "$branch_name" in
+              agent/*) ;;
+              *) continue ;;
+            esac
+            if printf '%s\n' "$open_heads" | grep -Fxq "$branch_name"; then
+              echo "Keeping open-PR branch: $branch_name"
+              continue
+            fi
+            sha="$(gh api "repos/$REPO/branches/$branch_name" --jq '.commit.sha')"
+            authored="$(gh api "repos/$REPO/commits/$sha" --jq '.commit.author.date // .commit.committer.date')"
+            authored_epoch="$(date -u -d "$authored" +%s)"
+            if [ "$authored_epoch" -lt "$branch_cutoff" ]; then
+              gh api --method DELETE "repos/$REPO/git/refs/heads/$branch_name"
+            fi
+          done
+          gh api --paginate "repos/$REPO/actions/runs?per_page=100&status=completed" |
+            jq -r '.workflow_runs[] | [.id, .created_at] | @tsv' |
+            while IFS=$'\t' read -r run_id created_at; do
+              created_epoch="$(date -u -d "$created_at" +%s)"
+              if [ "$created_epoch" -lt "$run_cutoff" ]; then
+                gh api --method DELETE "repos/$REPO/actions/runs/$run_id"
+              fi
+            done
   benchmark:
     name: Measured FreeCAD workbench benchmark
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
