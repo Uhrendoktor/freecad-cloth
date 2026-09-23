@@ -6,11 +6,11 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main state: final release-closeout state; post-merge canonical run #3101 / `35818705178` is terminal-green.
+- Current main state: the historical closeout is superseded by supervisor issue #1017; PR #1018 carries the release-foundation corrections and remains open pending exact-head terminal verification.
 - Merged release PR #1001 provides the canonical garment E2E gate. Its validated source head was `40140b3a06549249c567feeb5e74dd5b766f551b`, exact-head canonical run #3076 / `35813109107`, terminal conclusion `success`.
 - PR #904 was subsequently merged into main as `4e119229cd4df00b529d002dd32106b09504992e` and establishes the current canonical local-Docker-runner preference with GitHub-hosted fallback. Runs #3084 and #3085 exercised that current workflow on the state-sync PR and were terminal-green across all active validation jobs.
 - PR #1009 (durable-state synchronization) is merged as `c41a071a345715f199bdade34872049faba4527d`; final closeout-state PR #1011 carries the final synchronized repository state.
-- No implementation PRs are open. PR #925/#1008 runner experiments and stale sewing PR #999 were closed unmerged; #904 is the merged runner implementation.
+- PR #1018 is open for the supervisor release-foundation work. PR #925/#1008 runner experiments and stale sewing PR #999 were closed unmerged; #904 is the merged runner implementation.
 - Python package boundary: `freecad_cloth/` with `avatar`, `pattern`, `sewing`, `simulation`, `common`, and `shared` subpackages.
 - Root Python files remain limited to `Init.py`, `InitGui.py`, and the CI `sitecustomize.py` hook.
 - Canonical CI: `.github/workflows/canonical-execution.yml`; exactly one workflow is retained.
@@ -30,10 +30,18 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - FreeCAD remains authoritative for editable geometry and persistence; Cloth owns garment semantics; the solver owns physics.
 - `PatternIR`, `SewingGraph`, `SimulationScene`, and `DrapeTarget` remain the semantic boundaries.
 - Simulation-derived mesh/collision state is rebuildable and invalidated from authoritative upstream edits.
-- Current main satisfies the release epic's canonical public-workbench garment lifecycle: Pattern → Sewing → Arrange/Fit → Simulate → Diagnose → Output, including persistence, invalidation/repair, determinism and fail-closed export.
+- Current main contains the prior garment lifecycle implementation, but supervisor #1017 identifies additional release gates: visual seam provenance, basic-example acceptance, real simulation-motion media, material presentation, onboarding, governance and retention hygiene. Those gates are being added in PR #1018.
 - The durable sewing correspondence/diagnostics closeout (#475) is complete and closed.
 - Historical child issues for garment lifecycle, curved M:N sewing, canonical workflow preflight, stale workflow tracks, and lifecycle process termination have been reconciled and closed with explicit state reasons.
-- The supervisor root #647, durable-state synchronization record #720, and release epic #471 are all closed with state reason `completed`. No open issue or pull request remains in the project release queue.
+- The prior release records remain historical. Supervisor issue #1017 is the active completion criterion and must remain open until PR #1018 reaches terminal CI verification.
+
+## Current task
+
+- Supervisor issue: #1017
+- Implementation branch: `agent/issue-1017-release-foundation-20260923`
+- Pull request: #1018
+- Canonical verification: `.github/workflows/canonical-execution.yml`
+- Current state: implementation is complete on branch head `d8682f98afdad2d4e22646b1af5c12337f336009`; exact-head canonical validation is the remaining supervisor gate. Earlier exact-head-equivalent run #3153 (`35834714836`) was terminal-green across the functional FreeCAD jobs, including README turntables and the tunic visual/simulation audit.
 
 ## Agent rules
 

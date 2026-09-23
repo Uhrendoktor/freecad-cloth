@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from math import isfinite, sqrt
 from typing import Sequence, Tuple
+from statistics import median
 
 Point3 = Tuple[float, float, float]
 
@@ -153,3 +154,44 @@ def summarize(metrics: DrapeVisualMetrics) -> dict:
         "target_vertex_clearance": metrics.target_vertex_clearance,
         "finite": metrics.finite,
     }
+
+
+
+def mesh_shape_sanity(vertices, triangles):
+    """Return deterministic mesh-shape health metrics for visual regression."""
+    if not vertices:
+        return {"finite": False, "vertices": 0, "faces": 0, "median_edge_length": 0.0,
+                "max_edge_length": 0.0, "edge_spike_ratio": float("inf"),
+                "spike_edge_fraction": 1.0, "footprint_aspect_ratio": float("inf")}
+    finite = all(isfinite(float(c)) for vertex in vertices for c in vertex)
+    if not finite:
+        return {"finite": False, "vertices": len(vertices), "faces": len(triangles),
+                "median_edge_length": 0.0, "max_edge_length": 0.0,
+                "edge_spike_ratio": float("inf"), "spike_edge_fraction": 1.0,
+                "footprint_aspect_ratio": float("inf")}
+    unique_edges = set()
+    lengths = []
+    for triangle in triangles:
+        if len(triangle) != 3:
+            continue
+        a, b, c = (int(index) for index in triangle)
+        for left, right in ((a, b), (b, c), (c, a)):
+            edge = (min(left, right), max(left, right))
+            if edge in unique_edges:
+                continue
+            unique_edges.add(edge)
+            p, q = vertices[left], vertices[right]
+            lengths.append(sqrt(sum((float(p[i]) - float(q[i])) ** 2 for i in range(3))))
+    median_edge = float(median(lengths)) if lengths else 0.0
+    max_edge = float(max(lengths)) if lengths else 0.0
+    spike_ratio = max_edge / median_edge if median_edge > 1e-12 else float("inf")
+    spike_fraction = sum(1 for value in lengths if value > 4.0 * median_edge) / float(len(lengths)) if lengths and median_edge > 1e-12 else 1.0
+    xs = [float(vertex[0]) for vertex in vertices]
+    ys = [float(vertex[1]) for vertex in vertices]
+    span_x, span_y = max(xs) - min(xs), max(ys) - min(ys)
+    small = min(value for value in (span_x, span_y) if value > 1e-12) if max(span_x, span_y) > 1e-12 else 0.0
+    aspect = max(span_x, span_y) / small if small > 0.0 else float("inf")
+    return {"finite": True, "vertices": len(vertices), "faces": len(triangles),
+            "median_edge_length": median_edge, "max_edge_length": max_edge,
+            "edge_spike_ratio": spike_ratio, "spike_edge_fraction": spike_fraction,
+            "footprint_aspect_ratio": aspect}
