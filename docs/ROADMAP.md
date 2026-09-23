@@ -52,7 +52,7 @@ Do not pull a visible CLO feature forward merely because it exists in CLO. Stabi
 
 ## Current release state
 
-- No open project issues or pull requests remain.
-- The P0 release-closeout scenario is implemented and terminal-green in canonical CI, including Python/FreeCAD checks, staged sewing creation, production export, the full tunic visual/simulation audit, and README turntables.
+- The P0 release-closeout implementation is present, but current PR #1066 has not yet received terminal-green canonical validation. Issue #1053 tracks the unresolved Actions pre-job blocker.
+- Historical canonical FreeCAD/Xvfb runs established real execution; run `35845226384` specifically validated the 200 mm Blanket-over-Cube visual example. Exact-head and merged-main validation are still required for release closeout.
 - The P1 and Production items listed above are future enhancements rather than active release blockers; they must preserve the existing Pattern/Sewing/DrapeTarget contracts.
 - Completed supervisor work includes documentation consolidation, stale-target/recompute hardening, sewing correspondence diagnostics, canonical garment E2E acceptance, CI runner-selection reconciliation, and durable-state reconciliation.
