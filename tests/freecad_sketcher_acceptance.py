@@ -146,8 +146,8 @@ def run_acceptance():
         if len(pieces) != 2:
             raise RuntimeError("public Pattern command did not create two PatternPiece objects")
         curved, mate = pieces
-        curved.Placement.Base.x = -130
-        mate.Placement.Base.x = 20
+        curved.Placement.Base = App.Vector(-130, 17, 0)
+        mate.Placement.Base = App.Vector(35, -29, 0)
         curved_sketch, width_index, height_index = _make_curved_piece_sketch(curved, doc)
         reference = mate.Sketch
         if reference is None:
@@ -163,7 +163,11 @@ def run_acceptance():
         Gui.activeDocument().resetEdit()
         _events()
 
-        _activate("ClothSewingWorkbench", ["ClothSewing_CreateSeam"])
+        _activate("ClothSewingWorkbench", [
+            "ClothSewing_CreateSeam",
+            "ClothSewing_FocusSeam3D",
+            "ClothSewing_EditSeamSideA",
+        ])
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(curved, "Edge3")
         Gui.Selection.addSelection(mate, "Edge1")
@@ -176,6 +180,51 @@ def run_acceptance():
         original_width = float(curved_sketch.getDatum(width_index))
         seam_id = str(seam.SeamId)
         semantic_ids = tuple(str(item) for item in curved_sketch.SemanticEdgeIds)
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(seam)
+        Gui.runCommand("ClothSewing_FocusSeam3D", 0)
+        if seam.Shape.isNull():
+            raise RuntimeError("seam focus command did not retain world-space presentation geometry")
+        from freecad_cloth.sewing.SewingView import seam_color_map
+        if tuple(seam.ViewObject.LineColor) != tuple(seam_color_map([seam_id])[seam_id]):
+            raise RuntimeError("seam focus command did not preserve deterministic seam color")
+        seam_box = seam.Shape.BoundBox
+        placed_piece_box = curved.Shape.BoundBox
+        if seam_box.XMax < placed_piece_box.XMin or seam_box.XMin > placed_piece_box.XMax:
+            raise RuntimeError("seam presentation is outside the placed PatternPiece coordinate system")
+        if abs(float(seam_box.XMin)) < 1e-6 and abs(float(seam_box.XMax)) < 1e-6:
+            raise RuntimeError("seam presentation appears to remain at the source Sketcher origin")
+        seam_vertices = tuple(vertex.Point for vertex in seam.Shape.Vertexes)
+
+        def _has_vertex(point, tolerance=1e-6):
+            return any((vertex - point).Length <= tolerance for vertex in seam_vertices)
+
+        curved_geometry = tuple(curved_sketch.Geometry)
+        mate_geometry = tuple(reference.Geometry)
+        world_edge_endpoints = (
+            curved.Placement.multVec(curved_geometry[2].StartPoint),
+            curved.Placement.multVec(curved_geometry[2].EndPoint),
+            mate.Placement.multVec(mate_geometry[0].StartPoint),
+            mate.Placement.multVec(mate_geometry[0].EndPoint),
+        )
+        for expected in world_edge_endpoints:
+            if not _has_vertex(expected):
+                raise RuntimeError(
+                    "seam presentation does not contain the placed/world-space Sketcher seam endpoint: %s"
+                    % expected
+                )
+        local_mate_start = mate_geometry[0].StartPoint
+        if _has_vertex(local_mate_start):
+            raise RuntimeError("seam presentation still contains the mate Sketcher endpoint in local coordinates")
+        Gui.runCommand("ClothSewing_EditSeamSideA", 0)
+        if not Gui.activeDocument().getInEdit():
+            raise RuntimeError("seam Sketcher-side command did not enter native Sketcher")
+        selection = Gui.Selection.getSelectionEx()
+        sketch_selection = [item for item in selection if item.Object is curved.Sketch]
+        if not sketch_selection or "Edge3" not in tuple(sketch_selection[-1].SubElementNames):
+            raise RuntimeError("seam Sketcher-side command did not select the authoritative semantic edge")
+        Gui.activeDocument().resetEdit()
+        _events()
 
         with tempfile.TemporaryDirectory() as directory:
             path = os.path.join(directory, "native-sketcher-acceptance.FCStd")
