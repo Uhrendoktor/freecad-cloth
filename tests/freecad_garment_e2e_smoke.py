@@ -407,14 +407,15 @@ def run_acceptance():
         if any(str(getattr(seam, "Status", "")) != "Valid" for seam in network.Seams):
             raise RuntimeError("M:N network retained an invalid member seam")
         from freecad_cloth.sewing.SewingObjects import _seam_length
-        total_a = sum(float(_seam_length(pieces[str(seam.PieceA)], seam, "A")) for seam in network.Seams)
-        total_b = sum(float(_seam_length(pieces[str(seam.PieceB)], seam, "B")) for seam in network.Seams)
+        pieces_by_id = {str(piece.PieceId): piece for piece in pieces}
+        total_a = sum(float(_seam_length(pieces_by_id[str(seam.PieceA)], seam, "A")) for seam in network.Seams)
+        total_b = sum(float(_seam_length(pieces_by_id[str(seam.PieceB)], seam, "B")) for seam in network.Seams)
         if abs(total_a - float(network.LengthA)) > 1e-6 or abs(total_b - float(network.LengthB)) > 1e-6:
             raise RuntimeError("M:N physical member lengths do not agree with persisted network totals")
         if float(network.LengthDifference) > 0.05 * min(float(network.LengthA), float(network.LengthB)):
             raise RuntimeError("M:N curved physical correspondence exceeded the persisted mismatch tolerance")
         pair_gaps = [
-            abs(float(_seam_length(pieces[str(seam.PieceA)], seam, "A")) - float(_seam_length(pieces[str(seam.PieceB)], seam, "B")))
+            abs(float(_seam_length(pieces_by_id[str(seam.PieceA)], seam, "A")) - float(_seam_length(pieces_by_id[str(seam.PieceB)], seam, "B")))
             for seam in network.Seams
         ]
         if max(pair_gaps) > 0.05 * max(float(network.LengthA), float(network.LengthB)) / len(network.Seams) + 0.01:
