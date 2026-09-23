@@ -336,7 +336,7 @@ def main():
         panel.ViewObject.Visibility = True
         cube.ViewObject.Visibility = True
         doc.recompute()
-        render_turntable(view, objects, os.path.join(OUT, "cloth-simulation-draped-turntable-frames"))
+        render_turntable(view, [cube, panel], os.path.join(OUT, "cloth-simulation-draped-turntable-frames"))
         log("blanket-turntable-pass")
     finally:
         if doc.Name in App.listDocuments():
