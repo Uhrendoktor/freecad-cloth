@@ -31,18 +31,12 @@ workflow_contract:
   policy: preserve_Docker_Xvfb_FreeCAD_path; fail_closed_evidence; no_second_workflow
 
 latest_verified_ci:
-  run_id: 35816392257
-  run_number: 3092
-  commit: 40733d6a2e10bb4bfeeee56d434bc389252fa630
-  pr: 1011
+  run_id: 35817505956
+  run_number: 3099
+  commit: bff6269db9bbb8f97713893d23b223150b61e8e3
+  pr: null
   status: completed
   conclusion: success
-  docs_only_followup:
-    run_id: 35816704554
-    run_number: 3094
-    commit: e8aa3f6c16bafa56681cde22665bf7ffdeff874a
-    pr: 1012
-    conclusion: success
   jobs:
     - Python and FreeCAD non-GUI tests
     - Full tunic visual and simulation audit
