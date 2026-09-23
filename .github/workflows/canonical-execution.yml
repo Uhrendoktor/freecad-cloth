@@ -398,7 +398,11 @@ jobs:
               "docs/images/generated/$dir/frame-018.png" \
               "docs/images/generated/$dir/frame-036.png" \
               "docs/images/generated/$dir/frame-054.png" | awk '{print $1}' | sort -u | wc -l)"
-            test "$unique" -eq 4
+            echo "$dir checkpoint-hashes=$unique"
+            if [ "$unique" -ne 4 ]; then
+              echo "::error::$dir did not show four distinct turntable checkpoints"
+              exit 1
+            fi
             echo "$dir checkpoint-uniqueness=passed hashes=$unique"
           done
       - name: Build turntable GIFs
@@ -439,6 +443,18 @@ jobs:
             docs/images/generated/cloth-avatar-turntable.gif
             docs/images/generated/cloth-simulation-arranged-turntable.gif
             docs/images/generated/cloth-simulation-draped-turntable.gif
+            docs/images/generated/cloth-avatar-turntable-frames/frame-000.png
+            docs/images/generated/cloth-avatar-turntable-frames/frame-018.png
+            docs/images/generated/cloth-avatar-turntable-frames/frame-036.png
+            docs/images/generated/cloth-avatar-turntable-frames/frame-054.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-000.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-018.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-036.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-054.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-000.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-018.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-036.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-054.png
             docs/images/generated/avatar-gui-progress.log
             docs/images/generated/simulation-turntable-progress.log
           if-no-files-found: ignore
