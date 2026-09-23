@@ -19,7 +19,7 @@
 | Persistence | save/reload does not lose semantic seam, material or target state |
 | Invalidation | upstream pattern/target edits block stale simulation/export until explicit repair/rebuild |
 | Packaging | FreeCAD bootstrap files and repository layout remain valid for direct `Mod` installation |
-| Open-source project hygiene | contribution, security and code-of-conduct entry points exist |
+| Open-source project hygiene | contribution, security, code-of-conduct, issue-template and pull-request entry points exist; dependency updates are automated |
 | Repository hygiene | stale agent branches and obsolete workflow runs follow an explicit retention policy |
 
 ## Feature boundary
