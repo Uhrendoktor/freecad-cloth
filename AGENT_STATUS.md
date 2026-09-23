@@ -9,7 +9,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - Current main: `205f60c0fb3b47edab36a82c643bd29f3a4a3eb6`
 - Canonical workflow: `.github/workflows/canonical-execution.yml`; exactly one workflow.
 - Supervisor completion issue: #1017.
-- Active release candidate: PR #1066, branch `supervisor/complete-audit-20260923`, head `7141ed6a8c9e49dd3e85c171401aeebf28ff17c6`.
+- Active release candidate: PR #1066, branch `supervisor/complete-audit-20260923`, live head `7141ed6a8c9e49dd3e85c171401aeebf28ff17c6`.
 
 ## Implemented release slice
 
@@ -25,6 +25,10 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - The timeout job log showed the FreeCAD process reached the test invocation but emitted no acceptance-stage output. The merged release now explicitly bootstraps workbench registration before activation and includes flushed acceptance stage markers.
 - Repeated non-main and main push workflow runs terminate with zero jobs. PR-triggered runs exist and execute normally on other branches, so the zero-job state is recorded as an Actions orchestration blocker rather than test success. Current main push run `35847413862` is one such zero-job failure.
 
+## Branch cleanup
+
+- Many historical agent/supervisor branches remain. The installed GitHub connector exposes branch listing but no branch-delete operation, so branch cleanup is not claimed complete.
+
 ## External CI blocker
 
 - GitHub Actions event delivery remains unresolved: main/non-main push runs can terminate `failure` with zero jobs, while historical pull_request/schedule runs instantiate the canonical job graph.
@@ -32,7 +36,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 ## Current gate
 
-- Do not merge or close #1017 yet.
+- Do not merge or close #1017 or continuation #1067 yet.
 - Exact-head PR #1066 must receive a terminal canonical run and its jobs/artifacts/logs must be inspected.
 - After merge, merged-main canonical validation must be terminal-green before closing supervisor issues.
 - Stale/overlapping PRs have been superseded. PR #1066 is the sole open release PR; #1053 and #1055 document external Actions/Sketcher evidence.
