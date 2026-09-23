@@ -1,5 +1,6 @@
 """Real-FreeCAD smoke coverage for the public production SVG/DXF export."""
 from pathlib import Path
+import json
 import os
 import tempfile
 import sys
@@ -330,7 +331,11 @@ try:
             else:
                 if '"notch_ids":["%s"]' % notch_id not in output:
                     raise RuntimeError("DXF export lost persisted notch identity")
-                if '"mark_ids":%s' % str(sorted([grainline_id, mark_id])).replace("'", '"') not in output:
+                expected_mark_ids = json.dumps(
+                    sorted([grainline_id, mark_id]),
+                    separators=(",", ":"),
+                )
+                if '"mark_ids":%s' % expected_mark_ids not in output:
                     raise RuntimeError("DXF export lost persisted mark identity")
                 if "10\n50.000000\n20\n0.000000\n10\n50.000000\n20\n3.000000" not in output:
                     raise RuntimeError("DXF export lost persisted notch coordinates")
