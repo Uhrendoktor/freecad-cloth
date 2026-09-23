@@ -319,7 +319,7 @@ def build_simulation_state(doc):
     shoulder_z = box.ZMin + 0.76 * z_span
     hem_z = box.ZMin + 0.40 * z_span
     garment_height = max(560.0, shoulder_z - hem_z)
-    body_depth = max(120.0, min(260.0, torso_width if torso_width > 0 else 180.0))
+    body_depth = max(120.0, min(260.0, float(box.YMax - box.YMin)))
     clearance = max(8.0, 0.025 * body_depth)
 
     def make_piece(name, y, mirror_x=False):
