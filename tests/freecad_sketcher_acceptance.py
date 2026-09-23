@@ -6,7 +6,15 @@ import tempfile
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
+print("sketcher-stage=before-FreeCAD-import", flush=True)
+import FreeCAD as App
+print("sketcher-stage=after-FreeCAD-import", flush=True)
+import FreeCADGui as Gui
+print("sketcher-stage=after-FreeCADGui-import", flush=True)
+import Part
+print("sketcher-stage=after-Part-import", flush=True)
 import Sketcher
+print("sketcher-stage=after-Sketcher-import", flush=True)
 
 
 print("sketcher-acceptance=module-imported", flush=True)
