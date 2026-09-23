@@ -16,7 +16,6 @@ except ImportError:
 from freecad_cloth.common.DrapeVisualSanity import inspect_drape, mesh_shape_sanity
 from freecad_cloth.common.MeshValidation import validate_mesh
 from freecad_cloth.pattern.PatternGeometry import rectangle
-from freecad_cloth.pattern.PatternMesh import triangulate
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
 from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
