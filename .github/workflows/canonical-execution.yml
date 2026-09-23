@@ -523,10 +523,12 @@ jobs:
             sudo apt-get install -y imagemagick
             IM=(convert)
           fi
-          "${IM[@]}" docs/images/generated/blanket-example/motion-*.png \
-            -delay 10 -loop 0 -colors 128 \
+          "${IM[@]}" -delay 10 -loop 0 -colors 128 \
+            docs/images/generated/blanket-example/motion-*.png \
             docs/images/generated/blanket-example/blanket-motion.gif
           identify -format '%n\n' docs/images/generated/blanket-example/blanket-motion.gif | head -n 1 | grep -qx '16'
+          frame_delays="$(identify -format '%T\n' docs/images/generated/blanket-example/blanket-motion.gif | sort -u)"
+          test "$frame_delays" = "10"
           test -s docs/images/generated/blanket-example/blanket-motion.gif
       - name: Upload blanket visual evidence
         if: always()
