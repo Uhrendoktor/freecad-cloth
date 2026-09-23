@@ -437,6 +437,8 @@ jobs:
         run: |
           set -euo pipefail
           grep -q 'simulation-motion-pass frames=16 final_steps=90' docs/images/generated/simulation-turntable-progress.log
+          grep -q 'blanket-motion-diagnostic max_centroid_displacement_mm=' docs/images/generated/simulation-turntable-progress.log
+          grep -q 'blanket-turntable-pass' docs/images/generated/simulation-turntable-progress.log
           grep -q 'simulation-seam-diagnostic max_endpoint_gap_mm=' docs/images/generated/simulation-turntable-progress.log
           grep -q 'semantic-provenance=true' docs/images/generated/simulation-turntable-progress.log
           gap="$(sed -n 's/.*max_endpoint_gap_mm=\([0-9.]*\).*/\1/p' docs/images/generated/simulation-turntable-progress.log | tail -n 1)"
