@@ -5,7 +5,7 @@ This directory is intentionally small. Read the documents in this order:
 1. **WORKBENCH_GUIDE.md** — user workflow and UI behavior.
 2. **ARCHITECTURE.md** — authoritative data, dependency and invalidation contracts.
 3. **PROJECT_STRUCTURE.md** — canonical package/module tree and FreeCAD bootstrap layout.
-4. **ROADMAP.md** — prototype → MVP → production scope and release gates.
+4. **[ROADMAP.md](../ROADMAP.md)** — prototype → MVP → production scope and release gates.
 5. **RESEARCH.md** — condensed CLO/garment-workflow research and FreeCAD mapping.
 6. **DEVELOPMENT.md** — testing, CI, screenshots, agent handoff and contribution rules.
 
