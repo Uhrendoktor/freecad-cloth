@@ -13,3 +13,7 @@ def test_sketcher_acceptance_initializes_gui_before_manual_initgui_bootstrap():
     assert run.index("_events()") < run.index("_bootstrap_workbenches()")
     assert 'raise RuntimeError("FreeCAD GUI main window is not available")' in run
     assert '_stage("gui-ready")' in run
+
+
+if __name__ == "__main__":
+    test_sketcher_acceptance_initializes_gui_before_manual_initgui_bootstrap()
