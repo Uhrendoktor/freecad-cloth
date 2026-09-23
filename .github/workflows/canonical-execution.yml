@@ -388,7 +388,7 @@ jobs:
             -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
             -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
-            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+            -v "$PWD:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
@@ -397,8 +397,8 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=15s 300s /opt/freecad/AppRun tests/freecad_avatar_screenshot.py
-              timeout --signal=TERM --kill-after=15s 300s /opt/freecad/AppRun tests/freecad_simulation_turntable.py
+              timeout --signal=TERM --kill-after=15s 300s /opt/freecad/AppRun /workspace/tests/freecad_avatar_screenshot.py
+              timeout --signal=TERM --kill-after=15s 300s /opt/freecad/AppRun /workspace/tests/freecad_simulation_turntable.py
             '
           test "$(find docs/images/generated/cloth-avatar-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
           test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
