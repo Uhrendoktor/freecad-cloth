@@ -525,12 +525,12 @@ jobs:
           compression-level: 1
   publish-readme-turntables:
     name: Publish README turntables and example motion
-    needs: [runner_selection, gui-tunic-visual, gui-turntables, gui-visual-examples]
+    needs: [gui-tunic-visual, gui-turntables, gui-visual-examples]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: write
       packages: read
-    runs-on: ${{ fromJSON(needs.runner_selection.outputs.runner) }}
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Download turntables
