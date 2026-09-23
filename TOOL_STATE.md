@@ -9,13 +9,13 @@ supervisor_issue: 1017
 active_release_pr: 1066
 active_release_branch: supervisor/complete-audit-20260923
 current_main: ccac198eae37bb162830895b1d8259ca84d7047f
-current_release_head: dd6de74062515e952f9c4675c8b9bb4fafba6e84
+current_release_head: 97f145e8214a8f951030eabf7fc14d9255b7dc6
 workflow_count: 1
 workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; inspect_jobs_logs_artifacts; no_second_workflow
 release_gate:
   candidate: PR_1066
-  exact_head: dd6de74062515e952f9c4675c8b9bb4fafba6e84
+  exact_head: 97f145e8214a8f951030eabf7fc14d9255b7dc6
   pr_run_state: no_pull_request_run_or_status_after_close_reopen; latest_zero_job_retry_35855453586_forbidden_403_cannot_be_retried
   supporting_run: 35845226384
   supporting_basic_artifact: 10743635540
