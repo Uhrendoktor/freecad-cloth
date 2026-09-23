@@ -219,6 +219,10 @@ def run_acceptance():
         Gui.runCommand("ClothSewing_EditSeamSideA", 0)
         if not Gui.activeDocument().getInEdit():
             raise RuntimeError("seam Sketcher-side command did not enter native Sketcher")
+        selection = Gui.Selection.getSelectionEx()
+        sketch_selection = [item for item in selection if item.Object is curved.Sketch]
+        if not sketch_selection or "Edge3" not in tuple(sketch_selection[-1].SubElementNames):
+            raise RuntimeError("seam Sketcher-side command did not select the authoritative semantic edge")
         Gui.activeDocument().resetEdit()
         _events()
 
