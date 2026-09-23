@@ -118,6 +118,7 @@ jobs:
                 tests/test_gui_structure.py \
                 tests/test_simulation_scene.py \
                 tests/test_simulation_quality.py \
+                tests/test_simulation_quality_runtime.py \
                 tests/test_avatar_fitting.py \
                 tests/test_avatar_shoulder_pose.py \
                 tests/test_avatar_hierarchical_pose.py \
@@ -395,7 +396,8 @@ jobs:
           for spec in \
             "cloth-avatar-turntable-frames cloth-avatar-turntable.gif" \
             "cloth-simulation-arranged-turntable-frames cloth-simulation-arranged-turntable.gif" \
-            "cloth-simulation-draped-turntable-frames cloth-simulation-draped-turntable.gif"             "cloth-simulation-motion-frames cloth-simulation-motion.gif"; do
+            "cloth-simulation-draped-turntable-frames cloth-simulation-draped-turntable.gif" \
+            "cloth-simulation-motion-frames cloth-simulation-motion.gif"; do
             set -- $spec
             "${IM[@]}" "docs/images/generated/$1"/frame-*.png \
               -delay 8 -loop 0 -colors 128 -layers Optimize \
