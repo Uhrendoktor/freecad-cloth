@@ -80,6 +80,44 @@ def test_one_step_pattern_piece_command_is_registered_and_creates_native_sketch(
     assert doc is document
     assert document.recompute_calls == 1
 
+def test_one_step_pattern_piece_command_skips_existing_native_sketch():
+    class Document:
+        def __init__(self):
+            self.recompute_calls = 0
+
+        def recompute(self):
+            self.recompute_calls += 1
+
+    document = Document()
+    piece = type("PatternPieceObject", (), {
+        "Label": "Bodice",
+        "PieceId": "pattern-piece-1",
+        "SeamAllowance": 8.0,
+        "GrainlineAngle": 0.0,
+        "SewingOutline": "[(0, 0), (100, 0), (100, 60), (0, 60)]",
+        "Sketch": object(),
+    })()
+    calls = []
+    original_create = PatternCommands.create_pattern_piece
+    original_sketch = PatternCommands._create_native_sketch_for_piece
+    old_freecad = sys.modules.get("FreeCAD")
+
+    PatternCommands.create_pattern_piece = lambda: piece
+    PatternCommands._create_native_sketch_for_piece = lambda obj: calls.append(obj)
+    sys.modules["FreeCAD"] = type("FreeCAD", (), {"ActiveDocument": document})
+    try:
+        result = PatternCommands.create_pattern_piece_with_sketch()
+    finally:
+        PatternCommands.create_pattern_piece = original_create
+        PatternCommands._create_native_sketch_for_piece = original_sketch
+        if old_freecad is None:
+            sys.modules.pop("FreeCAD", None)
+        else:
+            sys.modules["FreeCAD"] = old_freecad
+
+    assert result is piece
+    assert calls == []
+    assert document.recompute_calls == 1
 
 def test_native_sketch_adoption_command_is_public():
     assert "ClothPattern_CreateFromSketch" in PatternCommands.COMMANDS
