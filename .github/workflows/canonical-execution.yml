@@ -410,13 +410,20 @@ jobs:
           if displacement < 40.0: raise SystemExit("blanket displacement below 40 mm")
           if minimum_z > cube_top + 35.0: raise SystemExit("blanket did not approach cube")
           if "blanket-turntable-pass" not in log: raise SystemExit("blanket turntable incomplete")
+          if "mesh-quality=passed" not in log: raise SystemExit("blanket mesh-quality evidence missing")
           for directory in ("cloth-avatar-turntable-frames","cloth-simulation-arranged-turntable-frames","cloth-simulation-draped-turntable-frames"):
             hashes=[]
+            frames=sorted((Path("docs/images/generated")/directory).glob("frame-*.png"))
+            if len(frames) != 73: raise SystemExit("unexpected frame count for "+directory)
+            for frame_path in frames:
+              hashes.append(hashlib.sha256(frame_path.read_bytes()).hexdigest())
+            if len(set(hashes)) != 73: raise SystemExit("all 73 frames are not distinct for "+directory)
+            checkpoints=[]
             for frame in (0,18,36,54):
               p=Path("docs/images/generated")/directory/("frame-%03d.png"%frame)
               if not p.is_file(): raise SystemExit("missing "+str(p))
-              hashes.append(hashlib.sha256(p.read_bytes()).hexdigest())
-            if len(set(hashes)) != 4: raise SystemExit("camera checkpoints not distinct for "+directory)
+              checkpoints.append(hashlib.sha256(p.read_bytes()).hexdigest())
+            if len(set(checkpoints)) != 4: raise SystemExit("camera checkpoints not distinct for "+directory)
           PY
       - name: Build README turntable GIFs
         run: |
