@@ -14,7 +14,8 @@ class SimulationQualityTaskPanel:
     SNAPSHOT_PROPERTIES = (
         "QualityPreset", "ParticleDistance", "SolverIterations", "SolverSubsteps",
         "FabricDensity", "FabricThickness", "FabricStretch", "FabricShear",
-        "FabricBend", "FabricFriction", "AvatarSkinOffset", "CollisionRadius", "Steps",
+        "FabricBend", "FabricFriction", "FabricColor", "FabricSpecular",
+        "FabricRoughness", "FabricTransparency", "AvatarSkinOffset", "CollisionRadius", "Steps",
     )
 
     def __init__(self, scene=None):
@@ -35,7 +36,11 @@ class SimulationQualityTaskPanel:
         qform.addRow("Preset", self.quality); qform.addRow("Particle distance (mm)", self.particle_distance); qform.addRow("Solver iterations", self.iterations); qform.addRow("Solver substeps", self.substeps); root.addWidget(quality)
         fabric = QtWidgets.QGroupBox("Fabric"); fform = QtWidgets.QFormLayout(fabric)
         self.density = self._double(1.0, 2000.0, 150.0, 1); self.thickness = self._double(0.01, 10.0, 0.5, 2); self.stretch = self._double(0.0, 1.0, 0.02, 4); self.shear = self._double(0.0, 1.0, 0.02, 4); self.bend = self._double(0.0, 1.0, 0.01, 4); self.friction = self._double(0.0, 1.0, 0.5, 3)
-        for label, widget in (("Density (g/m²)", self.density), ("Thickness (mm)", self.thickness), ("Stretch", self.stretch), ("Shear", self.shear), ("Bend", self.bend), ("Friction", self.friction)): fform.addRow(label, widget)
+        self.fabric_color = QtWidgets.QPushButton("Choose fabric color")
+        self.specular = self._double(0.0, 1.0, 0.25, 3)
+        self.roughness = self._double(0.0, 1.0, 0.65, 3)
+        self.transparency = self._spin(0, 100, 0)
+        for label, widget in (("Density (g/m²)", self.density), ("Thickness (mm)", self.thickness), ("Stretch", self.stretch), ("Shear", self.shear), ("Bend", self.bend), ("Friction", self.friction), ("Color", self.fabric_color), ("Specular", self.specular), ("Roughness", self.roughness), ("Transparency (%)", self.transparency)): fform.addRow(label, widget)
         root.addWidget(fabric)
         collision = QtWidgets.QGroupBox("Collision"); cform = QtWidgets.QFormLayout(collision)
         self.skin_offset = self._double(0.0, 100.0, 0.0, 2); self.collision_radius = self._double(0.0, 10000.0, 38.0, 2)
@@ -46,7 +51,8 @@ class SimulationQualityTaskPanel:
         buttons.addWidget(self.step_button); buttons.addWidget(self.run_button); buttons.addWidget(self.reset_button); root.addLayout(buttons)
         self.status = QtWidgets.QLabel(); self.status.setWordWrap(True); root.addWidget(self.status); root.addStretch(1)
         self.quality.currentTextChanged.connect(self._preset_changed)
-        for widget in (self.particle_distance, self.iterations, self.substeps, self.density, self.thickness, self.stretch, self.shear, self.bend, self.friction, self.skin_offset, self.collision_radius): widget.valueChanged.connect(self._parameters_changed)
+        self.fabric_color.clicked.connect(self._choose_fabric_color)
+        for widget in (self.particle_distance, self.iterations, self.substeps, self.density, self.thickness, self.stretch, self.shear, self.bend, self.friction, self.specular, self.roughness, self.transparency, self.skin_offset, self.collision_radius): widget.valueChanged.connect(self._parameters_changed)
         self.step_button.clicked.connect(lambda: self.step(1)); self.run_button.clicked.connect(lambda: self.step(30)); self.reset_button.clicked.connect(self.reset)
         self._load()
 
@@ -79,14 +85,33 @@ class SimulationQualityTaskPanel:
         self._load_widgets_only()
         self._refresh()
 
+    def _set_color_button(self, color):
+        r = int(max(0, min(255, round(float(color[0]) * 255))))
+        g = int(max(0, min(255, round(float(color[1]) * 255))))
+        b = int(max(0, min(255, round(float(color[2]) * 255))))
+        self._fabric_qcolor = self.QtWidgets.QColor(r, g, b)
+        self.fabric_color.setStyleSheet("background-color: rgb(%d,%d,%d)" % (r, g, b))
+
+    def _choose_fabric_color(self):
+        QtGui = __import__("PySide").QtGui if "PySide" in __import__("sys").modules else __import__("PySide2").QtGui
+        current = getattr(self, "_fabric_qcolor", QtGui.QColor(184, 87, 117))
+        chosen = QtGui.QColorDialog.getColor(current, self.form, "Fabric color")
+        if not chosen.isValid():
+            return
+        self._fabric_qcolor = chosen
+        self._set_color_button((chosen.red() / 255.0, chosen.green() / 255.0, chosen.blue() / 255.0))
+        self._parameters_changed()
+
     def _load_widgets_only(self):
         if self.scene is None:
             return
-        widgets = [self.quality, self.particle_distance, self.iterations, self.substeps, self.density, self.thickness, self.stretch, self.shear, self.bend, self.friction, self.skin_offset, self.collision_radius, self.steps]
+        widgets = [self.quality, self.particle_distance, self.iterations, self.substeps, self.density, self.thickness, self.stretch, self.shear, self.bend, self.friction, self.specular, self.roughness, self.transparency, self.skin_offset, self.collision_radius, self.steps]
         for widget in widgets: widget.blockSignals(True)
         try:
             self.quality.setCurrentText(str(self.scene.QualityPreset)); self.particle_distance.setValue(float(self.scene.ParticleDistance)); self.iterations.setValue(int(self.scene.SolverIterations)); self.substeps.setValue(int(self.scene.SolverSubsteps))
             self.density.setValue(float(self.scene.FabricDensity)); self.thickness.setValue(float(self.scene.FabricThickness)); self.stretch.setValue(float(self.scene.FabricStretch)); self.shear.setValue(float(self.scene.FabricShear)); self.bend.setValue(float(self.scene.FabricBend)); self.friction.setValue(float(self.scene.FabricFriction))
+            self.specular.setValue(float(self.scene.FabricSpecular)); self.roughness.setValue(float(self.scene.FabricRoughness)); self.transparency.setValue(int(self.scene.FabricTransparency))
+            self._set_color_button(tuple(float(value) for value in self.scene.FabricColor))
             self.skin_offset.setValue(float(self.scene.AvatarSkinOffset)); self.collision_radius.setValue(float(getattr(self.scene, "CollisionRadius", 38.0))); self.steps.setValue(int(getattr(self.scene, "Steps", 0)))
         finally:
             for widget in widgets: widget.blockSignals(False)
@@ -111,7 +136,11 @@ class SimulationQualityTaskPanel:
 
     def _parameters_changed(self):
         if self.scene is None: return
-        self.scene.ParticleDistance = self.particle_distance.value(); self.scene.SolverIterations = self.iterations.value(); self.scene.SolverSubsteps = self.substeps.value(); self.scene.FabricDensity = self.density.value(); self.scene.FabricThickness = self.thickness.value(); self.scene.FabricStretch = self.stretch.value(); self.scene.FabricShear = self.shear.value(); self.scene.FabricBend = self.bend.value(); self.scene.FabricFriction = self.friction.value(); self.scene.AvatarSkinOffset = self.skin_offset.value(); self.scene.CollisionRadius = self.collision_radius.value(); self.scene.Document.recompute(); self._refresh("Changes are applied live. Cancel restores the panel-open state.")
+        color = getattr(self, "_fabric_qcolor", None)
+        self.scene.ParticleDistance = self.particle_distance.value(); self.scene.SolverIterations = self.iterations.value(); self.scene.SolverSubsteps = self.substeps.value(); self.scene.FabricDensity = self.density.value(); self.scene.FabricThickness = self.thickness.value(); self.scene.FabricStretch = self.stretch.value(); self.scene.FabricShear = self.shear.value(); self.scene.FabricBend = self.bend.value(); self.scene.FabricFriction = self.friction.value(); self.scene.FabricSpecular = self.specular.value(); self.scene.FabricRoughness = self.roughness.value(); self.scene.FabricTransparency = self.transparency.value()
+        if color is not None:
+            self.scene.FabricColor = (color.redF(), color.greenF(), color.blueF())
+        self.scene.AvatarSkinOffset = self.skin_offset.value(); self.scene.CollisionRadius = self.collision_radius.value(); self.scene.Document.recompute(); self._refresh("Changes are applied live. Cancel restores the panel-open state.")
 
     def step(self, count):
         scene = self._ensure_scene()
