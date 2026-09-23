@@ -3,11 +3,14 @@
 This directory is intentionally small. Read the documents in this order:
 
 1. **WORKBENCH_GUIDE.md** — user workflow and UI behavior.
-2. **ARCHITECTURE.md** — authoritative data, dependency and invalidation contracts.
-3. **PROJECT_STRUCTURE.md** — canonical package/module tree and FreeCAD bootstrap layout.
-4. **ROADMAP.md** — prototype → MVP → production scope and release gates.
-5. **RESEARCH.md** — condensed CLO/garment-workflow research and FreeCAD mapping.
-6. **DEVELOPMENT.md** — testing, CI, screenshots, agent handoff and contribution rules.
+2. **INSTALLATION.md** — installation and first-run setup.
+3. **EXAMPLES.md** — executable visual examples and regression fixtures.
+4. **ARCHITECTURE.md** — authoritative data, dependency and invalidation contracts.
+5. **PROJECT_STRUCTURE.md** — canonical package/module tree and FreeCAD bootstrap layout.
+6. **[ROADMAP.md](../ROADMAP.md)** — prototype → MVP → production scope and release gates.
+7. **RELEASE_GATES.md** — evidence required before a release closeout.
+8. **RESEARCH.md** — condensed CLO/garment-workflow research and FreeCAD mapping.
+9. **DEVELOPMENT.md** — testing, CI, screenshots, agent handoff and contribution rules.
 
 ## Source of truth
 
@@ -20,7 +23,7 @@ This directory is intentionally small. Read the documents in this order:
 
 ## Documentation rule
 
-Prefer updating an existing canonical document over adding a new note. Dated audit material belongs in the relevant issue/PR or in the compact supervisor state, not as another permanent document. If a new document is genuinely necessary, link it here and explain why it cannot fit an existing contract.
+Prefer updating an existing canonical document over adding a new note. Dated audit material belongs in the relevant issue/PR or in the compact supervisor state, not as another permanent document. When a new document is genuinely necessary, link it here and explain why it cannot fit an existing contract.
 
 ## Workbench model
 
