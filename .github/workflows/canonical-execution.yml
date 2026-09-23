@@ -226,6 +226,43 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Pull FreeCAD image
         run: docker pull "$FREECAD_IMAGE"
+      - name: Diagnose FreeCAD Sketcher startup boundary
+        run: |
+          set -euo pipefail
+          rm -f sketcher-startup-diagnostic.log
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -uo pipefail
+              mkdir -p "$XDG_RUNTIME_DIR"
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              {
+                probe() {
+                  name="$1"
+                  code="$2"
+                  printf "probe=%s begin\\n" "$name"
+                  if timeout --signal=TERM --kill-after=3s 30s /opt/freecad/AppRun -c "$code"; then
+                    printf "probe=%s pass\\n" "$name"
+                  else
+                    status=$?
+                    printf "probe=%s fail status=%s\\n" "$name" "$status"
+                  fi
+                }
+                probe cli "print(\"AppRun CLI ready\", flush=True)"
+                probe freecad "import FreeCAD; print(\"FreeCAD import complete\", flush=True)"
+                probe freecadgui "import FreeCADGui; print(\"FreeCADGui import complete\", flush=True)"
+                probe part "import Part; print(\"Part import complete\", flush=True)"
+                probe sketcher "import Sketcher; print(\"Sketcher import complete\", flush=True)"
+                probe combined "import FreeCAD, FreeCADGui, Part, Sketcher; print(\"all imports complete\", flush=True)"
+              } 2>&1 | tee /workspace/sketcher-startup-diagnostic.log
+            '
+          test -s sketcher-startup-diagnostic.log
+
       - name: Run native Sketcher acceptance
         run: |
           set -euo pipefail
