@@ -45,10 +45,7 @@ def _validate_properties(scene):
     for name in ("FabricStretch", "FabricShear", "FabricBend", "FabricFriction", "FabricSpecular", "FabricRoughness"):
         setattr(scene, name, min(1.0, max(0.0, float(getattr(scene, name)))))
     scene.FabricTransparency = min(100, max(0, int(scene.FabricTransparency)))
-    color = tuple(float(value) for value in getattr(scene, "FabricColor", (0.72, 0.34, 0.46)))
-    if len(color) != 3:
-        color = (0.72, 0.34, 0.46)
-    scene.FabricColor = tuple(min(1.0, max(0.0, value)) for value in color)
+    scene.FabricColor = normalize_color_rgb(getattr(scene, "FabricColor", (0.72, 0.34, 0.46)))
     scene.AvatarSkinOffset = max(0.0, float(scene.AvatarSkinOffset))
 
 
@@ -79,7 +76,7 @@ def _material(scene):
         shear=float(scene.FabricShear),
         bend=float(scene.FabricBend),
         friction=float(scene.FabricFriction),
-        color_rgb=tuple(float(value) for value in scene.FabricColor),
+        color_rgb=normalize_color_rgb(scene.FabricColor),
         specular=float(scene.FabricSpecular),
         roughness=float(scene.FabricRoughness),
         transparency=float(scene.FabricTransparency),
