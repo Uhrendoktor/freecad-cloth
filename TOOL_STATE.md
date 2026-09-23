@@ -14,8 +14,8 @@ workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312
 validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; inspect_jobs_logs_artifacts; no_second_workflow
 release_gate:
   candidate: PR_1075
-  exact_head: 16de154eaecc87ffad22ee8edf498c7783e6784a
-  pr_run_state: no pull_request run/status; latest exact-head push run #3496 / 35868146829 failed pre-job with zero jobs/artifacts; latest main push run #3497 / 35869873137 failed pre-job with zero jobs/artifacts; close/reopen probe at the prior frozen head also produced no pull_request run
+  exact_head: 930466783470a810615171364492380f88f0db28
+  pr_run_state: no pull_request run/status; latest exact-head push run #3501 / 35870739559 failed pre-job with zero jobs/artifacts; predecessor #3500 / 35870729256 and latest main push #3499 / 35870685261 have the same zero-job failure; no pull_request run exists for current head
   supporting_run: 35845226384
   supporting_artifact: 10743635540
   supporting_run_result: 200 mm Blanket-over-Cube real FreeCAD/Xvfb acceptance passed; final checkpoint and motion frames inspected
