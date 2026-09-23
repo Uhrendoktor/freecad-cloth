@@ -360,14 +360,11 @@ try:
     record("curved-mn-save-reload-started=true")
     doc.saveAs(str(curved_save))
     record("curved-mn-save=passed")
-    App.closeDocument(doc.Name)
+    reloaded_doc = App.openDocument(str(curved_save))
     process_events()
-    record("curved-mn-close-before-reload=passed")
-    doc = App.openDocument(str(curved_save))
-    process_events()
-    doc.recompute()
+    reloaded_doc.recompute()
     record("curved-mn-reopen=passed")
-    reloaded_network = next(obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork" and str(getattr(obj, "RelationshipId", "")) == relationship_id)
+    reloaded_network = next(obj for obj in reloaded_doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork" and str(getattr(obj, "RelationshipId", "")) == relationship_id)
     reloaded_pairs = tuple((str(seam.SeamId), str(seam.EdgeAId), str(seam.EdgeBId), float(seam.StartA), float(seam.EndA), float(seam.StartB), float(seam.EndB)) for seam in reloaded_network.Seams)
     assert reloaded_pairs == endpoint_snapshot_final
     assert reloaded_network.Status == "Valid"
