@@ -114,7 +114,7 @@ def main():
         piece = adopt_sketch(doc, sketch)
         # Keep the pinned top edge close enough to the cube that collision contact
         # does not create isolated long edges from the fixed corner vertices.
-        placement = App.Placement(App.Vector(-130.0, -130.0, 90.0), App.Rotation())
+        placement = App.Placement(App.Vector(-130.0, -130.0, 70.0), App.Rotation())
         piece.Placement = placement
         piece.Sketch.Placement = placement
 
