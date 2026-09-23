@@ -323,7 +323,26 @@ try:
     except ImportError:
         from PySide2 import QtWidgets
     network_form = getattr(network_dialog, "form", network_dialog)
-    evidence_label = network_form.findChild(QtWidgets.QLabel, "ClothSewingNetworkCorrespondenceEvidence") if hasattr(network_form, "findChild") else None
+    evidence_label = None
+    pending = [network_form, network_dialog]
+    seen = set()
+    while pending and evidence_label is None:
+        widget = pending.pop()
+        marker = id(widget)
+        if marker in seen:
+            continue
+        seen.add(marker)
+        try:
+            object_name = str(widget.objectName())
+        except Exception:
+            object_name = ""
+        if object_name == "ClothSewingNetworkCorrespondenceEvidence":
+            evidence_label = widget
+            break
+        try:
+            pending.extend(list(widget.children()))
+        except Exception:
+            pass
     assert evidence_label is not None
     network_text = str(evidence_label.text()).lower()
     assert "severity info" in network_text
