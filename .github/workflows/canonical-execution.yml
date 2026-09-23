@@ -460,11 +460,11 @@ jobs:
             "cloth-avatar-turntable-frames cloth-avatar-turntable.gif" \
             "cloth-simulation-arranged-turntable-frames cloth-simulation-arranged-turntable.gif" \
             "cloth-simulation-draped-turntable-frames cloth-simulation-draped-turntable.gif"; do
-            set -- $spec
-            "${IM[@]}" "docs/images/generated/$1"/frame-*.png -delay 8 -loop 0 -colors 128 -layers Optimize "docs/images/generated/$2"
-            test -s "docs/images/generated/$2"
-          done
-          identify -format '%n\n' docs/images/generated/cloth-avatar-turntable.gif | head -n 1 | grep -qx '73'
+            read -r frame_dir gif <<< "$spec"
+            "${IM[@]}" "docs/images/generated/$frame_dir"/frame-*.png \
+              -delay 8 -loop 0 -colors 128 -layers Optimize \
+              "docs/images/generated/$gif"
+            test -s "docs/images/generated/$gif"
           identify -format '%n\n' docs/images/generated/cloth-simulation-arranged-turntable.gif | head -n 1 | grep -qx '73'
           identify -format '%n\n' docs/images/generated/cloth-simulation-draped-turntable.gif | head -n 1 | grep -qx '73'
       - name: Upload README turntable evidence
