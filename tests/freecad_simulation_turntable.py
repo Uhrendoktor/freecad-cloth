@@ -475,7 +475,7 @@ def main():
             panels[0].Mesh.CountFacets, panels[1].Mesh.CountFacets, seam_gap,
         ))
         for panel in panels:
-            panel.ViewObject.DisplayMode = "Flat"
+            panel.ViewObject.DisplayMode = "Shaded"
             panel.ViewObject.LineWidth = 1.0
         render_turntable(view, objects, os.path.join(OUT, "cloth-simulation-draped-turntable-frames"))
         log("simulation-turntable-pass")
