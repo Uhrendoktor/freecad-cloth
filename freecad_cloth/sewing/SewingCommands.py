@@ -295,6 +295,78 @@ def repair_selected_seam():
     return message
 
 
+def focus_selected_seam_3d():
+    """Fit the 3D viewport to the selected semantic seam."""
+    import FreeCAD as App
+    import FreeCADGui as Gui
+    doc = App.ActiveDocument
+    if doc is None:
+        raise ValueError("open a document before focusing a seam")
+    seam = _selected_seam(doc)
+    from freecad_cloth.sewing.SewingView import apply_seam_colors
+    apply_seam_colors(doc.Objects)
+    if getattr(seam, "Shape", None) is None or seam.Shape.isNull():
+        raise ValueError("selected seam has no presentation geometry")
+    previous = []
+    for obj in doc.Objects:
+        view = getattr(obj, "ViewObject", None)
+        if view is None:
+            continue
+        previous.append((obj, bool(getattr(view, "Visibility", True))))
+        view.Visibility = obj is seam
+    try:
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(seam)
+        view = Gui.activeDocument().activeView()
+        view.viewAxonometric()
+        view.fitAll()
+        doc.recompute()
+    finally:
+        for obj, visible in previous:
+            try:
+                obj.ViewObject.Visibility = visible
+            except (AttributeError, RuntimeError):
+                pass
+    return seam
+
+
+def _edit_selected_seam_side(side):
+    import FreeCAD as App
+    import FreeCADGui as Gui
+    doc = App.ActiveDocument
+    if doc is None:
+        raise ValueError("open a document before editing a seam")
+    seam = _selected_seam(doc)
+    side = str(side).upper()
+    if side not in {"A", "B"}:
+        raise ValueError("seam side must be A or B")
+    piece = getattr(seam, "PatternA" if side == "A" else "PatternB", None)
+    semantic_id = str(getattr(seam, "EdgeAId" if side == "A" else "EdgeBId", "")).strip()
+    sketch = getattr(piece, "Sketch", None) if piece is not None else None
+    if sketch is None or not semantic_id:
+        raise ValueError("selected seam side %s has no native Sketcher source" % side)
+    semantic_ids = tuple(str(value) for value in (getattr(sketch, "SemanticEdgeIds", ()) or ()))
+    try:
+        edge_index = semantic_ids.index(semantic_id)
+    except ValueError as exc:
+        raise ValueError("seam side %s is not present in the Sketcher semantic edge map" % side) from exc
+    focus_selected_seam_3d()
+    if Gui.activeDocument().getInEdit():
+        Gui.activeDocument().resetEdit()
+    Gui.activeDocument().setEdit(sketch.Name)
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(sketch, "Edge%d" % (edge_index + 1))
+    return sketch, edge_index
+
+
+def edit_selected_seam_side_a():
+    return _edit_selected_seam_side("A")
+
+
+def edit_selected_seam_side_b():
+    return _edit_selected_seam_side("B")
+
+
 def show_sewing_2d():
     import FreeCADGui as Gui
     if not Gui.activeDocument():
