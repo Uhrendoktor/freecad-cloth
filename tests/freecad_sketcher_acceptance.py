@@ -135,12 +135,20 @@ def _exercise_constraint_families(doc, reference_sketch):
     return audit, audit_span, audit_scaled
 
 
+def _stage(name):
+    print("stage=%s" % name, flush=True)
+
+
 def run_acceptance():
     doc = App.newDocument("NativeSketcherAcceptance")
     try:
+        _stage("pattern-workbench")
         _activate("ClothPatternWorkbench", ["ClothPattern_CreatePieceWithSketch", "ClothPattern_EditSketch"])
+        _stage("create-pattern-pieces")
         Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
+        _stage("created-piece-1")
         Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
+        _stage("created-piece-2")
         doc.recompute()
         pieces = _pattern_pieces(doc)
         if len(pieces) != 2:
@@ -152,17 +160,22 @@ def run_acceptance():
         reference = mate.Sketch
         if reference is None:
             raise RuntimeError("second PatternPiece has no native Sketcher source")
+        _stage("constraint-audit")
         audit, audit_span, audit_scaled = _exercise_constraint_families(doc, reference)
+        _stage("constraint-audit-done")
 
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(curved)
+        _stage("pattern-edit-sketch")
         Gui.runCommand("ClothPattern_EditSketch", 0)
+        _stage("pattern-edit-command-returned")
         _events()
         if not Gui.activeDocument().getInEdit():
             raise RuntimeError("public Pattern Edit Sketch command did not enter native Sketcher")
         Gui.activeDocument().resetEdit()
         _events()
 
+        _stage("sewing-workbench")
         _activate("ClothSewingWorkbench", [
             "ClothSewing_CreateSeam",
             "ClothSewing_FocusSeam3D",
@@ -171,7 +184,9 @@ def run_acceptance():
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(curved, "Edge3")
         Gui.Selection.addSelection(mate, "Edge1")
+        _stage("create-seam")
         Gui.runCommand("ClothSewing_CreateSeam", 0)
+        _stage("create-seam-returned")
         doc.recompute()
         seam = next((obj for obj in doc.Objects if getattr(obj, "SeamId", "")), None)
         if seam is None or str(seam.Status) != "Valid":
@@ -182,7 +197,9 @@ def run_acceptance():
         semantic_ids = tuple(str(item) for item in curved_sketch.SemanticEdgeIds)
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(seam)
+        _stage("focus-seam-3d")
         Gui.runCommand("ClothSewing_FocusSeam3D", 0)
+        _stage("focus-seam-3d-returned")
         if seam.Shape.isNull():
             raise RuntimeError("seam focus command did not retain world-space presentation geometry")
         from freecad_cloth.sewing.SewingView import seam_color_map
@@ -218,7 +235,10 @@ def run_acceptance():
         local_mate_start = App.Vector(0, 0, 0.4)
         if _has_vertex(local_mate_start):
             raise RuntimeError("seam presentation still contains the mate Sketcher endpoint in local coordinates")
+        _stage("edit-seam-side-a")
         Gui.runCommand("ClothSewing_EditSeamSideA", 0)
+        _stage("edit-seam-side-a-returned")
+        _events()
         if not Gui.activeDocument().getInEdit():
             raise RuntimeError("seam Sketcher-side command did not enter native Sketcher")
         selection = Gui.Selection.getSelectionEx()
@@ -230,10 +250,14 @@ def run_acceptance():
 
         with tempfile.TemporaryDirectory() as directory:
             path = os.path.join(directory, "native-sketcher-acceptance.FCStd")
+            _stage("save-document")
             doc.saveAs(path)
+            _stage("save-document-done")
             App.closeDocument(doc.Name)
             doc = None
+            _stage("reload-document")
             reloaded = App.openDocument(path)
+            _stage("reload-document-done")
             curved = next((obj for obj in reloaded.Objects if str(getattr(obj, "PieceId", "")) == original_piece_id), None)
             if curved is None or curved.Sketch is None:
                 raise RuntimeError("PatternPiece native Sketcher source did not survive save/reload")
@@ -264,6 +288,7 @@ def run_acceptance():
             if abs(float(audit.getDatum(audit_scaled)) - 30.0) > 1e-6:
                 raise RuntimeError("native Sketcher expression did not propagate after save/reload")
 
+            _stage("edit-width")
             sketch.setDatum(width_index, App.Units.Quantity("120 mm"))
             reloaded.recompute()
             if abs(float(sketch.getDatum(width_index)) - 120.0) > 1e-6:

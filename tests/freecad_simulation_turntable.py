@@ -163,6 +163,36 @@ def render_turntable(view, objects, frame_dir, frame_count=72):
     log("turntable-pass dir=%s frames=%d" % (frame_dir, frame_total))
 
 
+def render_simulation_motion(view, scene, cube, panel, frame_dir, frame_count=16, final_steps=90):
+    os.makedirs(frame_dir, exist_ok=True)
+    steps = tuple(dict.fromkeys(
+        round(index * final_steps / float(frame_count - 1))
+        for index in range(frame_count)
+    ))
+    view.setCameraType("Orthographic")
+    view.viewAxonometric()
+    view.fitAll()
+    events()
+    for index, target_step in enumerate(steps):
+        scene.Steps = int(target_step)
+        scene.Document.recompute()
+        events()
+        if not bool(scene.FiniteState):
+            raise RuntimeError("blanket simulation became non-finite at step %d" % target_step)
+        cube.ViewObject.Visibility = True
+        panel.ViewObject.Visibility = True
+        if hasattr(view, "redraw"):
+            view.redraw()
+        events()
+        save_png(view, os.path.join(frame_dir, "frame-%03d.png" % index), "simulation motion frame %03d" % index)
+    scene.Steps = int(final_steps)
+    scene.Document.recompute()
+    events()
+    if not bool(scene.FiniteState):
+        raise RuntimeError("blanket simulation final motion state is non-finite")
+    log("simulation-motion-pass frames=%d final_steps=%d" % (frame_count, final_steps))
+
+
 def _make_rectangle_sketch(doc, name, width, height):
     import Part
     import Sketcher
@@ -336,6 +366,15 @@ def main():
         panel.ViewObject.Visibility = True
         cube.ViewObject.Visibility = True
         doc.recompute()
+        render_simulation_motion(
+            view,
+            scene,
+            cube,
+            panel,
+            os.path.join(OUT, "cloth-simulation-motion-frames"),
+            frame_count=16,
+            final_steps=steps,
+        )
         render_turntable(view, [cube, panel], os.path.join(OUT, "cloth-simulation-draped-turntable-frames"))
         log("blanket-turntable-pass")
     finally:

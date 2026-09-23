@@ -21,9 +21,12 @@ from freecad_cloth.common.MeshValidation import validate_mesh
 from freecad_cloth.pattern.PatternGeometry import rectangle
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
-from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
-from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, ensure_quality_properties
+from freecad_cloth.simulation.DrapeTarget import create_drape_target, refresh_drape_target
+from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
 
+
+# A generic FreeCAD cube requires Tissu's mesh collision path; torso-envelope is for avatar-style targets.
+os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "mesh")
 
 OUT = Path(os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")) / "blanket-example"
 OUT.mkdir(parents=True, exist_ok=True)
@@ -112,30 +115,57 @@ def main():
     try:
         sketch, outline = make_rectangle_sketch(doc, "BlanketSketch", 260.0, 260.0)
         piece = adopt_sketch(doc, sketch)
-        placement = App.Placement(App.Vector(-130.0, -130.0, 150.0), App.Rotation())
+        placement = App.Placement(App.Vector(-210.0, -160.0, 220.0), App.Rotation())
         piece.Placement = placement
         piece.Sketch.Placement = placement
 
-        cube = doc.addObject("Part::Feature", "BlanketTargetCube")
+        cube = doc.addObject("Part::Box", "BlanketTargetCube")
         cube.Label = "Collision Target — Cube"
-        cube.Shape = __import__("Part").makeBox(180.0, 180.0, 60.0, App.Vector(-90.0, -90.0, 0.0))
+        cube.Length = 240.0
+        cube.Width = 160.0
+        cube.Height = 120.0
+        cube.Placement = App.Placement(App.Vector(-120.0, -80.0, 0.0), App.Rotation())
         doc.recompute()
 
-        scene = create_simulation_scene(doc)
-        set_avatar_collision_source(scene, cube, thickness=2.0, deflection=1.0)
-        ensure_quality_properties(scene)
-        scene.Proxy = QualitySimulationProxy()
-        scene.ClothPieces = [piece]
+        scene = create_quality_simulation_scene(doc)
+        avatar = scene.AvatarProxy.SourceObject
+        if avatar is not None:
+            avatar.ViewObject.Visibility = False
+        target = create_drape_target(doc, cube, "FreeCAD Geometry", deflection=1.0, thickness=0.0)
+        scene.DrapeTarget = target
+        refresh_drape_target(target)
+        scene.QualityPreset = "Balanced"
+        scene.ParticleDistance = 20.0
+        scene.SolverIterations = 32
+        scene.SolverSubsteps = 1
+        scene.TimeStep = 1.0 / 120.0
+        scene.StitchSamples = 4
         scene.GravityX = 0.0
         scene.GravityY = 0.0
         scene.GravityZ = -9810.0
-        scene.TimeStep = 1.0 / 120.0
-        scene.Iterations = 10
+        scene.FabricFriction = 0.8
+        scene.ClothPieces = [piece]
 
-        mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, scene.ParticleDistance)
-        boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
-        top = sorted(boundary_vertices, key=lambda index: float(mesh_positions[index][1]), reverse=True)[:2]
-        scene.PinSelection = [str(int(index)) for index in top]
+        proxy = scene.Proxy._base_or_restore()
+        panel_preview = scene.DrapePanels[0]
+        positions = tuple(proxy.backend.positions())
+        available = list(proxy.panel_indices[panel_preview.Name])
+        pins = []
+        for target_xyz in ((-210.0, -120.0, 220.0), (210.0, -120.0, 220.0)):
+            target = App.Vector(*target_xyz)
+            index = min(
+                available,
+                key=lambda i: (
+                    (positions[i][0] - target.x) ** 2
+                    + (positions[i][1] - target.y) ** 2
+                    + (positions[i][2] - target.z) ** 2
+                ),
+            )
+            pins.append(index)
+            available.remove(index)
+        scene.PinSelection = [str(int(index)) for index in pins]
+        doc.recompute()
+
         scene.FabricColor = (0.14, 0.32, 0.78)
         scene.FabricSpecular = 0.70
         scene.FabricRoughness = 0.20

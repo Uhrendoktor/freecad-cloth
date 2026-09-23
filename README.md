@@ -38,6 +38,10 @@ The canonical FreeCAD/Xvfb workflow publishes validated GUI states to a stable `
 
 ![Blanket over cube motion](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-blanket-motion.gif)
 
+### Simulation — actual drape motion
+
+![Cloth Simulation motion](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-motion.gif)
+
 ### Advanced example — tunic
 
 ![Advanced tunic validation](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-front.png)
