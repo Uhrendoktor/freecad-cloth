@@ -6,10 +6,10 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `87c66b67c870d70ce478e083104f6db18eaf59af`
+- Current main: `ccac198eae37bb162830895b1d8259ca84d7047f`
 - Canonical workflow: `.github/workflows/canonical-execution.yml`; exactly one workflow.
 - Supervisor completion issue: #1017.
-- Active release candidate: PR #1066, branch `supervisor/complete-audit-20260923`, live head `7141ed6a8c9e49dd3e85c171401aeebf28ff17c6`.
+- Active release candidate: PR #1069, branch `supervisor/release-fixture-200mm-20260923`, live head `e5676aa8091fd55d3b17a5a2cb71122e41683433`.
 
 ## Implemented release slice
 
@@ -21,23 +21,22 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 ## CI evidence
 
-- Supporting canonical run #3297 / `35844023654` executed real FreeCAD/Xvfb jobs. Python, sewing, pattern export, blanket visual, README turntable and tunic audit passed; only Native Sketcher acceptance timed out after its 8-minute fail-closed limit. The 200 mm Blanket-over-Cube fixture was separately validated in real FreeCAD/Xvfb by run `35845226384`, artifact `10743635540`.
-- The timeout job log showed the FreeCAD process reached the test invocation but emitted no acceptance-stage output. The merged release now explicitly bootstraps workbench registration before activation and includes flushed acceptance stage markers.
-- Repeated non-main and main push workflow runs terminate with zero jobs. PR-triggered runs exist and execute normally on other branches, so the zero-job state is recorded as an Actions orchestration blocker rather than test success. Current main push run `35847413862` is one such zero-job failure.
+- Supporting run #3331 / Actions `35845226384` executed real FreeCAD/Xvfb validation for the 200 mm × 200 mm Blanket-over-Cube fixture; artifact `10743635540` contains passing mesh, drape, motion, material and 16-frame evidence.
+- Historical full canonical run #3388 / Actions `35847040632` executed the real FreeCAD/Xvfb graph; Python, sewing, export, blanket visual, README turntable and tunic audit passed, while Native Sketcher acceptance failed after its fail-closed invocation. The current `main` acceptance fixture now explicitly bootstraps `InitGui.py` and checks placed/world-space seam endpoints, save/reload and invalidation; that fix still requires exact-head canonical execution.
+- Current push validation remains blocked before job allocation: main run #3423 / Actions `35849501653` and release candidate run #3428 / Actions `35849536356` both terminate `failure` with zero jobs and zero artifacts. PR #1069 has no `pull_request` run/check.
+- The canonical workflow remains exactly one production workflow with unchanged validation thresholds/timeouts.
 
 ## Branch cleanup
 
-- Many historical agent/supervisor branches remain. The installed GitHub connector exposes branch listing but no branch-delete operation, so branch cleanup is not claimed complete.
+- Historical audit found 482 remote branches. The installed GitHub connector exposes no branch-deletion operation, so stale-branch cleanup is not claimed complete.
+- The retention schedule job exists in the canonical workflow, but only schedule run #3225 / Actions `35839191664` is currently visible; later scheduled executions are not appearing.
 
 ## External CI blocker
 
-- GitHub Actions event delivery remains unresolved: main/non-main push runs can terminate `failure` with zero jobs, while historical pull_request/schedule runs instantiate the canonical job graph.
-- Repository-side policy inspection requires Administration access not exposed by the installed GitHub connector. Exact restoration path is recorded in issue #1053: inspect inherited/repository Actions event restrictions, then trigger a real `pull_request:synchronize` on PR #1066 and verify non-zero jobs.
+- GitHub Actions currently creates push runs that terminate with `failure` and zero jobs, while no `pull_request` run/check is exposed for the active release PR #1069. The connector can read rulesets (currently `[]`) but does not expose the repository/inherited Actions policy endpoints needed to inspect event restrictions.
+- Issue #1053 is the durable restoration path: inspect repository/inherited Actions event policy with repository administration access, then trigger a real `pull_request:synchronize` or reopen on PR #1069 and verify a non-zero canonical job graph.
 
 ## Current gate
 
-- Do not merge or close #1017 or continuation #1067 yet.
-- Exact-head PR #1066 must receive a terminal canonical run and its jobs/artifacts/logs must be inspected.
-- After merge, merged-main canonical validation must be terminal-green before closing supervisor issues.
-- Stale/overlapping PRs have been superseded. PR #1066 is the sole open release PR; #1053 and #1055 document external Actions/Sketcher evidence.
-
+- PR #1069 is the sole open release PR; #1066 is closed as superseded and #1042/#1055 are closed evidence/diagnostic issues.
+- Do not merge PR #1069 or close #1017/#1067 until exact-head canonical validation is terminal-green with all relevant jobs/logs/artifacts inspected, followed by merged-main canonical validation and a fresh final audit.

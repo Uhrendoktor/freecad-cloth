@@ -12,10 +12,10 @@ CLO is used as a workflow benchmark, not as a cloning target. Public CLO documen
 
 ## Current repository state
 
-- Supervisor issue #1017 remains the complete-project criterion. Release integration PR #1059 is merged to `main` at `87c66b67c870d70ce478e083104f6db18eaf59af`; PR #1066 is the current final validation candidate.
-- Supporting canonical run #3297 / `35844023654` executed the real FreeCAD/Xvfb release jobs: Python, sewing, export, blanket visual, README turntable and tunic audit passed; only Native Sketcher acceptance timed out.
-- The Sketcher timeout has a bounded software diagnosis and merged fix: bootstrap `InitGui.py` before workbench activation and emit flushed stage markers so startup failures cannot remain silent.
-- Repeated zero-job push workflow failures remain an external Actions orchestration blocker. They do not count as successful validation, and the production workflow remains unchanged.
+- Supervisor issue #1017 remains the complete-project criterion. Release integration is on `main` at `ccac198eae37bb162830895b1d8259ca84d7047f`; clean release candidate PR #1069 is the current final validation candidate at `e5676aa8091fd55d3b17a5a2cb71122e41683433`.
+- Supporting run #3331 / Actions `35845226384` validated the 200 mm × 200 mm Blanket-over-Cube fixture in real FreeCAD/Xvfb; artifact `10743635540` contains passing mesh, drape, motion, material and frame evidence.
+- Historical canonical run #3388 / Actions `35847040632` exposed the Native Sketcher acceptance failure that the current `main` fixture now hardens with explicit workbench bootstrap, flushed stage markers, world-space endpoint checks, save/reload and invalidation assertions.
+- Current push runs #3423 / `35849501653` (main) and #3428 / `35849536356` (release branch) terminate with failure and zero jobs. No `pull_request` run/check is exposed for PR #1069, so exact-head and merged-main terminal-green validation are still unavailable.
 
 ## Supervisor milestone ladder
 
@@ -79,7 +79,7 @@ Keep production avatar fidelity (#374), advanced manufacturing/diagnostics (#362
 
 ## Verification policy
 
-Every implementation task requires the appropriate combination of headless model tests, real FreeCAD runtime coverage, GUI/Xvfb coverage, save/reload persistence checks and deterministic simulation evidence. PRs must be inspected, exact-head CI must become terminal-green, and merged-main behavior must be verified before closing the root issue.
+Every implementation task requires the appropriate combination of headless model tests, real FreeCAD runtime coverage, GUI/Xvfb coverage, save/reload persistence checks and deterministic simulation evidence. PRs must be inspected, exact-head CI must become terminal-green, and merged-main behavior must be verified before closing the root issue. The current Actions event-delivery blocker is tracked in #1053; it does not count as validation.
 
 ## Existing research basis
 
