@@ -6,11 +6,12 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `86c048039812dd0e4bb0541547cc0e610c72b135` (resolved at audit time).
+- Current main: `a02070f67da0506056b0054b7857db413a38903b` (resolved at audit time).
 - Canonical workflow: `.github/workflows/canonical-execution.yml`; exactly one workflow.
 - Supervisor completion issue: #1017.
 - Current continuation: #1086.
 - Active release candidate: PR #1075, branch `supervisor/final-release-fixed-main-20260923`; exact head `69215e7286ffda3da655f53094c5ae86d4644eb3`.
+- Current candidate relation to main: candidate is 2 commits ahead and 1 commit behind main; the behind commit is the supervisor's durable-state documentation update. Do not rebase/synchronize the release candidate merely to remove that behind count, because doing so would change the exact release SHA and invalidate the exact-head gate.
 
 ## Implemented release slice
 
@@ -26,20 +27,21 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - Supporting canonical run #3297 / `35844023654` executed real FreeCAD/Xvfb jobs. Python, sewing, pattern export, basic blanket, README turntable and tunic audit passed; Native Sketcher acceptance timed out after its 8-minute fail-closed limit.
 - Supporting real FreeCAD/Xvfb run #3331 / `35845226384`, artifact `10743635540`, validates the 200 mm Blanket-over-Cube fixture. The artifact contains 16 distinct motion frames and was visually inspected; it is supporting evidence for the basic example only, not exact-head README-turntable proof.
 - Current PR #1075 exact head `69215e7…` has no pull_request workflow run or commit status. Latest exact-head push run #3507 / `35879364633` failed before job allocation with 0 jobs and 0 artifacts.
-- A fresh main push produced by state reconciliation, run #3508 / `35902921024`, also failed before job allocation with 0 jobs and 0 artifacts.
-- Historical scheduled run #3225 / `35839191664` succeeded and instantiated 12 jobs, but its retention-cleanup job was skipped because the run used the 5-minute schedule. No daily 03:00 UTC retention run is currently evidenced.
-- An independent challenge review on PR #1075 recorded the strongest alternative (repository/workflow defect) and the falsifier (a real non-zero exact-head job graph). No validation gate was weakened.
+- Fresh supervisor state-sync pushes #3508 / `35902921024` and #3509 / `35903456264` also failed before job allocation with 0 jobs and 0 artifacts.
+- Historical scheduled run #3225 / `35839191664` succeeded and instantiated 12 jobs, but its retention-cleanup job was skipped because the run used the 5-minute schedule. No later daily 03:00 UTC retention run is currently evidenced.
+- An independent challenge review on PR #1075 and researcher issue #1083 both identify the strongest alternative as an Actions control-plane/policy problem rather than a job-level repository defect. The falsifier is a real exact-head run with a non-zero job graph or control-plane metadata showing a later-stage failure. No validation gate was weakened.
 
 ## User-facing assets
 
 - The stable `docs/screenshots` branch is missing `docs/images/generated/cloth-blanket-motion.gif` even though README references it.
 - The canonical publisher job is already the intended source: it copies the genuine 16-frame blanket motion GIF from the validated blanket artifact into that exact path after a successful main push.
 - Issue #1084 is the active bounded asset-publication issue. Duplicate issue #1085 was closed as duplicate.
-- The downloaded supporting GIF has genuine motion but was observed with 0 ms per-frame GIF delay metadata, so final published asset validation must include usable browser playback timing rather than treating mere multi-frame validity as complete.
+- The downloaded supporting GIF has genuine motion, but the artifact inspection reported 0 ms per-frame GIF delay metadata. Final published-asset validation therefore must include usable browser playback timing rather than treating multi-frame validity alone as complete.
+- Historical README turntable artifact inspection showed the old draped blanket geometry had severe high-frequency triangular spikes; this materially supports keeping exact-head README turntable execution as a release falsifier.
 
 ## Repository hygiene
 
-- Fresh branch pagination observes 391 remote branches. Older continuation notes claiming 490 are stale.
+- Fresh REST pagination observes 491 remote branches. Older continuation notes claiming 487/490/491 from partial inventories are not substitutes for this current full count.
 - The installed GitHub connector exposes branch listing but no branch-delete operation, so source-side branch deletion is not claimed complete.
 - Dependabot, contribution/security/CoC files, issue templates, installation docs, user guide, development guide, roadmap and release gates are present.
 - TODO/FIXME repository searches returned no matches.
@@ -50,6 +52,6 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - Exact-head PR #1075 must receive a terminal canonical run with non-zero jobs; inspect every required job, step/log and artifact.
 - After merge, merged-main canonical validation must be terminal-green before closing supervisor issues.
 - #1020 and #1043 remain open until their stated acceptance gates are verified on merged main.
-- #1053 remains the external Actions delivery/control-plane blocker and now has current head/run/branch-count evidence.
+- #1053 remains the external Actions control-plane/event-execution blocker and carries current head/run/branch-count evidence.
 - #1083 is the independent challenge child; #1084 owns the README GIF publication.
 - Stale state in this file was refreshed from live GitHub state in the 2026-09-23 recovery audit.

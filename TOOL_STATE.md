@@ -9,25 +9,26 @@ supervisor_issue: 1017
 continuation_issue: 1086
 active_release_pr: 1075
 active_release_branch: supervisor/final-release-fixed-main-20260923
-current_main: 86c048039812dd0e4bb0541547cc0e610c72b135
+current_main: a02070f67da0506056b0054b7857db413a38903b
 workflow_count: 1
 workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; inspect_jobs_logs_artifacts; no_second_workflow
 release_gate:
   candidate: PR_1075
   exact_head: 69215e7286ffda3da655f53094c5ae86d4644eb3
-  pr_run_state: no pull_request run/status; latest exact-head push run #3507 / 35879364633 failed pre-job with zero jobs/artifacts; latest main state-sync push run #3508 / 35902921024 has the same pre-job zero-job failure
+  pr_run_state: no pull_request run/status; latest exact-head push run #3507 / 35879364633 failed pre-job with zero jobs/artifacts; state-sync pushes #3508 / 35902921024 and #3509 / 35903456264 have the same zero-job failure
+  candidate_relation_to_main: ahead_by_2; behind_by_1; behind commit is documentation-only supervisor state reconciliation and must not be rebased away before exact-head validation
   supporting_run: 35845226384
   supporting_artifact: 10743635540
   supporting_run_result: 200 mm Blanket-over-Cube real FreeCAD/Xvfb acceptance passed; 16 distinct motion frames and representative checkpoints inspected
   external_ci_blocker: current push/pull_request Actions delivery is failing before job allocation; connector exposes no workflow-dispatch operation and rejects required Actions administration-policy endpoints
 final_gate: exact_head_canonical_pr_green; inspect_jobs_logs_artifacts; merge; merged_main_canonical_pr_green; fresh_repo_audit
 open_actionable_issues: [1017, 1020, 1043, 1053, 1081, 1083, 1084, 1086]
-remote_branch_count_observed: 391
+remote_branch_count_observed: 491
 last_schedule_run: 3225/35839191664; success; 12 jobs instantiated; daily retention job skipped because event was the */5-minute schedule
 published_asset_gap: docs/screenshots:docs/images/generated/cloth-blanket-motion.gif
 duplicate_issue_closed: 1085
 ```
 
 closed_research_issues: [1042, 1055]
-stale_branch_cleanup: unavailable_via_current_connector; current branch search observes 391 remote branches; no fresh daily 03:00 UTC retention run evidenced
+stale_branch_cleanup: unavailable_via_current_connector; current full branch pagination observes 491 remote branches; no fresh daily 03:00 UTC retention run evidenced
