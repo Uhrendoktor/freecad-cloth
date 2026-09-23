@@ -52,8 +52,8 @@ Do not pull a visible CLO feature forward merely because it exists in CLO. Stabi
 
 ## Current release state
 
-- The P0 release-closeout implementation is present, but the repository is not yet releasable: PR #1075 is the active candidate (exact head `35f5db29d55b0e904b2bacb65e4b2b8446cc1b86`) and exact-head canonical validation has not executed.
+- The P0 release-closeout implementation is present, but the repository is not yet releasable: PR #1075 is the active candidate (exact head `5f38dcfbfd2e37bbb2d21ccd61af0ad1c7899b5b`) and exact-head canonical validation has not executed.
 - GitHub Actions is currently blocked before job allocation for recent main and release-candidate pushes; zero-job failures do not count as validation.
 - The canonical FreeCAD/Xvfb workflow remains the sole workflow. Historical runs prove the workflow graph executes when event delivery works, including real FreeCAD/Xvfb evidence for the 200 mm Blanket-over-Cube fixture.
-- Repository hygiene cleanup is implemented by the scheduled maintenance job, but 489 historical remote branches remain because scheduled maintenance is not currently executing.
+- Repository hygiene cleanup is implemented by the scheduled maintenance job, but 490 historical remote branches remain because scheduled maintenance is not currently executing.
 - The three missing public Sewing command SVG assets were merged in PR #1077; packaging already includes `resources/**/*`. The P1 and Production items listed above are future enhancements rather than active release blockers.
