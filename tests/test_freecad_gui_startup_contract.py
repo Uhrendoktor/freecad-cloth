@@ -22,12 +22,14 @@ def test_visual_example_prepares_gui_before_manual_initgui():
     assert "InitGui.py" in run
 
 
-def test_committed_bootstrap_defers_gui_import_to_acceptance_script():
+def test_committed_bootstrap_prepares_gui_before_acceptance_script():
     source = (ROOT / "tests" / "freecad_ci_bootstrap.py").read_text(encoding="utf-8")
-    assert "import FreeCADGui as Gui" not in source
-    assert "window.show()" not in source
-    assert "processEvents()" not in source
-    assert 'sys.path.insert(0, ROOT)' in source
+    assert "import FreeCADGui as Gui" in source
+    assert "window.show()" in source
+    assert "processEvents()" in source
+    assert "sys.path[:] = [p for p in sys.path if p != ROOT]" in source
+    assert source.index("sys.path[:] = [p for p in sys.path if p != ROOT]") < source.index("window.show()")
+    assert source.index("processEvents()") < source.index("sys.path.insert(0, ROOT)")
     assert source.index("sys.path.insert(0, ROOT)") < source.index('runpy.run_path(script, run_name="__main__")')
 
 
