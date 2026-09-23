@@ -146,10 +146,26 @@ def main():
         scene.FabricFriction = 0.8
         scene.ClothPieces = [piece]
 
-        mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, scene.ParticleDistance)
-        boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
-        top = sorted(boundary_vertices, key=lambda index: float(mesh_positions[index][1]), reverse=True)[:2]
-        scene.PinSelection = [str(int(index)) for index in top]
+        proxy = scene.Proxy._base_or_restore()
+        panel_preview = scene.DrapePanels[0]
+        positions = tuple(proxy.backend.positions())
+        available = list(proxy.panel_indices[panel_preview.Name])
+        pins = []
+        for target_xyz in ((-210.0, -120.0, 220.0), (210.0, -120.0, 220.0)):
+            target = App.Vector(*target_xyz)
+            index = min(
+                available,
+                key=lambda i: (
+                    (positions[i][0] - target.x) ** 2
+                    + (positions[i][1] - target.y) ** 2
+                    + (positions[i][2] - target.z) ** 2
+                ),
+            )
+            pins.append(index)
+            available.remove(index)
+        scene.PinSelection = [str(int(index)) for index in pins]
+        doc.recompute()
+
         scene.FabricColor = (0.14, 0.32, 0.78)
         scene.FabricSpecular = 0.70
         scene.FabricRoughness = 0.20
