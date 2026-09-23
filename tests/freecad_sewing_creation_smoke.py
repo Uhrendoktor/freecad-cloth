@@ -266,7 +266,6 @@ try:
     assert curved_preview is not None and curved_preview.Status == "Valid"
     assert len(curved_preview.Seams) == 3
     assert curved_preview.SideACount == 2 and curved_preview.SideBCount == 2
-    endpoint_snapshot = tuple((str(seam.SeamId), str(seam.EdgeAId), str(seam.EdgeBId), float(seam.StartA), float(seam.EndA), float(seam.StartB), float(seam.EndB)) for seam in curved_preview.Seams)
 
     curved_a.SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 40.0), (-5.0, 40.0)])
     curved_a.Shape = _curved_shape(100.0, 105.0, 90.0)
@@ -310,6 +309,19 @@ try:
     doc.recompute()
     assert all(bool(seam.ReversedB) for seam in curved_network.Seams)
     record("curved-mn-reversal=passed segments=3")
+    endpoint_snapshot = tuple(sorted(
+        (
+            str(seam.SeamId),
+            str(seam.EdgeAId),
+            str(seam.EdgeBId),
+            round(float(seam.StartA), 12),
+            round(float(seam.EndA), 12),
+            round(float(seam.StartB), 12),
+            round(float(seam.EndB), 12),
+            bool(seam.ReversedB),
+        )
+        for seam in curved_network.Seams
+    ))
 
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(curved_network)
@@ -358,10 +370,22 @@ try:
     process_events()
     doc.recompute()
     reloaded_network = next(obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork" and str(getattr(obj, "RelationshipId", "")) == relationship_id)
-    reloaded_pairs = tuple((str(seam.SeamId), str(seam.EdgeAId), str(seam.EdgeBId), float(seam.StartA), float(seam.EndA), float(seam.StartB), float(seam.EndB)) for seam in reloaded_network.Seams)
+    reloaded_pairs = tuple(sorted(
+        (
+            str(seam.SeamId),
+            str(seam.EdgeAId),
+            str(seam.EdgeBId),
+            round(float(seam.StartA), 12),
+            round(float(seam.EndA), 12),
+            round(float(seam.StartB), 12),
+            round(float(seam.EndB), 12),
+            bool(seam.ReversedB),
+        )
+        for seam in reloaded_network.Seams
+    ))
     assert reloaded_pairs == endpoint_snapshot
     assert reloaded_network.Status == "Valid"
-    record("curved-mn-save-reload=passed same-endpoint-pairs=true")
+    record("curved-mn-save-reload=passed same-endpoint-pairs=true reversed=true")
 
     select_edges((piece_a, 3), (piece_b, 3))
     free_panel = open_public("ClothSewing_FreeSewing")
