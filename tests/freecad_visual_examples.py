@@ -126,6 +126,9 @@ def main():
         ensure_quality_properties(scene)
         scene.Proxy = QualitySimulationProxy()
         scene.ClothPieces = [piece]
+        # The fixture placement already leaves the blanket 90 mm above the cube top.
+        # Avoid the extra solver launch height to reduce impact energy at collision.
+        scene.StartHeight = 0.0
         scene.GravityX = 0.0
         scene.GravityY = 0.0
         scene.GravityZ = -9810.0
