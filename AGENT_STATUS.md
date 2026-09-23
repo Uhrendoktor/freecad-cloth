@@ -25,7 +25,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - In that same run, the older README turntable source failed its fail-closed drape sanity gate with a detached-candidate state. That source used a 20 mm particle-distance / 32-iteration CPU configuration and is not the current release head.
 - The current release branch now uses the 200 mm fixture and the canonical Tissu backend for the README turntable, with no relaxation of drape, motion, mesh, frame-count, timeout, or artifact assertions.
 - Exact-head PR #1066 currently has no commit status and no pull_request workflow run. Controlled close/reopen produced no run; validation PR #1070 and validation PR #1071 both pointed at the exact candidate source and produced no pull_request run before being closed.
-- Recent candidate push run #3449 / Actions 35858123333 for the current head `bf7078dddc47068291e80565f44a13d789240f44` failed before job allocation with zero jobs/artifacts; earlier candidate pushes show the same zero-job signature. Retrying older runs through the connector returned GitHub 403: `This workflow run cannot be retried`.
+- Latest candidate push run #3452 / Actions 35860920532 for the current exact head `ac01069152efac22976ea918bd3ced680116d748` failed before job allocation with zero jobs/artifacts; retry is rejected with HTTP 403.
 
 ## Branch cleanup
 
