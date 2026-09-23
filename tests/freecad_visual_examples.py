@@ -109,8 +109,16 @@ def render_motion(view, scene, frame_count=16, final_steps=120):
 
 def main():
     window = Gui.getMainWindow()
-    if window is None or not window.isVisible():
+    if window is None:
         raise RuntimeError("FreeCAD GUI did not launch")
+    window.show()
+    events()
+    init_gui = Path(__file__).resolve().parents[1] / "InitGui.py"
+    if "ClothPatternWorkbench" not in Gui.listWorkbenches():
+        exec(compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"), globals(), globals())
+    events()
+    if "ClothPatternWorkbench" not in Gui.listWorkbenches():
+        raise RuntimeError("ClothPatternWorkbench was not registered by InitGui.py")
     doc = App.newDocument("ClothBlanketExample")
     try:
         blanket_width = 200.0
