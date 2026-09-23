@@ -39,5 +39,5 @@ def test_blanket_motion_gif_delay_is_applied_before_inputs_and_checked():
     encode_options = '"${IM[@]}" -delay 10 -loop 0 -colors 128'
     assert encode_options in source
     assert source.index(encode_options) < source.index(input_glob)
-    assert 'frame_delays=''$(identify -format '%T\\n' docs/images/generated/blanket-example/blanket-motion.gif | sort -u)'' in source
+    assert "frame_delays=\"$(identify -format '%T\\n' docs/images/generated/blanket-example/blanket-motion.gif | sort -u)\"" in source
     assert 'test "$frame_delays" = "10"' in source
