@@ -8,14 +8,14 @@ execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_issue: 1017
 active_release_pr: 1066
 active_release_branch: supervisor/complete-audit-20260923
-current_main: 8cee5774c25110448675e7b45d651869f3921692
+current_main: 205f60c0fb3b47edab36a82c643bd29f3a4a3eb6
 workflow_count: 1
 workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; inspect_jobs_logs_artifacts; no_second_workflow
 release_gate:
   candidate: PR_1066
   exact_head: 7141ed6a8c9e49dd3e85c171401aeebf28ff17c6
-  pr_run_state: no_pull_request_run_or_status; push run #3405 failed with zero jobs
+  pr_run_state: no_pull_request_run_or_status; push run #3405 (35848172889) failed with zero jobs
   supporting_run: 35844023654
   supporting_run_result: all canonical jobs passed except native Sketcher acceptance timeout
   supporting_timeout_root_cause: acceptance activated Cloth workbenches without explicitly bootstrapping InitGui.py
