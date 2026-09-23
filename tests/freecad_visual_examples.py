@@ -134,7 +134,7 @@ def main():
         scene.GravityX = 0.0
         scene.GravityY = 0.0
         scene.GravityZ = -9810.0
-        scene.TimeStep = 1.0 / 120.0
+        scene.TimeStep = 1.0 / 240.0
         scene.Iterations = 20
 
         mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, scene.ParticleDistance)
