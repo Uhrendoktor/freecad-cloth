@@ -346,6 +346,7 @@ def run_acceptance():
                 "ClothSewing_Validate",
                 "ClothFitting_CreateScene",
                 "ClothFitting_SetMeasurements",
+                "ClothFitting_AssignAvatar",
                 "ClothFitting_AddPieces",
                 "ClothFitting_CreateArrangementPoint",
                 "ClothFitting_ApplyArrangementPoint",
@@ -471,22 +472,29 @@ def run_acceptance():
             raise RuntimeError("native garment hierarchy lost FabricMaterial")
         print("garment-hierarchy=passed groups=Patterns,Sewing,Fabric,Avatar,Simulation", flush=True)
 
-        target_body = doc.addObject("Part::Feature", "AcceptanceTarget")
-        target_body.Label = "Acceptance Target"
-        target_body.Shape = Part.makeCylinder(35, 100, App.Vector(0, 0, -50))
-        doc.recompute()
-
         _activate(
             "ClothSimulationWorkbench",
-            ["ClothDrape_CreateTarget", "ClothDrape_RefreshTarget", "ClothSimulation_Step", "ClothSimulation_Reset", "ClothSimulation_Edit"],
+            ["ClothDrape_CreateMannequinTarget", "ClothDrape_RefreshTarget", "ClothSimulation_Step", "ClothSimulation_Reset", "ClothSimulation_Edit"],
         )
-        _select_objects(target_body)
-        Gui.runCommand("ClothDrape_CreateTarget", 0)
+        Gui.runCommand("ClothDrape_CreateMannequinTarget", 0)
         _events()
+        avatar = doc.getObject("ClothAvatar")
         target = doc.getObject("DrapeTarget")
-        if target is None or target.SourceObject != target_body:
-            raise RuntimeError("public DrapeTarget command did not persist CAD target")
-        print("drape-target=passed", flush=True)
+        if avatar is None or str(getattr(avatar, "AvatarType", "")) != "ClothAvatar":
+            raise RuntimeError("public mannequin target command did not create the canonical ClothAvatar")
+        if target is None or target.SourceObject != avatar or str(getattr(target, "TargetType", "")) != "Mannequin":
+            raise RuntimeError("public mannequin DrapeTarget command did not persist the canonical human target")
+        _activate(
+            "ClothPatternWorkbench",
+            ["ClothFitting_AssignAvatar"],
+        )
+        _select_objects(avatar)
+        Gui.runCommand("ClothFitting_AssignAvatar", 0)
+        _events()
+        doc.recompute()
+        if fitting.AvatarProxy is None:
+            raise RuntimeError("public fitting avatar assignment did not persist the canonical avatar")
+        print("drape-target=passed type=Mannequin", flush=True)
 
         _select_objects(fitting)
         Gui.runCommand("ClothFitting_CreateSimulation", 0)
@@ -497,14 +505,11 @@ def run_acceptance():
         doc.recompute()
         if len(scene.ClothPieces) != 4:
             raise RuntimeError("fitting-created simulation did not inherit four pattern pieces")
-        # The target existed before this simulation was created; bind the same
-        # persistent CAD target to the newly created public simulation object.
-        _select_objects(target_body)
-        Gui.runCommand("ClothDrape_CreateTarget", 0)
+        Gui.runCommand("ClothDrape_CreateMannequinTarget", 0)
         _events()
         target = doc.getObject("DrapeTarget")
-        if target is None or scene.DrapeTarget != target or target.SourceObject != target_body:
-            raise RuntimeError("public DrapeTarget command did not attach the persistent CAD target to simulation")
+        if target is None or scene.DrapeTarget != target or target.SourceObject != avatar:
+            raise RuntimeError("public mannequin DrapeTarget command did not attach the canonical human target to simulation")
 
         _select_objects(scene)
         quality_panel = _open_quality_panel()
