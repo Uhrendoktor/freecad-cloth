@@ -18,6 +18,10 @@ def _events():
     QtWidgets.QApplication.processEvents()
 
 
+def _record(message):
+    print("sketcher-acceptance=%s" % message, flush=True)
+
+
 def _close_task():
     if Gui.Control.activeDialog():
         Gui.Control.closeDialog()
@@ -36,7 +40,6 @@ def _activate(name, commands):
 
 def _pattern_pieces(doc):
     return [obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"]
-
 
 def _constraint_type(sketch, index):
     return str(getattr(sketch.Constraints[index], "Type", ""))
@@ -138,10 +141,18 @@ def _exercise_constraint_families(doc, reference_sketch):
 def run_acceptance():
     doc = App.newDocument("NativeSketcherAcceptance")
     try:
+        _record("document-created")
         _activate("ClothPatternWorkbench", ["ClothPattern_CreatePieceWithSketch", "ClothPattern_EditSketch"])
+        _record("pattern-workbench-ready")
+        _record("before-create-piece-1")
         Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
+        _record("after-create-piece-1")
+        _record("before-create-piece-2")
         Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
+        _record("after-create-piece-2")
+        _record("before-document-recompute-1")
         doc.recompute()
+        _record("after-document-recompute-1")
         pieces = _pattern_pieces(doc)
         if len(pieces) != 2:
             raise RuntimeError("public Pattern command did not create two PatternPiece objects")
