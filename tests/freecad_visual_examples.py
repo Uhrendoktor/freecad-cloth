@@ -133,6 +133,10 @@ def main():
         boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
         top = sorted(boundary_vertices, key=lambda index: float(mesh_positions[index][1]), reverse=True)[:2]
         scene.PinSelection = [str(int(index)) for index in top]
+        scene.FabricColor = (0.14, 0.32, 0.78)
+        scene.FabricSpecular = 0.70
+        scene.FabricRoughness = 0.20
+        scene.FabricTransparency = 12
         doc.recompute()
 
         for source in (piece, sketch):
@@ -203,6 +207,13 @@ def main():
             drape.state, drape.vertical_span_ratio, drape.lateral_span_ratio,
         ))
         log("movement=passed max_displacement_mm=%.3f" % max_displacement)
+        applied_color = tuple(float(value) for value in panel.ViewObject.ShapeColor[:3])
+        expected_color = (0.14, 0.32, 0.78)
+        if any(abs(applied_color[index] - expected_color[index]) > 0.02 for index in range(3)):
+            raise RuntimeError("simulation viewport did not apply persisted fabric color")
+        if int(panel.ViewObject.Transparency) != 12:
+            raise RuntimeError("simulation viewport did not apply persisted fabric transparency")
+        log("material-presentation=passed viewport=true color=0.14,0.32,0.78 transparency=12")
 
         render_motion(view, scene, frame_count=16, final_steps=120)
         log("blanket-visual-acceptance=passed")
