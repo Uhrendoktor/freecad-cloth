@@ -9,7 +9,7 @@ def test_sketcher_acceptance_prepares_gui_before_manual_initgui():
     run = source.split("def run_acceptance():", 1)[1]
     assert run.index("window = Gui.getMainWindow()") < run.index("_bootstrap_workbenches()")
     assert run.index("window.show()") < run.index("_bootstrap_workbenches()")
-    assert run.index("_events()") < run.index("_bootstrap_workbenches())
+    assert run.index("_events()") < run.index("_bootstrap_workbenches()")
     assert '_stage("gui-ready")' in run
 
 
