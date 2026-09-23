@@ -132,7 +132,8 @@ def main():
         scene.GravityX = 0.0
         scene.GravityY = 0.0
         scene.GravityZ = -9810.0
-        scene.TimeStep = 1.0 / 120.0
+        scene.StartHeight = 0.0
+        scene.TimeStep = 1.0 / 480.0
         # QualitySimulationProxy consumes SolverIterations; the legacy Iterations field is ignored for this runtime path.
         scene.SolverIterations = 20
 
@@ -173,7 +174,7 @@ def main():
         save_png(view, OUT / "checkpoint-000.png", "blanket initial state")
 
         initial_points = tuple(tuple(float(value) for value in point) for point in scene.Proxy._base_or_restore().backend.positions())
-        render_steps = (15, 30, 60, 120)
+        render_steps = (60, 120, 240, 480)
         for step in render_steps:
             scene.Steps = step
             doc.recompute()
@@ -222,7 +223,7 @@ def main():
             raise RuntimeError("simulation viewport did not apply persisted fabric transparency")
         log("material-presentation=passed viewport=true color=0.14,0.32,0.78 transparency=12")
 
-        render_motion(view, scene, frame_count=16, final_steps=120)
+        render_motion(view, scene, frame_count=16, final_steps=480)
         log("blanket-visual-acceptance=passed")
     finally:
         if doc.Name in App.listDocuments():
