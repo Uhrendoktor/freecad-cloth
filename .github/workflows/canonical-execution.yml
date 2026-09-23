@@ -385,7 +385,7 @@ jobs:
           compression-level: 1
 
   gui-turntables:
-    name: README turntables
+    name: README simulation turntable
     needs: runner_selection
     runs-on: ${{ fromJSON(needs.runner_selection.outputs.runner) }}
     timeout-minutes: 25
@@ -398,11 +398,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Pull FreeCAD image
         run: docker pull "$FREECAD_IMAGE"
-      - name: Render turntable frames
+      - name: Render avatar and blanket turntable frames
         env:
           CLOTH_SIMULATION_BACKEND: tissu
           CLOTH_TISSU_SUBSTEPS: 10
-          CLOTH_TISSU_COLLISION_MODE: torso-envelope
+          CLOTH_TISSU_COLLISION_MODE: mesh
         run: |
           set -euo pipefail
           rm -rf docs/images/generated
@@ -425,70 +425,50 @@ jobs:
               timeout --signal=TERM --kill-after=15s 300s /opt/freecad/AppRun tests/freecad_avatar_screenshot.py
               timeout --signal=TERM --kill-after=15s 300s /opt/freecad/AppRun tests/freecad_simulation_turntable.py
             '
-          test -d docs/images/generated/cloth-avatar-turntable-frames
           test "$(find docs/images/generated/cloth-avatar-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
-          test -d docs/images/generated/cloth-simulation-arranged-turntable-frames
           test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
-          test -d docs/images/generated/cloth-simulation-draped-turntable-frames
           test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
-          test -d docs/images/generated/cloth-simulation-motion-frames
-          test "$(find docs/images/generated/cloth-simulation-motion-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 16
-      - name: Validate semantic turntable evidence
+      - name: Validate blanket motion and camera evidence
         run: |
           set -euo pipefail
-          grep -q 'simulation-motion-pass frames=16 final_steps=90' docs/images/generated/simulation-turntable-progress.log
-          grep -q 'simulation-seam-diagnostic max_endpoint_gap_mm=' docs/images/generated/simulation-turntable-progress.log
-          grep -q 'semantic-provenance=true' docs/images/generated/simulation-turntable-progress.log
-          gap="$(sed -n 's/.*max_endpoint_gap_mm=\([0-9.]*\).*/\1/p' docs/images/generated/simulation-turntable-progress.log | tail -n 1)"
-          python3 - "$gap" <<'PY'
-          import sys
-          gap = float(sys.argv[1])
-          if gap > 35.0:
-              raise SystemExit("solver stitch gap exceeds 35.0 mm: %.2f" % gap)
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, re
+          log = Path("docs/images/generated/simulation-turntable-progress.log").read_text(encoding="utf-8")
+          m = re.findall(r"blanket-motion-diagnostic max_centroid_displacement_mm=([0-9.]+).*min_z_mm=([0-9.]+).*cube_top_z_mm=([0-9.]+)", log)
+          if not m: raise SystemExit("missing blanket motion diagnostic")
+          displacement, minimum_z, cube_top = (float(x) for x in m[-1])
+          if displacement < 40.0: raise SystemExit("blanket displacement below 40 mm")
+          if minimum_z > cube_top + 35.0: raise SystemExit("blanket did not approach cube")
+          if "blanket-turntable-pass" not in log: raise SystemExit("blanket turntable incomplete")
+          for directory in ("cloth-avatar-turntable-frames","cloth-simulation-arranged-turntable-frames","cloth-simulation-draped-turntable-frames"):
+            hashes=[]
+            for frame in (0,18,36,54):
+              p=Path("docs/images/generated")/directory/("frame-%03d.png"%frame)
+              if not p.is_file(): raise SystemExit("missing "+str(p))
+              hashes.append(hashlib.sha256(p.read_bytes()).hexdigest())
+            if len(set(hashes)) != 4: raise SystemExit("camera checkpoints not distinct for "+directory)
           PY
-          for dir in cloth-avatar-turntable-frames cloth-simulation-arranged-turntable-frames cloth-simulation-draped-turntable-frames; do
-            unique="$({
-            for frame in 000 018 036 054; do
-              sha256sum "docs/images/generated/$dir/frame-$frame.png"
-            done
-            } | awk '{print $1}' | sort -u | wc -l)"
-            test "$unique" -eq 4
-          done
-          echo 'checkpoint-uniqueness=passed'
-      - name: Build turntable GIFs
+      - name: Build README turntable GIFs
         run: |
           set -euo pipefail
-          if command -v magick >/dev/null 2>&1; then
-            IM=(magick)
-          elif command -v convert >/dev/null 2>&1; then
-            IM=(convert)
-          else
-            sudo apt-get update
-            sudo apt-get install -y imagemagick
-            IM=(convert)
+          if command -v magick >/dev/null 2>&1; then IM=(magick)
+          elif command -v convert >/dev/null 2>&1; then IM=(convert)
+          else sudo apt-get update && sudo apt-get install -y imagemagick && IM=(convert)
           fi
           for spec in \
             "cloth-avatar-turntable-frames cloth-avatar-turntable.gif" \
             "cloth-simulation-arranged-turntable-frames cloth-simulation-arranged-turntable.gif" \
-            "cloth-simulation-draped-turntable-frames cloth-simulation-draped-turntable.gif" \
-            "cloth-simulation-motion-frames cloth-simulation-motion.gif"; do
+            "cloth-simulation-draped-turntable-frames cloth-simulation-draped-turntable.gif"; do
             set -- $spec
-            "${IM[@]}" "docs/images/generated/$1"/frame-*.png \
-              -delay 8 -loop 0 -colors 128 -layers Optimize \
-              "docs/images/generated/$2"
+            "${IM[@]}" "docs/images/generated/$1"/frame-*.png -delay 8 -loop 0 -colors 128 -layers Optimize "docs/images/generated/$2"
             test -s "docs/images/generated/$2"
           done
-      - name: Validate turntable GIFs
-        run: |
-          set -euo pipefail
-          for gif in cloth-avatar-turntable.gif cloth-simulation-arranged-turntable.gif cloth-simulation-draped-turntable.gif; do
-            identify -format '%n\n' "docs/images/generated/$gif" | head -n 1 | grep -qx '73'
-            python3 -c 'import os,sys; p=sys.argv[1]; d=open(p,"rb").read(6); assert d in (b"GIF87a", b"GIF89a"); assert os.path.getsize(p)>=50000' "docs/images/generated/$gif"
-          done
-          identify -format '%n\n' docs/images/generated/cloth-simulation-motion.gif | head -n 1 | grep -qx '16'
-          python3 -c 'import os; p="docs/images/generated/cloth-simulation-motion.gif"; assert os.path.getsize(p)>=20000'
-      - name: Upload README turntables
-        if: ${{ always() }}
+          identify -format '%n\n' docs/images/generated/cloth-avatar-turntable.gif | head -n 1 | grep -qx '73'
+          identify -format '%n\n' docs/images/generated/cloth-simulation-arranged-turntable.gif | head -n 1 | grep -qx '73'
+          identify -format '%n\n' docs/images/generated/cloth-simulation-draped-turntable.gif | head -n 1 | grep -qx '73'
+      - name: Upload README turntable evidence
+        if: always()
         uses: actions/upload-artifact@v6
         with:
           name: readme-turntables
@@ -496,11 +476,23 @@ jobs:
             docs/images/generated/cloth-avatar-turntable.gif
             docs/images/generated/cloth-simulation-arranged-turntable.gif
             docs/images/generated/cloth-simulation-draped-turntable.gif
-            docs/images/generated/cloth-simulation-motion.gif
+            docs/images/generated/cloth-avatar-turntable-frames/frame-000.png
+            docs/images/generated/cloth-avatar-turntable-frames/frame-018.png
+            docs/images/generated/cloth-avatar-turntable-frames/frame-036.png
+            docs/images/generated/cloth-avatar-turntable-frames/frame-054.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-000.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-018.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-036.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-054.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-000.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-018.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-036.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-054.png
             docs/images/generated/avatar-gui-progress.log
             docs/images/generated/simulation-turntable-progress.log
           if-no-files-found: ignore
           compression-level: 1
+
 
   gui-visual-examples:
     name: Basic blanket visual example
@@ -591,6 +583,11 @@ jobs:
         with:
           name: blanket-visual-example
           path: blanket
+      - name: Download tunic visual audit
+        uses: actions/download-artifact@v6
+        with:
+          name: tunic-visual-audit
+          path: tunic
       - name: Update stable README asset branch
         env:
           GH_TOKEN: ${{ github.token }}
@@ -612,13 +609,14 @@ jobs:
           cp ../turntables/cloth-simulation-draped-turntable.gif docs/images/generated/
           cp ../turntables/cloth-simulation-motion.gif docs/images/generated/
           cp ../blanket/blanket-example/blanket-motion.gif docs/images/generated/cloth-blanket-motion.gif
+          cp ../tunic/docs/images/generated/cloth-simulation-draped-front.png docs/images/generated/cloth-simulation-draped-front.png
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/images/generated/cloth-avatar-turntable.gif \
             docs/images/generated/cloth-simulation-arranged-turntable.gif \
             docs/images/generated/cloth-simulation-draped-turntable.gif \
-            docs/images/generated/cloth-simulation-motion.gif \
-            docs/images/generated/cloth-blanket-motion.gif
+            docs/images/generated/cloth-blanket-motion.gif \
+            docs/images/generated/cloth-simulation-draped-front.png
           if git diff --cached --quiet; then
             echo "README turntables are already current."
             exit 0

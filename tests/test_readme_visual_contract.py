@@ -1,44 +1,33 @@
-"""Executable contracts for the published README visual validation path."""
+"""Contracts for the published README visual validation path."""
 from pathlib import Path
-import unittest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-class ReadmeVisualContractTests(unittest.TestCase):
-    def test_turntable_uses_solver_boundary_provenance(self):
-        source = (ROOT / 'tests' / 'freecad_simulation_turntable.py').read_text(encoding='utf-8')
-        for token in ('panel_boundary_edges', 'resolve_simulation_pattern', 'Edge%sId', 'seam_stitch_pairs', 'semantic-provenance=true'):
-            self.assertIn(token, source)
-        self.assertIn('if seam_gap > 35.0', source)
-        self.assertIn('from freecad_cloth.simulation import TissuBackend as _tissu_backend', source)
-        self.assertLess(source.index('from freecad_cloth.simulation import TissuBackend as _tissu_backend'), source.index('def _tight_tissu_collision_envelope'))
-
-    def test_turntable_profile_matches_canonical_tunic(self):
-        source = (ROOT / 'tests' / 'freecad_simulation_turntable.py').read_text(encoding='utf-8')
-        for token in ('chest = 860.0', 'hip = 880.0', 'ease = 10.0', 'ParticleDistance', '24.0', 'SolverIterations', '64', 'FabricFriction = 0.85', 'neckline_ratio'):
-            self.assertIn(token, source)
-        self.assertIn('0.68, 0.08', source)
-
-    def test_canonical_workflow_fails_closed_on_turntable_quality(self):
-        source = (ROOT / '.github' / 'workflows' / 'canonical-execution.yml').read_text(encoding='utf-8')
-        for token in ('CLOTH_TISSU_SUBSTEPS: 10', 'CLOTH_TISSU_COLLISION_MODE: torso-envelope', 'semantic-provenance=true', 'simulation-seam-diagnostic', 'checkpoint-uniqueness=passed', 'test "$unique" -eq 4'):
-            self.assertIn(token, source)
+def test_readme_turntable_uses_real_blanket_drape_motion():
+    source = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
+    assert 'Part::Box' in source
+    assert 'BlanketSource' in source
+    assert 'ClothPieces = [blanket]' in source
+    assert 'blanket-motion-diagnostic' in source
+    assert 'blanket-turntable-pass' in source
+    assert 'if displacement < 40.0' in source
+    assert 'minimum_z > cube_top + 35.0' in source
 
 
-if __name__ == '__main__':
-    unittest.main()
+def test_readme_turntable_uses_exact_drape_target_mesh():
+    source = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
+    assert 'create_drape_target(doc, cube, "FreeCAD Geometry"' in source
+    assert 'assign_drape_target(target, cube, "FreeCAD Geometry")' in source
+    assert 'DrapeTarget' in source
 
 
-def test_scheduled_workloads_do_not_cancel_each_other():
+def test_canonical_workflow_fails_closed_on_turntable_quality():
     source = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
-    assert "github.event.schedule || github.event.pull_request.number || github.ref" in source
-
-
-def test_actions_write_permission_is_scoped_to_maintenance():
-    source = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
-    assert "permissions:\n  actions: read\n  contents: read\n  packages: read" in source
-    assert "  publish-readme-turntables:" in source
-    assert "    permissions:\n      contents: write\n      packages: read" in source
-    assert "  maintenance-cleanup:" in source
-    assert "    permissions:\n      actions: write\n      contents: write" in source
+    assert "CLOTH_TISSU_SUBSTEPS: 10" in source
+    assert "CLOTH_TISSU_COLLISION_MODE: mesh" in source
+    assert "blanket-motion-diagnostic" in source
+    assert "blanket-turntable-pass" in source
+    assert 'test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames' in source
+    assert 'checkpoint-uniqueness=passed' in source

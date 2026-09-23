@@ -38,3 +38,5 @@ The project aims for a CLO-like garment workflow while remaining FreeCAD-native:
 ## Module model
 
 All implementation code lives under `freecad_cloth/`. Root `Init.py` and `InitGui.py` are FreeCAD bootstrap adapters, and root `sitecustomize.py` is an interpreter/CI hook. Root-level domain modules and compatibility copies are not part of the supported architecture.
+
+- `USER_GUIDE.md` — human-facing workflow from first run through seams, materials, simulation and recovery.

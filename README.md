@@ -24,7 +24,7 @@ Start with [Installation](docs/INSTALLATION.md), then run the [Blanket over Cube
 
 ## Screenshots and simulation media
 
-The canonical FreeCAD/Xvfb workflow publishes validated GUI states to a stable `docs/screenshots` branch. Turntables are camera rotations of a validated final state; motion GIFs are separate artifacts sampled from actual simulation steps.
+The canonical FreeCAD/Xvfb workflow publishes validated GUI states to a stable `docs/screenshots` branch. The basic example proves real cloth motion; the advanced tunic example is published from the authoritative tunic visual audit.
 
 ### Pattern design
 
@@ -34,21 +34,13 @@ The canonical FreeCAD/Xvfb workflow publishes validated GUI states to a stable `
 
 ![Cloth Sewing](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-sewing.png)
 
-### Simulation — arranged 360°
-
-![Cloth Simulation arranged 360°](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged-turntable.gif)
-
-### Simulation — draped 360°
-
-![Cloth Simulation draped 360°](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-turntable.gif)
-
-### Simulation — actual drape motion
-
-![Cloth Simulation motion](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-motion.gif)
-
 ### Basic example — blanket over cube
 
 ![Blanket over cube motion](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-blanket-motion.gif)
+
+### Advanced example — tunic
+
+![Advanced tunic validation](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-front.png)
 
 ### Avatar — 360° turntable
 
