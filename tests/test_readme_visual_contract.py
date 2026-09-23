@@ -19,6 +19,17 @@ def test_readme_turntable_uses_real_blanket_drape_motion():
     assert 'set_avatar_collision_source(scene, cube, thickness=2.0, deflection=1.0)' in source
 
 
+def test_blanket_visual_acceptance_initializes_gui_before_manual_initgui_bootstrap():
+    source = (ROOT / "tests" / "freecad_visual_examples.py").read_text(encoding="utf-8")
+    run = source.split("def main():", 1)[1]
+    assert run.index("window = Gui.getMainWindow()") < run.index("window.show()")
+    assert run.index("window.show()") < run.index("events()")
+    assert run.index("events()") < run.index("if \"ClothPatternWorkbench\" not in Gui.listWorkbenches():")
+    assert run.index("events()", run.index("if \"ClothPatternWorkbench\" not in Gui.listWorkbenches():")) < run.index("doc = App.newDocument")
+    assert 'RuntimeError("FreeCAD GUI did not launch")' in run
+    assert 'RuntimeError("ClothPatternWorkbench was not registered by InitGui.py")' in run
+
+
 def test_readme_turntable_uses_exact_drape_target_mesh():
     source = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
     simulation_objects = (ROOT / "freecad_cloth" / "simulation" / "SimulationObjects.py").read_text(encoding="utf-8")
