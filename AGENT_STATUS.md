@@ -6,10 +6,11 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: resolve `refs/heads/main` at audit time; latest recorded supervisor state commit is the durable baseline.
+- Current main: `b99e8dbdfc2b91c8da645c4b41bf22ff4aa0cec6` (resolved at supervisor audit time).
 - Canonical workflow: `.github/workflows/canonical-execution.yml`; exactly one workflow.
 - Supervisor completion issue: #1017.
-- Active release candidate: PR #1075, branch `supervisor/final-release-fixed-main-20260923`; exact head `930466783470a810615171364492380f88f0db28`.
+- Current continuation: #1081.
+- Active release candidate: PR #1075, branch `supervisor/final-release-fixed-main-20260923`; exact head `69215e7286ffda3da655f53094c5ae86d4644eb3`.
 
 ## Implemented release slice
 
@@ -18,26 +19,26 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - Blanket-over-Cube acceptance uses geometry-appropriate mesh collision, effective solver iterations, stable integration, opposite top-edge corner pins, and the existing fail-closed mesh thresholds.
 - README turntable uses the same blanket fixture, requires finite connected mesh/drape sanity, and rejects duplicate turntable frames.
 - Installation/docs index points users to the human-facing User Guide.
+- PR #1074 launcher fix and PR #1077 missing icon fix are merged on main.
 
 ## CI evidence
 
-- Supporting canonical run #3297 / `35844023654` executed real FreeCAD/Xvfb jobs. Python, sewing, pattern export, blanket visual, README turntable and tunic audit passed; only Native Sketcher acceptance timed out after its 8-minute fail-closed limit. The 200 mm Blanket-over-Cube fixture was separately validated in real FreeCAD/Xvfb by run `35845226384`, artifact `10743635540`.
-- The timeout job log showed the FreeCAD process reached the test invocation but emitted no acceptance-stage output. Main now also includes the reviewed module-level `run_acceptance()` launcher fix from merged PR #1074, matching FreeCAD's documented/import behavior; runtime confirmation remains blocked by Actions delivery.
-- Current PR #1075 has no `pull_request` workflow run or status. Latest exact-head push run #3501 / `35870739559` and predecessor candidate push #3500 / `35870729256` both terminate `failure` before job allocation with zero jobs and zero artifacts; latest main push run #3499 / `35870685261` has the same zero-job failure. A controlled close/reopen probe on PR #1075 produced no `pull_request` workflow run; the current frozen head is 930466783470a810615171364492380f88f0db28.
-- Other branches still have real `pull_request` runs, and historical scheduled execution proves the canonical workflow graph can run when GitHub delivers the event. The installed connector cannot read the Actions administration policy endpoints (403/unsupported integration access) and exposes no workflow-dispatch operation; scheduled execution has historical success but current event delivery for pushes/pull requests is still blocked.
+- Supporting canonical run #3297 / `35844023654` executed real FreeCAD/Xvfb jobs. Python, sewing, pattern export, basic blanket, README turntable and tunic audit passed; Native Sketcher acceptance timed out after its 8-minute fail-closed limit. The 200 mm Blanket-over-Cube fixture was separately validated in real FreeCAD/Xvfb by run `35845226384`, artifact `10743635540`; its rendered checkpoints and motion frames were visually inspected.
+- Current PR #1075 exact head `69215e7…` has no pull_request workflow run and no commit status. Its latest push-triggered run is #3507 / Actions `35879364633`, terminal `failure` before job allocation with 0 jobs and 0 artifacts. Predecessor candidate pushes #3505/#3506 and current-main pushes #3499/#3504 show the same pre-job zero-job failure pattern.
+- A controlled PR close/reopen probe was previously performed and did not create a pull_request run. The installed GitHub connector exposes no workflow-dispatch operation and cannot read the required Actions administration policy endpoints.
+- The exact-head release decision must therefore treat canonical validation as unverified until a real non-zero job graph runs at `69215e7286ffda3da655f53094c5ae86d4644eb3`.
+- The supporting 200 mm Blanket artifact is valid evidence for the basic example only; it does not substitute for exact-head README turntable validation.
 
 ## Branch cleanup
 
-- 490 historical agent/supervisor and other branches remain. The installed GitHub connector exposes branch listing but no branch-delete operation, so branch cleanup is not claimed complete.
-
-## External CI blocker
-
-- GitHub Actions event delivery remains unresolved: current main/release push runs can terminate `failure` with zero jobs, while other historical pull_request/schedule runs instantiate the canonical job graph.
-- Repository-side policy inspection requires Administration access not exposed by the installed GitHub connector. Exact restoration path is recorded in issue #1053: inspect inherited/repository Actions event restrictions, then trigger a real `pull_request:synchronize` or `reopened` event on PR #1075 and verify non-zero jobs.
+- 490 historical agent/supervisor and other branches were observed in the current audit chain. The installed GitHub connector exposes branch listing but no branch-delete operation, so branch cleanup is not claimed complete.
 
 ## Current gate
 
-- Do not merge or close #1017 or continuation #1079 yet.
-- Exact-head PR #1075 must receive a terminal canonical run and its jobs/artifacts/logs must be inspected.
+- Do not merge or close #1017 or continuation #1081.
+- Exact-head PR #1075 must receive a terminal canonical run with non-zero jobs, and every required job, log and artifact must be inspected.
 - After merge, merged-main canonical validation must be terminal-green before closing supervisor issues.
-- PR #1073 has been superseded and closed; PR #1074 and #1077 have been merged; PR #1075 is the sole open release PR; validation PR #1078 was opened against the identical candidate SHA to probe event delivery and then closed without a run; continuation #1079 is the current depth-2 supervisor continuation; superseded continuation #1067 is closed; the release candidate head is recorded above; #1053 is the active external CI blocker; #1020 and #1043 remain open until their acceptance gates are verified on merged main.
+- #1020 and #1043 remain open until their stated acceptance gates are verified on merged main.
+- #1053 remains the active external CI blocker.
+- #1083 is the independent challenge review for the release-blocker/evidence boundary.
+- Stale state in this file has been reconciled to the live main/PR heads as part of the 2026-09-23 recovery audit.
