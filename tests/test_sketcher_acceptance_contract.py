@@ -29,3 +29,9 @@ def test_freecad_ci_bootstrap_defers_repository_import_until_after_process_start
     source = (ROOT / "tests" / "freecad_ci_bootstrap.py").read_text(encoding="utf-8")
     assert 'sys.path.insert(0, ROOT)' in source
     assert 'runpy.run_path(script, run_name="__main__")' in source
+
+
+if __name__ == "__main__":
+    test_sketcher_acceptance_initializes_gui_before_manual_initgui_bootstrap()
+    test_sketcher_acceptance_starts_freecad_outside_repository_path()
+    test_freecad_ci_bootstrap_defers_repository_import_until_after_process_start()
