@@ -1,4 +1,5 @@
 """Render a deterministic simple blanket-over-cube simulation for the README."""
+import hashlib
 import os
 import sys
 import traceback
@@ -18,6 +19,10 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
+# This README fixture is the deterministic CPU reference example. The canonical
+# turntable job also renders a Tissu-based avatar, so do not inherit that backend
+# selection for the blanket scenario.
+os.environ["CLOTH_SIMULATION_BACKEND"] = "xpbd-cpu"
 os.makedirs(OUT, exist_ok=True)
 LOG = os.path.join(OUT, "simulation-turntable-progress.log")
 
@@ -147,14 +152,23 @@ def render_turntable(view, objects, frame_dir, frame_count=72):
     if base_offset.length() <= 0:
         raise RuntimeError("zero camera radius")
     up = coin.SbVec3f(0.0, 0.0, 1.0)
+    frame_hashes = []
     for frame in range(frame_total):
-        angle = 2.0 * pi * min(frame, frame_count) / frame_count
+        # Use all 73 angular positions rather than duplicating frame 000 at the
+        # end. This keeps every published frame distinct while retaining a full
+        # 360-degree turntable loop.
+        angle = 2.0 * pi * frame / frame_total
         camera.position = coin.SbRotation(coin.SbVec3f(0.0, 0.0, 1.0), angle).multVec(base_offset) + target
         camera.pointAt(target, up)
         if hasattr(view, "redraw"):
             view.redraw()
         events()
-        save_png(view, os.path.join(frame_dir, "frame-%03d.png" % frame), "turntable frame %03d" % frame)
+        frame_path = os.path.join(frame_dir, "frame-%03d.png" % frame)
+        save_png(view, frame_path, "turntable frame %03d" % frame)
+        with open(frame_path, "rb") as handle:
+            frame_hashes.append(hashlib.sha256(handle.read()).hexdigest())
+    if len(frame_hashes) != frame_total or len(set(frame_hashes)) != frame_total:
+        raise RuntimeError("turntable frames are not all distinct: %s" % frame_dir)
     camera.position = base_position
     camera.pointAt(target, up)
     if hasattr(view, "redraw"):
@@ -227,6 +241,58 @@ def _center_z(points):
     return sum(float(p[2]) for p in points) / len(points)
 
 
+def validate_blanket_drape(panel, cube):
+    from freecad_cloth.common.DrapeVisualSanity import inspect_drape, mesh_shape_sanity
+    from freecad_cloth.common.MeshValidation import validate_mesh
+
+    vertices, triangles = panel.Mesh.Topology
+    points = tuple(
+        (float(vertex.x), float(vertex.y), float(vertex.z))
+        for vertex in vertices
+    )
+    faces = tuple(
+        tuple(int(index) for index in triangle)
+        for triangle in triangles
+    )
+    mesh_result = validate_mesh(points, faces, prefer_trimesh=False)
+    shape = mesh_shape_sanity(points, faces)
+    target_points = tuple(
+        (float(vertex.Point.x), float(vertex.Point.y), float(vertex.Point.z))
+        for vertex in cube.Shape.Vertexes
+    )
+    drape = inspect_drape(
+        points,
+        target_points,
+        target_height=float(cube.Height),
+        target_width=max(float(cube.Length), float(cube.Width)),
+    )
+    if not mesh_result.finite or mesh_result.components != 1 or mesh_result.degenerate_faces:
+        raise RuntimeError("blanket mesh failed structural validation: %r" % mesh_result)
+    if (
+        not shape["finite"]
+        or shape["edge_spike_ratio"] > 4.0
+        or shape["spike_edge_fraction"] > 0.02
+        or shape["footprint_aspect_ratio"] > 4.0
+    ):
+        raise RuntimeError("blanket mesh has spike/outlier geometry: %r" % shape)
+    if not drape.finite or drape.state != "structurally-plausible":
+        raise RuntimeError("blanket drape sanity check failed: %r" % drape)
+    log(
+        "mesh-quality=passed vertices=%d faces=%d components=%d "
+        "spikes=%.3f spike_fraction=%.6f aspect=%.3f drape=%s"
+        % (
+            mesh_result.vertices,
+            mesh_result.faces,
+            mesh_result.components,
+            shape["edge_spike_ratio"],
+            shape["spike_edge_fraction"],
+            shape["footprint_aspect_ratio"],
+            drape.state,
+        )
+    )
+    return shape, drape
+
+
 def build_simulation_state(doc):
     from freecad_cloth.simulation.DrapeTarget import create_drape_target, refresh_drape_target
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
@@ -277,6 +343,12 @@ def build_simulation_state(doc):
     left = App.Vector(-210.0, -120.0, 220.0)
     right = App.Vector(210.0, -120.0, 220.0)
     pins = _nearest_pin_indices(indices, positions, (left, right))
+    if len(pins) != 2:
+        raise RuntimeError("blanket requires exactly two intentional corner pins")
+    pin_positions = tuple(positions[index] for index in pins)
+    pin_span = abs(float(pin_positions[1][0]) - float(pin_positions[0][0]))
+    if pin_span < 0.75 * 420.0:
+        raise RuntimeError("blanket corner pins are not opposite corners: span=%.2f mm" % pin_span)
     scene.PinSelection = [str(index) for index in pins]
     doc.recompute()
     initial_positions = tuple(scene.Proxy._base_or_restore().backend.positions())
@@ -336,6 +408,8 @@ def main():
         panel.ViewObject.Visibility = True
         cube.ViewObject.Visibility = True
         doc.recompute()
+        validate_blanket_drape(panel, cube)
+
         render_turntable(view, [cube, panel], os.path.join(OUT, "cloth-simulation-draped-turntable-frames"))
         log("blanket-turntable-pass")
     finally:
