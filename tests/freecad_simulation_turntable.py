@@ -13,13 +13,17 @@ except ImportError:
     from PySide2 import QtWidgets
 from pivy import coin
 
+from freecad_cloth.simulation import TissuBackend as _tissu_backend
 
-# Keep the README fixture on the same conservative torso-envelope profile used by
-# the canonical tunic visual audit. This is test/visual-fixture policy only; the
-# production backend remains unchanged.
+ROOT = "/workspace"
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+from freecad_cloth.sewing.SewingView import seam_color_map
+from freecad_cloth.common.DrapeVisualSanity import mesh_shape_sanity
 
 
 def _tight_tissu_collision_envelope(surface):
+    """Keep this README fixture on the same conservative collision profile as the canonical tunic audit."""
     if surface is None or not surface.vertices:
         return ()
     xs = [float(v[0]) for v in surface.vertices]
@@ -38,15 +42,10 @@ def _tight_tissu_collision_envelope(surface):
     top = min_z + 0.76 * height
     samples = (0.0, 0.25, 0.50, 0.75, 1.0)
     return tuple(
-        ((center_x, center_y, bottom + (top - bottom) * t), radius)
-        for t in samples
+        ((center_x, center_y, bottom + (top - bottom) * fraction), radius)
+        for fraction in samples
     )
 
-ROOT = "/workspace"
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
-from freecad_cloth.simulation import TissuBackend as _tissu_backend
-from freecad_cloth.sewing.SewingView import seam_color_map
 
 _tissu_backend._collision_envelope = _tight_tissu_collision_envelope
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
@@ -119,32 +118,34 @@ def render_turntable(view, objects, frame_dir, frame_count=72):
     log("turntable-pass dir=%s frames=%d" % (frame_dir, frame_total))
 
 
-def _make_tunic_sketch(doc, name, panel_width, garment_height, hem_width, mirror_x=False):
+def _make_tunic_sketch(doc, name, panel_width, garment_height, hem_width, neckline_ratio, neckline_drop=0.08):
     import Part, Sketcher
     sketch = doc.addObject("Sketcher::SketchObject", name + "Sketch")
-    raw_points = [
-        (0.0, 0.0),
-        (hem_width, 0.0),
+    neck_z = (1.0 - float(neckline_drop)) * garment_height
+    points = [
+        (0.00, 0.00),
+        (hem_width, 0.00),
         (panel_width, 0.82 * garment_height),
         (0.86 * panel_width, 0.97 * garment_height),
-        (0.64 * panel_width, garment_height),
-        (0.36 * panel_width, garment_height),
+        (neckline_ratio * panel_width, neck_z),
+        ((1.0 - neckline_ratio) * panel_width, neck_z),
         (0.14 * panel_width, 0.97 * garment_height),
-        (0.0, 0.82 * garment_height),
+        (0.00, 0.82 * garment_height),
     ]
-    points = [(hem_width - x, y) for x, y in raw_points] if mirror_x else raw_points
-    sketch.addGeometry([
+    geometry = [
         Part.LineSegment(
-            App.Vector(points[i][0], points[i][1], 0),
-            App.Vector(points[(i + 1) % 8][0], points[(i + 1) % 8][1], 0),
-        ) for i in range(8)
-    ], False)
+            App.Vector(points[index][0], points[index][1], 0),
+            App.Vector(points[(index + 1) % len(points)][0], points[(index + 1) % len(points)][1], 0),
+        )
+        for index in range(len(points))
+    ]
+    sketch.addGeometry(geometry, False)
     sketch.addConstraint([
-        Sketcher.Constraint("Coincident", i, 2, (i + 1) % 8, 1) for i in range(8)
+        Sketcher.Constraint("Coincident", index, 2, (index + 1) % len(points), 1)
+        for index in range(len(points))
     ])
     doc.recompute()
     return sketch, points
-
 
 def _adopt_sketch(sketch, name):
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
@@ -196,13 +197,17 @@ def _polyline_point(points, fraction):
 
 
 def _sample_polyline(points, start, end, count=12, reverse=False):
-    start = float(start); end = float(end)
+    start = float(start)
+    end = float(end)
     if reverse:
         start, end = 1.0 - end, 1.0 - start
-    return [
-        _polyline_point(points, start + (end - start) * (index / float(max(1, count - 1))))
+    return tuple(
+        _polyline_point(
+            points,
+            start + (end - start) * index / float(max(1, int(count) - 1)),
+        )
         for index in range(max(2, int(count)))
-    ]
+    )
 
 
 def _solver_boundary_map(scene, pieces, panels):
@@ -210,6 +215,8 @@ def _solver_boundary_map(scene, pieces, panels):
     resolved = resolve_simulation_pattern(scene.Document, tuple(pieces))
     proxy = scene.Proxy._base_or_restore()
     positions = tuple(proxy.backend.positions())
+    if not positions:
+        raise RuntimeError("simulation produced no particle positions")
     mapping = {}
     for piece, panel in zip(pieces, panels):
         piece_ir = resolved.piece(str(piece.PieceId))
@@ -246,7 +253,6 @@ def _seam_overlay(doc, name, seam_records, simulated=None):
     colors = seam_color_map(seam_ids)
     if len(set(colors.values())) != len(seam_ids):
         raise RuntimeError("turntable seam palette did not produce distinct colors")
-
     overlays = []
     for index, (seam, piece_a, piece_b) in enumerate(seam_records):
         seam_id = str(getattr(seam, "SeamId", "")).strip()
@@ -258,31 +264,26 @@ def _seam_overlay(doc, name, seam_records, simulated=None):
             reverse = bool(getattr(seam, "ReversedB", False)) if side == "B" else False
             if simulated is None:
                 outline = _outline(piece)
-                a, b = outline[edge_index], outline[(edge_index + 1) % len(outline)]
-                base = (
-                    App.Vector(a[0], a[1], 2.0),
-                    App.Vector(b[0], b[1], 2.0),
+                a_point, b_point = outline[edge_index], outline[(edge_index + 1) % len(outline)]
+                local = (
+                    App.Vector(a_point[0], a_point[1], 2.0),
+                    App.Vector(b_point[0], b_point[1], 2.0),
                 )
-                local_points = _sample_polyline(base, start, end, count=8, reverse=reverse)
-                points = [piece.Placement.multVec(point) for point in local_points]
+                points = tuple(piece.Placement.multVec(point) for point in _sample_polyline(local, start, end, count=12, reverse=reverse))
             else:
                 piece_data = simulated.get(piece.Name)
                 if piece_data is None:
                     raise RuntimeError("solver seam overlay has no piece provenance for %s" % piece.Name)
                 edge_id = _semantic_edge_id(seam, side, piece_data, edge_index)
                 points = _sample_polyline(piece_data["chains"][edge_id], start, end, count=16, reverse=reverse)
-                if side == "A":
-                    pass
             sides.append(points)
-
         shapes = [Part.makePolygon(points) for points in sides if len(points) >= 2]
         for left, right in zip(sides[0], sides[1]):
             if (right - left).Length > 1e-9:
                 shapes.append(Part.makeLine(left, right))
         if not shapes:
             raise RuntimeError("turntable seam overlay generated no geometry for %s" % seam_id)
-        obj_name = "%s%02d" % (name, index)
-        obj = doc.getObject(obj_name) or doc.addObject("Part::Feature", obj_name)
+        obj = doc.getObject("%s%02d" % (name, index)) or doc.addObject("Part::Feature", "%s%02d" % (name, index))
         obj.Label = "Tunic seam %s — %s" % (seam_id, "simulated" if simulated is not None else "authored")
         obj.Shape = Part.makeCompound(shapes)
         obj.ViewObject.LineColor = colors[seam_id]
@@ -293,32 +294,49 @@ def _seam_overlay(doc, name, seam_records, simulated=None):
     return overlays
 
 
-def _seam_endpoint_gap(simulated, seam_records):
-    gaps = []
+def _solver_seam_gap(scene, seam_records):
+    proxy = scene.Proxy._base_or_restore()
+    positions = tuple(proxy.backend.positions())
+    stitch_pairs_by_seam = getattr(proxy, "seam_stitch_pairs", {})
+    if not positions or not stitch_pairs_by_seam:
+        raise RuntimeError("authoritative solver seam provenance is unavailable")
+    maximum = 0.0
     for seam, piece_a, piece_b in seam_records:
-        data_a = simulated[piece_a.Name]
-        data_b = simulated[piece_b.Name]
-        edge_a = _semantic_edge_id(seam, "A", data_a, int(seam.EdgeA))
-        edge_b = _semantic_edge_id(seam, "B", data_b, int(seam.EdgeB))
-        a = _sample_polyline(data_a["chains"][edge_a], float(seam.StartA), float(seam.EndA), count=2)
-        b = _sample_polyline(data_b["chains"][edge_b], float(seam.StartB), float(seam.EndB), count=2, reverse=bool(seam.ReversedB))
-        gaps.extend(((left - right).Length for left, right in zip(a, b)))
-    return max(gaps) if gaps else 0.0
+        edge_a_id = str(getattr(seam, "EdgeAId", "")).strip()
+        edge_b_id = str(getattr(seam, "EdgeBId", "")).strip()
+        if not edge_a_id or not edge_b_id:
+            raise RuntimeError("semantic seam edge identity is missing for %s" % seam.SeamId)
+        expected_a = "%s:edge:" % piece_a.PieceId
+        expected_b = "%s:edge:" % piece_b.PieceId
+        if not edge_a_id.startswith(expected_a) or not edge_b_id.startswith(expected_b):
+            raise RuntimeError("semantic seam edge identity does not belong to the seam's source pieces")
+        pairs = tuple(stitch_pairs_by_seam.get(str(seam.SeamId), ()))
+        if not pairs:
+            raise RuntimeError("solver stitch-pair provenance missing for %s" % seam.SeamId)
+        for first, second in pairs:
+            if not (0 <= int(first) < len(positions) and 0 <= int(second) < len(positions)):
+                raise RuntimeError("solver stitch pair lies outside backend positions")
+            a_point = positions[int(first)]
+            b_point = positions[int(second)]
+            gap = sum((float(a_point[i]) - float(b_point[i])) ** 2 for i in range(3)) ** 0.5
+            maximum = max(maximum, gap)
+    return maximum
 
 def build_simulation_state(doc):
-    from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
     from freecad_cloth.pattern.PatternModel import Seam
-    from freecad_cloth.pattern.PatternMesh import triangulate
     from freecad_cloth.pattern.PatternObjects import add_seam
     from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
+
     scene = create_quality_simulation_scene(doc)
     avatar = scene.AvatarProxy.SourceObject
     if avatar is None or str(getattr(avatar, "AvatarType", "")) != "ClothAvatar":
         raise RuntimeError("missing production ClothAvatar")
     box = avatar.Mesh.BoundBox
     z_span = float(box.ZMax - box.ZMin)
-    chest = 860.0; hip = 880.0; ease = 10.0
+    chest = 860.0
+    hip = 880.0
+    ease = 10.0
     panel_width = max(420.0, 0.50 * chest + ease)
     hem_width = max(450.0, 0.50 * hip + ease)
     shoulder_z = box.ZMin + 0.76 * z_span
@@ -326,29 +344,27 @@ def build_simulation_state(doc):
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, float(box.YMax - box.YMin)))
     clearance = max(8.0, 0.025 * body_depth)
+    x_mid = 0.5 * (box.XMin + box.XMax)
 
-    def make_piece(name, y, mirror_x=False):
+    def make_piece(name, y, neckline_ratio, neckline_drop):
         sketch, outline = _make_tunic_sketch(
-            doc, name + "Source", panel_width, garment_height, hem_width, mirror_x=mirror_x
+            doc, name + "Source", panel_width, garment_height, hem_width,
+            neckline_ratio, neckline_drop,
         )
         piece = _adopt_sketch(sketch, name)
         rotation = App.Rotation(App.Vector(1, 0, 0), 90.0)
-        piece.Placement = App.Placement(
-            App.Vector((box.XMin + box.XMax) * 0.5 - hem_width / 2.0, y, hem_z),
-            rotation,
-        )
+        piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rotation)
         piece.Sketch.Placement = piece.Placement
         return piece, outline
 
-    front, front_outline = make_piece("VisualTunicFront", box.YMax + clearance, mirror_x=False)
-    back, back_outline = make_piece("VisualTunicBack", box.YMin - clearance, mirror_x=False)
-
+    front, front_outline = make_piece("VisualTunicFront", box.YMax + clearance, 0.64, 0.08)
+    back, back_outline = make_piece("VisualTunicBack", box.YMin - clearance, 0.68, 0.08)
     seam_records = []
     front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())
     back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())
     required_indices = (1, 2, 6, 7)
     if len(front_edge_ids) < 8 or len(back_edge_ids) < 8 or any(not front_edge_ids[index] or not back_edge_ids[index] for index in required_indices):
-        raise RuntimeError("README turntable fixture is missing authored semantic edge IDs")
+        raise RuntimeError("canonical tunic turntable fixture is missing semantic edge IDs")
     seam_specs = (
         (front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),
         (front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"),
@@ -366,7 +382,7 @@ def build_simulation_state(doc):
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         if str(getattr(seam_obj, "EdgeAId", "")) != edge_a_id or str(getattr(seam_obj, "EdgeBId", "")) != edge_b_id:
-            raise RuntimeError("README turntable seam %s did not retain authored semantic edge IDs" % seam_id)
+            raise RuntimeError("turntable seam %s did not retain semantic edge identity" % seam_id)
         seam_records.append((seam_obj, front, back))
 
     scene.StartHeight = 0.0
@@ -383,38 +399,36 @@ def build_simulation_state(doc):
     refresh_drape_target(scene.DrapeTarget)
     doc.recompute()
 
-    def authored_shoulder_pins(piece, particle_indices, positions):
-        targets = (
-            (0.14 * panel_width, 0.97 * garment_height),
-            (0.86 * panel_width, 0.97 * garment_height),
-        )
-        available = list(particle_indices)
-        result = []
-        for local_x, local_y in targets:
-            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
-            index = min(
-                available,
-                key=lambda i: (positions[i][0] - target_point.x) ** 2
-                + (positions[i][1] - target_point.y) ** 2
-                + (positions[i][2] - target_point.z) ** 2,
-            )
-            result.append(index)
-            available.remove(index)
-        return tuple(result)
-
     proxy = scene.Proxy
     positions = tuple(proxy.backend.positions())
     panel_indices = proxy.panel_indices
-    front_panel = scene.DrapePanels[0]
-    back_panel = scene.DrapePanels[1]
-    front_pins = authored_shoulder_pins(front, tuple(panel_indices[front_panel.Name]), positions)
-    back_pins = authored_shoulder_pins(back, tuple(panel_indices[back_panel.Name]), positions)
+    front_panel, back_panel = tuple(scene.DrapePanels)
+    front_targets = (
+        (0.14 * panel_width, 0.97 * garment_height),
+        (0.86 * panel_width, 0.97 * garment_height),
+    )
+    available = list(panel_indices[front_panel.Name])
+    front_pins = []
+    for local_x, local_y in front_targets:
+        target_point = front.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
+        index = min(
+            available,
+            key=lambda i: (positions[i][0] - target_point.x) ** 2
+            + (positions[i][1] - target_point.y) ** 2
+            + (positions[i][2] - target_point.z) ** 2,
+        )
+        front_pins.append(index)
+        available.remove(index)
     if not front_pins:
-        raise RuntimeError("README tunic shoulder pin selection is empty")
-    scene.PinSelection = [str(i) for i in front_pins]
-    if any(int(a) in front_pins and int(b) in front_pins for pairs in getattr(proxy, "seam_stitch_pairs", {}).values() for a, b in pairs):
-        raise RuntimeError("README tunic pin contract pins both endpoints of a sewn pair")
-    log("pin-map front-shoulders=%s" % (front_pins,))
+        raise RuntimeError("canonical turntable shoulder pin selection is empty")
+    scene.PinSelection = [str(index) for index in front_pins]
+    if any(
+        int(a) in front_pins and int(b) in front_pins
+        for pairs in getattr(proxy, "seam_stitch_pairs", {}).values()
+        for a, b in pairs
+    ):
+        raise RuntimeError("canonical turntable pin contract pins both endpoints of a sewn pair")
+    log("pin-map front-shoulders=%s back-pinned=false" % (tuple(front_pins),))
     doc.recompute()
 
     for source in (front, back):
@@ -434,6 +448,26 @@ def build_simulation_state(doc):
     for seam_obj in authored:
         seam_obj.ViewObject.Visibility = True
     return scene, avatar, panels, seam_records, authored, (front, back)
+
+
+def render_simulation_motion(view, scene, frame_dir, frame_count=16, final_steps=120):
+    os.makedirs(frame_dir, exist_ok=True)
+    final_steps = max(1, int(final_steps))
+    steps = [round(i * final_steps / float(frame_count - 1)) for i in range(frame_count)]
+    unique_steps = tuple(dict.fromkeys(int(step) for step in steps))
+    view.setCameraType("Orthographic")
+    view.viewFront(); view.fitAll()
+    if hasattr(view, "redraw"):
+        view.redraw()
+    events()
+    camera = view.getCameraNode()
+    for index, target_step in enumerate(unique_steps):
+        scene.Steps = int(target_step)
+        scene.Document.recompute()
+        if not bool(getattr(scene, "FiniteState", True)):
+            raise RuntimeError("non-finite simulation state at motion frame %d/%d" % (index, target_step))
+        save_png(view, os.path.join(frame_dir, "frame-%03d.png" % index), "simulation motion step %d" % target_step)
+    log("simulation-motion-pass frames=%d final_steps=%d" % (len(unique_steps), final_steps))
 
 
 def main():
@@ -460,12 +494,22 @@ def main():
             raise RuntimeError("simulation did not reach a finite %d-step state" % steps)
         if any(panel.Mesh.CountFacets <= 10 for panel in panels):
             raise RuntimeError("draped tunic panel mesh is empty")
-        front, back = pieces
+        for panel in panels:
+            mesh_vertices, mesh_triangles = panel.Mesh.Topology
+            points = tuple((float(vertex.x), float(vertex.y), float(vertex.z)) for vertex in mesh_vertices)
+            triangles = tuple(tuple(int(index) for index in face) for face in mesh_triangles)
+            health = mesh_shape_sanity(points, triangles)
+            log("mesh-health panel=%s spike_ratio=%.3f spike_fraction=%.5f footprint_aspect=%.3f" % (
+                panel.Name, health["edge_spike_ratio"], health["spike_edge_fraction"],
+                health["footprint_aspect_ratio"],
+            ))
+            if not health["finite"] or health["spike_edge_fraction"] > 0.02:
+                raise RuntimeError("draped tunic panel mesh has spike outliers: %r" % health)
         simulated = _solver_boundary_map(scene, pieces, panels)
         _seam_overlay(doc, "TunicSeamsSimulated", seam_records, simulated)
-        seam_gap = _seam_endpoint_gap(simulated, seam_records)
+        seam_gap = _solver_seam_gap(scene, seam_records)
         if seam_gap > 35.0:
-            raise RuntimeError("README turntable seam provenance did not converge: max endpoint gap %.2f mm" % seam_gap)
+            raise RuntimeError("canonical turntable seams did not converge: max solver stitch gap %.2f mm" % seam_gap)
         log("simulation-seam-diagnostic max_endpoint_gap_mm=%.2f semantic-provenance=true" % seam_gap)
         backend = getattr(getattr(scene, "Proxy", None), "_base_or_restore", lambda: None)()
         backend_name = getattr(getattr(backend, "backend", None), "name", "unknown") if backend is not None else "unknown"
@@ -477,6 +521,13 @@ def main():
         for panel in panels:
             panel.ViewObject.DisplayMode = "Shaded"
             panel.ViewObject.LineWidth = 1.0
+        render_simulation_motion(
+            view,
+            scene,
+            os.path.join(OUT, "cloth-simulation-motion-frames"),
+            frame_count=16,
+            final_steps=steps,
+        )
         render_turntable(view, objects, os.path.join(OUT, "cloth-simulation-draped-turntable-frames"))
         log("simulation-turntable-pass")
     finally:
