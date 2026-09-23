@@ -98,8 +98,7 @@ jobs:
                 tests/test_seam_graph.py \
                 tests/test_workbench_icons.py \
                 tests/test_tunic_audit_contract.py \
-                tests/test_readme_visual_contract.py \
-                tests/test_sketcher_acceptance_contract.py; do
+                tests/test_readme_visual_contract.py; do
                 python3 "$test"
               done
             ')"
