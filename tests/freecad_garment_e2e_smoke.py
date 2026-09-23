@@ -1,13 +1,51 @@
 """Canonical public FreeCAD Pattern -> Sewing -> Fitting -> Simulation -> Export acceptance."""
+from pathlib import Path
 import hashlib
 import math
 import os
 import tempfile
+import sys
 
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
 import Sketcher
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+
+def _record(message):
+    print(str(message), flush=True)
+
+
+def _ensure_workbench_registration():
+    _record("workbench-bootstrap=starting")
+    expected = (
+        ("ClothPatternWorkbench", "freecad_cloth.pattern.workbench", "ClothPatternWorkbench"),
+        ("ClothSewingWorkbench", "freecad_cloth.sewing.workbench", "ClothSewingWorkbench"),
+        ("ClothSimulationWorkbench", "freecad_cloth.simulation.workbench", "ClothSimulationWorkbench"),
+    )
+    missing = [name for name, _, _ in expected if name not in Gui.listWorkbenches()]
+    if missing:
+        icon_dir = ROOT / "resources" / "icons"
+        if icon_dir.is_dir():
+            Gui.addIconPath(str(icon_dir))
+        import importlib
+
+        for name, module_name, class_name in expected:
+            if name in Gui.listWorkbenches():
+                continue
+            workbench_type = getattr(importlib.import_module(module_name), class_name)
+            Gui.addWorkbench(workbench_type())
+            _events()
+    missing = [name for name, _, _ in expected if name not in Gui.listWorkbenches()]
+    if missing:
+        raise RuntimeError(
+            "standalone workbench bootstrap did not register: %s" % ",".join(missing)
+        )
+    _record("workbench-bootstrap=passed")
 
 
 def _events():
@@ -346,6 +384,7 @@ def run_acceptance():
                 "ClothSewing_Validate",
                 "ClothFitting_CreateScene",
                 "ClothFitting_SetMeasurements",
+                "ClothFitting_AssignAvatar",
                 "ClothFitting_AddPieces",
                 "ClothFitting_CreateArrangementPoint",
                 "ClothFitting_ApplyArrangementPoint",
@@ -405,7 +444,34 @@ def run_acceptance():
             raise RuntimeError("M:N sewing network did not persist valid 2:2 topology")
         if any(str(getattr(seam, "Status", "")) != "Valid" for seam in network.Seams):
             raise RuntimeError("M:N network retained an invalid member seam")
+        from freecad_cloth.sewing.SewingObjects import _seam_length
+        pieces_by_id = {str(piece.PieceId): piece for piece in pieces}
+        total_a = sum(float(_seam_length(pieces_by_id[str(seam.PieceA)], seam, "A")) for seam in network.Seams)
+        total_b = sum(float(_seam_length(pieces_by_id[str(seam.PieceB)], seam, "B")) for seam in network.Seams)
+        if abs(total_a - float(network.LengthA)) > 1e-6 or abs(total_b - float(network.LengthB)) > 1e-6:
+            raise RuntimeError("M:N physical member lengths do not agree with persisted network totals")
+        if float(network.LengthDifference) > 0.05 * min(float(network.LengthA), float(network.LengthB)):
+            raise RuntimeError("M:N curved physical correspondence exceeded the persisted mismatch tolerance")
+        pair_gaps = [
+            abs(float(_seam_length(pieces_by_id[str(seam.PieceA)], seam, "A")) - float(_seam_length(pieces_by_id[str(seam.PieceB)], seam, "B")))
+            for seam in network.Seams
+        ]
+        if max(pair_gaps) > 0.05 * max(float(network.LengthA), float(network.LengthB)) / len(network.Seams) + 0.01:
+            raise RuntimeError("M:N curved physical member partition is not proportional")
+        if not any(str(getattr(seam, "EdgeAId", "")).endswith(":edge:2") for seam in network.Seams):
+            raise RuntimeError("M:N garment fixture did not retain the curved Sketcher edge")
         print("sewing-mn=passed sides=2,2 segments=2", flush=True)
+        print("sewing-mn-physical=passed curved-edge=true proportional=true max-pair-gap=%.6f" % max(pair_gaps), flush=True)
+
+        marker_seam = network.Seams[0]
+        if marker_seam.Shape.isNull() or len(marker_seam.Shape.Edges) < 10:
+            raise RuntimeError("public sewing seam visual shape is missing direction/notch/correspondence geometry")
+        _select_objects(marker_seam)
+        Gui.runCommand("ClothSewing_Show2D", 0)
+        _events()
+        if marker_seam.Shape.isNull() or len(marker_seam.Shape.Edges) < 10:
+            raise RuntimeError("public sewing 2D command did not retain seam correspondence markers")
+        print("seam-markers=passed 3d-and-2d=true edges=%d" % len(marker_seam.Shape.Edges), flush=True)
 
         _select_objects(seam_11)
         Gui.runCommand("ClothSewing_CreateOperation", 0)
@@ -471,22 +537,29 @@ def run_acceptance():
             raise RuntimeError("native garment hierarchy lost FabricMaterial")
         print("garment-hierarchy=passed groups=Patterns,Sewing,Fabric,Avatar,Simulation", flush=True)
 
-        target_body = doc.addObject("Part::Feature", "AcceptanceTarget")
-        target_body.Label = "Acceptance Target"
-        target_body.Shape = Part.makeCylinder(35, 100, App.Vector(0, 0, -50))
-        doc.recompute()
-
         _activate(
             "ClothSimulationWorkbench",
-            ["ClothDrape_CreateTarget", "ClothDrape_RefreshTarget", "ClothSimulation_Step", "ClothSimulation_Reset", "ClothSimulation_Edit"],
+            ["ClothDrape_CreateMannequinTarget", "ClothDrape_RefreshTarget", "ClothSimulation_Step", "ClothSimulation_Reset", "ClothSimulation_Edit"],
         )
-        _select_objects(target_body)
-        Gui.runCommand("ClothDrape_CreateTarget", 0)
+        Gui.runCommand("ClothDrape_CreateMannequinTarget", 0)
         _events()
+        avatar = doc.getObject("ClothAvatar")
         target = doc.getObject("DrapeTarget")
-        if target is None or target.SourceObject != target_body:
-            raise RuntimeError("public DrapeTarget command did not persist CAD target")
-        print("drape-target=passed", flush=True)
+        if avatar is None or str(getattr(avatar, "AvatarType", "")) != "ClothAvatar":
+            raise RuntimeError("public mannequin target command did not create the canonical ClothAvatar")
+        if target is None or target.SourceObject != avatar or str(getattr(target, "TargetType", "")) != "Mannequin":
+            raise RuntimeError("public mannequin DrapeTarget command did not persist the canonical human target")
+        _activate(
+            "ClothSewingWorkbench",
+            ["ClothFitting_AssignAvatar", "ClothFitting_CreateSimulation"],
+        )
+        _select_objects(avatar)
+        Gui.runCommand("ClothFitting_AssignAvatar", 0)
+        _events()
+        doc.recompute()
+        if fitting.AvatarProxy is None:
+            raise RuntimeError("public fitting avatar assignment did not persist the canonical avatar")
+        print("drape-target=passed type=Mannequin", flush=True)
 
         _select_objects(fitting)
         Gui.runCommand("ClothFitting_CreateSimulation", 0)
@@ -497,14 +570,15 @@ def run_acceptance():
         doc.recompute()
         if len(scene.ClothPieces) != 4:
             raise RuntimeError("fitting-created simulation did not inherit four pattern pieces")
-        # The target existed before this simulation was created; bind the same
-        # persistent CAD target to the newly created public simulation object.
-        _select_objects(target_body)
-        Gui.runCommand("ClothDrape_CreateTarget", 0)
+        _activate(
+            "ClothSimulationWorkbench",
+            ["ClothDrape_CreateMannequinTarget"],
+        )
+        Gui.runCommand("ClothDrape_CreateMannequinTarget", 0)
         _events()
         target = doc.getObject("DrapeTarget")
-        if target is None or scene.DrapeTarget != target or target.SourceObject != target_body:
-            raise RuntimeError("public DrapeTarget command did not attach the persistent CAD target to simulation")
+        if target is None or scene.DrapeTarget != target or target.SourceObject != avatar:
+            raise RuntimeError("public mannequin DrapeTarget command did not attach the canonical human target to simulation")
 
         _select_objects(scene)
         quality_panel = _open_quality_panel()
@@ -545,7 +619,7 @@ def run_acceptance():
             target_name = target.Name
             piece_names = [piece.Name for piece in pieces]
             expected_piece_ids = [str(piece.PieceId) for piece in pieces]
-            target_body_name = target_body.Name
+            target_body_name = target.SourceObject.Name if target.SourceObject is not None else ""
             App.closeDocument(doc.Name)
             doc = None
             reloaded = App.openDocument(path)
@@ -761,4 +835,14 @@ def run_acceptance():
 
 
 if __name__ == "__main__":
-    run_acceptance()
+    try:
+        _ensure_workbench_registration()
+        run_acceptance()
+    except BaseException:
+        import traceback
+        traceback.print_exc()
+        sys.stdout.flush()
+        os._exit(1)
+    else:
+        print("garment-e2e-process-exit=success", flush=True)
+        os._exit(0)
