@@ -99,7 +99,8 @@ jobs:
                 tests/test_workbench_icons.py \
                 tests/test_tunic_audit_contract.py \
                 tests/test_readme_visual_contract.py \
-                tests/test_sketcher_acceptance_contract.py; do
+                tests/test_sketcher_acceptance_contract.py \
+                tests/test_freecad_gui_cwd_contract.py; do
                 python3 "$test"
               done
             ')"
@@ -494,7 +495,7 @@ jobs:
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
-            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+            -v "$PWD:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated/blanket-example
