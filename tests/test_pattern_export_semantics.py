@@ -191,3 +191,51 @@ def test_export_rejects_disconnected_boundary_segments():
                 LineSegment("d", (0.0, 9.0), (0.0, 0.0)),
             ]
         )
+
+
+
+def test_pattern_piece_export_uses_persisted_construction_marks(tmp_path):
+    class Piece:
+        PatternType = "PatternPiece"
+        Name = "Front"
+        Label = "Front"
+        PieceId = "piece-front"
+        Width = 100.0
+        Height = 60.0
+        SeamAllowance = 5.0
+        GrainlineAngle = 90.0
+        GeometryAuthority = ""
+        SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)])
+        DraftingBoundary = SewingOutline
+
+    class Mark:
+        def __init__(self, name, mark_type):
+            self.Name = name
+            self.PatternMarkId = name
+            self.PatternMarkType = mark_type
+            self.PieceId = "piece-front"
+            self.SegmentId = "piece-front:edge:0"
+            self.Position = 0.5
+            self.Depth = 3.0
+            self.Angle = 0.0
+            self.Length = 40.0
+            self.Text = "Internal" if mark_type == "InternalMark" else ""
+
+    class Document:
+        Objects = ()
+
+    piece = Piece()
+    notch = Mark("notch-front", "Notch")
+    mark = Mark("mark-front", "InternalMark")
+    piece.Document = Document()
+    piece.Document.Objects = (piece, notch, mark)
+
+    output = tmp_path / "front.svg"
+    result = export_pattern_piece(piece, output, "svg")
+    metadata = from_svg_metadata(output.read_text(encoding="utf-8"))
+    assert result["valid"] is True
+    assert metadata["notch_ids"] == ["notch-front"]
+    assert metadata["mark_ids"] == ["mark-front"]
+    svg = output.read_text(encoding="utf-8")
+    assert 'id="notch-notch-front"' in svg
+    assert 'id="mark-mark-front"' in svg
