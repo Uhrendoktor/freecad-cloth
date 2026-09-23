@@ -54,6 +54,14 @@ class SimulationQualityTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             FabricMaterial(transparency=101).validate()
 
+    def test_material_color_normalizes_freecad_property_color_shapes(self):
+        from freecad_cloth.simulation.SimulationQuality import normalize_color_rgb
+
+        self.assertEqual(normalize_color_rgb((0.72, 0.34, 0.46, 0.0)), (0.72, 0.34, 0.46))
+        self.assertEqual(normalize_color_rgb((184, 87, 117, 255)), (184 / 255.0, 87 / 255.0, 117 / 255.0))
+        with self.assertRaises(ValueError):
+            normalize_color_rgb((300, 0, 0))
+
     def test_unknown_quality_rejected(self):
         with self.assertRaises(ValueError):
             preset("Ultra")
