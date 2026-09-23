@@ -1,4 +1,5 @@
 """Real-FreeCAD smoke coverage for the public production SVG/DXF export."""
+import json
 from pathlib import Path
 import os
 import tempfile
