@@ -5,10 +5,10 @@ schema: 8
 repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
-supervisor_task: #647 release lifecycle closeout
-current_main: main_final_closeout_state
-open_prs: []
-open_actionable_issues: []
+supervisor_task: #1017 complete project release foundation
+current_main: fbee63323ea3e0e2746bdc07f73ba6260cad3ce6
+open_prs: [1018, 1019]
+open_actionable_issues: [1017, 1020]
 
 architecture:
   package_root: freecad_cloth/
@@ -103,3 +103,12 @@ policy:
   - close_issues_only_with_explicit_state_reason
   - re_cut_implementation_branches_from_current_main
 ```
+
+
+current_release_validation:
+  implementation_pr: 1018
+  implementation_head: ecd582d028ecc949ebe707f558d794c7e4385db8
+  overlapping_validation_pr: 1019
+  world_space_acceptance_issue: 1020
+  current_head_ci: not_exposed_by_available_github_connector
+  completion_gate: PR_1018_merged_and_merged_main_canonical_ci_terminal_green_with_artifact_inspection
