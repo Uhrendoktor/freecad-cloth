@@ -112,7 +112,9 @@ def main():
     try:
         sketch, outline = make_rectangle_sketch(doc, "BlanketSketch", 260.0, 260.0)
         piece = adopt_sketch(doc, sketch)
-        placement = App.Placement(App.Vector(-130.0, -130.0, 150.0), App.Rotation())
+        # Keep the pinned top edge close enough to the cube that collision contact
+        # does not create isolated long edges from the fixed corner vertices.
+        placement = App.Placement(App.Vector(-130.0, -130.0, 90.0), App.Rotation())
         piece.Placement = placement
         piece.Sketch.Placement = placement
 
