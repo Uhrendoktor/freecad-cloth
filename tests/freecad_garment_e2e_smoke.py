@@ -485,8 +485,8 @@ def run_acceptance():
         if target is None or target.SourceObject != avatar or str(getattr(target, "TargetType", "")) != "Mannequin":
             raise RuntimeError("public mannequin DrapeTarget command did not persist the canonical human target")
         _activate(
-            "ClothPatternWorkbench",
-            ["ClothFitting_AssignAvatar"],
+            "ClothSewingWorkbench",
+            ["ClothFitting_AssignAvatar", "ClothFitting_CreateSimulation"],
         )
         _select_objects(avatar)
         Gui.runCommand("ClothFitting_AssignAvatar", 0)
