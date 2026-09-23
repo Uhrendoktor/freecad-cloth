@@ -188,6 +188,12 @@ def run_acceptance():
         from freecad_cloth.sewing.SewingView import seam_color_map
         if tuple(seam.ViewObject.LineColor) != tuple(seam_color_map([seam_id])[seam_id]):
             raise RuntimeError("seam focus command did not preserve deterministic seam color")
+        seam_box = seam.Shape.BoundBox
+        placed_piece_box = curved.Shape.BoundBox
+        if seam_box.XMax < placed_piece_box.XMin or seam_box.XMin > placed_piece_box.XMax:
+            raise RuntimeError("seam presentation is outside the placed PatternPiece coordinate system")
+        if abs(float(seam_box.XMin)) < 1e-6 and abs(float(seam_box.XMax)) < 1e-6:
+            raise RuntimeError("seam presentation appears to remain at the source Sketcher origin")
         Gui.runCommand("ClothSewing_EditSeamSideA", 0)
         if not Gui.activeDocument().getInEdit():
             raise RuntimeError("seam Sketcher-side command did not enter native Sketcher")
