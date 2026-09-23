@@ -259,6 +259,8 @@ jobs:
           test -s artifacts/garment-e2e.log
           grep -q 'staged-selection=passed' artifacts/garment-e2e.log
           grep -q 'sewing-mn=passed sides=2,2 segments=2' artifacts/garment-e2e.log
+          grep -q 'sewing-mn-physical=passed curved-edge=true proportional=true' artifacts/garment-e2e.log
+          grep -q 'seam-markers=passed 3d-and-2d=true' artifacts/garment-e2e.log
           grep -q 'arrangement=passed pieces=4' artifacts/garment-e2e.log
           grep -q 'drape-target=passed' artifacts/garment-e2e.log
           grep -q 'save-reload=passed pieces=4 seam=1to1 network=2segment' artifacts/garment-e2e.log
