@@ -6,10 +6,11 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `a02070f67da0506056b0054b7857db413a38903b` (resolved at audit time).
+- Current main: `be031fdaeb590046f4b6b7f558a4d7b727406e29` (resolved at audit time).
 - Canonical workflow: `.github/workflows/canonical-execution.yml`; exactly one workflow.
 - Supervisor completion issue: #1017.
 - Current continuation: #1086.
+- Timing-fix child PR: #1090, branch `supervisor/readme-gif-delay-fix-20260923`; head `76a37cc9e78a1d810f9c6c116c0d20b14a00124e`.
 - Active release candidate: PR #1075, branch `supervisor/final-release-fixed-main-20260923`; exact head `69215e7286ffda3da655f53094c5ae86d4644eb3`.
 - Current candidate relation to main: candidate is 2 commits ahead and 1 commit behind main; the behind commit is the supervisor's durable-state documentation update. Do not rebase/synchronize the release candidate merely to remove that behind count, because doing so would change the exact release SHA and invalidate the exact-head gate.
 
@@ -53,5 +54,5 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - After merge, merged-main canonical validation must be terminal-green before closing supervisor issues.
 - #1020 and #1043 remain open until their stated acceptance gates are verified on merged main.
 - #1053 remains the external Actions control-plane/event-execution blocker and carries current head/run/branch-count evidence.
-- #1083 is the independent challenge child; #1084 owns the README GIF publication.
+- #1083 is the completed independent challenge child; #1084 owns README GIF publication; #1090 owns the isolated GIF timing fix.
 - Stale state in this file was refreshed from live GitHub state in the 2026-09-23 recovery audit.

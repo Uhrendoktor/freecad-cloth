@@ -9,7 +9,7 @@ supervisor_issue: 1017
 continuation_issue: 1086
 active_release_pr: 1075
 active_release_branch: supervisor/final-release-fixed-main-20260923
-current_main: a02070f67da0506056b0054b7857db413a38903b
+current_main: be031fdaeb590046f4b6b7f558a4d7b727406e29
 workflow_count: 1
 workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; inspect_jobs_logs_artifacts; no_second_workflow
@@ -23,11 +23,14 @@ release_gate:
   supporting_run_result: 200 mm Blanket-over-Cube real FreeCAD/Xvfb acceptance passed; 16 distinct motion frames and representative checkpoints inspected
   external_ci_blocker: current push/pull_request Actions delivery is failing before job allocation; connector exposes no workflow-dispatch operation and rejects required Actions administration-policy endpoints
 final_gate: exact_head_canonical_pr_green; inspect_jobs_logs_artifacts; merge; merged_main_canonical_pr_green; fresh_repo_audit
-open_actionable_issues: [1017, 1020, 1043, 1053, 1081, 1083, 1084, 1086]
+open_actionable_issues: [1017, 1020, 1043, 1053, 1084, 1086, 1088]
 remote_branch_count_observed: 491
 last_schedule_run: 3225/35839191664; success; 12 jobs instantiated; daily retention job skipped because event was the */5-minute schedule
 published_asset_gap: docs/screenshots:docs/images/generated/cloth-blanket-motion.gif
 duplicate_issue_closed: 1085
+readme_gif_timing_fix_pr: 1090
+readme_gif_timing_fix_head: 76a37cc9e78a1d810f9c6c116c0d20b14a00124e
+readme_gif_timing_fix_ci: run_3529_35904255064_zero_jobs_zero_artifacts
 ```
 
 closed_research_issues: [1042, 1055]
