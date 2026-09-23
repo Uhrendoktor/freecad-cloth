@@ -31,3 +31,12 @@ def test_canonical_workflow_fails_closed_on_turntable_quality():
     assert "blanket-turntable-pass" in source
     assert 'test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames' in source
     assert 'checkpoint-uniqueness=passed' in source
+
+def test_blanket_motion_gif_has_100ms_frame_timing_contract():
+    source = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    motion = "motion-*.png"
+    delay_i = source.index("-delay 10")
+    motion_i = source.index(motion)
+    assert delay_i < motion_i
+    assert "identify -format '%T" in source
+    assert "awk '$1 != 10 { exit 1 }'" in source
