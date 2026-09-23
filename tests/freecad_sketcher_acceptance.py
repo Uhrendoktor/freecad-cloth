@@ -2,6 +2,7 @@
 import math
 import os
 import tempfile
+from pathlib import Path
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -135,16 +136,45 @@ def _exercise_constraint_families(doc, reference_sketch):
     return audit, audit_span, audit_scaled
 
 
+def _stage(name):
+    print("stage=%s" % name, flush=True)
+
+
+def _bootstrap_workbenches():
+    if "ClothPatternWorkbench" in Gui.listWorkbenches():
+        return
+    root = Path(__file__).resolve().parents[1]
+    init_gui = root / "InitGui.py"
+    if not init_gui.is_file():
+        raise RuntimeError("InitGui.py missing from FreeCAD workbench root")
+    namespace = {"__file__": str(init_gui), "__name__": "__main__"}
+    exec(compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"), namespace, namespace)
+    if "ClothPatternWorkbench" not in Gui.listWorkbenches():
+        raise RuntimeError("ClothPatternWorkbench was not registered by InitGui.py")
+
+
+def _record(message):
+    print("sketcher-acceptance=%s" % message, flush=True)
+
+
 def run_acceptance():
+    _stage("process-start")
+    _bootstrap_workbenches()
+    _stage("workbenches-registered")
     doc = App.newDocument("NativeSketcherAcceptance")
     try:
+        _stage("document-created")
         _activate("ClothPatternWorkbench", ["ClothPattern_CreatePieceWithSketch", "ClothPattern_EditSketch"])
+        _record("pattern-workbench-ready")
         Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
         Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
         doc.recompute()
         pieces = _pattern_pieces(doc)
         if len(pieces) != 2:
             raise RuntimeError("public Pattern command did not create two PatternPiece objects")
+        if any(getattr(piece, "Sketch", None) is None for piece in pieces):
+            raise RuntimeError("public Pattern command did not create one native Sketcher source per PatternPiece")
+        _record("two-native-pattern-pieces")
         curved, mate = pieces
         curved.Placement.Base.x = -130
         mate.Placement.Base.x = 20
@@ -153,6 +183,7 @@ def run_acceptance():
         if reference is None:
             raise RuntimeError("second PatternPiece has no native Sketcher source")
         audit, audit_span, audit_scaled = _exercise_constraint_families(doc, reference)
+        _record("sketch-geometry-and-constraints")
 
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(curved)
@@ -162,6 +193,7 @@ def run_acceptance():
             raise RuntimeError("public Pattern Edit Sketch command did not enter native Sketcher")
         Gui.activeDocument().resetEdit()
         _events()
+        _record("pattern-sketch-edit-passed")
 
         _activate("ClothSewingWorkbench", [
             "ClothSewing_CreateSeam",
@@ -176,6 +208,7 @@ def run_acceptance():
         seam = next((obj for obj in doc.Objects if getattr(obj, "SeamId", "")), None)
         if seam is None or str(seam.Status) != "Valid":
             raise RuntimeError("public Sewing command did not create a valid seam from native Sketch edges")
+        _record("seam-created")
         original_piece_id = str(curved.PieceId)
         original_width = float(curved_sketch.getDatum(width_index))
         seam_id = str(seam.SeamId)
@@ -194,6 +227,7 @@ def run_acceptance():
             raise RuntimeError("seam presentation is outside the placed PatternPiece coordinate system")
         if abs(float(seam_box.XMin)) < 1e-6 and abs(float(seam_box.XMax)) < 1e-6:
             raise RuntimeError("seam presentation appears to remain at the source Sketcher origin")
+        _record("seam-world-space-validated")
         seam_vertices = tuple(vertex.Point for vertex in seam.Shape.Vertexes)
 
         def _has_vertex(point, tolerance=1e-6):
@@ -234,6 +268,7 @@ def run_acceptance():
             App.closeDocument(doc.Name)
             doc = None
             reloaded = App.openDocument(path)
+            _record("save-reload-opened")
             curved = next((obj for obj in reloaded.Objects if str(getattr(obj, "PieceId", "")) == original_piece_id), None)
             if curved is None or curved.Sketch is None:
                 raise RuntimeError("PatternPiece native Sketcher source did not survive save/reload")
@@ -273,6 +308,7 @@ def run_acceptance():
                 raise RuntimeError("seam did not survive save/reload")
             if str(changed_seam.Status) == "Valid":
                 raise RuntimeError("native Sketcher edit did not invalidate downstream seam")
+            _record("reload-and-invalidation-passed")
             App.closeDocument(reloaded.Name)
             doc = None
         print("native Sketcher acceptance passed", flush=True)

@@ -42,3 +42,18 @@ def test_shared_contract_is_freecad_independent():
     assert surface.revision == 3
     assert target.is_freecad_object()
     assert not target.is_human()
+
+
+def test_human_documentation_contract():
+    root = Path(__file__).resolve().parents[1]
+    user_guide = root / "docs" / "USER_GUIDE.md"
+    docs_readme = root / "docs" / "README.md"
+    assert user_guide.is_file()
+    assert "USER_GUIDE.md" in docs_readme.read_text(encoding="utf-8")
+def test_canonical_workflow_pr_validation_contract():
+    root = Path(__file__).resolve().parents[1]
+    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    assert "pull_request:" in workflow
+    assert "types: [opened, synchronize, reopened]" in workflow
+    assert "push:" in workflow
+    assert "branches: [main]" in workflow
