@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from math import isfinite, sqrt
 from typing import Sequence, Tuple
+from statistics import median
 
 Point3 = Tuple[float, float, float]
 
