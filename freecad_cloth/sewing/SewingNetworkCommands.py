@@ -14,6 +14,14 @@ def _selected_pattern_edges():
     return select_edges(allow_many=False)
 
 
+_ACTIVE_NETWORK_TASK_PANEL = None
+
+
+def get_active_network_task_panel():
+    """Return the sewing-network task panel most recently opened by a public command."""
+    return _ACTIVE_NETWORK_TASK_PANEL
+
+
 def create_network_from_selection():
     import FreeCAD as App
     from freecad_cloth.sewing.SewingNetwork import add_sewing_network
@@ -68,17 +76,20 @@ def create_free_sewing_from_selection(open_editor=True):
     network = add_sewing_network(doc, seam_objects, relationship_id, "SewingNetwork%d" % index)
     doc.recompute()
     if open_editor:
-        show_sewing_network_task(network)
+        global _ACTIVE_NETWORK_TASK_PANEL
+        _ACTIVE_NETWORK_TASK_PANEL = show_sewing_network_task(network)
     return network
 
 
 def edit_selected_network():
+    global _ACTIVE_NETWORK_TASK_PANEL
     import FreeCADGui as Gui
     from freecad_cloth.sewing.SewingNetworkGui import show_sewing_network_task
     network = next((obj for obj in Gui.Selection.getSelection() if getattr(obj, "SewingType", "") == "SewingNetwork"), None)
     if network is None:
         raise ValueError("select a sewing network before editing it")
-    return show_sewing_network_task(network)
+    _ACTIVE_NETWORK_TASK_PANEL = show_sewing_network_task(network)
+    return _ACTIVE_NETWORK_TASK_PANEL
 
 
 def _has_selected_seams():

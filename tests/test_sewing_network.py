@@ -51,6 +51,24 @@ class SewingNetworkTests(unittest.TestCase):
         self.assertTrue(all(seam.reversed_b for seam in seams))
         self.assertTrue(all(seam.alignment == "uniform" for seam in seams))
 
+    def test_two_to_two_physical_member_ranges_are_proportional(self):
+        seams = build_mn_seams(
+            "mn-22",
+            [SewingMember("A", 0), SewingMember("A", 1)],
+            [SewingMember("B", 0), SewingMember("B", 1)],
+            lengths({("A", 0): 150.0, ("A", 1): 100.0, ("B", 0): 100.0, ("B", 1): 150.0}),
+            reversed_b=True,
+            alignment="uniform",
+        )
+        self.assertEqual(len(seams), 3)
+        self.assertEqual([(round(s.start_a, 8), round(s.end_a, 8), round(s.start_b, 8), round(s.end_b, 8)) for s in seams], [
+            (0.0, round(2 / 3, 8), 0.0, 1.0),
+            (round(2 / 3, 8), 1.0, 0.0, round(1 / 3, 8)),
+            (0.0, 1.0, round(1 / 3, 8), 1.0),
+        ])
+        self.assertTrue(all(s.reversed_b for s in seams))
+        self.assertTrue(all(s.alignment == "uniform" for s in seams))
+
     def test_free_sewing_uses_partial_member_ranges(self):
         seams = build_mn_seams(
             "free-1",

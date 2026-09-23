@@ -34,9 +34,9 @@ def test_seam_semantics_are_canonical():
 
 def test_reversed_normalized_ranges_generate_deterministic_stitches():
     value = graph(); edges = {("left", 1): (10, 11, 12, 13, 14), ("right", 3): (20, 21, 22, 23, 24)}
-    assert value.stitch_pairs(edges) == ((10, 20), (12, 22), (14, 24))
+    assert value.stitch_pairs(edges) == ((10, 20), (11, 21), (12, 22), (13, 23), (14, 24))
     value.seams["side"] = value.seams["side"].__class__(Seam("left", 1, "right", 3, id="side", reversed_b=True, stitch_group="waist"), "waist", "endpoints")
-    assert value.stitch_pairs(edges) == ((10, 24), (12, 22), (14, 20))
+    assert value.stitch_pairs(edges) == ((10, 24), (11, 23), (12, 22), (13, 21), (14, 20))
 
 
 def test_assembly_transform_is_separate_from_pattern_metadata():
@@ -61,6 +61,27 @@ def test_arc_length_stitch_mapping_ignores_nonuniform_boundary_vertex_density():
         ("right", 3): ((0.0, 0.0), (5.0, 0.0), (10.0, 0.0)),
     }
     assert value.stitch_pairs(edges, edge_points=points) == ((10, 20), (12, 21), (13, 22))
+
+
+def test_true_mn_arc_length_mapping_uses_member_ranges_and_nonuniform_sampling():
+    value = SeamGraph(); value.add_piece(piece("left", "left")); value.add_piece(piece("right", "right"))
+    value.add_seam(Seam("left", 1, "right", 3, id="mn-1", start_a=0.0, end_a=0.4, stitch_group="mn"))
+    value.add_seam(Seam("left", 1, "right", 2, id="mn-2", start_a=0.4, end_a=1.0, stitch_group="mn"))
+    edges = {("left", 1): (10, 11, 12, 13, 14, 15), ("right", 3): (20, 21, 22, 23), ("right", 2): (30, 31, 32, 33)}
+    points = {
+        ("left", 1): ((0.0, 0.0), (0.1, 0.0), (0.4, 0.0), (1.2, 0.0), (4.0, 0.0), (10.0, 0.0)),
+        ("right", 3): ((0.0, 0.0), (2.0, 0.0), (5.0, 0.0), (10.0, 0.0)),
+        ("right", 2): ((0.0, 0.0), (1.0, 0.0), (4.0, 0.0), (10.0, 0.0)),
+    }
+    assert value.stitch_pairs(edges, edge_points=points) == ((10, 20), (12, 21), (13, 22), (14, 23), (12, 30), (13, 31), (14, 32), (15, 33))
+
+
+def test_true_mn_arc_length_mapping_reversal_is_explicit():
+    value = SeamGraph(); value.add_piece(piece("left", "left")); value.add_piece(piece("right", "right"))
+    value.add_seam(Seam("left", 1, "right", 3, id="mn-reverse", reversed_b=True, stitch_group="mn-reverse"))
+    edges = {("left", 1): (10, 11, 12, 13), ("right", 3): (20, 21, 22, 23)}
+    points = {("left", 1): ((0.0, 0.0), (1.0, 0.0), (3.0, 0.0), (10.0, 0.0)), ("right", 3): ((0.0, 0.0), (5.0, 0.0), (10.0, 0.0), (12.0, 0.0))}
+    assert value.stitch_pairs(edges, edge_points=points) == ((10, 23), (12, 22), (13, 20))
 
 
 def test_missing_mesh_edge_vertices_is_rejected():
