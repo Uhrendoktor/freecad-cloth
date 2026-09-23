@@ -52,7 +52,7 @@ jobs:
           if ! gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=schedule&branch=main&per_page=10" >/tmp/runner-heartbeats.json 2>/tmp/runner-api-error; then
             echo "Heartbeat inventory unavailable; using GitHub-hosted ubuntu-latest."
             cat /tmp/runner-api-error >&2 || true
-            echo 'runner=ubuntu-latest' >> "$GITHUB_OUTPUT"
+            echo 'runner=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
             exit 0
           fi
           latest_success="$(jq -r '[.workflow_runs[]? | select(.conclusion == "success") | .updated_at] | max // empty' /tmp/runner-heartbeats.json)"
@@ -62,7 +62,7 @@ jobs:
             age=$((now - heartbeat_epoch))
             if [ "$age" -ge 0 ] && [ "$age" -le "$HEARTBEAT_MAX_AGE_SECONDS" ]; then
               echo "Recent local Docker runner heartbeat: age=${age}s."
-              echo 'runner=docker' >> "$GITHUB_OUTPUT"
+              echo 'runner=["self-hosted","linux","x64","docker"]' >> "$GITHUB_OUTPUT"
               exit 0
             fi
           fi
@@ -72,7 +72,7 @@ jobs:
   python:
     needs: runner_selection
     name: Python and FreeCAD non-GUI tests
-    runs-on: ${{ needs.runner_selection.outputs.runner }}
+    runs-on: ${{ fromJSON(needs.runner_selection.outputs.runner) }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
@@ -422,9 +422,8 @@ jobs:
           compression-level: 1
 
   publish-readme-turntables:
-    needs: runner_selection
     name: Publish README turntables
-    needs: [gui-tunic-visual, gui-turntables]
+    needs: [runner_selection, gui-tunic-visual, gui-turntables]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ${{ needs.runner_selection.outputs.runner }}
     timeout-minutes: 10
