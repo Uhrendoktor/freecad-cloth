@@ -1,78 +1,96 @@
 # Tool State
 
 ```yaml
-schema: 6
+schema: 7
 repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
-supervisor_task: cloth-sewing-workbench-structure-and-roadmap
-current_main: 7217a2d00e513d4e988b8bb98169a5630b66f328
+supervisor_task: #647 release lifecycle closeout
+current_main: 60393fecbee814f56ed8018f648167eb461e9c0b
 open_prs: []
-active_release_gates: [155, 278, 284, 298, 297, 145]
-queued_release_gates: [275, 162, 360]
-non_blocking: [148]
-closed_this_pass: [600-created, 598, 595, 597, 594, 590, 593, 572, 581, 571, 592, 495, 556, 560, 567, 563, 565, 568, 574, 578, 579, 580]
+open_actionable_issues: [647, 720, 471]
 
 architecture:
   package_root: freecad_cloth/
   domain_packages: [avatar, pattern, sewing, simulation]
   shared_packages: [common, shared]
   root_python: [Init.py, InitGui.py, sitecustomize.py]
-  root_domain_implementations: forbidden
-  root_compatibility_shims: forbidden
   drape_target_owner: freecad_cloth.simulation.DrapeTarget
   diagnostics_owner: freecad_cloth.common.ClothDiagnostics
-  policy: migrate_callers_to_package_namespace; never_restore_root_domain_modules
+  semantic_boundaries: [PatternIR, SewingGraph, SimulationScene, DrapeTarget]
+  policy: FreeCAD_owns_geometry_and_persistence; Cloth_owns_garment_semantics; solver_owns_physics; derived_simulation_state_is_rebuildable_and_invalidated
 
 workflow_contract:
   workflow_count: 1
   workflow: .github/workflows/canonical-execution.yml
   image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
-  image_policy: publish_on_main_when_missing; PR validation may build locally with the same tag
   screenshot_display: 1280x720
-  screenshot_outputs:
-    - docs/images/generated/cloth-simulation-draped.png
-    - docs/images/generated/cloth-simulation-draped-front.png
-    - docs/images/generated/cloth-simulation-draped-rear.png
-    - docs/images/generated/cloth-simulation-draped-left.png
-    - docs/images/generated/cloth-simulation-draped-right.png
-    - docs/images/generated/cloth-simulation-draped-top.png
-    - docs/images/generated/cloth-simulation-draped-bottom.png
-  screenshot_artifacts: [tunic-visual-audit]
-  turntable_outputs: [cloth-avatar-turntable.gif, cloth-simulation-arranged-turntable.gif, cloth-simulation-draped-turntable.gif]
-  turntable_frames: 73
+  screenshot_artifact: tunic-visual-audit
   turntable_artifact: readme-turntables
-  readme_publish_branch: docs/screenshots
-  pr_turntable_generation: enabled
-  readme_publish_on_main_merge: enabled
-  policy: preserve_existing_Docker_Xvfb_PNG_path; one_canonical_tunic_visual_audit; PR_turntable_validation; publish_stable_turntables_after_main_merge; no_second_workflow
+  policy: preserve_Docker_Xvfb_FreeCAD_path; fail_closed_evidence; no_second_workflow
 
 latest_verified_ci:
-  run_id: 35580478353
-  run_number: 2087
-  commit: 226fb38f2795450af42c6d2429dddc8c1429627f
+  run_id: 35814799483
+  run_number: 3084
+  commit: fa1df9f498ecfdcbd2f56c363e30ed7d28d700dd
+  pr: 1009
   status: completed
   conclusion: success
-  python_job: success
-  gui_job: success
-  artifact_id: 10629862765
-  artifact_sha256: e6d420236b42407855d06624e41a532a1c46ae56990c31b496183a3f1c4266a7
-  note: PR #598 merged to main as 35cb29db06e57fdf58a137fbe4e20279fb8225dd after terminal-green canonical verification and direct six-view artifact inspection. State-only synchronization commits now put main at 7217a2d00e513d4e988b8bb98169a5630b66f328. Drape panels are finite with one connected component each; seam correspondence diagnostics report a maximum gap of 452.652642 mm. These measurements remain diagnostic-only; #472 visual trust remains unresolved.
+  jobs:
+    - Python and FreeCAD non-GUI tests
+    - Full tunic visual and simulation audit
+    - Sewing staged creation smoke
+    - Pattern production export smoke
+    - README turntables
+  skipped_on_pr:
+    - Measured FreeCAD workbench benchmark
+    - Publish README turntables
+  artifacts:
+    tunic_visual_audit_id: 10731790123
+    tunic_visual_audit_sha256: 267405a507a1ee33d806266bedb61f44cd99995ed2510af77d31eec7f4a8a357
+    sewing_creation_smoke_id: 10731420436
+    sewing_creation_smoke_sha256: 09c6f69de9f2fb3d400f6aeee8c12d1244bb1ec1b3dda4ef6fd272992d1fc31a
+    pattern_export_id: 10730914887
+    pattern_export_sha256: cc06fb1d57044e77593e0999c873b687b7c1a2b634074698be981ee881126de4
+    readme_turntables_id: 10731555405
+    readme_turntables_sha256: a526ac4e79b805addcd374e93eee1ece2f92e1a7521a54ab1b27f82ef437158c
+
+release_evidence:
+  garment_e2e: passed
+  sewing_curved_mn: passed
+  arrangement: passed_pieces_4
+  garment_hierarchy: passed
+  drape_target: passed_mannequin
+  diagnostics: passed_stress
+  save_reload: passed
+  invalidation_and_repair: passed
+  stale_export: blocked
+  deterministic_rerun: passed
+  pattern_export: passed_SVG_DXF
+  canonical_visuals: six_drape_views_plus_diagnostics
+  drape_metrics:
+    front: finite=true; connected_components=1; state=structurally-plausible; target_vertex_clearance_mm=4.0799
+    back: finite=true; connected_components=1; state=structurally-plausible; target_vertex_clearance_mm=1.0594
+  seam_coherence:
+    max_correspondence_gap_mm: 20.842179
+    method: solver-stitch-pairs
+    mode: diagnostic_only
+
+historical_closeout:
+  merged_release_pr: 1001
+  merged_release_commit: 2b09ea32426d8f26141c4a0d8e9c294509e29893
+  current_main_has_release: true
+  sewing_closeout_issue: 475_closed_completed
+  stale_runner_prs: [904_closed, 925_closed, 1008_closed]
+  stale_curved_sewing_pr: 999_closed
+  lifecycle_issues_closed: [1002, 1004, 1005, 1006, 987, 917, 837, 893, 828, 845, 692, 675]
 
 policy:
   - inspect_open_prs_and_issues_before_changes
   - one_canonical_workflow
-  - terminal_green_CI_before_dependent_merge_or_close
-  - review_diffs_before_merge
-  - never_weaken_GUI_or_PNG_assertions
+  - terminal_green_ci_before_dependent_merge_or_close
+  - inspect_artifacts_and_logs
+  - never_weaken_validation
   - close_issues_only_with_explicit_state_reason
-  - recut_branches_from_current_main
-
-current_focus:
-  queue_cleanup: #595 is complete; duplicate PR #597 is closed without merge; no open implementation PR remains
-  imports: package-qualified module namespace is authoritative
-  structure: package-tree cleanup remains historical; current active release focus is M0 garment visual trust (#472)
-  ci_status: latest verified canonical run is 35580478353 (#2087) on PR head 226fb38f2795450af42c6d2429dddc8c1429627f; product merge is 35cb29db06e57fdf58a137fbe4e20279fb8225dd; docs-only state head is 7217a2d00e513d4e988b8bb98169a5630b66f328
-  visual_regression: canonical GUI audit is green and all six drape views are present; both panels are connected/finite and structurally-plausible, while post-drape seam evidence exposes large correspondence gaps. #472 remains unresolved; do not resume blind fixture A/B churn.
-  next_supervisor_focus: issue #600 localizes post-drape seam/target coherence root cause without solver redesign, fixture A/B churn, or a second workflow.
+  - re_cut_implementation_branches_from_current_main
 ```
