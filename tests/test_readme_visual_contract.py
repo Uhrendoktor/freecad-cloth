@@ -23,6 +23,16 @@ def test_readme_turntable_uses_exact_drape_target_mesh():
     assert 'DrapeTarget' in source
 
 
+def test_blanket_motion_gif_has_usable_frame_delay_contract():
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    build = workflow.split("      - name: Build blanket motion GIF", 1)[1].split(
+        "      - name: Upload blanket visual evidence", 1
+    )[0]
+    assert build.index("-delay 10") < build.index("motion-*.png")
+    assert "identify -format '%T\\n' docs/images/generated/blanket-example/blanket-motion.gif" in build
+    assert "grep -qx '10'" in build
+
+
 def test_canonical_workflow_fails_closed_on_turntable_quality():
     source = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
     assert "CLOTH_TISSU_SUBSTEPS: 10" in source
