@@ -543,17 +543,17 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Download turntables
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: readme-turntables
           path: turntables
       - name: Download blanket visual example
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: blanket-visual-example
           path: blanket
       - name: Download tunic visual audit
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: tunic-visual-audit
           path: tunic
