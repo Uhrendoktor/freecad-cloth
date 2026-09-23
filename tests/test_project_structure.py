@@ -50,3 +50,16 @@ def test_human_documentation_contract():
     docs_readme = root / "docs" / "README.md"
     assert user_guide.is_file()
     assert "USER_GUIDE.md" in docs_readme.read_text(encoding="utf-8")
+
+
+def test_canonical_workflow_dependency_versions():
+    root = Path(__file__).resolve().parents[1]
+    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    assert "actions/checkout@v7" in workflow
+    assert "docker/login-action@v4" in workflow
+    assert "actions/upload-artifact@v7" in workflow
+    assert "actions/download-artifact@v8" in workflow
+    assert "actions/checkout@v5" not in workflow
+    assert "docker/login-action@v3" not in workflow
+    assert "actions/upload-artifact@v6" not in workflow
+    assert "actions/download-artifact@v6" not in workflow
