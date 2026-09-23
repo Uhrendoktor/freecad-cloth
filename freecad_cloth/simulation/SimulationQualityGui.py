@@ -4,10 +4,10 @@ def _qt():
     import FreeCAD as App
     import FreeCADGui as Gui
     try:
-        from PySide import QtWidgets
+        from PySide import QtWidgets, QtGui
     except ImportError:
-        from PySide2 import QtWidgets
-    return App, Gui, QtWidgets
+        from PySide2 import QtWidgets, QtGui
+    return App, Gui, QtWidgets, QtGui
 
 class SimulationQualityTaskPanel:
     QUALITY_NAMES = ("Fast", "Balanced", "Final")
@@ -19,9 +19,9 @@ class SimulationQualityTaskPanel:
     )
 
     def __init__(self, scene=None):
-        App, Gui, QtWidgets = _qt()
+        App, Gui, QtWidgets, QtGui = _qt()
         from freecad_cloth.simulation.SimulationQualityRuntimeV2 import ensure_quality_properties, apply_quality_preset
-        self.App, self.Gui, self.QtWidgets = App, Gui, QtWidgets
+        self.App, self.Gui, self.QtWidgets, self.QtGui = App, Gui, QtWidgets, QtGui
         self.scene = scene
         self._apply_quality_preset = apply_quality_preset
         self._snapshot = None
@@ -93,9 +93,8 @@ class SimulationQualityTaskPanel:
         self.fabric_color.setStyleSheet("background-color: rgb(%d,%d,%d)" % (r, g, b))
 
     def _choose_fabric_color(self):
-        QtGui = __import__("PySide").QtGui if "PySide" in __import__("sys").modules else __import__("PySide2").QtGui
-        current = getattr(self, "_fabric_qcolor", QtGui.QColor(184, 87, 117))
-        chosen = QtGui.QColorDialog.getColor(current, self.form, "Fabric color")
+        current = getattr(self, "_fabric_qcolor", self.QtGui.QColor(184, 87, 117))
+        chosen = self.QtGui.QColorDialog.getColor(current, self.form, "Fabric color")
         if not chosen.isValid():
             return
         self._fabric_qcolor = chosen
@@ -193,7 +192,7 @@ class SimulationQualityTaskPanel:
         return True
 
     def getStandardButtons(self):
-        _, _, QtWidgets = _qt(); return QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+        _, _, QtWidgets, _ = _qt(); return QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
 
 def show_simulation_quality_task(scene=None):
     _App, Gui, _QtWidgets = _qt(); panel = SimulationQualityTaskPanel(scene); Gui.Control.showDialog(panel); return panel
