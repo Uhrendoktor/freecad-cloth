@@ -12,10 +12,10 @@ CLO is used as a workflow benchmark, not as a cloning target. Public CLO documen
 
 ## Current repository state
 
-- Supervisor issue #1017 remains the complete-project criterion. Release integration PR #1059 is merged to `main` at `379a89fca4d331e985ddec88987217c0bde920ef`; PR #1066 is the current final validation candidate.
-- Supporting canonical run #3297 / `35844023654` executed the real FreeCAD/Xvfb release jobs: Python, sewing, export, blanket visual, README turntable and tunic audit passed; only Native Sketcher acceptance timed out.
-- The Sketcher timeout has a bounded software diagnosis and merged fix: bootstrap `InitGui.py` before workbench activation and emit flushed stage markers so startup failures cannot remain silent.
-- Repeated zero-job push workflow failures remain an external Actions orchestration blocker. They do not count as successful validation, and the production workflow remains unchanged.
+- Supervisor issue #1017 remains the complete-project criterion. Release integration PR #1059 is merged to `main` at `379a89fca4d331e985ddec88987217c0bde920ef`; PR #1066 is the current final validation candidate at code head `28b8b251ccb6991466ab7e8657d9397419f2c706`.
+- Supporting canonical run #35845226384 validated the 200 mm Basic blanket fixture with real FreeCAD/Xvfb evidence and artifact `10743635540`.
+- Current main push run #3412 / `35848880387` failed before job allocation with zero jobs; the prior PR push run #3413 / `35849087425` failed the same way. After rebuilding the release branch from live `main`, the two code commits received no workflow run/check and PR #1066 still has no `pull_request` run.
+- The canonical workflow remains exactly one workflow and its validation thresholds/timeouts are unchanged. Issue #1053 records the exact external Actions policy/event-delivery restoration path.
 
 ## Supervisor milestone ladder
 
