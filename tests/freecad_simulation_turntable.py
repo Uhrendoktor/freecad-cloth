@@ -39,7 +39,7 @@ def _png_has_visible_content(path):
     import zlib
 
     raw = open(path, "rb").read()
-    if raw[:8] != b"\\x89PNG\\r\\n\\x1a\\n":
+    if raw[:8] != b"\x89PNG\r\n\x1a\n":
         return False
     offset = 8
     width = height = bit_depth = color_type = None
