@@ -370,8 +370,10 @@ def build_simulation_state(doc):
     log("blanket-pins=passed opposite-corners span=%.3f indices=%s" % (span, pins))
     doc.recompute()
 
-    for source in (blanket, sketch):
-        source.ViewObject.Visibility = False
+    sketch.ViewObject.Visibility = False
+    blanket.ViewObject.Visibility = True
+    blanket.ViewObject.DisplayMode = "Shaded"
+    blanket.ViewObject.ShapeColor = (0.14, 0.32, 0.78)
     cube.ViewObject.ShapeColor = (0.62, 0.62, 0.62)
     panel.ViewObject.ShapeColor = (0.14, 0.32, 0.78)
     panel.ViewObject.DisplayMode = "Flat Lines"
