@@ -9,7 +9,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - Current main: `ccac198eae37bb162830895b1d8259ca84d7047f`
 - Canonical workflow: `.github/workflows/canonical-execution.yml`; exactly one workflow.
 - Supervisor completion issue: #1017.
-- Active release candidate: PR #1066, branch `supervisor/complete-audit-20260923`, live head `ae5b3ec1b4c625df05c5b161b2b91eb103c2bf45`.
+- Active release candidate: PR #1066, branch `supervisor/complete-audit-20260923`, live head `2dbdd237742f518befbe50a3cfa4521c16abbaca`.
 
 ## Implemented release slice
 
@@ -25,11 +25,11 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - In that same run, the older README turntable source failed its fail-closed drape sanity gate with a detached-candidate state. That source used a 20 mm particle-distance / 32-iteration CPU configuration and is not the current release head.
 - The current release branch now uses the 200 mm fixture and the canonical Tissu backend for the README turntable, with no relaxation of drape, motion, mesh, frame-count, timeout, or artifact assertions.
 - Exact-head PR #1066 currently has no commit status and no pull_request workflow run. Controlled close/reopen produced no run; validation PR #1070 pointed at the same exact head and also produced no pull_request run before being closed.
-- Recent push runs `35856179268` (#3439), `35856103900` (#3438), and `35855977273` (#3437) failed before job allocation with zero jobs/artifacts. Retrying `35855453586` through the connector returned GitHub 403: `This workflow run cannot be retried`.
+- Recent candidate push runs #3445 / Actions 35856692674 and #3444 / Actions 35856533198 failed before job allocation with zero jobs/artifacts. Retrying `35855453586` through the connector returned GitHub 403: `This workflow run cannot be retried`.
 
 ## Branch cleanup
 
-- Many historical agent/supervisor branches remain. The installed GitHub connector exposes branch listing but no branch-delete operation, so branch cleanup is not claimed complete.
+- Many historical agent/supervisor/validation branches remain: 484 remote branches are currently present. The installed GitHub connector exposes branch listing but no branch-delete operation, so branch cleanup is not claimed complete.
 
 ## External CI blocker
 
