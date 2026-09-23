@@ -287,11 +287,12 @@ def validate_blanket_drape(panel, cube):
         (float(vertex.Point.x), float(vertex.Point.y), float(vertex.Point.z))
         for vertex in cube.Shape.Vertexes
     )
+    target_box = cube.Shape.BoundBox
     drape = inspect_drape(
         points,
         target_points,
-        target_height=float(cube.Height),
-        target_width=max(float(cube.Length), float(cube.Width)),
+        target_height=float(target_box.ZLength),
+        target_width=max(float(target_box.XLength), float(target_box.YLength)),
     )
     if not mesh_result.finite or mesh_result.components != 1 or mesh_result.degenerate_faces:
         raise RuntimeError("blanket mesh failed structural validation: %r" % mesh_result)
@@ -413,7 +414,7 @@ def main():
         final_z = _center_z(final_positions)
         displacement = abs(final_z - initial_z)
         minimum_z = min(float(position[2]) for position in final_positions)
-        cube_top = float(cube.Placement.Base.z) + float(cube.Height)
+        cube_top = float(cube.Shape.BoundBox.ZMax)
         log("blanket-motion-diagnostic max_centroid_displacement_mm=%.2f final_centroid_z_mm=%.2f min_z_mm=%.2f cube_top_z_mm=%.2f" % (
             displacement, final_z, minimum_z, cube_top,
         ))
