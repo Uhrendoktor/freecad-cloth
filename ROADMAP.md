@@ -12,10 +12,10 @@ CLO is used as a workflow benchmark, not as a cloning target. Public CLO documen
 
 ## Current repository state
 
-- Supervisor issue #1017 remains the complete-project criterion. PR #1058 is the current clean release candidate, cut from main at `dad152e634bcf454bc71aa02f4c1bfa858c154c1`.
+- Supervisor issue #1017 remains the complete-project criterion. Release integration PR #1059 is merged to `main` at `8cee5774c25110448675e7b45d651869f3921692`; PR #1066 is the current final validation candidate.
 - Supporting canonical run #3297 / `35844023654` executed the real FreeCAD/Xvfb release jobs: Python, sewing, export, blanket visual, README turntable and tunic audit passed; only Native Sketcher acceptance timed out.
-- The Sketcher timeout has a bounded software diagnosis and fix in PR #1058: bootstrap `InitGui.py` before workbench activation and emit flushed stage markers so startup failures cannot remain silent.
-- Repeated zero-job push workflow failures are recorded as an external Actions orchestration blocker. They do not count as successful validation, and the production workflow remains unchanged.
+- The Sketcher timeout has a bounded software diagnosis and merged fix: bootstrap `InitGui.py` before workbench activation and emit flushed stage markers so startup failures cannot remain silent.
+- Repeated zero-job push workflow failures remain an external Actions orchestration blocker. They do not count as successful validation, and the production workflow remains unchanged.
 
 ## Supervisor milestone ladder
 
@@ -79,7 +79,7 @@ Keep production avatar fidelity (#374), advanced manufacturing/diagnostics (#362
 
 ## Verification policy
 
-Every implementation task requires the appropriate combination of headless model tests, real FreeCAD runtime coverage, GUI/Xvfb coverage, save/reload persistence checks and deterministic simulation evidence. PRs must be inspected, CI must become terminal-green, and merged-main behavior must be verified before dependent work proceeds.
+Every implementation task requires the appropriate combination of headless model tests, real FreeCAD runtime coverage, GUI/Xvfb coverage, save/reload persistence checks and deterministic simulation evidence. PRs must be inspected, exact-head CI must become terminal-green, and merged-main behavior must be verified before closing the root issue.
 
 ## Existing research basis
 

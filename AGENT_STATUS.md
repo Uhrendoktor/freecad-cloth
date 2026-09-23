@@ -6,10 +6,10 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `dad152e634bcf454bc71aa02f4c1bfa858c154c1`
+- Current main: `8cee5774c25110448675e7b45d651869f3921692`
 - Canonical workflow: `.github/workflows/canonical-execution.yml`; exactly one workflow.
 - Supervisor completion issue: #1017.
-- Active release candidate: PR #1058, branch `supervisor/root-completion-20260923`.
+- Active release candidate: PR #1066, branch `supervisor/complete-audit-20260923`, head `7141ed6a8c9e49dd3e85c171401aeebf28ff17c6`.
 
 ## Implemented release slice
 
@@ -21,14 +21,19 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 ## CI evidence
 
-- Supporting canonical run #3297 / `35844023654` executed real FreeCAD/Xvfb jobs. Python, sewing, pattern export, blanket visual, README turntable and tunic audit passed; only Native Sketcher acceptance timed out after its 8-minute fail-closed limit.
-- The timeout job log showed the FreeCAD process reached the test invocation but emitted no acceptance-stage output. The bounded fix in PR #1058 bootstraps the workbench registration before activation.
-- Repeated non-main and main push workflow runs terminate with zero jobs. PR-triggered runs exist and execute normally on other branches, so the zero-job state is recorded as an Actions orchestration blocker rather than test success.
+- Supporting canonical run #3297 / `35844023654` executed real FreeCAD/Xvfb jobs. Python, sewing, pattern export, blanket visual, README turntable and tunic audit passed; only Native Sketcher acceptance timed out after its 8-minute fail-closed limit. The 200 mm Blanket-over-Cube fixture was separately validated in real FreeCAD/Xvfb by run `35845226384`, artifact `10743635540`.
+- The timeout job log showed the FreeCAD process reached the test invocation but emitted no acceptance-stage output. The merged release now explicitly bootstraps workbench registration before activation and includes flushed acceptance stage markers.
+- Repeated non-main and main push workflow runs terminate with zero jobs. PR-triggered runs exist and execute normally on other branches, so the zero-job state is recorded as an Actions orchestration blocker rather than test success. Current main push run `35847413862` is one such zero-job failure.
+
+## External CI blocker
+
+- GitHub Actions event delivery remains unresolved: main/non-main push runs can terminate `failure` with zero jobs, while historical pull_request/schedule runs instantiate the canonical job graph.
+- Repository-side policy inspection requires Administration access not exposed by the installed GitHub connector. Exact restoration path is recorded in issue #1053: inspect inherited/repository Actions event restrictions, then trigger a real `pull_request:synchronize` on PR #1066 and verify non-zero jobs.
 
 ## Current gate
 
 - Do not merge or close #1017 yet.
-- Exact-head PR #1058 must receive a terminal canonical run and its jobs/artifacts/logs must be inspected.
+- Exact-head PR #1066 must receive a terminal canonical run and its jobs/artifacts/logs must be inspected.
 - After merge, merged-main canonical validation must be terminal-green before closing supervisor issues.
-- Stale/overlapping PRs are being closed; only targeted research #1057 remains active while its evidence is useful.
+- Stale/overlapping PRs have been superseded. PR #1066 is the sole open release PR; #1053 and #1055 document external Actions/Sketcher evidence.
 
