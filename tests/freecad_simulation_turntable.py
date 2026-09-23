@@ -308,7 +308,7 @@ def main():
     try:
         scene, cube, blanket, panel, initial_positions = build_simulation_state(doc)
         view = Gui.activeDocument().activeView()
-        objects = [cube, panel]
+        arranged_objects = [cube, blanket]
         render_turntable(view, objects, os.path.join(OUT, "cloth-simulation-arranged-turntable-frames"))
 
         steps = int(os.environ.get("CLOTH_BLANKET_STEPS", "90"))
