@@ -24,13 +24,17 @@ QUALITY_PRESETS = {
 
 @dataclass(frozen=True)
 class FabricMaterial:
-    """Physical fabric controls in FreeCAD's millimetre/gram unit convention."""
+    """Physical fabric controls plus persisted presentation properties."""
     density_g_m2: float = 150.0
     thickness_mm: float = 0.5
     stretch: float = 0.02
     shear: float = 0.02
     bend: float = 0.01
     friction: float = 0.5
+    color_rgb: tuple[float, float, float] = (0.72, 0.34, 0.46)
+    specular: float = 0.25
+    roughness: float = 0.65
+    transparency: float = 0.0
 
     def validate(self):
         if self.density_g_m2 <= 0:
@@ -43,6 +47,14 @@ class FabricMaterial:
                 raise ValueError(f"{name} must be between 0 and 1")
         if not 0 <= self.friction <= 1:
             raise ValueError("friction must be between 0 and 1")
+        if len(self.color_rgb) != 3 or any(not 0 <= float(value) <= 1 for value in self.color_rgb):
+            raise ValueError("color_rgb must contain three channels between 0 and 1")
+        if not 0 <= self.specular <= 1:
+            raise ValueError("specular must be between 0 and 1")
+        if not 0 <= self.roughness <= 1:
+            raise ValueError("roughness must be between 0 and 1")
+        if not 0 <= self.transparency <= 100:
+            raise ValueError("transparency must be between 0 and 100 percent")
         return self
 
     @property
