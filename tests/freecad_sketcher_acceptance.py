@@ -1,4 +1,5 @@
 """Canonical FreeCAD/Xvfb acceptance for native Sketcher pattern authoring."""
+print("sketcher-acceptance=module-start", flush=True)
 import math
 import os
 import site
