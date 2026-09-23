@@ -9,6 +9,9 @@ import Part
 import Sketcher
 
 
+print("sketcher-acceptance=module-imported", flush=True)
+
+
 def _events():
     Gui.updateGui()
     try:
@@ -139,6 +142,7 @@ def _exercise_constraint_families(doc, reference_sketch):
 
 
 def run_acceptance():
+    _record("before-document-create")
     doc = App.newDocument("NativeSketcherAcceptance")
     try:
         _record("document-created")
