@@ -41,8 +41,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/login-action@v4
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -116,8 +116,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/login-action@v4
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -169,7 +169,7 @@ jobs:
           grep -q 'stale-endpoint-invalidation=passed commit-blocked=true' artifacts/sewing-creation-smoke.log
       - name: Upload sewing creation smoke evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: sewing-creation-smoke
           path: artifacts/sewing-creation-smoke.log
@@ -181,8 +181,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/login-action@v4
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -215,7 +215,7 @@ jobs:
           grep -q "native Sketcher acceptance passed" artifacts/sketcher-acceptance.log
       - name: Upload Sketcher acceptance evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: sketcher-acceptance
           path: artifacts/sketcher-acceptance.log
@@ -226,8 +226,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/login-action@v4
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -258,7 +258,7 @@ jobs:
           grep -q 'pattern-export-smoke=completed' artifacts/pattern-production-export.log
       - name: Upload pattern export evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: pattern-production-export
           path: artifacts/pattern-production-export.log
@@ -270,8 +270,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/login-action@v4
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -342,7 +342,7 @@ jobs:
           grep -q 'canonical garment end-to-end acceptance passed' artifacts/garment-e2e.log
       - name: Upload tunic visual audit
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: tunic-visual-audit
           path: |
@@ -359,8 +359,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/login-action@v4
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -439,7 +439,7 @@ jobs:
           identify -format '%n\n' docs/images/generated/cloth-simulation-draped-turntable.gif | head -n 1 | grep -qx '73'
       - name: Upload README turntable evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: readme-turntables
           path: |
@@ -469,8 +469,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/login-action@v4
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -523,7 +523,7 @@ jobs:
           test -s docs/images/generated/blanket-example/blanket-motion.gif
       - name: Upload blanket visual evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: blanket-visual-example
           path: |
@@ -543,17 +543,17 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Download turntables
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v6
         with:
           name: readme-turntables
           path: turntables
       - name: Download blanket visual example
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v6
         with:
           name: blanket-visual-example
           path: blanket
       - name: Download tunic visual audit
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v6
         with:
           name: tunic-visual-audit
           path: tunic
@@ -643,7 +643,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v5
       - name: Pull published FreeCAD image
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
@@ -719,7 +719,7 @@ jobs:
         run: "$RUNNER_TEMP/workbench-benchmark-venv/bin/python" tools/plot_workbench_benchmark.py artifacts/workbench-benchmark/benchmark.json artifacts/workbench-benchmark/plots
       - name: Upload benchmark measurements and plots
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: workbench-benchmark
           path: artifacts/workbench-benchmark
