@@ -450,6 +450,9 @@ jobs:
           if displacement < 40.0: raise SystemExit("blanket displacement below 40 mm")
           if minimum_z > cube_top + 35.0: raise SystemExit("blanket did not approach cube")
           if "blanket-turntable-pass" not in log: raise SystemExit("blanket turntable incomplete")
+          if "simulation-motion-pass frames=16 final_steps=90" not in log: raise SystemExit("simulation motion evidence incomplete")
+          motion_frames = sorted(Path("docs/images/generated/cloth-simulation-motion-frames").glob("frame-*.png"))
+          if len(motion_frames) != 16: raise SystemExit("expected 16 simulation motion frames, got %d" % len(motion_frames))
           for directory in ("cloth-avatar-turntable-frames","cloth-simulation-arranged-turntable-frames","cloth-simulation-draped-turntable-frames"):
             hashes=[]
             for frame in (0,18,36,54):
@@ -468,7 +471,7 @@ jobs:
           for spec in \
             "cloth-avatar-turntable-frames cloth-avatar-turntable.gif" \
             "cloth-simulation-arranged-turntable-frames cloth-simulation-arranged-turntable.gif" \
-            "cloth-simulation-draped-turntable-frames cloth-simulation-draped-turntable.gif"; do
+            "cloth-simulation-draped-turntable-frames cloth-simulation-draped-turntable.gif"             "cloth-simulation-motion-frames cloth-simulation-motion.gif"; do
             read -r frame_dir gif <<< "$spec"
             "${IM[@]}" "docs/images/generated/$frame_dir"/frame-*.png \
               -delay 8 -loop 0 -colors 128 -layers Optimize \
@@ -486,6 +489,7 @@ jobs:
             docs/images/generated/cloth-avatar-turntable.gif
             docs/images/generated/cloth-simulation-arranged-turntable.gif
             docs/images/generated/cloth-simulation-draped-turntable.gif
+            docs/images/generated/cloth-simulation-motion.gif
             docs/images/generated/cloth-avatar-turntable-frames/frame-000.png
             docs/images/generated/cloth-avatar-turntable-frames/frame-018.png
             docs/images/generated/cloth-avatar-turntable-frames/frame-036.png
