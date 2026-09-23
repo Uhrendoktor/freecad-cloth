@@ -386,25 +386,39 @@ jobs:
       - name: Validate turntable semantic and camera evidence
         run: |
           set -euo pipefail
-          grep -q 'simulation-seam-diagnostic max_endpoint_gap_mm=' docs/images/generated/simulation-turntable-progress.log
-          grep -q 'semantic-provenance=true' docs/images/generated/simulation-turntable-progress.log
-          test "$(grep 'simulation-seam-diagnostic' docs/images/generated/simulation-turntable-progress.log | tail -n 1 | sed -E 's/.*max_endpoint_gap_mm=([0-9.]+).*/\\1/' | awk '{print ($1 <= 35.0) ? "ok" : "bad"}')" = ok
-          for dir in \
-            cloth-avatar-turntable-frames \
-            cloth-simulation-arranged-turntable-frames \
-            cloth-simulation-draped-turntable-frames; do
-            unique="$(sha256sum \
-              "docs/images/generated/$dir/frame-000.png" \
-              "docs/images/generated/$dir/frame-018.png" \
-              "docs/images/generated/$dir/frame-036.png" \
-              "docs/images/generated/$dir/frame-054.png" | awk '{print $1}' | sort -u | wc -l)"
-            echo "$dir checkpoint-hashes=$unique"
-            if [ "$unique" -ne 4 ]; then
-              echo "::error::$dir did not show four distinct turntable checkpoints"
-              exit 1
-            fi
-            echo "$dir checkpoint-uniqueness=passed hashes=$unique"
-          done
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import re
+
+          log = Path("docs/images/generated/simulation-turntable-progress.log").read_text(encoding="utf-8")
+          if "semantic-provenance=true" not in log:
+              raise SystemExit("missing semantic seam provenance marker")
+          match = re.findall(r"simulation-seam-diagnostic max_endpoint_gap_mm=([0-9.]+)", log)
+          if not match:
+              raise SystemExit("missing simulation seam diagnostic")
+          seam_gap = float(match[-1])
+          print(f"simulation seam gap mm={seam_gap:.2f}")
+          if seam_gap > 35.0:
+              raise SystemExit(f"simulation seam gap {seam_gap:.2f} mm exceeds 35 mm")
+
+          for directory in (
+              "cloth-avatar-turntable-frames",
+              "cloth-simulation-arranged-turntable-frames",
+              "cloth-simulation-draped-turntable-frames",
+          ):
+              hashes = []
+              for frame in (0, 18, 36, 54):
+                  path = Path("docs/images/generated") / directory / f"frame-{frame:03d}.png"
+                  if not path.is_file():
+                      raise SystemExit(f"missing turntable checkpoint {path}")
+                  hashes.append(hashlib.sha256(path.read_bytes()).hexdigest())
+              unique = len(set(hashes))
+              print(f"{directory} checkpoint-hashes={unique}")
+              if unique != 4:
+                  raise SystemExit(f"{directory} did not show four distinct turntable checkpoints")
+              print(f"{directory} checkpoint-uniqueness=passed hashes={unique}")
+          PY
       - name: Build turntable GIFs
         run: |
           set -euo pipefail
