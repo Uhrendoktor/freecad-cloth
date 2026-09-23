@@ -34,9 +34,9 @@ def test_seam_semantics_are_canonical():
 
 def test_reversed_normalized_ranges_generate_deterministic_stitches():
     value = graph(); edges = {("left", 1): (10, 11, 12, 13, 14), ("right", 3): (20, 21, 22, 23, 24)}
-    assert value.stitch_pairs(edges) == ((10, 20), (12, 22), (14, 24))
+    assert value.stitch_pairs(edges) == ((10, 20), (11, 21), (12, 22), (13, 23), (14, 24))
     value.seams["side"] = value.seams["side"].__class__(Seam("left", 1, "right", 3, id="side", reversed_b=True, stitch_group="waist"), "waist", "endpoints")
-    assert value.stitch_pairs(edges) == ((10, 24), (12, 22), (14, 20))
+    assert value.stitch_pairs(edges) == ((10, 24), (11, 23), (12, 22), (13, 21), (14, 20))
 
 
 def test_assembly_transform_is_separate_from_pattern_metadata():
