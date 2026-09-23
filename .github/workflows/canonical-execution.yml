@@ -538,7 +538,9 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/images/generated/cloth-avatar-turntable.gif \
             docs/images/generated/cloth-simulation-arranged-turntable.gif \
-            docs/images/generated/cloth-simulation-draped-turntable.gif
+            docs/images/generated/cloth-simulation-draped-turntable.gif \
+            docs/images/generated/cloth-simulation-motion.gif \
+            docs/images/generated/cloth-blanket-motion.gif
           if git diff --cached --quiet; then
             echo "README turntables are already current."
             exit 0
