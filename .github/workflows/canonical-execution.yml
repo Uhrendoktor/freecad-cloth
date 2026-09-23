@@ -8,6 +8,7 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '*/5 * * * *'
+    - cron: '0 3 * * *'
 
 concurrency:
   group: canonical-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
@@ -352,6 +353,8 @@ jobs:
       - name: Render turntable frames
         env:
           CLOTH_SIMULATION_BACKEND: tissu
+          CLOTH_TISSU_SUBSTEPS: 10
+          CLOTH_TISSU_COLLISION_MODE: torso-envelope
         run: |
           set -euo pipefail
           rm -rf docs/images/generated
@@ -360,6 +363,7 @@ jobs:
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
             -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
+            -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
@@ -381,6 +385,28 @@ jobs:
           test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
           test -d docs/images/generated/cloth-simulation-motion-frames
           test "$(find docs/images/generated/cloth-simulation-motion-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 16
+      - name: Validate semantic turntable evidence
+        run: |
+          set -euo pipefail
+          grep -q 'simulation-motion-pass frames=16 final_steps=90' docs/images/generated/simulation-turntable-progress.log
+          grep -q 'simulation-seam-diagnostic max_endpoint_gap_mm=' docs/images/generated/simulation-turntable-progress.log
+          grep -q 'semantic-provenance=true' docs/images/generated/simulation-turntable-progress.log
+          gap="$(sed -n 's/.*max_endpoint_gap_mm=\([0-9.]*\).*/\1/p' docs/images/generated/simulation-turntable-progress.log | tail -n 1)"
+          python3 - "$gap" <<'PY'
+          import sys
+          gap = float(sys.argv[1])
+          if gap > 35.0:
+              raise SystemExit("solver stitch gap exceeds 35.0 mm: %.2f" % gap)
+          PY
+          for dir in cloth-avatar-turntable-frames cloth-simulation-arranged-turntable-frames cloth-simulation-draped-turntable-frames; do
+            unique="$({
+            for frame in 000 018 036 054; do
+              sha256sum "docs/images/generated/$dir/frame-$frame.png"
+            done
+            } | awk '{print $1}' | sort -u | wc -l)"
+            test "$unique" -eq 4
+          done
+          echo 'checkpoint-uniqueness=passed'
       - name: Build turntable GIFs
         run: |
           set -euo pipefail
@@ -547,6 +573,48 @@ jobs:
           fi
           git commit -m "ci: publish stable README turntables"
           git push origin "HEAD:$branch"
+  maintenance-cleanup:
+    name: Repository retention cleanup
+    if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * *' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Remove stale agent branches and old completed workflow runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH_RETENTION_DAYS: 14
+          RUN_RETENTION_DAYS: 30
+        run: |
+          set -euo pipefail
+          branch_cutoff="$(date -u -d "-${BRANCH_RETENTION_DAYS} days" +%s)"
+          run_cutoff="$(date -u -d "-${RUN_RETENTION_DAYS} days" +%s)"
+          open_heads="$(gh pr list --repo "$REPO" --state open --limit 100 --json headRefName --jq '.[].headRefName')"
+          gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name' |
+          while IFS= read -r branch_name; do
+            case "$branch_name" in
+              agent/*) ;;
+              *) continue ;;
+            esac
+            if printf '%s\n' "$open_heads" | grep -Fxq "$branch_name"; then
+              echo "Keeping open-PR branch: $branch_name"
+              continue
+            fi
+            sha="$(gh api "repos/$REPO/branches/$branch_name" --jq '.commit.sha')"
+            authored="$(gh api "repos/$REPO/commits/$sha" --jq '.commit.author.date // .commit.committer.date')"
+            authored_epoch="$(date -u -d "$authored" +%s)"
+            if [ "$authored_epoch" -lt "$branch_cutoff" ]; then
+              gh api --method DELETE "repos/$REPO/git/refs/heads/$branch_name"
+            fi
+          done
+          gh api --paginate "repos/$REPO/actions/runs?per_page=100&status=completed" |
+            jq -r '.workflow_runs[] | [.id, .created_at] | @tsv' |
+            while IFS=$'\t' read -r run_id created_at; do
+              created_epoch="$(date -u -d "$created_at" +%s)"
+              if [ "$created_epoch" -lt "$run_cutoff" ]; then
+                gh api --method DELETE "repos/$REPO/actions/runs/$run_id"
+              fi
+            done
   benchmark:
     name: Measured FreeCAD workbench benchmark
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
