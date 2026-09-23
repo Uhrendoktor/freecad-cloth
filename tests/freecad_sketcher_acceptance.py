@@ -146,8 +146,8 @@ def run_acceptance():
         if len(pieces) != 2:
             raise RuntimeError("public Pattern command did not create two PatternPiece objects")
         curved, mate = pieces
-        curved.Placement.Base.x = -130
-        mate.Placement.Base.x = 20
+        curved.Placement.Base = App.Vector(-130, 17, 0)
+        mate.Placement.Base = App.Vector(35, -29, 0)
         curved_sketch, width_index, height_index = _make_curved_piece_sketch(curved, doc)
         reference = mate.Sketch
         if reference is None:
@@ -194,6 +194,28 @@ def run_acceptance():
             raise RuntimeError("seam presentation is outside the placed PatternPiece coordinate system")
         if abs(float(seam_box.XMin)) < 1e-6 and abs(float(seam_box.XMax)) < 1e-6:
             raise RuntimeError("seam presentation appears to remain at the source Sketcher origin")
+        seam_vertices = tuple(vertex.Point for vertex in seam.Shape.Vertexes)
+
+        def _has_vertex(point, tolerance=1e-6):
+            return any((vertex - point).Length <= tolerance for vertex in seam_vertices)
+
+        curved_geometry = tuple(curved_sketch.Geometry)
+        mate_geometry = tuple(reference.Geometry)
+        world_edge_endpoints = (
+            curved.Placement.multVec(curved_geometry[2].StartPoint),
+            curved.Placement.multVec(curved_geometry[2].EndPoint),
+            mate.Placement.multVec(mate_geometry[0].StartPoint),
+            mate.Placement.multVec(mate_geometry[0].EndPoint),
+        )
+        for expected in world_edge_endpoints:
+            if not _has_vertex(expected):
+                raise RuntimeError(
+                    "seam presentation does not contain the placed/world-space Sketcher seam endpoint: %s"
+                    % expected
+                )
+        local_mate_start = mate_geometry[0].StartPoint
+        if _has_vertex(local_mate_start):
+            raise RuntimeError("seam presentation still contains the mate Sketcher endpoint in local coordinates")
         Gui.runCommand("ClothSewing_EditSeamSideA", 0)
         if not Gui.activeDocument().getInEdit():
             raise RuntimeError("seam Sketcher-side command did not enter native Sketcher")
