@@ -197,10 +197,14 @@ jobs:
           mkdir -p artifacts
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e FREECAD_USER_HOME=/tmp/freecad-user \
+            -e FREECAD_USER_DATA=/tmp/freecad-user-data \
+            -e FREECAD_USER_TEMP=/tmp/freecad-user-temp \
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -v "$PWD:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
-              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
+              rm -rf "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
+              mkdir -p "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP" "$XDG_RUNTIME_DIR" /workspace/artifacts
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
@@ -492,12 +496,16 @@ jobs:
           mkdir -p docs/images/generated/blanket-example
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e FREECAD_USER_HOME=/tmp/freecad-user \
+            -e FREECAD_USER_DATA=/tmp/freecad-user-data \
+            -e FREECAD_USER_TEMP=/tmp/freecad-user-temp \
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -v "$PWD:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
-              mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated/blanket-example
+              rm -rf "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
+              mkdir -p "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP" "$XDG_RUNTIME_DIR" /workspace/docs/images/generated/blanket-example
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
