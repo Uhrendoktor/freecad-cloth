@@ -2,6 +2,7 @@
 import math
 import os
 import tempfile
+from pathlib import Path
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -22,6 +23,9 @@ def _events():
 
 def _record(message):
     print("sketcher-acceptance=%s" % message, flush=True)
+
+def _stage(name):
+    print("stage=%s" % name, flush=True)
 
 
 def _close_task():
