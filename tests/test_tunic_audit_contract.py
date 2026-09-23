@@ -4,6 +4,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+# The canonical native-Sketcher outline uses edges 3/5 as the shoulder seams.
+
 def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert 'front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())' in source
