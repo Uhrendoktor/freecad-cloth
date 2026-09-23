@@ -1,4 +1,5 @@
 """Deterministic FreeCAD GUI acceptance and six-side cloth visual audit."""
+import contextlib
 import importlib.util
 import json
 import os
@@ -117,12 +118,23 @@ def load_and_run(path, module_name):
     module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module); module.run_acceptance()
 
 
+GARMENT_E2E_LOG = os.environ.get("CLOTH_GARMENT_E2E_LOG", "/workspace/artifacts/garment-e2e.log")
+
 def run_canonical_acceptance():
+    os.makedirs(os.path.dirname(GARMENT_E2E_LOG), exist_ok=True)
+    with open(GARMENT_E2E_LOG, "w", encoding="utf-8"):
+        pass
     for path, name, marker in ((
         "tests/freecad_avatar_acceptance.py", "freecad_avatar_acceptance", "avatar-provider-acceptance"),
         ("tests/freecad_garment_e2e_smoke.py", "freecad_garment_e2e_smoke", "canonical-garment-e2e"),
         ("tests/freecad_simulation_quality_acceptance.py", "freecad_simulation_quality_acceptance", "simulation-quality-acceptance")):
-        load_and_run(os.path.join(ROOT, path), name); log(marker + "=passed")
+        if name == "freecad_garment_e2e_smoke":
+            with open(GARMENT_E2E_LOG, "a", encoding="utf-8") as handle:
+                with contextlib.redirect_stdout(handle):
+                    load_and_run(os.path.join(ROOT, path), name)
+        else:
+            load_and_run(os.path.join(ROOT, path), name)
+        log(marker + "=passed")
 
 
 def _mesh_geometry(mesh):
