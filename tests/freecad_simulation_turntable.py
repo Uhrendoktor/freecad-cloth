@@ -255,7 +255,7 @@ def build_simulation_state(doc):
 
     sketch = _make_rectangle_sketch(doc, "BlanketSource", 420.0, 320.0)
     blanket = _adopt_sketch(sketch, "Blanket")
-    blanket.Placement = App.Placement(App.Vector(0.0, 0.0, 310.0), App.Rotation())
+    blanket.Placement = App.Placement(App.Vector(0.0, 0.0, 250.0), App.Rotation())
     blanket.Sketch.Placement = blanket.Placement
 
     scene.QualityPreset = "Balanced"
@@ -274,8 +274,8 @@ def build_simulation_state(doc):
     panel = scene.DrapePanels[0]
     positions = tuple(proxy.backend.positions())
     indices = tuple(proxy.panel_indices[panel.Name])
-    left = App.Vector(-210.0, -120.0, 310.0)
-    right = App.Vector(210.0, -120.0, 310.0)
+    left = App.Vector(-210.0, -120.0, 250.0)
+    right = App.Vector(210.0, -120.0, 250.0)
     pins = _nearest_pin_indices(indices, positions, (left, right))
     scene.PinSelection = [str(index) for index in pins]
     doc.recompute()
