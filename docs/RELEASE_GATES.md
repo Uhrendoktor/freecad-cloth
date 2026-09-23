@@ -13,6 +13,7 @@
 | Native FreeCAD GUI | Xvfb workbench smoke tests pass |
 | Sewing visuals | semantic seams render in 2D and 3D with deterministic colors |
 | Simulation geometry | drape metrics, connected-component checks and mesh spike/footprint sanity pass |
+| Basic drape example | Blanket-over-cube fixture records >=40 mm centroid displacement, approaches the cube within 35 mm of its top, and produces five checkpoints plus 16 motion frames |
 | Turntable integrity | 73-frame arranged and final-drape turntables pass |
 | Motion evidence | simulation motion GIF contains multiple simulation states, not only camera rotation |
 | Material presentation | persisted fabric color, transparency, roughness and specular controls exist; viewport color is applied |
