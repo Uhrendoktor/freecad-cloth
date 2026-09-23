@@ -320,6 +320,4 @@ def run_acceptance():
             except Exception:
                 pass
 
-
-if __name__ == "__main__":
-    run_acceptance()
+run_acceptance()
