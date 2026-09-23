@@ -1,6 +1,13 @@
 """Deterministic basic cloth example: a blanket draped over a cube."""
 
 import os
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+print("blanket-visual-bootstrap=ok repo=%s" % REPO_ROOT, flush=True)
 import traceback
 from pathlib import Path
 
