@@ -25,4 +25,4 @@ open_actionable_issues: [1017, 1020, 1043, 1053, 1067]
 ```
 
 closed_research_issues: [1042, 1055]
-stale_branch_cleanup: unavailable_via_current_connector; 487_remote_branches_observed
+stale_branch_cleanup: unavailable_via_current_connector; 489_remote_branches_observed

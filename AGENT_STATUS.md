@@ -28,7 +28,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 ## Branch cleanup
 
-- 487 historical agent/supervisor and other branches remain. The installed GitHub connector exposes branch listing but no branch-delete operation, so branch cleanup is not claimed complete.
+- 489 historical agent/supervisor and other branches remain. The installed GitHub connector exposes branch listing but no branch-delete operation, so branch cleanup is not claimed complete.
 
 ## External CI blocker
 
