@@ -130,7 +130,8 @@ def main():
         scene.GravityY = 0.0
         scene.GravityZ = -9810.0
         scene.TimeStep = 1.0 / 120.0
-        scene.Iterations = 10
+        # QualitySimulationProxy consumes SolverIterations; the legacy Iterations field is ignored for this runtime path.
+        scene.SolverIterations = 20
 
         mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, scene.ParticleDistance)
         boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
