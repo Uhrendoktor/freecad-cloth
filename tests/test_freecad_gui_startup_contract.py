@@ -27,7 +27,9 @@ def test_committed_bootstrap_prepares_gui_before_acceptance_script():
     assert "import FreeCADGui as Gui" in source
     assert "window.show()" in source
     assert "processEvents()" in source
-    assert 'runpy.run_path(script, run_name="__main__")' in source
+    assert 'sys.path.insert(0, ROOT)' in source
+    assert source.index("processEvents()") < source.index("sys.path.insert(0, ROOT)")
+    assert source.index("sys.path.insert(0, ROOT)") < source.index('runpy.run_path(script, run_name="__main__")')
 
 
 def test_canonical_gui_jobs_launch_from_neutral_cwd_with_bootstrap():
