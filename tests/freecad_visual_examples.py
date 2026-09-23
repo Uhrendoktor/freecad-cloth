@@ -17,6 +17,7 @@ from freecad_cloth.common.DrapeVisualSanity import inspect_drape, mesh_shape_san
 from freecad_cloth.common.MeshValidation import validate_mesh
 from freecad_cloth.pattern.PatternGeometry import rectangle
 from freecad_cloth.pattern.PatternMesh import triangulate
+from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
 from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
 
@@ -126,13 +127,21 @@ def main():
         scene.TimeStep = 1.0 / 120.0
         scene.Iterations = 10
 
-        mesh = triangulate(rectangle(260.0, 260.0))
-        top = sorted(mesh.boundary_vertex_indices, key=lambda index: mesh.vertices[index][1], reverse=True)[:2]
+        _, _, boundary = quality_piece_mesh(piece, 0.0, scene.ParticleDistance)
+        boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
+        top = sorted(boundary_vertices, key=lambda index: float(scene.Proxy._base_or_restore().piece_positions[piece.Name][index][1]), reverse=True)[:2]
         scene.PinSelection = [str(int(index)) for index in top]
         doc.recompute()
 
         for source in (piece, sketch):
             source.ViewObject.Visibility = False
+        for obj in doc.Objects:
+            if obj is panel:
+                continue
+            if str(getattr(obj, "ClothMeshType", "")) in {"DrapedCloth", "DrapePanel"}:
+                obj.ViewObject.Visibility = False
+            if str(getattr(obj, "AvatarType", "")) == "ClothAvatar" and obj is not cube:
+                obj.ViewObject.Visibility = False
         cube.ViewObject.ShapeColor = (0.62, 0.62, 0.62)
         panels = list(scene.DrapePanels)
         if len(panels) != 1:
