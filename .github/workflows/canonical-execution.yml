@@ -351,6 +351,8 @@ jobs:
       - name: Render turntable frames
         env:
           CLOTH_SIMULATION_BACKEND: tissu
+          CLOTH_TISSU_SUBSTEPS: 10
+          CLOTH_TISSU_COLLISION_MODE: torso-envelope
         run: |
           set -euo pipefail
           rm -rf docs/images/generated
@@ -378,6 +380,24 @@ jobs:
           test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
           test -d docs/images/generated/cloth-simulation-draped-turntable-frames
           test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
+      - name: Validate turntable semantic and camera evidence
+        run: |
+          set -euo pipefail
+          grep -q 'simulation-seam-diagnostic max_endpoint_gap_mm=' docs/images/generated/simulation-turntable-progress.log
+          grep -q 'semantic-provenance=true' docs/images/generated/simulation-turntable-progress.log
+          test "$(grep 'simulation-seam-diagnostic' docs/images/generated/simulation-turntable-progress.log | tail -n 1 | sed -E 's/.*max_endpoint_gap_mm=([0-9.]+).*/\\1/' | awk '{print ($1 <= 35.0) ? "ok" : "bad"}')" = ok
+          for dir in \
+            cloth-avatar-turntable-frames \
+            cloth-simulation-arranged-turntable-frames \
+            cloth-simulation-draped-turntable-frames; do
+            unique="$(sha256sum \
+              "docs/images/generated/$dir/frame-000.png" \
+              "docs/images/generated/$dir/frame-018.png" \
+              "docs/images/generated/$dir/frame-036.png" \
+              "docs/images/generated/$dir/frame-054.png" | awk '{print $1}' | sort -u | wc -l)"
+            test "$unique" -eq 4
+            echo "$dir checkpoint-uniqueness=passed hashes=$unique"
+          done
       - name: Build turntable GIFs
         run: |
           set -euo pipefail
