@@ -1,5 +1,7 @@
 name: Canonical execution
 
+# Validation alias only; production trigger and job topology are unchanged.
+
 on:
   push:
     branches: [main]
