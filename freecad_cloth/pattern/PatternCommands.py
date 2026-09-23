@@ -62,7 +62,8 @@ def create_pattern_piece_with_sketch():
     """Create a PatternPiece with native Sketcher geometry as its authority."""
     import FreeCAD as App
     obj = create_pattern_piece()
-    _create_native_sketch_for_piece(obj)
+    if getattr(obj, "Sketch", None) is None:
+        _create_native_sketch_for_piece(obj)
     App.ActiveDocument.recompute()
     return obj
 
