@@ -93,10 +93,9 @@ def test_simulation_proxy_serializes_only_rebuildable_metadata():
     assert proxy.collision_surface is None
 
 
-def test_tunic_unrefined_boundary_ab_is_scoped_and_fail_closed():
+def test_tunic_mesh_collision_ab_is_scoped_and_fail_closed():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert "PatternMesh.refine_linear_boundary" in source
-    assert "ab-quality-mesh-mode=without-linear-boundary-refinement" in source
+    assert "ab-collision-mode=mesh" in source
     assert 'pattern_and_sewing(); _ab_tunic_simulation(); log("scenario-pass")' in source
     assert "authoritative-seam-max-gap-mm" in source
     assert "if max_seam_gap > 35.0:" in source
