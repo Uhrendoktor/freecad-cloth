@@ -17,9 +17,7 @@ except ImportError:
     from PySide2 import QtWidgets
 from pivy import coin
 
-ROOT = "/workspace"
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)from freecad_cloth.common.DrapeVisualSanity import inspect_drape, mesh_shape_sanity
+from freecad_cloth.common.DrapeVisualSanity import inspect_drape, mesh_shape_sanity
 from freecad_cloth.common.MeshValidation import validate_mesh
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 
@@ -27,8 +25,6 @@ from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 # Keep the README turntable on the same geometry-appropriate collision path as
 # the standalone blanket acceptance when the target is generic FreeCAD geometry.
 os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "mesh")
-
-
 
 
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
