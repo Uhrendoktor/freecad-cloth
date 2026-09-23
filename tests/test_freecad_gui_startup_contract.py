@@ -57,8 +57,17 @@ def test_canonical_gui_jobs_launch_from_neutral_cwd_with_bootstrap():
     assert "FREECAD_USER_TEMP=/tmp/freecad-user-temp" in visual
 
 
+def test_canonical_readme_turntable_launches_from_neutral_cwd():
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    turntable = workflow.split("  gui-turntables:", 1)[1].split("  gui-visual-examples:", 1)[0]
+    assert '-w /tmp "$FREECAD_IMAGE"' in turntable
+    assert "/opt/freecad/AppRun /workspace/tests/freecad_avatar_screenshot.py" in turntable
+    assert "/opt/freecad/AppRun /workspace/tests/freecad_simulation_turntable.py" in turntable
+
+
 if __name__ == "__main__":
     test_sketcher_acceptance_prepares_gui_before_manual_initgui()
     test_visual_example_prepares_gui_before_manual_initgui()
     test_committed_bootstrap_prepares_gui_before_acceptance_script()
     test_canonical_gui_jobs_launch_from_neutral_cwd_with_bootstrap()
+    test_canonical_readme_turntable_launches_from_neutral_cwd()
