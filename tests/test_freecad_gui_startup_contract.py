@@ -31,8 +31,10 @@ def test_committed_fcmacro_defers_acceptance_until_after_delayed_startup():
     assert "processEvents()" not in source
     assert source.index("sys.path[:] = [p for p in sys.path if p != ROOT]") < source.index("import FreeCADGui as Gui")
     assert source.index("window.show()") < source.index("QtCore.QTimer.singleShot(0, _run_acceptance)")
-    assert source.index("QtCore.QTimer.singleShot(0, _run_acceptance)") < source.index('runpy.run_path(script, run_name="__main__")')
-    assert source.index("sys.path.insert(0, ROOT)") < source.index('runpy.run_path(script, run_name="__main__")')
+    callback = source.split("def _run_acceptance():", 1)[1].split("QtCore.QTimer.singleShot(0, _run_acceptance)", 1)[0]
+    assert "runpy.run_path(script, run_name=\"__main__\")" in callback
+    assert "sys.path.insert(0, ROOT)" in callback
+    assert source.index("QtCore.QTimer.singleShot(0, _run_acceptance)") > source.index("def _run_acceptance():")
 
 
 def test_canonical_gui_jobs_launch_from_neutral_cwd_with_bootstrap():
