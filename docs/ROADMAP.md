@@ -55,5 +55,5 @@ Do not pull a visible CLO feature forward merely because it exists in CLO. Stabi
 - The P0 release-closeout implementation is present, but the repository is not yet releasable: PR #1073 is the active candidate and exact-head canonical validation has not executed.
 - GitHub Actions is currently blocked before job allocation for recent main and release-candidate pushes; zero-job failures do not count as validation.
 - The canonical FreeCAD/Xvfb workflow remains the sole workflow. Historical runs prove the workflow graph executes when event delivery works, including real FreeCAD/Xvfb evidence for the 200 mm Blanket-over-Cube fixture.
-- Repository hygiene cleanup is implemented by the scheduled maintenance job, but 485 historical remote branches remain because scheduled maintenance is not currently executing.
+- Repository hygiene cleanup is implemented by the scheduled maintenance job, but 486 historical remote branches remain because scheduled maintenance is not currently executing.
 - The P1 and Production items listed above are future enhancements rather than active release blockers.
