@@ -360,7 +360,10 @@ jobs:
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
-            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
+            -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
+            -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" \
+            -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
