@@ -383,7 +383,8 @@ def show_sewing_2d():
 COMMANDS = [
     "ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing", "ClothSewing_CreateOperation",
     "ClothSewing_EditOperation", "ClothSewing_ReverseSeam", "ClothSewing_ToggleAlignment",
-    "ClothSewing_Validate", "ClothSewing_RepairSeam", "ClothSewing_Show2D",
+    "ClothSewing_Validate", "ClothSewing_RepairSeam", "ClothSewing_FocusSeam3D",
+    "ClothSewing_EditSeamSideA", "ClothSewing_EditSeamSideB", "ClothSewing_Show2D",
 ]
 _COMMAND_HANDLERS = {
     "ClothSewing_CreateSeam": start_staged_seam_creation,
@@ -394,6 +395,9 @@ _COMMAND_HANDLERS = {
     "ClothSewing_ToggleAlignment": toggle_selected_alignment,
     "ClothSewing_Validate": validate_seams,
     "ClothSewing_RepairSeam": repair_selected_seam,
+    "ClothSewing_FocusSeam3D": focus_selected_seam_3d,
+    "ClothSewing_EditSeamSideA": edit_selected_seam_side_a,
+    "ClothSewing_EditSeamSideB": edit_selected_seam_side_b,
     "ClothSewing_Show2D": show_sewing_2d,
 }
 _MENU_TEXT = {
@@ -405,6 +409,9 @@ _MENU_TEXT = {
     "ClothSewing_ToggleAlignment": "Toggle Seam Alignment",
     "ClothSewing_Validate": "Validate Sewing",
     "ClothSewing_RepairSeam": "Repair Seam",
+    "ClothSewing_FocusSeam3D": "Focus Seam in 3D",
+    "ClothSewing_EditSeamSideA": "Edit Seam Side A in Sketcher",
+    "ClothSewing_EditSeamSideB": "Edit Seam Side B in Sketcher",
     "ClothSewing_Show2D": "Show Sewing 2D",
 }
 _TOOLTIPS = {
@@ -416,6 +423,9 @@ _TOOLTIPS = {
     "ClothSewing_ToggleAlignment": "Toggle endpoint and uniform seam correspondence",
     "ClothSewing_Validate": "Validate sewing operations and report seam length mismatches",
     "ClothSewing_RepairSeam": "Repair reversible or invalid-range seam correspondence without hiding length mismatch",
+    "ClothSewing_FocusSeam3D": "Show the selected semantic seam in 3D and fit the view to it",
+    "ClothSewing_EditSeamSideA": "Open the seam A edge in its authoritative native Sketcher source",
+    "ClothSewing_EditSeamSideB": "Open the seam B edge in its authoritative native Sketcher source",
     "ClothSewing_Show2D": "Show pattern, seam, and stitch correspondence in top view",
 }
 def _has_active_document():
@@ -460,6 +470,9 @@ _ACTIVATION = {
     "ClothSewing_ToggleAlignment": lambda: _has_active_document() and _has_selected_seam(),
     "ClothSewing_Validate": lambda: _has_active_document(),
     "ClothSewing_RepairSeam": lambda: _has_active_document() and _has_selected_seam(),
+    "ClothSewing_FocusSeam3D": lambda: _has_active_document() and _has_selected_seam(),
+    "ClothSewing_EditSeamSideA": lambda: _has_active_document() and _has_selected_seam(),
+    "ClothSewing_EditSeamSideB": lambda: _has_active_document() and _has_selected_seam(),
     "ClothSewing_Show2D": lambda: _has_active_document(),
 }
 
