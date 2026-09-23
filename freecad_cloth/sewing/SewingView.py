@@ -66,7 +66,7 @@ def seam_visual_markers(points_a, points_b):
     }
 
 
-def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5):
+def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5, world_space=False):
     """Build native presentation geometry for one semantic seam."""
     import FreeCAD as App
     import Part
