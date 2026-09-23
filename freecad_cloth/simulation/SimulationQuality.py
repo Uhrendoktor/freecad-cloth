@@ -30,7 +30,7 @@ def normalize_color_rgb(value, default=(0.72, 0.34, 0.46)):
     except (TypeError, ValueError):
         values = ()
     if len(values) < 3:
-        return tuple(float(item) for item in default)
+        raise ValueError("color_rgb must contain at least three channels")
     values = values[:3]
     if any(item > 1.0 for item in values):
         if all(0.0 <= item <= 255.0 for item in values):
