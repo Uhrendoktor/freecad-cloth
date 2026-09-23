@@ -6,7 +6,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: `ce398a8ef4bf579b997e95649cc667e7d35e2a5d`.
+- Current main state: final closeout on `main`; the latest exact-head validation is run #3092 on the final closeout state.
 - Merged release PR #1001 provides the canonical garment E2E gate. Its validated source head was `40140b3a06549249c567feeb5e74dd5b766f551b`, exact-head canonical run #3076 / `35813109107`, terminal conclusion `success`.
 - PR #904 was subsequently merged into main as `4e119229cd4df00b529d002dd32106b09504992e` and establishes the current canonical local-Docker-runner preference with GitHub-hosted fallback. Runs #3084 and #3085 exercised that current workflow on the state-sync PR and were terminal-green across all active validation jobs.
 - PR #1009 (durable-state synchronization) is merged as `c41a071a345715f199bdade34872049faba4527d`; final closeout-state PR #1011 carries the final synchronized repository state.
