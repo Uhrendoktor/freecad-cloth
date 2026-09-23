@@ -12,9 +12,13 @@ CLO is used as a workflow benchmark, not as a cloning target. Public CLO documen
 
 ## Current repository state
 
-- The previous release-closeout record is superseded by supervisor issue #1017. The current release foundation must satisfy the executable installation, example, visual-regression, material-presentation and repository-hygiene gates in [docs/RELEASE_GATES.md](docs/RELEASE_GATES.md) before another complete-project declaration.
-- The release implementation was terminal-green in canonical runs #3092 and #3096, including real FreeCAD/Xvfb garment validation and the final documentation-only reconciliation.
-- Supervisor issue #1017 is the active completion criterion and PR #1018 is the integration target. PR #1019 is an overlapping visual-truth validation branch being reconciled into the release target; neither is complete until current-head canonical CI is terminal-green.
+- Supervisor issue #1017 is the active completion criterion. The old PR #1018/#1019 closeout record is historical and must not be treated as current state.
+- The current release candidate is PR #1044 on branch `supervisor/release-final-20260923`, cut from main `dad152e634bcf454bc71aa02f4c1bfa858c154c1`.
+- The candidate includes the missing human-facing onboarding guide, native Sketch idempotence regression coverage, world-space seam acceptance, deterministic Blanket-over-Cube validation, and README turntable fixture hardening.
+- Canonical CI evidence on the latest diagnostic candidate run (#3297 / `35844023654`) is terminal with Python, sewing, export, blanket visual, README turntable, and tunic acceptance passing; the native Sketcher acceptance timed out at its existing 8-minute fail-closed limit with an empty log. The timeout has a concrete software fix in the release candidate: bootstrap `InitGui.py` before workbench activation and record pre-bootstrap stages.
+- The latest blanket artifact records opposite-corner pins, mesh spike ratio 2.703, connected finite mesh, drape acceptance, 99.148 mm material movement, and a 16-frame final motion GIF. The README turntable artifact still exposed the old divergent fixture, so the release candidate now aligns that turntable with the validated blanket geometry/solver profile and adds equivalent structural/drape checks.
+- Push-triggered canonical runs on non-main branches and on main currently terminate with zero jobs before checks are created. This is an Actions orchestration blocker, not a green test result. The canonical workflow remains otherwise unchanged; no second workflow or weakened threshold has been introduced.
+- M4 remains future optimization work and is outside the current release-closeout gate.
 
 ## Supervisor milestone ladder
 
