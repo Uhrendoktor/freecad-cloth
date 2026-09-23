@@ -24,7 +24,7 @@ The former `PatternDrafting` polygon editor is compatibility-only. Its parser an
 
 Select compatible pattern edges/ranges and explicitly create a seam or M:N/free sewing relationship. Review direction, reversal, correspondence and length diagnostics before committing. Use the task panel for staged operations and the Property Editor for persistent state.
 
-If a Sketch edit invalidates a semantic edge reference, the seam remains invalid until explicitly repaired/recreated. Never rely on generated mesh edge order.
+If a Sketch edit invalidates a semantic edge reference, the seam remains invalid until explicitly repaired/recreated. Never rely on generated mesh edge order. Seam objects are assigned deterministic colors. In the sewing task panel, **Focus seam in 3D** fits the assembled world-space seam; **Edit side A/B in Sketcher** opens the authoritative native Sketcher source and selects the semantic edge used by the seam.
 
 ### 3. Arrange and fit
 
@@ -32,7 +32,7 @@ Create/select a `DrapeTarget`: either the native human mannequin or an ordinary 
 
 ### 4. Simulate
 
-Generate a preview/final mesh, choose material and quality, confirm target validity, then Run. Step is for controlled/debug advancement; Reset recovers simulation state. Pins/stitches and collision settings are persistent inputs.
+Generate a preview/final mesh, choose material and quality, confirm target validity, then Run. Step is for controlled/debug advancement; Reset recovers simulation state. Pins/stitches and collision settings are persistent inputs. Fabric presentation properties include color, specular response, roughness and transparency and are persisted with the simulation/material state.
 
 ### 5. Iterate
 
