@@ -30,7 +30,8 @@ def test_blanket_motion_gif_has_usable_frame_delay_contract():
     )[0]
     assert build.index("-delay 10") < build.index("motion-*.png") < build.index("-colors 128")
     assert "identify -format '%T\\n' docs/images/generated/blanket-example/blanket-motion.gif" in build
-    assert "grep -qx '10'" in build
+    assert 'frame_delays="$(identify -format \'%T\\n\' docs/images/generated/blanket-example/blanket-motion.gif | sort -u)"' in build
+    assert 'test "$frame_delays" = "10"' in build
 
 
 def test_canonical_workflow_fails_closed_on_turntable_quality():
