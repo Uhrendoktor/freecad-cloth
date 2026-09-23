@@ -406,7 +406,33 @@ def run_acceptance():
             raise RuntimeError("M:N sewing network did not persist valid 2:2 topology")
         if any(str(getattr(seam, "Status", "")) != "Valid" for seam in network.Seams):
             raise RuntimeError("M:N network retained an invalid member seam")
+        from freecad_cloth.sewing.SewingObjects import _seam_length
+        total_a = sum(float(_seam_length(pieces[str(seam.PieceA)], seam, "A")) for seam in network.Seams)
+        total_b = sum(float(_seam_length(pieces[str(seam.PieceB)], seam, "B")) for seam in network.Seams)
+        if abs(total_a - float(network.LengthA)) > 1e-6 or abs(total_b - float(network.LengthB)) > 1e-6:
+            raise RuntimeError("M:N physical member lengths do not agree with persisted network totals")
+        if float(network.LengthDifference) > 0.05 * min(float(network.LengthA), float(network.LengthB)):
+            raise RuntimeError("M:N curved physical correspondence exceeded the persisted mismatch tolerance")
+        pair_gaps = [
+            abs(float(_seam_length(pieces[str(seam.PieceA)], seam, "A")) - float(_seam_length(pieces[str(seam.PieceB)], seam, "B")))
+            for seam in network.Seams
+        ]
+        if max(pair_gaps) > 0.05 * max(float(network.LengthA), float(network.LengthB)) / len(network.Seams) + 0.01:
+            raise RuntimeError("M:N curved physical member partition is not proportional")
+        if not any(str(getattr(seam, "EdgeAId", "")).endswith(":edge:2") for seam in network.Seams):
+            raise RuntimeError("M:N garment fixture did not retain the curved Sketcher edge")
         print("sewing-mn=passed sides=2,2 segments=2", flush=True)
+        print("sewing-mn-physical=passed curved-edge=true proportional=true max-pair-gap=%.6f" % max(pair_gaps), flush=True)
+
+        marker_seam = network.Seams[0]
+        if marker_seam.Shape.isNull() or len(marker_seam.Shape.Edges) < 10:
+            raise RuntimeError("public sewing seam visual shape is missing direction/notch/correspondence geometry")
+        _select_objects(marker_seam)
+        Gui.runCommand("ClothSewing_Show2D", 0)
+        _events()
+        if marker_seam.Shape.isNull() or len(marker_seam.Shape.Edges) < 10:
+            raise RuntimeError("public sewing 2D command did not retain seam correspondence markers")
+        print("seam-markers=passed 3d-and-2d=true edges=%d" % len(marker_seam.Shape.Edges), flush=True)
 
         _select_objects(seam_11)
         Gui.runCommand("ClothSewing_CreateOperation", 0)
