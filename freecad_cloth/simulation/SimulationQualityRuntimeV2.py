@@ -2,7 +2,7 @@
 from math import ceil
 import weakref
 
-from freecad_cloth.simulation.SimulationQuality import FabricMaterial, QUALITY_PRESETS, preset
+from freecad_cloth.simulation.SimulationQuality import FabricMaterial, QUALITY_PRESETS, normalize_color_rgb, preset
 
 QUALITY_NAMES = tuple(QUALITY_PRESETS)
 _RUNTIME_BASES = weakref.WeakKeyDictionary()
