@@ -6,10 +6,10 @@ Machine-readable supervisor/release record. Durable guidance lives in docs/DEVEL
 
 - Repository: Uhrendoktor/freecad-cloth
 - Default branch: main
-- Current main at this reconciliation: 6893d1b1867cc9a1381dd3f484bba3f7e853acc2.
+- Current main at this reconciliation: a5f4892b2347aeec3492e21e016ccda85f9c92ab.
 - Canonical workflow: .github/workflows/canonical-execution.yml; exactly one workflow.
 - Supervisor completion issue: #1017.
-- Current continuation ledger: none; #1098 is closed and root #1017 remains active.
+- Current continuation ledger: #1098; root #1017 remains active.
 - Active release candidate: PR #1075, branch supervisor/final-release-fixed-main-20260923; live head 1433f343089dc794e297c1c5fa27094dc1333c07.
 - Timing-fix PR: #1090, branch supervisor/readme-gif-delay-fix-20260923; head a5cb1a82cba839a853c37bd4abeda5e91937a860.
 - Candidate relation at audit time: 3 commits ahead / 17 behind main. The behind side is later supervisor/documentation history. Do not rebase merely to remove the behind count; validate the actual live PR head.
@@ -59,3 +59,5 @@ Machine-readable supervisor/release record. Durable guidance lives in docs/DEVEL
 - #1053 remains the external Actions control-plane/event-execution blocker.
 - #1084 remains bounded to genuine README GIF publication and browser playback validation.
 - This record reflects live GitHub evidence at reconciliation time; it is not a frozen release pointer.
+- #1105 is the single active researcher stream for the FreeCAD 1.1 workbench activation/startup boundary; duplicate #1106 is closed.
+- #1107 is research-only instrumentation and remains unverified because target push events still fail before job allocation.
