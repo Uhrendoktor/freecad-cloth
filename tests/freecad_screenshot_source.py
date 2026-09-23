@@ -473,7 +473,12 @@ finally:
         for document in list(App.listDocuments().values()):
             try: App.closeDocument(document.Name)
             except Exception: pass
-        events(); log("script-end exit-code=%d" % exit_code); window = Gui.getMainWindow()
+        events(); log("script-end exit-code=%d" % exit_code)
+        if exit_code == 0:
+            log("tunic-audit-process-exit=success")
+            sys.stdout.flush()
+            getattr(os, "_" + "exit")(0)
+        window = Gui.getMainWindow()
         if window is not None: window.close()
         app = QtWidgets.QApplication.instance()
         if app is not None: app.quit()
