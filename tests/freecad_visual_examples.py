@@ -135,18 +135,17 @@ def main():
 
         for source in (piece, sketch):
             source.ViewObject.Visibility = False
-        for obj in doc.Objects:
-            if obj is panel:
-                continue
-            if str(getattr(obj, "ClothMeshType", "")) in {"DrapedCloth", "DrapePanel"}:
-                obj.ViewObject.Visibility = False
-            if str(getattr(obj, "AvatarType", "")) == "ClothAvatar" and obj is not cube:
-                obj.ViewObject.Visibility = False
         cube.ViewObject.ShapeColor = (0.62, 0.62, 0.62)
         panels = list(scene.DrapePanels)
         if len(panels) != 1:
             raise RuntimeError("blanket scenario must create one drape panel")
         panel = panels[0]
+        for obj in doc.Objects:
+            if obj is not panel:
+                if str(getattr(obj, "ClothMeshType", "")) in {"DrapedCloth", "DrapePanel"}:
+                    obj.ViewObject.Visibility = False
+                if str(getattr(obj, "AvatarType", "")) == "ClothAvatar" and obj is not cube:
+                    obj.ViewObject.Visibility = False
         panel.ViewObject.ShapeColor = (0.72, 0.34, 0.46)
         panel.ViewObject.DisplayMode = "Flat Lines"
         panel.ViewObject.Visibility = True
