@@ -5,6 +5,10 @@ import sys
 import traceback
 from math import pi
 
+ROOT = "/workspace"
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
 import FreeCAD as App
 import FreeCADGui as Gui
 try:
@@ -21,11 +25,6 @@ from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 # Keep the README turntable on the same geometry-appropriate collision path as
 # the standalone blanket acceptance when the target is generic FreeCAD geometry.
 os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "mesh")
-
-
-ROOT = "/workspace"
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
 
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 # This README fixture is the deterministic CPU reference example. The canonical
