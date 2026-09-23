@@ -22,25 +22,27 @@ def test_visual_example_prepares_gui_before_manual_initgui():
     assert "InitGui.py" in run
 
 
-def test_committed_macro_bootstrap_is_gui_ready_and_path_safe():
+def test_committed_fcmacro_defers_acceptance_until_after_delayed_startup():
     source = (ROOT / "tests" / "freecad_ci_bootstrap.FCMacro").read_text(encoding="utf-8")
     assert "import FreeCADGui as Gui" in source
     assert "window.show()" in source
     assert "sys.path[:] = [p for p in sys.path if p != ROOT]" in source
-    assert "processEvents()" in source
+    assert "QtCore.QTimer.singleShot(0, _run_acceptance)" in source
+    assert "processEvents()" not in source
     assert source.index("sys.path[:] = [p for p in sys.path if p != ROOT]") < source.index("import FreeCADGui as Gui")
-    assert source.index("window.show()") < source.index("processEvents()")
-    assert source.index("processEvents()") < source.index("sys.path.insert(0, ROOT)")
+    assert source.index("window.show()") < source.index("QtCore.QTimer.singleShot(0, _run_acceptance)")
+    assert source.index("QtCore.QTimer.singleShot(0, _run_acceptance)") < source.index('runpy.run_path(script, run_name="__main__")')
     assert source.index("sys.path.insert(0, ROOT)") < source.index('runpy.run_path(script, run_name="__main__")')
 
 
-def test_canonical_gui_jobs_launch_macro_bootstrap_from_neutral_cwd():
+def test_canonical_gui_jobs_launch_from_neutral_cwd_with_bootstrap():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
     sketcher = workflow.split("gui-sketcher-acceptance:", 1)[1].split("gui-pattern-export:", 1)[0]
     visual = workflow.split("gui-visual-examples:", 1)[1].split("publish-readme-turntables:", 1)[0]
     assert '-w /tmp "$FREECAD_IMAGE"' in sketcher
     assert "cp /workspace/tests/freecad_ci_bootstrap.FCMacro /tmp/freecad_ci_bootstrap.FCMacro" in sketcher
     assert "/opt/freecad/AppRun /tmp/freecad_ci_bootstrap.FCMacro" in sketcher
+    assert "/opt/freecad/AppRun /workspace/tests/freecad_ci_bootstrap.FCMacro" not in sketcher
     assert "CLOTH_CI_SCRIPT=/workspace/tests/freecad_sketcher_acceptance.py" in sketcher
     assert "FREECAD_USER_HOME=/tmp/freecad-user" in sketcher
     assert "FREECAD_USER_DATA=/tmp/freecad-user-data" in sketcher
@@ -48,6 +50,7 @@ def test_canonical_gui_jobs_launch_macro_bootstrap_from_neutral_cwd():
     assert '-w /tmp "$FREECAD_IMAGE"' in visual
     assert "cp /workspace/tests/freecad_ci_bootstrap.FCMacro /tmp/freecad_ci_bootstrap.FCMacro" in visual
     assert "/opt/freecad/AppRun /tmp/freecad_ci_bootstrap.FCMacro" in visual
+    assert "/opt/freecad/AppRun /workspace/tests/freecad_ci_bootstrap.FCMacro" not in visual
     assert "CLOTH_CI_SCRIPT=/workspace/tests/freecad_visual_examples.py" in visual
     assert "FREECAD_USER_HOME=/tmp/freecad-user" in visual
     assert "FREECAD_USER_DATA=/tmp/freecad-user-data" in visual
@@ -56,7 +59,7 @@ def test_canonical_gui_jobs_launch_macro_bootstrap_from_neutral_cwd():
 
 def test_canonical_readme_turntable_launches_from_neutral_cwd():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
-    turntable = workflow.split("  gui-turntables:", 1)[1].split("  gui-tunic-visual:", 1)[0]
+    turntable = workflow.split("  gui-turntables:", 1)[1].split("  gui-visual-examples:", 1)[0]
     assert '-w /tmp "$FREECAD_IMAGE"' in turntable
     assert "/opt/freecad/AppRun /workspace/tests/freecad_avatar_screenshot.py" in turntable
     assert "/opt/freecad/AppRun /workspace/tests/freecad_simulation_turntable.py" in turntable
@@ -65,6 +68,6 @@ def test_canonical_readme_turntable_launches_from_neutral_cwd():
 if __name__ == "__main__":
     test_sketcher_acceptance_prepares_gui_before_manual_initgui()
     test_visual_example_prepares_gui_before_manual_initgui()
-    test_committed_macro_bootstrap_is_gui_ready_and_path_safe()
-    test_canonical_gui_jobs_launch_macro_bootstrap_from_neutral_cwd()
+    test_committed_fcmacro_defers_acceptance_until_after_delayed_startup()
+    test_canonical_gui_jobs_launch_from_neutral_cwd_with_bootstrap()
     test_canonical_readme_turntable_launches_from_neutral_cwd()
