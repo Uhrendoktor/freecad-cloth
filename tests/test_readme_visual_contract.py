@@ -36,8 +36,9 @@ def test_canonical_workflow_fails_closed_on_turntable_quality():
 def test_blanket_motion_gif_delay_is_applied_before_inputs_and_checked():
     source = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
     input_glob = "docs/images/generated/blanket-example/motion-*.png"
-    encode_options = '"${IM[@]}" -delay 10 -loop 0 -colors 128'
+    encode_options = '"${IM[@]}" -delay 10'
     assert encode_options in source
     assert source.index(encode_options) < source.index(input_glob)
+    assert '-loop 0 -colors 128 docs/images/generated/blanket-example/blanket-motion.gif' in source
     assert "frame_delays=\"$(identify -format '%T\\n' docs/images/generated/blanket-example/blanket-motion.gif | sort -u)\"" in source
     assert 'test "$frame_delays" = "10"' in source
