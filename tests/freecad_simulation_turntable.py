@@ -107,7 +107,7 @@ def save_png(view, path, state):
         raise RuntimeError("failed screenshot: %s" % state)
     with open(path, "rb") as handle:
         header = handle.read(24)
-    if header[:8] != b"\\x89PNG\\r\\n\\x1a\\n" or int.from_bytes(header[16:20], "big") != 640 or int.from_bytes(header[20:24], "big") != 480:
+    if header[:8] != b"\x89PNG\r\n\x1a\n" or int.from_bytes(header[16:20], "big") != 640 or int.from_bytes(header[20:24], "big") != 480:
         raise RuntimeError("invalid PNG capture for %s" % state)
     if not _png_has_visible_content(path):
         raise RuntimeError("PNG capture contains no visible rendered content for %s" % state)
