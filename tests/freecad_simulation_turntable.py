@@ -1,5 +1,4 @@
-"""Render deterministic tunic turntables with seam overlays."""
-import ast
+"""Render a deterministic simple blanket-over-cube simulation for the README."""
 import os
 import sys
 import traceback
@@ -13,41 +12,11 @@ except ImportError:
     from PySide2 import QtWidgets
 from pivy import coin
 
-from freecad_cloth.simulation import TissuBackend as _tissu_backend
 
 ROOT = "/workspace"
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
-from freecad_cloth.sewing.SewingView import seam_color_map
-from freecad_cloth.common.DrapeVisualSanity import mesh_shape_sanity
 
-
-def _tight_tissu_collision_envelope(surface):
-    """Keep this README fixture on the same conservative collision profile as the canonical tunic audit."""
-    if surface is None or not surface.vertices:
-        return ()
-    xs = [float(v[0]) for v in surface.vertices]
-    ys = [float(v[1]) for v in surface.vertices]
-    zs = [float(v[2]) for v in surface.vertices]
-    min_x, max_x = min(xs), max(xs)
-    min_y, max_y = min(ys), max(ys)
-    min_z, max_z = min(zs), max(zs)
-    height = max(1.0, max_z - min_z)
-    width = max(1.0, max_x - min_x)
-    depth = max(1.0, max_y - min_y)
-    center_x = 0.5 * (min_x + max_x)
-    center_y = 0.5 * (min_y + max_y)
-    radius = max(90.0, min(170.0, 0.16 * width, 0.48 * depth))
-    bottom = min_z + 0.38 * height
-    top = min_z + 0.76 * height
-    samples = (0.0, 0.25, 0.50, 0.75, 1.0)
-    return tuple(
-        ((center_x, center_y, bottom + (top - bottom) * fraction), radius)
-        for fraction in samples
-    )
-
-
-_tissu_backend._collision_envelope = _tight_tissu_collision_envelope
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 os.makedirs(OUT, exist_ok=True)
 LOG = os.path.join(OUT, "simulation-turntable-progress.log")
@@ -65,20 +34,97 @@ def events():
         app.processEvents()
 
 
+def _png_has_visible_content(path):
+    import struct
+    import zlib
+
+    raw = open(path, "rb").read()
+    if raw[:8] != b"\x89PNG\r\n\x1a\n":
+        return False
+    offset = 8
+    width = height = bit_depth = color_type = None
+    compressed = bytearray()
+    while offset + 8 <= len(raw):
+        length = struct.unpack(">I", raw[offset:offset + 4])[0]
+        kind = raw[offset + 4:offset + 8]
+        payload = raw[offset + 8:offset + 8 + length]
+        offset += 12 + length
+        if kind == b"IHDR":
+            width, height, bit_depth, color_type = struct.unpack(">IIBB", payload[:10])
+            if bit_depth != 8 or color_type not in (2, 6):
+                return False
+        elif kind == b"IDAT":
+            compressed.extend(payload)
+        elif kind == b"IEND":
+            break
+    if width != 640 or height != 480 or bit_depth != 8 or color_type not in (2, 6) or not compressed:
+        return False
+    channels = 4 if color_type == 6 else 3
+    stride = width * channels
+    data = zlib.decompress(bytes(compressed))
+    if len(data) != (stride + 1) * height:
+        return False
+    previous = bytearray(stride)
+    visible = 0
+    index = 0
+    for _ in range(height):
+        filter_type = data[index]
+        index += 1
+        row = bytearray(data[index:index + stride])
+        index += stride
+        for col in range(stride):
+            left = row[col - channels] if col >= channels else 0
+            up = previous[col]
+            up_left = previous[col - channels] if col >= channels else 0
+            if filter_type == 1:
+                row[col] = (row[col] + left) & 0xFF
+            elif filter_type == 2:
+                row[col] = (row[col] + up) & 0xFF
+            elif filter_type == 3:
+                row[col] = (row[col] + ((left + up) // 2)) & 0xFF
+            elif filter_type == 4:
+                p = left + up - up_left
+                pa = abs(p - left)
+                pb = abs(p - up)
+                pc = abs(p - up_left)
+                predictor = left if pa <= pb and pa <= pc else (up if pb <= pc else up_left)
+                row[col] = (row[col] + predictor) & 0xFF
+            elif filter_type != 0:
+                return False
+        for pixel in range(width):
+            base = pixel * channels
+            if max(row[base:base + 3]) < 245:
+                visible += 1
+                if visible >= 1000:
+                    return True
+        previous = row
+    return False
+
+
 def save_png(view, path, state):
     view.saveImage(path, 640, 480, "White")
-    if not os.path.isfile(path) or os.path.getsize(path) < 5000:
-        raise RuntimeError("failed screenshot: %s" % path)
+    if not os.path.isfile(path) or os.path.getsize(path) < 1000:
+        raise RuntimeError("failed screenshot: %s" % state)
     with open(path, "rb") as handle:
         header = handle.read(24)
     if header[:8] != b"\x89PNG\r\n\x1a\n" or int.from_bytes(header[16:20], "big") != 640 or int.from_bytes(header[20:24], "big") != 480:
         raise RuntimeError("invalid PNG capture for %s" % state)
+    if not _png_has_visible_content(path):
+        raise RuntimeError("PNG capture contains no visible rendered content for %s" % state)
 
 
 def combined_center(objects):
-    boxes = [o.Mesh.BoundBox for o in objects if getattr(o, "Mesh", None) is not None and o.Mesh.BoundBox.isValid()]
+    boxes = []
+    for obj in objects:
+        mesh = getattr(obj, "Mesh", None)
+        bound = getattr(mesh, "BoundBox", None) if mesh is not None else None
+        if bound is None:
+            shape = getattr(obj, "Shape", None)
+            bound = getattr(shape, "BoundBox", None) if shape is not None else None
+        if bound is not None and bound.isValid():
+            boxes.append(bound)
     if not boxes:
-        raise RuntimeError("no visible mesh bounds")
+        raise RuntimeError("no visible geometry bounds")
     return App.Vector(
         0.5 * (min(b.XMin for b in boxes) + max(b.XMax for b in boxes)),
         0.5 * (min(b.YMin for b in boxes) + max(b.YMax for b in boxes)),
@@ -88,14 +134,13 @@ def combined_center(objects):
 
 def render_turntable(view, objects, frame_dir, frame_count=72):
     os.makedirs(frame_dir, exist_ok=True)
-    smoke = frame_count == 2
-    effective_count = 2 if smoke else frame_count
-    include_endpoint = not smoke
-    frame_total = effective_count + 1 if include_endpoint else effective_count
+    frame_total = frame_count + 1
     center = combined_center(objects)
     target = coin.SbVec3f(center.x, center.y, center.z)
     view.setCameraType("Orthographic")
-    view.viewFront(); view.fitAll(); view.zoomIn(); events()
+    view.viewFront()
+    view.fitAll()
+    events()
     camera = view.getCameraNode()
     base_position = coin.SbVec3f(camera.position.getValue())
     base_offset = base_position - target
@@ -103,7 +148,7 @@ def render_turntable(view, objects, frame_dir, frame_count=72):
         raise RuntimeError("zero camera radius")
     up = coin.SbVec3f(0.0, 0.0, 1.0)
     for frame in range(frame_total):
-        angle = 2.0 * pi * min(frame, effective_count) / effective_count
+        angle = 2.0 * pi * min(frame, frame_count) / frame_count
         camera.position = coin.SbRotation(coin.SbVec3f(0.0, 0.0, 1.0), angle).multVec(base_offset) + target
         camera.pointAt(target, up)
         if hasattr(view, "redraw"):
@@ -118,40 +163,34 @@ def render_turntable(view, objects, frame_dir, frame_count=72):
     log("turntable-pass dir=%s frames=%d" % (frame_dir, frame_total))
 
 
-def _make_tunic_sketch(doc, name, panel_width, garment_height, hem_width, neckline_ratio, neckline_drop=0.08):
-    import Part, Sketcher
+def _make_rectangle_sketch(doc, name, width, height):
+    import Part
+    import Sketcher
     sketch = doc.addObject("Sketcher::SketchObject", name + "Sketch")
-    neck_z = (1.0 - float(neckline_drop)) * garment_height
-    points = [
-        (0.00, 0.00),
-        (hem_width, 0.00),
-        (panel_width, 0.82 * garment_height),
-        (0.86 * panel_width, 0.97 * garment_height),
-        (neckline_ratio * panel_width, neck_z),
-        ((1.0 - neckline_ratio) * panel_width, neck_z),
-        (0.14 * panel_width, 0.97 * garment_height),
-        (0.00, 0.82 * garment_height),
-    ]
-    geometry = [
+    points = (
+        (-0.5 * width, -0.5 * height),
+        (0.5 * width, -0.5 * height),
+        (0.5 * width, 0.5 * height),
+        (-0.5 * width, 0.5 * height),
+    )
+    sketch.addGeometry([
         Part.LineSegment(
-            App.Vector(points[index][0], points[index][1], 0),
-            App.Vector(points[(index + 1) % len(points)][0], points[(index + 1) % len(points)][1], 0),
-        )
-        for index in range(len(points))
-    ]
-    sketch.addGeometry(geometry, False)
+            App.Vector(points[i][0], points[i][1], 0),
+            App.Vector(points[(i + 1) % 4][0], points[(i + 1) % 4][1], 0),
+        ) for i in range(4)
+    ], False)
     sketch.addConstraint([
-        Sketcher.Constraint("Coincident", index, 2, (index + 1) % len(points), 1)
-        for index in range(len(points))
+        Sketcher.Constraint("Coincident", i, 2, (i + 1) % 4, 1) for i in range(4)
     ])
     doc.recompute()
-    return sketch, points
+    return sketch
+
 
 def _adopt_sketch(sketch, name):
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(sketch)
-    piece = create_pattern_piece_from_selected_sketch(name=name, allowance=10.0, grainline=0.0)
+    piece = create_pattern_piece_from_selected_sketch(name=name, allowance=5.0, grainline=0.0)
     piece.Label = name
     App.ActiveDocument.recompute()
     if piece.Sketch is not sketch:
@@ -159,383 +198,154 @@ def _adopt_sketch(sketch, name):
     return piece
 
 
-def style_mesh(obj, label):
-    obj.Label = label
-    obj.ViewObject.DisplayMode = "Flat Lines"
-    obj.ViewObject.ShapeColor = (0.86, 0.20, 0.10)
-    obj.ViewObject.LineColor = (0.20, 0.02, 0.01)
-    obj.ViewObject.LineWidth = 1.5
+def _style_mesh(obj):
+    obj.ViewObject.DisplayMode = "Shaded"
+    obj.ViewObject.ShapeColor = (0.22, 0.48, 0.86)
+    obj.ViewObject.LineWidth = 1.0
 
 
-def _outline(piece):
-    return [(float(x), float(y)) for x, y in ast.literal_eval(str(piece.SewingOutline))]
-
-
-def _polyline_point(points, fraction):
-    if not points:
-        raise RuntimeError("semantic seam edge has no solver points")
-    if len(points) == 1:
-        return points[0]
-    target = max(0.0, min(1.0, float(fraction)))
-    lengths = []
-    total = 0.0
-    for left, right in zip(points, points[1:]):
-        length = (right - left).Length
-        lengths.append(length)
-        total += length
-    if total <= 1e-12:
-        return points[0]
-    distance = target * total
-    travelled = 0.0
-    for index, length in enumerate(lengths):
-        if travelled + length >= distance:
-            local = 0.0 if length <= 1e-12 else (distance - travelled) / length
-            left, right = points[index], points[index + 1]
-            return left + (right - left) * local
-        travelled += length
-    return points[-1]
-
-
-def _sample_polyline(points, start, end, count=12, reverse=False):
-    start = float(start)
-    end = float(end)
-    if reverse:
-        start, end = 1.0 - end, 1.0 - start
-    return tuple(
-        _polyline_point(
-            points,
-            start + (end - start) * index / float(max(1, int(count) - 1)),
+def _nearest_pin_indices(panel_indices, positions, targets):
+    available = list(panel_indices)
+    result = []
+    for target in targets:
+        index = min(
+            available,
+            key=lambda i: (
+                (positions[i][0] - target.x) ** 2
+                + (positions[i][1] - target.y) ** 2
+                + (positions[i][2] - target.z) ** 2
+            ),
         )
-        for index in range(max(2, int(count)))
-    )
+        result.append(index)
+        available.remove(index)
+    return tuple(result)
 
 
-def _solver_boundary_map(scene, pieces, panels):
-    from freecad_cloth.common.PatternSimulationAdapter import resolve_simulation_pattern
-    resolved = resolve_simulation_pattern(scene.Document, tuple(pieces))
-    proxy = scene.Proxy._base_or_restore()
-    positions = tuple(proxy.backend.positions())
-    if not positions:
-        raise RuntimeError("simulation produced no particle positions")
-    mapping = {}
-    for piece, panel in zip(pieces, panels):
-        piece_ir = resolved.piece(str(piece.PieceId))
-        edge_ids = tuple(str(boundary.id) for boundary in piece_ir.boundaries)
-        chains = proxy.panel_boundary_edges.get(panel.Name)
-        if chains is None or len(chains) != len(edge_ids):
-            raise RuntimeError("solver boundary provenance is incomplete for %s" % piece.Name)
-        semantic = {}
-        for edge_id, chain in zip(edge_ids, chains):
-            points = tuple(App.Vector(*positions[int(index)]) for index in chain)
-            if len(points) < 2:
-                raise RuntimeError("semantic seam edge %s has too few solver points" % edge_id)
-            semantic[edge_id] = points
-        mapping[piece.Name] = {"ids": edge_ids, "chains": semantic}
-    return mapping
+def _center_z(points):
+    if not points:
+        raise RuntimeError("empty simulation particle set")
+    return sum(float(p[2]) for p in points) / len(points)
 
-
-def _semantic_edge_id(seam, side, piece_data, edge_index):
-    edge_id = str(getattr(seam, "Edge%sId" % side, "")).strip()
-    if edge_id and edge_id in piece_data["chains"]:
-        return edge_id
-    if 0 <= int(edge_index) < len(piece_data["ids"]):
-        return piece_data["ids"][int(edge_index)]
-    raise RuntimeError("seam %s has no resolvable semantic %s edge" % (getattr(seam, "SeamId", seam), side))
-
-
-def _seam_overlay(doc, name, seam_records, simulated=None):
-    import Part
-    seam_ids = [str(getattr(seam, "SeamId", "")).strip() for seam, _, _ in seam_records]
-    if not seam_ids or any(not seam_id for seam_id in seam_ids):
-        raise RuntimeError("turntable seam overlay is missing semantic SeamId")
-    if len(set(seam_ids)) != len(seam_ids):
-        raise RuntimeError("turntable seam overlay contains duplicate SeamId values")
-    colors = seam_color_map(seam_ids)
-    if len(set(colors.values())) != len(seam_ids):
-        raise RuntimeError("turntable seam palette did not produce distinct colors")
-    overlays = []
-    for index, (seam, piece_a, piece_b) in enumerate(seam_records):
-        seam_id = str(getattr(seam, "SeamId", "")).strip()
-        sides = []
-        for side, piece in (("A", piece_a), ("B", piece_b)):
-            edge_index = int(getattr(seam, "Edge%s" % side, 0))
-            start = float(getattr(seam, "Start%s" % side, 0.0))
-            end = float(getattr(seam, "End%s" % side, 1.0))
-            reverse = bool(getattr(seam, "ReversedB", False)) if side == "B" else False
-            if simulated is None:
-                outline = _outline(piece)
-                a_point, b_point = outline[edge_index], outline[(edge_index + 1) % len(outline)]
-                local = (
-                    App.Vector(a_point[0], a_point[1], 2.0),
-                    App.Vector(b_point[0], b_point[1], 2.0),
-                )
-                points = tuple(piece.Placement.multVec(point) for point in _sample_polyline(local, start, end, count=12, reverse=reverse))
-            else:
-                piece_data = simulated.get(piece.Name)
-                if piece_data is None:
-                    raise RuntimeError("solver seam overlay has no piece provenance for %s" % piece.Name)
-                edge_id = _semantic_edge_id(seam, side, piece_data, edge_index)
-                points = _sample_polyline(piece_data["chains"][edge_id], start, end, count=16, reverse=reverse)
-            sides.append(points)
-        shapes = [Part.makePolygon(points) for points in sides if len(points) >= 2]
-        for left, right in zip(sides[0], sides[1]):
-            if (right - left).Length > 1e-9:
-                shapes.append(Part.makeLine(left, right))
-        if not shapes:
-            raise RuntimeError("turntable seam overlay generated no geometry for %s" % seam_id)
-        obj = doc.getObject("%s%02d" % (name, index)) or doc.addObject("Part::Feature", "%s%02d" % (name, index))
-        obj.Label = "Tunic seam %s — %s" % (seam_id, "simulated" if simulated is not None else "authored")
-        obj.Shape = Part.makeCompound(shapes)
-        obj.ViewObject.LineColor = colors[seam_id]
-        obj.ViewObject.LineWidth = 5.0
-        obj.ViewObject.DisplayMode = "Flat Lines"
-        obj.ViewObject.Visibility = True
-        overlays.append(obj)
-    return overlays
-
-
-def _solver_seam_gap(scene, seam_records):
-    proxy = scene.Proxy._base_or_restore()
-    positions = tuple(proxy.backend.positions())
-    stitch_pairs_by_seam = getattr(proxy, "seam_stitch_pairs", {})
-    if not positions or not stitch_pairs_by_seam:
-        raise RuntimeError("authoritative solver seam provenance is unavailable")
-    maximum = 0.0
-    for seam, piece_a, piece_b in seam_records:
-        edge_a_id = str(getattr(seam, "EdgeAId", "")).strip()
-        edge_b_id = str(getattr(seam, "EdgeBId", "")).strip()
-        if not edge_a_id or not edge_b_id:
-            raise RuntimeError("semantic seam edge identity is missing for %s" % seam.SeamId)
-        expected_a = "%s:edge:" % piece_a.PieceId
-        expected_b = "%s:edge:" % piece_b.PieceId
-        if not edge_a_id.startswith(expected_a) or not edge_b_id.startswith(expected_b):
-            raise RuntimeError("semantic seam edge identity does not belong to the seam's source pieces")
-        pairs = tuple(stitch_pairs_by_seam.get(str(seam.SeamId), ()))
-        if not pairs:
-            raise RuntimeError("solver stitch-pair provenance missing for %s" % seam.SeamId)
-        for first, second in pairs:
-            if not (0 <= int(first) < len(positions) and 0 <= int(second) < len(positions)):
-                raise RuntimeError("solver stitch pair lies outside backend positions")
-            a_point = positions[int(first)]
-            b_point = positions[int(second)]
-            gap = sum((float(a_point[i]) - float(b_point[i])) ** 2 for i in range(3)) ** 0.5
-            maximum = max(maximum, gap)
-    return maximum
 
 def build_simulation_state(doc):
-    from freecad_cloth.pattern.PatternModel import Seam
-    from freecad_cloth.pattern.PatternObjects import add_seam
-    from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
+    from freecad_cloth.simulation.DrapeTarget import create_drape_target, refresh_drape_target
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
 
     scene = create_quality_simulation_scene(doc)
     avatar = scene.AvatarProxy.SourceObject
-    if avatar is None or str(getattr(avatar, "AvatarType", "")) != "ClothAvatar":
-        raise RuntimeError("missing production ClothAvatar")
-    box = avatar.Mesh.BoundBox
-    z_span = float(box.ZMax - box.ZMin)
-    chest = 860.0
-    hip = 880.0
-    ease = 10.0
-    panel_width = max(420.0, 0.50 * chest + ease)
-    hem_width = max(450.0, 0.50 * hip + ease)
-    shoulder_z = box.ZMin + 0.76 * z_span
-    hem_z = box.ZMin + 0.40 * z_span
-    garment_height = max(560.0, shoulder_z - hem_z)
-    body_depth = max(120.0, min(260.0, float(box.YMax - box.YMin)))
-    clearance = max(8.0, 0.025 * body_depth)
-    x_mid = 0.5 * (box.XMin + box.XMax)
+    if avatar is not None:
+        avatar.ViewObject.Visibility = False
 
-    def make_piece(name, y, neckline_ratio, neckline_drop):
-        sketch, outline = _make_tunic_sketch(
-            doc, name + "Source", panel_width, garment_height, hem_width,
-            neckline_ratio, neckline_drop,
-        )
-        piece = _adopt_sketch(sketch, name)
-        rotation = App.Rotation(App.Vector(1, 0, 0), 90.0)
-        piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rotation)
-        piece.Sketch.Placement = piece.Placement
-        return piece, outline
+    cube = doc.addObject("Part::Box", "BlanketCube")
+    cube.Label = "Blanket Demo Cube"
+    cube.Length = 240.0
+    cube.Width = 160.0
+    cube.Height = 120.0
+    cube.Placement = App.Placement(App.Vector(-120.0, -80.0, 0.0), App.Rotation())
+    cube.ViewObject.ShapeColor = (0.72, 0.72, 0.72)
 
-    front, front_outline = make_piece("VisualTunicFront", box.YMax + clearance, 0.64, 0.08)
-    back, back_outline = make_piece("VisualTunicBack", box.YMin - clearance, 0.68, 0.08)
-    seam_records = []
-    front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())
-    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())
-    required_indices = (1, 2, 6, 7)
-    if len(front_edge_ids) < 8 or len(back_edge_ids) < 8 or any(not front_edge_ids[index] or not back_edge_ids[index] for index in required_indices):
-        raise RuntimeError("canonical tunic turntable fixture is missing semantic edge IDs")
-    seam_specs = (
-        (front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),
-        (front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"),
-        (front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"),
-        (front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"),
-    )
-    for edge_a_id, edge_b_id, seam_id in seam_specs:
-        seam = Seam(
-            str(front.PieceId), edge_a_id,
-            str(back.PieceId), edge_b_id,
-            id=seam_id,
-            alignment="uniform",
-            stitch_group="TunicAssembly",
-        )
-        add_seam(doc, seam)
-        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
-        if str(getattr(seam_obj, "EdgeAId", "")) != edge_a_id or str(getattr(seam_obj, "EdgeBId", "")) != edge_b_id:
-            raise RuntimeError("turntable seam %s did not retain semantic edge identity" % seam_id)
-        seam_records.append((seam_obj, front, back))
+    target = scene.DrapeTarget
+    if target is None:
+        target = create_drape_target(doc, cube, "FreeCAD Geometry", deflection=1.0, thickness=0.0)
+        scene.DrapeTarget = target
+    else:
+        from freecad_cloth.simulation.DrapeTarget import assign_drape_target
+        assign_drape_target(target, cube, "FreeCAD Geometry")
+    refresh_drape_target(target)
 
-    scene.StartHeight = 0.0
-    scene.QualityPreset = "Fast"
-    scene.ParticleDistance = float(os.environ.get("CLOTH_TUNIC_PARTICLE_DISTANCE_MM", "24.0"))
-    scene.SolverIterations = int(os.environ.get("CLOTH_TUNIC_SOLVER_ITERATIONS", "64"))
-    scene.SolverSubsteps = int(os.environ.get("CLOTH_TUNIC_SOLVER_SUBSTEPS", "1"))
-    scene.TimeStep = float(os.environ.get("CLOTH_TUNIC_TIMESTEP", str(1.0 / 120.0)))
-    scene.StitchSamples = int(os.environ.get("CLOTH_TUNIC_STITCH_SAMPLES", "8"))
+    sketch = _make_rectangle_sketch(doc, "BlanketSource", 420.0, 320.0)
+    blanket = _adopt_sketch(sketch, "Blanket")
+    blanket.Placement = App.Placement(App.Vector(0.0, 0.0, 310.0), App.Rotation())
+    blanket.Sketch.Placement = blanket.Placement
+
+    scene.QualityPreset = "Balanced"
+    scene.ParticleDistance = float(os.environ.get("CLOTH_BLANKET_PARTICLE_DISTANCE_MM", "20.0"))
+    scene.SolverIterations = int(os.environ.get("CLOTH_BLANKET_SOLVER_ITERATIONS", "32"))
+    scene.SolverSubsteps = int(os.environ.get("CLOTH_BLANKET_SOLVER_SUBSTEPS", "1"))
+    scene.TimeStep = float(os.environ.get("CLOTH_BLANKET_TIMESTEP", str(1.0 / 120.0)))
+    scene.StitchSamples = 4
     scene.GravityX = scene.GravityY = 0.0
     scene.GravityZ = -9810.0
-    scene.FabricFriction = 0.85
-    scene.ClothPieces = [front, back]
-    refresh_drape_target(scene.DrapeTarget)
-    doc.recompute()
+    scene.FabricFriction = 0.8
+    scene.ClothPieces = [blanket]
 
-    proxy = scene.Proxy
+    doc.recompute()
+    proxy = scene.Proxy._base_or_restore()
+    panel = scene.DrapePanels[0]
     positions = tuple(proxy.backend.positions())
-    panel_indices = proxy.panel_indices
-    front_panel, back_panel = tuple(scene.DrapePanels)
-    front_targets = (
-        (0.14 * panel_width, 0.97 * garment_height),
-        (0.86 * panel_width, 0.97 * garment_height),
-    )
-    available = list(panel_indices[front_panel.Name])
-    front_pins = []
-    for local_x, local_y in front_targets:
-        target_point = front.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
-        index = min(
-            available,
-            key=lambda i: (positions[i][0] - target_point.x) ** 2
-            + (positions[i][1] - target_point.y) ** 2
-            + (positions[i][2] - target_point.z) ** 2,
-        )
-        front_pins.append(index)
-        available.remove(index)
-    if not front_pins:
-        raise RuntimeError("canonical turntable shoulder pin selection is empty")
-    scene.PinSelection = [str(index) for index in front_pins]
-    if any(
-        int(a) in front_pins and int(b) in front_pins
-        for pairs in getattr(proxy, "seam_stitch_pairs", {}).values()
-        for a, b in pairs
-    ):
-        raise RuntimeError("canonical turntable pin contract pins both endpoints of a sewn pair")
-    log("pin-map front-shoulders=%s back-pinned=false" % (tuple(front_pins),))
+    indices = tuple(proxy.panel_indices[panel.Name])
+    left = App.Vector(-210.0, -120.0, 310.0)
+    right = App.Vector(210.0, -120.0, 310.0)
+    pins = _nearest_pin_indices(indices, positions, (left, right))
+    scene.PinSelection = [str(index) for index in pins]
+    doc.recompute()
+    initial_positions = tuple(scene.Proxy._base_or_restore().backend.positions())
+    log("blanket-pins=%s" % (pins,))
+
+    blanket.ViewObject.Visibility = True
+    blanket.Sketch.ViewObject.Visibility = False
+    panel.ViewObject.Visibility = False
+    _style_mesh(panel)
+    panel.Label = "Simulated Blanket"
+    cube.ViewObject.Visibility = True
     doc.recompute()
 
-    for source in (front, back):
-        source.ViewObject.Visibility = False
-        source.Sketch.ViewObject.Visibility = False
-    for seam_obj, _, _ in seam_records:
-        seam_obj.ViewObject.Visibility = False
-    panels = list(scene.DrapePanels)
-    if len(panels) != 2:
-        raise RuntimeError("expected two drape panels")
-    for panel, label in zip(panels, ("Drape: Tunic Front", "Drape: Tunic Back")):
-        style_mesh(panel, label)
-        panel.ViewObject.Visibility = True
-    avatar.ViewObject.Visibility = True
-    doc.recompute()
-    authored = _seam_overlay(doc, "TunicSeamsAuthored", seam_records)
-    for seam_obj in authored:
-        seam_obj.ViewObject.Visibility = True
-    return scene, avatar, panels, seam_records, authored, (front, back)
-
-
-def render_simulation_motion(view, scene, frame_dir, frame_count=16, final_steps=120):
-    os.makedirs(frame_dir, exist_ok=True)
-    final_steps = max(1, int(final_steps))
-    steps = [round(i * final_steps / float(frame_count - 1)) for i in range(frame_count)]
-    unique_steps = tuple(dict.fromkeys(int(step) for step in steps))
-    view.setCameraType("Orthographic")
-    view.viewFront(); view.fitAll()
-    if hasattr(view, "redraw"):
-        view.redraw()
-    events()
-    camera = view.getCameraNode()
-    for index, target_step in enumerate(unique_steps):
-        scene.Steps = int(target_step)
-        scene.Document.recompute()
-        if not bool(getattr(scene, "FiniteState", True)):
-            raise RuntimeError("non-finite simulation state at motion frame %d/%d" % (index, target_step))
-        save_png(view, os.path.join(frame_dir, "frame-%03d.png" % index), "simulation motion step %d" % target_step)
-    log("simulation-motion-pass frames=%d final_steps=%d" % (len(unique_steps), final_steps))
+    return scene, cube, blanket, panel, initial_positions
 
 
 def main():
     window = Gui.getMainWindow()
     if window is None or not window.isVisible():
         raise RuntimeError("FreeCAD GUI did not launch")
-    window.show(); events()
+    window.show()
+    events()
     init_gui = os.path.join(ROOT, "InitGui.py")
     if "ClothPatternWorkbench" not in Gui.listWorkbenches():
         exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
     events()
-    doc = App.newDocument("ClothSimulationTurntable")
+
+    doc = App.newDocument("ClothBlanketTurntable")
     try:
-        scene, avatar, panels, seam_records, authored, pieces = build_simulation_state(doc)
-        view = Gui.activeDocument().activeView(); view.setCameraType("Orthographic")
-        objects = [avatar] + panels
+        scene, cube, blanket, panel, initial_positions = build_simulation_state(doc)
+        view = Gui.activeDocument().activeView()
+        objects = [cube, panel]
         render_turntable(view, objects, os.path.join(OUT, "cloth-simulation-arranged-turntable-frames"))
-        for seam_obj in authored:
-            seam_obj.ViewObject.Visibility = False
-        steps = int(os.environ.get("CLOTH_TUNIC_STEPS", "90"))
+
+        steps = int(os.environ.get("CLOTH_BLANKET_STEPS", "90"))
         scene.Steps = steps
-        doc.recompute(); events()
+        doc.recompute()
+        events()
         if int(scene.Steps) != steps or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
-            raise RuntimeError("simulation did not reach a finite %d-step state" % steps)
-        if any(panel.Mesh.CountFacets <= 10 for panel in panels):
-            raise RuntimeError("draped tunic panel mesh is empty")
-        for panel in panels:
-            mesh_vertices, mesh_triangles = panel.Mesh.Topology
-            points = tuple((float(vertex.x), float(vertex.y), float(vertex.z)) for vertex in mesh_vertices)
-            triangles = tuple(tuple(int(index) for index in face) for face in mesh_triangles)
-            health = mesh_shape_sanity(points, triangles)
-            log("mesh-health panel=%s spike_ratio=%.3f spike_fraction=%.5f footprint_aspect=%.3f" % (
-                panel.Name, health["edge_spike_ratio"], health["spike_edge_fraction"],
-                health["footprint_aspect_ratio"],
-            ))
-            if not health["finite"] or health["spike_edge_fraction"] > 0.02:
-                raise RuntimeError("draped tunic panel mesh has spike outliers: %r" % health)
-        simulated = _solver_boundary_map(scene, pieces, panels)
-        _seam_overlay(doc, "TunicSeamsSimulated", seam_records, simulated)
-        seam_gap = _solver_seam_gap(scene, seam_records)
-        if seam_gap > 35.0:
-            raise RuntimeError("canonical turntable seams did not converge: max solver stitch gap %.2f mm" % seam_gap)
-        log("simulation-seam-diagnostic max_endpoint_gap_mm=%.2f semantic-provenance=true" % seam_gap)
-        backend = getattr(getattr(scene, "Proxy", None), "_base_or_restore", lambda: None)()
-        backend_name = getattr(getattr(backend, "backend", None), "name", "unknown") if backend is not None else "unknown"
-        log("simulation-state-pass backend=%s steps=%d particles=%d triangles=%d facets=(%d,%d) seam_max_gap_mm=%.2f" % (
-            backend_name, steps, int(scene.ParticleCount),
-            sum(len(t) for t in getattr(backend, "panel_triangles", {}).values()) if backend is not None else 0,
-            panels[0].Mesh.CountFacets, panels[1].Mesh.CountFacets, seam_gap,
+            raise RuntimeError("blanket simulation did not reach a finite %d-step state" % steps)
+        if panel.Mesh.CountFacets <= 50:
+            raise RuntimeError("blanket drape mesh is too small")
+        final_positions = tuple(scene.Proxy._base_or_restore().backend.positions())
+        initial_z = _center_z(initial_positions)
+        final_z = _center_z(final_positions)
+        displacement = abs(final_z - initial_z)
+        minimum_z = min(float(position[2]) for position in final_positions)
+        cube_top = float(cube.Placement.Base.z) + float(cube.Height)
+        log("blanket-motion-diagnostic max_centroid_displacement_mm=%.2f final_centroid_z_mm=%.2f min_z_mm=%.2f cube_top_z_mm=%.2f" % (
+            displacement, final_z, minimum_z, cube_top,
         ))
-        for panel in panels:
-            panel.ViewObject.DisplayMode = "Shaded"
-            panel.ViewObject.LineWidth = 1.0
-        render_simulation_motion(
-            view,
-            scene,
-            os.path.join(OUT, "cloth-simulation-motion-frames"),
-            frame_count=16,
-            final_steps=steps,
-        )
+        if displacement < 40.0:
+            raise RuntimeError("blanket moved only %.2f mm; expected real draping motion" % displacement)
+        if minimum_z > cube_top + 35.0:
+            raise RuntimeError("blanket did not approach cube surface: min_z=%.2f cube_top=%.2f" % (minimum_z, cube_top))
+
+        panel.ViewObject.Visibility = True
+        cube.ViewObject.Visibility = True
+        doc.recompute()
         render_turntable(view, objects, os.path.join(OUT, "cloth-simulation-draped-turntable-frames"))
-        log("simulation-turntable-pass")
+        log("blanket-turntable-pass")
     finally:
         if doc.Name in App.listDocuments():
             App.closeDocument(doc.Name)
-        events(); window.close()
+        events()
+        window.close()
         app = QtWidgets.QApplication.instance()
-        if app is not None: app.quit()
+        if app is not None:
+            app.quit()
 
 
 try:
