@@ -70,3 +70,19 @@ def test_bad_length_inputs_are_rejected():
         analyze_correspondence(0.0, 10.0)
     with pytest.raises(ValueError, match="tolerance"):
         analyze_correspondence(10.0, 10.0, length_tolerance=1.0)
+
+
+def test_mismatch_recovery_and_severity_are_shared_machine_contract():
+    report = analyze_correspondence(100.0, 120.0, length_tolerance=0.05)
+    assert report.severity == "error"
+    assert report.recovery == correspondence_recovery(report.status)
+    assert report.evidence()["severity"] == "error"
+    assert report.evidence()["recovery"] == report.recovery
+
+
+def test_reversal_keeps_forward_contract_and_recovery_is_stable():
+    report = analyze_correspondence(100.0, 100.0, reversed_b=True)
+    assert report.severity == "info"
+    assert report.valid
+    assert report.recovery == "keep the explicit B reversal or use Reverse B"
+    assert report.evidence()["reversed_b"] is True
