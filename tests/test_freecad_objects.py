@@ -98,6 +98,41 @@ def _set_native_boundary(sketch, arc):
     sketch.GeometryAuthority = "Sketcher"
 
 
+def test_avatar_collision_source_supports_fitting_and_simulation_scopes():
+    if App is None or Part is None:
+        return
+    document = App.newDocument("AvatarCollisionScope")
+    try:
+        from freecad_cloth.avatar.FittingCommands import create_fitting_scene
+        from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
+
+        body = document.addObject("Part::Feature", "FixtureBody")
+        body.Shape = Part.makeBox(80, 80, 160, App.Vector(-40, -40, -80))
+        document.recompute()
+
+        fitting = create_fitting_scene()
+        proxy = set_avatar_collision_source(fitting, body, thickness=2.0, deflection=1.0)
+        assert proxy is fitting.AvatarProxy
+        assert proxy.Name == "AvatarCollision"
+        assert proxy.SourceObject == body
+        assert "DrapeTarget" not in set(getattr(fitting, "PropertiesList", ()) or ())
+
+        target = document.getObject("DrapeTarget")
+        assert target is not None
+        assert target.SourceObject == body
+
+        simulation = create_simulation_scene(document)
+        proxy2 = set_avatar_collision_source(simulation, body, thickness=3.0, deflection=0.5)
+        assert proxy2 is simulation.AvatarProxy
+        assert proxy2 is proxy
+        assert simulation.DrapeTarget == target
+        assert proxy2.SourceObject == body
+        assert float(target.CollisionThickness) == 3.0
+        assert float(target.CollisionDeflection) == 0.5
+    finally:
+        if document.Name in App.listDocuments():
+            App.closeDocument(document.Name)
+
 def test_native_seam_reference_save_reload_curve_edit_and_missing():
     if App is None or Part is None:
         return
