@@ -47,6 +47,7 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 from freecad_cloth.simulation import TissuBackend as _tissu_backend
 from freecad_cloth.sewing.SewingView import seam_color_map
+from freecad_cloth.common.DrapeVisualSanity import mesh_shape_sanity
 
 _tissu_backend._collision_envelope = _tight_tissu_collision_envelope
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
@@ -305,6 +306,34 @@ def _seam_endpoint_gap(simulated, seam_records):
         gaps.extend(((left - right).Length for left, right in zip(a, b)))
     return max(gaps) if gaps else 0.0
 
+def _solver_seam_gap(scene, seam_records):
+    proxy = scene.Proxy._base_or_restore()
+    positions = tuple(proxy.backend.positions())
+    stitch_pairs_by_seam = getattr(proxy, "seam_stitch_pairs", {})
+    if not positions or not stitch_pairs_by_seam:
+        raise RuntimeError("authoritative solver seam provenance is unavailable")
+    maximum = 0.0
+    for seam, piece_a, piece_b in seam_records:
+        edge_a_id = str(getattr(seam, "EdgeAId", "")).strip()
+        edge_b_id = str(getattr(seam, "EdgeBId", "")).strip()
+        if not edge_a_id or not edge_b_id:
+            raise RuntimeError("semantic seam edge identity is missing for %s" % seam.SeamId)
+        expected_a = "%s:edge:" % piece_a.PieceId
+        expected_b = "%s:edge:" % piece_b.PieceId
+        if not edge_a_id.startswith(expected_a) or not edge_b_id.startswith(expected_b):
+            raise RuntimeError("semantic seam edge identity does not belong to the seam's source pieces")
+        pairs = tuple(stitch_pairs_by_seam.get(str(seam.SeamId), ()))
+        if not pairs:
+            raise RuntimeError("solver stitch-pair provenance missing for %s" % seam.SeamId)
+        for first, second in pairs:
+            if not (0 <= int(first) < len(positions) and 0 <= int(second) < len(positions)):
+                raise RuntimeError("solver stitch pair lies outside backend positions")
+            a_point = positions[int(first)]
+            b_point = positions[int(second)]
+            gap = sum((float(a_point[i]) - float(b_point[i])) ** 2 for i in range(3)) ** 0.5
+            maximum = max(maximum, gap)
+    return maximum
+
 def build_simulation_state(doc):
     from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
     from freecad_cloth.pattern.PatternModel import Seam
@@ -435,6 +464,24 @@ def build_simulation_state(doc):
         seam_obj.ViewObject.Visibility = True
     return scene, avatar, panels, seam_records, authored, (front, back)
 
+def render_simulation_motion(view, scene, frame_dir, frame_count=16, final_steps=120):
+    os.makedirs(frame_dir, exist_ok=True)
+    final_steps = max(1, int(final_steps))
+    steps = [round(i * final_steps / float(frame_count - 1)) for i in range(frame_count)]
+    unique_steps = tuple(dict.fromkeys(int(step) for step in steps))
+    view.setCameraType("Orthographic")
+    view.viewFront(); view.fitAll()
+    if hasattr(view, "redraw"):
+        view.redraw()
+    events()
+    camera = view.getCameraNode()
+    for index, target_step in enumerate(unique_steps):
+        scene.Steps = int(target_step)
+        scene.Document.recompute()
+        if not bool(getattr(scene, "FiniteState", True)):
+            raise RuntimeError("non-finite simulation state at motion frame %d/%d" % (index, target_step))
+        save_png(view, os.path.join(frame_dir, "frame-%03d.png" % index), "simulation motion step %d" % target_step)
+    log("simulation-motion-pass frames=%d final_steps=%d" % (len(unique_steps), final_steps))
 
 def main():
     window = Gui.getMainWindow()
@@ -460,10 +507,21 @@ def main():
             raise RuntimeError("simulation did not reach a finite %d-step state" % steps)
         if any(panel.Mesh.CountFacets <= 10 for panel in panels):
             raise RuntimeError("draped tunic panel mesh is empty")
+        for panel in panels:
+            mesh_vertices, mesh_triangles = panel.Mesh.Topology
+            points = tuple((float(vertex.x), float(vertex.y), float(vertex.z)) for vertex in mesh_vertices)
+            triangles = tuple(tuple(int(index) for index in face) for face in mesh_triangles)
+            health = mesh_shape_sanity(points, triangles)
+            log("mesh-health panel=%s spike_ratio=%.3f spike_fraction=%.5f footprint_aspect=%.3f" % (
+                panel.Name, health["edge_spike_ratio"], health["spike_edge_fraction"],
+                health["footprint_aspect_ratio"],
+            ))
+            if not health["finite"] or health["spike_edge_fraction"] > 0.02:
+                raise RuntimeError("draped tunic panel mesh has spike outliers: %r" % health)
         front, back = pieces
         simulated = _solver_boundary_map(scene, pieces, panels)
         _seam_overlay(doc, "TunicSeamsSimulated", seam_records, simulated)
-        seam_gap = _seam_endpoint_gap(simulated, seam_records)
+        seam_gap = _solver_seam_gap(scene, seam_records)
         if seam_gap > 35.0:
             raise RuntimeError("README turntable seam provenance did not converge: max endpoint gap %.2f mm" % seam_gap)
         log("simulation-seam-diagnostic max_endpoint_gap_mm=%.2f semantic-provenance=true" % seam_gap)
@@ -477,6 +535,13 @@ def main():
         for panel in panels:
             panel.ViewObject.DisplayMode = "Shaded"
             panel.ViewObject.LineWidth = 1.0
+        render_simulation_motion(
+            view,
+            scene,
+            os.path.join(OUT, "cloth-simulation-motion-frames"),
+            frame_count=16,
+            final_steps=steps,
+        )
         render_turntable(view, objects, os.path.join(OUT, "cloth-simulation-draped-turntable-frames"))
         log("simulation-turntable-pass")
     finally:

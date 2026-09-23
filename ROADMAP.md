@@ -12,9 +12,9 @@ CLO is used as a workflow benchmark, not as a cloning target. Public CLO documen
 
 ## Current repository state
 
-- `main` is in final release-closeout state. The canonical garment implementation is merged, the runner-selection CI improvement is merged, the durable supervisor state is synchronized, and the remaining supervisor/release records are closed.
+- The previous release-closeout record is superseded by supervisor issue #1017. The current release foundation must satisfy the executable installation, example, visual-regression, material-presentation and repository-hygiene gates in [docs/RELEASE_GATES.md](docs/RELEASE_GATES.md) before another complete-project declaration.
 - The release implementation was terminal-green in canonical runs #3092 and #3096, including real FreeCAD/Xvfb garment validation and the final documentation-only reconciliation.
-- The repository currently has no open issues or pull requests. Entries below describe completed milestone scope and intentional future roadmap work, not active release blockers.
+- Supervisor issue #1017 is the active completion criterion and PR #1018 is the integration target. PR #1019 is an overlapping visual-truth validation branch being reconciled into the release target; neither is complete until current-head canonical CI is terminal-green.
 
 ## Supervisor milestone ladder
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import isfinite, sqrt
+from statistics import median
 from typing import Sequence, Tuple
 
 Point3 = Tuple[float, float, float]
@@ -152,4 +153,83 @@ def summarize(metrics: DrapeVisualMetrics) -> dict:
         "lateral_span_ratio": metrics.lateral_span_ratio,
         "target_vertex_clearance": metrics.target_vertex_clearance,
         "finite": metrics.finite,
+    }
+
+
+
+def mesh_shape_sanity(vertices, triangles):
+    """Return deterministic mesh-shape health metrics for visual regression.
+
+    The metrics intentionally describe geometry rather than deciding whether a
+    cloth result is physically correct. They catch the two failure modes that
+    are easy to miss in a camera-only regression: isolated long-edge spikes
+    and an unexpectedly extreme lateral footprint.
+    """
+    if not vertices:
+        return {
+            "finite": False,
+            "vertices": 0,
+            "faces": 0,
+            "median_edge_length": 0.0,
+            "max_edge_length": 0.0,
+            "edge_spike_ratio": float("inf"),
+            "spike_edge_fraction": 1.0,
+            "footprint_aspect_ratio": float("inf"),
+        }
+
+    finite = all(isfinite(float(c)) for vertex in vertices for c in vertex)
+    if not finite:
+        return {
+            "finite": False,
+            "vertices": len(vertices),
+            "faces": len(triangles),
+            "median_edge_length": 0.0,
+            "max_edge_length": 0.0,
+            "edge_spike_ratio": float("inf"),
+            "spike_edge_fraction": 1.0,
+            "footprint_aspect_ratio": float("inf"),
+        }
+
+    unique_edges = set()
+    lengths = []
+    for triangle in triangles:
+        if len(triangle) != 3:
+            continue
+        a, b, c = (int(index) for index in triangle)
+        for left, right in ((a, b), (b, c), (c, a)):
+            edge = (min(left, right), max(left, right))
+            if edge in unique_edges:
+                continue
+            unique_edges.add(edge)
+            p = vertices[left]
+            q = vertices[right]
+            lengths.append(sqrt(sum((float(p[i]) - float(q[i])) ** 2 for i in range(3))))
+
+    if not lengths:
+        median_edge = 0.0
+        max_edge = 0.0
+        spike_ratio = float("inf")
+        spike_fraction = 1.0
+    else:
+        median_edge = float(median(lengths))
+        max_edge = float(max(lengths))
+        spike_ratio = max_edge / median_edge if median_edge > 1e-12 else float("inf")
+        spike_fraction = sum(1 for value in lengths if value > 4.0 * median_edge) / float(len(lengths))
+
+    xs = [float(vertex[0]) for vertex in vertices]
+    ys = [float(vertex[1]) for vertex in vertices]
+    span_x = max(xs) - min(xs)
+    span_y = max(ys) - min(ys)
+    small = min(value for value in (span_x, span_y) if value > 1e-12) if max(span_x, span_y) > 1e-12 else 0.0
+    aspect = max(span_x, span_y) / small if small > 0.0 else float("inf")
+
+    return {
+        "finite": True,
+        "vertices": len(vertices),
+        "faces": len(triangles),
+        "median_edge_length": median_edge,
+        "max_edge_length": max_edge,
+        "edge_spike_ratio": spike_ratio,
+        "spike_edge_fraction": spike_fraction,
+        "footprint_aspect_ratio": aspect,
     }

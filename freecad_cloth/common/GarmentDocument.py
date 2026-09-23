@@ -104,10 +104,16 @@ def ensure_fabric_material(doc, root=None):
         ("Shear", 0.02),
         ("Bend", 0.01),
         ("Friction", 0.5),
+        ("Specular", 0.25),
+        ("Roughness", 0.65),
+        ("Transparency", 0.0),
     ):
         if name not in getattr(material, "PropertiesList", ()):
             material.addProperty("App::PropertyFloat", name, "Fabric")
             setattr(material, name, float(value))
+    if "Color" not in getattr(material, "PropertiesList", ()):
+        material.addProperty("App::PropertyColor", "Color", "Presentation")
+        material.Color = (0.72, 0.34, 0.46)
     if material not in _children(fabric_group):
         fabric_group.addObject(material)
     return material
