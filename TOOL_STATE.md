@@ -1,13 +1,13 @@
 # Tool State
 
 ```yaml
-schema: 7
+schema: 8
 repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_task: #647 release lifecycle closeout
-current_main: 60393fecbee814f56ed8018f648167eb461e9c0b
-open_prs: []
+current_main: c41a071a345715f199bdade34872049faba4527d
+open_prs: [1010]
 open_actionable_issues: [647, 720, 471]
 
 architecture:
@@ -27,13 +27,14 @@ workflow_contract:
   screenshot_display: 1280x720
   screenshot_artifact: tunic-visual-audit
   turntable_artifact: readme-turntables
+  runner_policy: prefer_recent_healthy_local_Docker_runner; fallback_github_hosted
   policy: preserve_Docker_Xvfb_FreeCAD_path; fail_closed_evidence; no_second_workflow
 
 latest_verified_ci:
-  run_id: 35814799483
-  run_number: 3084
-  commit: fa1df9f498ecfdcbd2f56c363e30ed7d28d700dd
-  pr: 1009
+  run_id: 35815336438
+  run_number: 3087
+  commit: 91128e25caa4df228e1022e67b4554cf256a12a5
+  pr: 1010
   status: completed
   conclusion: success
   jobs:
@@ -46,14 +47,14 @@ latest_verified_ci:
     - Measured FreeCAD workbench benchmark
     - Publish README turntables
   artifacts:
-    tunic_visual_audit_id: 10731790123
-    tunic_visual_audit_sha256: 267405a507a1ee33d806266bedb61f44cd99995ed2510af77d31eec7f4a8a357
-    sewing_creation_smoke_id: 10731420436
-    sewing_creation_smoke_sha256: 09c6f69de9f2fb3d400f6aeee8c12d1244bb1ec1b3dda4ef6fd272992d1fc31a
-    pattern_export_id: 10730914887
-    pattern_export_sha256: cc06fb1d57044e77593e0999c873b687b7c1a2b634074698be981ee881126de4
-    readme_turntables_id: 10731555405
-    readme_turntables_sha256: a526ac4e79b805addcd374e93eee1ece2f92e1a7521a54ab1b27f82ef437158c
+    tunic_visual_audit_id: 10731771171
+    tunic_visual_audit_sha256: d4ec5983cea1ae8b49cf34be30689a28838fb622a93f67fe5924372b0787bc17
+    sewing_creation_smoke_id: 10731161208
+    sewing_creation_smoke_sha256: d8bae57786d4bf01d7d190ca13d32031bb92ded3ab38e0fc6dd4d14187506a76
+    pattern_export_id: 10731166231
+    pattern_export_sha256: 238fecac5a79534832c5a707373b44f02514a02b9bb8ffadedd8cb0d552d9425
+    readme_turntables_id: 10731681283
+    readme_turntables_sha256: 484c775b8cf16d4b09cf4685dcce37b3c20ae6b25608dc559dee239c8c93c646
 
 release_evidence:
   garment_e2e: passed
@@ -68,6 +69,7 @@ release_evidence:
   deterministic_rerun: passed
   pattern_export: passed_SVG_DXF
   canonical_visuals: six_drape_views_plus_diagnostics
+  process_exit: passed
   drape_metrics:
     front: finite=true; connected_components=1; state=structurally-plausible; target_vertex_clearance_mm=4.0799
     back: finite=true; connected_components=1; state=structurally-plausible; target_vertex_clearance_mm=1.0594
@@ -79,10 +81,14 @@ release_evidence:
 historical_closeout:
   merged_release_pr: 1001
   merged_release_commit: 2b09ea32426d8f26141c4a0d8e9c294509e29893
-  current_main_has_release: true
+  merged_runner_pr: 904
+  merged_runner_commit: 4e119229cd4df00b529d002dd32106b09504992e
+  durable_state_pr: 1009
+  durable_state_merge_commit: c41a071a345715f199bdade34872049faba4527d
+  current_main_has_release_and_runner: true
   sewing_closeout_issue: 475_closed_completed
-  stale_runner_prs: [904_closed, 925_closed, 1008_closed]
-  stale_curved_sewing_pr: 999_closed
+  stale_runner_prs: [925_closed_unmerged, 1008_closed_unmerged]
+  stale_curved_sewing_pr: 999_closed_unmerged
   lifecycle_issues_closed: [1002, 1004, 1005, 1006, 987, 917, 837, 893, 828, 845, 692, 675]
 
 policy:
