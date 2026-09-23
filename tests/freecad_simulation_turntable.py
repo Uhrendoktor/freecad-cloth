@@ -17,6 +17,7 @@ ROOT = "/workspace"
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 from freecad_cloth.sewing.SewingView import seam_color_map
+from freecad_cloth.common.DrapeVisualSanity import mesh_shape_sanity
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 os.makedirs(OUT, exist_ok=True)
 LOG = os.path.join(OUT, "simulation-turntable-progress.log")
@@ -404,11 +405,22 @@ def main():
             raise RuntimeError("simulation did not reach a finite %d-step state" % steps)
         if any(panel.Mesh.CountFacets <= 10 for panel in panels):
             raise RuntimeError("draped tunic panel mesh is empty")
+        for panel in panels:
+            mesh_vertices, mesh_triangles = panel.Mesh.Topology
+            points = tuple((float(vertex.x), float(vertex.y), float(vertex.z)) for vertex in mesh_vertices)
+            triangles = tuple(tuple(int(index) for index in face) for face in mesh_triangles)
+            health = mesh_shape_sanity(points, triangles)
+            log("mesh-health panel=%s spike_ratio=%.3f spike_fraction=%.5f footprint_aspect=%.3f" % (
+                panel.Name, health["edge_spike_ratio"], health["spike_edge_fraction"],
+                health["footprint_aspect_ratio"],
+            ))
+            if not health["finite"] or health["edge_spike_ratio"] > 4.0 or health["spike_edge_fraction"] > 0.02:
+                raise RuntimeError("draped tunic panel mesh has spike outliers: %r" % health)
         front, back = pieces
         simulated = _semantic_simulated_boundaries(scene, panels, pieces)
         _seam_overlay(doc, "TunicSeamsSimulated", seam_records, simulated)
         seam_gap = _seam_endpoint_gap(simulated, seam_records)
-        log("simulation-seam-diagnostic max_endpoint_gap_mm=%.2f" % seam_gap)
+        log("simulation-seam-diagnostic max_endpoint_gap_mm=%.2f semantic-boundaries=true" % seam_gap)
         backend = getattr(getattr(scene, "Proxy", None), "_base_or_restore", lambda: None)()
         backend_name = getattr(getattr(backend, "backend", None), "name", "unknown") if backend is not None else "unknown"
         log("simulation-state-pass backend=%s steps=%d particles=%d triangles=%d facets=(%d,%d) seam_max_gap_mm=%.2f" % (
