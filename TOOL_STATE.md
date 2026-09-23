@@ -8,7 +8,7 @@ execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_issue: 1017
 active_release_pr: 1066
 active_release_branch: supervisor/complete-audit-20260923
-current_main: 87c66b67c870d70ce478e083104f6db18eaf59af
+current_main: ccac198eae37bb162830895b1d8259ca84d7047f
 workflow_count: 1
 workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; inspect_jobs_logs_artifacts; no_second_workflow
