@@ -1,7 +1,11 @@
 """Canonical FreeCAD/Xvfb acceptance for native Sketcher pattern authoring."""
 import math
 import os
+import site
 import tempfile
+from pathlib import Path
+
+site.addsitedir(str(Path(__file__).resolve().parents[1]))
 
 import FreeCAD as App
 import FreeCADGui as Gui
