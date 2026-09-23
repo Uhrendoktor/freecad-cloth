@@ -323,9 +323,9 @@ try:
                     raise RuntimeError("SVG export lost persisted semantic mark reference")
                 if 'cx="55.000000" cy="65.000000"' not in output:
                     raise RuntimeError("SVG export lost persisted notch coordinates")
-                if 'x1="30.000000" y1="65.000000" x2="70.000000" y2="65.000000"' not in output:
+                if 'x1="35.000000" y1="65.000000" x2="75.000000" y2="65.000000"' not in output:
                     raise RuntimeError("SVG export lost persisted construction-mark coordinates")
-                if 'x1="32.000000" y1="65.000000" x2="68.000000" y2="65.000000"' not in output:
+                if 'x1="37.000000" y1="65.000000" x2="73.000000" y2="65.000000"' not in output:
                     raise RuntimeError("SVG export lost persisted grainline coordinates")
             else:
                 if '"notch_ids":["%s"]' % notch_id not in output:
