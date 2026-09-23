@@ -40,9 +40,15 @@ def test_canonical_gui_jobs_launch_from_neutral_cwd_with_bootstrap():
     assert '-w /tmp "$FREECAD_IMAGE"' in sketcher
     assert "/opt/freecad/AppRun /workspace/tests/freecad_ci_bootstrap.py" in sketcher
     assert "CLOTH_CI_SCRIPT=/workspace/tests/freecad_sketcher_acceptance.py" in sketcher
+    assert "FREECAD_USER_HOME=/tmp/freecad-user" in sketcher
+    assert "FREECAD_USER_DATA=/tmp/freecad-user-data" in sketcher
+    assert "FREECAD_USER_TEMP=/tmp/freecad-user-temp" in sketcher
     assert '-w /tmp "$FREECAD_IMAGE"' in visual
     assert "/opt/freecad/AppRun /workspace/tests/freecad_ci_bootstrap.py" in visual
     assert "CLOTH_CI_SCRIPT=/workspace/tests/freecad_visual_examples.py" in visual
+    assert "FREECAD_USER_HOME=/tmp/freecad-user" in visual
+    assert "FREECAD_USER_DATA=/tmp/freecad-user-data" in visual
+    assert "FREECAD_USER_TEMP=/tmp/freecad-user-temp" in visual
 
 
 if __name__ == "__main__":
