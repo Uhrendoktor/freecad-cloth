@@ -27,10 +27,10 @@ from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "mesh")
 
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
-# This README fixture is the deterministic CPU reference example. The canonical
-# turntable job also renders a Tissu-based avatar, so do not inherit that backend
-# selection for the blanket scenario.
-os.environ["CLOTH_SIMULATION_BACKEND"] = "xpbd-cpu"
+BLANKET_SIZE = 200.0
+# The README fixture uses the same pinned Tissu mesh-collision runtime as the
+# canonical turntable job and the validated 200 mm blanket visual example.
+os.environ["CLOTH_SIMULATION_BACKEND"] = "tissu"
 os.makedirs(OUT, exist_ok=True)
 LOG = os.path.join(OUT, "simulation-turntable-progress.log")
 
@@ -240,7 +240,7 @@ def _opposite_top_edge_pins(piece, positions, panel_indices):
         max(top_edge, key=lambda index: float(mesh_positions[index][0])),
     )
     span = abs(float(mesh_positions[top[1]][0]) - float(mesh_positions[top[0]][0]))
-    if span < 0.75 * 260.0:
+    if span < 0.75 * BLANKET_SIZE:
         raise RuntimeError("blanket pins are not opposite top-edge corners: span=%.3f" % span)
     return tuple(int(panel_indices[top_index]) for top_index in top), span
 
@@ -326,13 +326,13 @@ def build_simulation_state(doc):
     from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, ensure_quality_properties
 
-    sketch = _make_rectangle_sketch(doc, "BlanketSource", 260.0, 260.0)
+    sketch = _make_rectangle_sketch(doc, "BlanketSource", BLANKET_SIZE, BLANKET_SIZE)
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(sketch)
     blanket = create_pattern_piece_from_selected_sketch(name="Blanket", allowance=0.0, grainline=0.0)
     if blanket.Sketch is not sketch:
         raise RuntimeError("pattern piece did not retain native sketch")
-    placement = App.Placement(App.Vector(-130.0, -130.0, 150.0), App.Rotation())
+    placement = App.Placement(App.Vector(-BLANKET_SIZE / 2.0, -BLANKET_SIZE / 2.0, 150.0), App.Rotation())
     blanket.Placement = placement
     blanket.Sketch.Placement = placement
 
