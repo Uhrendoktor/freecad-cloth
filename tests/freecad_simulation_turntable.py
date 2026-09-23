@@ -42,14 +42,13 @@ def _tight_tissu_collision_envelope(surface):
         for t in samples
     )
 
-
-_tissu_backend._collision_envelope = _tight_tissu_collision_envelope
-
 ROOT = "/workspace"
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 from freecad_cloth.simulation import TissuBackend as _tissu_backend
 from freecad_cloth.sewing.SewingView import seam_color_map
+
+_tissu_backend._collision_envelope = _tight_tissu_collision_envelope
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 os.makedirs(OUT, exist_ok=True)
 LOG = os.path.join(OUT, "simulation-turntable-progress.log")
