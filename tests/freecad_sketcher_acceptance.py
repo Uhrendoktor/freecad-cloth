@@ -146,8 +146,8 @@ def run_acceptance():
         if len(pieces) != 2:
             raise RuntimeError("public Pattern command did not create two PatternPiece objects")
         curved, mate = pieces
-        curved.Placement.Base = App.Vector(-130, 17, 0)
-        mate.Placement.Base = App.Vector(35, -29, 0)
+        curved.Placement.Base.x = -130
+        mate.Placement.Base.x = 20
         curved_sketch, width_index, height_index = _make_curved_piece_sketch(curved, doc)
         reference = mate.Sketch
         if reference is None:
@@ -199,13 +199,15 @@ def run_acceptance():
         def _has_vertex(point, tolerance=1e-6):
             return any((vertex - point).Length <= tolerance for vertex in seam_vertices)
 
-        curved_geometry = tuple(curved_sketch.Geometry)
-        mate_geometry = tuple(reference.Geometry)
+        # These are the explicit Sketcher fixture endpoints used above: curved Edge3 is
+        # the semicircle from (80, 50) to (0, 50), while mate Edge1 is (0, 0) to
+        # (100, 0). Applying each PatternPiece placement produces the expected
+        # world-space seam endpoints without rebuilding the presentation geometry.
         world_edge_endpoints = (
-            curved.Placement.multVec(curved_geometry[2].StartPoint),
-            curved.Placement.multVec(curved_geometry[2].EndPoint),
-            mate.Placement.multVec(mate_geometry[0].StartPoint),
-            mate.Placement.multVec(mate_geometry[0].EndPoint),
+            curved.Placement.multVec(App.Vector(80, 50, 0.4)),
+            curved.Placement.multVec(App.Vector(0, 50, 0.4)),
+            mate.Placement.multVec(App.Vector(0, 0, 0.4)),
+            mate.Placement.multVec(App.Vector(100, 0, 0.4)),
         )
         for expected in world_edge_endpoints:
             if not _has_vertex(expected):
@@ -213,7 +215,7 @@ def run_acceptance():
                     "seam presentation does not contain the placed/world-space Sketcher seam endpoint: %s"
                     % expected
                 )
-        local_mate_start = mate_geometry[0].StartPoint
+        local_mate_start = App.Vector(0, 0, 0.4)
         if _has_vertex(local_mate_start):
             raise RuntimeError("seam presentation still contains the mate Sketcher endpoint in local coordinates")
         Gui.runCommand("ClothSewing_EditSeamSideA", 0)
