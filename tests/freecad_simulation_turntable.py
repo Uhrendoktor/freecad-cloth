@@ -162,15 +162,18 @@ def _seam_overlay(doc, name, seam_records, simulated=None):
                     )
                     return piece.Placement.multVec(local)
             else:
-                vertices = simulated[piece.Name]
-                edge_a = vertices[edge]
-                edge_b = vertices[(edge + 1) % len(vertices)]
-                def point(t):
-                    return App.Vector(
-                        edge_a.x + (edge_b.x - edge_a.x) * t,
-                        edge_a.y + (edge_b.y - edge_a.y) * t,
-                        edge_a.z + (edge_b.z - edge_a.z) * t + 2.0,
-                    )
+                payload = simulated[piece.Name]
+                chain = payload["boundary_edges"][edge]
+                positions = payload["positions"]
+                sampled = _sample_boundary_chain(chain, positions, start, end, count=16)
+                if reverse:
+                    sampled = tuple(reversed(sampled))
+                for left_point, right_point in zip(sampled, sampled[1:]):
+                    segments.append(Part.makeLine(
+                        App.Vector(left_point.x, left_point.y, left_point.z + 2.0),
+                        App.Vector(right_point.x, right_point.y, right_point.z + 2.0),
+                    ))
+                continue
             if reverse:
                 start, end = 1.0 - end, 1.0 - start
             segments.append(Part.makeLine(point(start), point(end)))
@@ -186,27 +189,62 @@ def _seam_overlay(doc, name, seam_records, simulated=None):
         overlays.append(obj)
     return overlays
 
-def _boundary_points(panel, count):
-    points = panel.Mesh.Points
-    if len(points) < count:
-        raise RuntimeError("drape panel exposes fewer mesh points than pattern boundary vertices")
-    return tuple(points[i] for i in range(count))
+def _sample_boundary_chain(indices, positions, start, end, count=16):
+    if len(indices) < 2:
+        raise RuntimeError("semantic drape boundary edge has fewer than two vertices")
+    pts = [App.Vector(*positions[int(index)]) for index in indices]
+    cumulative = [0.0]
+    for left, right in zip(pts, pts[1:]):
+        cumulative.append(cumulative[-1] + (right - left).Length)
+    total = cumulative[-1]
+    if total <= 1e-9:
+        return (pts[0], pts[-1])
+    out = []
+    for sample in range(max(2, int(count))):
+        u = float(start) + (float(end) - float(start)) * sample / float(max(1, count - 1))
+        u = max(0.0, min(1.0, u))
+        distance = u * total
+        segment = min(
+            range(len(pts) - 1),
+            key=lambda i: abs(cumulative[i + 1] - distance) if cumulative[i] <= distance <= cumulative[i + 1]
+            else min(abs(cumulative[i] - distance), abs(cumulative[i + 1] - distance)),
+        )
+        span = cumulative[segment + 1] - cumulative[segment]
+        local = 0.0 if span <= 1e-9 else (distance - cumulative[segment]) / span
+        out.append(pts[segment] + (pts[segment + 1] - pts[segment]) * local)
+    return tuple(out)
 
 
-def _seam_endpoint_gap(panels, seam_records):
-    front_points = _boundary_points(panels[0], 8)
-    back_points = _boundary_points(panels[1], 8)
+def _semantic_simulated_boundaries(scene, panels, pieces):
+    proxy = scene.Proxy._base_or_restore()
+    positions = tuple(proxy.backend.positions())
+    if not positions:
+        raise RuntimeError("simulation produced no particle positions")
+    result = {}
+    for panel, piece in zip(panels, pieces):
+        edge_chains = proxy.panel_boundary_edges.get(panel.Name)
+        if not edge_chains:
+            raise RuntimeError("simulation proxy lost semantic boundary provenance for %s" % panel.Name)
+        result[piece.Name] = {
+            "positions": positions,
+            "boundary_edges": tuple(tuple(int(i) for i in edge) for edge in edge_chains),
+        }
+    return result
+
+
+def _seam_endpoint_gap(simulated, seam_records):
     gaps = []
-    for seam, _, _ in seam_records:
-        ea, eb = int(seam.EdgeA), int(seam.EdgeB)
-        a0, a1 = front_points[ea], front_points[(ea + 1) % 8]
-        b0, b1 = back_points[eb], back_points[(eb + 1) % 8]
+    for seam, piece_a, piece_b in seam_records:
+        left = simulated[piece_a.Name]
+        right = simulated[piece_b.Name]
+        edge_a = left["boundary_edges"][int(seam.EdgeA)]
+        edge_b = right["boundary_edges"][int(seam.EdgeB)]
+        a = _sample_boundary_chain(edge_a, left["positions"], float(seam.StartA), float(seam.EndA), count=2)
+        b = _sample_boundary_chain(edge_b, right["positions"], float(seam.StartB), float(seam.EndB), count=2)
         if bool(seam.ReversedB):
-            b0, b1 = b1, b0
-        gaps.extend([
-            (App.Vector(a0.x, a0.y, a0.z) - App.Vector(b0.x, b0.y, b0.z)).Length,
-            (App.Vector(a1.x, a1.y, a1.z) - App.Vector(b1.x, b1.y, b1.z)).Length,
-        ])
+            b = tuple(reversed(b))
+        for point_a, point_b in zip(a, b):
+            gaps.append((point_a - point_b).Length)
     return max(gaps) if gaps else 0.0
 
 
@@ -325,6 +363,23 @@ def build_simulation_state(doc):
     return scene, avatar, panels, seam_records, authored, (front, back)
 
 
+def render_simulation_motion(view, scene, frame_dir, frame_count=16, final_steps=120):
+    os.makedirs(frame_dir, exist_ok=True)
+    final_steps = max(1, int(final_steps))
+    steps = [round(i * final_steps / float(frame_count - 1)) for i in range(frame_count)]
+    unique_steps = tuple(dict.fromkeys(int(step) for step in steps))
+    view.setCameraType("Orthographic")
+    view.viewFront(); view.fitAll(); events()
+    camera = view.getCameraNode()
+    for index, target_step in enumerate(unique_steps):
+        scene.Steps = int(target_step)
+        scene.Document.recompute()
+        if not bool(getattr(scene, "FiniteState", True)):
+            raise RuntimeError("non-finite simulation state at motion frame %d/%d" % (index, target_step))
+        save_png(view, os.path.join(frame_dir, "frame-%03d.png" % index), "simulation motion step %d" % target_step)
+    log("simulation-motion-pass frames=%d final_steps=%d" % (len(unique_steps), final_steps))
+
+
 def main():
     window = Gui.getMainWindow()
     if window is None or not window.isVisible():
@@ -350,12 +405,9 @@ def main():
         if any(panel.Mesh.CountFacets <= 10 for panel in panels):
             raise RuntimeError("draped tunic panel mesh is empty")
         front, back = pieces
-        simulated = {
-            front.Name: _boundary_points(panels[0], len(_outline(front))),
-            back.Name: _boundary_points(panels[1], len(_outline(back))),
-        }
+        simulated = _semantic_simulated_boundaries(scene, panels, pieces)
         _seam_overlay(doc, "TunicSeamsSimulated", seam_records, simulated)
-        seam_gap = _seam_endpoint_gap(panels, seam_records)
+        seam_gap = _seam_endpoint_gap(simulated, seam_records)
         log("simulation-seam-diagnostic max_endpoint_gap_mm=%.2f" % seam_gap)
         backend = getattr(getattr(scene, "Proxy", None), "_base_or_restore", lambda: None)()
         backend_name = getattr(getattr(backend, "backend", None), "name", "unknown") if backend is not None else "unknown"
@@ -364,6 +416,13 @@ def main():
             sum(len(t) for t in getattr(backend, "panel_triangles", {}).values()) if backend is not None else 0,
             panels[0].Mesh.CountFacets, panels[1].Mesh.CountFacets, seam_gap,
         ))
+        render_simulation_motion(
+            view,
+            scene,
+            os.path.join(OUT, "cloth-simulation-motion-frames"),
+            frame_count=16,
+            final_steps=steps,
+        )
         render_turntable(view, objects, os.path.join(OUT, "cloth-simulation-draped-turntable-frames"))
         log("simulation-turntable-pass")
     finally:
