@@ -127,17 +127,24 @@ def main():
         cube.Placement = App.Placement(App.Vector(-120.0, -80.0, 0.0), App.Rotation())
         doc.recompute()
 
-        scene = create_simulation_scene(doc)
-        set_avatar_collision_source(scene, cube, thickness=2.0, deflection=1.0)
-        ensure_quality_properties(scene)
-        scene.Proxy = QualitySimulationProxy()
-        scene.ClothPieces = [piece]
+        scene = create_quality_simulation_scene(doc)
+        avatar = scene.AvatarProxy.SourceObject
+        if avatar is not None:
+            avatar.ViewObject.Visibility = False
+        target = create_drape_target(doc, cube, "FreeCAD Geometry", deflection=1.0, thickness=0.0)
+        scene.DrapeTarget = target
+        refresh_drape_target(target)
+        scene.QualityPreset = "Balanced"
+        scene.ParticleDistance = 20.0
+        scene.SolverIterations = 32
+        scene.SolverSubsteps = 1
+        scene.TimeStep = 1.0 / 120.0
+        scene.StitchSamples = 4
         scene.GravityX = 0.0
         scene.GravityY = 0.0
         scene.GravityZ = -9810.0
-        scene.TimeStep = 1.0 / 120.0
-        # QualitySimulationProxy consumes SolverIterations; the legacy Iterations field is ignored here.
-        scene.SolverIterations = 20
+        scene.FabricFriction = 0.8
+        scene.ClothPieces = [piece]
 
         mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, scene.ParticleDistance)
         boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
