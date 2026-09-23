@@ -178,6 +178,7 @@ exec(compile(source, str(source_path), "exec"), globals(), globals())
 # pin selection, seam provenance, and the authoritative 35 mm gate are untouched.
 # The gate failure is raised after evidence capture so failing A/B runs retain
 # the required six-view artifact without weakening the 35 mm acceptance rule.
+# No production code path is altered.
 _original_tunic_simulation = simulation
 _original_write_drape_metrics = write_drape_metrics
 
