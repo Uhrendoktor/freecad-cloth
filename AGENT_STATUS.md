@@ -9,7 +9,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - Current main: `ccac198eae37bb162830895b1d8259ca84d7047f`
 - Canonical workflow: `.github/workflows/canonical-execution.yml`; exactly one workflow.
 - Supervisor completion issue: #1017.
-- Active release candidate: PR #1066, branch `supervisor/complete-audit-20260923`, live head `74eab90b06c46eb4b9d9f888ce98c3c6891e7933`.
+- Active release candidate: PR #1066, branch `supervisor/complete-audit-20260923`, live head `ae5b3ec1b4c625df05c5b161b2b91eb103c2bf45`.
 
 ## Implemented release slice
 
@@ -24,8 +24,8 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - Supporting run `35845226384` executed real FreeCAD/Xvfb jobs. The Basic Blanket-over-Cube job passed and produced artifact `10743635540`; its log reports a finite connected 4429-vertex mesh, spike ratio 2.337, footprint aspect 1.205, 106.373 mm motion, material-presentation acceptance, and 16 motion frames.
 - In that same run, the older README turntable source failed its fail-closed drape sanity gate with a detached-candidate state. That source used a 20 mm particle-distance / 32-iteration CPU configuration and is not the current release head.
 - The current release branch now uses the 200 mm fixture and the canonical Tissu backend for the README turntable, with no relaxation of drape, motion, mesh, frame-count, timeout, or artifact assertions.
-- Exact-head PR #1066 currently has no commit status and no pull_request workflow run. Controlled close/reopen also produced no run.
-- Main/release push runs `35848880387`, `35849087425`, and `35855453586` failed before job allocation with zero jobs/artifacts. Retrying `35855453586` through the connector returned GitHub 403: `This workflow run cannot be retried`.
+- Exact-head PR #1066 currently has no commit status and no pull_request workflow run. Controlled close/reopen produced no run; validation PR #1070 pointed at the same exact head and also produced no pull_request run before being closed.
+- Recent push runs `35856179268` (#3439), `35856103900` (#3438), and `35855977273` (#3437) failed before job allocation with zero jobs/artifacts. Retrying `35855453586` through the connector returned GitHub 403: `This workflow run cannot be retried`.
 
 ## Branch cleanup
 
@@ -42,4 +42,4 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - Do not merge or close #1017 or continuation #1067 yet.
 - Exact-head PR #1066 must receive a terminal canonical run and its jobs/artifacts/logs must be inspected.
 - After merge, merged-main canonical validation must be terminal-green before closing supervisor issues.
-- PR #1069 is closed as a superseded duplicate. PR #1066 is the sole open release PR.
+- PR #1069 is closed as a superseded duplicate. PR #1070 was a validation-only exact-head probe and is closed. PR #1066 is the sole open release PR.
