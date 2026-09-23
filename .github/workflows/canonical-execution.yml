@@ -22,7 +22,7 @@ env:
   XDG_RUNTIME_DIR: /tmp/runtime-cloth
 
 permissions:
-  actions: read
+  actions: write
   contents: write
   packages: write
 
@@ -131,7 +131,8 @@ jobs:
                 tests/test_pattern_simulation_adapter.py \
                 tests/test_seam_graph.py \
                 tests/test_workbench_icons.py \
-                tests/test_tunic_audit_contract.py; do
+                tests/test_tunic_audit_contract.py \
+                tests/test_readme_visual_contract.py; do
                 python3 "$test"
               done
             '
