@@ -379,6 +379,8 @@ jobs:
           test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
           test -d docs/images/generated/cloth-simulation-draped-turntable-frames
           test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
+          test -d docs/images/generated/cloth-simulation-motion-frames
+          test "$(find docs/images/generated/cloth-simulation-motion-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 16
       - name: Build turntable GIFs
         run: |
           set -euo pipefail
@@ -394,7 +396,8 @@ jobs:
           for spec in \
             "cloth-avatar-turntable-frames cloth-avatar-turntable.gif" \
             "cloth-simulation-arranged-turntable-frames cloth-simulation-arranged-turntable.gif" \
-            "cloth-simulation-draped-turntable-frames cloth-simulation-draped-turntable.gif"; do
+            "cloth-simulation-draped-turntable-frames cloth-simulation-draped-turntable.gif" \
+            "cloth-simulation-motion-frames cloth-simulation-motion.gif"; do
             set -- $spec
             "${IM[@]}" "docs/images/generated/$1"/frame-*.png \
               -delay 8 -loop 0 -colors 128 -layers Optimize \
@@ -408,6 +411,8 @@ jobs:
             identify -format '%n\n' "docs/images/generated/$gif" | head -n 1 | grep -qx '73'
             python3 -c 'import os,sys; p=sys.argv[1]; d=open(p,"rb").read(6); assert d in (b"GIF87a", b"GIF89a"); assert os.path.getsize(p)>=50000' "docs/images/generated/$gif"
           done
+          identify -format '%n\n' docs/images/generated/cloth-simulation-motion.gif | head -n 1 | grep -qx '16'
+          python3 -c 'import os; p="docs/images/generated/cloth-simulation-motion.gif"; assert os.path.getsize(p)>=20000'
       - name: Upload README turntables
         if: ${{ always() }}
         uses: actions/upload-artifact@v6
@@ -417,6 +422,7 @@ jobs:
             docs/images/generated/cloth-avatar-turntable.gif
             docs/images/generated/cloth-simulation-arranged-turntable.gif
             docs/images/generated/cloth-simulation-draped-turntable.gif
+            docs/images/generated/cloth-simulation-motion.gif
             docs/images/generated/avatar-gui-progress.log
             docs/images/generated/simulation-turntable-progress.log
           if-no-files-found: ignore
