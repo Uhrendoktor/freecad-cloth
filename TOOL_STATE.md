@@ -30,11 +30,11 @@ workflow_contract:
   runner_policy: prefer_recent_healthy_local_Docker_runner; fallback_github_hosted
   policy: preserve_Docker_Xvfb_FreeCAD_path; fail_closed_evidence; no_second_workflow
 
-latest_verified_ci:
-  run_id: 35817505956
-  run_number: 3099
-  commit: bff6269db9bbb8f97713893d23b223150b61e8e3
-  pr: null
+closeout_verified_ci:
+  run_id: 35818705178
+  run_number: 3101
+  commit: 0b37cba7361cabb4815a5c6eccd97c422820335b
+  pr: 1015
   status: completed
   conclusion: success
   jobs:
@@ -43,18 +43,19 @@ latest_verified_ci:
     - Sewing staged creation smoke
     - Pattern production export smoke
     - README turntables
-  skipped_on_pr:
     - Measured FreeCAD workbench benchmark
     - Publish README turntables
   artifacts:
-    tunic_visual_audit_id: 10731771171
-    tunic_visual_audit_sha256: d4ec5983cea1ae8b49cf34be30689a28838fb622a93f67fe5924372b0787bc17
-    sewing_creation_smoke_id: 10731161208
-    sewing_creation_smoke_sha256: d8bae57786d4bf01d7d190ca13d32031bb92ded3ab38e0fc6dd4d14187506a76
-    pattern_export_id: 10731166231
-    pattern_export_sha256: 238fecac5a79534832c5a707373b44f02514a02b9bb8ffadedd8cb0d552d9425
-    readme_turntables_id: 10731681283
-    readme_turntables_sha256: 484c775b8cf16d4b09cf4685dcce37b3c20ae6b25608dc559dee239c8c93c646
+    tunic_visual_audit_id: 10732103838
+    tunic_visual_audit_sha256: 7619ddb7bdf05e5919ccc3a77949860c0547f8599d73d5aa8205e43984ca1069
+    sewing_creation_smoke_id: 10732507254
+    sewing_creation_smoke_sha256: d026c03971fab055742e12cd12b3152d86e7478f21cc741a0a30a341c86b30ae
+    pattern_export_id: 10732133675
+    pattern_export_sha256: 475503b14ea7609a84b932b5dcb6cd7e2fe4e72f4ac9a41fc054a32361e9becb
+    readme_turntables_id: 10731764698
+    readme_turntables_sha256: cf31b2823d4eeb8edbf1c6c6f7245c90a9ca1f17baca3e80f2ef5c5818f20f02
+    workbench_benchmark_id: 10731629572
+    workbench_benchmark_sha256: 3bfca5553fcb8ba114f73fa6d6094c4c73776b084ac102cc07db70d82149fd74
 
 release_evidence:
   garment_e2e: passed
