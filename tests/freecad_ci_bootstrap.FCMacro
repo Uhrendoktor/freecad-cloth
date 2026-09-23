@@ -1,33 +1,43 @@
-"""FreeCAD GUI acceptance bootstrap executed as an FCMacro after GUI startup."""
+"""FreeCAD GUI acceptance bootstrap that defers work until startup returns."""
 import os
 import runpy
 import sys
-
-import FreeCADGui as Gui
-
+import traceback
 
 ROOT = "/workspace"
 script = os.environ["CLOTH_CI_SCRIPT"]
 
+# Keep the repository out of FreeCAD's own delayed-startup import path.
 sys.path[:] = [p for p in sys.path if p != ROOT]
+
+import FreeCADGui as Gui  # noqa: E402
+try:
+    from PySide import QtCore, QtWidgets  # noqa: E402
+except ImportError:
+    from PySide2 import QtCore, QtWidgets  # noqa: E402
+
 
 window = Gui.getMainWindow()
 if window is None:
     raise RuntimeError("FreeCAD GUI main window is not available")
-
 window.show()
-Gui.updateGui()
 
-try:
-    from PySide import QtWidgets
-except ImportError:
-    from PySide2 import QtWidgets
 
-app = QtWidgets.QApplication.instance()
-if app is not None:
-    app.processEvents()
+def _run_acceptance():
+    app = QtWidgets.QApplication.instance()
+    try:
+        if ROOT not in sys.path:
+            sys.path.insert(0, ROOT)
+        runpy.run_path(script, run_name="__main__")
+    except BaseException:
+        traceback.print_exc()
+        if app is not None:
+            app.exit(1)
+        return
+    if app is not None:
+        app.exit(0)
 
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
 
-runpy.run_path(script, run_name="__main__")
+# The macro may be reached through FreeCAD's startup file-processing path.
+# Deferring the acceptance script prevents InitGui.py from re-entering startup.
+QtCore.QTimer.singleShot(0, _run_acceptance)
