@@ -111,11 +111,22 @@ def main():
     window = Gui.getMainWindow()
     if window is None or not window.isVisible():
         raise RuntimeError("FreeCAD GUI did not launch")
+    window.show()
+    events()
+    init_gui = os.path.join(Path(__file__).resolve().parents[1], "InitGui.py")
+    if "ClothPatternWorkbench" not in Gui.listWorkbenches():
+        exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
+    events()
     doc = App.newDocument("ClothBlanketExample")
     try:
-        sketch, outline = make_rectangle_sketch(doc, "BlanketSketch", 260.0, 260.0)
+        blanket_width = 200.0
+        blanket_height = 200.0
+        sketch, outline = make_rectangle_sketch(doc, "BlanketSketch", blanket_width, blanket_height)
         piece = adopt_sketch(doc, sketch)
-        placement = App.Placement(App.Vector(-130.0, -130.0, 150.0), App.Rotation())
+        placement = App.Placement(
+            App.Vector(-blanket_width / 2.0, -blanket_height / 2.0, 150.0),
+            App.Rotation(),
+        )
         piece.Placement = placement
         piece.Sketch.Placement = placement
 
@@ -153,7 +164,7 @@ def main():
             max(top_edge, key=lambda index: float(mesh_positions[index][0])),
         )
         pin_span = abs(float(mesh_positions[top[1]][0]) - float(mesh_positions[top[0]][0]))
-        if pin_span < 0.75 * 260.0:
+        if pin_span < 0.75 * blanket_width:
             raise RuntimeError("blanket pins are not opposite top-edge corners: span=%.3f" % pin_span)
         scene.PinSelection = [str(int(index)) for index in top]
         log("blanket-pins=passed opposite-corners span=%.3f indices=%s" % (pin_span, top))
