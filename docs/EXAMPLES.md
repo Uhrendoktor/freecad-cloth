@@ -4,7 +4,7 @@ The project uses a complexity ladder so a new user can validate the installation
 
 | Example | Complexity | What it demonstrates | Visual validation |
 |---|---|---|---|
-| Blanket over Cube | Basic | one native Sketcher pattern, one FreeCAD collision target, pins, gravity and drape | four checkpoints + motion GIF |
+| Blanket over Cube | Basic | one native Sketcher pattern, one FreeCAD collision target, pins, gravity and drape | five checkpoints + motion GIF |
 | Tunic | Advanced | multiple native pattern pieces, semantic seams, mannequin collision, material/quality controls, diagnostics and production export | six views + diagnostic map + arranged/draped turntables + motion GIF |
 
 ## 1. Blanket over Cube
