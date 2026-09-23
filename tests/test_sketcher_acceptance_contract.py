@@ -15,15 +15,17 @@ def test_sketcher_acceptance_initializes_gui_before_manual_initgui_bootstrap():
     assert '_stage("gui-ready")' in run
 
 
-if __name__ == "__main__":
-    test_sketcher_acceptance_initializes_gui_before_manual_initgui_bootstrap()
-
-def test_sketcher_acceptance_starts_freecad_without_repository_pythonpath():
+def test_sketcher_acceptance_starts_freecad_outside_repository_path():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
     job = workflow.split("gui-sketcher-acceptance:", 1)[1].split("gui-pattern-export:", 1)[0]
     assert "-w /tmp" in job
     assert "-e PYTHONPATH=/workspace" not in job
-    assert "cat > /tmp/freecad_ci_bootstrap.py" in job
     assert "CLOTH_CI_SCRIPT=/workspace/tests/freecad_sketcher_acceptance.py" in job
-    assert "/opt/freecad/AppRun /tmp/freecad_ci_bootstrap.py" in job
+    assert "/opt/freecad/AppRun /workspace/tests/freecad_ci_bootstrap.py" in job
     assert "AppRun tests/freecad_sketcher_acceptance.py" not in job
+
+
+def test_freecad_ci_bootstrap_defers_repository_import_until_after_process_start():
+    source = (ROOT / "tests" / "freecad_ci_bootstrap.py").read_text(encoding="utf-8")
+    assert 'sys.path.insert(0, ROOT)' in source
+    assert 'runpy.run_path(script, run_name="__main__")' in source
