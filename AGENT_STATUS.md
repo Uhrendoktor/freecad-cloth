@@ -9,7 +9,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - Current main: resolve current `refs/heads/main` tip at audit time.
 - Canonical workflow: `.github/workflows/canonical-execution.yml`; exactly one workflow.
 - Supervisor completion issue: #1017.
-- Active release candidate: PR #1073, branch `supervisor/final-release-20260923`; current exact head is recorded by the open PR and `TOOL_STATE.md`.
+- Active release candidate: PR #1075, branch `supervisor/final-release-fixed-main-20260923`; exact head `85cf3517b28c179eecbdfa070b26f57f0a1f3e87`.
 
 ## Implemented release slice
 
@@ -22,22 +22,22 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 ## CI evidence
 
 - Supporting canonical run #3297 / `35844023654` executed real FreeCAD/Xvfb jobs. Python, sewing, pattern export, blanket visual, README turntable and tunic audit passed; only Native Sketcher acceptance timed out after its 8-minute fail-closed limit. The 200 mm Blanket-over-Cube fixture was separately validated in real FreeCAD/Xvfb by run `35845226384`, artifact `10743635540`.
-- The timeout job log showed the FreeCAD process reached the test invocation but emitted no acceptance-stage output. The merged release now explicitly bootstraps workbench registration before activation and includes flushed acceptance stage markers.
-- Current PR #1073 has no `pull_request` workflow run or status. Recent candidate push runs and current main push runs terminate `failure` before job allocation with zero jobs and zero artifacts. A controlled close/reopen probe on #1073 also delivered no `pull_request` run.
+- The timeout job log showed the FreeCAD process reached the test invocation but emitted no acceptance-stage output. Main now also includes the reviewed module-level `run_acceptance()` launcher fix from merged PR #1074, matching FreeCAD's documented/import behavior; runtime confirmation remains blocked by Actions delivery.
+- Current PR #1075 has no `pull_request` workflow run or status. Latest candidate push run #3472 / `35866144418` and current main push run #3470 / `35866005385` terminate `failure` before job allocation with zero jobs and zero artifacts. The prior controlled close/reopen probes also delivered no `pull_request` run.
 - Other branches still have real `pull_request` runs, and historical scheduled execution proves the canonical workflow graph can run when GitHub delivers the event. The current connector cannot inspect or change the required Actions administration policy and cannot dispatch `workflow_dispatch`, so zero-job event delivery remains an external blocker rather than test evidence.
 
 ## Branch cleanup
 
-- 486 historical agent/supervisor and other branches remain. The installed GitHub connector exposes branch listing but no branch-delete operation, so branch cleanup is not claimed complete.
+- 487 historical agent/supervisor and other branches remain. The installed GitHub connector exposes branch listing but no branch-delete operation, so branch cleanup is not claimed complete.
 
 ## External CI blocker
 
 - GitHub Actions event delivery remains unresolved: current main/release push runs can terminate `failure` with zero jobs, while other historical pull_request/schedule runs instantiate the canonical job graph.
-- Repository-side policy inspection requires Administration access not exposed by the installed GitHub connector. Exact restoration path is recorded in issue #1053: inspect inherited/repository Actions event restrictions, then trigger a real `pull_request:synchronize` or `reopened` event on PR #1073 and verify non-zero jobs.
+- Repository-side policy inspection requires Administration access not exposed by the installed GitHub connector. Exact restoration path is recorded in issue #1053: inspect inherited/repository Actions event restrictions, then trigger a real `pull_request:synchronize` or `reopened` event on PR #1075 and verify non-zero jobs.
 
 ## Current gate
 
 - Do not merge or close #1017 or continuation #1067 yet.
-- Exact-head PR #1073 must receive a terminal canonical run and its jobs/artifacts/logs must be inspected.
+- Exact-head PR #1075 must receive a terminal canonical run and its jobs/artifacts/logs must be inspected.
 - After merge, merged-main canonical validation must be terminal-green before closing supervisor issues.
-- Stale/overlapping PRs have been superseded. PR #1073 is the sole open release PR; #1053 is the active external CI blocker; #1020 and #1043 remain open until their acceptance gates are verified on merged main.
+- PR #1073 has been superseded and closed; PR #1075 is the sole open release PR; #1053 is the active external CI blocker; #1020 and #1043 remain open until their acceptance gates are verified on merged main.
