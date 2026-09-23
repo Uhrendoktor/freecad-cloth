@@ -355,6 +355,7 @@ def run_acceptance():
         fabric_material.Specular = 0.70
         fabric_material.Roughness = 0.20
         fabric_material.Transparency = 12.0
+        fabric_material_name = fabric_material.Name
         doc.recompute()
         for _ in range(4):
             Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
@@ -654,7 +655,7 @@ def run_acceptance():
                     raise RuntimeError("save/reload lost garment hierarchy membership for %s" % role)
             if not any(item["role"] == "FabricMaterial" for item in reloaded_structure["groups"]["Fabric"]):
                 raise RuntimeError("save/reload lost FabricMaterial")
-            fabric_material = reloaded.getObject(fabric_material.Name if hasattr(fabric_material, "Name") else "")
+            fabric_material = reloaded.getObject(fabric_material_name)
             if fabric_material is None or str(getattr(fabric_material, "GarmentRole", "")) != "FabricMaterial":
                 raise RuntimeError("save/reload lost the native FabricMaterial object")
             restored_color = tuple(float(value) for value in fabric_material.Color[:3])
