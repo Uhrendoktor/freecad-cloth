@@ -251,8 +251,13 @@ class QualitySimulationProxy:
         transparency = int(getattr(obj, "FabricTransparency", 0))
         for panel in getattr(obj, "DrapePanels", ()):
             try:
-                panel.ViewObject.ShapeColor = color
-                panel.ViewObject.Transparency = transparency
+                view = panel.ViewObject
+                view.ShapeColor = color
+                view.Transparency = transparency
+                if hasattr(view, "SpecularColor"):
+                    view.SpecularColor = (float(getattr(obj, "FabricSpecular", 0.25)),) * 3
+                if hasattr(view, "Shininess"):
+                    view.Shininess = float(max(0.0, min(100.0, (1.0 - float(getattr(obj, "FabricRoughness", 0.65))) * 100.0)))
             except (AttributeError, TypeError, ValueError):
                 pass
 
