@@ -31,3 +31,16 @@ def test_canonical_workflow_fails_closed_on_turntable_quality():
     assert "blanket-turntable-pass" in source
     assert 'test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames' in source
     assert 'checkpoint-uniqueness=passed' in source
+
+
+def test_blanket_motion_gif_timing_contract():
+    source = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    build = source.split("      - name: Build blanket motion GIF", 1)[1].split(
+        "      - name: Upload blanket visual evidence", 1
+    )[0]
+    input_glob = "docs/images/generated/blanket-example/motion-*.png"
+    assert '"${IM[@]}" -delay 10 ' in build
+    assert build.index("-delay 10") < build.index(input_glob)
+    assert "identify -format '%T\\n' docs/images/generated/blanket-example/blanket-motion.gif" in build
+    assert "sort -u | tr -d ' '" in build
+    assert ' = "10"' in build
