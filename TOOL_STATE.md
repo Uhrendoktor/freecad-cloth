@@ -1,7 +1,7 @@
 # Tool State
 
 ```yaml
-schema: 12
+schema: 13
 repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
@@ -9,7 +9,7 @@ supervisor_issue: 1017
 continuation_issue: 1094
 active_release_pr: 1075
 active_release_branch: supervisor/final-release-fixed-main-20260923
-current_main: 8ad49c8197d173c2279d3d955cf7af5084780567
+current_main: 12cb1c01681fc0fa67b6bd458736bd97bd78baad
 workflow_count: 1
 workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; inspect_jobs_logs_artifacts; no_second_workflow
@@ -17,21 +17,24 @@ release_gate:
   candidate: PR_1075
   exact_head: 69215e7286ffda3da655f53094c5ae86d4644eb3
   pr_run_state: no pull_request run/status at exact head; latest exact-head push run #3556 / 35904941979 failed pre-job with zero jobs/artifacts
-  candidate_relation_to_main: ahead_by_2; behind_by_5; behind side is subsequent supervisor/documentation history and must not be rebased away
+  candidate_relation_to_main: ahead_by_2; behind_by_15; behind side is subsequent supervisor/documentation history and must not be rebased away
+  timing_fix_pr: PR_1097
+  timing_fix_head: af7bbd269f275890805534f9b52f0d479bf86cea
+  timing_fix_ci: no pull_request workflow run/status delivered
   supporting_run: 35845226384
   supporting_artifact: 10743635540
   supporting_run_result: 200 mm Blanket-over-Cube real FreeCAD/Xvfb acceptance passed; 16 distinct motion frames and representative checkpoints inspected
   external_ci_blocker: exact-head pull_request delivery remains absent and push attempts fail before job allocation; connector exposes no workflow dispatch or Actions policy administration
 final_gate: exact_head_canonical_pr_green; inspect_jobs_logs_artifacts; merge; merged_main_canonical_pr_green; fresh_repo_audit
-open_actionable_issues: [1017, 1020, 1043, 1053, 1075, 1084, 1088, 1090, 1094]
+open_actionable_issues: [1017, 1020, 1043, 1053, 1075, 1084, 1088, 1094, 1097]
 remote_branch_count_observed: 498
 last_schedule_run: 3225/35839191664; success; 12 jobs instantiated; daily retention job skipped because event was the */5-minute schedule
 daily_0300_utc: no run evidenced for 2026-09-23
 published_asset_gap: docs/screenshots:docs/images/generated/cloth-blanket-motion.gif
 release_replacement_prs_closed_unmerged: [1093, 1095, 1096]
-readme_gif_timing_fix_pr: 1090
-readme_gif_timing_fix_head: 76a37cc9e78a1d810f9c6c116c0d20b14a00124e
-readme_gif_timing_fix_ci: no pull_request workflow run/status delivered
+timing_duplicate_closed_unmerged: [1090]
+timing_fix_pr: 1097
+timing_fix_head: af7bbd269f275890805534f9b52f0d479bf86cea
 ```
 
 closed_research_issues: [1042, 1055]
