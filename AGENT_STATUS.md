@@ -1,44 +1,28 @@
 # Agent status
 
-Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVELOPMENT.md` and `docs/PROJECT_STRUCTURE.md`.
+Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVELOPMENT.md`.
 
 ## Repository
-
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main state: the historical closeout is superseded by supervisor issue #1017; PR #1018 carries the release-foundation corrections and remains open pending exact-head terminal verification.
-- Merged release PR #1001 provides the canonical garment E2E gate. Its validated source head was `40140b3a06549249c567feeb5e74dd5b766f551b`, exact-head canonical run #3076 / `35813109107`, terminal conclusion `success`.
-- PR #904 was subsequently merged into main as `4e119229cd4df00b529d002dd32106b09504992e` and establishes the current canonical local-Docker-runner preference with GitHub-hosted fallback. Runs #3084 and #3085 exercised that current workflow on the state-sync PR and were terminal-green across all active validation jobs.
-- PR #1009 (durable-state synchronization) is merged as `c41a071a345715f199bdade34872049faba4527d`; final closeout-state PR #1011 carries the final synchronized repository state.
-- PR #1018 is open for the supervisor release-foundation work. PR #925/#1008 runner experiments and stale sewing PR #999 were closed unmerged; #904 is the merged runner implementation.
-- Python package boundary: `freecad_cloth/` with `avatar`, `pattern`, `sewing`, `simulation`, `common`, and `shared` subpackages.
-- Root Python files remain limited to `Init.py`, `InitGui.py`, and the CI `sitecustomize.py` hook.
-- Canonical CI: `.github/workflows/canonical-execution.yml`; exactly one workflow is retained.
-- CI policy: preserve the Docker/Xvfb FreeCAD path, runner fallback behavior, and fail-closed screenshot/evidence assertions; do not multiply workflows.
+- Main at replan: `dad152e634bcf454bc71aa02f4c1bfa858c154c1`
+- Canonical workflow: `.github/workflows/canonical-execution.yml`; exactly one workflow.
+- Supervisor issue: #1017.
+- Active release candidate: PR #1044, branch `supervisor/release-final-20260923`.
 
-## Release evidence
+## Evidence
+- Diagnostic run #3297 / `35844023654`: Python, staged sewing, production export, basic blanket visual, README turntables and full tunic audit passed; Native Sketcher acceptance failed by timeout after its 8-minute fail-closed limit.
+- Run #3297 artifacts inspected directly. The blanket artifact records opposite-corner pins, `edge_spike_ratio=2.703), finite connected mesh, drape pass, 99.148 mm material movement and a 16-frame motion GIF. Tunic, sewing, export and turntable artifacts were also inspected.
+- The Sketcher timeout log showed the FreeCAD process reached the acceptance command after checkout/image startup but produced no script-stage output because the test attempted workbench activation without first ensuring `InitGui.py` had registered the workbenches.
+- The release candidate fixes that boundary and also aligns the README blanket turntable with the validated blanket fixture rather than merely checking motion.
 
-- Post-merge main run #3101 / `35818705178` passed Python/non-GUI, staged sewing creation, production pattern export, full tunic visual/simulation audit, README turntables, the measured workbench benchmark, and README turntable publication.
-- Closeout artifacts from run #3101 were inspected: tunic visual audit #10732103838, sewing creation #10732507254, production export #10732133675, workbench benchmark #10731629572, and README turntables #10731764698.
-- The tunic artifact contains curved 1:1 and staged 2:2 M:N sewing acceptance, proportional physical correspondence, seam 2D/3D visual evidence, four-piece arrangement and native Garment hierarchy, Mannequin DrapeTarget, stress diagnostics, save/reload, explicit invalidation/repair, stale-export blocking, deterministic rerun and SVG/DXF export evidence. The run completed all canonical validation jobs successfully.
-- The benchmark artifact was produced by the canonical FreeCAD benchmark job on the merged closeout state.
-- Earlier exact-head sewing run #3063 / `35809583435` independently passed the focused curved-M:N smoke. Its artifact #10729700651 records non-uniform curved sampling, 2:2 proportional physical lengths, explicit B reversal, correspondence severity/recovery GUI evidence, 2D/3D seam visuals, save/reload endpoint stability, stale-reference invalidation, and FreeSewing preview/commit/cancel.
-- Current main contains the post-reload PatternPiece reacquisition fix originally tracked by stale PR #999.
+## Current gate
+- Do not merge or close #1017/#1020/#1041/#1042 yet.
+- Exact-head PR validation has not been exposed by the GitHub connector; branch push runs fail with zero jobs. Treat that as an external Actions orchestration blocker, not success.
+- After exact-head terminal validation becomes available: merge PR #1044, verify merged-main canonical CI, reconcile `TOOL_STATE.md`, `ROADMAP.md`, open issues/PRs and stale branches, then close completed durable records with explicit reasons.
 
-## Architecture / project state
-
-- FreeCAD remains authoritative for editable geometry and persistence; Cloth owns garment semantics; the solver owns physics.
-- `PatternIR`, `SewingGraph`, `SimulationScene`, and `DrapeTarget` remain the semantic boundaries.
-- Simulation-derived mesh/collision state is rebuildable and invalidated from authoritative upstream edits.
-- Current main contains the prior garment lifecycle implementation, but supervisor #1017 identifies additional release gates: visual seam provenance, basic-example acceptance, real simulation-motion media, material presentation, onboarding, governance and retention hygiene. Those gates are being added in PR #1018.
-- The durable sewing correspondence/diagnostics closeout (#475) is complete and closed.
-- Historical child issues for garment lifecycle, curved M:N sewing, canonical workflow preflight, stale workflow tracks, and lifecycle process termination have been reconciled and closed with explicit state reasons.
-- The prior release records remain historical. Supervisor issue #1017 is the active completion criterion and must remain open until PR #1018 reaches terminal CI verification.
-
-## Current task
-
-- Supervisor issue: #1017 remains the durable complete-project criterion until the release candidate is merged and merged-main canonical verification is terminal-green.
-- Active release candidate: PR #1040, cut from the current default branch and kept on the repository's single canonical workflow.
-- Current candidate scope includes the human-facing User Guide, native Sketch idempotence/regression coverage, world-space seam acceptance, and the deterministic Blanket-over-Cube visual fixture with generic-geometry mesh collision, effective solver iterations, stable launch height, and unchanged fail-closed mesh spike thresholds.
-- Validation policy: inspect the exact PR head, all terminal CI jobs, generated artifacts and logs, then merge only on terminal-green evidence.
-- After merge, re-audit open issues/PRs, stale durable state, documentation, tests, workflows and branch hygiene before closing #1017.
+## Non-negotiables
+- FreeCAD/Sketcher remains authoritative for geometry and persistence.
+- Derived simulation state is rebuildable/invalidation-aware.
+- No weakened mesh or screenshot thresholds.
+- No second workflow.
