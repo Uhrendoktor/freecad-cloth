@@ -523,9 +523,9 @@ jobs:
             sudo apt-get install -y imagemagick
             IM=(convert)
           fi
-          "${IM[@]}" -delay 10 -loop 0 -colors 128 \
+          "${IM[@]}" -delay 10 -loop 0 \
             docs/images/generated/blanket-example/motion-*.png \
-            docs/images/generated/blanket-example/blanket-motion.gif
+            -colors 128 docs/images/generated/blanket-example/blanket-motion.gif
           identify -format '%n\n' docs/images/generated/blanket-example/blanket-motion.gif | head -n 1 | grep -qx '16'
           identify -format '%T\n' docs/images/generated/blanket-example/blanket-motion.gif | sort -u | grep -qx '10'
           test -s docs/images/generated/blanket-example/blanket-motion.gif
