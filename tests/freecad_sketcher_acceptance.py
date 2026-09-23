@@ -159,6 +159,12 @@ def _record(message):
 
 def run_acceptance():
     _stage("process-start")
+    window = Gui.getMainWindow()
+    if window is None:
+        raise RuntimeError("FreeCAD GUI main window is not available")
+    window.show()
+    _events()
+    _stage("gui-ready")
     _bootstrap_workbenches()
     _stage("workbenches-registered")
     doc = App.newDocument("NativeSketcherAcceptance")
