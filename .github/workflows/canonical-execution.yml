@@ -465,6 +465,7 @@ jobs:
               -delay 8 -loop 0 -colors 128 -layers Optimize \
               "docs/images/generated/$gif"
             test -s "docs/images/generated/$gif"
+          done
           identify -format '%n\n' docs/images/generated/cloth-simulation-arranged-turntable.gif | head -n 1 | grep -qx '73'
           identify -format '%n\n' docs/images/generated/cloth-simulation-draped-turntable.gif | head -n 1 | grep -qx '73'
       - name: Upload README turntable evidence
