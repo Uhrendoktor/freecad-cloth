@@ -66,3 +66,28 @@ def test_canonical_tunic_authoritative_gate_is_fail_closed():
     assert "proxy=proxy" in source
     assert "authoritative tunic seams did not converge" in source
     assert "if max_seam_gap > 35.0" in source
+
+def test_simulation_proxy_serializes_only_rebuildable_metadata():
+    from freecad_cloth.simulation.SimulationObjects import SimulationProxy
+
+    proxy = SimulationProxy()
+    proxy.backend = object()
+    proxy.panel_indices = {"panel": (1, 2)}
+    proxy.seam_stitch_pairs = {"seam": ((0, 1),)}
+    proxy.source_signature = ("derived",)
+    proxy.last_steps = 17
+    proxy.collision_surface = object()
+
+    state = proxy.__getstate__()
+    assert state == {"schema": 1}
+    assert "backend" not in state
+    assert "seam_stitch_pairs" not in state
+    assert "collision_surface" not in state
+
+    proxy.__setstate__(state)
+    assert proxy.backend is None
+    assert proxy.panel_indices == {}
+    assert proxy.seam_stitch_pairs == {}
+    assert proxy.source_signature is None
+    assert proxy.last_steps == 0
+    assert proxy.collision_surface is None

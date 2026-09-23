@@ -351,6 +351,22 @@ class SimulationProxy:
         self.last_steps = 0
         self.collision_surface = None
 
+    def __getstate__(self):
+        """Persist only deterministic proxy metadata; runtime solver state is rebuildable."""
+        return {"schema": 1}
+
+    def __setstate__(self, state):
+        """Restore an empty runtime cache; FreeCAD document properties remain authoritative."""
+        self.backend = None
+        self.panel_indices = {}
+        self.panel_triangles = {}
+        self.panel_boundary_edges = {}
+        self.panel_piece_names = {}
+        self.seam_stitch_pairs = {}
+        self.source_signature = None
+        self.last_steps = 0
+        self.collision_surface = None
+
     def execute(self, obj):
         pieces = [p for p in getattr(obj, "ClothPieces", ()) if getattr(p, "PatternType", "") == "PatternPiece"]
         signature = _simulation_source_signature(obj, pieces)
