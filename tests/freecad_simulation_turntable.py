@@ -326,7 +326,6 @@ def build_simulation_state(doc):
     from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, ensure_quality_properties
 
-    doc.addObject("PartDesign::Body", "BlanketSourceBody")
     sketch = _make_rectangle_sketch(doc, "BlanketSource", 260.0, 260.0)
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(sketch)
