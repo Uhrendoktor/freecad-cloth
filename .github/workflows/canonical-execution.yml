@@ -428,9 +428,77 @@ jobs:
           if-no-files-found: ignore
           compression-level: 1
 
+  gui-visual-examples:
+    name: Basic blanket visual example
+    needs: runner_selection
+    runs-on: ${{ fromJSON(needs.runner_selection.outputs.runner) }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Run blanket visual example
+        run: |
+          set -euo pipefail
+          rm -rf docs/images/generated/blanket-example
+          mkdir -p docs/images/generated/blanket-example
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated/blanket-example
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /workspace/tests/freecad_visual_examples.py
+            '
+          test -s docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'blanket-visual-acceptance=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'mesh=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'movement=passed' docs/images/generated/blanket-example/blanket-visual.log
+          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'checkpoint-*.png' | wc -l)" -eq 5
+          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'motion-*.png' | wc -l)" -eq 16
+      - name: Build blanket motion GIF
+        run: |
+          set -euo pipefail
+          if command -v magick >/dev/null 2>&1; then
+            IM=(magick)
+          elif command -v convert >/dev/null 2>&1; then
+            IM=(convert)
+          else
+            sudo apt-get update
+            sudo apt-get install -y imagemagick
+            IM=(convert)
+          fi
+          "${IM[@]}" docs/images/generated/blanket-example/motion-*.png \
+            -delay 10 -loop 0 -colors 128 -layers Optimize \
+            docs/images/generated/blanket-example/blanket-motion.gif
+          identify -format '%n\n' docs/images/generated/blanket-example/blanket-motion.gif | head -n 1 | grep -qx '16'
+          test -s docs/images/generated/blanket-example/blanket-motion.gif
+      - name: Upload blanket visual evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: blanket-visual-example
+          path: |
+            docs/images/generated/blanket-example/*.png
+            docs/images/generated/blanket-example/blanket-motion.gif
+            docs/images/generated/blanket-example/blanket-visual.log
+          if-no-files-found: error
+          compression-level: 1
   publish-readme-turntables:
-    name: Publish README turntables
-    needs: [runner_selection, gui-tunic-visual, gui-turntables]
+    name: Publish README turntables and example motion
+    needs: [runner_selection, gui-tunic-visual, gui-turntables, gui-visual-examples]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ${{ fromJSON(needs.runner_selection.outputs.runner) }}
     timeout-minutes: 10
@@ -440,6 +508,11 @@ jobs:
         with:
           name: readme-turntables
           path: turntables
+      - name: Download blanket visual example
+        uses: actions/download-artifact@v6
+        with:
+          name: blanket-visual-example
+          path: blanket
       - name: Update stable README asset branch
         env:
           GH_TOKEN: ${{ github.token }}
@@ -459,6 +532,8 @@ jobs:
           cp ../turntables/cloth-avatar-turntable.gif docs/images/generated/
           cp ../turntables/cloth-simulation-arranged-turntable.gif docs/images/generated/
           cp ../turntables/cloth-simulation-draped-turntable.gif docs/images/generated/
+          cp ../turntables/cloth-simulation-motion.gif docs/images/generated/
+          cp ../blanket/blanket-example/blanket-motion.gif docs/images/generated/cloth-blanket-motion.gif
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/images/generated/cloth-avatar-turntable.gif \
