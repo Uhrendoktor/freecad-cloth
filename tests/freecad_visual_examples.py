@@ -25,6 +25,10 @@ from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, 
 from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, ensure_quality_properties
 
 
+# A generic FreeCAD cube requires Tissu's mesh collision path; torso-envelope is for avatar-style targets.
+os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "mesh")
+
+
 OUT = Path(os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")) / "blanket-example"
 OUT.mkdir(parents=True, exist_ok=True)
 LOG = OUT / "blanket-visual.log"
@@ -110,11 +114,11 @@ def main():
         raise RuntimeError("FreeCAD GUI did not launch")
     doc = App.newDocument("ClothBlanketExample")
     try:
-        sketch, outline = make_rectangle_sketch(doc, "BlanketSketch", 260.0, 260.0)
+        blanket_width = 200.0
+        blanket_height = 200.0
+        sketch, outline = make_rectangle_sketch(doc, "BlanketSketch", blanket_width, blanket_height)
         piece = adopt_sketch(doc, sketch)
-        # Keep the pinned top edge close enough to the cube that collision contact
-        # does not create isolated long edges from the fixed corner vertices.
-        placement = App.Placement(App.Vector(-130.0, -130.0, 70.0), App.Rotation())
+        placement = App.Placement(App.Vector(-blanket_width / 2.0, -blanket_height / 2.0, 70.0), App.Rotation())
         piece.Placement = placement
         piece.Sketch.Placement = placement
 
@@ -128,19 +132,34 @@ def main():
         ensure_quality_properties(scene)
         scene.Proxy = QualitySimulationProxy()
         scene.ClothPieces = [piece]
-        # The fixture placement already leaves the blanket 90 mm above the cube top.
-        # Avoid the extra solver launch height to reduce impact energy at collision.
         scene.StartHeight = 0.0
         scene.GravityX = 0.0
         scene.GravityY = 0.0
         scene.GravityZ = -9810.0
-        scene.TimeStep = 1.0 / 240.0
-        scene.Iterations = 20
+        scene.TimeStep = 1.0 / 480.0
+        # QualitySimulationProxy consumes SolverIterations; the legacy Iterations field is ignored for this runtime path.
+        scene.SolverIterations = 20
 
         mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, scene.ParticleDistance)
         boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
-        top = sorted(boundary_vertices, key=lambda index: float(mesh_positions[index][1]), reverse=True)[:2]
+        if not boundary_vertices:
+            raise RuntimeError("blanket quality mesh has no boundary vertices")
+        top_y = max(float(mesh_positions[index][1]) for index in boundary_vertices)
+        top_edge = tuple(
+            index for index in boundary_vertices
+            if abs(float(mesh_positions[index][1]) - top_y) <= 1e-9
+        )
+        if len(top_edge) < 2:
+            raise RuntimeError("blanket top edge has fewer than two boundary vertices")
+        top = (
+            min(top_edge, key=lambda index: float(mesh_positions[index][0])),
+            max(top_edge, key=lambda index: float(mesh_positions[index][0])),
+        )
+        pin_span = abs(float(mesh_positions[top[1]][0]) - float(mesh_positions[top[0]][0]))
+        if pin_span < 0.75 * blanket_width:
+            raise RuntimeError("blanket pins are not opposite top-edge corners: span=%.3f" % pin_span)
         scene.PinSelection = [str(int(index)) for index in top]
+        log("blanket-pins=passed opposite-corners span=%.3f indices=%s" % (pin_span, top))
         scene.FabricColor = (0.14, 0.32, 0.78)
         scene.FabricSpecular = 0.70
         scene.FabricRoughness = 0.20
@@ -174,7 +193,7 @@ def main():
         save_png(view, OUT / "checkpoint-000.png", "blanket initial state")
 
         initial_points = tuple(tuple(float(value) for value in point) for point in scene.Proxy._base_or_restore().backend.positions())
-        render_steps = (15, 30, 60, 120)
+        render_steps = (60, 120, 240, 480)
         for step in render_steps:
             scene.Steps = step
             doc.recompute()
@@ -223,7 +242,7 @@ def main():
             raise RuntimeError("simulation viewport did not apply persisted fabric transparency")
         log("material-presentation=passed viewport=true color=0.14,0.32,0.78 transparency=12")
 
-        render_motion(view, scene, frame_count=16, final_steps=120)
+        render_motion(view, scene, frame_count=16, final_steps=480)
         log("blanket-visual-acceptance=passed")
     finally:
         if doc.Name in App.listDocuments():
