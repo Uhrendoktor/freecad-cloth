@@ -28,10 +28,9 @@ os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "mesh")
 
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 BLANKET_SIZE = 200.0
-# This README fixture is the deterministic CPU reference example. The canonical
-# turntable job also renders a Tissu-based avatar, so do not inherit that backend
-# selection for the blanket scenario.
-os.environ["CLOTH_SIMULATION_BACKEND"] = "xpbd-cpu"
+# The README fixture uses the same pinned Tissu mesh-collision runtime as the
+# canonical turntable job and the validated 200 mm blanket visual example.
+os.environ["CLOTH_SIMULATION_BACKEND"] = "tissu"
 os.makedirs(OUT, exist_ok=True)
 LOG = os.path.join(OUT, "simulation-turntable-progress.log")
 
