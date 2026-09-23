@@ -13,6 +13,10 @@ import Part
 import Sketcher
 
 
+def _stage(label):
+    print("sketcher-stage=%s" % label, flush=True)
+
+
 def _events():
     Gui.updateGui()
     try:
@@ -143,7 +147,9 @@ def run_acceptance():
     doc = App.newDocument("NativeSketcherAcceptance")
     try:
         _activate("ClothPatternWorkbench", ["ClothPattern_CreatePieceWithSketch", "ClothPattern_EditSketch"])
+        _stage("create-piece-before")
         Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
+        _stage("create-piece-after")
         Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
         doc.recompute()
         pieces = _pattern_pieces(doc)
