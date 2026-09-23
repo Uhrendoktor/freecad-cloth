@@ -179,6 +179,7 @@ exec(compile(source, str(source_path), "exec"), globals(), globals())
 # The gate failure is raised after evidence capture so failing A/B runs retain
 # the required six-view artifact without weakening the 35 mm acceptance rule.
 # No production code path is altered.
+# This audit is safe to run as a normal pull-request synchronization.
 _original_tunic_simulation = simulation
 _original_write_drape_metrics = write_drape_metrics
 
