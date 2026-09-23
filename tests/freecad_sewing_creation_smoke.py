@@ -322,8 +322,10 @@ try:
         from PySide import QtWidgets
     except ImportError:
         from PySide2 import QtWidgets
-    widgets = [network_dialog] + list(getattr(network_dialog, "findChildren", lambda *_: [])(QtWidgets.QWidget))
-    network_text = " | ".join(str(getter()) for widget in widgets for getter in [getattr(widget, "text", None)] if callable(getter)).lower()
+    network_form = getattr(network_dialog, "form", network_dialog)
+    evidence_label = network_form.findChild(QtWidgets.QLabel, "ClothSewingNetworkCorrespondenceEvidence") if hasattr(network_form, "findChild") else None
+    assert evidence_label is not None
+    network_text = str(evidence_label.text()).lower()
     assert "severity info" in network_text
     assert "recovery:" in network_text
     record("correspondence-gui-evidence=passed severity=info")
