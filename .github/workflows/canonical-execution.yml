@@ -438,7 +438,7 @@ jobs:
             "cloth-simulation-draped-turntable-frames cloth-simulation-draped-turntable.gif"; do
             read -r frame_dir gif <<< "$spec"
             "${IM[@]}" "docs/images/generated/$frame_dir"/frame-*.png \
-              -delay 8 -loop 0 -colors 128 -layers Optimize \
+              -delay 8 -loop 0 -colors 128 \
               "docs/images/generated/$gif"
             test -s "docs/images/generated/$gif"
           done
@@ -524,7 +524,7 @@ jobs:
             IM=(convert)
           fi
           "${IM[@]}" docs/images/generated/blanket-example/motion-*.png \
-            -delay 10 -loop 0 -colors 128 -layers Optimize \
+            -delay 10 -loop 0 -colors 128 \
             docs/images/generated/blanket-example/blanket-motion.gif
           identify -format '%n\n' docs/images/generated/blanket-example/blanket-motion.gif | head -n 1 | grep -qx '16'
           test -s docs/images/generated/blanket-example/blanket-motion.gif
