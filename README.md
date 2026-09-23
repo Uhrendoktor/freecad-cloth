@@ -76,4 +76,4 @@ There is one canonical GitHub Actions workflow: `.github/workflows/canonical-exe
 
 ## Documentation
 
-Start at [docs/README.md](docs/README.md). It links the compact user guide, architecture contract, roadmap, research summary and development/agent rules. `AGENT_STATUS.md` and `TOOL_STATE.md` remain the durable machine-readable coordination records.
+Start at [docs/README.md](docs/README.md). It links installation, examples, the user guide, release gates, architecture, roadmap, research and development guidance. GitHub issue/PR templates and automated dependency updates are part of the repository hygiene baseline. `AGENT_STATUS.md` and `TOOL_STATE.md` remain the durable machine-readable coordination records.
