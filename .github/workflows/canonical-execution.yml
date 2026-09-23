@@ -22,7 +22,7 @@ env:
   XDG_RUNTIME_DIR: /tmp/runtime-cloth
 
 permissions:
-  actions: write
+  actions: read
   contents: write
   packages: write
 
@@ -203,6 +203,52 @@ jobs:
           if-no-files-found: error
           compression-level: 1
 
+  gui-sketcher-acceptance:
+    name: Native Sketcher seam presentation acceptance
+    needs: runner_selection
+    runs-on: ${{ fromJSON(needs.runner_selection.outputs.runner) }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Run native Sketcher acceptance
+        run: |
+          set -euo pipefail
+          rm -rf artifacts
+          mkdir -p artifacts
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun tests/freecad_sketcher_acceptance.py > /workspace/artifacts/sketcher-acceptance.log 2>&1
+              grep -q "native Sketcher acceptance passed" /workspace/artifacts/sketcher-acceptance.log
+            '
+      - name: Inspect Sketcher evidence
+        run: |
+          set -euo pipefail
+          test -s artifacts/sketcher-acceptance.log
+          grep -q "native Sketcher acceptance passed" artifacts/sketcher-acceptance.log
+      - name: Upload Sketcher acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: sketcher-acceptance
+          path: artifacts/sketcher-acceptance.log
+          if-no-files-found: error
+          compression-level: 1
   gui-pattern-export:
     name: Pattern production export smoke
     needs: runner_selection
@@ -578,6 +624,9 @@ jobs:
     name: Repository retention cleanup
     if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * *' }}
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
     timeout-minutes: 10
     steps:
       - name: Remove stale agent branches and old completed workflow runs
