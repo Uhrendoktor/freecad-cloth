@@ -34,14 +34,83 @@ def events():
         app.processEvents()
 
 
+def _png_has_visible_content(path):
+    import struct
+    import zlib
+
+    raw = open(path, "rb").read()
+    if raw[:8] != b"\\x89PNG\\r\\n\\x1a\\n":
+        return False
+    offset = 8
+    width = height = bit_depth = color_type = None
+    compressed = bytearray()
+    while offset + 8 <= len(raw):
+        length = struct.unpack(">I", raw[offset:offset + 4])[0]
+        kind = raw[offset + 4:offset + 8]
+        payload = raw[offset + 8:offset + 8 + length]
+        offset += 12 + length
+        if kind == b"IHDR":
+            width, height, bit_depth, color_type = struct.unpack(">IIBB", payload[:10])
+            if bit_depth != 8 or color_type not in (2, 6):
+                return False
+        elif kind == b"IDAT":
+            compressed.extend(payload)
+        elif kind == b"IEND":
+            break
+    if width != 640 or height != 480 or bit_depth != 8 or color_type not in (2, 6) or not compressed:
+        return False
+    channels = 4 if color_type == 6 else 3
+    stride = width * channels
+    data = zlib.decompress(bytes(compressed))
+    if len(data) != (stride + 1) * height:
+        return False
+    previous = bytearray(stride)
+    visible = 0
+    index = 0
+    for _ in range(height):
+        filter_type = data[index]
+        index += 1
+        row = bytearray(data[index:index + stride])
+        index += stride
+        for col in range(stride):
+            left = row[col - channels] if col >= channels else 0
+            up = previous[col]
+            up_left = previous[col - channels] if col >= channels else 0
+            if filter_type == 1:
+                row[col] = (row[col] + left) & 0xFF
+            elif filter_type == 2:
+                row[col] = (row[col] + up) & 0xFF
+            elif filter_type == 3:
+                row[col] = (row[col] + ((left + up) // 2)) & 0xFF
+            elif filter_type == 4:
+                p = left + up - up_left
+                pa = abs(p - left)
+                pb = abs(p - up)
+                pc = abs(p - up_left)
+                predictor = left if pa <= pb and pa <= pc else (up if pb <= pc else up_left)
+                row[col] = (row[col] + predictor) & 0xFF
+            elif filter_type != 0:
+                return False
+        for pixel in range(width):
+            base = pixel * channels
+            if max(row[base:base + 3]) < 245:
+                visible += 1
+                if visible >= 1000:
+                    return True
+        previous = row
+    return False
+
+
 def save_png(view, path, state):
     view.saveImage(path, 640, 480, "White")
-    if not os.path.isfile(path) or os.path.getsize(path) < 5000:
+    if not os.path.isfile(path) or os.path.getsize(path) < 1000:
         raise RuntimeError("failed screenshot: %s" % state)
     with open(path, "rb") as handle:
         header = handle.read(24)
-    if header[:8] != b"\x89PNG\r\n\x1a\n" or int.from_bytes(header[16:20], "big") != 640 or int.from_bytes(header[20:24], "big") != 480:
+    if header[:8] != b"\\x89PNG\\r\\n\\x1a\\n" or int.from_bytes(header[16:20], "big") != 640 or int.from_bytes(header[20:24], "big") != 480:
         raise RuntimeError("invalid PNG capture for %s" % state)
+    if not _png_has_visible_content(path):
+        raise RuntimeError("PNG capture contains no visible rendered content for %s" % state)
 
 
 def combined_center(objects):
