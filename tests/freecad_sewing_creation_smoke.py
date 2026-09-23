@@ -1,4 +1,5 @@
 """Real-FreeCAD smoke coverage for public staged sewing Preview/Commit/Cancel."""
+# Curved M:N coverage below intentionally runs through the public staged commands on current main.
 from pathlib import Path
 import math
 import os
