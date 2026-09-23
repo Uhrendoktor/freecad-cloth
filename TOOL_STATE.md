@@ -13,17 +13,16 @@ workflow_count: 1
 workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; inspect_jobs_logs_artifacts; no_second_workflow
 release_gate:
-  candidate: PR_1066
-  exact_head: resolve current PR #1066 head at validation time
-  pr_run_state: exact-head pull_request delivery is blocked; recent push runs fail pre-job with zero jobs/artifacts
-  supporting_run: 35844023654
-  supporting_run_result: all canonical jobs passed except native Sketcher acceptance timeout
-  supporting_timeout_root_cause: acceptance activated Cloth workbenches without explicitly bootstrapping InitGui.py
-  candidate_fix: merged release bootstraps InitGui.py and emits acceptance stage markers before GUI activation
-  external_ci_blocker: repeated zero-job push runs; keep production workflow unchanged
+  candidate: PR_1073
+  exact_head: bf799384348592e3149d455c89fcdb0c51e9ca44
+  pr_run_state: no pull_request run/status; controlled close/reopen probe also produced no pull_request run; latest push run 35862585745 is failure with zero jobs/artifacts
+  supporting_run: 35845226384
+  supporting_artifact: 10743635540
+  supporting_run_result: 200 mm Blanket-over-Cube real FreeCAD/Xvfb acceptance passed; final checkpoint and motion frames inspected
+  external_ci_blocker: current Actions event/schedule delivery is externally blocked; keep production workflow unchanged
 final_gate: exact_head_canonical_pr_green; inspect_jobs_logs_artifacts; merge; merged_main_canonical_pr_green; fresh_repo_audit
-open_actionable_issues: [1017, 1020, 1042, 1043, 1053, 1055, 1067]
+open_actionable_issues: [1017, 1020, 1043, 1053, 1067]
 ```
 
 closed_research_issues: [1042, 1055]
-stale_branch_cleanup: unavailable_via_current_connector; 485_remote_branches_observed
+stale_branch_cleanup: unavailable_via_current_connector; 486_remote_branches_observed
