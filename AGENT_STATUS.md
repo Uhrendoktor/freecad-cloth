@@ -9,7 +9,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - Current main: `ccac198eae37bb162830895b1d8259ca84d7047f`
 - Canonical workflow: `.github/workflows/canonical-execution.yml`; exactly one workflow.
 - Supervisor completion issue: #1017.
-- Active release candidate: PR #1066, branch `supervisor/complete-audit-20260923`, live head `bf7078dddc47068291e80565f44a13d789240f44`.
+- Active release candidate: PR #1066, branch `supervisor/complete-audit-20260923`; current exact head is recorded in `TOOL_STATE.md`.
 
 ## Implemented release slice
 
