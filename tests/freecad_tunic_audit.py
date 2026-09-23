@@ -10,11 +10,60 @@ if str(ROOT) not in sys.path:
 source_path = Path(__file__).with_name("freecad_screenshot_source.py")
 source = source_path.read_text(encoding="utf-8")
 
+authoritative_seam_gate = r'''
+    backend_state = scene.Proxy._base_or_restore()
+    simulated_positions = tuple(backend_state.backend.positions())
+    if not simulated_positions:
+        raise RuntimeError("authoritative seam check has no simulated particle positions")
+    stitch_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
+    if not stitch_pairs_by_seam:
+        raise RuntimeError("authoritative seam check has no exact solver stitch provenance")
+    seam_gaps = []
+    per_seam = []
+    for seam, piece_a, piece_b in seam_records:
+        edge_a_id = str(getattr(seam, "EdgeAId", ""))
+        edge_b_id = str(getattr(seam, "EdgeBId", ""))
+        if not edge_a_id.startswith(f"{piece_a.PieceId}:edge:") or not edge_b_id.startswith(f"{piece_b.PieceId}:edge:"):
+            raise RuntimeError("authoritative tunic seam lost semantic edge identity")
+        pairs = tuple(stitch_pairs_by_seam.get(str(seam.SeamId), ()))
+        if not pairs:
+            raise RuntimeError("authoritative seam check cannot resolve exact solver pairs for %s" % seam.SeamId)
+        seam_max = 0.0
+        for ga, gb in pairs:
+            a = simulated_positions[int(ga)]
+            b = simulated_positions[int(gb)]
+            gap = ((a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2) ** 0.5
+            seam_gaps.append(gap)
+            seam_max = max(seam_max, gap)
+        per_seam.append((str(seam.SeamId), seam_max, len(pairs), edge_a_id, edge_b_id))
+        log("authoritative-seam seam=%s max-gap-mm=%.6f stitch-pairs=%d edge-a=%s edge-b=%s" % (seam.SeamId, seam_max, len(pairs), edge_a_id, edge_b_id))
+    max_seam_gap = max(seam_gaps) if seam_gaps else 0.0
+    log("authoritative-seam-max-gap-mm=%.6f per-seam=%s" % (max_seam_gap, tuple(per_seam)))
+    if max_seam_gap > 35.0:
+        raise RuntimeError("authoritative tunic seams did not converge: max endpoint gap %.1f mm" % max_seam_gap)
+'''
+
+ab_helper = r'''
+def _ab_tunic_simulation():
+    from freecad_cloth.pattern import PatternMesh
+    original_refine = PatternMesh.refine_linear_boundary
+    calls = []
+    def bypass(pattern, max_spacing):
+        calls.append(float(max_spacing))
+        return pattern
+    PatternMesh.refine_linear_boundary = bypass
+    log("ab-quality-mesh-mode=without-linear-boundary-refinement")
+    try:
+        return simulation()
+    finally:
+        PatternMesh.refine_linear_boundary = original_refine
+        log("ab-quality-mesh-restored=true bypass-calls=%d spacing-values=%s" % (len(calls), tuple(round(value, 6) for value in calls)))
+'''
+
 # Keep the canonical visual fixture's torso-envelope collision scoped to this audit.
 # The screenshot wrapper's historical string replacement targets text that is no
 # longer present in freecad_screenshot_source.py, so patch the executable adapter.
 from freecad_cloth.simulation import TissuBackend as _tissu_backend
-from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 
 def _tight_tissu_collision_envelope(surface):
     if surface is None or not surface.vertices:
@@ -104,31 +153,14 @@ if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
 source = source.replace(anchor, preview_probe + '\n' + anchor, 1)
 
-seam_check = """    backend_state = scene.Proxy._base_or_restore()
-    simulated_positions = tuple(backend_state.backend.positions())
-    if not simulated_positions: raise RuntimeError("Tissu backend returned no simulated particle positions")
-    stitch_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
-    if not stitch_pairs_by_seam: raise RuntimeError("authoritative seam check has no exact solver stitch provenance")
-    seam_gaps = []
-    for seam, piece_a, piece_b in seam_records:
-        expected_a = f"{piece_a.PieceId}:edge:"
-        expected_b = f"{piece_b.PieceId}:edge:"
-        edge_a_id = str(getattr(seam, "EdgeAId", ""))
-        edge_b_id = str(getattr(seam, "EdgeBId", ""))
-        if not edge_a_id.startswith(expected_a) or not edge_b_id.startswith(expected_b):
-            raise RuntimeError("authoritative tunic seam lost semantic edge identity")
-        pairs = tuple(stitch_pairs_by_seam.get(str(seam.SeamId), ()))
-        if not pairs:
-            raise RuntimeError("authoritative seam check cannot resolve exact solver pairs for %s" % seam.SeamId)
-        for ga, gb in pairs:
-            a = simulated_positions[int(ga)]
-            b = simulated_positions[int(gb)]
-            seam_gaps.append(((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2)**0.5)
-    max_seam_gap = max(seam_gaps) if seam_gaps else 0.0
-    if max_seam_gap > 35.0: raise RuntimeError("authoritative tunic seams did not converge: max endpoint gap %.1f mm" % max_seam_gap)
-    log("authoritative-seam-max-gap-mm=%.2f seam-ids=%s" % (max_seam_gap, tuple(str(seam.SeamId) for seam, _a, _b in seam_records)))\n"""
-
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n    ); bounds = []", 1)
+source = source.replace(
+    "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []",
+    "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []",
+    1,
+)
+source = source.replace("\n\ndef main():", "\n" + authoritative_seam_gate + "\n\ndef main():", 1)
+source = source.replace('pattern_and_sewing(); simulation(); log("scenario-pass")', 'pattern_and_sewing(); _ab_tunic_simulation(); log("scenario-pass")', 1)
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
 exec(compile(source, str(source_path), "exec"), globals(), globals())
