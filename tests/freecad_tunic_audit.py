@@ -159,8 +159,8 @@ source = source.replace(
     "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []",
     1,
 )
-source = source.replace("\n\ndef main():", "\n" + authoritative_seam_gate + "\n\ndef main():", 1)
 source = source.replace('pattern_and_sewing(); simulation(); log("scenario-pass")', 'pattern_and_sewing(); _ab_tunic_simulation(); log("scenario-pass")', 1)
+source = source.replace("\n    task_dock.show(); task_dock.raise_(); events(); close_task(); App.closeDocument(doc.Name)", "\n" + authoritative_seam_gate + "\n    task_dock.show(); task_dock.raise_(); events(); close_task(); App.closeDocument(doc.Name)", 1)
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
 exec(compile(source, str(source_path), "exec"), globals(), globals())
