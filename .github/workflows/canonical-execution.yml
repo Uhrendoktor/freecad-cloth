@@ -47,7 +47,7 @@ jobs:
         id: select
         env:
           GH_TOKEN: ${{ github.token }}
-          HEARTBEAT_MAX_AGE_SECONDS: 60
+          HEARTBEAT_MAX_AGE_SECONDS: 720
         run: |
           set -euo pipefail
           if ! gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=schedule&branch=main&per_page=10" >/tmp/runner-heartbeats.json 2>/tmp/runner-api-error; then
@@ -744,12 +744,9 @@ jobs:
           (root / "benchmark.json").write_text(json.dumps(merged, indent=2, sort_keys=True) + "\n")
           PY
       - name: Install plotting dependency
-        run: |
-          set -euo pipefail
-          python3 -m venv "$RUNNER_TEMP/workbench-benchmark-venv"
-          "$RUNNER_TEMP/workbench-benchmark-venv/bin/python" -m pip install --disable-pip-version-check matplotlib
+        run: python3 -m pip install --disable-pip-version-check matplotlib
       - name: Generate benchmark plots
-        run: "$RUNNER_TEMP/workbench-benchmark-venv/bin/python" tools/plot_workbench_benchmark.py artifacts/workbench-benchmark/benchmark.json artifacts/workbench-benchmark/plots
+        run: python3 tools/plot_workbench_benchmark.py artifacts/workbench-benchmark/benchmark.json artifacts/workbench-benchmark/plots
       - name: Upload benchmark measurements and plots
         if: always()
         uses: actions/upload-artifact@v6
