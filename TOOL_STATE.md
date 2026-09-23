@@ -9,7 +9,7 @@ supervisor_issue: 1017
 continuation_issue: 1098
 active_release_pr: 1075
 active_release_branch: supervisor/final-release-fixed-main-20260923
-current_main: a5f4892b2347aeec3492e21e016ccda85f9c92ab
+current_main: ec9b8d9a868cb3ed8e566f237cb521067d8ad703
 workflow_count: 1
 workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; inspect_jobs_logs_artifacts; no_second_workflow
@@ -44,3 +44,10 @@ stale_branch_cleanup: unavailable_via_current_connector; current full branch pag
 research_activation_issue: 1105
 research_activation_pr: 1107
 closed_duplicate_research: [1106]
+
+recovery_last_reconciled: 2026-09-23T21:30:00+02:00
+main_head: ec9b8d9a868cb3ed8e566f237cb521067d8ad703
+startup_research_issue: 1105
+superseded_startup_prs_closed: [1109, 1110]
+startup_hypothesis_falsifier: fallback run 35908076546 / exact pinned FreeCAD 1.1.0 / Native Sketcher timeout exit 124
+canonical_control_plane_blocker: issue_1053_zero_job_runs
