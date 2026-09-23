@@ -22,14 +22,16 @@ def test_visual_example_prepares_gui_before_manual_initgui():
     assert "InitGui.py" in run
 
 
-def test_committed_bootstrap_prepares_gui_before_acceptance_script():
+def test_committed_bootstrap_defers_acceptance_until_after_delayed_startup():
     source = (ROOT / "tests" / "freecad_ci_bootstrap.py").read_text(encoding="utf-8")
     assert "import FreeCADGui as Gui" in source
     assert "window.show()" in source
-    assert "processEvents()" in source
     assert "sys.path[:] = [p for p in sys.path if p != ROOT]" in source
-    assert source.index("sys.path[:] = [p for p in sys.path if p != ROOT]") < source.index("window.show()")
-    assert source.index("processEvents()") < source.index("sys.path.insert(0, ROOT)")
+    assert "QtCore.QTimer.singleShot(0, _run_acceptance)" in source
+    assert "processEvents()" not in source
+    assert source.index("sys.path[:] = [p for p in sys.path if p != ROOT]") < source.index("import FreeCADGui as Gui")
+    assert source.index("window.show()") < source.index("QtCore.QTimer.singleShot(0, _run_acceptance)")
+    assert source.index("QtCore.QTimer.singleShot(0, _run_acceptance)") < source.index('runpy.run_path(script, run_name="__main__")')
     assert source.index("sys.path.insert(0, ROOT)") < source.index('runpy.run_path(script, run_name="__main__")')
 
 
