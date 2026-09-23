@@ -583,27 +583,44 @@ def create_avatar_collision(doc, source_obj=None, thickness=2.0, deflection=1.0)
 
 
 def set_avatar_collision_source(scene, source_obj, thickness=2.0, deflection=1.0):
-    """Compatibility setter; update the authoritative DrapeTarget as well."""
+    """Set an avatar collision proxy while keeping the document DrapeTarget authoritative."""
     from freecad_cloth.simulation.DrapeTarget import create_drape_target, assign_drape_target
-    target = getattr(scene, "DrapeTarget", None)
+
+    doc = scene.Document
+    properties = set(getattr(scene, "PropertiesList", ()) or ())
+    target = getattr(scene, "DrapeTarget", None) if "DrapeTarget" in properties else None
+    if target is None:
+        target = doc.getObject("DrapeTarget")
+
     target_type = "Mannequin" if str(getattr(source_obj, "AvatarType", "")) == "ClothAvatar" else "FreeCAD Geometry"
     if target is None:
-        target = create_drape_target(scene.Document, source_obj, target_type, deflection, thickness)
-        scene.DrapeTarget = target
+        target = create_drape_target(doc, source_obj, target_type, deflection, thickness)
     else:
         target.CollisionThickness = float(thickness)
         target.CollisionDeflection = float(deflection)
         assign_drape_target(target, source_obj, target_type)
+
+    if "DrapeTarget" in properties:
+        scene.DrapeTarget = target
+
     avatar = getattr(scene, "AvatarProxy", None)
     if avatar is None:
-        avatar = create_avatar_collision(scene.Document, source_obj, thickness, deflection)
+        avatar = doc.getObject("AvatarCollision")
+    if avatar is None:
+        avatar = create_avatar_collision(doc, source_obj, thickness, deflection)
     else:
+        from freecad_cloth.avatar.AvatarCollision import surface_from_freecad
+        surface = surface_from_freecad(source_obj, deflection, thickness)
         avatar.SourceObject = source_obj
+        avatar.CollisionType = "MeshSurface"
         avatar.CollisionThickness = float(thickness)
         avatar.CollisionDeflection = float(deflection)
+        avatar.CollisionVertexCount = len(surface.vertices)
+        avatar.CollisionTriangleCount = len(surface.triangles)
+
     scene.AvatarProxy = avatar
-    scene.Document.recompute()
-    return target
+    doc.recompute()
+    return avatar
 
 
 def create_simulation_scene(doc):
