@@ -9,7 +9,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - Current main: resolve current `refs/heads/main` tip at audit time.
 - Canonical workflow: `.github/workflows/canonical-execution.yml`; exactly one workflow.
 - Supervisor completion issue: #1017.
-- Active release candidate: PR #1075, branch `supervisor/final-release-fixed-main-20260923`; exact head `85cf3517b28c179eecbdfa070b26f57f0a1f3e87`.
+- Active release candidate: PR #1075, branch `supervisor/final-release-fixed-main-20260923`; exact head `35f5db29d55b0e904b2bacb65e4b2b8446cc1b86`.
 
 ## Implemented release slice
 
@@ -23,7 +23,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Supporting canonical run #3297 / `35844023654` executed real FreeCAD/Xvfb jobs. Python, sewing, pattern export, blanket visual, README turntable and tunic audit passed; only Native Sketcher acceptance timed out after its 8-minute fail-closed limit. The 200 mm Blanket-over-Cube fixture was separately validated in real FreeCAD/Xvfb by run `35845226384`, artifact `10743635540`.
 - The timeout job log showed the FreeCAD process reached the test invocation but emitted no acceptance-stage output. Main now also includes the reviewed module-level `run_acceptance()` launcher fix from merged PR #1074, matching FreeCAD's documented/import behavior; runtime confirmation remains blocked by Actions delivery.
-- Current PR #1075 has no `pull_request` workflow run or status. Latest candidate push run #3472 / `35866144418` and current main push run #3470 / `35866005385` terminate `failure` before job allocation with zero jobs and zero artifacts. The prior controlled close/reopen probes also delivered no `pull_request` run.
+- Current PR #1075 has no `pull_request` workflow run or status. Exact-head push run #3479 / `35866638684` terminates `failure` before job allocation with zero jobs and zero artifacts. The prior controlled close/reopen probes also delivered no `pull_request` run.
 - Other branches still have real `pull_request` runs, and historical scheduled execution proves the canonical workflow graph can run when GitHub delivers the event. The current connector cannot inspect or change the required Actions administration policy and cannot dispatch `workflow_dispatch`, so zero-job event delivery remains an external blocker rather than test evidence.
 
 ## Branch cleanup
@@ -40,4 +40,4 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - Do not merge or close #1017 or continuation #1067 yet.
 - Exact-head PR #1075 must receive a terminal canonical run and its jobs/artifacts/logs must be inspected.
 - After merge, merged-main canonical validation must be terminal-green before closing supervisor issues.
-- PR #1073 has been superseded and closed; PR #1075 is the sole open release PR; #1053 is the active external CI blocker; #1020 and #1043 remain open until their acceptance gates are verified on merged main.
+- PR #1073 has been superseded and closed; PR #1074 and #1077 have been merged; PR #1075 is the sole open release PR; #1053 is the active external CI blocker; #1020 and #1043 remain open until their acceptance gates are verified on merged main.
