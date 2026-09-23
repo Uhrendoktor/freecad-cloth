@@ -629,6 +629,7 @@ jobs:
           git add docs/images/generated/cloth-avatar-turntable.gif \
             docs/images/generated/cloth-simulation-arranged-turntable.gif \
             docs/images/generated/cloth-simulation-draped-turntable.gif \
+            docs/images/generated/cloth-simulation-motion.gif \
             docs/images/generated/cloth-blanket-motion.gif \
             docs/images/generated/cloth-simulation-draped-front.png
           if git diff --cached --quiet; then
