@@ -6,11 +6,11 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main state: the historical closeout is superseded by supervisor issue #1017; PR #1018 carries the release-foundation corrections and remains open pending exact-head terminal verification.
+- Current main state: supervisor #1017 is in final release integration; PR #1024 is the canonical integration target on the current main line, while #1021/#1023 are concurrent validation branches being reconciled.
 - Merged release PR #1001 provides the canonical garment E2E gate. Its validated source head was `40140b3a06549249c567feeb5e74dd5b766f551b`, exact-head canonical run #3076 / `35813109107`, terminal conclusion `success`.
 - PR #904 was subsequently merged into main as `4e119229cd4df00b529d002dd32106b09504992e` and establishes the current canonical local-Docker-runner preference with GitHub-hosted fallback. Runs #3084 and #3085 exercised that current workflow on the state-sync PR and were terminal-green across all active validation jobs.
 - PR #1009 (durable-state synchronization) is merged as `c41a071a345715f199bdade34872049faba4527d`; final closeout-state PR #1011 carries the final synchronized repository state.
-- PR #1018 is open for the supervisor release-foundation work. PR #925/#1008 runner experiments and stale sewing PR #999 were closed unmerged; #904 is the merged runner implementation.
+- PR #1018 is superseded and closed; PR #1019 is merged; PR #1024 is the active release integration PR. PR #925/#1008 runner experiments and stale sewing PR #999 remain closed unmerged; #904 is the merged runner implementation.
 - Python package boundary: `freecad_cloth/` with `avatar`, `pattern`, `sewing`, `simulation`, `common`, and `shared` subpackages.
 - Root Python files remain limited to `Init.py`, `InitGui.py`, and the CI `sitecustomize.py` hook.
 - Canonical CI: `.github/workflows/canonical-execution.yml`; exactly one workflow is retained.
@@ -38,10 +38,10 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 ## Current task
 
 - Supervisor issue: #1017
-- Implementation branch: `agent/issue-1017-release-foundation-20260923`
-- Pull request: #1018
+- Implementation branch: `agent/issue-1017-release-final-20260923`
+- Pull request: #1024
 - Canonical verification: `.github/workflows/canonical-execution.yml`
-- Current state: implementation is complete on branch head `d8682f98afdad2d4e22646b1af5c12337f336009`; exact-head canonical validation is the remaining supervisor gate. Earlier exact-head-equivalent run #3153 (`35834714836`) was terminal-green across the functional FreeCAD jobs, including README turntables and the tunic visual/simulation audit.
+- Current state: fixes are implemented at head `bdf015f91d8561357cc5152e22a3031d423682ff`; canonical run #3176 is the active exact-head verification. Completion remains blocked until the run is terminal-green, its jobs and artifacts are inspected, and the merged-main run is terminal-green.
 
 ## Agent rules
 

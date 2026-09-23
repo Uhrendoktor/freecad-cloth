@@ -14,7 +14,7 @@ CLO is used as a workflow benchmark, not as a cloning target. Public CLO documen
 
 - The previous release-closeout record is superseded by supervisor issue #1017. The current release foundation must satisfy the executable installation, example, visual-regression, material-presentation and repository-hygiene gates in [docs/RELEASE_GATES.md](docs/RELEASE_GATES.md) before another complete-project declaration.
 - The release implementation was terminal-green in canonical runs #3092 and #3096, including real FreeCAD/Xvfb garment validation and the final documentation-only reconciliation.
-- Supervisor issue #1017 is the active completion criterion and PR #1018 is the integration target. PR #1019 is an overlapping visual-truth validation branch being reconciled into the release target; neither is complete until current-head canonical CI is terminal-green.
+- Supervisor issue #1017 is the active completion criterion. PR #1019 is merged; PR #1024 is the single canonical release-integration target. PR #1021 and #1023 are concurrent validation branches and are not independent release targets. The release is not complete until current-head and merged-main canonical CI are terminal-green with artifact inspection.
 
 ## Supervisor milestone ladder
 
