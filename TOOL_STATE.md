@@ -16,7 +16,7 @@ validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evid
 release_gate:
   candidate: PR_1066
   exact_head: dd6de74062515e952f9c4675c8b9bb4fafba6e84
-  pr_run_state: no_pull_request_run_or_status_after_close_reopen
+  pr_run_state: no_pull_request_run_or_status_after_close_reopen; latest_zero_job_retry_35855453586_forbidden_403_cannot_be_retried
   supporting_run: 35845226384
   supporting_basic_artifact: 10743635540
   supporting_basic_result: finite_connected_mesh; motion_and_material_acceptance_passed
