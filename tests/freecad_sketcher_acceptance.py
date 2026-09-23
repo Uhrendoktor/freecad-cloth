@@ -1,12 +1,23 @@
 """Canonical FreeCAD/Xvfb acceptance for native Sketcher pattern authoring."""
 import math
 import os
+import site
 import tempfile
+from pathlib import Path
+
+print("sketcher-stage=script-start", flush=True)
+site.addsitedir(str(Path(__file__).resolve().parents[1]))
+print("sketcher-stage=python-path-ready", flush=True)
+print("sketcher-stage=before-FreeCAD-import", flush=True)
 
 import FreeCAD as App
+print("sketcher-stage=after-FreeCAD-import", flush=True)
 import FreeCADGui as Gui
+print("sketcher-stage=after-FreeCADGui-import", flush=True)
 import Part
+print("sketcher-stage=after-Part-import", flush=True)
 import Sketcher
+print("sketcher-stage=after-Sketcher-import", flush=True)
 
 
 def _events():
