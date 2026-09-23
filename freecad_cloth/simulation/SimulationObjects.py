@@ -448,7 +448,8 @@ class SimulationProxy:
                 self._ensure_panel(obj.Document, i)
                 for i in range(len(panels), len(pieces))
             )
-        obj.DrapePanels = panels[:len(pieces)]
+        active_panels = panels[:len(pieces)]
+        obj.DrapePanels = active_panels
 
         particles = [Particle(*p) for p in positions]
         system = ClothSystem(particles, _mesh_constraints(positions, triangles_global))
@@ -500,7 +501,7 @@ class SimulationProxy:
         self.source_signature = signature or _simulation_source_signature(obj, pieces)
         self.last_steps = 0
         self.collision_surface = collision_surface
-        for panel in panels:
+        for panel in active_panels:
             _write_mesh(panel, self.backend.positions(), self.panel_triangles[panel.Name])
 
     def _build_demo(self, obj):
