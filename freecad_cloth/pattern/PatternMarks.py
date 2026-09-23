@@ -27,9 +27,12 @@ def _native_default_segment_id(piece):
         str(value).strip()
         for value in (getattr(sketch, "SemanticEdgeIds", ()) or ())
     )
-    if not piece_id or not semantic_ids or not semantic_ids[0]:
+    if not piece_id:
         raise ValueError("selected pattern piece has no authored native edge identity")
-    return semantic_ids[0]
+    for semantic_id in semantic_ids:
+        if semantic_id:
+            return semantic_id
+    raise ValueError("selected pattern piece has no authored native edge identity")
 
 
 def _has_selected_piece():
