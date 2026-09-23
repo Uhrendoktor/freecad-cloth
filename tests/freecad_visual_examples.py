@@ -19,6 +19,7 @@ from freecad_cloth.pattern.PatternGeometry import rectangle
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
 from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
+from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, ensure_quality_properties
 
 
 OUT = Path(os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")) / "blanket-example"
@@ -119,6 +120,8 @@ def main():
 
         scene = create_simulation_scene(doc)
         set_avatar_collision_source(scene, cube, thickness=2.0, deflection=1.0)
+        ensure_quality_properties(scene)
+        scene.Proxy = QualitySimulationProxy()
         scene.ClothPieces = [piece]
         scene.GravityX = 0.0
         scene.GravityY = 0.0
