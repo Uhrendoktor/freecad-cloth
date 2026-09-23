@@ -22,6 +22,24 @@ QUALITY_PRESETS = {
 }
 
 
+
+def normalize_color_rgb(value, default=(0.72, 0.34, 0.46)):
+    """Normalize FreeCAD/Python color representations to three RGB floats."""
+    try:
+        values = tuple(float(item) for item in value)
+    except (TypeError, ValueError):
+        values = ()
+    if len(values) < 3:
+        return tuple(float(item) for item in default)
+    values = values[:3]
+    if any(item > 1.0 for item in values):
+        if all(0.0 <= item <= 255.0 for item in values):
+            values = tuple(item / 255.0 for item in values)
+    if any(not 0.0 <= item <= 1.0 for item in values):
+        raise ValueError("color_rgb channels must be between 0 and 1 or 0 and 255")
+    return values
+
+
 @dataclass(frozen=True)
 class FabricMaterial:
     """Physical fabric controls plus persisted presentation properties."""
@@ -47,8 +65,7 @@ class FabricMaterial:
                 raise ValueError(f"{name} must be between 0 and 1")
         if not 0 <= self.friction <= 1:
             raise ValueError("friction must be between 0 and 1")
-        if len(self.color_rgb) != 3 or any(not 0 <= float(value) <= 1 for value in self.color_rgb):
-            raise ValueError("color_rgb must contain three channels between 0 and 1")
+        normalize_color_rgb(self.color_rgb)
         if not 0 <= self.specular <= 1:
             raise ValueError("specular must be between 0 and 1")
         if not 0 <= self.roughness <= 1:
