@@ -72,3 +72,4 @@ probe("newDocument-after-boundary",
       ))
 
 print("probe-complete", flush=True)
+# synchronize-trigger marker: same isolated probe
