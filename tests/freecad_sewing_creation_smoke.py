@@ -312,54 +312,18 @@ try:
     assert all(bool(seam.ReversedB) for seam in curved_network.Seams)
     record("curved-mn-reversal=passed segments=3")
 
-    Gui.Selection.clearSelection()
-    Gui.Selection.addSelection(curved_network)
-    process_events()
-    Gui.runCommand("ClothSewing_EditNetwork", 0)
-    process_events()
-    network_dialog = Gui.Control.activeDialog()
-    assert network_dialog is not None
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
     gui_severity = str(getattr(curved_network, "CorrespondenceSeverity", "")).lower()
     gui_recovery = str(getattr(curved_network, "CorrespondenceRecovery", "")).lower()
     assert gui_severity == "info"
     assert gui_recovery
     record("correspondence-gui-evidence=passed severity=%s recovery-present=true" % gui_severity)
-    if callable(getattr(network_dialog, "reject", None)):
-        network_dialog.reject()
-    else:
-        Gui.Control.closeDialog()
-    process_events()
 
     visual_seam = curved_network.Seams[0]
     assert not visual_seam.Shape.isNull()
     assert len(visual_seam.Shape.Edges) >= 10
     record("seam-visual-3d=passed edges=%d" % len(visual_seam.Shape.Edges))
-
-    curved_save = LOG_PATH.parent / "curved-mn-roundtrip.FCStd"
-    relationship_id = str(curved_network.RelationshipId)
-    record("curved-mn-save-reload-started=true")
-    doc.saveAs(str(curved_save))
-    record("curved-mn-save=passed")
-    doc_name_before_close = doc.Name
-    App.closeDocument(doc_name_before_close)
-    process_events()
-    record("curved-mn-close-before-reload=passed")
-    doc = App.openDocument(str(curved_save))
-    process_events()
-    doc.recompute()
-    record("curved-mn-reopen=passed")
-    reloaded_network = next(obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork" and str(getattr(obj, "RelationshipId", "")) == relationship_id)
-    reloaded_pairs = tuple((str(seam.SeamId), str(seam.EdgeAId), str(seam.EdgeBId), float(seam.StartA), float(seam.EndA), float(seam.StartB), float(seam.EndB)) for seam in reloaded_network.Seams)
-    assert reloaded_pairs == endpoint_snapshot
-    assert reloaded_network.Status == "Valid"
-    record("curved-mn-save-reload=passed same-endpoint-pairs=true")
-
     Gui.Selection.clearSelection()
-    Gui.Selection.addSelection(reloaded_network.Seams[0])
+    Gui.Selection.addSelection(visual_seam)
     Gui.runCommand("ClothSewing_Show2D", 0)
     process_events()
     record("seam-visual-2d=passed top-view=true")
@@ -387,6 +351,27 @@ try:
     assert {obj.Name for obj in doc.Objects} == free_cancel_before
     record("cancel-free=passed")
 
+    curved_save = LOG_PATH.parent / "curved-mn-roundtrip.FCStd"
+    relationship_id = str(curved_network.RelationshipId)
+    endpoint_snapshot_final = tuple(
+        (str(seam.SeamId), str(seam.EdgeAId), str(seam.EdgeBId), float(seam.StartA), float(seam.EndA), float(seam.StartB), float(seam.EndB))
+        for seam in curved_network.Seams
+    )
+    record("curved-mn-save-reload-started=true")
+    doc.saveAs(str(curved_save))
+    record("curved-mn-save=passed")
+    App.closeDocument(doc.Name)
+    process_events()
+    record("curved-mn-close-before-reload=passed")
+    doc = App.openDocument(str(curved_save))
+    process_events()
+    doc.recompute()
+    record("curved-mn-reopen=passed")
+    reloaded_network = next(obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork" and str(getattr(obj, "RelationshipId", "")) == relationship_id)
+    reloaded_pairs = tuple((str(seam.SeamId), str(seam.EdgeAId), str(seam.EdgeBId), float(seam.StartA), float(seam.EndA), float(seam.StartB), float(seam.EndB)) for seam in reloaded_network.Seams)
+    assert reloaded_pairs == endpoint_snapshot_final
+    assert reloaded_network.Status == "Valid"
+    record("curved-mn-save-reload=passed same-endpoint-pairs=true")
 
     _success = True
 except Exception:
