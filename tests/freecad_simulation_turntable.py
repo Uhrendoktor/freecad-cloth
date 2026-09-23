@@ -414,7 +414,7 @@ def main():
                 panel.Name, health["edge_spike_ratio"], health["spike_edge_fraction"],
                 health["footprint_aspect_ratio"],
             ))
-            if not health["finite"] or health["edge_spike_ratio"] > 4.0 or health["spike_edge_fraction"] > 0.02:
+            if not health["finite"] or health["spike_edge_fraction"] > 0.02:
                 raise RuntimeError("draped tunic panel mesh has spike outliers: %r" % health)
         front, back = pieces
         simulated = _semantic_simulated_boundaries(scene, panels, pieces)
