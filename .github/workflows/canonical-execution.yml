@@ -200,22 +200,13 @@ jobs:
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -v "$PWD:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
-              cat > /tmp/freecad_ci_bootstrap.py <<'"'"'PY'"'"'
-import os
-import runpy
-import sys
-
-sys.path.insert(0, "/workspace")
-script = os.environ["CLOTH_CI_SCRIPT"]
-runpy.run_path(script, run_name="__main__")
-PY
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              CLOTH_CI_SCRIPT=/workspace/tests/freecad_sketcher_acceptance.py timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /tmp/freecad_ci_bootstrap.py > /workspace/artifacts/sketcher-acceptance.log 2>&1
+              CLOTH_CI_SCRIPT=/workspace/tests/freecad_sketcher_acceptance.py timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /workspace/tests/freecad_ci_bootstrap.py > /workspace/artifacts/sketcher-acceptance.log 2>&1
               grep -q "native Sketcher acceptance passed" /workspace/artifacts/sketcher-acceptance.log
             '
       - name: Inspect Sketcher evidence
