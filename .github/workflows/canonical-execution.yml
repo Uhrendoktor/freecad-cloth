@@ -352,7 +352,7 @@ jobs:
         env:
           CLOTH_SIMULATION_BACKEND: tissu
           CLOTH_TISSU_SUBSTEPS: 10
-          CLOTH_TISSU_COLLISION_MODE: torso-envelope
+          CLOTH_TISSU_COLLISION_MODE: mesh
         run: |
           set -euo pipefail
           rm -rf docs/images/generated
@@ -383,7 +383,7 @@ jobs:
           test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
           test -d docs/images/generated/cloth-simulation-draped-turntable-frames
           test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
-      - name: Validate turntable semantic and camera evidence
+      - name: Validate blanket motion and camera evidence
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -392,15 +392,17 @@ jobs:
           import re
 
           log = Path("docs/images/generated/simulation-turntable-progress.log").read_text(encoding="utf-8")
-          if "semantic-provenance=true" not in log:
-              raise SystemExit("missing semantic seam provenance marker")
-          match = re.findall(r"simulation-seam-diagnostic max_endpoint_gap_mm=([0-9.]+)", log)
+          match = re.findall(r"blanket-motion-diagnostic max_centroid_displacement_mm=([0-9.]+) .* min_z_mm=([0-9.]+) cube_top_z_mm=([0-9.]+)", log)
           if not match:
-              raise SystemExit("missing simulation seam diagnostic")
-          seam_gap = float(match[-1])
-          print(f"simulation seam gap mm={seam_gap:.2f}")
-          if seam_gap > 35.0:
-              raise SystemExit(f"simulation seam gap {seam_gap:.2f} mm exceeds 35 mm")
+              raise SystemExit("missing blanket motion diagnostic")
+          displacement, minimum_z, cube_top = (float(value) for value in match[-1])
+          print(f"blanket displacement mm={displacement:.2f} min_z={minimum_z:.2f} cube_top={cube_top:.2f}")
+          if displacement < 40.0:
+              raise SystemExit(f"blanket displacement {displacement:.2f} mm is below the 40 mm motion gate")
+          if minimum_z > cube_top + 35.0:
+              raise SystemExit(f"blanket remained {minimum_z - cube_top:.2f} mm above cube top")
+          if "blanket-turntable-pass" not in log:
+              raise SystemExit("blanket turntable did not complete")
 
           for directory in (
               "cloth-avatar-turntable-frames",
