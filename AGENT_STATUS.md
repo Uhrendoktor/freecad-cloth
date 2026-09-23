@@ -6,10 +6,10 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Repository: `Uhrendoktor/freecad-cloth`
 - Default branch: `main`
-- Current main: resolve current `refs/heads/main` tip at audit time.
+- Current main: `707eb8dfc01c8d834daba4bb87c79c597b889cc5` at this audit; resolve `refs/heads/main` again before future mutations.
 - Canonical workflow: `.github/workflows/canonical-execution.yml`; exactly one workflow.
 - Supervisor completion issue: #1017.
-- Active release candidate: PR #1075, branch `supervisor/final-release-fixed-main-20260923`; exact head `5f38dcfbfd2e37bbb2d21ccd61af0ad1c7899b5b`.
+- Active release candidate: PR #1075, branch `supervisor/final-release-fixed-main-20260923`; exact head `d346200094d323e3f55cab1832a7b2343aa7ee7e`.
 
 ## Implemented release slice
 
@@ -23,8 +23,8 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 
 - Supporting canonical run #3297 / `35844023654` executed real FreeCAD/Xvfb jobs. Python, sewing, pattern export, blanket visual, README turntable and tunic audit passed; only Native Sketcher acceptance timed out after its 8-minute fail-closed limit. The 200 mm Blanket-over-Cube fixture was separately validated in real FreeCAD/Xvfb by run `35845226384`, artifact `10743635540`.
 - The timeout job log showed the FreeCAD process reached the test invocation but emitted no acceptance-stage output. Main now also includes the reviewed module-level `run_acceptance()` launcher fix from merged PR #1074, matching FreeCAD's documented/import behavior; runtime confirmation remains blocked by Actions delivery.
-- Current PR #1075 has no `pull_request` workflow run or status. Exact-head push run #3490 / `35867551448` terminates `failure` before job allocation with zero jobs and zero artifacts. A controlled close/reopen probe on PR #1075 was performed at the frozen head and still produced no `pull_request` workflow run.
-- Other branches still have real `pull_request` runs, and historical scheduled execution proves the canonical workflow graph can run when GitHub delivers the event. The the installed connector cannot read the Actions administration policy endpoints (403/unsupported integration access) and exposes no workflow-dispatch operation; scheduled execution has historical success but current event delivery for pushes/pull requests is still blocked.
+- Current PR #1075 has no `pull_request` workflow run or status. Exact-head push run #3492 / `35867820895` terminates `failure` before job allocation with zero jobs and zero artifacts. A controlled close/reopen probe on PR #1075 at the prior frozen head produced no `pull_request` workflow run; the current frozen head is now d346200094d323e3f55cab1832a7b2343aa7ee7e.
+- Other branches still have real `pull_request` runs, and historical scheduled execution proves the canonical workflow graph can run when GitHub delivers the event. The installed connector cannot read the Actions administration policy endpoints (403/unsupported integration access) and exposes no workflow-dispatch operation; scheduled execution has historical success but current event delivery for pushes/pull requests is still blocked.
 
 ## Branch cleanup
 
@@ -40,4 +40,4 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - Do not merge or close #1017 or continuation #1067 yet.
 - Exact-head PR #1075 must receive a terminal canonical run and its jobs/artifacts/logs must be inspected.
 - After merge, merged-main canonical validation must be terminal-green before closing supervisor issues.
-- PR #1073 has been superseded and closed; PR #1074 and #1077 have been merged; PR #1075 is the sole open release PR; validation PR #1078 was opened against the identical candidate SHA to probe event delivery and then closed without a run; #1053 is the active external CI blocker; #1020 and #1043 remain open until their acceptance gates are verified on merged main.
+- PR #1073 has been superseded and closed; PR #1074 and #1077 have been merged; PR #1075 is the sole open release PR; validation PR #1078 was opened against the identical candidate SHA to probe event delivery and then closed without a run; continuation #1079 is the current depth-2 supervisor continuation; #1053 is the active external CI blocker; #1020 and #1043 remain open until their acceptance gates are verified on merged main.
