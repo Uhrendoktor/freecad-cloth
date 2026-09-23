@@ -25,6 +25,9 @@ from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, 
 from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, ensure_quality_properties
 
 
+# A generic FreeCAD cube requires Tissu's mesh collision path; torso-envelope is for avatar-style targets.
+os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "mesh")
+
 OUT = Path(os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")) / "blanket-example"
 OUT.mkdir(parents=True, exist_ok=True)
 LOG = OUT / "blanket-visual.log"
