@@ -10,6 +10,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - Canonical workflow: `.github/workflows/canonical-execution.yml`; exactly one workflow.
 - Supervisor completion issue: #1017.
 - Active release candidate: PR #1058, branch `supervisor/root-completion-20260923`.
+- Validation-only alias PR #1060 currently mirrors candidate #1058 byte-for-byte at the candidate code head for Actions event-delivery validation.
 
 ## Implemented release slice
 
