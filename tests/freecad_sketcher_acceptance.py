@@ -141,9 +141,26 @@ def _exercise_constraint_families(doc, reference_sketch):
     return audit, audit_span, audit_scaled
 
 
+def _bootstrap_workbenches():
+    if "ClothPatternWorkbench" in Gui.listWorkbenches():
+        return
+    root = Path(__file__).resolve().parents[1]
+    init_gui = root / "InitGui.py"
+    if not init_gui.is_file():
+        raise RuntimeError("InitGui.py missing from FreeCAD workbench root")
+    namespace = {"__file__": str(init_gui), "__name__": "__main__"}
+    exec(compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"), namespace, namespace)
+    if "ClothPatternWorkbench" not in Gui.listWorkbenches():
+        raise RuntimeError("ClothPatternWorkbench was not registered by InitGui.py")
+
+
 def run_acceptance():
+    _stage("process-start")
+    _bootstrap_workbenches()
+    _stage("workbenches-registered")
     doc = App.newDocument("NativeSketcherAcceptance")
     try:
+        _stage("document-created")
         _record("document-created")
         _activate("ClothPatternWorkbench", ["ClothPattern_CreatePieceWithSketch", "ClothPattern_EditSketch"])
         _record("pattern-workbench-ready")
