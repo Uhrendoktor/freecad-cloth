@@ -104,6 +104,8 @@ if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
 source = source.replace(anchor, preview_probe + '\n' + anchor, 1)
 
+_authoritative_gate_failure = []
+
 seam_check = """    backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
     if not simulated_positions: raise RuntimeError("Tissu backend returned no simulated particle positions")
@@ -132,7 +134,11 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
         log("authoritative-seam seam=%s max-gap-mm=%.6f stitch-pairs=%d" % (seam.SeamId, seam_max, len(pairs)))
     max_seam_gap = max(seam_gaps) if seam_gaps else 0.0
     log("authoritative-seam-max-gap-mm=%.6f seam-ids=%s per-seam=%s" % (max_seam_gap, tuple(str(seam.SeamId) for seam, _a, _b in seam_records), tuple(seam_maxima)))
-    if max_seam_gap > 35.0: raise RuntimeError("authoritative tunic seams did not converge: max endpoint gap %.1f mm" % max_seam_gap)
+    if max_seam_gap > 35.0:
+        _authoritative_gate_failure[:] = [RuntimeError("authoritative tunic seams did not converge: max endpoint gap %.1f mm" % max_seam_gap)]
+        log("authoritative-gate=failed threshold-mm=35.0 max-gap-mm=%.6f" % max_seam_gap)
+    else:
+        log("authoritative-gate=passed threshold-mm=35.0 max-gap-mm=%.6f" % max_seam_gap)
 """
 
 authoritative_anchor = """    write_drape_metrics(
@@ -149,6 +155,18 @@ if source.count(authoritative_anchor) != 1:
 source = source.replace(
     authoritative_anchor,
     seam_check + "\n" + authoritative_anchor,
+    1,
+)
+
+authoritative_end = """    task_dock.show(); task_dock.raise_(); events(); close_task(); App.closeDocument(doc.Name)"""
+if source.count(authoritative_end) != 1:
+    raise RuntimeError("canonical tunic six-view completion anchor did not match exactly once")
+source = source.replace(
+    authoritative_end,
+    """    task_dock.show(); task_dock.raise_(); events()
+    if _authoritative_gate_failure:
+        raise _authoritative_gate_failure[0]
+    close_task(); App.closeDocument(doc.Name)""",
     1,
 )
 # The source uses the production simulation path; this wrapper only stabilizes
