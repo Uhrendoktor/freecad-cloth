@@ -322,28 +322,13 @@ try:
         from PySide import QtWidgets
     except ImportError:
         from PySide2 import QtWidgets
-    network_form = getattr(network_dialog, "form", network_dialog)
-    evidence_label = None
-    pending = [network_form, network_dialog]
-    seen = set()
-    while pending and evidence_label is None:
-        widget = pending.pop()
-        marker = id(widget)
-        if marker in seen:
-            continue
-        seen.add(marker)
-        try:
-            object_name = str(widget.objectName())
-        except Exception:
-            object_name = ""
-        if object_name == "ClothSewingNetworkCorrespondenceEvidence":
-            evidence_label = widget
-            break
-        try:
-            pending.extend(list(widget.children()))
-        except Exception:
-            pass
+    from freecad_cloth.sewing.SewingNetworkCommands import get_active_network_task_panel
+    network_panel = get_active_network_task_panel()
+    assert network_panel is not None
+    assert getattr(network_panel, "form", None) is not None and network_panel.form.isVisible()
+    evidence_label = getattr(network_panel, "correspondence", None)
     assert evidence_label is not None
+    assert str(evidence_label.objectName()) == "ClothSewingNetworkCorrespondenceEvidence"
     network_text = str(evidence_label.text()).lower()
     assert "severity info" in network_text
     assert "recovery:" in network_text
