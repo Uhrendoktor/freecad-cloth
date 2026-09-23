@@ -402,7 +402,7 @@ jobs:
         env:
           CLOTH_SIMULATION_BACKEND: tissu
           CLOTH_TISSU_SUBSTEPS: 10
-          CLOTH_TISSU_COLLISION_MODE: torso-envelope
+          CLOTH_TISSU_COLLISION_MODE: mesh
         run: |
           set -euo pipefail
           rm -rf docs/images/generated
@@ -433,18 +433,23 @@ jobs:
           test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
           test -d docs/images/generated/cloth-simulation-motion-frames
           test "$(find docs/images/generated/cloth-simulation-motion-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 16
-      - name: Validate semantic turntable evidence
+      - name: Validate blanket motion and camera evidence
         run: |
           set -euo pipefail
-          grep -q 'simulation-motion-pass frames=16 final_steps=90' docs/images/generated/simulation-turntable-progress.log
-          grep -q 'simulation-seam-diagnostic max_endpoint_gap_mm=' docs/images/generated/simulation-turntable-progress.log
-          grep -q 'semantic-provenance=true' docs/images/generated/simulation-turntable-progress.log
-          gap="$(sed -n 's/.*max_endpoint_gap_mm=\([0-9.]*\).*/\1/p' docs/images/generated/simulation-turntable-progress.log | tail -n 1)"
-          python3 - "$gap" <<'PY'
-          import sys
-          gap = float(sys.argv[1])
-          if gap > 35.0:
-              raise SystemExit("solver stitch gap exceeds 35.0 mm: %.2f" % gap)
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          log = Path("docs/images/generated/simulation-turntable-progress.log").read_text(encoding="utf-8")
+          match = re.findall(r"blanket-motion-diagnostic max_centroid_displacement_mm=([0-9.]+) .* min_z_mm=([0-9.]+) cube_top_z_mm=([0-9.]+)", log)
+          if not match:
+              raise SystemExit("missing blanket motion diagnostic")
+          displacement, minimum_z, cube_top = (float(value) for value in match[-1])
+          if displacement < 40.0:
+              raise SystemExit(f"blanket displacement {displacement:.2f} mm is below the 40 mm motion gate")
+          if minimum_z > cube_top + 35.0:
+              raise SystemExit(f"blanket remained {minimum_z - cube_top:.2f} mm above cube top")
+          if "blanket-turntable-pass" not in log:
+              raise SystemExit("blanket turntable did not complete")
           PY
           for dir in cloth-avatar-turntable-frames cloth-simulation-arranged-turntable-frames cloth-simulation-draped-turntable-frames; do
             unique="$({
@@ -472,11 +477,11 @@ jobs:
             "cloth-simulation-arranged-turntable-frames cloth-simulation-arranged-turntable.gif" \
             "cloth-simulation-draped-turntable-frames cloth-simulation-draped-turntable.gif" \
             "cloth-simulation-motion-frames cloth-simulation-motion.gif"; do
-            set -- $spec
-            "${IM[@]}" "docs/images/generated/$1"/frame-*.png \
+            read -r frame_dir gif <<< "$spec"
+            "${IM[@]}" "docs/images/generated/$frame_dir"/frame-*.png \
               -delay 8 -loop 0 -colors 128 -layers Optimize \
-              "docs/images/generated/$2"
-            test -s "docs/images/generated/$2"
+              "docs/images/generated/$gif"
+            test -s "docs/images/generated/$gif"
           done
       - name: Validate turntable GIFs
         run: |
