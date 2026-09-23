@@ -58,11 +58,11 @@ class SimulationQualityTaskPanel:
 
     @staticmethod
     def _double(low, high, value, decimals):
-        _, _, QtWidgets = _qt(); widget = QtWidgets.QDoubleSpinBox(); widget.setRange(low, high); widget.setDecimals(decimals); widget.setValue(value); return widget
+        _, _, QtWidgets, _ = _qt(); widget = QtWidgets.QDoubleSpinBox(); widget.setRange(low, high); widget.setDecimals(decimals); widget.setValue(value); return widget
 
     @staticmethod
     def _spin(low, high, value):
-        _, _, QtWidgets = _qt(); widget = QtWidgets.QSpinBox(); widget.setRange(low, high); widget.setValue(value); return widget
+        _, _, QtWidgets, _ = _qt(); widget = QtWidgets.QSpinBox(); widget.setRange(low, high); widget.setValue(value); return widget
 
     def _ensure_scene(self):
         if self.scene is None:
@@ -89,7 +89,7 @@ class SimulationQualityTaskPanel:
         r = int(max(0, min(255, round(float(color[0]) * 255))))
         g = int(max(0, min(255, round(float(color[1]) * 255))))
         b = int(max(0, min(255, round(float(color[2]) * 255))))
-        self._fabric_qcolor = self.QtWidgets.QColor(r, g, b)
+        self._fabric_qcolor = self.QtGui.QColor(r, g, b)
         self.fabric_color.setStyleSheet("background-color: rgb(%d,%d,%d)" % (r, g, b))
 
     def _choose_fabric_color(self):
@@ -195,4 +195,4 @@ class SimulationQualityTaskPanel:
         _, _, QtWidgets, _ = _qt(); return QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
 
 def show_simulation_quality_task(scene=None):
-    _App, Gui, _QtWidgets = _qt(); panel = SimulationQualityTaskPanel(scene); Gui.Control.showDialog(panel); return panel
+    _App, Gui, _QtWidgets, _QtGui = _qt(); panel = SimulationQualityTaskPanel(scene); Gui.Control.showDialog(panel); return panel
