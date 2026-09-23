@@ -141,6 +141,11 @@ def _stage(name):
 
 
 def _bootstrap_workbenches():
+    window = Gui.getMainWindow()
+    if window is None or not window.isVisible():
+        raise RuntimeError(
+            "FreeCAD GUI main window must be visible before InitGui.py workbench registration"
+        )
     if "ClothPatternWorkbench" in Gui.listWorkbenches():
         return
     root = Path(__file__).resolve().parents[1]
@@ -159,6 +164,12 @@ def _record(message):
 
 def run_acceptance():
     _stage("process-start")
+    window = Gui.getMainWindow()
+    if window is None:
+        raise RuntimeError("FreeCAD GUI main window is not available")
+    window.show()
+    _events()
+    _stage("gui-ready")
     _bootstrap_workbenches()
     _stage("workbenches-registered")
     doc = App.newDocument("NativeSketcherAcceptance")
