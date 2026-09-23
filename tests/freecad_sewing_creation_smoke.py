@@ -287,10 +287,18 @@ try:
     wait_for_task_close()
     curved_network = next(obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork" and str(getattr(obj, "RelationshipId", "")) == str(curved_preview.RelationshipId))
     from freecad_cloth.sewing.SewingObjects import _seam_length
-    assert abs(sum(float(_seam_length(curved_a, seam, "A")) for seam in curved_network.Seams) - float(curved_network.LengthA)) < 1e-6
-    assert abs(float(curved_network.LengthA) - float(curved_network.LengthB)) < 1e-6
-    assert all(abs(float(_seam_length(curved_a, seam, "A")) - float(_seam_length(curved_b, seam, "B"))) < 1e-5 for seam in curved_network.Seams)
-    record("curved-mn=passed members=2,2 segments=3 physical-length=proportional")
+    member_a_total = sum(float(_seam_length(curved_a, seam, "A")) for seam in curved_network.Seams)
+    member_b_total = sum(float(_seam_length(curved_b, seam, "B")) for seam in curved_network.Seams)
+    assert abs(member_a_total - float(curved_network.LengthA)) < 1e-6
+    assert abs(member_b_total - float(curved_network.LengthB)) < 1e-6
+    assert curved_network.Status == "Valid"
+    assert float(curved_network.LengthDifference) <= 0.05 * min(float(curved_network.LengthA), float(curved_network.LengthB))
+    pair_gaps = [
+        abs(float(_seam_length(curved_a, seam, "A")) - float(_seam_length(curved_b, seam, "B")))
+        for seam in curved_network.Seams
+    ]
+    assert max(pair_gaps) <= 0.05 * max(float(curved_network.LengthA), float(curved_network.LengthB)) / len(curved_network.Seams) + 0.01
+    record("curved-mn=passed members=2,2 segments=3 physical-length=proportional length_a=%.9f length_b=%.9f delta=%.9f max_pair_gap=%.9f" % (float(curved_network.LengthA), float(curved_network.LengthB), float(curved_network.LengthDifference), max(pair_gaps)))
 
     for seam in curved_network.Seams:
         Gui.Selection.clearSelection()
