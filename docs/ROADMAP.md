@@ -52,8 +52,8 @@ Do not pull a visible CLO feature forward merely because it exists in CLO. Stabi
 
 ## Current release state
 
-- The P0 release-closeout implementation is present, but PR #1066 has not received terminal-green canonical validation on its current exact head.
-- GitHub Actions is currently blocked before job allocation for this release branch and for recent main pushes: runs terminate with failure and zero jobs/artifacts. This does not count as validation.
-- The canonical FreeCAD/Xvfb workflow remains the sole workflow. Supporting historical runs prove real execution of the major release jobs, including the 200 mm Blanket-over-Cube visual example, but exact-head and merged-main validation remain mandatory.
-- Repository hygiene cleanup is implemented as the scheduled maintenance-cleanup job, but 485 historical remote branches remain because schedule execution is currently absent.
-- The P1 and Production items listed above are future enhancements rather than active release blockers; they must preserve the existing Pattern/Sewing/DrapeTarget contracts.
+- The P0 release-closeout implementation is present, but the repository is not yet releasable: PR #1066 is the active candidate and exact-head canonical validation has not executed.
+- GitHub Actions is currently blocked before job allocation for recent main and release-candidate pushes; zero-job failures do not count as validation.
+- The canonical FreeCAD/Xvfb workflow remains the sole workflow. Historical runs prove the workflow graph executes when event delivery works, including real FreeCAD/Xvfb evidence for the 200 mm Blanket-over-Cube fixture.
+- Repository hygiene cleanup is implemented by the scheduled maintenance job, but 485 historical remote branches remain because scheduled maintenance is not currently executing.
+- The P1 and Production items listed above are future enhancements rather than active release blockers.

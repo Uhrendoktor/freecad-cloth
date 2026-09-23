@@ -12,10 +12,10 @@ CLO is used as a workflow benchmark, not as a cloning target. Public CLO documen
 
 ## Current repository state
 
-- Supervisor issue #1017 remains the complete-project criterion. Current `main` is `ccac198eae37bb162830895b1d8259ca84d7047f`; PR #1066 is the current final validation candidate.
+- Supervisor issue #1017 remains the complete-project criterion. The default branch contains the release implementation baseline, but final exact-head and merged-main validation are blocked by Actions event delivery.
 - Supporting canonical run #3297 / `35844023654` executed the real FreeCAD/Xvfb release jobs: Python, sewing, export, blanket visual, README turntable and tunic audit passed; only Native Sketcher acceptance timed out.
 - The Sketcher timeout has a bounded software diagnosis and merged fix: bootstrap `InitGui.py` before workbench activation and emit flushed stage markers so startup failures cannot remain silent.
-- Repeated zero-job push workflow failures remain an external Actions orchestration blocker. Validation PR #1070 pointed at the exact #1066 head and also received no `pull_request` run. These failures do not count as successful validation, and the production workflow remains unchanged.
+- Repeated zero-job push workflow failures remain an external Actions orchestration blocker; they do not count as successful validation.
 
 ## Supervisor milestone ladder
 
