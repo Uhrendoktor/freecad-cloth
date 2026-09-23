@@ -44,20 +44,20 @@ authoritative_seam_gate = r'''
 '''
 
 ab_helper = r'''
-def _ab_tunic_simulation():
-    from freecad_cloth.pattern import PatternMesh
-    original_refine = PatternMesh.refine_linear_boundary
-    calls = []
-    def bypass(pattern, max_spacing):
-        calls.append(float(max_spacing))
-        return pattern
-    PatternMesh.refine_linear_boundary = bypass
-    log("ab-quality-mesh-mode=without-linear-boundary-refinement")
+def _mesh_collision_tunic_simulation():
+    import os
+    key = "CLOTH_TISSU_COLLISION_MODE"
+    previous = os.environ.get(key)
+    os.environ[key] = "mesh"
+    log("ab-collision-mode=mesh")
     try:
         return simulation()
     finally:
-        PatternMesh.refine_linear_boundary = original_refine
-        log("ab-quality-mesh-restored=true bypass-calls=%d spacing-values=%s" % (len(calls), tuple(round(value, 6) for value in calls)))
+        if previous is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = previous
+        log("ab-collision-mode-restored=true")
 '''
 
 # Keep the canonical visual fixture's torso-envelope collision scoped to this audit.
