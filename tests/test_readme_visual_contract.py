@@ -28,3 +28,15 @@ class ReadmeVisualContractTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def test_scheduled_workloads_do_not_cancel_each_other():
+    source = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    assert "github.event.schedule || github.event.pull_request.number || github.ref" in source
+
+
+def test_actions_write_permission_is_scoped_to_maintenance():
+    source = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    assert "permissions:\n  actions: read" in source
+    assert "  maintenance-cleanup:" in source
+    assert "    permissions:\n      actions: write" in source
