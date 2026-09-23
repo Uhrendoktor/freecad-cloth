@@ -8,7 +8,7 @@ execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_issue: 1017
 active_release_pr: 1066
 active_release_branch: supervisor/complete-audit-20260923
-active_release_head: af1e98d12a2287e9042aebb3ef9cb163bf97354c
+active_release_head: 2a142d1c71ef6581d6c7afac20acf3018254de66
 current_main: 8cee5774c25110448675e7b45d651869f3921692
 workflow_count: 1
 workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
@@ -16,7 +16,7 @@ validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evid
 release_gate:
   candidate: PR_1066
   candidate_scope: evidence-backed 200 mm blanket fixture for basic visual and README turntable
-  candidate_push_run: 35847473050
+  candidate_push_run: 35847648590
   candidate_push_state: failure_zero_jobs
   merged_main_push_run: 35847198318
   merged_main_push_state: failure_zero_jobs
