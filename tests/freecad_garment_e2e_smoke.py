@@ -3,6 +3,7 @@ import hashlib
 import math
 import os
 import tempfile
+import sys
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -797,4 +798,13 @@ def run_acceptance():
 
 
 if __name__ == "__main__":
-    run_acceptance()
+    try:
+        run_acceptance()
+    except BaseException:
+        import traceback
+        traceback.print_exc()
+        sys.stdout.flush()
+        os._exit(1)
+    else:
+        print("garment-e2e-process-exit=success", flush=True)
+        os._exit(0)
