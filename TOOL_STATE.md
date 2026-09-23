@@ -10,7 +10,9 @@ active_release_pr: 1063
 predecessor_release_pr: 1058
 active_release_branch: supervisor/root-completion-20260923
 current_main: dad152e634bcf454bc71aa02f4c1bfa858c154c1
-active_candidate_head: b95bedb7e1627f178aba437cbd8c13f62842e882
+active_candidate_head: e0b075508b008b19b65ebb0a8be6392e01e63b3f
+validation_alias_pr: 1065
+validation_alias_head: e0b075508b008b19b65ebb0a8be6392e01e63b3f
 workflow_count: 1
 workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; inspect_jobs_logs_artifacts; no_second_workflow
@@ -18,7 +20,7 @@ release_gate:
   candidate: PR_1063
   predecessor: PR_1058_closed_without_merge
   exact_head: b95bedb7e1627f178aba437cbd8c13f62842e882
-  exact_head_pr_run_state: no_pull_request_run_or_status
+  exact_head_pr_run_state: no_pull_request_run_or_status; validation_alias_1065_reopen_also_no_run
   diagnostic_run: 35845914342
   diagnostic_result: AppRun_cli_and_FreeCAD_Sketcher_import_probes_pass; native_acceptance_times_out_after_8m_with_zero_byte_log
   supporting_run: 35844023654
