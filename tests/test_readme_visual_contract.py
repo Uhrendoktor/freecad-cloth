@@ -28,4 +28,4 @@ def test_canonical_workflow_fails_closed_on_turntable_quality():
     assert "semantic-provenance=true" in source
     assert "simulation-seam-diagnostic" in source
     assert "checkpoint-uniqueness=passed" in source
-    assert "test $unique -eq 4" in source
+    assert 'test "$unique" -eq 4' in source
