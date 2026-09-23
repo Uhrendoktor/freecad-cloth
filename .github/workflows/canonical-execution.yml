@@ -210,7 +210,8 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              CLOTH_CI_SCRIPT=/workspace/tests/freecad_sketcher_acceptance.py timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /workspace/tests/freecad_ci_bootstrap.py > /workspace/artifacts/sketcher-acceptance.log 2>&1
+              cp /workspace/tests/freecad_ci_bootstrap.py /tmp/freecad_ci_bootstrap.py
+              CLOTH_CI_SCRIPT=/workspace/tests/freecad_sketcher_acceptance.py timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /tmp/freecad_ci_bootstrap.py > /workspace/artifacts/sketcher-acceptance.log 2>&1
               grep -q "native Sketcher acceptance passed" /workspace/artifacts/sketcher-acceptance.log
             '
       - name: Inspect Sketcher evidence
@@ -511,7 +512,8 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              CLOTH_CI_SCRIPT=/workspace/tests/freecad_visual_examples.py timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /workspace/tests/freecad_ci_bootstrap.py
+              cp /workspace/tests/freecad_ci_bootstrap.py /tmp/freecad_ci_bootstrap.py
+              CLOTH_CI_SCRIPT=/workspace/tests/freecad_visual_examples.py timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /tmp/freecad_ci_bootstrap.py
             '
           test -s docs/images/generated/blanket-example/blanket-visual.log
           grep -q 'blanket-visual-acceptance=passed' docs/images/generated/blanket-example/blanket-visual.log
