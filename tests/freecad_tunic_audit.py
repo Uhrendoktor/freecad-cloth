@@ -110,6 +110,7 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
     stitch_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
     if not stitch_pairs_by_seam: raise RuntimeError("authoritative seam check has no exact solver stitch provenance")
     seam_gaps = []
+    seam_maxima = []
     for seam, piece_a, piece_b in seam_records:
         expected_a = f"{piece_a.PieceId}:edge:"
         expected_b = f"{piece_b.PieceId}:edge:"
@@ -120,15 +121,94 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
         pairs = tuple(stitch_pairs_by_seam.get(str(seam.SeamId), ()))
         if not pairs:
             raise RuntimeError("authoritative seam check cannot resolve exact solver pairs for %s" % seam.SeamId)
+        seam_max = 0.0
         for ga, gb in pairs:
             a = simulated_positions[int(ga)]
             b = simulated_positions[int(gb)]
-            seam_gaps.append(((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2)**0.5)
+            gap = ((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2)**0.5
+            seam_gaps.append(gap)
+            seam_max = max(seam_max, gap)
+        seam_maxima.append((str(seam.SeamId), seam_max, len(pairs)))
+        log("authoritative-seam seam=%s max-gap-mm=%.6f stitch-pairs=%d" % (seam.SeamId, seam_max, len(pairs)))
     max_seam_gap = max(seam_gaps) if seam_gaps else 0.0
+    log("authoritative-seam-max-gap-mm=%.6f seam-ids=%s per-seam=%s" % (max_seam_gap, tuple(str(seam.SeamId) for seam, _a, _b in seam_records), tuple(seam_maxima)))
     if max_seam_gap > 35.0: raise RuntimeError("authoritative tunic seams did not converge: max endpoint gap %.1f mm" % max_seam_gap)
-    log("authoritative-seam-max-gap-mm=%.2f seam-ids=%s" % (max_seam_gap, tuple(str(seam.SeamId) for seam, _a, _b in seam_records)))\n"""
+"""
 
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n    ); bounds = []", 1)
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
 exec(compile(source, str(source_path), "exec"), globals(), globals())
+
+# Audit A/B: bypass exactly the linear authored-boundary refinement used by the
+# canonical quality mesh. Triangle max_area, solver properties, collision target,
+# pin selection, seam provenance, and the authoritative 35 mm gate are untouched.
+_original_tunic_simulation = simulation
+_original_write_drape_metrics = write_drape_metrics
+
+def _ab_write_drape_metrics(panels, avatar, *args, **kwargs):
+    result = _original_write_drape_metrics(panels, avatar, *args, **kwargs)
+    try:
+        with open(METRICS, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        for panel in panels:
+            vertices, _triangles = _mesh_geometry(getattr(panel, "Mesh", None))
+            if not vertices:
+                continue
+            xs = [point[0] for point in vertices]
+            zs = [point[2] for point in vertices]
+            log(
+                "ab-drape-mesh panel=%s vertex-count=%d lateral-span-mm=%.6f vertical-span-mm=%.6f"
+                % (
+                    str(getattr(panel, "Label", getattr(panel, "Name", ""))),
+                    len(vertices),
+                    max(xs) - min(xs),
+                    max(zs) - min(zs),
+                )
+            )
+        seam_data = payload.get("seam_coherence", {})
+        for seam in seam_data.get("seams", ()):
+            log(
+                "ab-seam-artifact seam=%s max-gap-mm=%.6f stitch-pairs=%d edge-a=%s edge-b=%s"
+                % (
+                    seam.get("seam"),
+                    float(seam.get("max_correspondence_gap_mm", 0.0)),
+                    int(seam.get("stitch_pair_count", 0)),
+                    seam.get("edge_a_id"),
+                    seam.get("edge_b_id"),
+                )
+            )
+        log(
+            "ab-seam-artifact-max-gap-mm=%.6f"
+            % float(seam_data.get("max_correspondence_gap_mm", 0.0))
+        )
+    except Exception as exc:
+        log("ab-artifact-metric-log-failure=%r" % (exc,))
+        raise
+    return result
+
+write_drape_metrics = _ab_write_drape_metrics
+
+def _ab_simulation_without_linear_boundary_refinement():
+    from freecad_cloth.pattern import PatternMesh
+
+    original = PatternMesh.refine_linear_boundary
+    calls = []
+
+    def bypass(pattern, max_spacing):
+        calls.append(float(max_spacing))
+        return pattern
+
+    PatternMesh.refine_linear_boundary = bypass
+    log("ab-quality-mesh-mode=without-linear-boundary-refinement")
+    log("ab-quality-mesh-max-area-policy=unchanged-triangle-0.45-spacing-squared")
+    try:
+        return _original_tunic_simulation()
+    finally:
+        PatternMesh.refine_linear_boundary = original
+        log(
+            "ab-quality-mesh-restored=true bypass-calls=%d spacing-values=%s"
+            % (len(calls), tuple(round(value, 6) for value in calls))
+        )
+
+simulation = _ab_simulation_without_linear_boundary_refinement
