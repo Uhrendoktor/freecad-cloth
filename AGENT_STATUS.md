@@ -9,7 +9,7 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 - Current main: resolve current `refs/heads/main` tip at audit time.
 - Canonical workflow: `.github/workflows/canonical-execution.yml`; exactly one workflow.
 - Supervisor completion issue: #1017.
-- Active release candidate: PR #1066, branch `supervisor/complete-audit-20260923`; current exact head is recorded by the open PR and `TOOL_STATE.md` on that branch.
+- Active release candidate: PR #1073, branch `supervisor/final-release-20260923`; current exact head is recorded by the open PR and `TOOL_STATE.md` on that branch.
 
 ## Implemented release slice
 
@@ -32,12 +32,12 @@ Machine-readable supervisor/release record. Durable guidance lives in `docs/DEVE
 ## External CI blocker
 
 - GitHub Actions event delivery remains unresolved: main/non-main push runs can terminate `failure` with zero jobs, while historical pull_request/schedule runs instantiate the canonical job graph.
-- Repository-side policy inspection requires Administration access not exposed by the installed GitHub connector. Exact restoration path is recorded in issue #1053: inspect inherited/repository Actions event restrictions, then trigger a real `pull_request:synchronize` on PR #1066 and verify non-zero jobs.
+- Repository-side policy inspection requires Administration access not exposed by the installed GitHub connector. Exact restoration path is recorded in issue #1053: inspect inherited/repository Actions event restrictions, then trigger a real `pull_request:synchronize` on PR #1073 and verify non-zero jobs.
 
 ## Current gate
 
 - Do not merge or close #1017 or continuation #1067 yet.
-- Exact-head PR #1066 must receive a terminal canonical run and its jobs/artifacts/logs must be inspected.
+- Exact-head PR #1073 must receive a terminal canonical run and its jobs/artifacts/logs must be inspected.
 - After merge, merged-main canonical validation must be terminal-green before closing supervisor issues.
-- Stale/overlapping PRs have been superseded. PR #1066 is the sole open release PR; #1053 and #1055 document external Actions/Sketcher evidence.
+- Stale/overlapping PRs have been superseded. PR #1073 is the sole open release PR; #1053 and #1055 document external Actions/Sketcher evidence.
 
