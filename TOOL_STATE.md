@@ -8,14 +8,14 @@ execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_issue: 1017
 active_release_pr: 1066
 active_release_branch: supervisor/complete-audit-20260923
-current_main: 77ae401a423d1904f0b86e0fb9d1f6d464cb8597
+current_main: refs/heads/main (resolve current tip at audit time)
 workflow_count: 1
 workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; inspect_jobs_logs_artifacts; no_second_workflow
 release_gate:
   candidate: PR_1066
-  exact_head: 7141ed6a8c9e49dd3e85c171401aeebf28ff17c6
-  pr_run_state: no_pull_request_run_or_status; push run #3405 (35848172889) failed with zero jobs
+  exact_head: resolve current PR #1066 head at validation time
+  pr_run_state: exact-head pull_request delivery is blocked; recent push runs fail pre-job with zero jobs/artifacts
   supporting_run: 35844023654
   supporting_run_result: all canonical jobs passed except native Sketcher acceptance timeout
   supporting_timeout_root_cause: acceptance activated Cloth workbenches without explicitly bootstrapping InitGui.py
@@ -26,4 +26,4 @@ open_actionable_issues: [1017, 1020, 1042, 1043, 1053, 1055, 1067]
 ```
 
 closed_research_issues: [1042, 1055]
-stale_branch_cleanup: unavailable_via_current_connector
+stale_branch_cleanup: unavailable_via_current_connector; 485_remote_branches_observed
