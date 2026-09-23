@@ -6,9 +6,9 @@ repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_task: #647 release lifecycle closeout
-current_main: c41a071a345715f199bdade34872049faba4527d
-open_prs: [1010]
-open_actionable_issues: [647, 720, 471]
+current_main: main_final_closeout_state
+open_prs: []
+open_actionable_issues: []
 
 architecture:
   package_root: freecad_cloth/
@@ -31,10 +31,10 @@ workflow_contract:
   policy: preserve_Docker_Xvfb_FreeCAD_path; fail_closed_evidence; no_second_workflow
 
 latest_verified_ci:
-  run_id: 35815336438
-  run_number: 3087
-  commit: 91128e25caa4df228e1022e67b4554cf256a12a5
-  pr: 1010
+  run_id: 35816180447
+  run_number: 3091
+  commit: c2ea9d73cd533c10bc1e145793905faced1d9642
+  pr: 1011
   status: completed
   conclusion: success
   jobs:
@@ -85,7 +85,9 @@ historical_closeout:
   merged_runner_commit: 4e119229cd4df00b529d002dd32106b09504992e
   durable_state_pr: 1009
   durable_state_merge_commit: c41a071a345715f199bdade34872049faba4527d
+  final_closeout_pr: 1011
   current_main_has_release_and_runner: true
+  all_supervisor_records_closed_completed: true
   sewing_closeout_issue: 475_closed_completed
   stale_runner_prs: [925_closed_unmerged, 1008_closed_unmerged]
   stale_curved_sewing_pr: 999_closed_unmerged
