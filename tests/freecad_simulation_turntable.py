@@ -107,9 +107,16 @@ def render_turntable(view, objects, frame_dir, frame_count=72):
     for frame in range(frame_total):
         angle = 2.0 * pi * min(frame, effective_count) / effective_count
         camera.position = coin.SbRotation(coin.SbVec3f(0.0, 0.0, 1.0), angle).multVec(base_offset) + target
-        camera.pointAt(target, up); events()
+        camera.pointAt(target, up)
+        if hasattr(view, "redraw"):
+            view.redraw()
+        events()
         save_png(view, os.path.join(frame_dir, "frame-%03d.png" % frame), "turntable frame %03d" % frame)
-    camera.position = base_position; camera.pointAt(target, up); events()
+    camera.position = base_position
+    camera.pointAt(target, up)
+    if hasattr(view, "redraw"):
+        view.redraw()
+    events()
     log("turntable-pass dir=%s frames=%d" % (frame_dir, frame_total))
 
 
@@ -311,7 +318,6 @@ def build_simulation_state(doc):
     if avatar is None or str(getattr(avatar, "AvatarType", "")) != "ClothAvatar":
         raise RuntimeError("missing production ClothAvatar")
     box = avatar.Mesh.BoundBox
-    torso_width = float(box.XMax - box.XMin)
     z_span = float(box.ZMax - box.ZMin)
     chest = 860.0; hip = 880.0; ease = 10.0
     panel_width = max(420.0, 0.50 * chest + ease)
@@ -336,7 +342,7 @@ def build_simulation_state(doc):
         return piece, outline
 
     front, front_outline = make_piece("VisualTunicFront", box.YMax + clearance, mirror_x=False)
-    back, back_outline = make_piece("VisualTunicBack", box.YMin - clearance, mirror_x=True)
+    back, back_outline = make_piece("VisualTunicBack", box.YMin - clearance, mirror_x=False)
 
     seam_records = []
     front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())
