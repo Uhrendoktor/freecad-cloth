@@ -16,9 +16,24 @@ def test_sketcher_acceptance_prepares_gui_before_manual_initgui():
 def test_visual_example_prepares_gui_before_manual_initgui():
     source = (ROOT / "tests" / "freecad_visual_examples.py").read_text(encoding="utf-8")
     run = source.split("def main():", 1)[1]
-    assert run.index("window = Gui.getMainWindow()") < run.index("doc = App.newDocument")
-    assert run.index("window.show()") < run.index("doc = App.newDocument")
-    assert run.index("events()") < run.index("doc = App.newDocument")
+    window_index = run.index("window = Gui.getMainWindow()")
+    show_index = run.index("window.show()", window_index)
+    first_events_index = run.index("events()", show_index)
+    modules_index = run.index("_load_cloth_modules()", first_events_index)
+    init_gui_index = run.index("init_gui = os.path.join", modules_index)
+    guard_index = run.index('if "ClothPatternWorkbench" not in Gui.listWorkbenches():', init_gui_index)
+    exec_index = run.index("exec(compile(open(init_gui", guard_index)
+    document_index = run.index('doc = App.newDocument("ClothBlanketExample")', exec_index)
+
+    module_helper = source.split("def _load_cloth_modules():", 1)[1].split("def main():", 1)[0]
+    module_prefix = source.split("import FreeCAD as App", 1)[0]
+    assert window_index < show_index < first_events_index < modules_index
+    assert modules_index < init_gui_index < guard_index < exec_index < document_index
+    assert "site.addsitedir(str(ROOT))" in module_helper
+    assert "from freecad_cloth." in module_helper
+    assert 'sys.path[:] = [entry for entry in sys.path if entry not in ("", str(ROOT))]' in module_prefix
+    assert module_prefix.index('sys.path[:] = [entry for entry in sys.path if entry not in ("", str(ROOT))]') < module_prefix.index("import FreeCAD as App")
+    assert "site.addsitedir(str(Path(__file__).resolve().parents[1]))" not in source
     assert "InitGui.py" in run
 
 
