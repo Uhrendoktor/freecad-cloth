@@ -57,3 +57,4 @@ def test_canonical_workflow_pr_validation_contract():
     assert "types: [opened, synchronize, reopened]" in workflow
     assert "push:" in workflow
     assert "branches: [main]" in workflow
+    assert "cancel-in-progress: false" in workflow
