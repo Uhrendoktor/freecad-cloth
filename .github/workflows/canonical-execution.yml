@@ -152,30 +152,6 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              cat > /workspace/artifacts/freecad_startup_probe.py <<'PY'
-              import os
-              from pathlib import Path
-              root = Path(os.environ["FREECAD_PROBE_MARKER_DIR"])
-              case = os.environ["FREECAD_PROBE_CASE"]
-              def mark(stage):
-                  (root / (case + ".marker")).write_text(stage + "\n", encoding="utf-8")
-                  print("probe=" + case + ":" + stage, flush=True)
-              mark("script-loaded")
-              import FreeCAD as App
-              mark("freecad-imported")
-              import FreeCADGui as Gui
-              mark("freecadgui-imported")
-              import Part
-              mark("part-imported")
-              try:
-                  from PySide import QtWidgets
-              except ImportError:
-                  from PySide2 import QtWidgets
-              app = QtWidgets.QApplication.instance()
-              if app is not None:
-                  app.quit()
-              mark("quit-requested")
-              PY
               probe_case() {
                 name="$1"
                 shift
@@ -184,7 +160,7 @@ jobs:
                 log="/workspace/artifacts/$name.log"
                 rm -f "$marker" "$log"
                 set +e
-                timeout --signal=TERM --kill-after=5s 20s /opt/freecad/AppRun "$@" /workspace/artifacts/freecad_startup_probe.py >"$log" 2>&1
+                timeout --signal=TERM --kill-after=5s 20s /opt/freecad/AppRun "$@" /workspace/tests/freecad_startup_probe.py >"$log" 2>&1
                 status=$?
                 set -e
                 echo "case=$name exit=$status" | tee -a "$log"
