@@ -1,9 +1,35 @@
 """Headless regression coverage for the Sewing workbench command layer."""
+import ast
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from freecad_cloth.sewing.SewingCommands import _MENU_TEXT, _SewingCommand, _selected_pattern_edges, repair_selected_seam
+
+
+def test_edit_selected_seam_side_does_not_refocus_before_sketcher_entry():
+    source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "sewing" / "SewingCommands.py").read_text(
+        encoding="utf-8"
+    )
+    tree = ast.parse(source)
+    function = next(
+        node for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "_edit_selected_seam_side"
+    )
+    focus_calls = [
+        node for node in ast.walk(function)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "focus_selected_seam_3d"
+    ]
+    set_edit_calls = [
+        node for node in ast.walk(function)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "setEdit"
+    ]
+    assert focus_calls == []
+    assert len(set_edit_calls) == 1
 
 
 def test_sewing_command_exposes_contextual_activation():
