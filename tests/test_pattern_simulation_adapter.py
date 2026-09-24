@@ -47,6 +47,46 @@ class _Sketch:
         return False
 
 
+class _NativeShape:
+    def __init__(self, label):
+        self.label = label
+
+
+class _ToShapeGeometry:
+    def __init__(self, label):
+        self._shape = _NativeShape(label)
+
+    def toShape(self):
+        return self._shape
+
+
+class _Shape:
+    def __init__(self, labels):
+        self.Edges = [_NativeShape(label) for label in labels]
+
+
+class _EdgePiece:
+    GeometryAuthority = "Sketcher"
+    SewingOutline = repr([
+        (0.0, 0.0),
+        (10.0, 0.0),
+        (10.0, 10.0),
+        (0.0, 10.0),
+    ])
+
+    def __init__(self):
+        self.Sketch = type(
+            "_SketchSource",
+            (),
+            {
+                "Geometry": [_ToShapeGeometry("geometry-0"), _ToShapeGeometry("geometry-1"),
+                             _ToShapeGeometry("geometry-2"), _ToShapeGeometry("geometry-3")],
+                "Shape": _Shape(["sketch-3", "sketch-2", "sketch-1", "sketch-0"]),
+            },
+        )()
+        self.Shape = _Shape(["piece-3", "piece-2", "piece-1", "piece-0"])
+
+
 class _Placement:
     Base = _Point(0.0, 0.0)
     Rotation = type("_Rotation", (), {
@@ -167,6 +207,18 @@ def _square_sketch(prefix, curved=False, bend=1.0):
         f"{prefix}:left",
     ]
     return _Sketch(geometry, ids)
+
+
+def test_native_sketch_geometry_ordinal_wins_over_reordered_shape_edges():
+    from freecad_cloth.sewing.SewingObjects import _native_edge
+
+    piece = _EdgePiece()
+
+    native = _native_edge(piece, 1)
+
+    assert native.label == "geometry-1"
+    assert native.label != "sketch-2"
+    assert native.label != "piece-2"
 
 
 def test_sketch_authority_resolves_to_pattern_ir_without_reading_legacy_outline():
