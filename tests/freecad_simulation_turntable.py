@@ -148,9 +148,8 @@ def combined_center(objects):
 
 def render_turntable(view, objects, frame_dir, frame_count=72):
     os.makedirs(frame_dir, exist_ok=True)
-    visible_objects = set(objects)
+    visible_names = {obj.Name for obj in objects}
     visibility = []
-    document = view.getDocument()
     doc = App.ActiveDocument
     if doc is not None:
         for obj in doc.Objects:
@@ -159,7 +158,7 @@ def render_turntable(view, objects, frame_dir, frame_count=72):
                 continue
             previous = bool(getattr(view_object, "Visibility", False))
             visibility.append((view_object, previous))
-            view_object.Visibility = obj in visible_objects
+            view_object.Visibility = getattr(obj, "Name", None) in visible_names
     try:
         _render_turntable_isolated(view, objects, frame_dir, frame_count)
     finally:
