@@ -62,6 +62,36 @@ def test_sketcher_authority_prefers_sketch_shape_edges():
     assert _native_edge(piece, 0) is authoritative
 
 
+def test_native_edge_endpoint_snap_uses_exact_vertices():
+    class Vertex:
+        def __init__(self, x, y):
+            self.Point = SimpleNamespace(x=x, y=y, z=0.0)
+
+    class Edge:
+        Vertexes = [Vertex(0, 0), Vertex(4, 0)]
+        def discretize(self, Number=64):
+            return [SimpleNamespace(x=0, y=0), SimpleNamespace(x=3.999999, y=0)]
+
+    native = Edge()
+    piece = SimpleNamespace(
+        Width=4.0,
+        Height=1.0,
+        SewingOutline=repr([(0, 0), (4, 0), (4, 1)]),
+        Shape=SimpleNamespace(Edges=[native]),
+        GeometryAuthority="PatternParameters",
+    )
+    oldf = sys.modules.get("FreeCAD")
+    sys.modules["FreeCAD"] = _install_fake_freecad()()
+    try:
+        from freecad_cloth.sewing.SewingObjects import _edge_samples
+        values = _edge_samples(piece, 0, 0.0, 1.0, 2, z=0.4)
+    finally:
+        if oldf is None: sys.modules.pop("FreeCAD", None)
+        else: sys.modules["FreeCAD"] = oldf
+    assert values[0].x == 0 and values[0].y == 0
+    assert values[-1].x == 4 and values[-1].y == 0
+
+
 def test_curved_native_edge_uses_arc_length_sampling():
     class Edge:
         def discretize(self, Number=64):
