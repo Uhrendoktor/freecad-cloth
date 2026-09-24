@@ -126,9 +126,8 @@ def main():
     window.show()
     events()
     _load_cloth_modules()
-    init_gui = os.path.join(ROOT, "InitGui.py")
     if "ClothPatternWorkbench" not in Gui.listWorkbenches():
-        exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
+        raise RuntimeError("ClothPatternWorkbench was not registered by FreeCAD module-path startup")
     events()
     doc = App.newDocument("ClothBlanketExample")
     try:
@@ -281,4 +280,9 @@ except BaseException as error:
     print("BLANKET VISUAL FAILURE: %r" % (error,), flush=True)
     print(traceback.format_exc(), flush=True)
     log("blanket-visual-fail exception=%r" % (error,))
-    raise
+    try:
+        app = QtWidgets.QApplication.instance()
+        if app is not None:
+            app.quit()
+    finally:
+        raise

@@ -148,6 +148,25 @@ def combined_center(objects):
 
 def render_turntable(view, objects, frame_dir, frame_count=72):
     os.makedirs(frame_dir, exist_ok=True)
+    visible_names = {obj.Name for obj in objects}
+    visibility = []
+    doc = App.ActiveDocument
+    if doc is not None:
+        for obj in doc.Objects:
+            view_object = getattr(obj, "ViewObject", None)
+            if view_object is None:
+                continue
+            previous = bool(getattr(view_object, "Visibility", False))
+            visibility.append((view_object, previous))
+            view_object.Visibility = getattr(obj, "Name", None) in visible_names
+    try:
+        _render_turntable_isolated(view, objects, frame_dir, frame_count)
+    finally:
+        for view_object, previous in visibility:
+            view_object.Visibility = previous
+
+
+def _render_turntable_isolated(view, objects, frame_dir, frame_count=72):
     frame_total = frame_count + 1
     center = combined_center(objects)
     target = coin.SbVec3f(center.x, center.y, center.z)
@@ -162,11 +181,11 @@ def render_turntable(view, objects, frame_dir, frame_count=72):
         raise RuntimeError("zero camera radius")
     up = coin.SbVec3f(0.0, 0.0, 1.0)
     frame_hashes = []
+    start_angle = pi / 2.0
     for frame in range(frame_total):
-        # Use all 73 angular positions rather than duplicating frame 000 at the
-        # end. This keeps every published frame distinct while retaining a full
-        # 360-degree turntable loop.
-        angle = 2.0 * pi * frame / frame_total
+        # Start from a cloth-visible angle, then cover a full 360 degrees
+        # without duplicating frame 000 at the end.
+        angle = start_angle + 2.0 * pi * frame / frame_total
         camera.position = coin.SbRotation(coin.SbVec3f(0.0, 0.0, 1.0), angle).multVec(base_offset) + target
         camera.pointAt(target, up)
         if hasattr(view, "redraw"):
@@ -372,12 +391,12 @@ def build_simulation_state(doc):
     doc.recompute()
 
     sketch.ViewObject.Visibility = False
-    blanket.ViewObject.Visibility = True
+    blanket.ViewObject.Visibility = False
     blanket.ViewObject.ShapeColor = (0.14, 0.32, 0.78)
     cube.ViewObject.ShapeColor = (0.62, 0.62, 0.62)
     panel.ViewObject.ShapeColor = (0.14, 0.32, 0.78)
-    panel.ViewObject.DisplayMode = "Flat Lines"
-    panel.ViewObject.Visibility = False
+    panel.ViewObject.DisplayMode = "Shaded"
+    panel.ViewObject.Visibility = True
     cube.ViewObject.Visibility = True
     doc.recompute()
     return scene, cube, blanket, panel, tuple(scene.Proxy._base_or_restore().backend.positions())
@@ -398,7 +417,7 @@ def main():
     try:
         scene, cube, blanket, panel, initial_positions = build_simulation_state(doc)
         view = Gui.activeDocument().activeView()
-        arranged_objects = [cube, blanket]
+        arranged_objects = [cube, panel]
         render_turntable(view, arranged_objects, os.path.join(OUT, "cloth-simulation-arranged-turntable-frames"))
 
         steps = int(os.environ.get("CLOTH_BLANKET_STEPS", "480"))

@@ -11,8 +11,9 @@ on:
     - cron: '0 3 * * *'
 
 concurrency:
-  group: canonical-${{ github.event_name }}-${{ github.event.schedule || github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Key validation by commit so a newer commit cannot replace this commit's pending run.
+  group: canonical-${{ github.workflow }}-${{ github.sha }}
+  cancel-in-progress: false
 
 env:
   FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
@@ -205,13 +206,15 @@ jobs:
               set -euo pipefail
               rm -rf "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
               mkdir -p "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP" "$XDG_RUNTIME_DIR" /workspace/artifacts
+              rm -rf /tmp/freecad-mod
+              mkdir -p /tmp/freecad-mod/freecad-cloth
+              cp -a /workspace/package.xml /workspace/resources /workspace/freecad_cloth /workspace/freecad /tmp/freecad-mod/freecad-cloth/
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              cp /workspace/tests/freecad_ci_bootstrap.FCMacro /tmp/freecad_ci_bootstrap.FCMacro
-              CLOTH_CI_SCRIPT=/workspace/tests/freecad_sketcher_acceptance.py timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /tmp/freecad_ci_bootstrap.FCMacro > /workspace/artifacts/sketcher-acceptance.log 2>&1
+              timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth /workspace/tests/freecad_sketcher_acceptance.py > /workspace/artifacts/sketcher-acceptance.log 2>&1
               grep -q "native Sketcher acceptance passed" /workspace/artifacts/sketcher-acceptance.log
             '
       - name: Inspect Sketcher evidence
@@ -410,7 +413,7 @@ jobs:
           from pathlib import Path
           import hashlib, re
           log = Path("docs/images/generated/simulation-turntable-progress.log").read_text(encoding="utf-8")
-          m = re.findall(r"blanket-motion-diagnostic max_centroid_displacement_mm=([0-9.]+).*min_z_mm=([0-9.]+).*cube_top_z_mm=([0-9.]+)", log)
+          m = re.findall(r"blanket-motion-diagnostic max_centroid_displacement_mm=([+-]?[0-9.]+).*min_z_mm=([+-]?[0-9.]+).*cube_top_z_mm=([+-]?[0-9.]+)", log)
           if not m: raise SystemExit("missing blanket motion diagnostic")
           displacement, minimum_z, cube_top = (float(x) for x in m[-1])
           if displacement < 40.0: raise SystemExit("blanket displacement below 40 mm")
@@ -507,13 +510,15 @@ jobs:
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               rm -rf "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
               mkdir -p "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP" "$XDG_RUNTIME_DIR" /workspace/docs/images/generated/blanket-example
+              rm -rf /tmp/freecad-mod
+              mkdir -p /tmp/freecad-mod/freecad-cloth
+              cp -a /workspace/Init.py /workspace/InitGui.py /workspace/package.xml /workspace/resources /workspace/freecad_cloth /tmp/freecad-mod/freecad-cloth/
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              cp /workspace/tests/freecad_ci_bootstrap.FCMacro /tmp/freecad_ci_bootstrap.FCMacro
-              CLOTH_CI_SCRIPT=/workspace/tests/freecad_visual_examples.py timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /tmp/freecad_ci_bootstrap.FCMacro
+              timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth /workspace/tests/freecad_visual_examples.py
             '
           test -s docs/images/generated/blanket-example/blanket-visual.log
           grep -q 'blanket-visual-acceptance=passed' docs/images/generated/blanket-example/blanket-visual.log
@@ -720,7 +725,8 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/workbench-benchmark-venv"
           "$RUNNER_TEMP/workbench-benchmark-venv/bin/python" -m pip install --disable-pip-version-check matplotlib
       - name: Generate benchmark plots
-        run: "$RUNNER_TEMP/workbench-benchmark-venv/bin/python" tools/plot_workbench_benchmark.py artifacts/workbench-benchmark/benchmark.json artifacts/workbench-benchmark/plots
+        run: |
+          "$RUNNER_TEMP/workbench-benchmark-venv/bin/python" tools/plot_workbench_benchmark.py artifacts/workbench-benchmark/benchmark.json artifacts/workbench-benchmark/plots
       - name: Upload benchmark measurements and plots
         if: always()
         uses: actions/upload-artifact@v6
