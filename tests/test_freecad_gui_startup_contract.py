@@ -1,4 +1,5 @@
 """Static contract for FreeCAD GUI startup ordering in acceptance workflows."""
+import ast
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,15 +25,54 @@ def test_visual_example_prepares_gui_before_manual_initgui():
 
 def test_committed_bootstrap_defers_acceptance_until_after_delayed_startup():
     source = (ROOT / "tests" / "freecad_ci_bootstrap.py").read_text(encoding="utf-8")
+    tree = ast.parse(source, filename="tests/freecad_ci_bootstrap.py")
+    callback = next(
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "_run_acceptance"
+    )
+
+    def is_runpy_run_path(node):
+        return (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "runpy"
+            and node.func.attr == "run_path"
+        )
+
+    runpy_calls = [node for node in ast.walk(tree) if is_runpy_run_path(node)]
+    assert len(runpy_calls) == 1
+    assert runpy_calls[0] in ast.walk(callback)
+
+    timer_calls = [
+        node
+        for node in ast.walk(tree)
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "QtCore"
+            and node.func.attr == "singleShot"
+        )
+    ]
+    assert len(timer_calls) == 1
+    assert timer_calls[0] not in ast.walk(callback)
+
     assert "import FreeCADGui as Gui" in source
     assert "window.show()" in source
     assert "sys.path[:] = [p for p in sys.path if p != ROOT]" in source
     assert "QtCore.QTimer.singleShot(0, _run_acceptance)" in source
+    assert "Gui.addWorkbench(" not in source
     assert "processEvents()" not in source
+    assert "traceback.print_exc()" in source
+    assert "app.exit(0)" in source
+    assert "app.exit(1)" in source
     assert source.index("sys.path[:] = [p for p in sys.path if p != ROOT]") < source.index("import FreeCADGui as Gui")
-    assert source.index("window.show()") < source.index("QtCore.QTimer.singleShot(0, _run_acceptance)")
-    assert source.index("QtCore.QTimer.singleShot(0, _run_acceptance)") < source.index('runpy.run_path(script, run_name="__main__")')
-    assert source.index("sys.path.insert(0, ROOT)") < source.index('runpy.run_path(script, run_name="__main__")')
+    assert source.index("window.show()") < source.index("def _run_acceptance():")
+    assert source.index("def _run_acceptance():") < source.index("QtCore.QTimer.singleShot(0, _run_acceptance)")
+    assert source.index("QtCore.QTimer.singleShot(0, _run_acceptance)") > source.index('runpy.run_path(script, run_name="__main__")')
 
 
 def test_canonical_gui_jobs_launch_from_neutral_cwd_with_bootstrap():
@@ -68,6 +108,6 @@ def test_canonical_readme_turntable_launches_from_neutral_cwd():
 if __name__ == "__main__":
     test_sketcher_acceptance_prepares_gui_before_manual_initgui()
     test_visual_example_prepares_gui_before_manual_initgui()
-    test_committed_bootstrap_prepares_gui_before_acceptance_script()
+    test_committed_bootstrap_defers_acceptance_until_after_delayed_startup()
     test_canonical_gui_jobs_launch_from_neutral_cwd_with_bootstrap()
     test_canonical_readme_turntable_launches_from_neutral_cwd()
