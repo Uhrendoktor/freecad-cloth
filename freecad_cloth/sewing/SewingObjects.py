@@ -22,18 +22,38 @@ def _outline_points(piece):
 
 
 def _native_edge(piece, edge):
-    """Return a native Shape edge when it maps one-to-one to the outline."""
-    shape = getattr(piece, "Shape", None)
-    edges = getattr(shape, "Edges", None)
-    if edges is None:
-        return None
+    """Return the native edge for a semantic Sketcher ordinal before shape fallbacks."""
     try:
         index = int(edge)
         outline = _outline_points(piece)
-        if 0 <= index < len(edges) and len(edges) == len(outline):
-            return edges[index]
     except (TypeError, ValueError, IndexError):
-        pass
+        return None
+
+    sketch = getattr(piece, "Sketch", None)
+    geometry_authority = str(getattr(piece, "GeometryAuthority", "")).strip()
+    if geometry_authority == "Sketcher" and sketch is not None:
+        geometry = getattr(sketch, "Geometry", None)
+        if geometry is not None:
+            try:
+                geometry_item = geometry[index]
+                to_shape = getattr(geometry_item, "toShape", None)
+                if callable(to_shape):
+                    native = to_shape()
+                    if native is not None:
+                        return native
+            except (AttributeError, TypeError, ValueError, IndexError, RuntimeError):
+                pass
+
+    for source in (sketch, piece):
+        shape = getattr(source, "Shape", None)
+        edges = getattr(shape, "Edges", None)
+        if edges is None:
+            continue
+        try:
+            if 0 <= index < len(edges) and len(edges) == len(outline):
+                return edges[index]
+        except (TypeError, ValueError, IndexError):
+            continue
     return None
 
 
