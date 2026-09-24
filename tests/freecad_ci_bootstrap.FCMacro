@@ -10,11 +10,13 @@ script = os.environ["CLOTH_CI_SCRIPT"]
 # Keep the repository out of FreeCAD's own delayed-startup import path.
 sys.path[:] = [p for p in sys.path if p != ROOT]
 
-import FreeCADGui as Gui  # noqa: E402
 try:
-    from PySide import QtCore, QtWidgets  # noqa: E402
+    from PySide import QtCore  # noqa: E402
 except ImportError:
-    from PySide2 import QtCore, QtWidgets  # noqa: E402
+    try:
+        from PySide2 import QtCore  # noqa: E402
+    except ImportError:
+        from PySide6 import QtCore  # noqa: E402
 
 
 window = Gui.getMainWindow()
@@ -24,8 +26,20 @@ window.show()
 
 
 def _run_acceptance():
+    import FreeCADGui as Gui
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        try:
+            from PySide2 import QtWidgets
+        except ImportError:
+            from PySide6 import QtWidgets
     app = QtWidgets.QApplication.instance()
     try:
+        window = Gui.getMainWindow()
+        if window is None:
+            raise RuntimeError("FreeCAD GUI main window is not available")
+        window.show()
         if ROOT not in sys.path:
             sys.path.insert(0, ROOT)
         runpy.run_path(script, run_name="__main__")
