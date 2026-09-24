@@ -20,6 +20,8 @@ def test_readme_turntable_uses_real_blanket_drape_motion():
     assert 'arranged_objects = [cube, panel]' in source
     assert 'visible_names = {obj.Name for obj in objects}' in source
     assert 'panel.ViewObject.DisplayMode = "Shaded"' in source
+    assert 'start_angle = pi / 2.0' in source
+    assert 'angle = start_angle + 2.0 * pi * frame / frame_total' in source
 
 
 def test_readme_turntable_uses_exact_drape_target_mesh():
