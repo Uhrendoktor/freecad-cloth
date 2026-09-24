@@ -147,7 +147,7 @@ def _resolved_edge(piece, seam, prefix):
     return _seam_edge_index(piece, seam, prefix)
 
 
-def _edge_samples(piece, edge, start, end, count, z=0.2):
+def _edge_samples(piece, edge, start, end, count, z=0.2, transform_to_world=True):
     """Return evenly arc-length-spaced points over a normalized edge range."""
     import FreeCAD as App
     if count < 2:
@@ -159,7 +159,7 @@ def _edge_samples(piece, edge, start, end, count, z=0.2):
         p = _sample_polyline(points, float(start) + (float(end) - float(start)) * t)
         value = App.Vector(p[0], p[1], z)
         placement = getattr(piece, "Placement", None)
-        values.append(placement.multVec(value) if placement is not None else value)
+        values.append(placement.multVec(value) if placement is not None and transform_to_world else value)
     return values
 
 
