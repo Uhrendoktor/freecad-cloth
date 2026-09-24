@@ -6,8 +6,6 @@ import traceback
 from math import pi
 
 ROOT = "/workspace"
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -16,6 +14,9 @@ try:
 except ImportError:
     from PySide2 import QtWidgets
 from pivy import coin
+
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 
 from freecad_cloth.common.DrapeVisualSanity import inspect_drape, mesh_shape_sanity
 from freecad_cloth.common.MeshValidation import validate_mesh
