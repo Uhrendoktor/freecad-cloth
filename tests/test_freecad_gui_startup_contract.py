@@ -61,7 +61,6 @@ def test_canonical_gui_jobs_use_freecad_module_path():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
     sketcher = workflow.split("gui-sketcher-acceptance:", 1)[1].split("gui-pattern-export:", 1)[0]
     visual = workflow.split("gui-visual-examples:", 1)[1].split("publish-readme-turntables:", 1)[0]
-    assert "cp -a /workspace/Init.py /workspace/InitGui.py /workspace/package.xml /workspace/resources /workspace/freecad_cloth /tmp/freecad-mod/freecad-cloth/" in sketcher
     assert "/opt/freecad/AppRun -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth /workspace/tests/freecad_sketcher_acceptance.py" in sketcher
     assert "cp -a /workspace/package.xml /workspace/resources /workspace/freecad_cloth /workspace/freecad /tmp/freecad-mod/freecad-cloth/" in sketcher
     assert "cp -a /workspace/Init.py /workspace/InitGui.py" not in sketcher
