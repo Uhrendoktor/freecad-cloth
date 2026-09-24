@@ -97,7 +97,7 @@ def test_readme_turntable_scripts_import_freecad_gui_before_repository_path_inje
 
 if __name__ == "__main__":
     test_sketcher_acceptance_prepares_gui_before_workbench_assertion()
-    test_visual_example_prepares_gui_before_module_imports()
+    test_visual_example_prepares_gui_and_explicit_workbench_registration()
     test_sketcher_acceptance_uses_freecad_module_path_startup()
     test_canonical_gui_jobs_use_freecad_module_path()
     test_canonical_validation_is_commit_scoped_and_not_cancellable()
