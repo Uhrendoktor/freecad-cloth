@@ -42,21 +42,22 @@ def test_committed_bootstrap_defers_acceptance_until_after_delayed_startup():
             and node.func.attr == "run_path"
         )
 
+    def is_qt_single_shot(node):
+        return (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "singleShot"
+            and isinstance(node.func.value, ast.Attribute)
+            and node.func.value.attr == "QTimer"
+            and isinstance(node.func.value.value, ast.Name)
+            and node.func.value.value.id == "QtCore"
+        )
+
     runpy_calls = [node for node in ast.walk(tree) if is_runpy_run_path(node)]
     assert len(runpy_calls) == 1
     assert runpy_calls[0] in ast.walk(callback)
 
-    timer_calls = [
-        node
-        for node in ast.walk(tree)
-        if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and isinstance(node.func.value, ast.Name)
-            and node.func.value.id == "QtCore"
-            and node.func.attr == "singleShot"
-        )
-    ]
+    timer_calls = [node for node in ast.walk(tree) if is_qt_single_shot(node)]
     assert len(timer_calls) == 1
     assert timer_calls[0] not in ast.walk(callback)
 
