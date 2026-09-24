@@ -146,7 +146,13 @@ def _exercise_constraint_families(doc, reference_sketch):
 
 
 def _stage(name):
-    print("stage=%s" % name, flush=True)
+    message = "stage=%s" % name
+    print(message, flush=True)
+    stage_file = os.environ.get("SKETCHER_STAGE_FILE")
+    if stage_file:
+        with open(stage_file, "a", encoding="utf-8") as handle:
+            handle.write(message + "\n")
+            handle.flush()
 
 
 def _bootstrap_workbenches():
@@ -171,7 +177,13 @@ def _bootstrap_workbenches():
 
 
 def _record(message):
-    print("sketcher-acceptance=%s" % message, flush=True)
+    line = "sketcher-acceptance=%s" % message
+    print(line, flush=True)
+    stage_file = os.environ.get("SKETCHER_STAGE_FILE")
+    if stage_file:
+        with open(stage_file, "a", encoding="utf-8") as handle:
+            handle.write(line + "\n")
+            handle.flush()
 
 
 def run_acceptance():
