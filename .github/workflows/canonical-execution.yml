@@ -261,6 +261,64 @@ jobs:
           if-no-files-found: error
           compression-level: 1
 
+  gui-seam-edit-diagnostic:
+    name: Native Sketcher seam edit diagnostic
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Run seam edit diagnostic
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/seam-edit-diagnostic
+          mkdir -p artifacts/seam-edit-diagnostic
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            --env TINI_SUBREAPER=1 \
+            --env DISPLAY=:99 \
+            --env XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            --env QT_X11_NO_MITSHM=1 \
+            --env QT_QPA_PLATFORM=xcb \
+            --env LIBGL_ALWAYS_SOFTWARE=1 \
+            --env FREECAD_USER_HOME=/tmp/freecad-user \
+            --env FREECAD_USER_DATA=/tmp/freecad-user-data \
+            --env FREECAD_USER_TEMP=/tmp/freecad-user-temp \
+            --volume "$PWD:/workspace" \
+            --workdir /workspace \
+            "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              rm -rf "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
+              mkdir -p "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP" "$XDG_RUNTIME_DIR"
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              python3 - <<'"'"'PY'"'"'
+          from pathlib import Path
+          source = Path("tests/freecad_sketcher_acceptance.py").read_text(encoding="utf-8")
+          needle = '        Gui.runCommand("ClothSewing_EditSeamSideA", 0)'
+          replacement = '        _stage("diag-before-seam-edit")\n        Gui.runCommand("ClothSewing_EditSeamSideA", 0)\n        _stage("diag-after-seam-edit")\n        return'
+          if source.count(needle) != 1:
+              raise SystemExit("seam edit command not found exactly once")
+          Path("/tmp/seam_edit_probe.py").write_text(source.replace(needle, replacement), encoding="utf-8")
+          PY
+              timeout --signal=TERM --kill-after=10s 90s /opt/freecad/AppRun /tmp/seam_edit_probe.py > /workspace/artifacts/seam-edit-diagnostic/seam-edit.log 2>&1
+              cat /workspace/artifacts/seam-edit-diagnostic/seam-edit.log
+            '
+      - name: Upload seam edit diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: seam-edit-diagnostic
+          path: artifacts/seam-edit-diagnostic
+          if-no-files-found: error
+
   gui-sketcher-acceptance:
     name: Native Sketcher seam presentation acceptance
     runs-on: ubuntu-latest
