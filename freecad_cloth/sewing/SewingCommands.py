@@ -352,6 +352,8 @@ def _edit_selected_seam_side(side):
         raise ValueError("seam side %s is not present in the Sketcher semantic edge map" % side) from exc
     if Gui.activeDocument().getInEdit():
         Gui.activeDocument().resetEdit()
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(piece)
     Gui.activeDocument().setEdit(sketch.Name)
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(sketch, "Edge%d" % (edge_index + 1))
