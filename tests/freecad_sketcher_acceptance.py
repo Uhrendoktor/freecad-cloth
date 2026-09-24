@@ -233,7 +233,7 @@ def run_acceptance():
         expected_seam_rgb = tuple(seam_color_map([seam_id])[seam_id])
         actual_seam_rgb = tuple(seam.ViewObject.LineColor[:3])
         if actual_seam_rgb != expected_seam_rgb:
-            raise RuntimeError("seam focus command did not preserve deterministic seam color")
+            raise RuntimeError("seam focus command did not preserve deterministic seam color: actual=%r expected=%r" % (actual_seam_rgb, expected_seam_rgb))
         seam_box = seam.Shape.BoundBox
         placed_piece_box = curved.Shape.BoundBox
         if seam_box.XMax < placed_piece_box.XMin or seam_box.XMin > placed_piece_box.XMax:
