@@ -1,0 +1,131 @@
+name: GPT-ToolsAndStorage stale branch cleanup
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/_gpt_tools_branch_cleanup.yml"
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete stale branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: Uhrendoktor/freecad-cloth
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import re
+          import subprocess
+          from datetime import datetime, timezone
+
+          repo = "Uhrendoktor/freecad-cloth"
+
+          def gh(path):
+              raw = subprocess.check_output(
+                  ["gh", "api", "--paginate", "--slurp", path],
+                  text=True,
+              )
+              pages = json.loads(raw)
+              return pages
+
+          def flatten(pages, key=None):
+              out = []
+              for page in pages:
+                  if key is not None:
+                      if isinstance(page, dict):
+                          out.extend(page.get(key, []))
+                  elif isinstance(page, list):
+                      out.extend(page)
+              return out
+
+          branch_pages = gh(f"repos/{repo}/branches?per_page=100")
+          branches = flatten(branch_pages)
+
+          open_pages = gh(f"repos/{repo}/pulls?state=open&per_page=100")
+          open_prs = flatten(open_pages)
+          open_branches = {p.get("head", {}).get("ref") for p in open_prs if p.get("head", {}).get("ref")}
+
+          closed_pages = gh(f"repos/{repo}/pulls?state=closed&per_page=100&sort=updated&direction=desc")
+          closed_prs = flatten(closed_pages)
+          closed_branches = {p.get("head", {}).get("ref") for p in closed_prs if p.get("head", {}).get("ref")}
+
+          date_re = re.compile(r"(20\d{6})")
+          scratch_prefixes = (
+              "archive/",
+              "checkpoint/",
+              "ci/",
+              "tmp/",
+              "validation/",
+          )
+
+          def dated_before_today(name, cutoff="20260924"):
+              matches = date_re.findall(name)
+              return any(value < cutoff for value in matches)
+
+          to_delete = []
+          protected = []
+          reasons = {}
+
+          for item in branches:
+              name = item["name"]
+              if name == "main" or name in open_branches:
+                  protected.append(name)
+                  continue
+
+              if name in closed_branches:
+                  to_delete.append(name)
+                  reasons[name] = "closed PR with no open PR"
+                  continue
+
+              if name.startswith(scratch_prefixes) or name in {
+                  "docs/screenshots",
+                  "task/simulation-360-readme",
+              }:
+                  to_delete.append(name)
+                  reasons[name] = "untracked scratch/temporary branch"
+                  continue
+
+              if dated_before_today(name):
+                  to_delete.append(name)
+                  reasons[name] = "dated no-PR branch predating current workday"
+                  continue
+
+          deleted = []
+          errors = []
+          for name in sorted(set(to_delete)):
+              proc = subprocess.run(
+                  ["gh", "api", "--method", "DELETE",
+                   f"repos/{repo}/git/refs/heads/{name}"],
+                  text=True,
+                  capture_output=True,
+              )
+              if proc.returncode == 0 or "404" in proc.stderr:
+                  deleted.append(name)
+              else:
+                  errors.append({"branch": name, "error": proc.stderr.strip()})
+
+          print(json.dumps({
+              "repository": repo,
+              "branches_seen": len(branches),
+              "open_pr_branches_protected": len(open_branches),
+              "candidates": len(set(to_delete)),
+              "deleted": len(deleted),
+              "errors": errors,
+              "deleted_branches": deleted,
+              "reason_counts": {
+                  reason: sum(1 for name in deleted if reasons.get(name) == reason)
+                  for reason in sorted(set(reasons.values()))
+              },
+          }, indent=2))
+
+          if errors:
+              raise SystemExit(1)
+          PY
