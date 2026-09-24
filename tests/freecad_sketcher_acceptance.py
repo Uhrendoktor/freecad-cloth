@@ -339,4 +339,18 @@ def run_acceptance():
             app.quit()
 
 
-run_acceptance()
+def _quit_application():
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
+    app = QtWidgets.QApplication.instance()
+    if app is not None:
+        app.quit()
+
+
+try:
+    run_acceptance()
+except BaseException:
+    _quit_application()
+    raise
