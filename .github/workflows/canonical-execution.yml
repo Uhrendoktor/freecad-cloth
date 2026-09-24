@@ -274,11 +274,24 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Pull FreeCAD image
         run: docker pull "$FREECAD_IMAGE"
-      - name: Run seam edit diagnostic
+      - name: Generate seam edit probe
+        working-directory: .
         run: |
           set -euo pipefail
           rm -rf artifacts/seam-edit-diagnostic
           mkdir -p artifacts/seam-edit-diagnostic
+          python3 - <<'PY'
+          from pathlib import Path
+          source = Path("tests/freecad_sketcher_acceptance.py").read_text(encoding="utf-8")
+          needle = '        Gui.runCommand("ClothSewing_EditSeamSideA", 0)'
+          replacement = '        _stage("diag-before-seam-edit")\n        Gui.runCommand("ClothSewing_EditSeamSideA", 0)\n        _stage("diag-after-seam-edit")\n        return'
+          if source.count(needle) != 1:
+              raise SystemExit("seam edit command not found exactly once")
+          Path("artifacts/seam-edit-diagnostic/seam_edit_probe.py").write_text(source.replace(needle, replacement), encoding="utf-8")
+          PY
+      - name: Run seam edit diagnostic
+        run: |
+          set -euo pipefail
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             --env TINI_SUBREAPER=1 \
             --env DISPLAY=:99 \
@@ -291,26 +304,7 @@ jobs:
             --env FREECAD_USER_TEMP=/tmp/freecad-user-temp \
             --volume "$PWD:/workspace" \
             --workdir /workspace \
-            "$FREECAD_IMAGE" bash -lc '
-              set -euo pipefail
-              rm -rf "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
-              mkdir -p "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP" "$XDG_RUNTIME_DIR"
-              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
-              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
-              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
-              python3 - <<'"'"'PY'"'"'
-          from pathlib import Path
-          source = Path("tests/freecad_sketcher_acceptance.py").read_text(encoding="utf-8")
-          needle = '        Gui.runCommand("ClothSewing_EditSeamSideA", 0)'
-          replacement = '        _stage("diag-before-seam-edit")\n        Gui.runCommand("ClothSewing_EditSeamSideA", 0)\n        _stage("diag-after-seam-edit")\n        return'
-          if source.count(needle) != 1:
-              raise SystemExit("seam edit command not found exactly once")
-          Path("/tmp/seam_edit_probe.py").write_text(source.replace(needle, replacement), encoding="utf-8")
-          PY
-              timeout --signal=TERM --kill-after=10s 90s /opt/freecad/AppRun /tmp/seam_edit_probe.py > /workspace/artifacts/seam-edit-diagnostic/seam-edit.log 2>&1
-              cat /workspace/artifacts/seam-edit-diagnostic/seam-edit.log
-            '
+            "$FREECAD_IMAGE" bash -lc "set -euo pipefail; rm -rf $FREECAD_USER_HOME $FREECAD_USER_DATA $FREECAD_USER_TEMP; mkdir -p $FREECAD_USER_HOME $FREECAD_USER_DATA $FREECAD_USER_TEMP $XDG_RUNTIME_DIR; Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=\$!; openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=\$!; trap 'kill \$OPENBOX_PID \$XVFB_PID 2>/dev/null || true' EXIT; for i in \$(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done; timeout --signal=TERM --kill-after=10s 90s /opt/freecad/AppRun /workspace/artifacts/seam-edit-diagnostic/seam_edit_probe.py > /workspace/artifacts/seam-edit-diagnostic/seam-edit.log 2>&1"
       - name: Upload seam edit diagnostic
         if: always()
         uses: actions/upload-artifact@v4
