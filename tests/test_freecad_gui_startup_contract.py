@@ -59,7 +59,10 @@ def test_sketcher_acceptance_uses_explicit_initgui_startup():
     assert "sys.path[:] = [entry for entry in sys.path if entry not in (\"\", str(ROOT))]" in source
     assert "if \"ClothPatternWorkbench\" not in Gui.listWorkbenches():" in source
     assert "registered by explicit InitGui startup" in source
-    assert "exec(compile(init_gui" not in source
+    assert "init_gui.read_text(encoding=\"utf-8\")" in source
+    bootstrap_index = source.index("_bootstrap_workbenches()")
+    stage_index = source.index('_stage("gui-ready")')
+    assert stage_index < bootstrap_index
     assert "app.quit()" in source
 
 def test_canonical_gui_jobs_use_deterministic_startup_boundaries():
