@@ -167,6 +167,26 @@ if not getattr(audit, "ExternalGeometry", ()):
     raise RuntimeError("external geometry did not persist")
 mark("audit-external-validated")
 
+curved.Placement.Base.x = -130
+pieces[1].Placement.Base.x = 20
+mark("piece-placements-set")
+
+Gui.Selection.clearSelection()
+Gui.Selection.addSelection(curved)
+mark("pattern-piece-selected-for-edit")
+Gui.runCommand("ClothPattern_EditSketch", 0)
+mark("edit-sketch-command-returned")
+Gui.updateGui()
+QtWidgets.QApplication.processEvents()
+mark("edit-sketch-events-processed")
+if not Gui.activeDocument().getInEdit():
+    raise RuntimeError("PatternPiece edit command did not enter Sketcher")
+mark("edit-sketch-entered")
+Gui.activeDocument().resetEdit()
+Gui.updateGui()
+QtWidgets.QApplication.processEvents()
+mark("edit-sketch-reset")
+
 mark("sketcher-imported")
 
 sketch = doc.addObject("Sketcher::SketchObject", "BoundarySketch")
