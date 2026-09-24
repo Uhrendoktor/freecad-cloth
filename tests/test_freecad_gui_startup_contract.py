@@ -66,7 +66,6 @@ def test_canonical_gui_jobs_use_freecad_module_path():
     assert "cp -a /workspace/Init.py /workspace/InitGui.py" not in sketcher
     assert "cp -a /workspace/Init.py /workspace/InitGui.py /workspace/package.xml /workspace/resources /workspace/freecad_cloth /tmp/freecad-mod/freecad-cloth/" in visual
     assert "/opt/freecad/AppRun -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth /workspace/tests/freecad_visual_examples.py" in visual
-    assert "cp -a /workspace/Init.py /workspace/InitGui.py" not in visual
     assert "freecad_ci_bootstrap.FCMacro" not in sketcher
     assert "freecad_ci_bootstrap.FCMacro" not in visual
 
