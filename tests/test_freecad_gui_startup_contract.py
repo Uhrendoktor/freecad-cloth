@@ -94,7 +94,8 @@ def test_readme_turntable_scripts_import_freecad_gui_before_repository_path_inje
     for name in ("freecad_avatar_screenshot.py", "freecad_simulation_turntable.py"):
         source = (ROOT / "tests" / name).read_text(encoding="utf-8")
         gui_index = source.index("import FreeCADGui as Gui")
+        app_index = source.index("import FreeCAD as App")
         path_guard = source.index("if ROOT not in sys.path:")
-        assert gui_index < path_guard
-        assert source.index("import FreeCAD as App") < path_guard
+        first_cloth_import = source.index("from freecad_cloth.")
+        assert app_index < gui_index < path_guard < first_cloth_import
 
