@@ -411,7 +411,7 @@ jobs:
           from pathlib import Path
           import hashlib, re
           log = Path("docs/images/generated/simulation-turntable-progress.log").read_text(encoding="utf-8")
-          m = re.findall(r"blanket-motion-diagnostic max_centroid_displacement_mm=([0-9.]+).*min_z_mm=([0-9.]+).*cube_top_z_mm=([0-9.]+)", log)
+          m = re.findall(r"blanket-motion-diagnostic max_centroid_displacement_mm=([+-]?[0-9.]+).*min_z_mm=([+-]?[0-9.]+).*cube_top_z_mm=([+-]?[0-9.]+)", log)
           if not m: raise SystemExit("missing blanket motion diagnostic")
           displacement, minimum_z, cube_top = (float(x) for x in m[-1])
           if displacement < 40.0: raise SystemExit("blanket displacement below 40 mm")
