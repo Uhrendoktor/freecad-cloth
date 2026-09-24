@@ -36,5 +36,5 @@ def test_canonical_workflow_fails_closed_on_turntable_quality():
 
 def test_readme_turntable_uses_patternpiece_supported_display_mode():
     source = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
-    assert 'blanket.ViewObject.DisplayMode = "Flat Lines"' in source
+    assert "blanket.ViewObject.DisplayMode" not in source
     assert 'blanket.ViewObject.DisplayMode = "Shaded"' not in source
