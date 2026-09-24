@@ -35,6 +35,7 @@ def test_sketcher_acceptance_uses_freecad_module_path_startup():
     assert "if \"ClothPatternWorkbench\" not in Gui.listWorkbenches():" in source
     assert "registered by FreeCAD module-path startup" in source
     assert "exec(compile(init_gui" not in source
+    assert "app.quit()" in source
 
 def test_canonical_gui_jobs_use_freecad_module_path():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
