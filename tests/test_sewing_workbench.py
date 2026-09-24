@@ -66,6 +66,17 @@ def test_sketcher_authority_prefers_geometry_index_over_shape_edges():
     assert _native_edge(piece, 0) is authoritative
 
 
+
+def test_seam_side_edit_selects_pattern_piece_before_set_edit():
+    source = Path(__file__).resolve().parents[1] / "freecad_cloth" / "sewing" / "SewingCommands.py"
+    text = source.read_text(encoding="utf-8")
+    start = text.index("def _edit_selected_seam_side(side):")
+    end = text.index("\ndef edit_selected_seam_side_a():", start)
+    body = text[start:end]
+    assert body.index("Gui.Selection.clearSelection()") < body.index("Gui.Selection.addSelection(piece)")
+    assert body.index("Gui.Selection.addSelection(piece)") < body.index("Gui.activeDocument().setEdit(sketch.Name)")
+    assert body.index('Gui.activeDocument().setEdit(sketch.Name)') < body.index('Gui.Selection.addSelection(sketch, "Edge%d" % (edge_index + 1))')
+
 def test_seam_side_edit_does_not_refocus_3d_view():
     source = Path(__file__).resolve().parents[1] / "freecad_cloth" / "sewing" / "SewingCommands.py"
     text = source.read_text(encoding="utf-8")
