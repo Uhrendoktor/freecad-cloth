@@ -148,6 +148,26 @@ def combined_center(objects):
 
 def render_turntable(view, objects, frame_dir, frame_count=72):
     os.makedirs(frame_dir, exist_ok=True)
+    visible_objects = set(objects)
+    visibility = []
+    document = view.getDocument()
+    doc = App.ActiveDocument
+    if doc is not None:
+        for obj in doc.Objects:
+            view_object = getattr(obj, "ViewObject", None)
+            if view_object is None:
+                continue
+            previous = bool(getattr(view_object, "Visibility", False))
+            visibility.append((view_object, previous))
+            view_object.Visibility = obj in visible_objects
+    try:
+        _render_turntable_isolated(view, objects, frame_dir, frame_count)
+    finally:
+        for view_object, previous in visibility:
+            view_object.Visibility = previous
+
+
+def _render_turntable_isolated(view, objects, frame_dir, frame_count=72):
     frame_total = frame_count + 1
     center = combined_center(objects)
     target = coin.SbVec3f(center.x, center.y, center.z)
