@@ -31,7 +31,7 @@ def test_visual_example_prepares_gui_before_module_imports():
 
 def test_sketcher_acceptance_uses_freecad_module_path_startup():
     source = (ROOT / "tests" / "freecad_sketcher_acceptance.py").read_text(encoding="utf-8")
-    assert "sys.path[:] = [entry for entry in (\"\", str(ROOT))]".replace("entry for entry in", "entry for entry in")
+    assert "sys.path[:] = [entry for entry in sys.path if entry not in (\"\", str(ROOT))]" in source
     assert "if \"ClothPatternWorkbench\" not in Gui.listWorkbenches():" in source
     assert "registered by FreeCAD module-path startup" in source
     assert "exec(compile(init_gui" not in source
