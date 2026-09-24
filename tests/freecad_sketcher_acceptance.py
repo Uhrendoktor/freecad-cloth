@@ -230,7 +230,9 @@ def run_acceptance():
         if seam.Shape.isNull():
             raise RuntimeError("seam focus command did not retain world-space presentation geometry")
         from freecad_cloth.sewing.SewingView import seam_color_map
-        if tuple(seam.ViewObject.LineColor) != tuple(seam_color_map([seam_id])[seam_id]):
+        expected_seam_rgb = tuple(seam_color_map([seam_id])[seam_id])
+        actual_seam_rgb = tuple(seam.ViewObject.LineColor[:3])
+        if actual_seam_rgb != expected_seam_rgb:
             raise RuntimeError("seam focus command did not preserve deterministic seam color")
         seam_box = seam.Shape.BoundBox
         placed_piece_box = curved.Shape.BoundBox
