@@ -53,7 +53,13 @@ jobs:
           # GPT-ToolsAndStorage gc semantics:
           # - keep the newest KEEP_RUNS workflow runs
           # - delete merged PR head branches older than BRANCH_DAYS
-          runs = gh_api_slurp(f"repos/{repo}/actions/runs?per_page=100")
+          run_pages = gh_api_slurp(f"repos/{repo}/actions/runs?per_page=100")
+          runs = []
+          for page in run_pages:
+              if isinstance(page, dict) and "workflow_runs" in page:
+                  runs.extend(page["workflow_runs"])
+              elif isinstance(page, list):
+                  runs.extend(page)
           runs.sort(key=lambda x: x.get("created_at", ""), reverse=True)
           keep_ids = {r["id"] for r in runs[:keep_runs]}
 
