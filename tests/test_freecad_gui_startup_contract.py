@@ -21,7 +21,7 @@ def test_visual_example_prepares_gui_before_manual_initgui():
 
     assert window_index < defer_index < show_index < first_events_index < restore_index
     assert restore_index < guard_index < exec_index < second_events_index < document_index
-    assert "InitGui.py.freecad-visual-deferred" in run
+    assert "InitGui.py.freecad-visual-deferred" in source
     assert 'raise RuntimeError("FreeCAD GUI did not launch")' in run
 
 
