@@ -115,6 +115,58 @@ mark("height-constraint-added")
 
 doc.recompute()
 mark("sketch-recompute-complete")
+
+audit = doc.addObject("Sketcher::SketchObject", "SketchConstraintAudit")
+audit.Label = "Sketcher Constraint Audit"
+mark("audit-sketch-created")
+
+lines = [
+    Part.LineSegment(App.Vector(0, 0, 0), App.Vector(40, 0, 0)),
+    Part.LineSegment(App.Vector(0, 30, 0), App.Vector(40, 30, 0)),
+    Part.LineSegment(App.Vector(20, -15, 0), App.Vector(20, 45, 0)),
+    Part.Point(App.Vector(10, 0, 0)),
+    Part.Point(App.Vector(30, 0, 0)),
+    Part.LineSegment(App.Vector(0, 70, 0), App.Vector(40, 70, 0)),
+    Part.LineSegment(App.Vector(0, 80, 0), App.Vector(20, 80, 0)),
+]
+audit.addGeometry(lines, False)
+mark("audit-geometry-added")
+
+audit.toggleConstruction(2)
+mark("audit-construction-toggled")
+
+equal_index = audit.addConstraint(Sketcher.Constraint("Equal", 0, 1))
+audit.addConstraint(Sketcher.Constraint("Horizontal", 0))
+audit.addConstraint(Sketcher.Constraint("Horizontal", 1))
+audit.addConstraint(Sketcher.Constraint("Vertical", 2))
+mark("audit-basic-constraints-added")
+
+point_on_object_index = audit.addConstraint(Sketcher.Constraint("PointOnObject", 3, 1, 0))
+mark("audit-point-on-object-added")
+symmetric_index = audit.addConstraint(Sketcher.Constraint("Symmetric", 3, 1, 4, 1, 2, 1))
+mark("audit-symmetric-added")
+audit_span = audit.addConstraint(Sketcher.Constraint("Distance", 5, 40.0))
+mark("audit-span-added")
+audit_scaled = audit.addConstraint(Sketcher.Constraint("Distance", 6, 20.0))
+mark("audit-scaled-added")
+
+audit.renameConstraint(audit_span, "AuditSpan")
+audit.renameConstraint(audit_scaled, "AuditScaled")
+mark("audit-constraint-names-set")
+audit.setExpression("Constraints[%d]" % audit_scaled, "Constraints[%d] / 2" % audit_span)
+mark("audit-expression-set")
+doc.recompute()
+mark("audit-recompute-complete")
+
+geometry_count = len(audit.Geometry)
+audit.addExternal(curved.Sketch.Name, "Edge1")
+mark("audit-external-added")
+if len(audit.Geometry) != geometry_count:
+    raise RuntimeError("external geometry unexpectedly changed owned geometry")
+if not getattr(audit, "ExternalGeometry", ()):
+    raise RuntimeError("external geometry did not persist")
+mark("audit-external-validated")
+
 mark("sketcher-imported")
 
 sketch = doc.addObject("Sketcher::SketchObject", "BoundarySketch")
