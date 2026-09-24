@@ -214,7 +214,7 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth /workspace/tests/freecad_sketcher_acceptance.py > /workspace/artifacts/sketcher-acceptance.log 2>&1
+              timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /workspace/tests/freecad_sketcher_acceptance.py > /workspace/artifacts/sketcher-acceptance.log 2>&1
               grep -q "native Sketcher acceptance passed" /workspace/artifacts/sketcher-acceptance.log
             '
       - name: Inspect Sketcher evidence
@@ -601,7 +601,6 @@ jobs:
           cp ../turntables/cloth-avatar-turntable.gif docs/images/generated/
           cp ../turntables/cloth-simulation-arranged-turntable.gif docs/images/generated/
           cp ../turntables/cloth-simulation-draped-turntable.gif docs/images/generated/
-          cp ../turntables/cloth-simulation-motion.gif docs/images/generated/
           cp ../blanket/blanket-example/blanket-motion.gif docs/images/generated/cloth-blanket-motion.gif
           cp ../tunic/docs/images/generated/cloth-simulation-draped-front.png docs/images/generated/cloth-simulation-draped-front.png
           git config user.name "github-actions[bot]"

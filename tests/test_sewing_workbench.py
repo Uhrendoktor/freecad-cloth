@@ -66,6 +66,41 @@ def test_sketcher_authority_prefers_geometry_index_over_shape_edges():
     assert _native_edge(piece, 0) is authoritative
 
 
+def test_sketcher_authority_matches_semantic_edge_endpoints():
+    from freecad_cloth.pattern import PatternObjects
+
+    class Point:
+        def __init__(self, x, y):
+            self.x = x
+            self.y = y
+
+    class Vertex:
+        def __init__(self, x, y):
+            self.Point = Point(x, y)
+
+    class Edge:
+        def __init__(self, start, end):
+            self.Vertexes = (Vertex(*start), Vertex(*end))
+
+    wrong = Edge((0, 0), (100, 0))
+    right = Edge((80, 50), (0, 50))
+    piece = SimpleNamespace(
+        GeometryAuthority="Sketcher",
+        Sketch=SimpleNamespace(Shape=SimpleNamespace(Edges=[wrong, right])),
+        Shape=SimpleNamespace(Edges=[wrong, right]),
+        SewingOutline=repr([(0, 0), (100, 0), (100, 50), (0, 50)]),
+    )
+
+    original = PatternObjects._native_edge_record_for_sketch_index
+    PatternObjects._native_edge_record_for_sketch_index = lambda obj, edge: {
+        "points": ((80.0, 50.0), (0.0, 50.0))
+    }
+    try:
+        assert _native_edge(piece, 2) is right
+    finally:
+        PatternObjects._native_edge_record_for_sketch_index = original
+
+
 def test_sketcher_authority_falls_back_to_sketch_shape_edges():
     authoritative = object()
     legacy = object()

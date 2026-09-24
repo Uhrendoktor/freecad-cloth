@@ -8,11 +8,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:] = [entry for entry in sys.path if entry not in ("", str(ROOT))]
 
+print("stage=script-loaded", flush=True)
 import FreeCAD as App
+print("stage=freecad-imported", flush=True)
 import FreeCADGui as Gui
+print("stage=freecadgui-imported", flush=True)
 import Part
-import Sketcher
-
+print("stage=part-imported", flush=True)
+ 
 
 def _events():
     Gui.updateGui()
@@ -53,6 +56,7 @@ def _constraint_name(sketch, index):
 
 def _make_curved_piece_sketch(piece, doc):
     """Use native Sketcher geometry as the actual PatternPiece geometry authority."""
+    import Sketcher
     sketch = piece.Sketch
     if sketch is None:
         raise RuntimeError("PatternPiece did not create a native Sketcher sketch")
@@ -93,6 +97,7 @@ def _make_curved_piece_sketch(piece, doc):
 
 def _exercise_constraint_families(doc, reference_sketch):
     """Exercise native geometric constraints and expression references."""
+    import Sketcher
     audit = doc.addObject("Sketcher::SketchObject", "SketchConstraintAudit")
     audit.Label = "Sketcher Constraint Audit"
     lines = [
@@ -150,10 +155,19 @@ def _bootstrap_workbenches():
         raise RuntimeError(
             "FreeCAD GUI main window must be visible before workbench acceptance"
         )
+    if "ClothPatternWorkbench" in Gui.listWorkbenches():
+        return
+    init_gui = ROOT / "InitGui.py"
+    if not init_gui.is_file():
+        raise RuntimeError("InitGui.py missing from FreeCAD workbench root")
+    namespace = {"__file__": str(init_gui), "__name__": "__main__"}
+    exec(
+        compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"),
+        namespace,
+        namespace,
+    )
     if "ClothPatternWorkbench" not in Gui.listWorkbenches():
-        raise RuntimeError(
-            "ClothPatternWorkbench was not registered by FreeCAD module-path startup"
-        )
+        raise RuntimeError("ClothPatternWorkbench was not registered by explicit InitGui startup")
 
 
 def _record(message):
