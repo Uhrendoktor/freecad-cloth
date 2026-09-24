@@ -19,12 +19,6 @@ except ImportError:
         from PySide6 import QtCore  # noqa: E402
 
 
-window = Gui.getMainWindow()
-if window is None:
-    raise RuntimeError("FreeCAD GUI main window is not available")
-window.show()
-
-
 def _run_acceptance():
     import FreeCADGui as Gui
     try:
