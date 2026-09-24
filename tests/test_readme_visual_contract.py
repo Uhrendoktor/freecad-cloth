@@ -31,3 +31,10 @@ def test_canonical_workflow_fails_closed_on_turntable_quality():
     assert "blanket-turntable-pass" in source
     assert 'test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames' in source
     assert 'checkpoint-uniqueness=passed' in source
+
+
+
+def test_readme_turntable_uses_patternpiece_supported_display_mode():
+    source = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
+    assert 'blanket.ViewObject.DisplayMode = "Flat Lines"' in source
+    assert 'blanket.ViewObject.DisplayMode = "Shaded"' not in source
