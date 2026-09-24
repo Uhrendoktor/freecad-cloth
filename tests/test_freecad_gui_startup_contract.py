@@ -88,3 +88,13 @@ if __name__ == "__main__":
     test_committed_fcmacro_defers_acceptance_until_after_delayed_startup()
     test_canonical_gui_jobs_launch_from_neutral_cwd_with_bootstrap()
     test_canonical_readme_turntable_launches_from_neutral_cwd()
+
+
+def test_readme_turntable_scripts_import_freecad_gui_before_repository_path_injection():
+    for name in ("freecad_avatar_screenshot.py", "freecad_simulation_turntable.py"):
+        source = (ROOT / "tests" / name).read_text(encoding="utf-8")
+        gui_index = source.index("import FreeCADGui as Gui")
+        path_guard = source.index("if ROOT not in sys.path:")
+        assert gui_index < path_guard
+        assert source.index("import FreeCAD as App") < path_guard
+
