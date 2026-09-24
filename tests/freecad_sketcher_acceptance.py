@@ -11,8 +11,7 @@ sys.path[:] = [entry for entry in sys.path if entry not in ("", str(ROOT))]
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
-import Sketcher
-
+ 
 
 def _events():
     Gui.updateGui()
@@ -53,6 +52,7 @@ def _constraint_name(sketch, index):
 
 def _make_curved_piece_sketch(piece, doc):
     """Use native Sketcher geometry as the actual PatternPiece geometry authority."""
+    import Sketcher
     sketch = piece.Sketch
     if sketch is None:
         raise RuntimeError("PatternPiece did not create a native Sketcher sketch")
@@ -93,6 +93,7 @@ def _make_curved_piece_sketch(piece, doc):
 
 def _exercise_constraint_families(doc, reference_sketch):
     """Exercise native geometric constraints and expression references."""
+    import Sketcher
     audit = doc.addObject("Sketcher::SketchObject", "SketchConstraintAudit")
     audit.Label = "Sketcher Constraint Audit"
     lines = [
