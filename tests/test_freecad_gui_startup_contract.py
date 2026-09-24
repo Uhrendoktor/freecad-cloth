@@ -11,23 +11,28 @@ def test_sketcher_acceptance_prepares_gui_before_workbench_assertion():
     assert run.index("_events()") < run.index("_bootstrap_workbenches()")
     assert '_stage("gui-ready")' in run
 
-def test_visual_example_prepares_gui_before_module_imports():
+def test_visual_example_prepares_gui_and_explicit_workbench_registration():
     source = (ROOT / "tests" / "freecad_visual_examples.py").read_text(encoding="utf-8")
     run = source.split("def main():", 1)[1]
     window_index = run.index("window = Gui.getMainWindow()")
     show_index = run.index("window.show()", window_index)
     first_events_index = run.index("events()", show_index)
     modules_index = run.index("_load_cloth_modules()", first_events_index)
-    guard_index = run.index('if "ClothPatternWorkbench" not in Gui.listWorkbenches():', modules_index)
-    document_index = run.index('doc = App.newDocument("ClothBlanketExample")', guard_index)
+    init_gui_index = run.index('init_gui = ROOT / "InitGui.py"', modules_index)
+    guard_index = run.index('if "ClothPatternWorkbench" not in Gui.listWorkbenches():', init_gui_index)
+    exec_index = run.index("exec(compile(init_gui.read_text", guard_index)
+    post_events_index = run.index("events()", exec_index)
+    registered_index = run.index("raise RuntimeError", post_events_index)
+    document_index = run.index('doc = App.newDocument("ClothBlanketExample")', registered_index)
     module_helper = source.split("def _load_cloth_modules():", 1)[1].split("def main():", 1)[0]
-    assert window_index < show_index < first_events_index < modules_index < guard_index < document_index
+    assert window_index < show_index < first_events_index < modules_index
+    assert modules_index < init_gui_index < guard_index < exec_index < post_events_index < registered_index < document_index
     assert "site.addsitedir(str(ROOT))" in module_helper
     assert "from freecad_cloth." in module_helper
     assert "sys.path[:] = [entry for entry in sys.path if entry not in" in source
     assert "str(ROOT)" in source
     assert source.index("sys.path[:] =") < source.index("import FreeCAD as App")
-    assert "exec(compile(open(init_gui" not in source
+    assert "InitGui.py" in run
 
 def test_freecad_extension_package_uses_namespace_gui_entry_point():
     extension = ROOT / "freecad" / "freecad_cloth"
