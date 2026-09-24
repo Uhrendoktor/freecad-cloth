@@ -111,6 +111,12 @@ def main():
     window = Gui.getMainWindow()
     if window is None or not window.isVisible():
         raise RuntimeError("FreeCAD GUI did not launch")
+    window.show()
+    events()
+    init_gui = os.path.join(Path(__file__).resolve().parents[1], "InitGui.py")
+    if "ClothPatternWorkbench" not in Gui.listWorkbenches():
+        exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
+    events()
     doc = App.newDocument("ClothBlanketExample")
     try:
         sketch, outline = make_rectangle_sketch(doc, "BlanketSketch", 260.0, 260.0)
