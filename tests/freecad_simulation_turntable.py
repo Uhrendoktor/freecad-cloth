@@ -6,8 +6,6 @@ import traceback
 from math import pi
 
 ROOT = "/workspace"
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -16,6 +14,9 @@ try:
 except ImportError:
     from PySide2 import QtWidgets
 from pivy import coin
+
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 
 from freecad_cloth.common.DrapeVisualSanity import inspect_drape, mesh_shape_sanity
 from freecad_cloth.common.MeshValidation import validate_mesh
@@ -372,7 +373,6 @@ def build_simulation_state(doc):
 
     sketch.ViewObject.Visibility = False
     blanket.ViewObject.Visibility = True
-    blanket.ViewObject.DisplayMode = "Shaded"
     blanket.ViewObject.ShapeColor = (0.14, 0.32, 0.78)
     cube.ViewObject.ShapeColor = (0.62, 0.62, 0.62)
     panel.ViewObject.ShapeColor = (0.14, 0.32, 0.78)
