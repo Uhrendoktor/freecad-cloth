@@ -35,3 +35,7 @@ A screenshot assertion is fail-closed when the captured artifact is missing, cor
 ## Change rule
 
 Every new user-visible workflow should add or extend an executable example and at least one deterministic automated assertion before it is described as complete in README or release records.
+
+## CI integration rule
+
+Cross-cutting CI repairs are validated on the current release-harness head before being merged toward `main`; a green subset is insufficient. Integration requires the full canonical job graph to terminate green and its user-facing artifacts to be inspected.
