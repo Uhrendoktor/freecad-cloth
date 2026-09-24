@@ -67,12 +67,6 @@ class _Shape:
 
 class _EdgePiece:
     GeometryAuthority = "Sketcher"
-    SewingOutline = repr([
-        (0.0, 0.0),
-        (10.0, 0.0),
-        (10.0, 10.0),
-        (0.0, 10.0),
-    ])
 
     def __init__(self):
         self.Sketch = type(
@@ -85,6 +79,14 @@ class _EdgePiece:
             },
         )()
         self.Shape = _Shape(["piece-3", "piece-2", "piece-1", "piece-0"])
+
+    @property
+    def SewingOutline(self):
+        raise AssertionError("Sketch-authoritative edge resolution accessed legacy outline")
+
+    @property
+    def DraftingBoundary(self):
+        raise AssertionError("Sketch-authoritative edge resolution accessed legacy drafting boundary")
 
 
 class _Placement:
