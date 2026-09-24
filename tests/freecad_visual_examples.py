@@ -133,15 +133,12 @@ def main():
     try:
         window.show()
         events()
+    finally:
         _restore_auto_initgui(init_gui, deferred_init_gui)
-        if "ClothPatternWorkbench" not in Gui.listWorkbenches():
-            exec(compile(open(str(init_gui), encoding="utf-8").read(), str(init_gui), "exec"), globals(), globals())
-        events()
-        doc = App.newDocument("ClothBlanketExample")
-    except BaseException:
-        _restore_auto_initgui(init_gui, deferred_init_gui)
-        raise
-    try:
+    if "ClothPatternWorkbench" not in Gui.listWorkbenches():
+        exec(compile(open(str(init_gui), encoding="utf-8").read(), str(init_gui), "exec"), globals(), globals())
+    events()
+    doc = App.newDocument("ClothBlanketExample")
     try:
         sketch, outline = make_rectangle_sketch(doc, "BlanketSketch", 260.0, 260.0)
         piece = adopt_sketch(doc, sketch)
