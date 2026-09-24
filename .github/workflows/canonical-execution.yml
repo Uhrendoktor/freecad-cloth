@@ -168,6 +168,12 @@ jobs:
               }
               probe_case plain
               probe_case module-path -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth
+              set +e
+              timeout --signal=TERM --kill-after=5s 30s /opt/freecad/AppRun /workspace/tests/freecad_sketcher_boundary_probe.py > /workspace/artifacts/boundary.log 2>&1
+              boundary_status=$?
+              set -e
+              echo "boundary-exit=$boundary_status" >> /workspace/artifacts/boundary.log
+              cat /workspace/artifacts/boundary.log
             '
       - name: Upload startup diagnostic
         if: always()
@@ -179,6 +185,7 @@ jobs:
             artifacts/module-path.log
             artifacts/plain.marker
             artifacts/module-path.marker
+            artifacts/boundary.log
           if-no-files-found: warn
           compression-level: 1
   gui-sewing-creation:
