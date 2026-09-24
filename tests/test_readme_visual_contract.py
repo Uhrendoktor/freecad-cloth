@@ -41,6 +41,16 @@ def test_blanket_motion_gif_has_usable_frame_delay_contract():
     assert 'test "$frame_delays" = "10"' in build
 
 
+def test_readme_turntable_pattern_piece_display_mode_contract():
+    source = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
+    assignments = [
+        line.strip()
+        for line in source.splitlines()
+        if "blanket.ViewObject.DisplayMode" in line
+    ]
+    assert assignments == ['blanket.ViewObject.DisplayMode = "Flat Lines"']
+
+
 def test_canonical_workflow_fails_closed_on_turntable_quality():
     source = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
     assert "CLOTH_TISSU_SUBSTEPS: 10" in source
