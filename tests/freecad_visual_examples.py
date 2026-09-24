@@ -126,9 +126,12 @@ def main():
     window.show()
     events()
     _load_cloth_modules()
+    init_gui = ROOT / "InitGui.py"
     if "ClothPatternWorkbench" not in Gui.listWorkbenches():
-        raise RuntimeError("ClothPatternWorkbench was not registered by FreeCAD module-path startup")
+        exec(compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"), globals(), globals())
     events()
+    if "ClothPatternWorkbench" not in Gui.listWorkbenches():
+        raise RuntimeError("ClothPatternWorkbench was not registered by visual acceptance startup")
     doc = App.newDocument("ClothBlanketExample")
     try:
         blanket_width = 200.0
