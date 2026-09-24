@@ -395,7 +395,7 @@ def build_simulation_state(doc):
     blanket.ViewObject.ShapeColor = (0.14, 0.32, 0.78)
     cube.ViewObject.ShapeColor = (0.62, 0.62, 0.62)
     panel.ViewObject.ShapeColor = (0.14, 0.32, 0.78)
-    panel.ViewObject.DisplayMode = "Flat Lines"
+    panel.ViewObject.DisplayMode = "Shaded"
     panel.ViewObject.Visibility = True
     cube.ViewObject.Visibility = True
     doc.recompute()
