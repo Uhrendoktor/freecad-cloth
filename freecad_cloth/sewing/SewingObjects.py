@@ -21,31 +21,60 @@ def _outline_points(piece):
     return [(0.0, 0.0), (width, 0.0), (width, height), (0.0, height)]
 
 
+def _edge_endpoint_pair(native_edge):
+    """Return the 2D endpoints of a native shape edge, when available."""
+    vertices = tuple(getattr(native_edge, "Vertexes", ()) or ())
+    if len(vertices) < 2:
+        return None
+    first = getattr(vertices[0], "Point", None)
+    last = getattr(vertices[-1], "Point", None)
+    if first is None or last is None:
+        return None
+    return (
+        (float(first.x), float(first.y)),
+        (float(last.x), float(last.y)),
+    )
+
+
 def _native_edge(piece, edge):
     """Return the authoritative native Sketcher/Shape edge when available."""
     try:
         index = int(edge)
         if str(getattr(piece, "GeometryAuthority", "")) == "Sketcher":
             sketch = getattr(piece, "Sketch", None)
-            geometry = getattr(sketch, "Geometry", None) if sketch is not None else None
-            if geometry is not None:
-                try:
-                    if 0 <= index < len(geometry):
-                        native_geometry = geometry[index]
-                        to_shape = getattr(native_geometry, "toShape", None)
-                        if callable(to_shape):
-                            return to_shape()
-                except (AttributeError, TypeError, IndexError, RuntimeError):
-                    pass
-
             sketch_shape = getattr(sketch, "Shape", None) if sketch is not None else None
-            sketch_edges = getattr(sketch_shape, "Edges", None)
-            if sketch_edges is not None:
+            sketch_edges = tuple(getattr(sketch_shape, "Edges", ()) or ())
+            if sketch_edges:
                 try:
-                    if 0 <= index < len(sketch_edges):
-                        return sketch_edges[index]
-                except (TypeError, IndexError):
+                    from freecad_cloth.pattern.PatternObjects import _native_edge_record_for_sketch_index
+                    record = _native_edge_record_for_sketch_index(piece, index)
+                    expected = record.get("points") if record is not None else None
+                    if expected is not None and len(expected) == 2:
+                        tolerance = 1e-7
+                        def matches(candidate):
+                            endpoints = _edge_endpoint_pair(candidate)
+                            if endpoints is None:
+                                return False
+                            direct = max(
+                                abs(endpoints[0][0] - float(expected[0][0])),
+                                abs(endpoints[0][1] - float(expected[0][1])),
+                                abs(endpoints[1][0] - float(expected[1][0])),
+                                abs(endpoints[1][1] - float(expected[1][1])),
+                            )
+                            reverse = max(
+                                abs(endpoints[0][0] - float(expected[1][0])),
+                                abs(endpoints[0][1] - float(expected[1][1])),
+                                abs(endpoints[1][0] - float(expected[0][0])),
+                                abs(endpoints[1][1] - float(expected[0][1])),
+                            )
+                            return min(direct, reverse) <= tolerance
+                        native_match = next((candidate for candidate in sketch_edges if matches(candidate)), None)
+                        if native_match is not None:
+                            return native_match
+                except (AttributeError, KeyError, TypeError, ValueError, IndexError, RuntimeError):
                     pass
+                if 0 <= index < len(sketch_edges):
+                    return sketch_edges[index]
 
         shape = getattr(piece, "Shape", None)
         edges = getattr(shape, "Edges", None)
@@ -57,7 +86,6 @@ def _native_edge(piece, edge):
     except (TypeError, ValueError, IndexError):
         pass
     return None
-
 
 def _edge_polyline(piece, edge, sample_count=64):
     """Return a local 2D polyline suitable for arc-length operations."""
