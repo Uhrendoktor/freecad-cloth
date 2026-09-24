@@ -2,10 +2,12 @@
 
 import os
 import site
+import sys
 import traceback
 from pathlib import Path
 
-site.addsitedir(str(Path(__file__).resolve().parents[1]))
+ROOT = Path(__file__).resolve().parents[1]
+sys.path[:] = [entry for entry in sys.path if entry not in ("", str(ROOT))]
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -15,14 +17,6 @@ try:
     from PySide import QtWidgets
 except ImportError:
     from PySide2 import QtWidgets
-
-from freecad_cloth.common.DrapeVisualSanity import inspect_drape, mesh_shape_sanity
-from freecad_cloth.common.MeshValidation import validate_mesh
-from freecad_cloth.pattern.PatternGeometry import rectangle
-from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
-from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
-from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
-from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, ensure_quality_properties
 
 
 # A generic FreeCAD cube requires Tissu's mesh collision path; torso-envelope is for avatar-style targets.
@@ -107,13 +101,32 @@ def render_motion(view, scene, frame_count=16, final_steps=120):
     log("motion-frames=passed count=%d final_steps=%d" % (len(steps), final_steps))
 
 
+def _load_cloth_modules():
+    global inspect_drape, mesh_shape_sanity
+    global validate_mesh, rectangle, quality_piece_mesh
+    global create_pattern_piece_from_selected_sketch
+    global create_simulation_scene, set_avatar_collision_source
+    global QualitySimulationProxy, ensure_quality_properties
+
+    site.addsitedir(str(ROOT))
+
+    from freecad_cloth.common.DrapeVisualSanity import inspect_drape, mesh_shape_sanity
+    from freecad_cloth.common.MeshValidation import validate_mesh
+    from freecad_cloth.pattern.PatternGeometry import rectangle
+    from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
+    from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
+    from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
+    from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, ensure_quality_properties
+
+
 def main():
     window = Gui.getMainWindow()
     if window is None or not window.isVisible():
         raise RuntimeError("FreeCAD GUI did not launch")
     window.show()
     events()
-    init_gui = os.path.join(Path(__file__).resolve().parents[1], "InitGui.py")
+    _load_cloth_modules()
+    init_gui = os.path.join(ROOT, "InitGui.py")
     if "ClothPatternWorkbench" not in Gui.listWorkbenches():
         exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
     events()
