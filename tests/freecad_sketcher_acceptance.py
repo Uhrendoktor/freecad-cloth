@@ -14,6 +14,7 @@ print("stage=freecad-imported", flush=True)
 import FreeCADGui as Gui
 print("stage=freecadgui-imported", flush=True)
 import Part
+import InitGui
 print("stage=part-imported", flush=True)
  
 
@@ -157,7 +158,7 @@ def _bootstrap_workbenches():
         )
     if "ClothPatternWorkbench" not in Gui.listWorkbenches():
         raise RuntimeError(
-            "ClothPatternWorkbench was not registered by FreeCAD module-path startup"
+            "ClothPatternWorkbench was not registered by explicit InitGui startup"
         )
 
 
