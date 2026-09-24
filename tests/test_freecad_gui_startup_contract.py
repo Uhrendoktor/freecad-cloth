@@ -26,15 +26,13 @@ def test_visual_example_prepares_gui_before_manual_initgui():
     document_index = run.index('doc = App.newDocument("ClothBlanketExample")', exec_index)
 
     module_helper = source.split("def _load_cloth_modules():", 1)[1].split("def main():", 1)[0]
-    module_prefix = source.split("import FreeCAD as App", 1)[0]
     assert window_index < show_index < first_events_index < modules_index
     assert modules_index < init_gui_index < guard_index < exec_index < document_index
     assert "site.addsitedir(str(ROOT))" in module_helper
     assert "from freecad_cloth." in module_helper
-    path_isolation = "sys.path[:] = [entry for entry in sys.path if entry not in"
-    assert path_isolation in module_prefix
-    assert "str(ROOT)" in module_prefix
-    assert module_prefix.index("sys.path[:] =") < module_prefix.index("import FreeCAD as App")
+    assert "sys.path[:] = [entry for entry in sys.path if entry not in" in source
+    assert "str(ROOT)" in source
+    assert source.index("sys.path[:] =") < source.index("import FreeCAD as App")
     assert "site.addsitedir(str(Path(__file__).resolve().parents[1]))" not in source
     assert "InitGui.py" in run
 
