@@ -280,4 +280,9 @@ except BaseException as error:
     print("BLANKET VISUAL FAILURE: %r" % (error,), flush=True)
     print(traceback.format_exc(), flush=True)
     log("blanket-visual-fail exception=%r" % (error,))
-    raise
+    try:
+        app = QtWidgets.QApplication.instance()
+        if app is not None:
+            app.quit()
+    finally:
+        raise
