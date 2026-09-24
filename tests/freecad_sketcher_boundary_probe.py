@@ -65,11 +65,56 @@ mark("commands-validated")
 
 Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
 mark("create-command-returned")
+Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
+mark("second-create-command-returned")
 doc.recompute()
 pieces = [obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"]
 mark("pattern-pieces-count-" + str(len(pieces)))
 
+curved = pieces[0]
+mark("curved-piece-selected")
+sketch = curved.Sketch
+if sketch is None:
+    raise RuntimeError("PatternPiece has no Sketch")
+mark("piece-sketch-read")
+
+sketch.Constraints = []
+mark("constraints-cleared")
+
+geometry = [
+    Part.LineSegment(App.Vector(0, 0, 0), App.Vector(100, 0, 0)),
+    Part.LineSegment(App.Vector(100, 0, 0), App.Vector(80, 50, 0)),
+    Part.ArcOfCircle(Part.Circle(App.Vector(40, 50, 0), App.Vector(0, 0, 1), 40), 0, math.pi),
+    Part.LineSegment(App.Vector(0, 50, 0), App.Vector(0, 0, 0)),
+]
+mark("geometry-built")
+
+sketch.Geometry = geometry
+mark("geometry-assigned")
+
+sketch.SemanticEdgeIds = [f"{curved.PieceId}:edge:{i}" for i in range(4)]
+mark("semantic-edges-assigned")
+
+sketch.GeometryAuthority = "Sketcher"
+mark("geometry-authority-assigned")
+
 import Sketcher  # noqa: E402
+sketch.addConstraint([
+    Sketcher.Constraint("Coincident", 0, 2, 1, 1),
+    Sketcher.Constraint("Coincident", 1, 2, 2, 1),
+    Sketcher.Constraint("Coincident", 2, 2, 3, 1),
+    Sketcher.Constraint("Coincident", 3, 2, 0, 1),
+    Sketcher.Constraint("Horizontal", 0),
+])
+mark("geometric-constraints-added")
+
+width_index = sketch.addConstraint(Sketcher.Constraint("Distance", 0, 100.0))
+mark("width-constraint-added")
+height_index = sketch.addConstraint(Sketcher.Constraint("Distance", 3, 50.0))
+mark("height-constraint-added")
+
+doc.recompute()
+mark("sketch-recompute-complete")
 mark("sketcher-imported")
 
 sketch = doc.addObject("Sketcher::SketchObject", "BoundarySketch")
