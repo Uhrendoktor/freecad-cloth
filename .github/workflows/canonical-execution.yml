@@ -700,23 +700,7 @@ jobs:
           docker cp "$CID:/workspace/artifacts/workbench-benchmark/." artifacts/workbench-benchmark/
           docker cp "$CID:/tmp/cloth-benchmark-trace.log" artifacts/workbench-benchmark/cloth-benchmark-trace.log 2>/dev/null || true
           docker cp "$CID:/tmp/xvfb.log" artifacts/workbench-benchmark/xvfb.log 2>/dev/null || true
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          root = Path("artifacts/workbench-benchmark")
-          names = ["Pattern", "Sewing", "Simulation"]
-          data = [json.loads((root / f"{name}.json").read_text()) for name in names]
-          merged = {
-              "schema": data[0]["schema"],
-              "python": data[0]["python"],
-              "freecad_version": data[0]["freecad_version"],
-              "repeats": data[0]["repeats"],
-              "workbenches": {},
-          }
-          for item in data:
-              merged["workbenches"].update(item["workbenches"])
-          (root / "benchmark.json").write_text(json.dumps(merged, indent=2, sort_keys=True) + "\n")
-          PY
+          python3 tools/merge_workbench_benchmark.py artifacts/workbench-benchmark
       - name: Install plotting dependency
         run: |
           set -euo pipefail
