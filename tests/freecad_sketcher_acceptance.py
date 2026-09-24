@@ -14,7 +14,6 @@ print("stage=freecad-imported", flush=True)
 import FreeCADGui as Gui
 print("stage=freecadgui-imported", flush=True)
 import Part
-import InitGui
 print("stage=part-imported", flush=True)
  
 
@@ -156,10 +155,19 @@ def _bootstrap_workbenches():
         raise RuntimeError(
             "FreeCAD GUI main window must be visible before workbench acceptance"
         )
+    if "ClothPatternWorkbench" in Gui.listWorkbenches():
+        return
+    init_gui = ROOT / "InitGui.py"
+    if not init_gui.is_file():
+        raise RuntimeError("InitGui.py missing from FreeCAD workbench root")
+    namespace = {"__file__": str(init_gui), "__name__": "__main__"}
+    exec(
+        compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"),
+        namespace,
+        namespace,
+    )
     if "ClothPatternWorkbench" not in Gui.listWorkbenches():
-        raise RuntimeError(
-            "ClothPatternWorkbench was not registered by explicit InitGui startup"
-        )
+        raise RuntimeError("ClothPatternWorkbench was not registered by explicit InitGui startup")
 
 
 def _record(message):
