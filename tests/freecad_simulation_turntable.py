@@ -181,11 +181,11 @@ def _render_turntable_isolated(view, objects, frame_dir, frame_count=72):
         raise RuntimeError("zero camera radius")
     up = coin.SbVec3f(0.0, 0.0, 1.0)
     frame_hashes = []
+    start_angle = pi / 2.0
     for frame in range(frame_total):
-        # Use all 73 angular positions rather than duplicating frame 000 at the
-        # end. This keeps every published frame distinct while retaining a full
-        # 360-degree turntable loop.
-        angle = 2.0 * pi * frame / frame_total
+        # Start from a cloth-visible angle, then cover a full 360 degrees
+        # without duplicating frame 000 at the end.
+        angle = start_angle + 2.0 * pi * frame / frame_total
         camera.position = coin.SbRotation(coin.SbVec3f(0.0, 0.0, 1.0), angle).multVec(base_offset) + target
         camera.pointAt(target, up)
         if hasattr(view, "redraw"):
