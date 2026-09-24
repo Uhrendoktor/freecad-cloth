@@ -354,7 +354,9 @@ def _edit_selected_seam_side(side):
         Gui.activeDocument().resetEdit()
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(piece)
-    Gui.activeDocument().setEdit(sketch.Name)
+    Gui.runCommand("ClothPattern_EditSketch", 0)
+    if not Gui.activeDocument().getInEdit():
+        raise RuntimeError("seam side edit did not enter native Sketcher")
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(sketch, "Edge%d" % (edge_index + 1))
     return sketch, edge_index
