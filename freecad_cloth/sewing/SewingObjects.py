@@ -144,6 +144,27 @@ def _edge_samples(piece, edge, start, end, count, z=0.2):
         value = App.Vector(p[0], p[1], z)
         placement = getattr(piece, "Placement", None)
         values.append(placement.multVec(value) if placement is not None else value)
+
+    native = _native_edge(piece, edge)
+    vertices = getattr(native, "Vertexes", None) if native is not None else None
+    if vertices:
+        try:
+            exact = [vertex.Point for vertex in vertices]
+            if float(start) <= 1e-12:
+                first = values[0]
+                endpoint = min(exact, key=lambda point: (point.x - first.x) ** 2 + (point.y - first.y) ** 2)
+                value = App.Vector(endpoint.x, endpoint.y, z)
+                placement = getattr(piece, "Placement", None)
+                values[0] = placement.multVec(value) if placement is not None else value
+            if float(end) >= 1.0 - 1e-12:
+                last = values[-1]
+                endpoint = min(exact, key=lambda point: (point.x - last.x) ** 2 + (point.y - last.y) ** 2)
+                value = App.Vector(endpoint.x, endpoint.y, z)
+                placement = getattr(piece, "Placement", None)
+                values[-1] = placement.multVec(value) if placement is not None else value
+        except (AttributeError, TypeError, ValueError, IndexError):
+            pass
+
     return values
 
 
