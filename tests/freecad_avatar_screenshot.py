@@ -1,5 +1,6 @@
 """Deterministic avatar visual audit plus a full 360-degree turntable render."""
 import os
+import sys
 import traceback
 from math import pi
 
@@ -12,8 +13,8 @@ except ImportError:
 from pivy import coin
 
 ROOT = "/workspace"
-if ROOT not in __import__("sys").path:
-    __import__("sys").path.insert(0, ROOT)
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 os.makedirs(OUT, exist_ok=True)
 LOG = os.path.join(OUT, "avatar-gui-progress.log")
