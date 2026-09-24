@@ -51,6 +51,11 @@ def _constraint_name(sketch, index):
     return str(getattr(sketch.Constraints[index], "Name", ""))
 
 
+def _rgb_storage_channels(color):
+    """Normalize RGB floats to FreeCAD's 8-bit color storage representation."""
+    return tuple(int(float(channel) * 255.0 + 0.5) for channel in color[:3])
+
+
 def _make_curved_piece_sketch(piece, doc):
     """Use native Sketcher geometry as the actual PatternPiece geometry authority."""
     sketch = piece.Sketch
@@ -230,10 +235,10 @@ def run_acceptance():
         if seam.Shape.isNull():
             raise RuntimeError("seam focus command did not retain world-space presentation geometry")
         from freecad_cloth.sewing.SewingView import seam_color_map
-        expected_seam_rgb = tuple(seam_color_map([seam_id])[seam_id])
-        actual_seam_rgb = tuple(seam.ViewObject.LineColor[:3])
+        expected_seam_rgb = _rgb_storage_channels(seam_color_map([seam_id])[seam_id])
+        actual_seam_rgb = _rgb_storage_channels(seam.ViewObject.LineColor)
         if actual_seam_rgb != expected_seam_rgb:
-            raise RuntimeError("seam focus command did not preserve deterministic seam color: actual=%r expected=%r raw=%r" % (actual_seam_rgb, expected_seam_rgb, tuple(seam.ViewObject.LineColor)))
+            raise RuntimeError("seam focus command did not preserve deterministic seam color")
         seam_box = seam.Shape.BoundBox
         placed_piece_box = curved.Shape.BoundBox
         if seam_box.XMax < placed_piece_box.XMin or seam_box.XMin > placed_piece_box.XMax:
