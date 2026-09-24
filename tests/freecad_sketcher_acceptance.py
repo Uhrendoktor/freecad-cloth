@@ -8,9 +8,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:] = [entry for entry in sys.path if entry not in ("", str(ROOT))]
 
+print("stage=script-loaded", flush=True)
 import FreeCAD as App
+print("stage=freecad-imported", flush=True)
 import FreeCADGui as Gui
+print("stage=freecadgui-imported", flush=True)
 import Part
+print("stage=part-imported", flush=True)
  
 
 def _events():
