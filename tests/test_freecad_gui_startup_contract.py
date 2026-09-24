@@ -29,6 +29,18 @@ def test_visual_example_prepares_gui_before_module_imports():
     assert source.index("sys.path[:] =") < source.index("import FreeCAD as App")
     assert "exec(compile(open(init_gui" not in source
 
+def test_freecad_extension_package_uses_namespace_gui_entry_point():
+    extension = ROOT / "freecad" / "freecad_cloth"
+    assert extension.is_dir()
+    assert not (ROOT / "freecad" / "__init__.py").exists()
+    assert (extension / "__init__.py").is_file()
+    source = (extension / "init_gui.py").read_text(encoding="utf-8")
+    assert "Gui.addWorkbench(ClothPatternWorkbench())" in source
+    assert "Gui.addWorkbench(ClothSimulationWorkbench())" in source
+    assert "Gui.addWorkbench(ClothSewingWorkbench())" in source
+    assert "from freecad_cloth." in source
+
+
 def test_freecad_package_metadata_declares_root_gui_workbench():
     metadata = (ROOT / "package.xml").read_text(encoding="utf-8")
     assert '<package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">' in metadata
