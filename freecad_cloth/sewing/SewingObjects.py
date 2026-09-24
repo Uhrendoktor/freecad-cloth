@@ -27,6 +27,17 @@ def _native_edge(piece, edge):
         index = int(edge)
         if str(getattr(piece, "GeometryAuthority", "")) == "Sketcher":
             sketch = getattr(piece, "Sketch", None)
+            geometry = getattr(sketch, "Geometry", None) if sketch is not None else None
+            if geometry is not None:
+                try:
+                    if 0 <= index < len(geometry):
+                        native_geometry = geometry[index]
+                        to_shape = getattr(native_geometry, "toShape", None)
+                        if callable(to_shape):
+                            return to_shape()
+                except (AttributeError, TypeError, IndexError, RuntimeError):
+                    pass
+
             sketch_shape = getattr(sketch, "Shape", None) if sketch is not None else None
             sketch_edges = getattr(sketch_shape, "Edges", None)
             if sketch_edges is not None:
