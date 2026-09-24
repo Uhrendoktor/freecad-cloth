@@ -24,6 +24,8 @@ Do not replace, duplicate, or casually refactor it. In particular, preserve the 
 
 The canonical FreeCAD test image is Python 3.12-based; a CI run that starts FreeCAD under Python <3.12 is unsupported.
 
+Every commit pushed to a pull request and every commit pushed to `main` must receive a terminal CI result before dependent work or merge continues. Keep PR/main workflow runs non-cancelable so each commit is evaluated independently in order.
+
 Any UI or workflow-facing change must use the canonical workflow as its acceptance path. Never weaken screenshot assertions to make CI green.
 
 ## Required verification

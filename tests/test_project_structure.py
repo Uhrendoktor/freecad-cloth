@@ -57,3 +57,9 @@ def test_canonical_workflow_pr_validation_contract():
     assert "types: [opened, synchronize, reopened]" in workflow
     assert "push:" in workflow
     assert "branches: [main]" in workflow
+
+
+def test_canonical_workflow_keeps_each_pr_and_main_commit_in_ci():
+    root = Path(__file__).resolve().parents[1]
+    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    assert "cancel-in-progress: false" in workflow
