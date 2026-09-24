@@ -391,12 +391,12 @@ def build_simulation_state(doc):
     doc.recompute()
 
     sketch.ViewObject.Visibility = False
-    blanket.ViewObject.Visibility = True
+    blanket.ViewObject.Visibility = False
     blanket.ViewObject.ShapeColor = (0.14, 0.32, 0.78)
     cube.ViewObject.ShapeColor = (0.62, 0.62, 0.62)
     panel.ViewObject.ShapeColor = (0.14, 0.32, 0.78)
     panel.ViewObject.DisplayMode = "Flat Lines"
-    panel.ViewObject.Visibility = False
+    panel.ViewObject.Visibility = True
     cube.ViewObject.Visibility = True
     doc.recompute()
     return scene, cube, blanket, panel, tuple(scene.Proxy._base_or_restore().backend.positions())
@@ -417,7 +417,7 @@ def main():
     try:
         scene, cube, blanket, panel, initial_positions = build_simulation_state(doc)
         view = Gui.activeDocument().activeView()
-        arranged_objects = [cube, blanket]
+        arranged_objects = [cube, panel]
         render_turntable(view, arranged_objects, os.path.join(OUT, "cloth-simulation-arranged-turntable-frames"))
 
         steps = int(os.environ.get("CLOTH_BLANKET_STEPS", "480"))
