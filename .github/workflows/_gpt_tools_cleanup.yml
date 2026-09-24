@@ -65,15 +65,38 @@ jobs:
 
           deleted_runs = []
           skipped_active = []
+          candidates = []
           for run in runs[keep_runs:]:
               if run["id"] in keep_ids:
                   continue
               if run.get("status") != "completed":
                   skipped_active.append(run["id"])
                   continue
-              subprocess.check_call(["gh", "api", "--method", "DELETE",
-                                    f"repos/{repo}/actions/runs/{run['id']}"])
-              deleted_runs.append(run["id"])
+              candidates.append(run["id"])
+
+          from concurrent.futures import ThreadPoolExecutor, as_completed
+
+          def delete_run(run_id):
+              proc = subprocess.run(
+                  ["gh", "api", "--method", "DELETE",
+                   f"repos/{repo}/actions/runs/{run_id}"],
+                  text=True,
+                  capture_output=True,
+              )
+              return run_id, proc.returncode, proc.stderr.strip()
+
+          with ThreadPoolExecutor(max_workers=20) as pool:
+              futures = [pool.submit(delete_run, run_id) for run_id in candidates]
+              errors = []
+              for future in as_completed(futures):
+                  run_id, code, err = future.result()
+                  if code == 0 or "404" in err:
+                      deleted_runs.append(run_id)
+                  else:
+                      errors.append({"run_id": run_id, "error": err})
+
+          if errors:
+              raise RuntimeError(f"workflow-run deletions failed: {errors[:10]}")
 
           branches = gh_api_slurp(f"repos/{repo}/branches?per_page=100")
           current_branches = {b["name"] for b in branches}
