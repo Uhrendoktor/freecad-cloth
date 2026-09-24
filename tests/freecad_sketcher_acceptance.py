@@ -330,6 +330,13 @@ def run_acceptance():
                 App.closeDocument(doc.Name)
             except Exception:
                 pass
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
+        app = QtWidgets.QApplication.instance()
+        if app is not None:
+            app.quit()
 
 
 run_acceptance()
