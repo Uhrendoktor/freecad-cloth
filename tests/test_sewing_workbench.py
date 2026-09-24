@@ -5,6 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from freecad_cloth.sewing.SewingObjects import (
     SewingOperationProxy,
     _edge_length,
+    _native_edge,
     _seam_correspondence,
     _seam_length,
     _outline_points,
@@ -43,6 +44,18 @@ def test_polygon_seam_length_uses_stored_outline():
     p = SimpleNamespace(Width=999.0, Height=999.0, SewingOutline=repr([(0, 0), (40, 0), (40, 20), (0, 30)]))
     assert _outline_points(p) == [(0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 30.0)]
     assert abs(_edge_length(p, 2) - (1700.0 ** 0.5)) < 1e-9
+
+
+def test_sketcher_authority_prefers_sketch_shape_edges():
+    authoritative = object()
+    legacy = object()
+    piece = SimpleNamespace(
+        GeometryAuthority="Sketcher",
+        Sketch=SimpleNamespace(Shape=SimpleNamespace(Edges=[authoritative])),
+        Shape=SimpleNamespace(Edges=[legacy, object(), object(), object()]),
+        SewingOutline=repr([(0, 0), (1, 0), (1, 1), (0, 1)]),
+    )
+    assert _native_edge(piece, 0) is authoritative
 
 
 def test_curved_native_edge_uses_arc_length_sampling():
