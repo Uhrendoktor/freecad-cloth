@@ -60,8 +60,9 @@ def test_sketcher_acceptance_uses_explicit_initgui_startup():
     assert "if \"ClothPatternWorkbench\" not in Gui.listWorkbenches():" in source
     assert "registered by explicit InitGui startup" in source
     assert "init_gui.read_text(encoding=\"utf-8\")" in source
-    bootstrap_index = source.index("_bootstrap_workbenches()")
-    stage_index = source.index('_stage("gui-ready")')
+    run = source.split("def run_acceptance():", 1)[1]
+    bootstrap_index = run.index("_bootstrap_workbenches()")
+    stage_index = run.index('_stage("gui-ready")')
     assert stage_index < bootstrap_index
     assert "app.quit()" in source
 
