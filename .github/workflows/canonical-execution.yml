@@ -175,6 +175,7 @@ jobs:
               echo "boundary-exit=$boundary_status" >> /workspace/artifacts/boundary.log
               cat /workspace/artifacts/boundary.log
               set +e
+              export SKETCHER_STAGE_FILE=/workspace/artifacts/sketcher-stage.log
               PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=5s 120s /opt/freecad/AppRun /workspace/tests/freecad_sketcher_acceptance.py > /workspace/artifacts/actual-acceptance.log 2>&1
               actual_status=$?
               set -e
@@ -284,6 +285,7 @@ jobs:
             -e FREECAD_USER_DATA=/tmp/freecad-user-data \
             -e FREECAD_USER_TEMP=/tmp/freecad-user-temp \
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e SKETCHER_STAGE_FILE=/workspace/artifacts/sketcher-stage.log \
             -v "$PWD:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
               rm -rf "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
@@ -309,7 +311,9 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: sketcher-acceptance
-          path: artifacts/sketcher-acceptance.log
+          path: |
+            artifacts/sketcher-acceptance.log
+            artifacts/sketcher-stage.log
           if-no-files-found: error
           compression-level: 1
   gui-pattern-export:
