@@ -25,7 +25,6 @@ def _native_edge(piece, edge):
     """Return the native edge for a semantic Sketcher ordinal before shape fallbacks."""
     try:
         index = int(edge)
-        outline = _outline_points(piece)
     except (TypeError, ValueError, IndexError):
         return None
 
@@ -44,6 +43,10 @@ def _native_edge(piece, edge):
             except (AttributeError, TypeError, ValueError, IndexError, RuntimeError):
                 pass
 
+    try:
+        outline = _outline_points(piece)
+    except (TypeError, ValueError, IndexError):
+        return None
     for source in (sketch, piece):
         shape = getattr(source, "Shape", None)
         edges = getattr(shape, "Edges", None)
