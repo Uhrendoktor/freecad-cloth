@@ -46,14 +46,34 @@ def test_polygon_seam_length_uses_stored_outline():
     assert abs(_edge_length(p, 2) - (1700.0 ** 0.5)) < 1e-9
 
 
-def test_sketcher_authority_prefers_sketch_shape_edges():
+def test_sketcher_authority_prefers_geometry_index_over_shape_edges():
+    authoritative = object()
+    legacy = object()
+
+    class Geometry:
+        def toShape(self):
+            return authoritative
+
+    piece = SimpleNamespace(
+        GeometryAuthority="Sketcher",
+        Sketch=SimpleNamespace(
+            Geometry=[Geometry()],
+            Shape=SimpleNamespace(Edges=[legacy]),
+        ),
+        Shape=SimpleNamespace(Edges=[legacy, object(), object(), object()]),
+        SewingOutline=repr([(0, 0), (1, 0), (1, 1), (0, 1)]),
+    )
+    assert _native_edge(piece, 0) is authoritative
+
+
+def test_sketcher_authority_falls_back_to_sketch_shape_edges():
     authoritative = object()
     legacy = object()
     piece = SimpleNamespace(
         GeometryAuthority="Sketcher",
         Sketch=SimpleNamespace(Shape=SimpleNamespace(Edges=[authoritative])),
-        Shape=SimpleNamespace(Edges=[legacy, object(), object(), object()]),
-        SewingOutline=repr([(0, 0), (1, 0), (1, 1), (0, 1)]),
+        Shape=SimpleNamespace(Edges=[legacy]),
+        SewingOutline=repr([(0, 0), (1, 0)]),
     )
     assert _native_edge(piece, 0) is authoritative
 
