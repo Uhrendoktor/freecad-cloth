@@ -74,6 +74,7 @@ def test_seam_side_edit_uses_public_pattern_sketch_command():
     end = text.index("\ndef edit_selected_seam_side_a():", start)
     body = text[start:end]
     # Reuse the same public editor command proven by the Pattern workbench acceptance.
+    # The canonical diagnostic also exercises the exact public command under FreeCAD 1.1.
     assert "Gui.runCommand(\"ClothPattern_EditSketch\", 0)" in body
     assert "focus_selected_seam_3d()" not in body
     assert 'Gui.Selection.addSelection(sketch, "Edge%d" % (edge_index + 1))' in body
