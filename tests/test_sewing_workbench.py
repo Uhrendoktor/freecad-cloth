@@ -66,6 +66,16 @@ def test_sketcher_authority_prefers_geometry_index_over_shape_edges():
     assert _native_edge(piece, 0) is authoritative
 
 
+def test_seam_side_edit_does_not_refocus_3d_view():
+    source = Path(__file__).resolve().parents[1] / "freecad_cloth" / "sewing" / "SewingCommands.py"
+    text = source.read_text(encoding="utf-8")
+    start = text.index("def _edit_selected_seam_side(side):")
+    end = text.index("\ndef edit_selected_seam_side_a():", start)
+    body = text[start:end]
+    assert "focus_selected_seam_3d()" not in body
+    assert "setEdit(sketch.Name)" in body
+
+
 def test_sketcher_authority_matches_semantic_edge_endpoints():
     from freecad_cloth.pattern import PatternObjects
 
