@@ -22,13 +22,24 @@ def _outline_points(piece):
 
 
 def _native_edge(piece, edge):
-    """Return a native Shape edge when it maps one-to-one to the outline."""
-    shape = getattr(piece, "Shape", None)
-    edges = getattr(shape, "Edges", None)
-    if edges is None:
-        return None
+    """Return the authoritative native Sketcher/Shape edge when available."""
     try:
         index = int(edge)
+        if str(getattr(piece, "GeometryAuthority", "")) == "Sketcher":
+            sketch = getattr(piece, "Sketch", None)
+            sketch_shape = getattr(sketch, "Shape", None) if sketch is not None else None
+            sketch_edges = getattr(sketch_shape, "Edges", None)
+            if sketch_edges is not None:
+                try:
+                    if 0 <= index < len(sketch_edges):
+                        return sketch_edges[index]
+                except (TypeError, IndexError):
+                    pass
+
+        shape = getattr(piece, "Shape", None)
+        edges = getattr(shape, "Edges", None)
+        if edges is None:
+            return None
         outline = _outline_points(piece)
         if 0 <= index < len(edges) and len(edges) == len(outline):
             return edges[index]
