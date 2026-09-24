@@ -372,7 +372,8 @@ def build_simulation_state(doc):
 
     sketch.ViewObject.Visibility = False
     blanket.ViewObject.Visibility = True
-    blanket.ViewObject.DisplayMode = "Shaded"
+    # PatternPiece ViewObjects on the pinned FreeCAD 1.1.0 runtime expose "Flat Lines", not "Shaded".
+    blanket.ViewObject.DisplayMode = "Flat Lines"
     blanket.ViewObject.ShapeColor = (0.14, 0.32, 0.78)
     cube.ViewObject.ShapeColor = (0.62, 0.62, 0.62)
     panel.ViewObject.ShapeColor = (0.14, 0.32, 0.78)
