@@ -37,21 +37,29 @@ def test_visual_example_prepares_gui_before_manual_initgui():
     assert "InitGui.py" in run
 
 
-def test_committed_fcmacro_defers_acceptance_until_after_delayed_startup():
-    source = (ROOT / "tests" / "freecad_ci_bootstrap.FCMacro").read_text(encoding="utf-8")
-    assert "import FreeCADGui as Gui" in source
-    assert "window.show()" in source
-    assert "sys.path[:] = [p for p in sys.path if p != ROOT]" in source
-    assert "QtCore.QTimer.singleShot(100, _run_acceptance)" in source
-    assert "processEvents()" not in source
-    assert source.index("sys.path[:] = [p for p in sys.path if p != ROOT]") < source.index("import FreeCADGui as Gui")
-    assert source.index("window.show()") < source.index("QtCore.QTimer.singleShot(100, _run_acceptance)")
-    callback = source.split("def _run_acceptance():", 1)[1].split("QtCore.QTimer.singleShot(0, _run_acceptance)", 1)[0]
-    assert "runpy.run_path(script, run_name=\"__main__\")" in callback
-    assert "sys.path.insert(0, ROOT)" in callback
-    assert source.index("QtCore.QTimer.singleShot(100, _run_acceptance)") > source.index("def _run_acceptance():")
+def test_sketcher_acceptance_uses_freecad_module_path_startup():
+    source = (ROOT / "tests" / "freecad_sketcher_acceptance.py").read_text(encoding="utf-8")
+    assert "sys.path[:] = [entry for entry in sys.path if entry not in (\"\", str(ROOT))]" in source
+    assert 'if "ClothPatternWorkbench" not in Gui.listWorkbenches():' in source
+    assert "registered by FreeCAD module-path startup" in source
+    assert "exec(compile(init_gui" not in source
 
 
+def test_canonical_gui_jobs_use_freecad_module_path():
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    sketcher = workflow.split("gui-sketcher-acceptance:", 1)[1].split("gui-pattern-export:", 1)[0]
+    visual = workflow.split("gui-visual-examples:", 1)[1].split("publish-readme-turntables:", 1)[0]
+    assert "/opt/freecad/AppRun -M /workspace -P /workspace /workspace/tests/freecad_sketcher_acceptance.py" in sketcher
+    assert "/opt/freecad/AppRun -M /workspace -P /workspace /workspace/tests/freecad_visual_examples.py" in visual
+    assert "freecad_ci_bootstrap.FCMacro" not in sketcher
+    assert "freecad_ci_bootstrap.FCMacro" not in visual
+
+
+def test_canonical_validation_is_commit_scoped_and_not_cancellable():
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    assert "canonical-${{ github.workflow }}-" in workflow
+    assert "github.sha" in workflow
+    assert "cancel-in-progress: false" in workflow
 def test_canonical_gui_jobs_launch_from_neutral_cwd_with_bootstrap():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
     sketcher = workflow.split("gui-sketcher-acceptance:", 1)[1].split("gui-pattern-export:", 1)[0]
