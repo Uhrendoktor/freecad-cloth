@@ -12,7 +12,8 @@ on:
 
 concurrency:
   group: canonical-${{ github.event_name }}-${{ github.event.schedule || github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+    # Keep PR/main runs in order so each commit receives a terminal CI result.
+  cancel-in-progress: false
 
 env:
   FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
