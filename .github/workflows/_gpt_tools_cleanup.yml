@@ -145,3 +145,5 @@ jobs:
               "branches_deleted": deleted_branches,
           }, indent=2))
           PY
+
+# Final retention pass.
