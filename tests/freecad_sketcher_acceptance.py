@@ -1,8 +1,12 @@
 """Canonical FreeCAD/Xvfb acceptance for native Sketcher pattern authoring."""
 import math
 import os
+import sys
 import tempfile
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path[:] = [entry for entry in sys.path if entry not in ("", str(ROOT))]
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -144,18 +148,12 @@ def _bootstrap_workbenches():
     window = Gui.getMainWindow()
     if window is None or not window.isVisible():
         raise RuntimeError(
-            "FreeCAD GUI main window must be visible before InitGui.py workbench registration"
+            "FreeCAD GUI main window must be visible before workbench acceptance"
         )
-    if "ClothPatternWorkbench" in Gui.listWorkbenches():
-        return
-    root = Path(__file__).resolve().parents[1]
-    init_gui = root / "InitGui.py"
-    if not init_gui.is_file():
-        raise RuntimeError("InitGui.py missing from FreeCAD workbench root")
-    namespace = {"__file__": str(init_gui), "__name__": "__main__"}
-    exec(compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"), namespace, namespace)
     if "ClothPatternWorkbench" not in Gui.listWorkbenches():
-        raise RuntimeError("ClothPatternWorkbench was not registered by InitGui.py")
+        raise RuntimeError(
+            "ClothPatternWorkbench was not registered by FreeCAD module-path startup"
+        )
 
 
 def _record(message):
@@ -170,6 +168,8 @@ def run_acceptance():
     window.show()
     _events()
     _stage("gui-ready")
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
     _bootstrap_workbenches()
     _stage("workbenches-registered")
     doc = App.newDocument("NativeSketcherAcceptance")
