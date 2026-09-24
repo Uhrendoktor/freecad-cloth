@@ -19,7 +19,7 @@ def test_visual_example_prepares_gui_before_manual_initgui():
     second_events_index = run.index("events()", exec_index)
     document_index = run.index('doc = App.newDocument("ClothBlanketExample")', second_events_index)
 
-    assert defer_index < window_index < show_index < first_events_index < restore_index
+    assert window_index < defer_index < show_index < first_events_index < restore_index
     assert restore_index < guard_index < exec_index < second_events_index < document_index
     assert "InitGui.py.freecad-visual-deferred" in run
     assert 'raise RuntimeError("FreeCAD GUI did not launch")' in run
