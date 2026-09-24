@@ -107,17 +107,41 @@ def render_motion(view, scene, frame_count=16, final_steps=120):
     log("motion-frames=passed count=%d final_steps=%d" % (len(steps), final_steps))
 
 
+def _defer_auto_initgui():
+    init_gui = Path(__file__).resolve().parents[1] / "InitGui.py"
+    deferred = init_gui.with_name("InitGui.py.freecad-visual-deferred")
+    if deferred.exists():
+        deferred.unlink()
+    if init_gui.is_file():
+        init_gui.rename(deferred)
+        return init_gui, deferred
+    return init_gui, None
+
+
+def _restore_auto_initgui(init_gui, deferred):
+    if deferred is not None and deferred.is_file():
+        if init_gui.exists():
+            init_gui.unlink()
+        deferred.rename(init_gui)
+
+
 def main():
     window = Gui.getMainWindow()
     if window is None or not window.isVisible():
         raise RuntimeError("FreeCAD GUI did not launch")
-    window.show()
-    events()
-    init_gui = os.path.join(Path(__file__).resolve().parents[1], "InitGui.py")
-    if "ClothPatternWorkbench" not in Gui.listWorkbenches():
-        exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
-    events()
-    doc = App.newDocument("ClothBlanketExample")
+    init_gui, deferred_init_gui = _defer_auto_initgui()
+    try:
+        window.show()
+        events()
+        _restore_auto_initgui(init_gui, deferred_init_gui)
+        if "ClothPatternWorkbench" not in Gui.listWorkbenches():
+            exec(compile(open(str(init_gui), encoding="utf-8").read(), str(init_gui), "exec"), globals(), globals())
+        events()
+        doc = App.newDocument("ClothBlanketExample")
+    except BaseException:
+        _restore_auto_initgui(init_gui, deferred_init_gui)
+        raise
+    try:
     try:
         sketch, outline = make_rectangle_sketch(doc, "BlanketSketch", 260.0, 260.0)
         piece = adopt_sketch(doc, sketch)
