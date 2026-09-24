@@ -5,6 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from freecad_cloth.sewing.SewingObjects import (
     SewingOperationProxy,
     _edge_length,
+    _native_edge,
     _seam_correspondence,
     _seam_length,
     _outline_points,
@@ -43,6 +44,52 @@ def test_polygon_seam_length_uses_stored_outline():
     p = SimpleNamespace(Width=999.0, Height=999.0, SewingOutline=repr([(0, 0), (40, 0), (40, 20), (0, 30)]))
     assert _outline_points(p) == [(0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 30.0)]
     assert abs(_edge_length(p, 2) - (1700.0 ** 0.5)) < 1e-9
+
+
+
+def test_sketcher_authority_prefers_sketch_shape_edges():
+    class Edge:
+        pass
+    authoritative = Edge()
+    legacy = Edge()
+    sketch = SimpleNamespace(Shape=SimpleNamespace(Edges=[authoritative]))
+    piece = SimpleNamespace(
+        GeometryAuthority="Sketcher",
+        Sketch=sketch,
+        Shape=SimpleNamespace(Edges=[legacy]),
+        SewingOutline=repr([(0, 0), (1, 0)]),
+    )
+    assert _native_edge(piece, 0) is authoritative
+
+
+def test_native_edge_endpoint_snap_uses_exact_vertices():
+    class Vertex:
+        def __init__(self, x, y):
+            self.Point = SimpleNamespace(x=x, y=y, z=0.0)
+
+    class Edge:
+        Vertexes = [Vertex(0, 0), Vertex(4, 0)]
+        def discretize(self, Number=64):
+            return [SimpleNamespace(x=0, y=0), SimpleNamespace(x=3.999999, y=0)]
+
+    native = Edge()
+    piece = SimpleNamespace(
+        Width=4.0,
+        Height=1.0,
+        SewingOutline=repr([(0, 0), (4, 0), (4, 1)]),
+        Shape=SimpleNamespace(Edges=[native]),
+        GeometryAuthority="PatternParameters",
+    )
+    oldf = sys.modules.get("FreeCAD")
+    sys.modules["FreeCAD"] = _install_fake_freecad()()
+    try:
+        from freecad_cloth.sewing.SewingObjects import _edge_samples
+        values = _edge_samples(piece, 0, 0.0, 1.0, 2, z=0.4)
+    finally:
+        if oldf is None: sys.modules.pop("FreeCAD", None)
+        else: sys.modules["FreeCAD"] = oldf
+    assert values[0].x == 0 and values[0].y == 0
+    assert values[-1].x == 4 and values[-1].y == 0
 
 
 def test_curved_native_edge_uses_arc_length_sampling():
