@@ -48,4 +48,5 @@ def _run_acceptance():
 
 # The macro may be reached through FreeCAD's startup file-processing path.
 # Deferring the acceptance script prevents InitGui.py from re-entering startup.
-QtCore.QTimer.singleShot(0, _run_acceptance)
+# Wait an extra event-loop turn for FreeCAD delayed startup to finish all queued GUI work.
+QtCore.QTimer.singleShot(100, _run_acceptance)
