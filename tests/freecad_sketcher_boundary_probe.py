@@ -46,6 +46,41 @@ if "ClothPatternWorkbench" not in Gui.listWorkbenches():
     raise RuntimeError("ClothPatternWorkbench not registered")
 mark("workbenches-registered")
 
+doc = App.newDocument("SketcherBoundaryProbe")
+mark("document-created")
+
+Gui.activateWorkbench("ClothPatternWorkbench")
+mark("workbench-activated")
+Gui.updateGui()
+QtWidgets.QApplication.processEvents()
+mark("workbench-events-processed")
+
+commands = Gui.listCommands()
+mark("commands-listed")
+required = ["ClothPattern_CreatePieceWithSketch", "ClothPattern_EditSketch"]
+missing = [name for name in required if name not in commands]
+if missing:
+    raise RuntimeError("missing commands: " + ",".join(missing))
+mark("commands-validated")
+
+Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
+mark("create-command-returned")
+doc.recompute()
+pieces = [obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"]
+mark("pattern-pieces-count-" + str(len(pieces)))
+
+import Sketcher  # noqa: E402
+mark("sketcher-imported")
+
+sketch = doc.addObject("Sketcher::SketchObject", "BoundarySketch")
+doc.recompute()
+if sketch is None:
+    raise RuntimeError("Sketcher object creation returned None")
+mark("sketch-object-created")
+
+App.closeDocument(doc.Name)
+mark("document-closed")
+
 app = QtWidgets.QApplication.instance()
 if app is not None:
     app.quit()
