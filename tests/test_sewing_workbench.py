@@ -73,6 +73,7 @@ def test_seam_side_edit_uses_public_pattern_sketch_command():
     start = text.index("def _edit_selected_seam_side(side):")
     end = text.index("\ndef edit_selected_seam_side_a():", start)
     body = text[start:end]
+    # Reuse the same public editor command proven by the Pattern workbench acceptance.
     assert "Gui.runCommand(\"ClothPattern_EditSketch\", 0)" in body
     assert "focus_selected_seam_3d()" not in body
     assert 'Gui.Selection.addSelection(sketch, "Edge%d" % (edge_index + 1))' in body
