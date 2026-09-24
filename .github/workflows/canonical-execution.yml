@@ -114,6 +114,97 @@ jobs:
           docker cp "$PWD/." "$CID:/workspace/"
           docker start -a "$CID"
 
+  sketcher-startup-diagnostic:
+    name: FreeCAD Sketcher startup diagnostic
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Probe FreeCAD startup boundary
+        run: |
+          set -euo pipefail
+          rm -rf artifacts
+          mkdir -p artifacts
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e FREECAD_USER_HOME=/tmp/freecad-user \
+            -e FREECAD_USER_DATA=/tmp/freecad-user-data \
+            -e FREECAD_USER_TEMP=/tmp/freecad-user-temp \
+            -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e FREECAD_PROBE_MARKER_DIR=/workspace/artifacts \
+            -v "$PWD:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              rm -rf "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
+              mkdir -p "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP" "$XDG_RUNTIME_DIR" /workspace/artifacts
+              rm -rf /tmp/freecad-mod
+              mkdir -p /tmp/freecad-mod/freecad-cloth
+              cp -a /workspace/package.xml /workspace/resources /workspace/freecad_cloth /workspace/freecad /tmp/freecad-mod/freecad-cloth/
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              cat > /workspace/artifacts/freecad_startup_probe.py <<'PY'
+              import os
+              from pathlib import Path
+              root = Path(os.environ["FREECAD_PROBE_MARKER_DIR"])
+              case = os.environ["FREECAD_PROBE_CASE"]
+              def mark(stage):
+                  (root / (case + ".marker")).write_text(stage + "\n", encoding="utf-8")
+                  print("probe=" + case + ":" + stage, flush=True)
+              mark("script-loaded")
+              import FreeCAD as App
+              mark("freecad-imported")
+              import FreeCADGui as Gui
+              mark("freecadgui-imported")
+              import Part
+              mark("part-imported")
+              try:
+                  from PySide import QtWidgets
+              except ImportError:
+                  from PySide2 import QtWidgets
+              app = QtWidgets.QApplication.instance()
+              if app is not None:
+                  app.quit()
+              mark("quit-requested")
+              PY
+              probe_case() {
+                name="$1"
+                shift
+                export FREECAD_PROBE_CASE="$name"
+                marker="/workspace/artifacts/$name.marker"
+                log="/workspace/artifacts/$name.log"
+                rm -f "$marker" "$log"
+                set +e
+                timeout --signal=TERM --kill-after=5s 20s /opt/freecad/AppRun "$@" /workspace/artifacts/freecad_startup_probe.py >"$log" 2>&1
+                status=$?
+                set -e
+                echo "case=$name exit=$status" | tee -a "$log"
+                if test -f "$marker"; then echo -n 'marker='; cat "$marker"; else echo 'marker=absent'; fi | tee -a "$log"
+              }
+              probe_case plain
+              probe_case module-path -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth
+            '
+      - name: Upload startup diagnostic
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: sketcher-startup-diagnostic
+          path: |
+            artifacts/plain.log
+            artifacts/module-path.log
+            artifacts/plain.marker
+            artifacts/module-path.marker
+          if-no-files-found: warn
+          compression-level: 1
   gui-sewing-creation:
     name: Sewing staged creation smoke
     runs-on: ubuntu-latest
@@ -215,51 +306,6 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              cat > /workspace/artifacts/freecad_startup_probe.py <<'PY'
-              import os
-              from pathlib import Path
-
-              target = Path(os.environ["FREECAD_PROBE_MARKER"])
-
-              def mark(stage):
-                  target.write_text(stage + "\n", encoding="utf-8")
-                  print("probe=" + stage, flush=True)
-
-              mark("script-loaded")
-              import FreeCAD as App
-              mark("freecad-imported")
-              import FreeCADGui as Gui
-              mark("freecadgui-imported")
-              import Part
-              mark("part-imported")
-              try:
-                  from PySide import QtWidgets
-              except ImportError:
-                  from PySide2 import QtWidgets
-              app = QtWidgets.QApplication.instance()
-              if app is not None:
-                  app.quit()
-              mark("quit-requested")
-              PY
-              probe_case() {
-                name="$1"
-                shift
-                marker="/workspace/artifacts/freecad-startup-${name}.marker"
-                log="/workspace/artifacts/freecad-startup-${name}.log"
-                rm -f "$marker" "$log"
-                export FREECAD_PROBE_MARKER="$marker"
-                set +e
-                timeout --signal=TERM --kill-after=5s 20s /opt/freecad/AppRun "$@" /workspace/artifacts/freecad_startup_probe.py >"$log" 2>&1
-                status=$?
-                set -e
-                echo "probe-case=${name} exit=${status}" | tee -a "$log"
-                if test -f "$marker"; then cat "$marker" >>"$log"; else echo "probe-marker=absent" >>"$log"; fi
-              }
-              probe_case plain
-              probe_case module-path -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth
-              cat /workspace/artifacts/freecad-startup-plain.log
-              cat /workspace/artifacts/freecad-startup-module-path.log
-
               timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /workspace/tests/freecad_sketcher_acceptance.py > /workspace/artifacts/sketcher-acceptance.log 2>&1
               grep -q "native Sketcher acceptance passed" /workspace/artifacts/sketcher-acceptance.log
             '
