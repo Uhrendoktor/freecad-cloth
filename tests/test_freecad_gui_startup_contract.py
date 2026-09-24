@@ -22,7 +22,7 @@ def test_visual_example_prepares_gui_before_manual_initgui():
     assert "InitGui.py" in run
 
 
-def test_committed_fcmacro_bootstrap_prepares_gui_before_acceptance_script():
+def test_committed_bootstrap_prepares_gui_before_acceptance_script():
     source = (ROOT / "tests" / "freecad_ci_bootstrap.FCMacro").read_text(encoding="utf-8")
     assert "import FreeCADGui as Gui" in source
     assert "window.show()" in source
@@ -58,5 +58,5 @@ def test_canonical_gui_jobs_launch_from_neutral_cwd_with_bootstrap():
 if __name__ == "__main__":
     test_sketcher_acceptance_prepares_gui_before_manual_initgui()
     test_visual_example_prepares_gui_before_manual_initgui()
-    test_committed_fcmacro_bootstrap_prepares_gui_before_acceptance_script()
+    test_committed_bootstrap_prepares_gui_before_acceptance_script()
     test_canonical_gui_jobs_launch_from_neutral_cwd_with_bootstrap()
