@@ -232,15 +232,19 @@ def run_acceptance():
         _events()
         _record("pattern-sketch-edit-passed")
 
+        _stage("before-sewing-activate")
         _activate("ClothSewingWorkbench", [
             "ClothSewing_CreateSeam",
             "ClothSewing_FocusSeam3D",
             "ClothSewing_EditSeamSideA",
         ])
+        _stage("sewing-workbench-activated")
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(curved, "Edge3")
         Gui.Selection.addSelection(mate, "Edge1")
+        _stage("before-seam-create-command")
         Gui.runCommand("ClothSewing_CreateSeam", 0)
+        _stage("after-seam-create-command")
         doc.recompute()
         seam = next((obj for obj in doc.Objects if getattr(obj, "SeamId", "")), None)
         if seam is None or str(seam.Status) != "Valid":
@@ -252,7 +256,9 @@ def run_acceptance():
         semantic_ids = tuple(str(item) for item in curved_sketch.SemanticEdgeIds)
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(seam)
+        _stage("before-seam-focus-command")
         Gui.runCommand("ClothSewing_FocusSeam3D", 0)
+        _stage("after-seam-focus-command")
         if seam.Shape.isNull():
             raise RuntimeError("seam focus command did not retain world-space presentation geometry")
         from freecad_cloth.sewing.SewingView import seam_color_map
@@ -291,7 +297,9 @@ def run_acceptance():
         local_mate_start = App.Vector(0, 0, 0.4)
         if _has_vertex(local_mate_start):
             raise RuntimeError("seam presentation still contains the mate Sketcher endpoint in local coordinates")
+        _stage("before-seam-edit-command")
         Gui.runCommand("ClothSewing_EditSeamSideA", 0)
+        _stage("after-seam-edit-command")
         if not Gui.activeDocument().getInEdit():
             raise RuntimeError("seam Sketcher-side command did not enter native Sketcher")
         selection = Gui.Selection.getSelectionEx()
@@ -306,7 +314,9 @@ def run_acceptance():
             doc.saveAs(path)
             App.closeDocument(doc.Name)
             doc = None
+            _stage("before-save-reload-open")
             reloaded = App.openDocument(path)
+            _stage("after-save-reload-open")
             _record("save-reload-opened")
             curved = next((obj for obj in reloaded.Objects if str(getattr(obj, "PieceId", "")) == original_piece_id), None)
             if curved is None or curved.Sketch is None:
