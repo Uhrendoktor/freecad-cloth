@@ -26,6 +26,8 @@ OUT = Path(os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")) / "b
 OUT.mkdir(parents=True, exist_ok=True)
 LOG = OUT / "blanket-visual.log"
 
+_WORKBENCH_REGISTRATION_READY = False
+
 
 def log(message):
     with LOG.open("a", encoding="utf-8") as handle:
@@ -48,6 +50,34 @@ def save_png(view, path, state):
         raise RuntimeError("invalid PNG capture: %s" % state)
 
 
+def _ensure_workbench_registration():
+    global _WORKBENCH_REGISTRATION_READY
+    if "ClothPatternWorkbench" in Gui.listWorkbenches():
+        _WORKBENCH_REGISTRATION_READY = True
+        log("workbench-registration=passed source=FreeCAD-module-path")
+        return
+
+    init_gui = ROOT / "InitGui.py"
+    if not init_gui.is_file():
+        raise RuntimeError("InitGui.py missing from FreeCAD workbench root")
+    previous_path = list(sys.path)
+    try:
+        sys.path.insert(0, str(ROOT))
+        namespace = {"__file__": str(init_gui), "__name__": "__main__"}
+        exec(compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"), namespace, namespace)
+    finally:
+        sys.path[:] = previous_path
+    if "ClothPatternWorkbench" not in Gui.listWorkbenches():
+        raise RuntimeError("ClothPatternWorkbench was not registered by InitGui.py")
+    _WORKBENCH_REGISTRATION_READY = True
+    log("workbench-registration=passed source=InitGui.py")
+
+
+def _require_workbench_registration():
+    if not _WORKBENCH_REGISTRATION_READY or "ClothPatternWorkbench" not in Gui.listWorkbenches():
+        raise RuntimeError("Cloth workbench registration must precede the first blanket workbench use")
+
+
 def make_rectangle_sketch(doc, name, width, height):
     import Part
     import Sketcher
@@ -67,6 +97,7 @@ def make_rectangle_sketch(doc, name, width, height):
 
 
 def adopt_sketch(doc, sketch):
+    _require_workbench_registration()
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(sketch)
     piece = create_pattern_piece_from_selected_sketch(name="Blanket", allowance=0.0, grainline=0.0)
@@ -125,9 +156,8 @@ def main():
         raise RuntimeError("FreeCAD GUI did not launch")
     window.show()
     events()
+    _ensure_workbench_registration()
     _load_cloth_modules()
-    if "ClothPatternWorkbench" not in Gui.listWorkbenches():
-        raise RuntimeError("ClothPatternWorkbench was not registered by FreeCAD module-path startup")
     events()
     doc = App.newDocument("ClothBlanketExample")
     try:
