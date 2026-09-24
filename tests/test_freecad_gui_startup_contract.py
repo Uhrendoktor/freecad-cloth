@@ -29,6 +29,14 @@ def test_visual_example_prepares_gui_before_module_imports():
     assert source.index("sys.path[:] =") < source.index("import FreeCAD as App")
     assert "exec(compile(open(init_gui" not in source
 
+def test_freecad_package_metadata_declares_root_gui_workbench():
+    metadata = (ROOT / "package.xml").read_text(encoding="utf-8")
+    assert '<package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">' in metadata
+    assert "<classname>ClothPatternWorkbench</classname>" in metadata
+    assert "<subdirectory>./</subdirectory>" in metadata
+    assert "exec(compile(init_gui" not in metadata
+
+
 def test_sketcher_acceptance_uses_freecad_module_path_startup():
     source = (ROOT / "tests" / "freecad_sketcher_acceptance.py").read_text(encoding="utf-8")
     assert "sys.path[:] = [entry for entry in sys.path if entry not in (\"\", str(ROOT))]" in source
