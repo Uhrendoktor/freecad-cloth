@@ -67,24 +67,15 @@ def test_sketcher_authority_prefers_geometry_index_over_shape_edges():
 
 
 
-def test_seam_side_edit_selects_pattern_piece_before_set_edit():
+def test_seam_side_edit_uses_public_pattern_sketch_command():
     source = Path(__file__).resolve().parents[1] / "freecad_cloth" / "sewing" / "SewingCommands.py"
     text = source.read_text(encoding="utf-8")
     start = text.index("def _edit_selected_seam_side(side):")
     end = text.index("\ndef edit_selected_seam_side_a():", start)
     body = text[start:end]
-    assert body.index("Gui.Selection.clearSelection()") < body.index("Gui.Selection.addSelection(piece)")
-    assert body.index("Gui.Selection.addSelection(piece)") < body.index("Gui.activeDocument().setEdit(sketch.Name)")
-    assert body.index('Gui.activeDocument().setEdit(sketch.Name)') < body.index('Gui.Selection.addSelection(sketch, "Edge%d" % (edge_index + 1))')
-
-def test_seam_side_edit_does_not_refocus_3d_view():
-    source = Path(__file__).resolve().parents[1] / "freecad_cloth" / "sewing" / "SewingCommands.py"
-    text = source.read_text(encoding="utf-8")
-    start = text.index("def _edit_selected_seam_side(side):")
-    end = text.index("\ndef edit_selected_seam_side_a():", start)
-    body = text[start:end]
+    assert "Gui.runCommand(\"ClothPattern_EditSketch\", 0)" in body
     assert "focus_selected_seam_3d()" not in body
-    assert "setEdit(sketch.Name)" in body
+    assert 'Gui.Selection.addSelection(sketch, "Edge%d" % (edge_index + 1))' in body
 
 
 def test_sketcher_authority_matches_semantic_edge_endpoints():
