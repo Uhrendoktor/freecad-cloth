@@ -39,34 +39,42 @@ def _run_exact_seam_edit_cases():
                 "PYTHONUNBUFFERED": "1",
             })
             started = time.monotonic()
-            proc = subprocess.Popen(
-                ["/opt/freecad/AppRun", case_file],
-                cwd=str(ROOT),
-                env=env,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
-            )
-            timed_out = False
-            try:
-                output, _ = proc.communicate(timeout=6.0)
-            except subprocess.TimeoutExpired:
-                timed_out = True
+            output_path = os.path.join(workdir, "case.log")
+            with open(output_path, "w", encoding="utf-8") as output_handle:
+                proc = subprocess.Popen(
+                    ["/opt/freecad/AppRun", case_file],
+                    cwd=str(ROOT),
+                    env=env,
+                    stdout=output_handle,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                )
+                timed_out = False
                 try:
-                    os.killpg(proc.pid, signal.SIGTERM)
-                except ProcessLookupError:
-                    pass
-                try:
-                    output, _ = proc.communicate(timeout=1.0)
+                    proc.wait(timeout=6.0)
                 except subprocess.TimeoutExpired:
+                    timed_out = True
                     try:
-                        os.killpg(proc.pid, signal.SIGKILL)
+                        os.killpg(proc.pid, signal.SIGTERM)
                     except ProcessLookupError:
                         pass
-                    output, _ = proc.communicate()
+                    try:
+                        proc.wait(timeout=1.0)
+                    except subprocess.TimeoutExpired:
+                        try:
+                            os.killpg(proc.pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                        try:
+                            proc.wait(timeout=1.0)
+                        except subprocess.TimeoutExpired:
+                            pass
             returncode = 124 if timed_out else proc.returncode
             elapsed = time.monotonic() - started
+            try:
+                output = Path(output_path).read_text(encoding="utf-8", errors="replace")
+            except OSError as exc:
+                output = "diagnostic-output-read-error=%r\\n" % (exc,)
             print("=== seam-edit-diagnostic case=%s exit=%s elapsed=%.3fs timeout=%s ===" % (case, returncode, elapsed, timed_out), flush=True)
             print(output, end="" if output.endswith("\n") else "\n", flush=True)
             markers = [
