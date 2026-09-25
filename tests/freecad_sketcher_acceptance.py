@@ -273,9 +273,6 @@ def run_acceptance():
         if commit_button is None or not bool(commit_button.isEnabled()):
             raise RuntimeError("staged seam Commit button is not available/enabled")
         commit_button.click()
-        _stage("seam-commit-returned-to-qt")
-
-        commit_button.click()
         # Close only after the custom Commit handler has returned.
         if Gui.Control.activeDialog():
             Gui.Control.closeDialog()
@@ -390,9 +387,7 @@ def run_acceptance():
             App.closeDocument(reloaded.Name)
             doc = None
         print("native Sketcher acceptance passed", flush=True)
-        
-        _quit_application()
-            finally:
+    finally:
         _close_task()
         if doc is not None:
             try:
