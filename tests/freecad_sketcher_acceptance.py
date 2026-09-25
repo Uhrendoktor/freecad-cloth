@@ -7,7 +7,6 @@ import traceback
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-_ACCEPTANCE_TIMER = None
 sys.path[:] = [entry for entry in sys.path if entry not in ("", str(ROOT))]
 
 print("stage=script-loaded", flush=True)
