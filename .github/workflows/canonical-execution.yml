@@ -152,6 +152,16 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
+              set +e
+              rm -rf /workspace/artifacts/seam-edit-diagnostic
+              mkdir -p /workspace/artifacts/seam-edit-diagnostic
+              python3 /workspace/tests/freecad_seam_edit_diagnostic_driver.py \
+                --root /workspace \
+                --out /workspace/artifacts/seam-edit-diagnostic
+              seam_diag_status=$?
+              set -e
+              echo "seam-edit-diagnostic-exit=$seam_diag_status" >> /workspace/artifacts/seam-edit-diagnostic/summary.log
+              cat /workspace/artifacts/seam-edit-diagnostic/summary.log
               probe_case() {
                 name="$1"
                 shift
@@ -174,16 +184,6 @@ jobs:
               set -e
               echo "boundary-exit=$boundary_status" >> /workspace/artifacts/boundary.log
               cat /workspace/artifacts/boundary.log
-              set +e
-              rm -rf /workspace/artifacts/seam-edit-diagnostic
-              mkdir -p /workspace/artifacts/seam-edit-diagnostic
-              python3 /workspace/tests/freecad_seam_edit_diagnostic_driver.py \
-                --root /workspace \
-                --out /workspace/artifacts/seam-edit-diagnostic
-              seam_diag_status=$?
-              set -e
-              echo "seam-edit-diagnostic-exit=$seam_diag_status" >> /workspace/artifacts/seam-edit-diagnostic/summary.log
-              cat /workspace/artifacts/seam-edit-diagnostic/summary.log
               set +e
               export SKETCHER_STAGE_FILE=/workspace/artifacts/sketcher-stage.log
               PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=5s 120s /opt/freecad/AppRun /workspace/tests/freecad_sketcher_acceptance.py > /workspace/artifacts/actual-acceptance.log 2>&1
