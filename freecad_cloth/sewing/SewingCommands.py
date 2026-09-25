@@ -330,6 +330,13 @@ def focus_selected_seam_3d():
     return seam
 
 
+def _seam_edit_debug(stage):
+    """Research-only trace hook; inert unless CLOTH_SKETCHER_EDIT_DEBUG is set."""
+    import os
+    if os.environ.get("CLOTH_SKETCHER_EDIT_DEBUG"):
+        print("seam-edit-stage=" + str(stage), flush=True)
+
+
 def _edit_selected_seam_side(side):
     import FreeCAD as App
     import FreeCADGui as Gui
@@ -350,14 +357,28 @@ def _edit_selected_seam_side(side):
         edge_index = semantic_ids.index(semantic_id)
     except ValueError as exc:
         raise ValueError("seam side %s is not present in the Sketcher semantic edge map" % side) from exc
+    _seam_edit_debug("entered")
     focus_selected_seam_3d()
+    _seam_edit_debug("focus-returned")
     if Gui.activeDocument().getInEdit():
+        _seam_edit_debug("before-reset-edit")
         Gui.activeDocument().resetEdit()
+        _seam_edit_debug("after-reset-edit")
+    _seam_edit_debug("before-clear-selection")
     Gui.Selection.clearSelection()
+    _seam_edit_debug("after-clear-selection")
+    _seam_edit_debug("before-select-piece")
     Gui.Selection.addSelection(piece)
+    _seam_edit_debug("after-select-piece")
+    _seam_edit_debug("before-set-edit")
     Gui.activeDocument().setEdit(sketch.Name)
+    _seam_edit_debug("after-set-edit")
+    _seam_edit_debug("before-clear-selection-2")
     Gui.Selection.clearSelection()
+    _seam_edit_debug("after-clear-selection-2")
+    _seam_edit_debug("before-select-sketch-edge")
     Gui.Selection.addSelection(sketch, "Edge%d" % (edge_index + 1))
+    _seam_edit_debug("after-select-sketch-edge")
     return sketch, edge_index
 
 
