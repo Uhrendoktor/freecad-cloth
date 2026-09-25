@@ -202,7 +202,7 @@ def make_case(acceptance: str, sewing: str, case: str) -> str:
 
 def run_case(case: str, source: str, target: Path, out_dir: Path) -> int:
     case_dir = Path(tempfile.mkdtemp(prefix=f"seam-diag-{case}-", dir="/tmp"))
-    case_file = case_dir / f"{case}.py"
+    case_file = target / "tests" / f".seam_edit_diag_{case}.py"
     case_file.write_text(source, encoding="utf-8")
     home = case_dir / "home"
     data = case_dir / "data"
@@ -258,6 +258,10 @@ def run_case(case: str, source: str, target: Path, out_dir: Path) -> int:
     elapsed = time.monotonic() - started
     with (out_dir / "summary.log").open("a", encoding="utf-8") as handle:
         handle.write(f"case={case} exit={rc} elapsed={elapsed:.3f}s\n")
+    try:
+        case_file.unlink()
+    except FileNotFoundError:
+        pass
     shutil.rmtree(case_dir, ignore_errors=True)
     return int(rc)
 
