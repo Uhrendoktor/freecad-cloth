@@ -246,6 +246,20 @@ def run_acceptance():
         if seam is None or str(seam.Status) != "Valid":
             raise RuntimeError("public Sewing command did not create a valid seam from native Sketch edges")
         _record("seam-created")
+
+        from freecad_cloth.sewing.SewingCommands import get_active_staged_sewing_task_panel
+        staged_panel = get_active_staged_sewing_task_panel()
+        if staged_panel is None:
+            raise RuntimeError("staged sewing task panel was not retained after seam Preview")
+        if not staged_panel.accept():
+            raise RuntimeError("staged seam Commit did not succeed")
+        _events()
+        if Gui.Control.activeDialog() is not None:
+            raise RuntimeError("staged seam Commit left its task dialog active")
+        has_pending = getattr(doc, "hasPendingTransaction", None)
+        if callable(has_pending) and bool(has_pending()):
+            raise RuntimeError("staged seam Commit left a pending document transaction")
+        _record("seam-created-and-committed")
         original_piece_id = str(curved.PieceId)
         original_width = float(curved_sketch.getDatum(width_index))
         seam_id = str(seam.SeamId)
