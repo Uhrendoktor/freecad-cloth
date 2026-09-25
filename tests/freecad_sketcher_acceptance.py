@@ -213,6 +213,27 @@ def run_acceptance():
         original_width = float(curved_sketch.getDatum(width_index))
         seam_id = str(seam.SeamId)
         semantic_ids = tuple(str(item) for item in curved_sketch.SemanticEdgeIds)
+
+        # The public CreateSeam command opens the supported staged sewing task
+        # panel and previews the seam inside its document transaction. Exercise
+        # the real Commit control before invoking any downstream sewing command.
+        from freecad_cloth.sewing.SewingCommands import get_active_staged_sewing_task_panel
+        staged_panel = get_active_staged_sewing_task_panel()
+        if staged_panel is None or not getattr(getattr(staged_panel, "session", None), "previewed", False):
+            raise RuntimeError("public staged sewing command did not leave a previewed creation session active")
+        if not bool(getattr(staged_panel.commit_button, "isEnabled", lambda: False)()):
+            raise RuntimeError("staged sewing Commit control is not enabled after a valid Preview")
+        staged_panel.commit_button.click()
+        _events()
+        session = staged_panel.session
+        if not bool(getattr(session, "committed", False)):
+            raise RuntimeError("staged sewing Commit control did not commit the seam creation session")
+        if bool(getattr(session, "_transaction_active", False)):
+            raise RuntimeError("staged sewing Commit control did not close the document transaction")
+        if Gui.Control.activeDialog() is not None:
+            raise RuntimeError("staged sewing Commit control did not close the active task dialog")
+        _record("seam-staged-committed-dialog-closed")
+
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(seam)
         Gui.runCommand("ClothSewing_FocusSeam3D", 0)
