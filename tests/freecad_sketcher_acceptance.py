@@ -33,10 +33,17 @@ def _close_task():
 
 
 def _wait_for_task_close():
+    try:
+        from PySide import QtCore, QtWidgets
+    except ImportError:
+        from PySide2 import QtCore, QtWidgets
     for _ in range(80):
-        _events()
         if Gui.Control.activeDialog() is None:
             return
+        loop = QtCore.QEventLoop()
+        QtCore.QTimer.singleShot(0, loop.quit)
+        loop.exec()
+        QtWidgets.QApplication.processEvents()
     raise RuntimeError("task dialog did not close after staged sewing Commit/Cancel")
 
 
