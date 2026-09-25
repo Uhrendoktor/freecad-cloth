@@ -1,6 +1,7 @@
 """Deterministic avatar visual audit plus a full 360-degree turntable render."""
 import os
 import sys
+import time
 import traceback
 from math import pi
 
@@ -30,6 +31,19 @@ def events():
     app = QtWidgets.QApplication.instance()
     if app is not None:
         app.processEvents()
+
+
+def wait_for_gui_ready(timeout_seconds=15.0):
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        window = Gui.getMainWindow()
+        if window is not None and window.isVisible():
+            window.show()
+            events()
+            return window
+        events()
+        time.sleep(0.05)
+    raise RuntimeError("FreeCAD GUI did not become visible within %.1fs" % timeout_seconds)
 
 
 def hide_task_docks(window):
@@ -126,10 +140,7 @@ def render_turntable(view, center, frame_dir, frame_count=72):
 
 def main():
     log("avatar-script-start")
-    window = Gui.getMainWindow()
-    if window is None or not window.isVisible():
-        raise RuntimeError("FreeCAD GUI did not launch")
-    window.show(); events()
+    window = wait_for_gui_ready()
 
     init_gui = os.path.join(ROOT, "InitGui.py")
     exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
