@@ -53,9 +53,9 @@ Do not pull a visible CLO feature forward merely because it exists in CLO. Stabi
 ## Current release state
 
 - P0 release-closeout is complete and validated on merged main; there is no pending release candidate.
-- Final timing repair PR #1195 is merged. Exact PR run #3975 passed, and merged-main run #3976 / Actions 36202078316 passed the complete canonical graph, including Python/core checks, real FreeCAD/Xvfb GUI acceptance, sewing, Native Sketcher, pattern export, tunic simulation, blanket visual validation, 73-frame README turntables, benchmark, and README publication.
-- The three README turntable GIFs are 73 frames at 640x480 with uniform 8cs frame timing; the canonical workflow now asserts that timing fail-closed. The final published Git blobs on `docs/screenshots` match the exact run #3976 turntable artifacts.
-- The 16-frame blanket motion GIF remains validated at 10cs/frame and is published on `docs/screenshots`; its final published Git blob matches the exact merged-main artifact.
+- Final timing repair PR #1195 is merged. The canonical PR validation passed, followed by merged-main validation of the complete graph and README publication.
+- The three README turntable GIFs are 73 frames at 640x480 with uniform 8cs frame timing; the canonical workflow asserts that timing fail-closed. Representative rendered frames were inspected, and the final publication audit matched generated GIF bytes to the `docs/screenshots` Git blobs.
+- The 16-frame blanket motion GIF remains validated at 10cs/frame and is published on `docs/screenshots`; its motion, mesh connectivity, drape plausibility, and material presentation were inspected.
 - The canonical FreeCAD/Xvfb workflow remains the sole workflow and fail-closed. No simulation geometry thresholds, frame-count contracts, validation assertions, or workflow topology were weakened to reach release state.
 - Repository retention/branch cleanup is implemented by the scheduled maintenance job. The connector does not expose branch deletion, so full remote branch purge is not claimed; this is an operational retention-policy limitation rather than a release-code blocker.
 - The three missing public Sewing command SVG assets were merged in PR #1077; packaging already includes `resources/**/*`. The P1 and Production items listed above remain future enhancements rather than active release blockers.

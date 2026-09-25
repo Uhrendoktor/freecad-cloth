@@ -1,50 +1,34 @@
 # Tool State
 
 ```yaml
-schema: 18
+schema: 19
 repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_issue: 1017
 continuation_issue: 1098
-current_main: b43b8a2982e4570f25824509674dad9b66a38677
+validated_release_code: b43b8a2982e4570f25824509674dad9b66a38677
 workflow_count: 1
 workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; inspect_jobs_logs_artifacts; no_second_workflow
-final_release:
-  release_pr: 1165
-  merged: true
+release:
+  p0_closeout: complete
   timing_fix_pr: 1195
   timing_fix_pr_merged: true
-  timing_fix_pr_run: 3975
-  timing_fix_pr_run_id: 36201796778
-  timing_fix_pr_run_conclusion: success
-  current_main_run: 3976
-  current_main_run_id: 36202078316
-  current_main_run_conclusion: success
-  publisher_job_id: 108291368754
-  published_docs_branch: docs/screenshots
-  published_docs_sha: 69f1153
-  README_assets_published: true
-  native_sketcher_exact_main: passed
-  sewing_smoke_exact_main: passed
-  tunic_visual_exact_main: passed
-  blanket_visual_exact_main: passed
-  README_turntable_exact_main: passed
-  README_turntable_timing_exact_main: passed
-  export_exact_main: passed
-  python_exact_main: passed
-  benchmark_exact_main: passed
-release_qa:
-  gui_startup_fix_pr: 1187
-  gui_startup_fix_merged: true
-  publisher_path_fix_pr: 1190
-  publisher_path_fix_merged: true
-  publisher_path_fix_pr_run: 3968
-  publisher_path_fix_pr_run_conclusion: success
-  sketcher_post_commit_fix_pr: 1191
-  sketcher_post_commit_fix_merged: true
-  sketcher_post_commit_fix_main_run: 3973
-  sketcher_post_commit_fix_main_run_conclusion: success
-  final_gate: exact_current_main_green; artifacts_inspected; rendered_output_inspected; docs_published; final_repo_audit
+  native_sketcher: passed
+  sewing_smoke: passed
+  tunic_visual: passed
+  blanket_visual: passed
+  readme_turntables: passed
+  readme_turntable_timing: passed
+  pattern_export: passed
+  python: passed
+  benchmark: passed
+  publisher: passed
+  docs_assets_published: true
+  final_issue_1017: closed_completed
+  continuation_issue_1098: closed_completed
+  open_prs: 0
+  open_issues: 0
+final_gate: exact_release_code_green; merged_main_green; artifacts_inspected; rendered_output_inspected; docs_published; final_repo_audit
 ```
