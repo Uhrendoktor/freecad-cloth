@@ -718,12 +718,9 @@ jobs:
           (root / "benchmark.json").write_text(json.dumps(merged, indent=2, sort_keys=True) + "\n")
           PY
       - name: Install plotting dependency
-        run: |
-          set -euo pipefail
-          python3 -m venv "$RUNNER_TEMP/workbench-benchmark-venv"
-          "$RUNNER_TEMP/workbench-benchmark-venv/bin/python" -m pip install --disable-pip-version-check matplotlib
+        run: python3 -m pip install --disable-pip-version-check matplotlib
       - name: Generate benchmark plots
-        run: "$RUNNER_TEMP/workbench-benchmark-venv/bin/python" tools/plot_workbench_benchmark.py artifacts/workbench-benchmark/benchmark.json artifacts/workbench-benchmark/plots
+        run: python3 tools/plot_workbench_benchmark.py artifacts/workbench-benchmark/benchmark.json artifacts/workbench-benchmark/plots
       - name: Upload benchmark measurements and plots
         if: always()
         uses: actions/upload-artifact@v6
