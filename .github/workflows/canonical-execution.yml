@@ -175,13 +175,13 @@ jobs:
               echo "boundary-exit=$boundary_status" >> /workspace/artifacts/boundary.log
               cat /workspace/artifacts/boundary.log
               set +e
-              export CLOTH_SEAM_EDIT_PATH=stepwise
-              export SKETCHER_STAGE_FILE=/workspace/artifacts/seam-edit-stepwise-stage.log
-              PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=5s 90s /opt/freecad/AppRun /workspace/tests/freecad_sketcher_acceptance.py > /workspace/artifacts/seam-edit-stepwise.log 2>&1
-              stepwise_status=$?
+              export CLOTH_SEAM_EDIT_PATH=minimal
+              export SKETCHER_STAGE_FILE=/workspace/artifacts/seam-edit-minimal-stage.log
+              PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=5s 90s /opt/freecad/AppRun /workspace/tests/freecad_sketcher_acceptance.py > /workspace/artifacts/seam-edit-minimal.log 2>&1
+              minimal_status=$?
               set -e
-              echo "seam-edit-stepwise-exit=$stepwise_status" >> /workspace/artifacts/seam-edit-stepwise.log
-              cat /workspace/artifacts/seam-edit-stepwise.log
+              echo "seam-edit-minimal-exit=$minimal_status" >> /workspace/artifacts/seam-edit-minimal.log
+              cat /workspace/artifacts/seam-edit-minimal.log
               unset CLOTH_SEAM_EDIT_PATH
               export SKETCHER_STAGE_FILE=/workspace/artifacts/seam-edit-command-stage.log
               set +e
@@ -190,8 +190,8 @@ jobs:
               set -e
               echo "seam-edit-command-exit=$command_status" >> /workspace/artifacts/seam-edit-command.log
               cat /workspace/artifacts/seam-edit-command.log
-              test "$stepwise_status" -eq 0
-              grep -q "seam-edit-stepwise-after-select-sketch-edge" /workspace/artifacts/seam-edit-stepwise-stage.log
+              test "$minimal_status" -eq 0
+              grep -q "seam-edit-minimal-after-select-sketch-edge" /workspace/artifacts/seam-edit-minimal-stage.log
               test "$command_status" -eq 124
               grep -q "seam-edit-command-before" /workspace/artifacts/seam-edit-command-stage.log
               ! grep -q "seam-edit-command-after" /workspace/artifacts/seam-edit-command-stage.log
@@ -207,8 +207,8 @@ jobs:
             artifacts/plain.marker
             artifacts/module-path.marker
             artifacts/boundary.log
-            artifacts/seam-edit-stepwise.log
-            artifacts/seam-edit-stepwise-stage.log
+            artifacts/seam-edit-minimal.log
+            artifacts/seam-edit-minimal-stage.log
             artifacts/seam-edit-command.log
             artifacts/seam-edit-command-stage.log
           if-no-files-found: warn
