@@ -205,7 +205,7 @@ try:
     assert "Preview rejected" in invalid_count_panel.feedback.text()
     assert "exactly two edges" in invalid_count_panel.feedback.text()
     assert {obj.Name for obj in doc.Objects} == count_before
-    cancel_panel.cancel_button.click()
+    invalid_count_panel.cancel_button.click()
     wait_for_task_close()
     assert {obj.Name for obj in doc.Objects} == count_before
     record("selection-count-rejection=passed")
@@ -216,7 +216,7 @@ try:
     assert "Preview rejected" in invalid_panel.feedback.text()
     assert "different pattern pieces" in invalid_panel.feedback.text()
     assert {obj.Name for obj in doc.Objects} == same_piece_before
-    cancel_panel.cancel_button.click()
+    invalid_panel.cancel_button.click()
     wait_for_task_close()
     assert {obj.Name for obj in doc.Objects} == same_piece_before
     record("invalid-same-piece-preview=passed")
@@ -227,7 +227,7 @@ try:
     assert "Preview rejected" in invalid_mn_panel.feedback.text()
     assert "two different pattern pieces" in invalid_mn_panel.feedback.text()
     assert {obj.Name for obj in doc.Objects} == mn_before
-    cancel_panel.cancel_button.click()
+    invalid_mn_panel.cancel_button.click()
     wait_for_task_close()
     assert {obj.Name for obj in doc.Objects} == mn_before
     record("invalid-mn-partition-preview=passed")
@@ -278,7 +278,7 @@ try:
     assert curved_panel.accept() is False
     assert "Preview validation failed" in curved_panel.feedback.text()
     record("stale-endpoint-invalidation=passed commit-blocked=true")
-    cancel_panel.cancel_button.click()
+    curved_panel.cancel_button.click()
     wait_for_task_close()
 
     curved_a.SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 40.0), (20.0, 40.0)])
