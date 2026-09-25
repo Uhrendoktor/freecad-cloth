@@ -5,6 +5,12 @@ document transaction used by other sewing task panels. Commit closes that
 transaction; Cancel aborts it. The session itself is transient UI state only.
 """
 
+def _close_active_task_dialog():
+    import FreeCADGui as Gui
+
+    if Gui.activeDocument() and Gui.Control.activeDialog():
+        Gui.Control.closeDialog()
+
 
 def _modules():
     import FreeCAD as App
@@ -203,10 +209,15 @@ class SewingCreationTaskPanel:
 
         buttons = QtWidgets.QHBoxLayout()
         self.preview_button = QtWidgets.QPushButton("Preview")
+        self.commit_button = QtWidgets.QPushButton("Commit")
+        self.cancel_button = QtWidgets.QPushButton("Cancel")
         self.preview_button.clicked.connect(self.preview)
+        self.commit_button.clicked.connect(self.accept)
+        self.cancel_button.clicked.connect(self.reject)
         buttons.addWidget(self.preview_button)
+        buttons.addWidget(self.commit_button)
+        buttons.addWidget(self.cancel_button)
         layout.addLayout(buttons)
-        self._standard_button_box = None
 
         self.session = SewingCreationSession(
             App.ActiveDocument,
@@ -238,45 +249,18 @@ class SewingCreationTaskPanel:
             "edge-count and two-piece validation." % count
         )
 
-    def _set_commit_enabled(self, enabled):
-        if self._standard_button_box is None:
-            return
-        try:
-            from PySide import QtWidgets
-        except ImportError:
-            from PySide2 import QtWidgets
-        button = self._standard_button_box.button(QtWidgets.QDialogButtonBox.Ok)
-        if button is not None:
-            button.setEnabled(bool(enabled))
-
-    def modifyStandardButtons(self, button_box):
-        self._standard_button_box = button_box
-        try:
-            from PySide import QtWidgets
-        except ImportError:
-            from PySide2 import QtWidgets
-        commit = button_box.button(QtWidgets.QDialogButtonBox.Ok)
-        if commit is not None:
-            commit.setText("Commit")
-            commit.setToolTip("Commit the staged sewing creation")
-        cancel = button_box.button(QtWidgets.QDialogButtonBox.Cancel)
-        if cancel is not None:
-            cancel.setText("Cancel")
-            cancel.setToolTip("Discard the staged sewing creation")
-        self._set_commit_enabled(bool(getattr(self.session, "previewed", False)))
-
     def _show_error(self, exc):
         self.feedback.setText(
             "Preview rejected: %s. Adjust the selection, then press Preview again."
             % str(exc)
         )
         self.feedback.setStyleSheet("font-weight: bold;")
-        self._set_commit_enabled(False)
+        self.commit_button.setEnabled(False)
 
     def _show_status(self, text):
         self.feedback.setText(text)
         self.feedback.setStyleSheet("")
-        self._set_commit_enabled(True)
+        self.commit_button.setEnabled(True)
 
     def preview(self):
         self._refresh_selection()
@@ -291,6 +275,13 @@ class SewingCreationTaskPanel:
         )
         return True
 
+    def _schedule_close_dialog(self):
+        try:
+            from PySide import QtCore
+        except ImportError:
+            from PySide2 import QtCore
+        QtCore.QTimer.singleShot(0, _close_active_task_dialog)
+
     def accept(self):
         try:
             self.session.commit()
@@ -298,20 +289,19 @@ class SewingCreationTaskPanel:
             self._show_error(exc)
             return False
         self._show_status("Committed sewing creation.")
+        self.commit_button.setEnabled(False)
         self.preview_button.setEnabled(False)
+        self._schedule_close_dialog()
         return True
 
     def reject(self):
         self.session.cancel()
         self._show_status("Cancelled. No seam or sewing-network object was persisted.")
+        self._schedule_close_dialog()
         return True
 
     def getStandardButtons(self):
-        try:
-            from PySide import QtWidgets
-        except ImportError:
-            from PySide2 import QtWidgets
-        return QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+        return 0
 
 
 def show_sewing_creation_task(kind):
