@@ -3,6 +3,7 @@ import math
 import os
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,9 +34,21 @@ def _close_task():
 
 
 def _wait_for_task_close():
-    for _ in range(80):
-        _events()
-        if Gui.Control.activeDialog() is None:
+    # Staged Commit schedules task-panel teardown for the Qt event loop after
+    # the supported Commit action returns. Wait for that transition explicitly,
+    # but fail closed within a bounded two-second acceptance-harness window.
+    try:
+        from PySide import QtCore, QtWidgets
+    except ImportError:
+        from PySide2 import QtCore, QtWidgets
+    app = QtWidgets.QApplication.instance()
+    if app is None:
+        raise RuntimeError("Qt application is unavailable while waiting for staged sewing task dialog close")
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        Gui.updateGui()
+        app.processEvents(QtCore.QEventLoop.AllEvents, 50)
+        if not Gui.Control.activeDialog():
             return
     raise RuntimeError("task dialog did not close after staged sewing Commit/Cancel")
 
