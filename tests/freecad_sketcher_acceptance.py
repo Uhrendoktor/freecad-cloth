@@ -217,8 +217,7 @@ def run_acceptance():
         # The public CreateSeam command opens the supported staged sewing task
         # panel and previews the seam inside its document transaction. Exercise
         # the real Commit control before invoking any downstream sewing command.
-        from freecad_cloth.sewing.SewingCommands import get_active_staged_sewing_task_panel
-        staged_panel = get_active_staged_sewing_task_panel()
+        staged_panel = Gui.Control.activeDialog()
         if staged_panel is None or not getattr(getattr(staged_panel, "session", None), "previewed", False):
             raise RuntimeError("public staged sewing command did not leave a previewed creation session active")
         if not bool(getattr(staged_panel.commit_button, "isEnabled", lambda: False)()):
