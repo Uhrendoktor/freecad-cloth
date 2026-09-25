@@ -253,12 +253,14 @@ def run_acceptance():
             raise RuntimeError("staged sewing task panel was not retained after seam Preview")
         if not staged_panel.accept():
             raise RuntimeError("staged seam Commit did not succeed")
-        _events()
-        if Gui.Control.activeDialog() is not None:
-            raise RuntimeError("staged seam Commit left its task dialog active")
+        if not bool(getattr(staged_panel, "committed", False)):
+            raise RuntimeError("staged seam Commit did not mark the task panel committed")
         has_pending = getattr(doc, "hasPendingTransaction", None)
         if callable(has_pending) and bool(has_pending()):
             raise RuntimeError("staged seam Commit left a pending document transaction")
+        _close_task()
+        if Gui.Control.activeDialog() is not None:
+            raise RuntimeError("staged seam Commit could not close its task dialog")
         _record("seam-created-and-committed")
         original_piece_id = str(curved.PieceId)
         original_width = float(curved_sketch.getDatum(width_index))
