@@ -410,7 +410,6 @@ def run_acceptance():
             from PySide import QtCore
         except ImportError:
             from PySide2 import QtCore
-        global _ACCEPTANCE_TIMER
         QtCore.QTimer.singleShot(0, _continue_after_seam_commit)
         handoff_to_qt = True
         return
