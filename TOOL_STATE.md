@@ -1,31 +1,37 @@
 # Tool State
 
 ```yaml
-schema: 17
+schema: 18
 repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_issue: 1017
 continuation_issue: 1098
-current_main: 0cafd0977c9fc2a058be47eec9650246ee6e383d
+current_main: b43b8a2982e4570f25824509674dad9b66a38677
 workflow_count: 1
 workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; inspect_jobs_logs_artifacts; no_second_workflow
 final_release:
   release_pr: 1165
   merged: true
-  current_main_run: 3973
-  current_main_run_id: 36201487389
+  timing_fix_pr: 1195
+  timing_fix_pr_merged: true
+  timing_fix_pr_run: 3975
+  timing_fix_pr_run_id: 36201796778
+  timing_fix_pr_run_conclusion: success
+  current_main_run: 3976
+  current_main_run_id: 36202078316
   current_main_run_conclusion: success
-  publisher_job_id: 108289580794
+  publisher_job_id: 108291368754
   published_docs_branch: docs/screenshots
-  published_docs_sha: bf3e05a
+  published_docs_sha: 69f1153
   README_assets_published: true
   native_sketcher_exact_main: passed
   sewing_smoke_exact_main: passed
   tunic_visual_exact_main: passed
   blanket_visual_exact_main: passed
   README_turntable_exact_main: passed
+  README_turntable_timing_exact_main: passed
   export_exact_main: passed
   python_exact_main: passed
   benchmark_exact_main: passed
@@ -40,4 +46,5 @@ release_qa:
   sketcher_post_commit_fix_merged: true
   sketcher_post_commit_fix_main_run: 3973
   sketcher_post_commit_fix_main_run_conclusion: success
-final_gate: exact_current_main_green; artifacts_inspected; docs_published; final_repo_audit
+  final_gate: exact_current_main_green; artifacts_inspected; rendered_output_inspected; docs_published; final_repo_audit
+```
