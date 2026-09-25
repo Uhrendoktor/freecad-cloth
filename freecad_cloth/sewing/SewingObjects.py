@@ -21,21 +21,71 @@ def _outline_points(piece):
     return [(0.0, 0.0), (width, 0.0), (width, height), (0.0, height)]
 
 
-def _native_edge(piece, edge):
-    """Return a native Shape edge when it maps one-to-one to the outline."""
-    shape = getattr(piece, "Shape", None)
-    edges = getattr(shape, "Edges", None)
-    if edges is None:
+def _edge_endpoint_pair(native_edge):
+    """Return the 2D endpoints of a native shape edge, when available."""
+    vertices = tuple(getattr(native_edge, "Vertexes", ()) or ())
+    if len(vertices) < 2:
         return None
+    first = getattr(vertices[0], "Point", None)
+    last = getattr(vertices[-1], "Point", None)
+    if first is None or last is None:
+        return None
+    return (
+        (float(first.x), float(first.y)),
+        (float(last.x), float(last.y)),
+    )
+
+
+def _native_edge(piece, edge):
+    """Return the authoritative native Sketcher/Shape edge when available."""
     try:
         index = int(edge)
+        if str(getattr(piece, "GeometryAuthority", "")) == "Sketcher":
+            sketch = getattr(piece, "Sketch", None)
+            sketch_shape = getattr(sketch, "Shape", None) if sketch is not None else None
+            sketch_edges = tuple(getattr(sketch_shape, "Edges", ()) or ())
+            if sketch_edges:
+                try:
+                    from freecad_cloth.pattern.PatternObjects import _native_edge_record_for_sketch_index
+                    record = _native_edge_record_for_sketch_index(piece, index)
+                    expected = record.get("points") if record is not None else None
+                    if expected is not None and len(expected) == 2:
+                        tolerance = 1e-7
+                        def matches(candidate):
+                            endpoints = _edge_endpoint_pair(candidate)
+                            if endpoints is None:
+                                return False
+                            direct = max(
+                                abs(endpoints[0][0] - float(expected[0][0])),
+                                abs(endpoints[0][1] - float(expected[0][1])),
+                                abs(endpoints[1][0] - float(expected[1][0])),
+                                abs(endpoints[1][1] - float(expected[1][1])),
+                            )
+                            reverse = max(
+                                abs(endpoints[0][0] - float(expected[1][0])),
+                                abs(endpoints[0][1] - float(expected[1][1])),
+                                abs(endpoints[1][0] - float(expected[0][0])),
+                                abs(endpoints[1][1] - float(expected[0][1])),
+                            )
+                            return min(direct, reverse) <= tolerance
+                        native_match = next((candidate for candidate in sketch_edges if matches(candidate)), None)
+                        if native_match is not None:
+                            return native_match
+                except (AttributeError, KeyError, TypeError, ValueError, IndexError, RuntimeError):
+                    pass
+                if 0 <= index < len(sketch_edges):
+                    return sketch_edges[index]
+
+        shape = getattr(piece, "Shape", None)
+        edges = getattr(shape, "Edges", None)
+        if edges is None:
+            return None
         outline = _outline_points(piece)
         if 0 <= index < len(edges) and len(edges) == len(outline):
             return edges[index]
     except (TypeError, ValueError, IndexError):
         pass
     return None
-
 
 def _edge_polyline(piece, edge, sample_count=64):
     """Return a local 2D polyline suitable for arc-length operations."""
@@ -125,7 +175,7 @@ def _resolved_edge(piece, seam, prefix):
     return _seam_edge_index(piece, seam, prefix)
 
 
-def _edge_samples(piece, edge, start, end, count, z=0.2):
+def _edge_samples(piece, edge, start, end, count, z=0.2, transform_to_world=True):
     """Return evenly arc-length-spaced points over a normalized edge range."""
     import FreeCAD as App
     if count < 2:
@@ -137,7 +187,7 @@ def _edge_samples(piece, edge, start, end, count, z=0.2):
         p = _sample_polyline(points, float(start) + (float(end) - float(start)) * t)
         value = App.Vector(p[0], p[1], z)
         placement = getattr(piece, "Placement", None)
-        values.append(placement.multVec(value) if placement is not None else value)
+        values.append(placement.multVec(value) if placement is not None and transform_to_world else value)
     return values
 
 

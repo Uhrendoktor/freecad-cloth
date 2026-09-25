@@ -89,11 +89,18 @@ def record(message):
 
 
 def wait_for_task_close():
+    try:
+        from PySide import QtCore, QtWidgets
+    except ImportError:
+        from PySide2 import QtCore, QtWidgets
     for _ in range(80):
-        process_events()
         active = Gui.Control.activeDialog()
         if active is None or not bool(active):
             return
+        loop = QtCore.QEventLoop()
+        QtCore.QTimer.singleShot(0, loop.quit)
+        loop.exec()
+        QtWidgets.QApplication.processEvents()
     raise AssertionError("task dialog did not close after the requested Commit/Cancel action")
 
 
@@ -137,9 +144,7 @@ def close_public_task(panel=None):
             panel.reject()
         except Exception:
             pass
-    if Gui.Control.activeDialog():
-        Gui.Control.closeDialog()
-        process_events()
+    wait_for_task_close()
 
 
 doc = None
@@ -443,3 +448,4 @@ finally:
 if _success:
     sys.stdout.flush()
     getattr(os, "_" + "exit")(0)
+

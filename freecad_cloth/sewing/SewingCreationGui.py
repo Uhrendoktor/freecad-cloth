@@ -5,6 +5,12 @@ document transaction used by other sewing task panels. Commit closes that
 transaction; Cancel aborts it. The session itself is transient UI state only.
 """
 
+def _close_active_task_dialog():
+    import FreeCADGui as Gui
+
+    if Gui.activeDocument() and Gui.Control.activeDialog():
+        Gui.Control.closeDialog()
+
 
 def _modules():
     import FreeCAD as App
@@ -206,9 +212,6 @@ class SewingCreationTaskPanel:
         self.commit_button = QtWidgets.QPushButton("Commit")
         self.cancel_button = QtWidgets.QPushButton("Cancel")
         self.preview_button.clicked.connect(self.preview)
-        # Use explicit in-panel lifecycle buttons. The supported FreeCAD 1.1.0
-        # runtime does not expose Gui.Control.accept()/reject(); the panel owns
-        # the public Commit/Cancel actions and closes itself on completion.
         self.commit_button.clicked.connect(self.accept)
         self.cancel_button.clicked.connect(self.reject)
         buttons.addWidget(self.preview_button)
@@ -222,6 +225,7 @@ class SewingCreationTaskPanel:
             self._TRANSACTION_NAMES[kind],
             self._builder,
         )
+        self._closing = False
         self._refresh_selection()
         self.preview()
 
@@ -272,33 +276,40 @@ class SewingCreationTaskPanel:
         )
         return True
 
-    def _close_dialog(self):
-        if self.Gui.activeDocument() and self.Gui.Control.activeDialog():
-            self.Gui.Control.closeDialog()
+    def _schedule_close_dialog(self):
         try:
-            self.form.hide()
-        except Exception:
-            pass
+            from PySide import QtCore
+        except ImportError:
+            from PySide2 import QtCore
+        timer = QtCore.QTimer(self.form)
+        timer.setSingleShot(True)
+        timer.timeout.connect(_close_active_task_dialog)
+        self._close_timer = timer
+        timer.start(0)
 
     def accept(self):
+        if self._closing:
+            return True
         try:
             self.session.commit()
         except (ImportError, RuntimeError, ValueError, TypeError) as exc:
             self._show_error(exc)
             return False
+        self._closing = True
         self._show_status("Committed sewing creation.")
         self.commit_button.setEnabled(False)
         self.preview_button.setEnabled(False)
-        self._close_dialog()
+        self._schedule_close_dialog()
         return True
 
     def reject(self):
+        if self._closing:
+            return True
         self.session.cancel()
+        self._closing = True
         self._show_status("Cancelled. No seam or sewing-network object was persisted.")
-        self._close_dialog()
+        self._schedule_close_dialog()
         return True
-
-
 
     def getStandardButtons(self):
         return 0

@@ -6,8 +6,6 @@ import traceback
 from math import pi
 
 ROOT = "/workspace"
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -16,6 +14,9 @@ try:
 except ImportError:
     from PySide2 import QtWidgets
 from pivy import coin
+
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 
 from freecad_cloth.common.DrapeVisualSanity import inspect_drape, mesh_shape_sanity
 from freecad_cloth.common.MeshValidation import validate_mesh
@@ -27,10 +28,10 @@ from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "mesh")
 
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
-# This README fixture is the deterministic CPU reference example. The canonical
-# turntable job also renders a Tissu-based avatar, so do not inherit that backend
-# selection for the blanket scenario.
-os.environ["CLOTH_SIMULATION_BACKEND"] = "xpbd-cpu"
+BLANKET_SIZE = 200.0  # Validated 200 mm release fixture; keep pins/placement derived from this value.
+# The README fixture uses the same pinned Tissu mesh-collision runtime as the
+# canonical turntable job and the validated 200 mm blanket visual example.
+os.environ["CLOTH_SIMULATION_BACKEND"] = "tissu"
 os.makedirs(OUT, exist_ok=True)
 LOG = os.path.join(OUT, "simulation-turntable-progress.log")
 
@@ -147,6 +148,25 @@ def combined_center(objects):
 
 def render_turntable(view, objects, frame_dir, frame_count=72):
     os.makedirs(frame_dir, exist_ok=True)
+    visible_names = {obj.Name for obj in objects}
+    visibility = []
+    doc = App.ActiveDocument
+    if doc is not None:
+        for obj in doc.Objects:
+            view_object = getattr(obj, "ViewObject", None)
+            if view_object is None:
+                continue
+            previous = bool(getattr(view_object, "Visibility", False))
+            visibility.append((view_object, previous))
+            view_object.Visibility = getattr(obj, "Name", None) in visible_names
+    try:
+        _render_turntable_isolated(view, objects, frame_dir, frame_count)
+    finally:
+        for view_object, previous in visibility:
+            view_object.Visibility = previous
+
+
+def _render_turntable_isolated(view, objects, frame_dir, frame_count=72):
     frame_total = frame_count + 1
     center = combined_center(objects)
     target = coin.SbVec3f(center.x, center.y, center.z)
@@ -161,11 +181,11 @@ def render_turntable(view, objects, frame_dir, frame_count=72):
         raise RuntimeError("zero camera radius")
     up = coin.SbVec3f(0.0, 0.0, 1.0)
     frame_hashes = []
+    start_angle = pi / 2.0
     for frame in range(frame_total):
-        # Use all 73 angular positions rather than duplicating frame 000 at the
-        # end. This keeps every published frame distinct while retaining a full
-        # 360-degree turntable loop.
-        angle = 2.0 * pi * frame / frame_total
+        # Start from a cloth-visible angle, then cover a full 360 degrees
+        # without duplicating frame 000 at the end.
+        angle = start_angle + 2.0 * pi * frame / frame_total
         camera.position = coin.SbRotation(coin.SbVec3f(0.0, 0.0, 1.0), angle).multVec(base_offset) + target
         camera.pointAt(target, up)
         if hasattr(view, "redraw"):
@@ -240,7 +260,7 @@ def _opposite_top_edge_pins(piece, positions, panel_indices):
         max(top_edge, key=lambda index: float(mesh_positions[index][0])),
     )
     span = abs(float(mesh_positions[top[1]][0]) - float(mesh_positions[top[0]][0]))
-    if span < 0.75 * 260.0:
+    if span < 0.75 * BLANKET_SIZE:
         raise RuntimeError("blanket pins are not opposite top-edge corners: span=%.3f" % span)
     return tuple(int(panel_indices[top_index]) for top_index in top), span
 
@@ -326,13 +346,13 @@ def build_simulation_state(doc):
     from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, ensure_quality_properties
 
-    sketch = _make_rectangle_sketch(doc, "BlanketSource", 260.0, 260.0)
+    sketch = _make_rectangle_sketch(doc, "BlanketSource", BLANKET_SIZE, BLANKET_SIZE)
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(sketch)
     blanket = create_pattern_piece_from_selected_sketch(name="Blanket", allowance=0.0, grainline=0.0)
     if blanket.Sketch is not sketch:
         raise RuntimeError("pattern piece did not retain native sketch")
-    placement = App.Placement(App.Vector(-130.0, -130.0, 150.0), App.Rotation())
+    placement = App.Placement(App.Vector(-BLANKET_SIZE / 2.0, -BLANKET_SIZE / 2.0, 150.0), App.Rotation())
     blanket.Placement = placement
     blanket.Sketch.Placement = placement
 
@@ -371,13 +391,12 @@ def build_simulation_state(doc):
     doc.recompute()
 
     sketch.ViewObject.Visibility = False
-    blanket.ViewObject.Visibility = True
-    blanket.ViewObject.DisplayMode = "Shaded"
+    blanket.ViewObject.Visibility = False
     blanket.ViewObject.ShapeColor = (0.14, 0.32, 0.78)
     cube.ViewObject.ShapeColor = (0.62, 0.62, 0.62)
     panel.ViewObject.ShapeColor = (0.14, 0.32, 0.78)
-    panel.ViewObject.DisplayMode = "Flat Lines"
-    panel.ViewObject.Visibility = False
+    panel.ViewObject.DisplayMode = "Shaded"
+    panel.ViewObject.Visibility = True
     cube.ViewObject.Visibility = True
     doc.recompute()
     return scene, cube, blanket, panel, tuple(scene.Proxy._base_or_restore().backend.positions())
@@ -398,7 +417,7 @@ def main():
     try:
         scene, cube, blanket, panel, initial_positions = build_simulation_state(doc)
         view = Gui.activeDocument().activeView()
-        arranged_objects = [cube, blanket]
+        arranged_objects = [cube, panel]
         render_turntable(view, arranged_objects, os.path.join(OUT, "cloth-simulation-arranged-turntable-frames"))
 
         steps = int(os.environ.get("CLOTH_BLANKET_STEPS", "480"))

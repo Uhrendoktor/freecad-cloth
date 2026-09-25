@@ -73,10 +73,10 @@ def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5, world_space=
     from freecad_cloth.sewing.SewingObjects import _edge_samples, _resolved_edge
     a = _edge_samples(piece_a, _resolved_edge(piece_a, seam, "A"),
                       float(getattr(seam, "StartA", 0.0)), float(getattr(seam, "EndA", 1.0)),
-                      int(sample_count), z=0.4)
+                      int(sample_count), z=0.4, transform_to_world=not world_space)
     b = _edge_samples(piece_b, _resolved_edge(piece_b, seam, "B"),
                       float(getattr(seam, "StartB", 0.0)), float(getattr(seam, "EndB", 1.0)),
-                      int(sample_count), z=0.4)
+                      int(sample_count), z=0.4, transform_to_world=not world_space)
     if bool(getattr(seam, "ReversedB", False)):
         b.reverse()
     if world_space:

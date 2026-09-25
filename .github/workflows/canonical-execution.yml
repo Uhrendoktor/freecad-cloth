@@ -11,8 +11,9 @@ on:
     - cron: '0 3 * * *'
 
 concurrency:
-  group: canonical-${{ github.event_name }}-${{ github.event.schedule || github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Key validation by commit so a newer commit cannot replace this commit's pending run.
+  group: canonical-${{ github.workflow }}-${{ github.sha }}
+  cancel-in-progress: false
 
 env:
   FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
@@ -98,7 +99,9 @@ jobs:
                 tests/test_seam_graph.py \
                 tests/test_workbench_icons.py \
                 tests/test_tunic_audit_contract.py \
-                tests/test_readme_visual_contract.py; do
+                tests/test_readme_visual_contract.py \
+                tests/test_freecad_gui_startup_contract.py \
+                tests/test_sketcher_bootstrap_contract.py; do
                 python3 "$test"
               done
             ')"
@@ -111,6 +114,88 @@ jobs:
           docker cp "$PWD/." "$CID:/workspace/"
           docker start -a "$CID"
 
+  sketcher-startup-diagnostic:
+    name: FreeCAD Sketcher startup diagnostic
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Probe FreeCAD startup boundary
+        run: |
+          set -euo pipefail
+          rm -rf artifacts
+          mkdir -p artifacts
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e FREECAD_USER_HOME=/tmp/freecad-user \
+            -e FREECAD_USER_DATA=/tmp/freecad-user-data \
+            -e FREECAD_USER_TEMP=/tmp/freecad-user-temp \
+            -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e FREECAD_PROBE_MARKER_DIR=/workspace/artifacts \
+            -v "$PWD:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              rm -rf "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
+              mkdir -p "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP" "$XDG_RUNTIME_DIR" /workspace/artifacts
+              rm -rf /tmp/freecad-mod
+              mkdir -p /tmp/freecad-mod/freecad-cloth
+              cp -a /workspace/package.xml /workspace/resources /workspace/freecad_cloth /workspace/freecad /tmp/freecad-mod/freecad-cloth/
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              probe_case() {
+                name="$1"
+                shift
+                export FREECAD_PROBE_CASE="$name"
+                marker="/workspace/artifacts/$name.marker"
+                log="/workspace/artifacts/$name.log"
+                rm -f "$marker" "$log"
+                set +e
+                timeout --signal=TERM --kill-after=5s 20s /opt/freecad/AppRun "$@" /workspace/tests/freecad_startup_probe.py >"$log" 2>&1
+                status=$?
+                set -e
+                echo "case=$name exit=$status" | tee -a "$log"
+                if test -f "$marker"; then echo -n 'marker='; cat "$marker"; else echo 'marker=absent'; fi | tee -a "$log"
+              }
+              probe_case plain
+              probe_case module-path -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth
+              set +e
+              timeout --signal=TERM --kill-after=5s 30s /opt/freecad/AppRun /workspace/tests/freecad_sketcher_boundary_probe.py > /workspace/artifacts/boundary.log 2>&1
+              boundary_status=$?
+              set -e
+              echo "boundary-exit=$boundary_status" >> /workspace/artifacts/boundary.log
+              cat /workspace/artifacts/boundary.log
+              set +e
+              export SKETCHER_STAGE_FILE=/workspace/artifacts/sketcher-stage.log
+              PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=5s 120s /opt/freecad/AppRun /workspace/tests/freecad_sketcher_acceptance.py > /workspace/artifacts/actual-acceptance.log 2>&1
+              actual_status=$?
+              set -e
+              echo "actual-acceptance-exit=$actual_status" >> /workspace/artifacts/actual-acceptance.log
+              cat /workspace/artifacts/actual-acceptance.log
+            '
+      - name: Upload startup diagnostic
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: sketcher-startup-diagnostic
+          path: |
+            artifacts/plain.log
+            artifacts/module-path.log
+            artifacts/plain.marker
+            artifacts/module-path.marker
+            artifacts/boundary.log
+            artifacts/actual-acceptance.log
+          if-no-files-found: warn
+          compression-level: 1
   gui-sewing-creation:
     name: Sewing staged creation smoke
     runs-on: ubuntu-latest
@@ -196,16 +281,24 @@ jobs:
           mkdir -p artifacts
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
-            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+            -e FREECAD_USER_HOME=/tmp/freecad-user \
+            -e FREECAD_USER_DATA=/tmp/freecad-user-data \
+            -e FREECAD_USER_TEMP=/tmp/freecad-user-temp \
+            -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e SKETCHER_STAGE_FILE=/workspace/artifacts/sketcher-stage.log \
+            -v "$PWD:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
-              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
+              rm -rf "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
+              mkdir -p "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP" "$XDG_RUNTIME_DIR" /workspace/artifacts
+              rm -rf /tmp/freecad-mod
+              mkdir -p /tmp/freecad-mod/freecad-cloth
+              cp -a /workspace/package.xml /workspace/resources /workspace/freecad_cloth /workspace/freecad /tmp/freecad-mod/freecad-cloth/
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun tests/freecad_sketcher_acceptance.py > /workspace/artifacts/sketcher-acceptance.log 2>&1
+              timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /workspace/tests/freecad_sketcher_acceptance.py > /workspace/artifacts/sketcher-acceptance.log 2>&1
               grep -q "native Sketcher acceptance passed" /workspace/artifacts/sketcher-acceptance.log
             '
       - name: Inspect Sketcher evidence
@@ -218,7 +311,9 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: sketcher-acceptance
-          path: artifacts/sketcher-acceptance.log
+          path: |
+            artifacts/sketcher-acceptance.log
+            artifacts/sketcher-stage.log
           if-no-files-found: error
           compression-level: 1
   gui-pattern-export:
@@ -382,7 +477,7 @@ jobs:
             -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
             -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
-            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+            -v "$PWD:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
@@ -391,8 +486,8 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=15s 300s /opt/freecad/AppRun tests/freecad_avatar_screenshot.py
-              timeout --signal=TERM --kill-after=15s 300s /opt/freecad/AppRun tests/freecad_simulation_turntable.py
+              timeout --signal=TERM --kill-after=15s 300s /opt/freecad/AppRun /workspace/tests/freecad_avatar_screenshot.py
+              timeout --signal=TERM --kill-after=15s 300s /opt/freecad/AppRun /workspace/tests/freecad_simulation_turntable.py
             '
           test "$(find docs/images/generated/cloth-avatar-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
           test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
@@ -404,7 +499,7 @@ jobs:
           from pathlib import Path
           import hashlib, re
           log = Path("docs/images/generated/simulation-turntable-progress.log").read_text(encoding="utf-8")
-          m = re.findall(r"blanket-motion-diagnostic max_centroid_displacement_mm=([0-9.]+).*min_z_mm=([0-9.]+).*cube_top_z_mm=([0-9.]+)", log)
+          m = re.findall(r"blanket-motion-diagnostic max_centroid_displacement_mm=([+-]?[0-9.]+).*min_z_mm=([+-]?[0-9.]+).*cube_top_z_mm=([+-]?[0-9.]+)", log)
           if not m: raise SystemExit("missing blanket motion diagnostic")
           displacement, minimum_z, cube_top = (float(x) for x in m[-1])
           if displacement < 40.0: raise SystemExit("blanket displacement below 40 mm")
@@ -491,18 +586,25 @@ jobs:
           mkdir -p docs/images/generated/blanket-example
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
-            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e FREECAD_USER_HOME=/tmp/freecad-user \
+            -e FREECAD_USER_DATA=/tmp/freecad-user-data \
+            -e FREECAD_USER_TEMP=/tmp/freecad-user-temp \
+            -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
-            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+            -v "$PWD:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
-              mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated/blanket-example
+              rm -rf "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
+              mkdir -p "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP" "$XDG_RUNTIME_DIR" /workspace/docs/images/generated/blanket-example
+              rm -rf /tmp/freecad-mod
+              mkdir -p /tmp/freecad-mod/freecad-cloth
+              cp -a /workspace/Init.py /workspace/InitGui.py /workspace/package.xml /workspace/resources /workspace/freecad_cloth /tmp/freecad-mod/freecad-cloth/
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /workspace/tests/freecad_visual_examples.py
+              timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth /workspace/tests/freecad_visual_examples.py
             '
           test -s docs/images/generated/blanket-example/blanket-visual.log
           grep -q 'blanket-visual-acceptance=passed' docs/images/generated/blanket-example/blanket-visual.log
@@ -523,10 +625,12 @@ jobs:
             sudo apt-get install -y imagemagick
             IM=(convert)
           fi
-          "${IM[@]}" docs/images/generated/blanket-example/motion-*.png \
-            -delay 10 -loop 0 -colors 128 \
-            docs/images/generated/blanket-example/blanket-motion.gif
+          "${IM[@]}" -delay 10 -loop 0 \
+            docs/images/generated/blanket-example/motion-*.png \
+            -colors 128 docs/images/generated/blanket-example/blanket-motion.gif
           identify -format '%n\n' docs/images/generated/blanket-example/blanket-motion.gif | head -n 1 | grep -qx '16'
+          frame_delays="$(identify -format '%T\n' docs/images/generated/blanket-example/blanket-motion.gif | sort -u)"
+          test "$frame_delays" = "10"
           test -s docs/images/generated/blanket-example/blanket-motion.gif
       - name: Upload blanket visual evidence
         if: always()
@@ -583,7 +687,6 @@ jobs:
           cp ../turntables/cloth-avatar-turntable.gif docs/images/generated/
           cp ../turntables/cloth-simulation-arranged-turntable.gif docs/images/generated/
           cp ../turntables/cloth-simulation-draped-turntable.gif docs/images/generated/
-          cp ../turntables/cloth-simulation-motion.gif docs/images/generated/
           cp ../blanket/blanket-example/blanket-motion.gif docs/images/generated/cloth-blanket-motion.gif
           cp ../tunic/docs/images/generated/cloth-simulation-draped-front.png docs/images/generated/cloth-simulation-draped-front.png
           git config user.name "github-actions[bot]"
@@ -700,27 +803,15 @@ jobs:
           docker cp "$CID:/workspace/artifacts/workbench-benchmark/." artifacts/workbench-benchmark/
           docker cp "$CID:/tmp/cloth-benchmark-trace.log" artifacts/workbench-benchmark/cloth-benchmark-trace.log 2>/dev/null || true
           docker cp "$CID:/tmp/xvfb.log" artifacts/workbench-benchmark/xvfb.log 2>/dev/null || true
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          root = Path("artifacts/workbench-benchmark")
-          names = ["Pattern", "Sewing", "Simulation"]
-          data = [json.loads((root / f"{name}.json").read_text()) for name in names]
-          merged = {
-              "schema": data[0]["schema"],
-              "python": data[0]["python"],
-              "freecad_version": data[0]["freecad_version"],
-              "repeats": data[0]["repeats"],
-              "workbenches": {},
-          }
-          for item in data:
-              merged["workbenches"].update(item["workbenches"])
-          (root / "benchmark.json").write_text(json.dumps(merged, indent=2, sort_keys=True) + "\n")
-          PY
+          python3 tools/merge_workbench_benchmark.py artifacts/workbench-benchmark
       - name: Install plotting dependency
-        run: python3 -m pip install --disable-pip-version-check matplotlib
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/workbench-benchmark-venv"
+          "$RUNNER_TEMP/workbench-benchmark-venv/bin/python" -m pip install --disable-pip-version-check matplotlib
       - name: Generate benchmark plots
-        run: python3 tools/plot_workbench_benchmark.py artifacts/workbench-benchmark/benchmark.json artifacts/workbench-benchmark/plots
+        run: |
+          "$RUNNER_TEMP/workbench-benchmark-venv/bin/python" tools/plot_workbench_benchmark.py artifacts/workbench-benchmark/benchmark.json artifacts/workbench-benchmark/plots
       - name: Upload benchmark measurements and plots
         if: always()
         uses: actions/upload-artifact@v6
