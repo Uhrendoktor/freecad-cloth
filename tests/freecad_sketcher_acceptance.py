@@ -277,6 +277,11 @@ def run_acceptance():
         def _continue_after_seam_commit():
             nonlocal doc
             try:
+                _wait_for_task_close()
+                has_pending = getattr(doc, "hasPendingTransaction", None)
+                if callable(has_pending) and bool(has_pending()):
+                    raise RuntimeError("staged seam Commit left a pending document transaction")
+                _record("seam-created-and-committed")
                 original_piece_id = str(curved.PieceId)
                 original_width = float(curved_sketch.getDatum(width_index))
                 seam_id = str(seam.SeamId)
