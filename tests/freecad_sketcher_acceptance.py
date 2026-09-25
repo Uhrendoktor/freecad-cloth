@@ -7,7 +7,6 @@ import traceback
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-_ACCEPTANCE_TIMER = None
 sys.path[:] = [entry for entry in sys.path if entry not in ("", str(ROOT))]
 
 print("stage=script-loaded", flush=True)
@@ -278,7 +277,6 @@ def run_acceptance():
 
         def _continue_after_seam_commit():
             nonlocal doc
-            global _ACCEPTANCE_TIMER
             try:
                 _wait_for_task_close()
                 has_pending = getattr(doc, "hasPendingTransaction", None)
@@ -391,7 +389,6 @@ def run_acceptance():
                     doc = None
                 print("native Sketcher acceptance passed", flush=True)
                 
-                _ACCEPTANCE_TIMER = None
                 _quit_application()
             except BaseException:
                 print(traceback.format_exc(), flush=True)
@@ -414,10 +411,7 @@ def run_acceptance():
         except ImportError:
             from PySide2 import QtCore
         global _ACCEPTANCE_TIMER
-        _ACCEPTANCE_TIMER = QtCore.QTimer()
-        _ACCEPTANCE_TIMER.setSingleShot(True)
-        _ACCEPTANCE_TIMER.timeout.connect(_continue_after_seam_commit)
-        _ACCEPTANCE_TIMER.start(0)
+        QtCore.QTimer.singleShot(0, _continue_after_seam_commit)
         handoff_to_qt = True
         return
     finally:
