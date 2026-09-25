@@ -1,6 +1,5 @@
 def _run_exact_seam_edit_cases():
     import os
-    import os
     import signal
     import shutil
     import subprocess
