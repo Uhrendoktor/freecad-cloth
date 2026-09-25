@@ -2,6 +2,7 @@
 import hashlib
 import os
 import sys
+import time
 import traceback
 from math import pi
 
@@ -115,16 +116,38 @@ def _png_has_visible_content(path):
     return False
 
 
+def wait_for_gui_ready(timeout_seconds=15.0):
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        window = Gui.getMainWindow()
+        if window is not None and window.isVisible():
+            window.show()
+            events()
+            return window
+        events()
+        time.sleep(0.05)
+    raise RuntimeError("FreeCAD GUI did not become visible within %.1fs" % timeout_seconds)
+
+
 def save_png(view, path, state):
-    view.saveImage(path, 640, 480, "White")
-    if not os.path.isfile(path) or os.path.getsize(path) < 1000:
-        raise RuntimeError("failed screenshot: %s" % state)
-    with open(path, "rb") as handle:
-        header = handle.read(24)
-    if header[:8] != b"\x89PNG\r\n\x1a\n" or int.from_bytes(header[16:20], "big") != 640 or int.from_bytes(header[20:24], "big") != 480:
-        raise RuntimeError("invalid PNG capture for %s" % state)
-    if not _png_has_visible_content(path):
-        raise RuntimeError("PNG capture contains no visible rendered content for %s" % state)
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        if hasattr(view, "redraw"):
+            view.redraw()
+        events()
+        view.saveImage(path, 640, 480, "White")
+        if os.path.isfile(path) and os.path.getsize(path) >= 1000:
+            with open(path, "rb") as handle:
+                header = handle.read(24)
+            valid_dimensions = (
+                header[:8] == b"\x89PNG\r\n\x1a\n"
+                and int.from_bytes(header[16:20], "big") == 640
+                and int.from_bytes(header[20:24], "big") == 480
+            )
+            if valid_dimensions and _png_has_visible_content(path):
+                return
+        time.sleep(0.05)
+    raise RuntimeError("PNG capture contains no visible rendered content for %s" % state)
 
 
 def combined_center(objects):
@@ -403,11 +426,7 @@ def build_simulation_state(doc):
 
 
 def main():
-    window = Gui.getMainWindow()
-    if window is None or not window.isVisible():
-        raise RuntimeError("FreeCAD GUI did not launch")
-    window.show()
-    events()
+    window = wait_for_gui_ready()
     init_gui = os.path.join(ROOT, "InitGui.py")
     if "ClothPatternWorkbench" not in Gui.listWorkbenches():
         exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
