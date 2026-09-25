@@ -185,3 +185,21 @@ def test_repair_selected_seam_successful_repair_refreshes_existing_semantic_edge
     assert seam.EdgeBId == "piece-b:edge:1"
     assert seam.EdgeASignature != "stale-a"
     assert seam.EdgeBSignature != "stale-b"
+
+def test_edit_selected_seam_side_selects_pattern_piece_before_set_edit():
+    source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "sewing" / "SewingCommands.py").read_text(encoding="utf-8")
+    start = source.index("def _edit_selected_seam_side")
+    end = source.index("\ndef edit_selected_seam_side_a", start)
+    body = source[start:end]
+
+    handoff = (
+        "    Gui.Selection.clearSelection()\n"
+        "    Gui.Selection.addSelection(piece)\n"
+        "    Gui.activeDocument().setEdit(sketch.Name)"
+    )
+    edge_selection = '    Gui.Selection.addSelection(sketch, "Edge%d" % (edge_index + 1))'
+
+    assert handoff in body
+    assert body.index("focus_selected_seam_3d()") < body.index(handoff)
+    assert body.index("Gui.activeDocument().setEdit(sketch.Name)") < body.index(edge_selection)
+    assert 'Gui.runCommand("ClothPattern_EditSketch", 0)' not in body

@@ -2,10 +2,12 @@
 
 import os
 import site
+import sys
 import traceback
 from pathlib import Path
 
-site.addsitedir(str(Path(__file__).resolve().parents[1]))
+ROOT = Path(__file__).resolve().parents[1]
+sys.path[:] = [entry for entry in sys.path if entry not in ("", str(ROOT))]
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -15,14 +17,6 @@ try:
     from PySide import QtWidgets
 except ImportError:
     from PySide2 import QtWidgets
-
-from freecad_cloth.common.DrapeVisualSanity import inspect_drape, mesh_shape_sanity
-from freecad_cloth.common.MeshValidation import validate_mesh
-from freecad_cloth.pattern.PatternGeometry import rectangle
-from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
-from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
-from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
-from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, ensure_quality_properties
 
 
 # A generic FreeCAD cube requires Tissu's mesh collision path; torso-envelope is for avatar-style targets.
@@ -107,15 +101,47 @@ def render_motion(view, scene, frame_count=16, final_steps=120):
     log("motion-frames=passed count=%d final_steps=%d" % (len(steps), final_steps))
 
 
+def _load_cloth_modules():
+    global inspect_drape, mesh_shape_sanity
+    global validate_mesh, rectangle, quality_piece_mesh
+    global create_pattern_piece_from_selected_sketch
+    global create_simulation_scene, set_avatar_collision_source
+    global QualitySimulationProxy, ensure_quality_properties
+
+    site.addsitedir(str(ROOT))
+
+    from freecad_cloth.common.DrapeVisualSanity import inspect_drape, mesh_shape_sanity
+    from freecad_cloth.common.MeshValidation import validate_mesh
+    from freecad_cloth.pattern.PatternGeometry import rectangle
+    from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
+    from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
+    from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
+    from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, ensure_quality_properties
+
+
 def main():
     window = Gui.getMainWindow()
     if window is None or not window.isVisible():
         raise RuntimeError("FreeCAD GUI did not launch")
+    window.show()
+    events()
+    _load_cloth_modules()
+    init_gui = ROOT / "InitGui.py"
+    if "ClothPatternWorkbench" not in Gui.listWorkbenches():
+        exec(compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"), globals(), globals())
+    events()
+    if "ClothPatternWorkbench" not in Gui.listWorkbenches():
+        raise RuntimeError("ClothPatternWorkbench was not registered by visual acceptance startup")
     doc = App.newDocument("ClothBlanketExample")
     try:
-        sketch, outline = make_rectangle_sketch(doc, "BlanketSketch", 260.0, 260.0)
+        blanket_width = 200.0
+        blanket_height = 200.0
+        sketch, outline = make_rectangle_sketch(doc, "BlanketSketch", blanket_width, blanket_height)
         piece = adopt_sketch(doc, sketch)
-        placement = App.Placement(App.Vector(-130.0, -130.0, 150.0), App.Rotation())
+        placement = App.Placement(
+            App.Vector(-blanket_width / 2.0, -blanket_height / 2.0, 150.0),
+            App.Rotation(),
+        )
         piece.Placement = placement
         piece.Sketch.Placement = placement
 
@@ -153,7 +179,7 @@ def main():
             max(top_edge, key=lambda index: float(mesh_positions[index][0])),
         )
         pin_span = abs(float(mesh_positions[top[1]][0]) - float(mesh_positions[top[0]][0]))
-        if pin_span < 0.75 * 260.0:
+        if pin_span < 0.75 * blanket_width:
             raise RuntimeError("blanket pins are not opposite top-edge corners: span=%.3f" % pin_span)
         scene.PinSelection = [str(int(index)) for index in top]
         log("blanket-pins=passed opposite-corners span=%.3f indices=%s" % (pin_span, top))
@@ -257,4 +283,9 @@ except BaseException as error:
     print("BLANKET VISUAL FAILURE: %r" % (error,), flush=True)
     print(traceback.format_exc(), flush=True)
     log("blanket-visual-fail exception=%r" % (error,))
-    raise
+    try:
+        app = QtWidgets.QApplication.instance()
+        if app is not None:
+            app.quit()
+    finally:
+        raise

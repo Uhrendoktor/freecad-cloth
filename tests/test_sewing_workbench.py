@@ -5,6 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from freecad_cloth.sewing.SewingObjects import (
     SewingOperationProxy,
     _edge_length,
+    _native_edge,
     _seam_correspondence,
     _seam_length,
     _outline_points,
@@ -43,6 +44,73 @@ def test_polygon_seam_length_uses_stored_outline():
     p = SimpleNamespace(Width=999.0, Height=999.0, SewingOutline=repr([(0, 0), (40, 0), (40, 20), (0, 30)]))
     assert _outline_points(p) == [(0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 30.0)]
     assert abs(_edge_length(p, 2) - (1700.0 ** 0.5)) < 1e-9
+
+
+def test_sketcher_authority_prefers_geometry_index_over_shape_edges():
+    authoritative = object()
+    legacy = object()
+
+    class Geometry:
+        def toShape(self):
+            return authoritative
+
+    piece = SimpleNamespace(
+        GeometryAuthority="Sketcher",
+        Sketch=SimpleNamespace(
+            Geometry=[Geometry()],
+            Shape=SimpleNamespace(Edges=[legacy]),
+        ),
+        Shape=SimpleNamespace(Edges=[legacy, object(), object(), object()]),
+        SewingOutline=repr([(0, 0), (1, 0), (1, 1), (0, 1)]),
+    )
+    assert _native_edge(piece, 0) is authoritative
+
+
+def test_sketcher_authority_matches_semantic_edge_endpoints():
+    from freecad_cloth.pattern import PatternObjects
+
+    class Point:
+        def __init__(self, x, y):
+            self.x = x
+            self.y = y
+
+    class Vertex:
+        def __init__(self, x, y):
+            self.Point = Point(x, y)
+
+    class Edge:
+        def __init__(self, start, end):
+            self.Vertexes = (Vertex(*start), Vertex(*end))
+
+    wrong = Edge((0, 0), (100, 0))
+    right = Edge((80, 50), (0, 50))
+    piece = SimpleNamespace(
+        GeometryAuthority="Sketcher",
+        Sketch=SimpleNamespace(Shape=SimpleNamespace(Edges=[wrong, right])),
+        Shape=SimpleNamespace(Edges=[wrong, right]),
+        SewingOutline=repr([(0, 0), (100, 0), (100, 50), (0, 50)]),
+    )
+
+    original = PatternObjects._native_edge_record_for_sketch_index
+    PatternObjects._native_edge_record_for_sketch_index = lambda obj, edge: {
+        "points": ((80.0, 50.0), (0.0, 50.0))
+    }
+    try:
+        assert _native_edge(piece, 2) is right
+    finally:
+        PatternObjects._native_edge_record_for_sketch_index = original
+
+
+def test_sketcher_authority_falls_back_to_sketch_shape_edges():
+    authoritative = object()
+    legacy = object()
+    piece = SimpleNamespace(
+        GeometryAuthority="Sketcher",
+        Sketch=SimpleNamespace(Shape=SimpleNamespace(Edges=[authoritative])),
+        Shape=SimpleNamespace(Edges=[legacy]),
+        SewingOutline=repr([(0, 0), (1, 0)]),
+    )
+    assert _native_edge(piece, 0) is authoritative
 
 
 def test_curved_native_edge_uses_arc_length_sampling():

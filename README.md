@@ -28,11 +28,11 @@ The canonical FreeCAD/Xvfb workflow publishes validated GUI states to a stable `
 
 ### Pattern design
 
-![Cloth Pattern](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-pattern-design.png)
+The Pattern workbench is documented in [Examples](docs/EXAMPLES.md) and covered by the native-Sketcher and production-export acceptance jobs.
 
 ### Sewing
 
-![Cloth Sewing](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-sewing.png)
+The Sewing workbench is documented in [Examples](docs/EXAMPLES.md) and covered by staged creation, correspondence, validation, persistence, and world-space seam checks.
 
 ### Basic example — blanket over cube
 
@@ -41,6 +41,12 @@ The canonical FreeCAD/Xvfb workflow publishes validated GUI states to a stable `
 ### Advanced example — tunic
 
 ![Advanced tunic validation](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-front.png)
+
+### Simulation — arranged and draped 360° turntables
+
+![Arranged cloth turntable](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged-turntable.gif)
+
+![Draped cloth turntable](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-turntable.gif)
 
 ### Avatar — 360° turntable
 

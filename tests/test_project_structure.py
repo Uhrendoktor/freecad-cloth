@@ -57,3 +57,13 @@ def test_canonical_workflow_pr_validation_contract():
     assert "types: [opened, synchronize, reopened]" in workflow
     assert "push:" in workflow
     assert "branches: [main]" in workflow
+
+
+
+def test_workbench_benchmark_merge_script_is_checked_in():
+    root = Path(__file__).resolve().parents[1]
+    script = root / "tools" / "merge_workbench_benchmark.py"
+    assert script.is_file()
+    source = script.read_text(encoding="utf-8")
+    assert 'names = ["Pattern", "Sewing", "Simulation"]' in source
+    assert "benchmark.json" in source

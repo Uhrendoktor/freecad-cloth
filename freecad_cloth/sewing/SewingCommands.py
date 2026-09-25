@@ -353,6 +353,8 @@ def _edit_selected_seam_side(side):
     focus_selected_seam_3d()
     if Gui.activeDocument().getInEdit():
         Gui.activeDocument().resetEdit()
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(piece)
     Gui.activeDocument().setEdit(sketch.Name)
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(sketch, "Edge%d" % (edge_index + 1))

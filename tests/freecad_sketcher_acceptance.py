@@ -1,14 +1,21 @@
 """Canonical FreeCAD/Xvfb acceptance for native Sketcher pattern authoring."""
 import math
 import os
+import sys
 import tempfile
 from pathlib import Path
 
-import FreeCAD as App
-import FreeCADGui as Gui
-import Part
-import Sketcher
+ROOT = Path(__file__).resolve().parents[1]
+sys.path[:] = [entry for entry in sys.path if entry not in ("", str(ROOT))]
 
+print("stage=script-loaded", flush=True)
+import FreeCAD as App
+print("stage=freecad-imported", flush=True)
+import FreeCADGui as Gui
+print("stage=freecadgui-imported", flush=True)
+import Part
+print("stage=part-imported", flush=True)
+ 
 
 def _events():
     Gui.updateGui()
@@ -49,6 +56,7 @@ def _constraint_name(sketch, index):
 
 def _make_curved_piece_sketch(piece, doc):
     """Use native Sketcher geometry as the actual PatternPiece geometry authority."""
+    import Sketcher
     sketch = piece.Sketch
     if sketch is None:
         raise RuntimeError("PatternPiece did not create a native Sketcher sketch")
@@ -89,6 +97,7 @@ def _make_curved_piece_sketch(piece, doc):
 
 def _exercise_constraint_families(doc, reference_sketch):
     """Exercise native geometric constraints and expression references."""
+    import Sketcher
     audit = doc.addObject("Sketcher::SketchObject", "SketchConstraintAudit")
     audit.Label = "Sketcher Constraint Audit"
     lines = [
@@ -137,28 +146,56 @@ def _exercise_constraint_families(doc, reference_sketch):
 
 
 def _stage(name):
-    print("stage=%s" % name, flush=True)
+    message = "stage=%s" % name
+    print(message, flush=True)
+    stage_file = os.environ.get("SKETCHER_STAGE_FILE")
+    if stage_file:
+        with open(stage_file, "a", encoding="utf-8") as handle:
+            handle.write(message + "\n")
+            handle.flush()
 
 
 def _bootstrap_workbenches():
+    window = Gui.getMainWindow()
+    if window is None or not window.isVisible():
+        raise RuntimeError(
+            "FreeCAD GUI main window must be visible before workbench acceptance"
+        )
     if "ClothPatternWorkbench" in Gui.listWorkbenches():
         return
-    root = Path(__file__).resolve().parents[1]
-    init_gui = root / "InitGui.py"
+    init_gui = ROOT / "InitGui.py"
     if not init_gui.is_file():
         raise RuntimeError("InitGui.py missing from FreeCAD workbench root")
     namespace = {"__file__": str(init_gui), "__name__": "__main__"}
-    exec(compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"), namespace, namespace)
+    exec(
+        compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"),
+        namespace,
+        namespace,
+    )
     if "ClothPatternWorkbench" not in Gui.listWorkbenches():
-        raise RuntimeError("ClothPatternWorkbench was not registered by InitGui.py")
+        raise RuntimeError("ClothPatternWorkbench was not registered by explicit InitGui startup")
 
 
 def _record(message):
-    print("sketcher-acceptance=%s" % message, flush=True)
+    line = "sketcher-acceptance=%s" % message
+    print(line, flush=True)
+    stage_file = os.environ.get("SKETCHER_STAGE_FILE")
+    if stage_file:
+        with open(stage_file, "a", encoding="utf-8") as handle:
+            handle.write(line + "\n")
+            handle.flush()
 
 
 def run_acceptance():
     _stage("process-start")
+    window = Gui.getMainWindow()
+    if window is None:
+        raise RuntimeError("FreeCAD GUI main window is not available")
+    window.show()
+    _events()
+    _stage("gui-ready")
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
     _bootstrap_workbenches()
     _stage("workbenches-registered")
     doc = App.newDocument("NativeSketcherAcceptance")
@@ -219,8 +256,10 @@ def run_acceptance():
         if seam.Shape.isNull():
             raise RuntimeError("seam focus command did not retain world-space presentation geometry")
         from freecad_cloth.sewing.SewingView import seam_color_map
-        if tuple(seam.ViewObject.LineColor) != tuple(seam_color_map([seam_id])[seam_id]):
-            raise RuntimeError("seam focus command did not preserve deterministic seam color")
+        expected_seam_rgb = tuple(seam_color_map([seam_id])[seam_id])
+        actual_seam_rgb = tuple(seam.ViewObject.LineColor[:3])
+        if any(abs(actual - expected) > 1e-6 for actual, expected in zip(actual_seam_rgb, expected_seam_rgb)):
+            raise RuntimeError("seam focus command did not preserve deterministic seam color: actual=%r expected=%r" % (actual_seam_rgb, expected_seam_rgb))
         seam_box = seam.Shape.BoundBox
         placed_piece_box = curved.Shape.BoundBox
         if seam_box.XMax < placed_piece_box.XMin or seam_box.XMin > placed_piece_box.XMax:
@@ -319,6 +358,27 @@ def run_acceptance():
                 App.closeDocument(doc.Name)
             except Exception:
                 pass
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
+        app = QtWidgets.QApplication.instance()
+        if app is not None:
+            app.quit()
 
 
-run_acceptance()
+def _quit_application():
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
+    app = QtWidgets.QApplication.instance()
+    if app is not None:
+        app.quit()
+
+
+try:
+    run_acceptance()
+except BaseException:
+    _quit_application()
+    raise
