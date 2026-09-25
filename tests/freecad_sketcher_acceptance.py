@@ -297,6 +297,30 @@ def run_acceptance():
             from freecad_cloth.sewing.SewingCommands import edit_selected_seam_side_a
             edit_selected_seam_side_a()
             _record("seam-edit-direct-after")
+        elif seam_edit_path == "stepwise":
+            from freecad_cloth.sewing.SewingCommands import focus_selected_seam_3d
+            _record("seam-edit-stepwise-before-focus")
+            focus_selected_seam_3d()
+            _record("seam-edit-stepwise-after-focus")
+            if Gui.activeDocument().getInEdit():
+                _record("seam-edit-stepwise-before-reset")
+                Gui.activeDocument().resetEdit()
+                _record("seam-edit-stepwise-after-reset")
+            _record("seam-edit-stepwise-before-clear-selection")
+            Gui.Selection.clearSelection()
+            _record("seam-edit-stepwise-after-clear-selection")
+            _record("seam-edit-stepwise-before-select-piece")
+            Gui.Selection.addSelection(curved)
+            _record("seam-edit-stepwise-after-select-piece")
+            _record("seam-edit-stepwise-before-set-edit")
+            Gui.activeDocument().setEdit(sketch.Name)
+            _record("seam-edit-stepwise-after-set-edit")
+            _record("seam-edit-stepwise-before-clear-selection-2")
+            Gui.Selection.clearSelection()
+            _record("seam-edit-stepwise-after-clear-selection-2")
+            _record("seam-edit-stepwise-before-select-sketch-edge")
+            Gui.Selection.addSelection(sketch, "Edge%d" % (edge_index + 1))
+            _record("seam-edit-stepwise-after-select-sketch-edge")
         elif seam_edit_path == "command":
             _record("seam-edit-command-before")
             Gui.runCommand("ClothSewing_EditSeamSideA", 0)
