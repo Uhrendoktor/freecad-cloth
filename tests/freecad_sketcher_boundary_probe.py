@@ -42,34 +42,33 @@ def _run_exact_seam_edit_cases():
             output_path = os.path.join(workdir, "case.log")
             with open(output_path, "w", encoding="utf-8") as output_handle:
                 proc = subprocess.Popen(
-                    ["/opt/freecad/AppRun", case_file],
+                    [
+                        "timeout",
+                        "--signal=TERM",
+                        "--kill-after=1s",
+                        "5s",
+                        "/opt/freecad/AppRun",
+                        case_file,
+                    ],
                     cwd=str(ROOT),
                     env=env,
                     stdout=output_handle,
                     stderr=subprocess.STDOUT,
                     start_new_session=True,
                 )
-                timed_out = False
                 try:
-                    proc.wait(timeout=6.0)
+                    proc.wait(timeout=7.0)
                 except subprocess.TimeoutExpired:
-                    timed_out = True
                     try:
-                        os.killpg(proc.pid, signal.SIGTERM)
+                        os.killpg(proc.pid, signal.SIGKILL)
                     except ProcessLookupError:
                         pass
                     try:
                         proc.wait(timeout=1.0)
                     except subprocess.TimeoutExpired:
-                        try:
-                            os.killpg(proc.pid, signal.SIGKILL)
-                        except ProcessLookupError:
-                            pass
-                        try:
-                            proc.wait(timeout=1.0)
-                        except subprocess.TimeoutExpired:
-                            pass
-            returncode = 124 if timed_out else proc.returncode
+                        pass
+            returncode = proc.returncode
+            timed_out = returncode in (124, 137)
             elapsed = time.monotonic() - started
             try:
                 output = Path(output_path).read_text(encoding="utf-8", errors="replace")
@@ -83,7 +82,7 @@ def _run_exact_seam_edit_cases():
             ]
             print("case=%s last-marker=%s" % (case, markers[-1] if markers else "<none>"), flush=True)
             if timed_out:
-                print("case=%s diagnostic-timeout=6s process-group-killed=true" % case, flush=True)
+                print("case=%s diagnostic-timeout=5s process-group-killed=true" % case, flush=True)
         finally:
             if case_file:
                 try:
