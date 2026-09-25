@@ -126,18 +126,35 @@ def open_public(command):
         for getter in [getattr(widget, "text", None)]
         if callable(getter)
     )
+    button_box = Gui.Control.taskPanel().findChild(QtWidgets.QDialogButtonBox)
+    if button_box is not None:
+        dialog_text += " | " + " | ".join(str(button.text()) for button in button_box.buttons())
     for required in ("Preview", "Commit", "Cancel", "Selected semantic pattern edges"):
         assert required in dialog_text, command + " task panel is missing required control text: " + required
     return panel
 
 
+def click_task_button(role):
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
+    box = Gui.Control.taskPanel().findChild(QtWidgets.QDialogButtonBox)
+    assert box is not None, "standard task button box is missing"
+    button = box.button(role)
+    assert button is not None and button.isEnabled(), "requested standard task button is unavailable"
+    button.click()
+    process_events()
+    wait_for_task_close()
+
+
 def close_public_task(panel=None):
-    if panel is not None:
-        try:
-            panel.reject()
-        except Exception:
-            pass
-    if Gui.Control.activeDialog():
+    dialog = Gui.Control.activeTaskDialog()
+    if dialog is not None and callable(getattr(dialog, "reject", None)):
+        dialog.reject()
+        process_events()
+        wait_for_task_close()
+    elif Gui.Control.activeDialog():
         Gui.Control.closeDialog()
         process_events()
 
@@ -177,7 +194,7 @@ try:
     assert "Preview valid" in panel.feedback.text()
     assert Gui.Control.activeDialog() is not None
     record("preview-1to1=passed")
-    panel.commit_button.click()
+    click_task_button(QtWidgets.QDialogButtonBox.Ok)
     process_events()
     wait_for_task_close()
     assert any(
@@ -189,7 +206,7 @@ try:
     select_edges((piece_a, 1), (piece_b, 1))
     cancel_panel = open_public("ClothSewing_CreateSeam")
     assert any(getattr(obj, "SeamId", "") for obj in cancel_panel.session.created)
-    cancel_panel.cancel_button.click()
+    click_task_button(QtWidgets.QDialogButtonBox.Cancel)
     wait_for_task_close()
     assert {obj.Name for obj in doc.Objects} == cancel_before, "cancel persisted preview objects"
     record("cancel-1to1=passed")
@@ -200,7 +217,7 @@ try:
     assert "Preview rejected" in invalid_count_panel.feedback.text()
     assert "exactly two edges" in invalid_count_panel.feedback.text()
     assert {obj.Name for obj in doc.Objects} == count_before
-    invalid_count_panel.cancel_button.click()
+    click_task_button(QtWidgets.QDialogButtonBox.Cancel)
     wait_for_task_close()
     assert {obj.Name for obj in doc.Objects} == count_before
     record("selection-count-rejection=passed")
@@ -211,7 +228,7 @@ try:
     assert "Preview rejected" in invalid_panel.feedback.text()
     assert "different pattern pieces" in invalid_panel.feedback.text()
     assert {obj.Name for obj in doc.Objects} == same_piece_before
-    invalid_panel.cancel_button.click()
+    click_task_button(QtWidgets.QDialogButtonBox.Cancel)
     wait_for_task_close()
     assert {obj.Name for obj in doc.Objects} == same_piece_before
     record("invalid-same-piece-preview=passed")
@@ -222,7 +239,7 @@ try:
     assert "Preview rejected" in invalid_mn_panel.feedback.text()
     assert "two different pattern pieces" in invalid_mn_panel.feedback.text()
     assert {obj.Name for obj in doc.Objects} == mn_before
-    invalid_mn_panel.cancel_button.click()
+    click_task_button(QtWidgets.QDialogButtonBox.Cancel)
     wait_for_task_close()
     assert {obj.Name for obj in doc.Objects} == mn_before
     record("invalid-mn-partition-preview=passed")
@@ -235,7 +252,7 @@ try:
     )
     assert "Preview valid" in mn_panel.feedback.text()
     record("preview-mn=passed")
-    mn_panel.commit_button.click()
+    mn_click_task_button(QtWidgets.QDialogButtonBox.Ok)
     wait_for_task_close()
     networks = [
         obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork"
@@ -273,7 +290,7 @@ try:
     assert curved_panel.accept() is False
     assert "Preview validation failed" in curved_panel.feedback.text()
     record("stale-endpoint-invalidation=passed commit-blocked=true")
-    curved_panel.cancel_button.click()
+    click_task_button(QtWidgets.QDialogButtonBox.Cancel)
     wait_for_task_close()
 
     curved_a.SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 40.0), (20.0, 40.0)])
@@ -282,7 +299,7 @@ try:
     select_edges((curved_a, 0), (curved_a, 2), (curved_b, 0), (curved_b, 2))
     curved_panel = open_public("ClothSewing_CreateMNSewing")
     curved_preview = next(obj for obj in curved_panel.session.created if getattr(obj, "SewingType", "") == "SewingNetwork")
-    curved_panel.commit_button.click()
+    curved_click_task_button(QtWidgets.QDialogButtonBox.Ok)
     wait_for_task_close()
     curved_network = next(obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork" and str(getattr(obj, "RelationshipId", "")) == str(curved_preview.RelationshipId))
     from freecad_cloth.sewing.SewingObjects import _seam_length
@@ -412,7 +429,7 @@ try:
     assert any(getattr(obj, "SewingType", "") == "SewingNetwork" for obj in free_panel.session.created)
     assert "Preview valid" in free_panel.feedback.text()
     record("preview-free=passed")
-    free_panel.commit_button.click()
+    free_click_task_button(QtWidgets.QDialogButtonBox.Ok)
     wait_for_task_close()
     free_networks = [
         obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork"
@@ -425,7 +442,7 @@ try:
     free_cancel_panel = open_public("ClothSewing_FreeSewing")
     assert free_cancel_panel.session.created
     assert "Preview valid" in free_cancel_panel.feedback.text()
-    free_cancel_panel.cancel_button.click()
+    free_click_task_button(QtWidgets.QDialogButtonBox.Cancel)
     wait_for_task_close()
     assert {obj.Name for obj in doc.Objects} == free_cancel_before
     record("cancel-free=passed")
