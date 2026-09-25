@@ -261,18 +261,16 @@ def _diag_state(label):
 
 def _run_direct_seam_edit_case():
     import os
-    import threading
+    import subprocess
     import time
     import traceback
 
-    watchdog_stop = threading.Event()
-
-    def _watchdog():
-        if not watchdog_stop.wait(20.0):
-            _diag_mark("watchdog-fired")
-            os._exit(124)
-
-    threading.Thread(target=_watchdog, name="seam-edit-diagnostic-watchdog", daemon=True).start()
+    watchdog = subprocess.Popen(
+        ["bash", "-lc", "sleep 15; kill -KILL %d" % os.getpid()],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
     acceptance = ROOT / "tests" / "freecad_sketcher_acceptance.py"
     sewing_commands_path = ROOT / "freecad_cloth" / "sewing" / "SewingCommands.py"
     command_source = sewing_commands_path.read_text(encoding="utf-8")
@@ -388,7 +386,17 @@ def _run_direct_seam_edit_case():
         _diag_mark("direct-acceptance-exception")
         traceback.print_exc()
     finally:
-        watchdog_stop.set()
+        try:
+            watchdog.terminate()
+        except ProcessLookupError:
+            pass
+        try:
+            watchdog.wait(timeout=0.5)
+        except subprocess.TimeoutExpired:
+            try:
+                watchdog.kill()
+            except ProcessLookupError:
+                pass
         doc = App.ActiveDocument
         if doc is not None:
             try:
