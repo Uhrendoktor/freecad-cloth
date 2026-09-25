@@ -412,7 +412,6 @@ def run_acceptance():
                     except BaseException:
                         pass
                     doc = None
-                _ACCEPTANCE_TIMER = None
                 _quit_application()
                 os._exit(1)
 
