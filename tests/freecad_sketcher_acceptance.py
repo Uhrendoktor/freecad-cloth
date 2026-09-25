@@ -38,7 +38,8 @@ def _wait_for_task_close():
     except ImportError:
         from PySide2 import QtCore, QtWidgets
     for _ in range(80):
-        if Gui.Control.activeDialog() is None:
+        active = Gui.Control.activeDialog()
+        if active is None or not bool(active):
             return
         loop = QtCore.QEventLoop()
         QtCore.QTimer.singleShot(0, loop.quit)
