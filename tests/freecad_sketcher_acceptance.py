@@ -35,11 +35,12 @@ def _close_task():
 
 def _wait_for_task_close():
     # The staged Commit path defers task-panel teardown until control returns to Qt.
-    # Keep the existing bounded poll count, but yield real wall-clock time between
-    # event passes so a zero-delay Qt callback gets a chance to run.
+    # Keep the bounded poll and accept both a cleared dialog handle and a handle
+    # that has already become invalid/falsy after Qt destroys the task panel.
     for _ in range(80):
         _events()
-        if Gui.Control.activeDialog() is None:
+        active = Gui.Control.activeDialog()
+        if active is None or not bool(active):
             return
         time.sleep(0.01)
     raise RuntimeError("task dialog did not close after staged sewing Commit/Cancel")
