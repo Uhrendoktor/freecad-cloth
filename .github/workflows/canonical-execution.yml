@@ -285,6 +285,7 @@ jobs:
             -e FREECAD_USER_DATA=/tmp/freecad-user-data \
             -e FREECAD_USER_TEMP=/tmp/freecad-user-temp \
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SKETCHER_EDIT_DEBUG=1 \
             -e SKETCHER_STAGE_FILE=/workspace/artifacts/sketcher-stage.log \
             -v "$PWD:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
