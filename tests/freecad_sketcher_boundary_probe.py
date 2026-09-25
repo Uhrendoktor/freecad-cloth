@@ -56,19 +56,20 @@ def _run_exact_seam_edit_cases():
                     stderr=subprocess.STDOUT,
                     start_new_session=True,
                 )
-                try:
-                    proc.wait(timeout=7.0)
-                except subprocess.TimeoutExpired:
+                deadline = time.monotonic() + 6.0
+                while proc.poll() is None and time.monotonic() < deadline:
+                    time.sleep(0.1)
+                timed_out = proc.poll() is None
+                if timed_out:
                     try:
-                        os.killpg(proc.pid, signal.SIGKILL)
+                        proc.kill()
                     except ProcessLookupError:
                         pass
                     try:
-                        proc.wait(timeout=1.0)
+                        proc.wait(timeout=0.5)
                     except subprocess.TimeoutExpired:
                         pass
-            returncode = proc.returncode
-            timed_out = returncode in (124, 137)
+            returncode = 124 if timed_out else proc.returncode
             elapsed = time.monotonic() - started
             try:
                 output = Path(output_path).read_text(encoding="utf-8", errors="replace")
