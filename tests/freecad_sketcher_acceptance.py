@@ -251,18 +251,29 @@ def run_acceptance():
         staged_panel = get_active_staged_sewing_task_panel()
         if staged_panel is None:
             raise RuntimeError("staged sewing task panel was not retained after seam Preview")
-        commit_button = getattr(staged_panel, "commit_button", None)
+        staged_dialog = Gui.Control.activeTaskDialog()
+        if staged_dialog is None:
+            raise RuntimeError("staged sewing TaskDialog was not active after seam Preview")
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
+        button_box = Gui.Control.taskPanel().findChild(QtWidgets.QDialogButtonBox)
+        if button_box is None:
+            raise RuntimeError("staged sewing standard button box was not created")
+        commit_button = button_box.button(QtWidgets.QDialogButtonBox.Ok)
+        cancel_button = button_box.button(QtWidgets.QDialogButtonBox.Cancel)
         if commit_button is None or not bool(commit_button.isEnabled()):
-            raise RuntimeError("staged seam Commit button is not available/enabled")
-        commit_button.click()
+            raise RuntimeError("staged seam Commit standard button is not available/enabled")
+        if str(commit_button.text()) != "Commit" or cancel_button is None or str(cancel_button.text()) != "Cancel":
+            raise RuntimeError("staged sewing standard buttons are not presented as Commit/Cancel")
+        staged_dialog.accept()
         _events()
         has_pending = getattr(doc, "hasPendingTransaction", None)
         if callable(has_pending) and bool(has_pending()):
             raise RuntimeError("staged seam Commit left a pending document transaction")
-        _close_task()
-        _events()
         if Gui.Control.activeDialog() is not None:
-            raise RuntimeError("staged seam Commit could not close its task dialog")
+            raise RuntimeError("staged seam Commit left its task dialog active")
         _record("seam-created-and-committed")
         original_piece_id = str(curved.PieceId)
         original_width = float(curved_sketch.getDatum(width_index))
