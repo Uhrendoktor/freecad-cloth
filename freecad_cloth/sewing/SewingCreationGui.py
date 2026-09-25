@@ -5,11 +5,12 @@ document transaction used by other sewing task panels. Commit closes that
 transaction; Cancel aborts it. The session itself is transient UI state only.
 """
 
-def _close_active_task_dialog():
+def _reject_active_task_dialog():
     import FreeCADGui as Gui
 
-    if Gui.activeDocument() and Gui.Control.activeDialog():
-        Gui.Control.closeDialog()
+    dialog = Gui.Control.activeTaskDialog()
+    if dialog is not None:
+        dialog.reject()
 
 
 def _modules():
@@ -225,6 +226,7 @@ class SewingCreationTaskPanel:
             self._TRANSACTION_NAMES[kind],
             self._builder,
         )
+        self._closing = False
         self._refresh_selection()
         self.preview()
 
@@ -275,37 +277,55 @@ class SewingCreationTaskPanel:
         )
         return True
 
-    def _schedule_close_dialog(self):
+    def _schedule_taskview_reject(self):
         try:
             from PySide import QtCore
         except ImportError:
             from PySide2 import QtCore
-        timer = QtCore.QTimer()
-        timer.setSingleShot(True)
-        timer.timeout.connect(_close_active_task_dialog)
-        self._close_timer = timer
-        timer.start(0)
+        QtCore.QTimer.singleShot(0, _reject_active_task_dialog)
 
     def accept(self):
+        if self._closing:
+            return True
         try:
             self.session.commit()
         except (ImportError, RuntimeError, ValueError, TypeError) as exc:
             self._show_error(exc)
             return False
+        self._closing = True
         self._show_status("Committed sewing creation.")
         self.commit_button.setEnabled(False)
         self.preview_button.setEnabled(False)
-        self._schedule_close_dialog()
+        self._schedule_taskview_reject()
         return True
 
     def reject(self):
+        if self._closing:
+            return True
         self.session.cancel()
+        self._closing = True
         self._show_status("Cancelled. No seam or sewing-network object was persisted.")
-        self._schedule_close_dialog()
+        self._schedule_taskview_reject()
         return True
 
+    def modifyStandardButtons(self, button_box):
+        # Keep one hidden FreeCAD RejectRole button available so deferred close
+        # can use TaskView's native teardown without duplicating Cancel in the UI.
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
+        button_box.hide()
+        cancel = button_box.button(QtWidgets.QDialogButtonBox.Cancel)
+        if cancel is not None:
+            cancel.setEnabled(True)
+
     def getStandardButtons(self):
-        return 0
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
+        return QtWidgets.QDialogButtonBox.Cancel
 
 
 def show_sewing_creation_task(kind):
