@@ -281,7 +281,11 @@ class SewingCreationTaskPanel:
             from PySide import QtCore
         except ImportError:
             from PySide2 import QtCore
-        QtCore.QTimer.singleShot(0, _close_active_task_dialog)
+        timer = QtCore.QTimer(self.form)
+        timer.setSingleShot(True)
+        timer.timeout.connect(_close_active_task_dialog)
+        self._close_timer = timer
+        timer.start(0)
 
     def accept(self):
         if self._closing:
