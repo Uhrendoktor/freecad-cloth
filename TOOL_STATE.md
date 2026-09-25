@@ -7,7 +7,7 @@ canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_issue: 1017
 continuation_issue: 1098
-current_main: b43b8a2982e4570f25824509674dad9b66a38677
+validated_release_code_head: 6d2c6082283aea6333a16ba13b8cabf93585e91c
 workflow_count: 1
 workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; inspect_jobs_logs_artifacts; no_second_workflow
@@ -19,10 +19,13 @@ final_release:
   timing_fix_pr_run: 3975
   timing_fix_pr_run_id: 36201796778
   timing_fix_pr_run_conclusion: success
-  current_main_run: 3976
-  current_main_run_id: 36202078316
-  current_main_run_conclusion: success
-  publisher_job_id: 108291368754
+  final_release_run: 3976
+  final_release_run_id: 36202078316
+  final_release_run_conclusion: success
+  final_ledger_run: 3979
+  final_ledger_run_id: 36202702396
+  final_ledger_run_conclusion: success
+  publisher_job_id: 108293224713
   published_docs_branch: docs/screenshots
   published_docs_sha: 69f1153
   README_assets_published: true
@@ -32,6 +35,7 @@ final_release:
   blanket_visual_exact_main: passed
   README_turntable_exact_main: passed
   README_turntable_timing_exact_main: passed
+  final_merged_main_validation: passed
   export_exact_main: passed
   python_exact_main: passed
   benchmark_exact_main: passed
