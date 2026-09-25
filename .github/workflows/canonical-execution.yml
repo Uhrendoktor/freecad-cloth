@@ -189,6 +189,49 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Pull FreeCAD image
         run: docker pull "$FREECAD_IMAGE"
+      - name: Run task-dialog startup versus Qt-loop probe
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/task-dialog-loop
+          mkdir -p artifacts/task-dialog-loop
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1             -v "$PWD:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/task-dialog-loop
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb-task-dialog.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox-task-dialog.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              for mode in sync deferred; do
+                set +e
+                CLOTH_TASK_DIALOG_PROBE_MODE="$mode"                 CLOTH_TASK_DIALOG_PROBE_LOG="/workspace/artifacts/task-dialog-loop/$mode.log"                 timeout --signal=TERM --kill-after=5s 30s                   /opt/freecad/AppRun /workspace/tests/freecad_task_dialog_loop_probe.py                   >"/workspace/artifacts/task-dialog-loop/$mode.stdout.log" 2>&1
+                status=$?
+                set -e
+                printf "mode=%s exit=%s\n" "$mode" "$status"                   >"/workspace/artifacts/task-dialog-loop/$mode.status"
+                cat "/workspace/artifacts/task-dialog-loop/$mode.stdout.log"
+              done
+            '
+      - name: Inspect task-dialog loop evidence
+        run: |
+          set -euo pipefail
+          for mode in sync deferred; do
+            test -s "artifacts/task-dialog-loop/$mode.log"
+            test -s "artifacts/task-dialog-loop/$mode.status"
+            grep -q "task-dialog-probe=before-close" "artifacts/task-dialog-loop/$mode.log"
+            grep -q "task-dialog-probe=startup-script-returning" "artifacts/task-dialog-loop/$mode.log"
+            grep -q "activeDialog=" "artifacts/task-dialog-loop/$mode.log"
+          done
+          grep -q "deferred-callback-enter" artifacts/task-dialog-loop/deferred.log
+          grep -q "after-deferred-close-event-loop" artifacts/task-dialog-loop/deferred.log
+      - name: Upload task-dialog loop evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: task-dialog-loop-probe
+          path: artifacts/task-dialog-loop
+          if-no-files-found: error
+          compression-level: 1
+
       - name: Run native Sketcher acceptance
         run: |
           set -euo pipefail
