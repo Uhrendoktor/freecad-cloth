@@ -98,8 +98,7 @@ AUTORUN = """\ntry:
     run_acceptance()
 except BaseException:
     _quit_application()
-    raise
-"""
+    raise"""
 
 SEAM_COMMAND = '        Gui.runCommand("ClothSewing_EditSeamSideA", 0)'
 
