@@ -251,14 +251,16 @@ def run_acceptance():
         staged_panel = get_active_staged_sewing_task_panel()
         if staged_panel is None:
             raise RuntimeError("staged sewing task panel was not retained after seam Preview")
-        if not staged_panel.accept():
-            raise RuntimeError("staged seam Commit did not succeed")
-        if not bool(getattr(staged_panel, "committed", False)):
-            raise RuntimeError("staged seam Commit did not mark the task panel committed")
+        commit_button = getattr(staged_panel, "commit_button", None)
+        if commit_button is None or not bool(commit_button.isEnabled()):
+            raise RuntimeError("staged seam Commit button is not available/enabled")
+        commit_button.click()
+        _events()
         has_pending = getattr(doc, "hasPendingTransaction", None)
         if callable(has_pending) and bool(has_pending()):
             raise RuntimeError("staged seam Commit left a pending document transaction")
         _close_task()
+        _events()
         if Gui.Control.activeDialog() is not None:
             raise RuntimeError("staged seam Commit could not close its task dialog")
         _record("seam-created-and-committed")
