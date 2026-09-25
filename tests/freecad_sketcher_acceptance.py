@@ -276,7 +276,7 @@ def run_acceptance():
         _stage("seam-commit-returned-to-qt")
 
         def _continue_after_seam_commit():
-            nonlocal doc
+            nonlocal doc, curved
             try:
                 _wait_for_task_close()
                 has_pending = getattr(doc, "hasPendingTransaction", None)
@@ -391,7 +391,17 @@ def run_acceptance():
                 
                 _quit_application()
             except BaseException:
-                print(traceback.format_exc(), flush=True)
+                callback_traceback = traceback.format_exc()
+                print(callback_traceback, flush=True)
+                stage_file = os.environ.get("SKETCHER_STAGE_FILE")
+                if stage_file:
+                    with open(stage_file, "a", encoding="utf-8") as handle:
+                        handle.write("callback-traceback-begin\\n")
+                        handle.write(callback_traceback)
+                        if not callback_traceback.endswith("\\n"):
+                            handle.write("\\n")
+                        handle.write("callback-traceback-end\\n")
+                        handle.flush()
                 try:
                     _close_task()
                 except BaseException:
