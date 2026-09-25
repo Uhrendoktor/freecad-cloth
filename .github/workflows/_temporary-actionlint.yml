@@ -1,0 +1,16 @@
+name: Temporary actionlint validation
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/canonical-execution.yml"
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate canonical workflow
+        uses: docker://rhysd/actionlint:latest
+        with:
+          args: -color .github/workflows/canonical-execution.yml
