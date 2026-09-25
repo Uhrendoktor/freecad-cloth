@@ -532,13 +532,19 @@ jobs:
             "cloth-simulation-arranged-turntable-frames cloth-simulation-arranged-turntable.gif" \
             "cloth-simulation-draped-turntable-frames cloth-simulation-draped-turntable.gif"; do
             read -r frame_dir gif <<< "$spec"
-            "${IM[@]}" "docs/images/generated/$frame_dir"/frame-*.png \
-              -delay 8 -loop 0 -colors 128 \
+            "${IM[@]}" -delay 8 "docs/images/generated/$frame_dir"/frame-*.png \
+              -loop 0 -colors 128 \
               "docs/images/generated/$gif"
             test -s "docs/images/generated/$gif"
+            frame_delays="$(identify -format '%T\n' "docs/images/generated/$gif" | sort -u)"
+            test "$frame_delays" = "8"
           done
-          identify -format '%n\n' docs/images/generated/cloth-simulation-arranged-turntable.gif | head -n 1 | grep -qx '73'
-          identify -format '%n\n' docs/images/generated/cloth-simulation-draped-turntable.gif | head -n 1 | grep -qx '73'
+          for gif in \
+            docs/images/generated/cloth-avatar-turntable.gif \
+            docs/images/generated/cloth-simulation-arranged-turntable.gif \
+            docs/images/generated/cloth-simulation-draped-turntable.gif; do
+            identify -format '%n\n' "$gif" | head -n 1 | grep -qx '73'
+          done
       - name: Upload README turntable evidence
         if: always()
         uses: actions/upload-artifact@v6
