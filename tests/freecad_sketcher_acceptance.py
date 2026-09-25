@@ -274,6 +274,11 @@ def run_acceptance():
         if commit_button is None or not bool(commit_button.isEnabled()):
             raise RuntimeError("staged seam Commit button is not available/enabled")
         commit_button.click()
+        if Gui.Control.activeDialog() is not None:
+            active_task = Gui.Control.activeTaskDialog()
+            if active_task is None:
+                raise RuntimeError("staged seam TaskDialog disappeared before deferred close")
+            active_task.reject()
         _wait_for_task_close()
         has_pending = getattr(doc, "hasPendingTransaction", None)
         if callable(has_pending) and bool(has_pending()):
