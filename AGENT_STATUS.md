@@ -5,7 +5,7 @@ Machine-readable supervisor/release record. Durable guidance lives in docs/DEVEL
 ## Repository
 - Repository: Uhrendoktor/freecad-cloth
 - Default branch: main
-- Current main at final audit: `b43b8a2982e4570f25824509674dad9b66a38677`.
+- Validated release code head before this final ledger reconciliation: `6d2c6082283aea6333a16ba13b8cabf93585e91c`.
 - Canonical workflow: .github/workflows/canonical-execution.yml; exactly one workflow.
 - Supervisor completion issue: #1017 (closed completed).
 - Continuation/recovery issue: #1098 (closed completed).
@@ -18,8 +18,9 @@ Machine-readable supervisor/release record. Durable guidance lives in docs/DEVEL
 - PR #1191 repaired the Native Sketcher post-Commit continuation and is integrated.
 - PR #1195 repaired README turntable GIF timing and added fail-closed timing assertions; it is integrated.
 - Exact PR #1195 canonical run #3975 / Actions 36201796778 is terminal-green.
-- Exact merged-main canonical run #3976 / Actions 36202078316 is terminal-green across all required jobs, including Native Sketcher, tunic audit, blanket visual, README turntables, export, Python, benchmark, and publisher.
-- Publisher job #108291368754 committed the final README assets to docs/screenshots at `69f1153`.
+- Exact merged-main canonical run #3976 / Actions 36202078316 is terminal-green across all required product gates, including Native Sketcher, tunic audit, blanket visual, README turntables, export, Python, benchmark, and publisher.
+- Final post-roadmap-merge canonical run #3979 / Actions 36202702396 is terminal-green on the merged documentation state, including the same full product graph and publisher.
+- Final publisher job #108293224713 completed successfully and refreshed the stable README assets on `docs/screenshots`; the published branch head is `69f115354c6d59fd21b2df9e943461ef6373fe66`.
 
 ## Evidence
 - Native Sketcher acceptance: passed on exact merged main.
