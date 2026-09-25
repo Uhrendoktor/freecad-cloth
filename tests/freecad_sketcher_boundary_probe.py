@@ -1,3 +1,67 @@
+def _run_exact_seam_edit_cases():
+    import os
+    import shutil
+    import subprocess
+    import tempfile
+    import time
+
+    acceptance = ROOT / "tests" / "freecad_sketcher_acceptance.py"
+    source = acceptance.read_text(encoding="utf-8")
+    helper = "def _diag_mark(label):\n    print(\"diag-marker=%s t=%.6f\" % (label, time.monotonic()), flush=True)\n\ndef _diag_state(label):\n    doc = App.ActiveDocument\n    gui_doc = Gui.activeDocument()\n    in_edit = None\n    if gui_doc is not None:\n        try:\n            in_edit = bool(gui_doc.getInEdit())\n        except Exception as exc:\n            in_edit = \"error:%s\" % type(exc).__name__\n    try:\n        dialog = Gui.Control.activeDialog()\n    except Exception as exc:\n        dialog = \"error:%s\" % type(exc).__name__\n    if dialog is None:\n        dialog_desc = \"none\"\n    else:\n        try:\n            dialog_desc = \"%s visible=%s objectName=%s\" % (type(dialog).__name__, bool(dialog.isVisible()) if hasattr(dialog, \"isVisible\") else \"na\", str(dialog.objectName()) if hasattr(dialog, \"objectName\") else \"na\")\n        except Exception as exc:\n            dialog_desc = \"error:%s\" % type(exc).__name__\n    pending_tx = None\n    tx_empty = None\n    if doc is not None:\n        fn = getattr(doc, \"hasPendingTransaction\", None)\n        if callable(fn):\n            try:\n                pending_tx = bool(fn())\n            except Exception as exc:\n                pending_tx = \"error:%s\" % type(exc).__name__\n        fn = getattr(doc, \"isTransactionEmpty\", None)\n        if callable(fn):\n            try:\n                tx_empty = bool(fn())\n            except Exception as exc:\n                tx_empty = \"error:%s\" % type(exc).__name__\n    pending_cmd = None\n    command_cls = getattr(Gui, \"Command\", None)\n    pending_fn = getattr(command_cls, \"hasPendingCommand\", None) if command_cls is not None else None\n    if callable(pending_fn):\n        try:\n            pending_cmd = bool(pending_fn())\n        except Exception as exc:\n            pending_cmd = \"error:%s\" % type(exc).__name__\n    _diag_mark(\"state label=%s in_edit=%s activeDialog=%s pendingTx=%s txEmpty=%s pendingCommand=%s\" % (label, in_edit, dialog_desc, pending_tx, tx_empty, pending_cmd))\n\n"
+    cases = {"command":"        _diag_mark(\"before-command\")\n        _diag_state(\"before-command\")\n        Gui.runCommand(\"ClothSewing_EditSeamSideA\", 0)\n        _diag_mark(\"after-command\")\n        _diag_state(\"after-command\")\n        return","direct":"        _diag_mark(\"before-direct-handler\")\n        _diag_state(\"before-direct-handler\")\n        from freecad_cloth.sewing.SewingCommands import edit_selected_seam_side_a\n        edit_selected_seam_side_a()\n        _diag_mark(\"after-direct-handler\")\n        _diag_state(\"after-direct-handler\")\n        return","instrumented":"        _diag_mark(\"instrumented-entry\")\n        _diag_state(\"before-focus\")\n        _diag_mark(\"before-focus\")\n        from freecad_cloth.sewing.SewingCommands import focus_selected_seam_3d\n        focus_selected_seam_3d()\n        _diag_mark(\"after-focus\")\n        _diag_state(\"after-focus\")\n        if Gui.activeDocument().getInEdit():\n            _diag_mark(\"before-reset-edit\")\n            Gui.activeDocument().resetEdit()\n            _diag_mark(\"after-reset-edit\")\n            _diag_state(\"after-reset-edit\")\n        _events()\n        _diag_mark(\"after-pre-setedit-events\")\n        _diag_state(\"before-patternpiece-selection\")\n        Gui.Selection.clearSelection()\n        _diag_mark(\"after-clear-selection-before-patternpiece\")\n        Gui.Selection.addSelection(curved)\n        _diag_mark(\"after-patternpiece-selection\")\n        _diag_state(\"before-set-edit\")\n        try:\n            from PySide import QtCore\n        except ImportError:\n            from PySide2 import QtCore\n        QtCore.QTimer.singleShot(100, lambda: _diag_mark(\"timer-during-set-edit\"))\n        _diag_mark(\"before-set-edit\")\n        Gui.activeDocument().setEdit(sketch.Name)\n        _diag_mark(\"after-set-edit\")\n        _diag_state(\"after-set-edit\")\n        _events()\n        _diag_mark(\"after-set-edit-events\")\n        _diag_state(\"after-set-edit-events\")\n        Gui.Selection.clearSelection()\n        _diag_mark(\"after-edge-clear-selection\")\n        Gui.Selection.addSelection(sketch, \"Edge%d\" % (edge_index + 1))\n        _diag_mark(\"after-edge-selection\")\n        _diag_state(\"after-edge-selection\")\n        return"}
+    insertion = "\ndef _bootstrap_workbenches():"
+    for case in ("command", "direct", "instrumented"):
+        case_source = source.replace(insertion, "\n" + helper + insertion, 1)
+        needle = '        Gui.runCommand("ClothSewing_EditSeamSideA", 0)'
+        if case_source.count(needle) != 1:
+            raise RuntimeError("seam edit command not found exactly once for %s" % case)
+        case_source = case_source.replace(needle, cases[case], 1)
+
+        workdir = tempfile.mkdtemp(prefix="freecad-seam-diag-")
+        user_home = os.path.join(workdir, "home")
+        user_data = os.path.join(workdir, "data")
+        user_temp = os.path.join(workdir, "temp")
+        xdg_runtime = os.path.join(workdir, "runtime")
+        for directory in (user_home, user_data, user_temp, xdg_runtime):
+            os.makedirs(directory, exist_ok=True)
+        case_file = None
+        try:
+            fd, case_file = tempfile.mkstemp(prefix=".sketcher_seam_diag_", suffix=".py", dir=str(ROOT / "tests"))
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write("import time\n" + case_source)
+            env = os.environ.copy()
+            env.update({
+                "FREECAD_USER_HOME": user_home,
+                "FREECAD_USER_DATA": user_data,
+                "FREECAD_USER_TEMP": user_temp,
+                "XDG_RUNTIME_DIR": xdg_runtime,
+                "PYTHONUNBUFFERED": "1",
+            })
+            started = time.monotonic()
+            proc = subprocess.run(
+                ["timeout", "--signal=TERM", "--kill-after=2s", "5s", "/opt/freecad/AppRun", case_file],
+                cwd=str(ROOT),
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+            elapsed = time.monotonic() - started
+            print("=== seam-edit-diagnostic case=%s exit=%s elapsed=%.3fs ===" % (case, proc.returncode, elapsed), flush=True)
+            print(proc.stdout, end="" if proc.stdout.endswith("\n") else "\n", flush=True)
+            markers = [
+                line for line in proc.stdout.splitlines()
+                if line.startswith("diag-marker=") or line.startswith("stage=") or line.startswith("sketcher-acceptance=")
+            ]
+            print("case=%s last-marker=%s" % (case, markers[-1] if markers else "<none>"), flush=True)
+        finally:
+            if case_file:
+                try:
+                    os.unlink(case_file)
+                except FileNotFoundError:
+                    pass
+            shutil.rmtree(workdir, ignore_errors=True)
+
 """Temporary boundary probe for the Native Sketcher GUI acceptance path."""
 import math
 import os
@@ -197,6 +261,8 @@ mark("sketch-object-created")
 
 App.closeDocument(doc.Name)
 mark("document-closed")
+
+_run_exact_seam_edit_cases()
 
 app = QtWidgets.QApplication.instance()
 if app is not None:
