@@ -35,14 +35,22 @@ def _close_task():
 
 def _wait_for_task_close():
     # The staged Commit path defers task-panel teardown until control returns to Qt.
-    # Keep the bounded poll and accept both a cleared dialog handle and a handle
-    # that has already become invalid/falsy after Qt destroys the task panel.
-    for _ in range(80):
-        _events()
+    # Give that deferred close a bounded event-processing window, while treating
+    # both a cleared dialog handle and an invalid/falsy destroyed handle as closed.
+    try:
+        from PySide import QtCore, QtWidgets
+    except ImportError:
+        from PySide2 import QtCore, QtWidgets
+    app = QtWidgets.QApplication.instance()
+    if app is None:
+        raise RuntimeError("Qt application is unavailable while waiting for staged sewing task dialog close")
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        Gui.updateGui()
+        app.processEvents(QtCore.QEventLoop.AllEvents, 50)
         active = Gui.Control.activeDialog()
         if active is None or not bool(active):
             return
-        time.sleep(0.01)
     raise RuntimeError("task dialog did not close after staged sewing Commit/Cancel")
 
 
