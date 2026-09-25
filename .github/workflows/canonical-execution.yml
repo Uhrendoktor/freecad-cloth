@@ -687,7 +687,7 @@ jobs:
           cp ../turntables/cloth-avatar-turntable.gif docs/images/generated/
           cp ../turntables/cloth-simulation-arranged-turntable.gif docs/images/generated/
           cp ../turntables/cloth-simulation-draped-turntable.gif docs/images/generated/
-          cp ../blanket/blanket-example/blanket-motion.gif docs/images/generated/cloth-blanket-motion.gif
+          cp ../blanket/blanket-motion.gif docs/images/generated/cloth-blanket-motion.gif
           cp ../tunic/docs/images/generated/cloth-simulation-draped-front.png docs/images/generated/cloth-simulation-draped-front.png
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
