@@ -39,14 +39,15 @@ def _wait_for_task_close():
         from PySide import QtCore, QtWidgets
     except ImportError:
         from PySide2 import QtCore, QtWidgets
-    for _ in range(80):
-        active = Gui.Control.activeDialog()
-        if active is None or not bool(active):
+    app = QtWidgets.QApplication.instance()
+    if app is None:
+        raise RuntimeError("Qt application is unavailable while waiting for staged sewing task dialog close")
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        Gui.updateGui()
+        app.processEvents(QtCore.QEventLoop.AllEvents, 50)
+        if not Gui.Control.activeDialog():
             return
-        loop = QtCore.QEventLoop()
-        QtCore.QTimer.singleShot(0, loop.quit)
-        loop.exec()
-        QtWidgets.QApplication.processEvents()
     raise RuntimeError("task dialog did not close after staged sewing Commit/Cancel")
 
 
