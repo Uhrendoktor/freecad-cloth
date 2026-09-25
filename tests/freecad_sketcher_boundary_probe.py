@@ -1,5 +1,7 @@
 def _run_exact_seam_edit_cases():
     import os
+    import os
+    import signal
     import shutil
     import subprocess
     import tempfile
@@ -38,22 +40,43 @@ def _run_exact_seam_edit_cases():
                 "PYTHONUNBUFFERED": "1",
             })
             started = time.monotonic()
-            proc = subprocess.run(
-                ["timeout", "--signal=TERM", "--kill-after=2s", "5s", "/opt/freecad/AppRun", case_file],
+            proc = subprocess.Popen(
+                ["/opt/freecad/AppRun", case_file],
                 cwd=str(ROOT),
                 env=env,
                 text=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
+                start_new_session=True,
             )
+            timed_out = False
+            try:
+                output, _ = proc.communicate(timeout=6.0)
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                try:
+                    os.killpg(proc.pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+                try:
+                    output, _ = proc.communicate(timeout=1.0)
+                except subprocess.TimeoutExpired:
+                    try:
+                        os.killpg(proc.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    output, _ = proc.communicate()
+            returncode = 124 if timed_out else proc.returncode
             elapsed = time.monotonic() - started
-            print("=== seam-edit-diagnostic case=%s exit=%s elapsed=%.3fs ===" % (case, proc.returncode, elapsed), flush=True)
-            print(proc.stdout, end="" if proc.stdout.endswith("\n") else "\n", flush=True)
+            print("=== seam-edit-diagnostic case=%s exit=%s elapsed=%.3fs timeout=%s ===" % (case, returncode, elapsed, timed_out), flush=True)
+            print(output, end="" if output.endswith("\n") else "\n", flush=True)
             markers = [
-                line for line in proc.stdout.splitlines()
+                line for line in output.splitlines()
                 if line.startswith("diag-marker=") or line.startswith("stage=") or line.startswith("sketcher-acceptance=")
             ]
             print("case=%s last-marker=%s" % (case, markers[-1] if markers else "<none>"), flush=True)
+            if timed_out:
+                print("case=%s diagnostic-timeout=6s process-group-killed=true" % case, flush=True)
         finally:
             if case_file:
                 try:
