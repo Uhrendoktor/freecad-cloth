@@ -3,6 +3,7 @@ import math
 import os
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,10 +34,14 @@ def _close_task():
 
 
 def _wait_for_task_close():
+    # The staged Commit path defers task-panel teardown until control returns to Qt.
+    # Keep the existing bounded poll count, but yield real wall-clock time between
+    # event passes so a zero-delay Qt callback gets a chance to run.
     for _ in range(80):
         _events()
         if Gui.Control.activeDialog() is None:
             return
+        time.sleep(0.01)
     raise RuntimeError("task dialog did not close after staged sewing Commit/Cancel")
 
 
