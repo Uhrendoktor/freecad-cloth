@@ -291,7 +291,18 @@ def run_acceptance():
         local_mate_start = App.Vector(0, 0, 0.4)
         if _has_vertex(local_mate_start):
             raise RuntimeError("seam presentation still contains the mate Sketcher endpoint in local coordinates")
-        Gui.runCommand("ClothSewing_EditSeamSideA", 0)
+        seam_edit_path = os.environ.get("CLOTH_SEAM_EDIT_PATH", "command").strip().lower()
+        if seam_edit_path == "direct":
+            _record("seam-edit-direct-before")
+            from freecad_cloth.sewing.SewingCommands import edit_selected_seam_side_a
+            edit_selected_seam_side_a()
+            _record("seam-edit-direct-after")
+        elif seam_edit_path == "command":
+            _record("seam-edit-command-before")
+            Gui.runCommand("ClothSewing_EditSeamSideA", 0)
+            _record("seam-edit-command-after")
+        else:
+            raise RuntimeError("unsupported CLOTH_SEAM_EDIT_PATH: %s" % seam_edit_path)
         if not Gui.activeDocument().getInEdit():
             raise RuntimeError("seam Sketcher-side command did not enter native Sketcher")
         selection = Gui.Selection.getSelectionEx()
