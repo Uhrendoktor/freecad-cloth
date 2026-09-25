@@ -52,8 +52,10 @@ Do not pull a visible CLO feature forward merely because it exists in CLO. Stabi
 
 ## Current release state
 
-- The P0 release-closeout implementation is present, but the repository is not yet releasable: PR #1075 is the active candidate (exact head `16de154eaecc87ffad22ee8edf498c7783e6784a`) and exact-head canonical validation has not executed.
-- GitHub Actions is currently blocked before job allocation for recent main and release-candidate pushes; zero-job failures do not count as validation. The latest candidate push run #3496 / `35868146829` and main push run #3495 / `35868099678` both have zero jobs and zero artifacts. The connector cannot inspect the relevant Actions administration controls or dispatch workflow_dispatch.
-- The canonical FreeCAD/Xvfb workflow remains the sole workflow. Historical runs prove the workflow graph executes when event delivery works, including real FreeCAD/Xvfb evidence for the 200 mm Blanket-over-Cube fixture.
-- Repository hygiene cleanup is implemented by the scheduled maintenance job, but 490 historical remote branches remain because scheduled maintenance is not currently executing.
-- The three missing public Sewing command SVG assets were merged in PR #1077; packaging already includes `resources/**/*`. The P1 and Production items listed above are future enhancements rather than active release blockers.
+- P0 release-closeout is complete and validated on merged main. The release implementation is integrated; no release candidate branch is pending.
+- Final timing repair PR #1195 is merged. PR run #3975 passed, and merged-main run #3976 / Actions 36202078316 passed the complete canonical graph, including Python/core checks, real FreeCAD/Xvfb GUI acceptance, sewing, Native Sketcher, pattern export, tunic simulation, blanket visual validation, 73-frame turntables, benchmark, and the README publisher.
+- The three public 73-frame README turntables now have uniform 8cs frame timing, with fail-closed identify assertions in the canonical workflow. The published Git blobs on `docs/screenshots` match the exact run #3976 artifacts.
+- The 16-frame blanket motion GIF remains validated at 10cs/frame and is published on `docs/screenshots`; its final Git blob matches the exact merged-main artifact.
+- The canonical workflow remains the sole workflow and fail-closed; no thresholds, screenshot contracts, simulation geometry checks, or workflow topology were weakened.
+- Repository retention/branch cleanup is implemented by the scheduled maintenance job. The current connector does not expose branch deletion, so full remote branch purge is not claimed; this is an operational retention-policy limitation, not a release-code blocker.
+- P1 and Production items remain future enhancements rather than active release blockers.
