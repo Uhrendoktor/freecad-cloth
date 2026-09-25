@@ -350,7 +350,6 @@ def _edit_selected_seam_side(side):
         edge_index = semantic_ids.index(semantic_id)
     except ValueError as exc:
         raise ValueError("seam side %s is not present in the Sketcher semantic edge map" % side) from exc
-    focus_selected_seam_3d()
     if Gui.activeDocument().getInEdit():
         Gui.activeDocument().resetEdit()
     Gui.activeDocument().setEdit(sketch.Name)
