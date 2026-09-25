@@ -5,12 +5,11 @@ document transaction used by other sewing task panels. Commit closes that
 transaction; Cancel aborts it. The session itself is transient UI state only.
 """
 
-def _reject_active_task_dialog():
+def _close_active_task_dialog():
     import FreeCADGui as Gui
 
-    dialog = Gui.Control.activeTaskDialog()
-    if dialog is not None:
-        dialog.reject()
+    if Gui.activeDocument() and Gui.Control.activeDialog():
+        Gui.Control.closeDialog()
 
 
 def _modules():
@@ -277,12 +276,12 @@ class SewingCreationTaskPanel:
         )
         return True
 
-    def _schedule_taskview_reject(self):
+    def _schedule_close_dialog(self):
         try:
             from PySide import QtCore
         except ImportError:
             from PySide2 import QtCore
-        QtCore.QTimer.singleShot(0, _reject_active_task_dialog)
+        QtCore.QTimer.singleShot(0, _close_active_task_dialog)
 
     def accept(self):
         if self._closing:
@@ -296,7 +295,7 @@ class SewingCreationTaskPanel:
         self._show_status("Committed sewing creation.")
         self.commit_button.setEnabled(False)
         self.preview_button.setEnabled(False)
-        self._schedule_taskview_reject()
+        self._schedule_close_dialog()
         return True
 
     def reject(self):
@@ -305,27 +304,11 @@ class SewingCreationTaskPanel:
         self.session.cancel()
         self._closing = True
         self._show_status("Cancelled. No seam or sewing-network object was persisted.")
-        self._schedule_taskview_reject()
+        self._schedule_close_dialog()
         return True
 
-    def modifyStandardButtons(self, button_box):
-        # Keep one hidden FreeCAD RejectRole button available so deferred close
-        # can use TaskView's native teardown without duplicating Cancel in the UI.
-        try:
-            from PySide import QtWidgets
-        except ImportError:
-            from PySide2 import QtWidgets
-        button_box.hide()
-        cancel = button_box.button(QtWidgets.QDialogButtonBox.Cancel)
-        if cancel is not None:
-            cancel.setEnabled(True)
-
     def getStandardButtons(self):
-        try:
-            from PySide import QtWidgets
-        except ImportError:
-            from PySide2 import QtWidgets
-        return QtWidgets.QDialogButtonBox.Cancel
+        return 0
 
 
 def show_sewing_creation_task(kind):
