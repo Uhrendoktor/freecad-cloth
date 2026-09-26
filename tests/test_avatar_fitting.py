@@ -57,6 +57,12 @@ class AvatarFittingTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             GarmentAnchor("piece", "anchor", wrap_direction="inside").validate()
 
+    def test_target_aware_source_persists_home_placement_contract(self):
+        from pathlib import Path
+        source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+        assert "original_piece_placement = PiecePlacement(" in source
+        assert "scene.HomePlacements = [home_entries[k].to_string() for k in sorted(home_entries)]" in source
+
     def test_arrangement_point_round_trip_and_mirror(self):
         point = ArrangementPoint("shoulder-left", 120, 80, 15, "left", 10, "shoulders")
         self.assertEqual(ArrangementPoint.from_string(point.to_string()), point)
