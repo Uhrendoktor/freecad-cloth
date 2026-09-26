@@ -14,6 +14,7 @@ from freecad_cloth.simulation.ClothSolver import ClothSystem
 _MM = 1000.0
 _TISSU_SUBSTEPS_DEFAULT = 1
 _TISSU_COLLISION_TRIANGLES_DEFAULT = 0
+_TISSU_COLLISION_SUPPLEMENT_ENVELOPE_DEFAULT = False
 
 
 def _tissu_substeps():
@@ -21,6 +22,16 @@ def _tissu_substeps():
     if value < 1:
         raise ValueError("CLOTH_TISSU_SUBSTEPS must be >= 1")
     return value
+
+
+def _tissu_collision_supplement_envelope():
+    raw = os.environ.get(
+        "CLOTH_TISSU_COLLISION_SUPPLEMENT_ENVELOPE",
+        "1" if _TISSU_COLLISION_SUPPLEMENT_ENVELOPE_DEFAULT else "0",
+    ).strip().lower()
+    if raw not in {"0", "1", "false", "true", "off", "on"}:
+        raise ValueError("CLOTH_TISSU_COLLISION_SUPPLEMENT_ENVELOPE must be boolean")
+    return raw in {"1", "true", "on"}
 
 
 def _tissu_collision_triangle_limit():
@@ -104,6 +115,7 @@ class TissuBackend(ClothSimulationBackend):
         self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins))
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
         self._source_collision_surface = collision_surface
+        self._collision_supplement_envelope = _tissu_collision_supplement_envelope()
         collision_limit = _tissu_collision_triangle_limit()
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
             collision_surface = coarsen_collision_surface(collision_surface, collision_limit)
@@ -132,21 +144,36 @@ class TissuBackend(ClothSimulationBackend):
     def time(self):
         return self._time
 
-    def _add_collision(self):
+    def _add_collision_spheres(self, surface, prefix="drape-torso"):
         import numpy as np
+
+        if surface is None:
+            return 0
+        envelope = _collision_envelope(surface)
+        for index, (center, radius_mm) in enumerate(envelope):
+            self._sim.add_sphere(
+                f"{prefix}-{index}",
+                np.asarray(_to_tissu_position(center), dtype=np.float64),
+                float(radius_mm) / _MM,
+                friction=0.5,
+            )
+        return len(envelope)
+
+    def _add_collision(self):
         if self._collision_surface is None:
             return
         if self._collision_mode == "torso-envelope":
-            for index, (center, radius_mm) in enumerate(_collision_envelope(self._collision_surface)):
-                self._sim.add_sphere(
-                    f"drape-torso-{index}",
-                    np.asarray(_to_tissu_position(center), dtype=np.float64),
-                    float(radius_mm) / _MM,
-                    friction=0.5,
-                )
+            self._add_collision_spheres(self._source_collision_surface or self._collision_surface)
             return
         vtx, idx = _to_tissu_mesh(self._collision_surface)
         self._sim.add_mesh_from_arrays("drape-target", vtx, idx, friction=0.5)
+        if self._collision_supplement_envelope:
+            count = self._add_collision_spheres(self._source_collision_surface or self._collision_surface)
+            print(
+                "cloth-tissu-collision supplemental_envelope=%s spheres=%d"
+                % (self._collision_supplement_envelope, count),
+                flush=True,
+            )
 
     def _build(self, Simulation):
         import numpy as np
