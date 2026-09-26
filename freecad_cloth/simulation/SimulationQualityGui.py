@@ -178,13 +178,25 @@ class SimulationQualityTaskPanel:
         try:
             from freecad_cloth.simulation.DrapeTarget import refresh_drape_target, target_status
             info = target_status(target)
+            if info["state"] == "disabled":
+                from freecad_cloth.simulation.DrapeCommands import set_drape_target_enabled
+                set_drape_target_enabled(True)
+                self._refresh("Drape target enabled.")
+                return
+            if info["state"] in {"invalid", "unassigned"}:
+                if target is None:
+                    raise ValueError(info["message"])
+                from freecad_cloth.simulation.DrapeCommands import edit_drape_target
+                edit_drape_target()
+                self._refresh("Drape target editor opened.")
+                return
             if getattr(target, "SourceObject", None) is None:
                 raise ValueError(info["message"])
             refresh_drape_target(target)
             self.scene.Document.recompute()
             self._refresh("Drape target refreshed.")
         except Exception as exc:
-            self._refresh("Drape target refresh blocked — %s" % exc)
+            self._refresh("Drape target recovery blocked — %s" % exc)
 
     def _ensure_scene(self):
         if self.scene is None:
@@ -293,8 +305,17 @@ class SimulationQualityTaskPanel:
         self.run_button.setEnabled(not blocked)
         self.reset_button.setEnabled(True)
         self.target_context.setText(str(target_info["message"]))
-        target_source = getattr(getattr(self.scene, "DrapeTarget", None), "SourceObject", None)
-        self.refresh_target_button.setEnabled(bool(target_source) and target_info["state"] != "ready")
+        target = getattr(self.scene, "DrapeTarget", None)
+        target_source = getattr(target, "SourceObject", None)
+        if target_info["state"] == "disabled":
+            self.refresh_target_button.setText("Enable target")
+            self.refresh_target_button.setEnabled(target is not None)
+        elif target_info["state"] in {"invalid", "unassigned"}:
+            self.refresh_target_button.setText("Edit target")
+            self.refresh_target_button.setEnabled(target is not None)
+        else:
+            self.refresh_target_button.setText("Refresh target")
+            self.refresh_target_button.setEnabled(bool(target_source) and target_info["state"] != "ready")
 
         fitting = self._find_fitting_scene()
         fit_info = fitting_status(fitting)
