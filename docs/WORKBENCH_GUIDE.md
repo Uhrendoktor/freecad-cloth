@@ -28,7 +28,7 @@ If a Sketch edit invalidates a semantic edge reference, the seam remains invalid
 
 ### 3. Arrange and fit
 
-Create/select a `DrapeTarget`: either the native human mannequin or an ordinary FreeCAD Shape/PartDesign/Body/Mesh. Arrange pieces using persistent placements/arrangement metadata. Reset and superimpose are deterministic fitting operations, not solver state.
+Create/select a `DrapeTarget`: either the native human mannequin or an ordinary FreeCAD Shape/PartDesign/Body/Mesh. Select one current DrapeTarget and one or more PatternPieces, then use **Snap pieces to target** to apply a bounded rigid translation with outward collision-surface clearance. Rotation and relative piece spacing are preserved. The command fails closed for missing, disabled, stale, or ambiguous targets or excessive movement. The saved fitting scene records the resulting placements, and **Reset Arrangement** restores the saved HomePlacements exactly. Arrangement points remain solver-neutral fitting metadata; pins are a separate simulation constraint.
 
 ### 4. Simulate
 
