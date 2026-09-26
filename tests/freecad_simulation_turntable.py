@@ -281,23 +281,50 @@ def _style_mesh(obj):
     obj.ViewObject.LineWidth = 1.0
 
 
-def _opposite_top_edge_pins(piece, positions, panel_indices):
+def _opposite_edge_midpoint_pins(piece, positions, panel_indices):
     mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, BLANKET_PARTICLE_DISTANCE)
     boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
     if not boundary_vertices:
         raise RuntimeError("blanket quality mesh has no boundary vertices")
-    top_y = max(float(mesh_positions[index][1]) for index in boundary_vertices)
-    top_edge = tuple(index for index in boundary_vertices if abs(float(mesh_positions[index][1]) - top_y) <= 1e-9)
-    if len(top_edge) < 2:
-        raise RuntimeError("blanket top edge has fewer than two boundary vertices")
-    top = (
-        min(top_edge, key=lambda index: float(mesh_positions[index][0])),
-        max(top_edge, key=lambda index: float(mesh_positions[index][0])),
+    min_x = min(float(mesh_positions[index][0]) for index in boundary_vertices)
+    max_x = max(float(mesh_positions[index][0]) for index in boundary_vertices)
+    min_y = min(float(mesh_positions[index][1]) for index in boundary_vertices)
+    max_y = max(float(mesh_positions[index][1]) for index in boundary_vertices)
+    if max_x <= min_x or max_y <= min_y:
+        raise RuntimeError("blanket boundary is degenerate")
+    left_edge = tuple(
+        index for index in boundary_vertices if abs(float(mesh_positions[index][0]) - min_x) <= 1e-9
     )
-    span = abs(float(mesh_positions[top[1]][0]) - float(mesh_positions[top[0]][0]))
+    right_edge = tuple(
+        index for index in boundary_vertices if abs(float(mesh_positions[index][0]) - max_x) <= 1e-9
+    )
+    if len(left_edge) < 2 or len(right_edge) < 2:
+        raise RuntimeError("blanket side edges have fewer than two boundary vertices")
+    midpoint_y = 0.5 * (min_y + max_y)
+    left_midpoint = min(
+        left_edge,
+        key=lambda index: abs(float(mesh_positions[index][1]) - midpoint_y),
+    )
+    right_midpoint = min(
+        right_edge,
+        key=lambda index: abs(float(mesh_positions[index][1]) - midpoint_y),
+    )
+    span = abs(float(mesh_positions[right_midpoint][0]) - float(mesh_positions[left_midpoint][0]))
+    midpoint_offset = max(
+        abs(float(mesh_positions[left_midpoint][1]) - midpoint_y),
+        abs(float(mesh_positions[right_midpoint][1]) - midpoint_y),
+    )
     if span < 0.75 * BLANKET_SIZE:
-        raise RuntimeError("blanket pins are not opposite top-edge corners: span=%.3f" % span)
-    return tuple(int(panel_indices[top_index]) for top_index in top), span
+        raise RuntimeError("blanket pins are not opposite edge midpoints: span=%.3f" % span)
+    if midpoint_offset > 0.25 * BLANKET_SIZE:
+        raise RuntimeError(
+            "blanket pins are not centered on opposite edges: midpoint_offset=%.3f" % midpoint_offset
+        )
+    return (
+        (int(panel_indices[left_midpoint]), int(panel_indices[right_midpoint])),
+        span,
+        midpoint_offset,
+    )
 
 
 def _nearest_pin_indices(panel_indices, positions, targets):
@@ -427,9 +454,12 @@ def build_simulation_state(doc):
     proxy = scene.Proxy._base_or_restore()
     positions = tuple(proxy.backend.positions())
     panel_indices = tuple(proxy.panel_indices[panel.Name])
-    pins, span = _opposite_top_edge_pins(blanket, positions, panel_indices)
+    pins, span, midpoint_offset = _opposite_edge_midpoint_pins(blanket, positions, panel_indices)
     scene.PinSelection = [str(index) for index in pins]
-    log("blanket-pins=passed opposite-corners span=%.3f indices=%s" % (span, pins))
+    log(
+        "blanket-pins=passed opposite-edge-midpoints span=%.3f midpoint_offset=%.3f indices=%s"
+        % (span, midpoint_offset, pins)
+    )
     doc.recompute()
 
     sketch.ViewObject.Visibility = False
