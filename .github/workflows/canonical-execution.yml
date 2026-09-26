@@ -138,6 +138,7 @@ jobs:
           grace_seconds=45
           interval_seconds=5
           deadline=$((SECONDS + grace_seconds))
+          # The Python and FreeCAD non-GUI tests job is substantive workload; it is not the sentinel.
           echo "runner-watchdog=local-preferred grace_seconds=$grace_seconds source_run=$GITHUB_RUN_ID"
           while [ "$SECONDS" -lt "$deadline" ]; do
             jobs="$(gh api --paginate "repos/$REPO/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100")"
