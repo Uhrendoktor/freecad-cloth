@@ -52,6 +52,15 @@ def _guarded_execute(self, obj):
 
     try:
         result = _ORIGINAL_EXECUTE(self, obj)
+    except ValueError as exc:
+        # Pattern/seam invalidation is also a recoverable document state.
+        # FreeCAD may recompute repeatedly while the user repairs the stale
+        # reference, so do not re-raise the known fail-closed seam error.
+        message = str(exc)
+        if message.startswith("cannot simulate invalid seam "):
+            _set_state(obj, "BLOCKED", message)
+            return None
+        raise
     except RuntimeError:
         # The target may change between the status check and collision build.
         # Only swallow the known recoverable target transition; unrelated
