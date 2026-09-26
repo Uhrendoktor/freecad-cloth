@@ -63,3 +63,12 @@ def test_only_heartbeat_is_static_self_hosted():
     static = "runs-on: [self-hosted, linux, x64, docker]"
     assert source.count(static) == 1
     assert static in _job_block(source, "runner_heartbeat")
+
+
+def test_hosted_fallback_preserves_main_publication():
+    source = WORKFLOW.read_text(encoding="utf-8")
+    publish = _job_block(source, "publish-readme-turntables")
+    assert "github.event_name == 'workflow_dispatch'" in publish
+    assert "inputs.runner_mode == 'hosted'" in publish
+    assert "inputs.fallback_source_run != ''" in publish
+    assert "refs/heads/main" in publish
