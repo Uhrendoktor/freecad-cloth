@@ -596,7 +596,7 @@ def run_acceptance():
             ["ClothDrape_CreateMannequinTarget", "ClothDrape_RefreshTarget", "ClothSimulation_Step", "ClothSimulation_Reset", "ClothSimulation_Edit"],
         )
         _assert_seam_colors(doc, canonical_seams, "Simulation activation")
-        print("seam-color-activation=passed workbenches=Pattern,Sewing,Simulation", flush=true)
+        print("seam-color-activation=passed workbenches=Pattern,Sewing,Simulation", flush=True)
         Gui.runCommand("ClothDrape_CreateMannequinTarget", 0)
         _events()
         avatar = doc.getObject("ClothAvatar")
