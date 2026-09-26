@@ -136,6 +136,7 @@ jobs:
     permissions:
       actions: write
       contents: read
+      statuses: write
     steps:
       - name: Dispatch hosted validation from main
         env:
@@ -144,6 +145,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
+          dispatch_epoch="$(date -u +%s)"
           gh workflow run canonical-execution.yml \
             --repo "$REPO" \
             --ref main \
@@ -151,7 +153,23 @@ jobs:
             -f pull_request_number="$PR_NUMBER" \
             -f pull_request_sha="${{ github.event.pull_request.head.sha }}" \
             -f fallback_source_run="$GITHUB_RUN_ID"
-          echo "pr-router=hosted-dispatch pr=$PR_NUMBER source_run=$GITHUB_RUN_ID workflow_ref=main"
+          hosted_run_id=""
+          for attempt in $(seq 1 12); do
+            hosted_run_id="$(gh api --paginate "repos/$REPO/actions/runs?event=workflow_dispatch&branch=main&per_page=100" \
+              --jq '.workflow_runs[] | select(.name == "Canonical execution") | select((.created_at | fromdateiso8601) >= '"$dispatch_epoch"') | .id' | head -n 1)"
+            if [ -n "$hosted_run_id" ]; then break; fi
+            sleep 1
+          done
+          if [ -z "$hosted_run_id" ]; then
+            echo "Unable to resolve dispatched hosted workflow run ID" >&2
+            exit 1
+          fi
+          gh api --method POST "repos/$REPO/statuses/${{ github.event.pull_request.head.sha }}" \
+            -f state=pending \
+            -f context="canonical/hosted-validation" \
+            -f description="Hosted validation dispatched as workflow run $hosted_run_id" \
+            -f target_url="https://github.com/$REPO/actions/runs/$hosted_run_id" >/dev/null
+          echo "pr-router=hosted-dispatch pr=$PR_NUMBER source_run=$GITHUB_RUN_ID hosted_run=$hosted_run_id workflow_ref=main"
 
   local_runner_readiness:
     name: Selected runner readiness
