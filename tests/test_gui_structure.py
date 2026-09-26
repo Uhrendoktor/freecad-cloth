@@ -57,6 +57,7 @@ assert "Apply & Rebuild" in avatar_gui
 assert "Snap selected piece to Drape Target" in avatar_gui
 assert "Select exactly one PatternPiece before snapping to a DrapeTarget" in fitting_commands
 assert "ClothFitting_SnapToDrapeTarget" in fitting_commands
+assert "Snap to Drape Target" in avatar_gui
 assert "Gui.Control.showDialog(panel)" in avatar_gui
 assert "ClothPattern_CreatePieceTask" in commands
 assert "ClothPattern_EditPiece" in commands
@@ -145,6 +146,15 @@ def test_workbench_base_exposes_legacy_registration_aliases():
     assert hasattr(ClothWorkbenchBase, "_normalize_commands")
     assert hasattr(ClothWorkbenchBase, "_register")
     assert hasattr(ClothWorkbenchBase, "_register_groups")
+
+
+def test_target_snap_command_has_a_matching_icon_resource():
+    icon = ROOT / "resources" / "icons" / "ClothFitting_SnapToDrapeTarget.svg"
+    assert icon.is_file()
+    content = icon.read_text(encoding="utf-8").lstrip()
+    assert content.startswith("<svg ")
+    assert "xmlns=\"http://www.w3.org/2000/svg\"" in content
+    assert "ClothFitting_SnapToDrapeTarget" in fitting_commands
 
 
 def test_workbench_icons_are_present_and_valid_svg_resources():
