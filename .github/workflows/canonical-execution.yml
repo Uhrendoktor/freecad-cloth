@@ -712,7 +712,7 @@ jobs:
       - name: Render avatar and blanket turntable frames
         env:
           CLOTH_SIMULATION_BACKEND: tissu
-          CLOTH_TISSU_SUBSTEPS: 10
+          CLOTH_TISSU_SUBSTEPS: 1
           CLOTH_TISSU_COLLISION_MODE: mesh
         run: |
           set -euo pipefail
@@ -757,6 +757,15 @@ jobs:
           from pathlib import Path
           import hashlib, re
           log = Path("docs/images/generated/simulation-turntable-progress.log").read_text(encoding="utf-8")
+          for marker in (
+              "stage=scene-build-pass",
+              "stage=arranged-render-pass",
+              "stage=simulation-pass",
+              "stage=validation-pass",
+              "stage=draped-render-pass",
+              "stage=total-pass",
+          ):
+            if marker not in log: raise SystemExit("missing timing marker: "+marker)
           m = re.findall(r"blanket-motion-diagnostic max_centroid_displacement_mm=([+-]?[0-9.]+).*min_z_mm=([+-]?[0-9.]+).*cube_top_z_mm=([+-]?[0-9.]+)", log)
           if not m: raise SystemExit("missing blanket motion diagnostic")
           displacement, minimum_z, cube_top = (float(x) for x in m[-1])
@@ -880,13 +889,7 @@ jobs:
               xdpyinfo -display :99 >/dev/null 2>&1
               timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth /workspace/tests/freecad_visual_examples.py
             '
-          test -s docs/images/generated/blanket-example/blanket-visual.log
-          grep -q 'blanket-visual-acceptance=passed' docs/images/generated/blanket-example/blanket-visual.log
-          grep -q 'mesh=passed' docs/images/generated/blanket-example/blanket-visual.log
-          grep -q 'movement=passed' docs/images/generated/blanket-example/blanket-visual.log
-          grep -q 'material-presentation=passed viewport=true' docs/images/generated/blanket-example/blanket-visual.log
-          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'checkpoint-*.png' | wc -l)" -eq 5
-          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'motion-*.png' | wc -l)" -eq 16
+
       - name: Restore workspace from Docker volume
         if: ${{ always() }}
         run: |
@@ -898,6 +901,17 @@ jobs:
           docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
           docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
 
+      - name: Validate blanket visual evidence
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          test -s docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'blanket-visual-acceptance=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'mesh=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'movement=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'material-presentation=passed viewport=true' docs/images/generated/blanket-example/blanket-visual.log
+          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'checkpoint-*.png' | wc -l)" -eq 5
+          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'motion-*.png' | wc -l)" -eq 16
       - name: Build blanket motion GIF
         run: |
           set -euo pipefail
