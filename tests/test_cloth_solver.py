@@ -62,6 +62,35 @@ def test_mesh_collision_corner_projects_against_both_local_faces():
     assert particle.position() == (11.0, 11.0, 0.0)
 
 
+def test_tissu_collision_envelope_profile_is_fail_closed():
+    import os
+    from freecad_cloth.simulation.TissuBackend import _tissu_collision_envelope_profile, _tissu_collision_supplement_envelope
+
+    old_profile = os.environ.pop("CLOTH_TISSU_COLLISION_ENVELOPE_PROFILE", None)
+    old_supplement = os.environ.pop("CLOTH_TISSU_COLLISION_SUPPLEMENT_ENVELOPE", None)
+    try:
+        assert _tissu_collision_envelope_profile() == "centerline"
+        assert _tissu_collision_supplement_envelope() is False
+        os.environ["CLOTH_TISSU_COLLISION_ENVELOPE_PROFILE"] = "shoulder-caps"
+        assert _tissu_collision_envelope_profile() == "shoulder-caps"
+        os.environ["CLOTH_TISSU_COLLISION_ENVELOPE_PROFILE"] = "unexpected"
+        try:
+            _tissu_collision_envelope_profile()
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("invalid collision envelope profile was accepted")
+    finally:
+        if old_profile is None:
+            os.environ.pop("CLOTH_TISSU_COLLISION_ENVELOPE_PROFILE", None)
+        else:
+            os.environ["CLOTH_TISSU_COLLISION_ENVELOPE_PROFILE"] = old_profile
+        if old_supplement is None:
+            os.environ.pop("CLOTH_TISSU_COLLISION_SUPPLEMENT_ENVELOPE", None)
+        else:
+            os.environ["CLOTH_TISSU_COLLISION_SUPPLEMENT_ENVELOPE"] = old_supplement
+
+
 def test_tissu_collision_surface_abi_preserves_solver_surface_identity():
     from pathlib import Path
 
