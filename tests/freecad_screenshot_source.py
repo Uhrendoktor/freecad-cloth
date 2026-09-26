@@ -384,9 +384,6 @@ def simulation():
     panel_width = max(420.0, shoulder_width + 100.0)
     hem_width = max(450.0, panel_width + 80.0)
     garment_height = max(560.0, shoulder_z - hem_z)
-    panel_width = max(420.0, shoulder_width + 100.0)
-    hem_width = max(450.0, panel_width + 80.0)
-    garment_height = max(560.0, shoulder_z - hem_z)
     clearance = 8.0
     rot = App.Rotation(App.Vector(1,0,0), 90.0)
     def make_piece(name, neckline_ratio, neckline_drop):
