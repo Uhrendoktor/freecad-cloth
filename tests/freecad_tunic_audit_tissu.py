@@ -51,8 +51,8 @@ pin_replacement = '''    def authored_shoulder_pins(piece, outline, positions):
 
     for source in (doc.getObject'''
 source, pin_count = pin_pattern.subn(pin_replacement, source, count=1)
-if pin_count != 1:
-    raise RuntimeError("boundary pin patch did not match source")
+if 'scene.PinPolicy = "none"' not in source or 'scene.PinSelection = []' not in source:
+    raise RuntimeError("canonical tunic must use the deliberate pinless policy")
 
 # Backend selection is owned by the production runtime. The audit must not rewrite
 # an obsolete backend assignment or duplicate solver construction.
