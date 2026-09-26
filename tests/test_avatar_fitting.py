@@ -9,6 +9,7 @@ from freecad_cloth.avatar.AvatarModel import AvatarParameters, DEFAULT_MEASUREME
 from freecad_cloth.avatar.AvatarService import AvatarService
 from freecad_cloth.avatar.AvatarArrangement import ARRANGEMENT_POINT_NAMES, arrangement_point_map, arrangement_points_from_landmarks
 from freecad_cloth.avatar.HumanoidMesh import MeshData, MAKEHUMAN_BASE_SHA256, MAKEHUMAN_BASE_URL, MAKEHUMAN_BODY_VERTEX_COUNT, fit_makehuman_mesh, parse_obj
+from freecad_cloth.simulation.DrapeTarget import refresh_drape_target, target_status
 
 
 class AvatarFittingTests(unittest.TestCase):
@@ -45,6 +46,107 @@ class AvatarFittingTests(unittest.TestCase):
     def test_piece_placement_round_trip(self):
         placement = PiecePlacement("front", (1.5, -2.0, 3.25), 90.0)
         self.assertEqual(PiecePlacement.from_string(placement.to_string()), placement)
+
+    def test_piece_placement_round_trip_preserves_3d_rotation(self):
+        placement = PiecePlacement("front", (1.5, -2.0, 3.25), 0.0, (1.0, 0.0, 0.0), 90.0)
+        encoded = placement.to_string()
+        self.assertEqual(PiecePlacement.from_string(encoded), placement)
+        self.assertEqual(
+            PiecePlacement.from_string("front|1.5,-2,3.25|90"),
+            PiecePlacement("front", (1.5, -2.0, 3.25), 90.0),
+        )
+
+    def test_target_snap_is_bounded_reversible_and_target_authoritative(self):
+        try:
+            import FreeCAD as App
+            import Part
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
+        from freecad_cloth.avatar.FittingCommands import reset_arrangement, snap_piece_to_drape_target
+        from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+        from freecad_cloth.avatar.FittingCommands import create_fitting_scene
+        from freecad_cloth.simulation.DrapeTarget import create_drape_target
+
+        doc = App.newDocument("TargetSnapAcceptance")
+        try:
+            target_source = doc.addObject("Part::Feature", "TargetSource")
+            target_source.Shape = Part.makeBox(100.0, 100.0, 100.0)
+            piece = doc.addObject("Part::Feature", "PatternPiece")
+            piece.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
+            piece.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = "snap-piece"
+            piece.Shape = Part.makeBox(10.0, 10.0, 1.0)
+            original = App.Placement(App.Vector(95.0, 45.0, 50.0), App.Rotation(App.Vector(1, 0, 0), 90.0))
+            piece.Placement = original
+            target = create_drape_target(doc, target_source, "FreeCAD Geometry", 0.5, 0.0)
+            doc.recompute()
+            self.assertEqual(target_status(target)["state"], "ready")
+
+            scene = create_fitting_scene()
+            scene.DrapeTarget = target
+            scene.PatternPieces = [piece]
+            home = PiecePlacement("snap-piece", (95.0, 45.0, 50.0), 0.0, (1.0, 0.0, 0.0), 90.0)
+            scene.HomePlacements = [home.to_string()]
+            scene.PiecePlacements = [home.to_string()]
+            doc.recompute()
+
+            first = snap_piece_to_drape_target(piece, target, clearance=5.0, max_translation=20.0)
+            self.assertGreater(first["translation"], 0.0)
+            self.assertAlmostEqual(first["distance_after"], 5.0, delta=1e-5)
+            self.assertAlmostEqual(float(piece.Placement.Base.x), 105.0, delta=1e-5)
+            self.assertAlmostEqual(float(piece.Placement.Rotation.Axis.x), 1.0, delta=1e-9)
+            self.assertAlmostEqual(float(piece.Placement.Rotation.Angle), 90.0, delta=1e-9)
+            self.assertTrue(any("|1,0,0|90" in value for value in scene.PiecePlacements))
+
+            reset_arrangement()
+            self.assertAlmostEqual(float(piece.Placement.Base.x), 95.0, delta=1e-5)
+            self.assertAlmostEqual(float(piece.Placement.Base.y), 45.0, delta=1e-5)
+            self.assertAlmostEqual(float(piece.Placement.Rotation.Axis.x), 1.0, delta=1e-9)
+            self.assertAlmostEqual(float(piece.Placement.Rotation.Angle), 90.0, delta=1e-9)
+
+            second = snap_piece_to_drape_target(piece, target, clearance=5.0, max_translation=20.0)
+            self.assertEqual(first["translation"], second["translation"])
+            self.assertEqual(first["distance_after"], second["distance_after"])
+
+            reset_arrangement()
+            scene.DrapeTarget = None
+            with self.assertRaisesRegex(RuntimeError, "exactly one persistent DrapeTarget"):
+                snap_piece_to_drape_target(piece, None, clearance=5.0, max_translation=20.0)
+
+            scene.DrapeTarget = target
+            target_source.Placement.Base = App.Vector(2.0, 0.0, 0.0)
+            doc.recompute()
+            with self.assertRaisesRegex(RuntimeError, "snap blocked"):
+                snap_piece_to_drape_target(piece, target, clearance=5.0, max_translation=20.0)
+
+        finally:
+            if doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
+
+    def test_target_snap_rejects_translation_bound(self):
+        try:
+            import FreeCAD as App
+            import Part
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
+        from freecad_cloth.avatar.FittingCommands import snap_piece_to_drape_target
+        from freecad_cloth.simulation.DrapeTarget import create_drape_target
+
+        doc = App.newDocument("TargetSnapBound")
+        try:
+            source = doc.addObject("Part::Feature", "TargetSource")
+            source.Shape = Part.makeBox(100.0, 100.0, 100.0)
+            piece = doc.addObject("Part::Feature", "PatternPiece")
+            piece.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
+            piece.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = "bound-piece"
+            piece.Shape = Part.makeBox(10.0, 10.0, 1.0)
+            piece.Placement.Base = App.Vector(95.0, 45.0, 50.0)
+            target = create_drape_target(doc, source, "FreeCAD Geometry", 0.5, 0.0)
+            doc.recompute()
+            with self.assertRaisesRegex(RuntimeError, "exceeds 5.000 mm"):
+                snap_piece_to_drape_target(piece, target, clearance=5.0, max_translation=5.0)
+        finally:
+            if doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
 
     def test_arrangement_point_round_trip_and_mirror(self):
         point = ArrangementPoint("shoulder-left", 120, 80, 15, "left", 10, "shoulders")
