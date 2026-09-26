@@ -20,11 +20,15 @@ Workbench ownership is explicit: `pattern`, `sewing`, `avatar`, and `simulation`
 
 There is exactly one workflow: `.github/workflows/canonical-execution.yml`.
 
+### Canonical runner modes
+
+Public `pull_request` events execute on GitHub-hosted runners only. Trusted `push`, scheduled, and manual `workflow_dispatch` runs default to the existing self-hosted Docker runner. A hosted watchdog waits up to 45 seconds for the canonical Python sentinel to start; if local execution does not start, it dispatches the same workflow in explicit `runner_mode=hosted` and cancels the stalled local attempt.
+
+The fallback uses only the standard Actions token to inspect the current run and dispatch/cancel workflows. It does not enumerate repository self-hosted runners, does not require a privileged runner-discovery secret, and never uses `pull_request_target`. The selected mode is logged by the Python validation job as `ci-runner-mode=...`.
+
+The watchdog's falsifier is duplicate substantive execution caused by a startup race. Any such event is a CI defect to investigate; do not solve it by weakening validation or increasing simulation budgets.
+
 Do not replace, duplicate, or casually refactor it. In particular, preserve the existing Docker/Xvfb path that launches real FreeCAD and captures the validated GUI states and avatar audit artifacts. GUI diagnostics remain available as `cloth-gui-diagnostics`.
-
-### Canonical runner routing
-
-Pull-request events run on GitHub-hosted infrastructure only; untrusted public-PR code is never routed to self-hosted runners. Trusted events may use an idle `self-hosted/linux/x64/docker` runner only when the optional `CLOTH_RUNNER_DISCOVERY_TOKEN` can list repository runners. Missing or invalid credentials, API failures, or no idle matching runner fail closed to `ubuntu-latest`.
 
 The canonical FreeCAD test image is Python 3.12-based; a CI run that starts FreeCAD under Python <3.12 is unsupported.
 
