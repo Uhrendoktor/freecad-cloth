@@ -213,3 +213,5 @@ def test_common_workbench_activation_refreshes_seam_presentation():
     assert "from freecad_cloth.sewing.SewingView import refresh_seam_colors" in gui_source
     assert "        refresh_seam_colors()" in gui_source
     assert "super().Activated()" in simulation
+
+test_common_workbench_activation_refreshes_seam_presentation()
