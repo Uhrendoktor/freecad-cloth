@@ -391,6 +391,48 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
                 break
 
             step = weighted_step * (1.0 / weight_total)
+
+            # Nearest-surface projections are piecewise smooth. The full weighted
+            # correction can cross a projection boundary, so only commit a rigid
+            # translation after an in-memory backtracking line search proves that
+            # the aggregate target-proximity error decreases.
+            accepted_step = None
+            accepted_proximity_error = None
+            candidate_step = step
+            for _backtrack in range(8):
+                candidate_errors = []
+                for center in centers:
+                    candidate_center = tuple(
+                        float(center[index]) + float(candidate_step[index])
+                        for index in range(3)
+                    )
+                    candidate_projection = nearest_target_projection(
+                        candidate_center, surface
+                    )
+                    candidate_error = tuple(
+                        float(candidate_projection.point[index])
+                        + float(candidate_projection.normal[index]) * required
+                        - candidate_center[index]
+                        for index in range(3)
+                    )
+                    candidate_errors.append(
+                        sum(value * value for value in candidate_error) ** 0.5
+                    )
+                candidate_proximity_error = (
+                    sum(value * value for value in candidate_errors) ** 0.5
+                )
+                if candidate_proximity_error < proximity_error - 1e-6:
+                    accepted_step = candidate_step
+                    accepted_proximity_error = candidate_proximity_error
+                    break
+                candidate_step = candidate_step * 0.5
+
+            if accepted_step is None:
+                raise ValueError(
+                    "target-aware group placement did not find an improving rigid step"
+                )
+
+            step = accepted_step
             proposed = total_translation + step
             if proposed.Length > float(max_translation) + 1e-9:
                 raise ValueError(
@@ -440,8 +482,16 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
             )
             if next_proximity_error >= proximity_error - 1e-6:
                 raise ValueError(
-                    "target-aware group placement did not reduce target proximity error"
+                    "target-aware group placement did not reduce target proximity error "
+                    "after applying an accepted in-memory step"
                 )
+            if accepted_proximity_error is not None:
+                if abs(next_proximity_error - accepted_proximity_error) > 1e-3:
+                    raise ValueError(
+                        "target-aware group proximity verification diverged "
+                        "%.6f mm from in-memory prediction %.6f mm"
+                        % (next_proximity_error, accepted_proximity_error)
+                    )
 
             total_translation = proposed
             previous_proximity_error = proximity_error
