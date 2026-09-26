@@ -43,7 +43,7 @@ def test_canonical_tunic_uses_validated_authored_mapping():
     assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' in audit
     assert 'front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"' in audit
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in audit
-    assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' not in audit
+    assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' not in audit
 
 
 def test_canonical_tunic_source_rewrite_compiles():
