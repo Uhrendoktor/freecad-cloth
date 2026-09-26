@@ -18,6 +18,7 @@ os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
 os.environ["CLOTH_TISSU_AUTHORED_CONTAINMENT"] = "1"
 
 replacements = {
+    '    clearance = max(20.0, 0.08 * body_depth)': '    clearance = max(8.0, 0.025 * body_depth);',
     '        y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '        y = min(target_ys) - clearance',
     '        y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '        y = max(target_ys) + clearance',
     '    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)': '    front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)',
