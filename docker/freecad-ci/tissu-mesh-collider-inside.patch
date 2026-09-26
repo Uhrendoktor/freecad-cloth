@@ -55,16 +55,14 @@ index a0b83a8..5c7b6f9 100644
 +    double signedVolume = 0.0;
 +    for (const auto& tri : triangles) {
 +        const int ids[3] = {tri.a, tri.b, tri.c};
-+        for (const int vertexIndex : ids) {
-+            if (vertexIndex < 0 ||
-+                vertexIndex >= static_cast<int>(vertices.size())) {
-+                return {};
-+            }
-+        }
 +        signedVolume +=
-+            vertices[ids[0]].dot(
-+                vertices[ids[1]].cross(vertices[ids[2]])) /
-+            6.0;
++            ids[0] < static_cast<int>(vertices.size()) &&
++                    ids[1] < static_cast<int>(vertices.size()) &&
++                    ids[2] < static_cast<int>(vertices.size())
++                ? vertices[ids[0]].dot(
++                      vertices[ids[1]].cross(vertices[ids[2]])) /
++                      6.0
++                : 0.0;
 +
 +        for (int edgeIndex = 0; edgeIndex < 3; ++edgeIndex) {
 +            const int from = ids[edgeIndex];
