@@ -33,6 +33,10 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     assert 'authored_shoulder_pins' not in source
     assert 'scene.PinSelection = [str(i) for i in front_pins]' not in source
     assert 'target_surface = collision_surface(' in source
+    assert 'create_fitting_scene()' in source
+    assert 'Gui.runCommand("ClothFitting_SnapPiecesToTarget", 0)' in source
+    assert 'pairwise_error' in source
+    assert 'fitting.DrapeTarget is not target' in source
     assert 'target_source.Mesh.BoundBox' not in source
 
 
