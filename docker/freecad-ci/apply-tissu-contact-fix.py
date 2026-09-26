@@ -248,8 +248,12 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
             "MeshCollider.cpp exact closed-mesh containment helper",
         ),
         (
-            """        if (distance <= thickness) {""",
-            """        bool insideClosedMesh = false;
+            """        double distance = toParticle.norm();
+
+        if (distance <= thickness) {""",
+            """        double distance = toParticle.norm();
+
+        bool insideClosedMesh = false;
         if (m_closedManifold && distance > thickness) {
             const double displacement =
                 (particle.getPosition() - particle.getOldPosition()).norm();
@@ -289,8 +293,6 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
                     if (m_closedManifold) {
                         const Eigen::Vector3d outwardNormal =
                             faceNormal * m_outwardNormalSign;
-                        // Preserve existing outside contact behavior for
-                        // particles that remain outside the closed mesh.
                         if (normal.dot(outwardNormal) < 0.0)
                             normal = -normal;
                     }
@@ -313,59 +315,6 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
 
 } // namespace Tissu""",
             "MeshCollider.cpp containment bootstrap",
-        ),
-        (
-            """    Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
-    std::vector<Particle> particles;
-    particles.emplace_back(initialPos);
-
-    mesh.resolve(particles, 0.016, 1.0);
-
-    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
-    EXPECT_GT(distanceMoved, 0.0);""",
-            """    Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
-    std::vector<Particle> particles;
-    particles.emplace_back(initialPos);
-
-    mesh.resolve(particles, 0.016, 0.1);
-
-    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
-    EXPECT_GT(distanceMoved, 0.0);
-    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));""",
-            "MeshCollider deep containment regression",
-        ),
-    ]
-
-            Eigen::Vector3d normal = (distance > 1e-6)
-                                         ? toParticle.normalized()
-                                         : ((b - a).cross(c - a)).normalized();
-
-            Eigen::Vector3d newPosition = cp + normal * thickness;""",
-            """        if (distance <= thickness) {
-            Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
-            const double faceNormalLength = faceNormalRaw.norm();
-            if (faceNormalLength <= 1e-12)
-                continue;
-            Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
-
-            Eigen::Vector3d normal = faceNormal;
-            if (distance > 1e-6) {
-                normal = toParticle / distance;
-                if (m_closedManifold) {
-                    const Eigen::Vector3d outwardNormal =
-                        faceNormal * m_outwardNormalSign;
-                    // A particle on the interior side of a closed, consistently
-                    // oriented surface must be resolved along the outward
-                    // normal; outside contact preserves the existing vector.
-                    if (normal.dot(outwardNormal) < 0.0)
-                        normal = -normal;
-                }
-            } else if (m_closedManifold) {
-                normal *= m_outwardNormalSign;
-            }
-
-            Eigen::Vector3d newPosition = cp + normal * thickness;""",
-            "MeshCollider.cpp contact response",
         ),
     ]
     for old, new, label in replace_cpp:
@@ -415,6 +364,14 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
         helper + "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
         1,
     )
+
+    if test_cpp.count("mesh.resolve(particles, 0.016, 1.0);") != 1:
+        raise RuntimeError("expected one deep-containment test resolve call")
+    test_cpp = test_cpp.replace(
+        "mesh.resolve(particles, 0.016, 1.0);",
+        "mesh.resolve(particles, 0.016, 0.1);",
+        1,
+    )
     old = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
     EXPECT_GT(distanceMoved, 0.0);
 }"""
@@ -455,6 +412,11 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         raise RuntimeError("MeshCollider regression test body anchor mismatch")
     test_cpp = test_cpp.replace(old, new, 1)
     test.write_text(test_cpp, encoding="utf-8")
+
+    if "pointInsideClosedMesh" not in cpp:
+        raise RuntimeError("closed-mesh containment helper missing after patch")
+    if "m_containmentBootstrapped = true;" not in cpp:
+        raise RuntimeError("closed-mesh containment bootstrap missing")
 
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
