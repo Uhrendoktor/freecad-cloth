@@ -105,6 +105,12 @@ def test_full_mesh_diagnostic_override_is_process_local():
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
 
 
+def test_full_mesh_diagnostic_uses_high_quality_profile():
+    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'CLOTH_TISSU_SUBSTEPS"] = "8"' in source
+    assert 'scene.SolverIterations = 2; scene.SolverSubsteps = 8;' in source
+
+
 def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
