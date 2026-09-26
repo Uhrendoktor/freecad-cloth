@@ -306,7 +306,7 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
     from freecad_cloth.avatar.AvatarFitting import GarmentAnchor, PiecePlacement
     from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
     from freecad_cloth.avatar.TargetAwarePlacement import (
-        TargetPlacementError, SurfaceSpatialIndex, assert_minimum_surface_clearance, minimum_surface_clearance,
+        TargetPlacementError, assert_minimum_surface_clearance, minimum_surface_clearance,
         minimum_surface_clearance_detail, minimum_target_vertex_clearance,
         require_ready_target_status,
         solve_rigid_z, target_surface_anchor, wrap_normal,
@@ -353,7 +353,7 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
         for anchor in selected:
             point = piece.Placement.multVec(App.Vector(*anchor.position))
             placed_points.append((float(point.x), float(point.y), float(point.z)))
-        anchor_clearance = minimum_surface_clearance(surface, placed_points)
+        anchor_clearance = minimum_surface_clearance(surface, placed_points, index=target_index)
         piece_points = _piece_world_surface_points(piece, deflection=max(0.25, float(clearance) / 2.0))
         piece_clearance, worst_hit = minimum_surface_clearance_detail(surface, piece_points, index=target_index)
         vertex_clearance = minimum_target_vertex_clearance(surface, piece_points, index=target_index)
