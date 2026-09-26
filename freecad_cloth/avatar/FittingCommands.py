@@ -253,10 +253,11 @@ def _piece_world_samples(piece, deflection=1.0):
         if callable(tessellate):
             points, _triangles = tessellate(float(deflection))
             if points:
-                return tuple(
-                    tuple(float(v) for v in (placement.multVec(point) if placement is not None else point))
-                    for point in points
-                )
+                result = []
+                for point in points:
+                    value = placement.multVec(point) if placement is not None else point
+                    result.append((float(value.x), float(value.y), float(value.z)))
+                return tuple(result)
         vertices = getattr(shape, "Vertexes", ())
         if vertices:
             return tuple(
