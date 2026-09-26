@@ -34,6 +34,10 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     assert 'scene.PinSelection = [str(i) for i in front_pins]' not in source
     assert 'target_surface = collision_surface(' in source
     assert 'target_source.Mesh.BoundBox' not in source
+    assert 'from freecad_cloth.avatar.FittingCommands import create_fitting_scene, snap_pieces_to_target' in source
+    assert 'fitting.DrapeTarget = target' in source
+    assert 'snap_pieces_to_target([piece], target, clearance=clearance, max_translation=400.0)' in source
+    assert 'tuple(fitting.HomePlacements) != home_snapshot' in source
 
 
 def test_canonical_tunic_uses_validated_authored_mapping():
