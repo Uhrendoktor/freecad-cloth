@@ -44,7 +44,6 @@ jobs:
   local_runner_readiness:
     name: Selected runner readiness
     if: ${{ github.event_name != 'schedule' }}
-    if: ${{ github.event_name != 'schedule' }}
     # This is the sole runner-start sentinel. Every substantive workload depends on it.
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 2
@@ -120,7 +119,6 @@ jobs:
           echo "runner-watchdog=local-run-cancel-requested source_run=$GITHUB_RUN_ID"
 
   python:
-    if: ${{ github.event_name != 'pull_request' }}
     name: Python and FreeCAD non-GUI tests
     needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
@@ -208,7 +206,6 @@ jobs:
           docker start -a "$CID"
 
   gui-sewing-creation:
-    if: ${{ github.event_name != 'pull_request' }}
     name: Sewing staged creation smoke
     needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
@@ -302,7 +299,6 @@ jobs:
           compression-level: 1
 
   gui-sketcher-acceptance:
-    if: ${{ github.event_name != 'pull_request' }}
     name: Native Sketcher seam presentation acceptance
     needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
@@ -386,7 +382,6 @@ jobs:
           if-no-files-found: error
           compression-level: 1
   gui-pattern-export:
-    if: ${{ github.event_name != 'pull_request' }}
     name: Pattern production export smoke
     needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
@@ -459,7 +454,6 @@ jobs:
           compression-level: 1
 
   gui-tunic-visual:
-    if: ${{ github.event_name != 'pull_request' }}
     name: Full tunic visual and simulation audit
     needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
@@ -590,7 +584,6 @@ jobs:
           compression-level: 1
 
   gui-turntables:
-    if: ${{ github.event_name != 'pull_request' }}
     name: README simulation turntable
     needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
@@ -757,7 +750,6 @@ jobs:
 
 
   gui-visual-examples:
-    if: ${{ github.event_name != 'pull_request' }}
     name: Basic blanket visual example
     needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
