@@ -375,11 +375,17 @@ def show_sewing_2d():
         return
     from freecad_cloth.sewing.SewingView import apply_seam_colors
     document = Gui.activeDocument().Document
+    selected_seams = tuple(
+        obj for obj in Gui.Selection.getSelection()
+        if str(getattr(obj, "SeamId", "")).strip()
+    )
     apply_seam_colors(document.Objects)
     Gui.Selection.clearSelection()
     view = Gui.activeDocument().activeView()
     view.viewTop()
     view.fitAll()
+    for seam in selected_seams:
+        Gui.Selection.addSelection(seam)
 
 
 COMMANDS = [
