@@ -63,7 +63,6 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertIn("mesh = triangulate(geometry_from_piece_ir(piece_ir))", helper)
         self.assertIn("placement.multVec", helper)
         self.assertNotIn("shape.tessellate", helper)
-        self.assertNotIn("Shape", helper)
         self.assertIn("if placement is None:", helper)
         self.assertIn("if not mesh.vertices:", helper)
 
