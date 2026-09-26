@@ -33,6 +33,10 @@ def _tissu_signed_collision_guard():
         raise ValueError("CLOTH_TISSU_SIGNED_COLLISION_GUARD must be boolean")
     return raw in {"1", "true", "on"}
 
+def _tissu_supplemental_avatar_collision():
+    value = os.environ.get("CLOTH_TISSU_SUPPLEMENTAL_AVATAR_COLLISION", "0").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
 
 def _tissu_collision_triangle_limit():
     value = int(os.environ.get("CLOTH_TISSU_COLLISION_TRIANGLES", str(_TISSU_COLLISION_TRIANGLES_DEFAULT)))
@@ -282,6 +286,7 @@ class TissuBackend(ClothSimulationBackend):
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
         self._source_collision_surface = collision_surface
         self._signed_collision_guard = _tissu_signed_collision_guard()
+        self._supplemental_avatar_collision = _tissu_supplemental_avatar_collision()
         collision_limit = _tissu_collision_triangle_limit()
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
             collision_surface = coarsen_collision_surface(collision_surface, collision_limit)
@@ -332,6 +337,20 @@ class TissuBackend(ClothSimulationBackend):
             return
         vtx, idx = _to_tissu_mesh(self._collision_surface)
         self._sim.add_mesh_from_arrays("drape-target", vtx, idx, friction=0.5)
+        if self._supplemental_avatar_collision:
+            envelope = _collision_envelope(self._source_collision_surface or self._collision_surface)
+            print(
+                "cloth-tissu-supplemental-avatar-collision spheres=%d"
+                % len(envelope),
+                flush=True,
+            )
+            for index, (center, radius_mm) in enumerate(envelope):
+                self._sim.add_sphere(
+                    f"drape-torso-{index}",
+                    np.asarray(_to_tissu_position(center), dtype=np.float64),
+                    float(radius_mm) / _MM,
+                    friction=0.5,
+                )
 
     def _build(self, Simulation):
         import numpy as np
