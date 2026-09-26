@@ -11,6 +11,7 @@ on:
     - cron: '0 3 * * *'
 
 concurrency:
+  # CI sync for canonical local-runner validation
   # Key validation by commit so a newer commit cannot replace this commit's pending run.
   group: canonical-${{ github.workflow }}-${{ github.sha }}
   cancel-in-progress: false
