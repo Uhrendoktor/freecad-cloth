@@ -99,6 +99,7 @@ class TissuBackend(ClothSimulationBackend):
         self._collision_mode = collision_mode
         self._time = 0.0
         self._iterations = 8
+        # Keep invariant native solver configuration out of the per-step hot path.
         self._configured_iterations = None
         self._configured_gravity_z = None
         self._substeps = _tissu_substeps()
