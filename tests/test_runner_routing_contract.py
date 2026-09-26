@@ -1,4 +1,5 @@
 """Contract checks for canonical runner safety and local-first fallback."""
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -11,6 +12,35 @@ def _job_block(source: str, job: str) -> str:
     remainder = source[start + len(marker):]
     next_job = remainder.find("\n  ")
     return remainder if next_job < 0 else remainder[:next_job]
+
+
+def _job_blocks(source: str) -> dict[str, str]:
+    jobs = source.split("\njobs:\n", 1)[1]
+    matches = list(re.finditer(r"^  ([A-Za-z0-9_-]+):\\n", jobs, re.MULTILINE))
+    return {
+        match.group(1): jobs[match.start() : (matches[index + 1].start() if index + 1 < len(matches) else len(jobs))]
+        for index, match in enumerate(matches)
+    }
+
+
+def test_no_pull_request_path_can_select_self_hosted():
+    source = WORKFLOW.read_text(encoding="utf-8")
+    trigger_section = source.split("\njobs:\n", 1)[0]
+    assert "\n  pull_request:\n" not in trigger_section
+    assert "\n  pull_request_target:\n" in trigger_section
+
+    trusted_event_gates = (
+        "github.event_name != 'pull_request_target'",
+        "github.event_name == 'push'",
+        "github.event_name == 'schedule'",
+        "github.event_name == 'workflow_dispatch'",
+    )
+    for job, block in _job_blocks(source).items():
+        if "self-hosted" not in block:
+            continue
+        assert any(gate in block for gate in trusted_event_gates), (
+            f"{job} exposes a self-hosted runner without a trusted-event gate"
+        )
 
 
 def test_one_canonical_workflow():
