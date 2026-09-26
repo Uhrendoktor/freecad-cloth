@@ -37,8 +37,9 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
     scene.Document.recompute()
     preview_base = scene.Proxy._base_or_restore()
     preview_backend = getattr(preview_base, "backend", None)
-    if getattr(preview_backend, "name", None) != "tissu":
-        raise RuntimeError("Realtime Cloth Preview did not select the Tissu backend")
+    expected_backend = os.environ.get("CLOTH_EXPECTED_BACKEND", "tissu")
+    if getattr(preview_backend, "name", None) != expected_backend:
+        raise RuntimeError(f"Realtime Cloth Preview selected {getattr(preview_backend, "name", None)!r}, expected {expected_backend!r}")
     for _ in range(12):
         events()
     preview_steps = int(scene.Steps)
