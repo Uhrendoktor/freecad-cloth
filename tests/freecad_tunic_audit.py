@@ -109,7 +109,17 @@ if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
 source = source.replace(anchor, preview_probe + '\n' + anchor, 1)
 
-seam_check = """    backend_state = scene.Proxy._base_or_restore()
+seam_check = """    from freecad_cloth.sewing.SewingView import seam_color_map
+    expected_colors = seam_color_map(str(seam.SeamId) for seam, _a, _b in seam_records)
+    if len(set(expected_colors.values())) != len(seam_records):
+        raise RuntimeError("canonical tunic produced non-unique seam colors")
+    for seam, _a, _b in seam_records:
+        actual = tuple(seam.ViewObject.LineColor[:3])
+        expected = tuple(expected_colors[str(seam.SeamId)])
+        if any(abs(a - b) > 1e-6 for a, b in zip(actual, expected)):
+            raise RuntimeError("canonical tunic seam color mismatch for %s: actual=%r expected=%r" % (seam.SeamId, actual, expected))
+    log("seam-colors=passed count=%d unique=%d" % (len(seam_records), len(set(expected_colors.values()))))
+    backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
     if not simulated_positions: raise RuntimeError("Tissu backend returned no simulated particle positions")
     stitch_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
