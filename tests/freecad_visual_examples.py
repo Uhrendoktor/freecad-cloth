@@ -324,7 +324,9 @@ def main():
         if not bool(scene.FiniteState):
             raise RuntimeError("blanket simulation became non-finite at first step")
         save_png(view, OUT / "motion-000.png", "blanket motion step 0")
-        log("blanket-first-step-timing step=1 recompute_ms=%.1f" % first_step_ms)
+        log("blanket-first-step-timing step=1 recompute_ms=%.1f finite=%s state_steps=%d" % (
+            first_step_ms, bool(scene.FiniteState), int(scene.Steps)
+        ))
 
         render_motion(view, scene, OUT, frame_count=16, start_step=1, final_steps=120)
 
