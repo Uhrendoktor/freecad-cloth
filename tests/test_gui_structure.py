@@ -180,6 +180,12 @@ def test_pattern_authoring_command_surface_is_sketcher_backed():
     assert "Edit native Sketch" in pattern_gui
     assert "Compatibility-only editor for legacy PatternDrafting state" in pattern_gui
 
+def test_simulation_activation_preserves_base_and_seam_color_lifecycle():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "freecad_cloth" / "simulation" / "workbench.py").read_text(encoding="utf-8")
+    assert "super().Activated()" in source
+    assert "apply_seam_colors(document.Objects)" in source
+
 def test_simulation_quality_panel_exposes_bounded_arrange_fit_bridge():
     handoff = (ROOT / "freecad_cloth" / "simulation" / "FittingHandoff.py").read_text(encoding="utf-8")
     assert 'QtWidgets.QGroupBox("Context")' in quality_gui
