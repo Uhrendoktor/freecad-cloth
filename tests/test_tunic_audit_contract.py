@@ -98,6 +98,14 @@ def test_simulation_proxy_serializes_only_rebuildable_metadata():
     assert proxy.collision_surface is None
 
 
+
+def test_tunic_start_clearance_fixture_uses_validated_orientation_and_swapped_target_sides():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'VisualTunicFront", "back", 0.78, 0.18' in audit
+    assert 'VisualTunicBack", "front", 0.76, 0.12' in audit
+    assert "y = max(target_ys) + clearance" in audit
+    assert "y = min(target_ys) - clearance" in audit
+
 def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
