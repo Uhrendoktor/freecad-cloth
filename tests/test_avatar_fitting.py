@@ -12,6 +12,14 @@ from freecad_cloth.avatar.HumanoidMesh import MeshData, MAKEHUMAN_BASE_SHA256, M
 
 
 class AvatarFittingTests(unittest.TestCase):
+    def test_snap_command_handler_is_defined_before_registration(self):
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+        handler = source.index("def _snap_selected_pieces_to_target():")
+        registry = source.index('"ClothFitting_SnapPiecesToTarget": _snap_selected_pieces_to_target')
+        self.assertLess(handler, registry)
+        self.assertIn("return snap_pattern_pieces_to_target(selected)", source[handler:registry])
+
     def test_fitting_proxy_is_validation_only_during_recompute(self):
         root = Path(__file__).resolve().parents[1]
         source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
