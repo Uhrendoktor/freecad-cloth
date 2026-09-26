@@ -363,7 +363,8 @@ def simulation():
     )
     if not target_surface.vertices or not target_surface.triangles:
         raise RuntimeError("canonical tunic DrapeTarget has no authoritative collision triangles")
-    from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
+    from freecad_cloth.avatar.AvatarFitting import ArrangementPoint, PiecePlacement
+    from freecad_cloth.avatar.FittingCommands import create_fitting_scene, snap_pieces_to_target
     def arrangement_world(name):
         raw = next((value for value in getattr(avatar, "ArrangementPoints", ()) if str(value).split("|", 1)[0] == name), None)
         if raw is None:
@@ -396,14 +397,46 @@ def simulation():
     def make_piece(name, side, neckline_ratio, neckline_drop):
         sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(side); piece.Sketch.Placement = piece.Placement; return piece, outline
     front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
-    # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
     for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
         seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
-    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.PinMode = "None"; scene.PinSelection = []; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
+
+    # The production fitting action owns target-aware placement and persistence.
+    fitting = create_fitting_scene()
+    fitting.AvatarProxy = scene.AvatarProxy
+    fitting.DrapeTarget = target
+    fitting.PatternPieces = [front, back]
+    home_values = [
+        PiecePlacement(
+            str(piece.PieceId),
+            (float(piece.Placement.Base.x), float(piece.Placement.Base.y), float(piece.Placement.Base.z)),
+            float(piece.Placement.Rotation.Angle),
+        ).to_string()
+        for piece in (front, back)
+    ]
+    fitting.HomePlacements = list(home_values)
+    fitting.PiecePlacements = list(home_values)
+    fitting.FitStatus = "Ready"
+    doc.recompute()
+    home_snapshot = tuple(fitting.HomePlacements)
+    snap_results = {}
+    for name, piece in (("front", front), ("back", back)):
+        result = snap_pieces_to_target([piece], target, clearance=clearance, max_translation=400.0)
+        snap_results[name] = result["pieces"][0]
+    if any(float(result["minimum_signed_clearance"]) + 1e-6 < clearance for result in snap_results.values()):
+        raise RuntimeError("target-aware tunic placement did not establish step-0 target-surface clearance: %s" % snap_results)
+    if tuple(fitting.HomePlacements) != home_snapshot:
+        raise RuntimeError("target-aware tunic placement mutated HomePlacements")
+    log("tunic-arrangement=target-aware step0-fit-clearance-mm=%.2f front-translation-mm=%.2f back-translation-mm=%.2f" % (
+        min(float(result["minimum_signed_clearance"]) for result in snap_results.values()),
+        float(snap_results["front"]["translation"]),
+        float(snap_results["back"]["translation"]),
+    ))
+
+    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.PinMode = "None"; scene.PinSelection = []; scene.ClothPieces = [front, back]; scene.DrapeTarget = target; refresh_drape_target(target); doc.recompute()
     status = target_status(target)
     if str(status.get("state", "")) != "ready":
         raise RuntimeError("canonical tunic DrapeTarget is not current: %s" % status.get("message", status))
