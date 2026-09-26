@@ -399,9 +399,7 @@ def simulation():
 
     # Route the arranged starting pose through the production target-snap authority.
     from freecad_cloth.avatar.AvatarFitting import PiecePlacement
-    from freecad_cloth.avatar.FittingCommands import (
-        create_fitting_scene, _world_target_surface, _piece_world_samples,
-    )
+    from freecad_cloth.avatar.FittingCommands import create_fitting_scene, _world_shape
     from freecad_cloth.avatar.TargetPlacement import minimum_signed_clearance
     fitting_scene = create_fitting_scene()
     fitting_scene.AvatarProxy = scene.AvatarProxy
@@ -434,9 +432,15 @@ def simulation():
 
     if tuple(fitting_scene.HomePlacements) != tuple(home_records):
         raise RuntimeError("target-aware tunic snap changed HomePlacements")
-    target_world = _world_target_surface(target)
+    target_world = target_surface
     placement_clearances = tuple(
-        minimum_signed_clearance(_piece_world_samples(piece), target_world).minimum_signed_clearance
+        minimum_signed_clearance(
+            tuple(
+                (float(vertex.Point.x), float(vertex.Point.y), float(vertex.Point.z))
+                for vertex in _world_shape(piece).Vertexes
+            ),
+            target_world,
+        ).minimum_signed_clearance
         for piece in (front, back)
     )
     if any(value + 1e-6 < snap_clearance for value in placement_clearances):
