@@ -331,6 +331,21 @@ def main():
         events()
         if not bool(scene.FiniteState):
             raise RuntimeError("blanket simulation became non-finite at first step")
+        step_points = tuple(tuple(float(value) for value in point) for point in scene.Proxy._base_or_restore().backend.positions())
+        if step_points:
+            step_bounds = tuple(
+                (min(point[axis] for point in step_points), max(point[axis] for point in step_points))
+                for axis in range(3)
+            )
+            log(
+                "blanket-step1-bounds x=(%.3f,%.3f) y=(%.3f,%.3f) z=(%.3f,%.3f) facets=%d"
+                % (
+                    step_bounds[0][0], step_bounds[0][1],
+                    step_bounds[1][0], step_bounds[1][1],
+                    step_bounds[2][0], step_bounds[2][1],
+                    int(panel.Mesh.CountFacets),
+                )
+            )
         save_png(view, OUT / "motion-000.png", "blanket motion step 0")
         log("blanket-first-step-timing step=1 recompute_ms=%.1f finite=%s state_steps=%d" % (
             first_step_ms, bool(scene.FiniteState), int(scene.Steps)
