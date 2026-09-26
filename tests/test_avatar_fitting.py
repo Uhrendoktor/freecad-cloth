@@ -36,7 +36,16 @@ class AvatarFittingTests(unittest.TestCase):
         anchor_measure = next(
             node for node in ast.walk(function)
             if isinstance(node, ast.Assign)
-            and any(isinstance(target, ast.Name) and target.id == "anchor_clearance" for target in node.targets)
+            and any(
+                (
+                    isinstance(target, ast.Name) and target.id == "anchor_clearance"
+                )
+                or (
+                    isinstance(target, ast.Tuple)
+                    and any(isinstance(item, ast.Name) and item.id == "anchor_clearance" for item in target.elts)
+                )
+                for target in node.targets
+            )
             and isinstance(node.value, ast.Call)
             and isinstance(node.value.func, ast.Name)
             and node.value.func.id == "anchor_clearance_detail"
