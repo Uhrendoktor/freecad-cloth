@@ -61,3 +61,23 @@ def test_stale_or_missing_targets_fail_closed():
         require_ready_target_status({"state": "missing", "message": "target missing"})
     with pytest.raises(TargetPlacementError):
         require_ready_target_status(None)
+
+
+
+def test_target_aware_placement_transaction_contract():
+    from pathlib import Path
+    source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    assert "original_placement = piece.Placement" in source
+    assert "piece_placements_before" in source
+    assert "home_placements_before" in source
+    assert "garment_anchors_before" in source
+    assert "piece.Placement = original_placement" in source
+    assert "scene.HomePlacements = list(home_placements_before)" in source
+    assert "scene.GarmentAnchors = list(garment_anchors_before)" in source
+
+
+def test_fitting_simulation_handoff_preserves_authoritative_target():
+    from pathlib import Path
+    source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    assert 'fitting_target = getattr(scene, "DrapeTarget", None)' in source
+    assert "simulation.DrapeTarget = fitting_target" in source
