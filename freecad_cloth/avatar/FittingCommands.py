@@ -462,12 +462,6 @@ def _target_aware_place_piece_impl(piece, target, anchors, clearance=8.0, max_tr
         float(piece.Placement.Rotation.Angle),
     )
     scene.PiecePlacements = [entries[k].to_string() for k in sorted(entries)]
-    home_entries = {
-        p.piece_id: p
-        for p in (PiecePlacement.from_string(v) for v in getattr(scene, "HomePlacements", ()) or ())
-    }
-    home_entries.setdefault(piece_id, original_piece_placement)
-    scene.HomePlacements = [home_entries[k].to_string() for k in sorted(home_entries)]
     anchor_map = {
         (a.piece_id, a.name): a
         for a in (GarmentAnchor.from_string(v) for v in getattr(scene, "GarmentAnchors", ()) or ())
@@ -514,8 +508,25 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
             max_translation=max_translation,
             max_rotation=max_rotation,
         )
-        if tuple(getattr(scene, "HomePlacements", ()) or ()) != home_placements_before:
-            raise RuntimeError("target-aware placement mutated HomePlacements")
+        from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+        home_entries = {
+            p.piece_id: p
+            for p in (PiecePlacement.from_string(v) for v in getattr(scene, "HomePlacements", ()) or ())
+        }
+        home_entries.setdefault(
+            str(piece.PieceId),
+            PiecePlacement(
+                str(piece.PieceId),
+                (
+                    float(original_placement.Base.x),
+                    float(original_placement.Base.y),
+                    float(original_placement.Base.z),
+                ),
+                float(original_placement.Rotation.Angle),
+            ),
+        )
+        scene.HomePlacements = [home_entries[k].to_string() for k in sorted(home_entries)]
+        doc.recompute()
         return result
     except BaseException:
         piece.Placement = original_placement
@@ -557,6 +568,7 @@ def _infer_piece_wrap_direction(piece, target, surface):
 
 def snap_selected_piece_to_drape_target():
     """Snap exactly one selected PatternPiece to its selected/current DrapeTarget."""
+    import FreeCAD as App
     import FreeCADGui as Gui
     doc = Gui.activeDocument().Document
     pieces = [o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"]
@@ -570,11 +582,25 @@ def snap_selected_piece_to_drape_target():
         raise ValueError("select a DrapeTarget or create a Cloth Avatar with an attached DrapeTarget")
     from freecad_cloth.avatar.AvatarFitting import GarmentAnchor
     from freecad_cloth.simulation.DrapeTarget import collision_surface
+    from freecad_cloth.avatar.TargetAwarePlacement import transform_surface
     surface = collision_surface(
         target.SourceObject,
         float(getattr(target, "CollisionDeflection", 1.0)),
         float(getattr(target, "CollisionThickness", 0.0)),
     )
+    source_placement = getattr(target.SourceObject, "Placement", None)
+    if source_placement is not None:
+        surface = transform_surface(
+            surface,
+            lambda point: tuple(
+                float(value)
+                for value in (
+                    source_placement.multVec(App.Vector(*point)).x,
+                    source_placement.multVec(App.Vector(*point)).y,
+                    source_placement.multVec(App.Vector(*point)).z,
+                )
+            ),
+        )
     direction = _infer_piece_wrap_direction(pieces[0], target, surface)
     width = float(getattr(pieces[0], "Width", 0.0))
     height = float(getattr(pieces[0], "Height", 0.0))
