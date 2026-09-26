@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Snap pattern piece to drape target">
+  <path fill="currentColor" d="M11 8h17v7h-10v34h10v7H11V8Zm42 0v48H36v-7h10V15H36V8h17ZM24 29h16v6H24v-6Z"/>
+  <path fill="currentColor" d="m4 27 7-7 7 7-4 4-3-3v9H4v-10Zm56 10h-7v-9l-3 3-4-4 7-7 7 7-4 4-3-3v9h7v10Z"/>
+</svg>
