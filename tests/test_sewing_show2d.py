@@ -5,7 +5,7 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.sewing.SewingCommands import show_sewing_2d
-from freecad_cloth.sewing.SewingView import apply_seam_colors, pattern_pieces_for_2d, seam_color_map, seam_visual_markers
+from freecad_cloth.sewing.SewingView import apply_seam_colors, pattern_pieces_for_2d, refresh_seam_colors, seam_color_map, seam_visual_markers
 
 
 def test_2d_focus_includes_only_authoritative_pattern_pieces_in_document_order():
@@ -34,6 +34,31 @@ def test_seam_colors_are_distinct_and_stable_by_seam_id():
     reverse = seam_color_map(reversed(seam_ids))
     assert forward == reverse
     assert len(set(forward.values())) == len(seam_ids)
+    assert forward["seam-1"] == seam_color_map(["seam-1"])["seam-1"]
+    assert forward["seam-3"] == seam_color_map(["seam-0", "seam-1", "seam-2", "seam-3"])["seam-3"]
+
+
+def test_refresh_seam_colors_uses_document_objects():
+    seam = SimpleNamespace(SeamId="seam-x", ViewObject=SimpleNamespace(LineColor=None))
+    operation = SimpleNamespace(SeamId="seam-y", ViewObject=SimpleNamespace(LineColor=None))
+    document = SimpleNamespace(Objects=[seam, operation])
+    colors = refresh_seam_colors(document)
+    assert seam.ViewObject.LineColor == colors["seam-x"]
+    assert operation.ViewObject.LineColor == colors["seam-y"]
+
+
+def test_show_sewing_2d_executes_the_refresh_lifecycle(monkeypatch):
+    seam = SimpleNamespace(SeamId="seam-2d", ViewObject=SimpleNamespace(LineColor=None))
+    document = SimpleNamespace(Objects=[seam])
+    view = SimpleNamespace(viewTop=lambda: None, fitAll=lambda: None)
+    active = SimpleNamespace(Document=document, activeView=lambda: view)
+    fake_gui = SimpleNamespace(
+        activeDocument=lambda: active,
+        Selection=SimpleNamespace(clearSelection=lambda: None),
+    )
+    monkeypatch.setitem(sys.modules, "FreeCADGui", fake_gui)
+    show_sewing_2d()
+    assert seam.ViewObject.LineColor == seam_color_map(["seam-2d"])["seam-2d"]
 
 
 def test_seam_color_surface_contract_carries_identity_to_sewing_operations():
@@ -41,6 +66,7 @@ def test_seam_color_surface_contract_carries_identity_to_sewing_operations():
     assert '"SeamId", "Sewing"' in source
     assert 'obj.SeamId = str(getattr(seam, "SeamId", "") or "")' in source
     assert "apply_seam_colors(doc.Objects)" in source
+    assert "refresh_seam_colors(obj.Document)" in source
 
 
 def test_apply_seam_colors_marks_each_seam_pair():
@@ -135,21 +161,3 @@ if __name__ == "__main__":
     test_apply_seam_colors_marks_each_seam_pair()
     test_show_2d_does_not_select_seams_over_their_colors()
     print("sewing Show 2D tests passed")
-
-
-
-def test_seam_color_map_is_stable_under_subset_and_reorder():
-    from freecad_cloth.sewing.SewingView import seam_color_map
-    full = seam_color_map(["seam-a", "seam-b", "seam-c"])
-    subset = seam_color_map(["seam-b", "seam-c"])
-    reordered = seam_color_map(["seam-c", "seam-b"])
-    assert subset["seam-b"] == full["seam-b"]
-    assert subset["seam-c"] == full["seam-c"]
-    assert reordered == subset
-
-
-def test_seam_color_map_distinguishes_multiple_semantic_seams():
-    from freecad_cloth.sewing.SewingView import seam_color_map
-    values = seam_color_map(["TunicLeftShoulder", "TunicRightShoulder", "TunicSide"])
-    assert len(values) == 3
-    assert len(set(values.values())) == 3
