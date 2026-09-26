@@ -198,23 +198,29 @@ class AvatarFittingTests(unittest.TestCase):
         except ModuleNotFoundError:
             self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
         from unittest.mock import patch
-
+        import Part
+        import freecad_cloth.avatar.FittingCommands as fitting_commands
         from freecad_cloth.avatar.FittingCommands import (
             create_fitting_scene,
             create_simulation_from_fitting,
             snap_piece_to_drape_target,
         )
+        from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+        from freecad_cloth.simulation.DrapeTarget import create_drape_target, target_status
+
+        class ZeroDistanceShape:
+            def distToShape(self, _other):
+                return 0.0, (
+                    App.Vector(0.0, 0.0, 0.0),
+                    App.Vector(1.0, 0.0, 0.0),
+                ), ()
 
         doc = App.newDocument("FittingTargetSnap")
         try:
             scene = create_fitting_scene()
             source = doc.addObject("Part::Feature", "TargetSource")
-            import Part
             source.Shape = Part.makeBox(40.0, 40.0, 40.0, App.Vector(-20.0, -20.0, -20.0))
-
-            target = doc.addObject("App::FeaturePython", "DrapeTarget")
-            target.addProperty("App::PropertyLink", "SourceObject", "Draping")
-            target.SourceObject = source
+            target = create_drape_target(doc, source, "FreeCAD Geometry")
             scene.DrapeTarget = target
 
             piece = doc.addObject("Part::FeaturePython", "PatternPiece")
@@ -225,10 +231,12 @@ class AvatarFittingTests(unittest.TestCase):
             sketch.Shape = Part.makeBox(60.0, 8.0, 8.0, App.Vector(-30.0, -4.0, -4.0))
             piece.Sketch = sketch
             piece.Shape = sketch.Shape.copy()
-            piece.Placement = App.Placement(App.Vector(-22.0, -4.0, -4.0), App.Rotation(App.Vector(1, 1, 1), 17.0))
+            piece.Placement = App.Placement(
+                App.Vector(-22.0, -4.0, -4.0),
+                App.Rotation(App.Vector(1, 1, 1), 17.0),
+            )
             sketch.Placement = piece.Placement
             scene.PatternPieces = [piece]
-            from freecad_cloth.avatar.AvatarFitting import PiecePlacement
             base = piece.Placement.Base
             rot = piece.Placement.Rotation
             axis = rot.Axis
@@ -243,18 +251,25 @@ class AvatarFittingTests(unittest.TestCase):
             scene.HomePlacements = [placement.to_string()]
             scene.FitStatus = "Ready"
             doc.recompute()
-
-            from freecad_cloth.simulation.DrapeTarget import assign_drape_target
-            assign_drape_target(target, source, "FreeCAD Geometry")
             self.assertEqual(target_status(target)["state"], "ready")
 
             before_piece = piece.Placement
             before_sketch = sketch.Placement
             before_records = list(scene.PiecePlacements)
             before_status = scene.FitStatus
+            target_shape = fitting_commands._world_shape(source)
+            piece_shape = fitting_commands._world_shape(piece)
 
-            with self.assertRaises(RuntimeError):
-                snap_piece_to_drape_target(piece, target, clearance=8.0, max_translation=1.0)
+            with patch.object(
+                fitting_commands,
+                "_world_shape",
+                side_effect=[target_shape, piece_shape, ZeroDistanceShape()],
+            ):
+                with self.assertRaises(RuntimeError):
+                    snap_piece_to_drape_target(
+                        piece, target, clearance=8.0, max_translation=120.0, max_iterations=1
+                    )
+
             self.assertEqual(piece.Placement, before_piece)
             self.assertEqual(sketch.Placement, before_sketch)
             self.assertEqual(list(scene.PiecePlacements), before_records)
