@@ -34,6 +34,9 @@ def patch_headless_core() -> None:
         "",
         "headless core AlembicExporter source",
     )
+    core = core_path.read_text(encoding="utf-8")
+    core = core.replace("target_include_directories(TissuCore PUBLIC \n", "target_include_directories(TissuCore PUBLIC\n")
+    core_path.write_text(core, encoding="utf-8")
     replace_once(
         core_path,
         """if(NOT TARGET Alembic::Alembic)
