@@ -58,7 +58,7 @@ def _parse_int_list(values, particle_count=None):
 
 def _resolve_pin_indices(obj, particle_count, automatic_pins=()):
     """Resolve persistent pinning policy while retaining legacy default behavior."""
-    mode = str(getattr(obj, "PinMode", "Automatic")).strip() or "Automatic"
+    mode = str(getattr(obj, "PinMode", "Explicit")).strip() or "Explicit"
     if mode not in {"Automatic", "Explicit", "None"}:
         raise ValueError("unsupported PinMode: %s" % mode)
     explicit = _parse_int_list(getattr(obj, "PinSelection", ()), particle_count)
@@ -653,6 +653,8 @@ def create_simulation_scene(doc):
     scene.addProperty("App::PropertyLinkListGlobal", "DrapePanels", "Output")
     scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Selection")
     scene.addProperty("App::PropertyLinkGlobal", "AvatarProxy", "Compatibility")
+    scene.addProperty("App::PropertyEnumeration", "PinMode", "Selection").PinMode = ["None", "Explicit", "Automatic"]
+    scene.PinMode = "Explicit"
     scene.addProperty("App::PropertyStringList", "PinSelection", "Selection").PinSelection = []
     scene.addProperty("App::PropertyStringList", "SeamSelection", "Selection").SeamSelection = []
     scene.addProperty("App::PropertyFloat", "SimulatedTime", "State").SimulatedTime = 0.0
