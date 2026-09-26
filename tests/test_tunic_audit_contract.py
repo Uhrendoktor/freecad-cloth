@@ -107,3 +107,9 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
     assert 'tunic-simulation-start' in source
+
+def test_tunic_success_path_uses_freecad_native_shutdown():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    success_block = source.split("if exit_code == 0:", 1)[1].split("window = Gui.getMainWindow()", 1)[0]
+    assert "App.exit()" in success_block
+    assert "os._exit" not in success_block
