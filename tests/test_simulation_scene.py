@@ -62,15 +62,21 @@ def test_stale_drape_target_recompute_guard_is_safe():
     assert "source, placement" in scene.InvalidationReason
 
 
-def test_pin_selection_is_part_of_rebuild_signature():
+def test_pin_policy_is_part_of_rebuild_signature_and_backward_compatible():
     from types import SimpleNamespace
-    from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
+    from freecad_cloth.simulation.SimulationObjects import _resolve_pin_indices, _simulation_source_signature
 
     source = SimpleNamespace(Name="Body", Shape=SimpleNamespace(isNull=lambda: False, hashCode=lambda: 123), Placement=SimpleNamespace(Base=SimpleNamespace(x=0.0, y=0.0, z=0.0), Rotation=SimpleNamespace(Angle=0.0, Axis=SimpleNamespace(x=0.0, y=0.0, z=1.0))))
     target = SimpleNamespace(SourceObject=source, CollisionDeflection=1.0, CollisionThickness=0.0)
-    scene_a = SimpleNamespace(DrapeTarget=target, PinSelection=["1", "2"], StitchSamples=8, Document=SimpleNamespace(Objects=[]))
-    scene_b = SimpleNamespace(DrapeTarget=target, PinSelection=["3", "4"], StitchSamples=8, Document=SimpleNamespace(Objects=[]))
-    assert _simulation_source_signature(scene_a, []) != _simulation_source_signature(scene_b, [])
+    automatic = SimpleNamespace(PinMode="Automatic", PinSelection=[], DrapeTarget=target, StitchSamples=8, Document=SimpleNamespace(Objects=[]))
+    explicit = SimpleNamespace(PinMode="Explicit", PinSelection=["1", "2"], DrapeTarget=target, StitchSamples=8, Document=SimpleNamespace(Objects=[]))
+    disabled = SimpleNamespace(PinMode="None", PinSelection=["1", "2"], DrapeTarget=target, StitchSamples=8, Document=SimpleNamespace(Objects=[]))
+    legacy = SimpleNamespace(PinSelection=["1", "2"], DrapeTarget=target, StitchSamples=8, Document=SimpleNamespace(Objects=[]))
+    assert _resolve_pin_indices(automatic, 10, (0, 9)) == (0, 9)
+    assert _resolve_pin_indices(explicit, 10, (0, 9)) == (1, 2)
+    assert _resolve_pin_indices(disabled, 10, (0, 9)) == ()
+    assert _resolve_pin_indices(legacy, 10, (0, 9)) == (1, 2)
+    assert _simulation_source_signature(automatic, []) != _simulation_source_signature(disabled, [])
 
 
 
