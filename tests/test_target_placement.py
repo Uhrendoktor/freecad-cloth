@@ -94,3 +94,24 @@ def test_target_link_is_part_of_transactional_rollback_contract():
     body = source[start:end]
     assert "target_before = getattr(scene, \"DrapeTarget\", None)" in body
     assert "scene.DrapeTarget = target_before" in body
+
+
+def test_group_fit_rejects_positive_clearance_without_target_proximity():
+    from pathlib import Path
+
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "freecad_cloth"
+        / "avatar"
+        / "FittingCommands.py"
+    ).read_text(encoding="utf-8")
+    start = source.index("def snap_pattern_pieces_to_target(")
+    end = source.index("
+def position_piece", start)
+    body = source[start:end]
+    assert "nearest_target_projection" in body
+    assert "proximity_error" in body
+    assert "previous_proximity_error" in body
+    assert "did not reduce target proximity error" in body
+    assert "stopped %.3f mm from target alignment" in body
+    assert "Clearance is proven against the exact PatternMesh" in body or "exact PatternMesh" in body
