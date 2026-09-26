@@ -83,7 +83,7 @@ def mesh_snapshot(panel):
     return points, faces
 
 
-def render_motion(view, scene, out_dir, checkpoint_steps=(15, 30, 60, 120), frame_count=16, final_steps=120):
+def render_motion(view, scene, out_dir, checkpoint_steps=(15, 30, 60, 120), frame_count=16, start_step=1, final_steps=120):
     import time
 
     motion_steps = tuple(
@@ -93,9 +93,11 @@ def render_motion(view, scene, out_dir, checkpoint_steps=(15, 30, 60, 120), fram
     checkpoint_steps = tuple(int(step) for step in checkpoint_steps)
     checkpoint_names = {step: "checkpoint-%03d.png" % step for step in checkpoint_steps}
     motion_indices = {step: index for index, step in enumerate(motion_steps)}
-    targets = tuple(sorted(set(motion_steps).union(checkpoint_steps)))
-    if targets[0] != 0 or targets[-1] != final_steps:
-        raise RuntimeError("blanket render schedule must span 0..%d" % final_steps)
+    targets = tuple(sorted(set(step for step in motion_steps if step >= int(start_step)).union(
+        step for step in checkpoint_steps if step >= int(start_step)
+    )))
+    if targets[0] != int(start_step) or targets[-1] != final_steps:
+        raise RuntimeError("blanket render schedule must span %d..%d" % (start_step, final_steps))
 
     view.setCameraType("Orthographic")
     view.viewAxonometric()
@@ -104,6 +106,11 @@ def render_motion(view, scene, out_dir, checkpoint_steps=(15, 30, 60, 120), fram
 
     phase_started = time.perf_counter()
     previous_step = int(scene.Steps)
+    if previous_step != int(start_step):
+        raise RuntimeError(
+            "blanket render expected prewarmed step %d, got %d"
+            % (start_step, previous_step)
+        )
     solver_steps = 0
     recomputes = 0
     max_recompute_ms = 0.0
@@ -149,7 +156,7 @@ def render_motion(view, scene, out_dir, checkpoint_steps=(15, 30, 60, 120), fram
         previous_step = target_step
 
     elapsed_ms = 1000.0 * (time.perf_counter() - phase_started)
-    expected_solver_steps = final_steps - targets[0]
+    expected_solver_steps = final_steps - int(start_step)
     if solver_steps != expected_solver_steps:
         raise RuntimeError(
             "blanket simulation step budget mismatch: expected=%d actual=%d"
@@ -161,9 +168,17 @@ def render_motion(view, scene, out_dir, checkpoint_steps=(15, 30, 60, 120), fram
             % (len(targets), recomputes)
         )
     log(
-        "blanket-simulation-timing solver_steps=%d recomputes=%d elapsed_ms=%.1f "
-        "max_recompute_ms=%.1f final_steps=%d"
-        % (solver_steps, recomputes, elapsed_ms, max_recompute_ms, final_steps)
+        "blanket-simulation-timing prewarm_steps=%d solver_steps=%d total_solver_steps=%d "
+        "recomputes=%d elapsed_ms=%.1f max_recompute_ms=%.1f final_steps=%d"
+        % (
+            int(start_step),
+            solver_steps,
+            int(start_step) + solver_steps,
+            recomputes,
+            elapsed_ms,
+            max_recompute_ms,
+            final_steps,
+        )
     )
     log("motion-frames=passed count=%d final_steps=%d" % (len(motion_steps), final_steps))
 
@@ -295,8 +310,22 @@ def main():
         save_png(view, OUT / "checkpoint-000.png", "blanket initial state")
 
         initial_points = tuple(tuple(float(value) for value in point) for point in scene.Proxy._base_or_restore().backend.positions())
-        log("blanket-solver-config particle_distance=%.1f iterations=%d particles=%d" % (float(scene.ParticleDistance), int(scene.SolverIterations), int(scene.ParticleCount)))
-        render_motion(view, scene, OUT, frame_count=16, final_steps=120)
+        log("blanket-solver-config particle_distance=%.1f iterations=%d particles=%d backend=%s" % (
+            float(scene.ParticleDistance), int(scene.SolverIterations), int(scene.ParticleCount),
+            getattr(scene.Proxy._base_or_restore().backend, "name", "unknown"),
+        ))
+
+        first_step_started = time.perf_counter()
+        scene.Steps = 1
+        doc.recompute()
+        first_step_ms = 1000.0 * (time.perf_counter() - first_step_started)
+        events()
+        if not bool(scene.FiniteState):
+            raise RuntimeError("blanket simulation became non-finite at first step")
+        save_png(view, OUT / "motion-000.png", "blanket motion step 0")
+        log("blanket-first-step-timing step=1 recompute_ms=%.1f" % first_step_ms)
+
+        render_motion(view, scene, OUT, frame_count=16, start_step=1, final_steps=120)
 
         final_points = tuple(tuple(float(value) for value in point) for point in scene.Proxy._base_or_restore().backend.positions())
         if not initial_points or not final_points:
