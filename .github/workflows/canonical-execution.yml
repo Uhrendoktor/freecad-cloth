@@ -189,12 +189,7 @@ jobs:
           done
 
           echo "runner-watchdog=fallback reason=local-sentinel-not-started"
-          ref="$GITHUB_REF"
-          if [[ "$ref" != refs/* ]]; then
-            ref="$GITHUB_REF_NAME"
-          else
-            ref="${ref#refs/}"
-          fi
+          ref="$GITHUB_REF_NAME"
           gh workflow run canonical-execution.yml \
             --repo "$REPO" \
             --ref "$ref" \
@@ -1056,7 +1051,7 @@ jobs:
   publish-readme-turntables:
     name: Publish README turntables and example motion
     needs: [local_runner_readiness, gui-tunic-visual, gui-turntables, gui-visual-examples]
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '') }}
     permissions:
       contents: write
       packages: read
