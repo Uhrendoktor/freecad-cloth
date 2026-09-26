@@ -26,3 +26,5 @@ def test_pytissu_source_transform_contract_is_pinned_and_reproducible():
     assert "No timeout increases" in docs
     assert "bash -n tools/build_pytissu_runtime.sh" in workflow
     assert "cmake version 3.31.6" in script
+    assert script.count("CONTAINER_SCRIPT") == 2
+    assert script.count("docker run --rm --security-opt") == 1
