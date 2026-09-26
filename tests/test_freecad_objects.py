@@ -115,8 +115,7 @@ def test_avatar_collision_source_supports_fitting_and_simulation_scopes():
         assert proxy is fitting.AvatarProxy
         assert proxy.Name == "AvatarCollision"
         assert proxy.SourceObject == body
-        assert "DrapeTarget" not in set(getattr(fitting, "PropertiesList", ()) or ())
-
+        assert "DrapeTarget" in set(getattr(fitting, "PropertiesList", ()) or ())
         target = document.getObject("DrapeTarget")
         assert target is not None
         assert target.SourceObject == body
@@ -127,11 +126,82 @@ def test_avatar_collision_source_supports_fitting_and_simulation_scopes():
         assert proxy2 is proxy
         assert simulation.DrapeTarget == target
         assert proxy2.SourceObject == body
+        assert target is document.getObject("DrapeTarget")
+        assert fitting.DrapeTarget == target
         assert float(target.CollisionThickness) == 3.0
         assert float(target.CollisionDeflection) == 0.5
     finally:
         if document.Name in App.listDocuments():
             App.closeDocument(document.Name)
+
+
+def test_target_aware_snap_rolls_back_piece_sketch_and_fit_ledger_after_post_transform_failure():
+    if App is None or Part is None:
+        return
+    document = App.newDocument("TargetAwareRollback")
+    try:
+        from freecad_cloth.avatar.FittingCommands import create_fitting_scene, snap_pattern_pieces_to_target
+        from freecad_cloth.simulation.DrapeTarget import create_drape_target
+        body = document.addObject("Part::Feature", "TargetBody")
+        body.Shape = Part.makeBox(40, 40, 100, App.Vector(-20, -20, 0))
+        target = create_drape_target(document, body, "FreeCAD Geometry", 1.0, 0.0)
+        piece = document.addObject("Part::Feature", "TargetPiece")
+        piece.Shape = Part.makeBox(20, 20, 20, App.Vector(60, -10, 20))
+        piece.addProperty("App::PropertyString", "PatternType", "Pattern").PatternType = "PatternPiece"
+        piece.addProperty("App::PropertyString", "PieceId", "Pattern").PieceId = "target-piece"
+        sketch = document.addObject("Part::Feature", "TargetSketch")
+        sketch.Shape = Part.makeBox(20, 20, 0.1, App.Vector(60, -10, 20))
+        piece.addProperty("App::PropertyLink", "Sketch", "Pattern").Sketch = sketch
+        fitting = create_fitting_scene()
+        fitting.DrapeTarget = target
+        fitting.PatternPieces = [piece]
+        fitting.HomePlacements = ["target-piece|60,-10,20|0"]
+        fitting.PiecePlacements = list(fitting.HomePlacements)
+        fitting.FitStatus = "Before snap"
+        document.recompute()
+
+        from freecad_cloth.avatar import TargetPlacement
+        original_clearance = TargetPlacement.minimum_signed_clearance
+        TargetPlacement.minimum_signed_clearance = lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("forced post-transform failure"))
+        try:
+            try:
+                snap_pattern_pieces_to_target((piece,), target=target, clearance=5.0, max_translation=200.0)
+            except RuntimeError as exc:
+                assert "forced post-transform failure" in str(exc)
+            else:
+                raise AssertionError("forced target-aware post-transform failure did not occur")
+        finally:
+            TargetPlacement.minimum_signed_clearance = original_clearance
+
+        assert (piece.Placement.Base.x, piece.Placement.Base.y, piece.Placement.Base.z) == (60.0, -10.0, 20.0)
+        assert (sketch.Placement.Base.x, sketch.Placement.Base.y, sketch.Placement.Base.z) == (60.0, -10.0, 20.0)
+        assert tuple(fitting.PiecePlacements) == tuple(fitting.HomePlacements)
+        assert str(fitting.FitStatus) == "Before snap"
+    finally:
+        if document.Name in App.listDocuments():
+            App.closeDocument(document.Name)
+
+
+def test_world_target_surface_respects_non_identity_source_placement():
+    if App is None or Part is None:
+        return
+    document = App.newDocument("TargetWorldSpace")
+    try:
+        from freecad_cloth.avatar.FittingCommands import create_fitting_scene, _world_target_surface
+        from freecad_cloth.simulation.DrapeTarget import create_drape_target
+        body = document.addObject("Part::Feature", "MovedTarget")
+        body.Shape = Part.makeBox(10, 10, 10)
+        body.Placement.Base = App.Vector(125, 0, 0)
+        target = create_drape_target(document, body, "FreeCAD Geometry", 1.0, 0.0)
+        create_fitting_scene().DrapeTarget = target
+        document.recompute()
+        surface = _world_target_surface(target)
+        assert min(point[0] for point in surface.vertices) == 125.0
+        assert max(point[0] for point in surface.vertices) == 135.0
+    finally:
+        if document.Name in App.listDocuments():
+            App.closeDocument(document.Name)
+
 
 def test_native_seam_reference_save_reload_curve_edit_and_missing():
     if App is None or Part is None:
