@@ -118,7 +118,16 @@ class SimulationQualityTaskPanel:
                 target_ready = target_info["state"] == "ready" and bool(self.scene)
             except Exception:
                 target_ready = False
-        self.snap_to_target_button.setEnabled(target_ready)
+        commands = self.Gui.listCommands()
+        self.snap_to_target_button.setEnabled(target_ready and "ClothFitting_SnapPiecesToTarget" in commands)
+        if target_ready and "ClothFitting_SnapPiecesToTarget" not in commands:
+            self.snap_to_target_button.setToolTip(
+                "Target is ready, but the public Snap Pieces to Target command is not registered on this FreeCAD session."
+            )
+        else:
+            self.snap_to_target_button.setToolTip(
+                "Apply the public target-aware placement to the fitting pieces while preserving the persistent DrapeTarget."
+            )
 
     def open_arrange_fit(self):
         if self.scene is None:
@@ -135,13 +144,24 @@ class SimulationQualityTaskPanel:
             self.status.setText("Create or select a Cloth Simulation object before snapping pieces to target.")
             return
         try:
+            from freecad_cloth.simulation.DrapeTarget import target_status
+            target_info = target_status(getattr(self.scene, "DrapeTarget", None))
+            if target_info["state"] != "ready":
+                self.status.setText("Target-aware arrangement blocked — %s" % target_info["message"])
+                self._refresh()
+                return
+            commands = self.Gui.listCommands()
+            if "ClothFitting_SnapPiecesToTarget" not in commands:
+                self.status.setText("Target-aware arrangement unavailable — public Snap Pieces to Target command is not registered.")
+                self._refresh()
+                return
             from freecad_cloth.simulation.FittingHandoff import open_arrange_fit_from_simulation
-            from freecad_cloth.avatar.FittingCommands import snap_pattern_pieces_to_target
-            fitting = open_arrange_fit_from_simulation(self.scene)
-            snap_pattern_pieces_to_target(tuple(getattr(fitting, "PatternPieces", ()) or ()))
+            open_arrange_fit_from_simulation(self.scene)
+            self.Gui.runCommand("ClothFitting_SnapPiecesToTarget", 0)
             self._refresh("Garment pieces arranged on the persistent DrapeTarget.")
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             self.status.setText("Target-aware arrangement unavailable — %s" % exc)
+            self._refresh()
 
     def reset_arrangement(self):\n        try:
             from freecad_cloth.simulation.FittingHandoff import reset_arrangement_from_simulation
