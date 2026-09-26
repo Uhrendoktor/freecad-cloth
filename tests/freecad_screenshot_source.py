@@ -309,6 +309,7 @@ def pattern_and_sewing():
     from freecad_cloth.pattern.PatternGui import PatternPieceTaskPanel
     from freecad_cloth.sewing.SewingCommands import create_sewing_operation
     from freecad_cloth.sewing.SewingGui import SewingTaskPanel
+    from freecad_cloth.sewing.SewingView import seam_color_map
     import Part
     doc = App.newDocument("ClothVisualPattern")
     front_sketch, _front_outline = _make_tunic_sketch(doc, "VisualFront", 520.0, 720.0, 600.0, 0.64, 0.10)
@@ -321,12 +322,53 @@ def pattern_and_sewing():
         raise RuntimeError("pattern fixture produced empty geometry from native sketches")
     activate("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D", "ClothPattern_CreateFromSketch"])
     panel = PatternPieceTaskPanel(front); show_task(panel, "Pattern Workbench", ("Piece name", "Width", "Height", "Seam allowance", "Grainline angle")); Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll(); events(); save("cloth-pattern-design.png", "Pattern Workbench", "native Sketcher tunic pattern adopted into Cloth PatternPiece"); close_task()
-    seam = add_seam(doc, Seam(str(front.PieceId), 7, str(back.PieceId), 7, id="FrontBack", alignment="endpoints", stitch_group="MainSeam")); doc.recompute()
-    sewing = create_sewing_operation(); doc.recompute()
-    if str(seam.Status) != "Valid" or seam.Shape.isNull() or str(sewing.Status) != "Valid" or sewing.Shape.isNull():
-        raise RuntimeError("sewing fixture is invalid")
+
+    seam_records = []
+    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
+        seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")
+        add_seam(doc, seam)
+        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
+        seam_records.append((seam_obj, front, back))
+    doc.recompute()
+    seam_objects = tuple(record[0] for record in seam_records)
+    expected_colors = seam_color_map(str(obj.SeamId) for obj in seam_objects)
+    if len(expected_colors) != len(seam_objects) or len(set(expected_colors.values())) != len(seam_objects):
+        raise RuntimeError("Pattern/Sewing semantic seam colors are not unique")
+    for obj in seam_objects:
+        obj.ViewObject.LineColor = (0.0, 0.0, 0.0)
     activate("ClothSewingWorkbench", "Cloth Sewing", ["ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_Validate"])
-    panel = SewingTaskPanel(sewing); show_task(panel, "Sewing Workbench", ("Seam", "Alignment", "Validation tolerance", "Stitch samples", "Status")); Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll(); events(); save("cloth-sewing.png", "Sewing Workbench", "native tunic Sketcher boundary and semantic seam"); close_task(); App.closeDocument(doc.Name)
+    for obj in seam_objects:
+        obj.ViewObject.LineColor = (0.0, 0.0, 0.0)
+    activate("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D", "ClothPattern_CreateFromSketch"])
+    if any(
+        not bool(getattr(obj.ViewObject, "Visibility", False))
+        or tuple(obj.ViewObject.LineColor[:3]) != tuple(expected_colors[str(obj.SeamId)])
+        for obj in seam_objects
+    ):
+        raise RuntimeError("Pattern workbench did not restore simultaneous semantic seam colors")
+    from freecad_cloth.pattern.PatternGui import show_pattern_view
+    show_pattern_view(); events()
+    if any(
+        not bool(getattr(obj.ViewObject, "Visibility", False))
+        or tuple(obj.ViewObject.LineColor[:3]) != tuple(expected_colors[str(obj.SeamId)])
+        for obj in seam_objects
+    ):
+        raise RuntimeError("Pattern 2D view did not retain semantic seam colors")
+    save("cloth-pattern-design.png", "Pattern Workbench", "native Sketcher tunic pattern with simultaneously visible semantic seams")
+
+    sewing = create_sewing_operation(); doc.recompute()
+    if str(sewing.Status) != "Valid" or sewing.Shape.isNull():
+        raise RuntimeError("sewing operation fixture is invalid")
+    activate("ClothSewingWorkbench", "Cloth Sewing", ["ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_Validate"])
+    if any(
+        not bool(getattr(obj.ViewObject, "Visibility", False))
+        or tuple(obj.ViewObject.LineColor[:3]) != tuple(expected_colors[str(obj.SeamId)])
+        for obj in seam_objects
+    ):
+        raise RuntimeError("Sewing workbench did not retain simultaneous semantic seam colors")
+    panel = SewingTaskPanel(sewing); show_task(panel, "Sewing Workbench", ("Seam", "Alignment", "Validation tolerance", "Stitch samples", "Status")); Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll(); events(); save("cloth-sewing.png", "Sewing Workbench", "native tunic Sketcher boundary with simultaneously visible semantic seams"); close_task()
+    log("seam-colors=passed count=%d unique=true" % len(seam_objects))
+    App.closeDocument(doc.Name)
 
 
 def style_mesh(obj, label):
@@ -423,6 +465,27 @@ def simulation():
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; scene.PinMode = "None"; scene.PinSelection = []
     doc.recompute()
     proxy = scene.Proxy._base_or_restore()
+    seam_visuals = {
+        str(getattr(obj, "SimulationSeamId", "")).strip(): obj
+        for obj in doc.Objects
+        if str(getattr(obj, "SimulationSeamId", "")).strip()
+    }
+    for seam_obj, _a, _b in seam_records:
+        seam_id = str(seam_obj.SeamId)
+        visual = seam_visuals.get(seam_id)
+        if visual is None:
+            raise RuntimeError("Simulation seam %s has no native semantic overlay" % seam_id)
+        if not bool(getattr(visual.ViewObject, "Visibility", False)):
+            raise RuntimeError("Simulation seam %s overlay is not visible" % seam_id)
+        if tuple(visual.ViewObject.LineColor[:3]) != tuple(expected_colors[seam_id]):
+            raise RuntimeError("Simulation seam %s overlay has the wrong semantic color" % seam_id)
+    if len({
+        tuple(obj.ViewObject.LineColor[:3])
+        for obj in seam_visuals.values()
+        if bool(getattr(obj.ViewObject, "Visibility", False))
+    }) < len(seam_records):
+        raise RuntimeError("Simulation seam overlays are not uniquely colored")
+
     solver_system = getattr(getattr(proxy, "backend", None), "system", None)
     active_pins = tuple(getattr(solver_system, "pins", ()) or ())
     if active_pins:
@@ -441,6 +504,12 @@ def simulation():
     if int(getattr(avatar, "MeshVertexCount", 0)) <= 100 or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100:
         raise RuntimeError("visual fixture does not contain a real humanoid mesh")
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
+    from freecad_cloth.sewing.SewingView import refresh_seam_colors, seam_color_map
+    refresh_seam_colors(doc)
+    expected_colors = seam_color_map(str(obj.SeamId) for obj, _a, _b in seam_records)
+    if len(expected_colors) != len(seam_records) or len(set(expected_colors.values())) != len(seam_records):
+        raise RuntimeError("Simulation semantic seam colors are not unique")
+
     simulation_panel = SimulationQualityTaskPanel(scene); task_dock = show_task(simulation_panel, "Simulation Workbench arranged", ("Target", "Placement", "Snap assigned pieces to target", "Pinning mode", "Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset")); view = Gui.activeDocument().activeView(); view.setCameraType("Orthographic"); view.viewFront(); view.fitAll(); events(); task_dock.hide(); events(); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical sewn tunic generated from native Sketcher pattern sources on production mannequin"); task_dock.show(); task_dock.raise_(); events()
     for batch in (15,15,15,15,15,15):
         simulation_panel.step(batch); doc.recompute(); events()
