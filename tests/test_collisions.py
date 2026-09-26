@@ -25,6 +25,109 @@ def test_collision_and_structural_constraints_can_coexist():
     assert sqrt(x * x + y * y + z * z) >= 4.9
 
 
+def _cube_surface(thickness=2.0):
+    from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
+
+    vertices = (
+        (0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (10.0, 10.0, 0.0), (0.0, 10.0, 0.0),
+        (0.0, 0.0, 10.0), (10.0, 0.0, 10.0), (10.0, 10.0, 10.0), (0.0, 10.0, 10.0),
+    )
+    triangles = (
+        (0, 2, 1), (0, 3, 2), (4, 5, 6), (4, 6, 7),
+        (0, 1, 5), (0, 5, 4), (1, 2, 6), (1, 6, 5),
+        (2, 3, 7), (2, 7, 6), (3, 0, 4), (3, 4, 7),
+    )
+    return surface_from_triangles(vertices, triangles, region="cube", thickness=thickness)
+
+
+def test_authored_containment_closed_mesh_orientation_and_correction():
+    from freecad_cloth.simulation.TissuContainment import AuthoredSurfaceContainment
+
+    containment = AuthoredSurfaceContainment(_cube_surface(thickness=2.0))
+    assert containment.contains((5.0, 5.0, 5.0))
+    assert not containment.contains((15.0, 5.0, 5.0))
+
+    first = containment.nearest_surface_point((9.0, 5.0, 5.0))
+    second = containment.nearest_surface_point((9.0, 5.0, 5.0))
+    assert first == second
+    closest, normal, distance_sq, triangle_index = first
+    assert closest == (10.0, 5.0, 5.0)
+    assert normal == (1.0, 0.0, 0.0)
+    assert distance_sq == 1.0
+    assert triangle_index in {6, 7}
+    assert containment.correct((9.0, 5.0, 5.0)) == (12.0, 5.0, 5.0)
+    assert not containment.contains((12.0, 5.0, 5.0))
+
+
+def test_authored_containment_rejects_open_and_caches_authority():
+    from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
+    from freecad_cloth.simulation.TissuContainment import (
+        AuthoredSurfaceContainment,
+        get_authored_surface_containment,
+    )
+
+    open_surface = surface_from_triangles(
+        ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (0.0, 10.0, 0.0)),
+        ((0, 1, 2),),
+        region="open",
+        thickness=1.0,
+    )
+    try:
+        AuthoredSurfaceContainment(open_surface)
+    except ValueError as exc:
+        assert "must be closed" in str(exc)
+    else:
+        raise AssertionError("open authored surface was accepted")
+
+    surface = _cube_surface()
+    first = get_authored_surface_containment(surface)
+    second = get_authored_surface_containment(surface)
+    assert first is second
+    assert first.surface is surface
+    assert surface.thickness == 2.0
+
+
+def test_authored_containment_is_explicitly_opt_in_and_resets_old_position():
+    import os
+    from types import SimpleNamespace
+
+    from freecad_cloth.simulation.TissuBackend import (
+        _apply_authored_containment_correction,
+        _tissu_authored_containment_enabled,
+    )
+    os.environ.pop("CLOTH_TISSU_AUTHORED_CONTAINMENT", None)
+    assert not _tissu_authored_containment_enabled()
+    os.environ["CLOTH_TISSU_AUTHORED_CONTAINMENT"] = "1"
+    assert _tissu_authored_containment_enabled()
+
+    class Particle:
+        def __init__(self):
+            self.position = (0.009, 0.005, 0.005)
+            self.old_position = (0.010, 0.005, 0.005)
+
+        def get_inverse_mass(self):
+            return 1.0
+
+        def get_position(self):
+            return self.position
+
+        def set_position(self, value):
+            self.position = tuple(float(component) for component in value)
+
+        def set_old_position(self, value):
+            self.old_position = tuple(float(component) for component in value)
+
+    particle = Particle()
+    sim = SimpleNamespace(solver=SimpleNamespace(get_particles=lambda: [particle]))
+    corrected = _apply_authored_containment_correction(
+        sim,
+        __import__("freecad_cloth.simulation.TissuContainment", fromlist=["AuthoredSurfaceContainment"]).AuthoredSurfaceContainment(_cube_surface()),
+    )
+    assert corrected == 1
+    assert particle.position == (0.012, 0.005, 0.005)
+    assert particle.old_position == particle.position
+
+
 if __name__ == "__main__":
     test_sphere_collision_pushes_particle_outside_surface()
     test_collision_and_structural_constraints_can_coexist()
