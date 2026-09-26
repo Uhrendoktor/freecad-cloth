@@ -10,10 +10,13 @@ For a first validation, follow the **Blanket over Cube** example in [Examples](E
 
 1. Create or open a native Sketcher pattern in **Cloth Pattern** and turn it into a PatternPiece. Keep Sketcher as the geometry authority.
 2. Use **Cloth Sewing** to select matching semantic edges and create seams. Editing an upstream Sketcher edge can invalidate a downstream seam rather than silently retargeting it.
-3. In **Cloth Simulation**, select or rebuild a DrapeTarget. A target can be a mannequin collision surface or supported generic FreeCAD geometry.
-4. Set simulation quality and fabric presentation. Physical material parameters affect the solver; color, roughness, specular response and transparency affect viewport rendering.
-5. Choose pins and run the simulation. Stale or non-finite states are fail-closed.
-6. Inspect the result and diagnostics before export or saving a final document.
+3. In **Cloth Simulation**, select or rebuild a `DrapeTarget`. A target can be a mannequin collision surface or supported generic FreeCAD geometry. The **Context** group shows the persistent target and its current status.
+4. Use **Arrange / Fit…** from the Simulation task panel to hand the current garment pieces to the persistent fitting stage. **Refresh target** is the visible target-recovery control: it re-enables a disabled target, opens target editing for an invalid/unassigned target, or refreshes the current target after a source change. **Reset arrangement** restores the saved pre-arrangement placements.
+5. The target-aware placement integration exposes `ClothFitting_SnapPiecesToTarget`. When present, it performs a bounded rigid translation against the persistent `DrapeTarget`, validates clearance for the full selected pieces, and rolls the placement back on failure; it is not conformal deformation. Use **Snap pieces to target** only for that bounded placement operation, not as a solver or pinning substitute.
+6. Set simulation quality and fabric presentation. Physical material parameters affect the solver; color, roughness, specular response and transparency affect viewport rendering.
+7. Choose pins using the exact `PinMode` semantics: **Automatic** preserves legacy behavior, using `PinSelection` when present and otherwise the existing automatic boundary pins; **Explicit** uses only `PinSelection`; **None** creates the simulation with zero solver pins. The canonical tunic fixture uses **None** with an empty pin selection.
+8. Run the simulation. Stale or non-finite states are fail-closed, so repair or refresh the target before advancing the solver.
+9. Inspect the result and diagnostics before export or saving a final document.
 
 ## Seams and visual inspection
 
