@@ -209,32 +209,37 @@ class ClothSystem:
         for p in self.particles:
             if p.inv_mass == 0.0 or not prepared:
                 continue
-            position = p.position()
-            low = tuple(int(floor((position[i] - thickness) / cell_size)) for i in range(3))
-            high = tuple(int(floor((position[i] + thickness) / cell_size)) for i in range(3))
-            candidate_ids = set()
-            for ix in range(low[0], high[0] + 1):
-                for iy in range(low[1], high[1] + 1):
-                    for iz in range(low[2], high[2] + 1):
-                        candidate_ids.update(grid.get((ix, iy, iz), ()))
-            if not candidate_ids:
-                continue
-            best = None
-            for triangle_index in candidate_ids:
-                a, b, c, normal = prepared[triangle_index]
-                closest = _closest_point_triangle(position, a, b, c)
-                delta = tuple(position[i] - closest[i] for i in range(3))
-                signed = sum(delta[i] * normal[i] for i in range(3))
-                if signed < thickness:
-                    distance_sq = sum(d * d for d in delta)
-                    if best is None or distance_sq < best[0]:
-                        best = (distance_sq, normal, signed)
-            if best is not None:
-                _, normal, signed = best
-                correction = thickness - signed
-                p.x += normal[0] * correction
-                p.y += normal[1] * correction
-                p.z += normal[2] * correction
+            # A sharp convex corner can penetrate more than one face in the
+            # same step. Re-project the particle against the deepest local
+            # violation for a small fixed number of deterministic passes.
+            # Flat-face contact still resolves on the first pass.
+            for _ in range(3):
+                position = p.position()
+                low = tuple(int(floor((position[i] - thickness) / cell_size)) for i in range(3))
+                high = tuple(int(floor((position[i] + thickness) / cell_size)) for i in range(3))
+                candidate_ids = set()
+                for ix in range(low[0], high[0] + 1):
+                    for iy in range(low[1], high[1] + 1):
+                        for iz in range(low[2], high[2] + 1):
+                            candidate_ids.update(grid.get((ix, iy, iz), ()))
+                if not candidate_ids:
+                    break
+                best = None
+                for triangle_index in candidate_ids:
+                    a, b, c, normal = prepared[triangle_index]
+                    closest = _closest_point_triangle(position, a, b, c)
+                    delta = tuple(position[i] - closest[i] for i in range(3))
+                    signed = sum(delta[i] * normal[i] for i in range(3))
+                    if signed < thickness:
+                        penetration = thickness - signed
+                        if best is None or penetration > best[0]:
+                            best = (penetration, normal, signed)
+                if best is None:
+                    break
+                penetration, normal, _signed = best
+                p.x += normal[0] * penetration
+                p.y += normal[1] * penetration
+                p.z += normal[2] * penetration
 
     def _collide_sphere(self, cx, cy, cz, radius):
         for p in self.particles:
