@@ -26,7 +26,7 @@ from freecad_cloth.simulation.SimulationObjects import create_humanoid_avatar
 RAY = (1.0, 0.123456789, 0.654321987)
 DIRECTION = RAY[0] ** 2 + RAY[1] ** 2 + RAY[2] ** 2
 DIRECTION = tuple(v / math.sqrt(DIRECTION) for v in RAY)
-TRIANGLE_LIMIT = 2048
+TRIANGLE_LIMIT = 2048  # repository Tissu collision cap under test
 POINTS = 1022
 STEPS = 90
 THICKNESS_MM = 2.0
