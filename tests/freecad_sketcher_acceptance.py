@@ -283,6 +283,34 @@ def run_acceptance():
                 if callable(has_pending) and bool(has_pending()):
                     raise RuntimeError("staged seam Commit left a pending document transaction")
                 _record("seam-created-and-committed")
+                from freecad_cloth.pattern.PatternModel import Seam
+                from freecad_cloth.pattern.PatternObjects import add_seam
+                extra_seams = [
+                    add_seam(doc, Seam(str(curved.PieceId), 0, str(mate.PieceId), 0, id="LifecycleSide")),
+                    add_seam(doc, Seam(str(curved.PieceId), 1, str(mate.PieceId), 2, id="LifecycleHem")),
+                ]
+                doc.recompute()
+                seam_records = tuple([seam] + extra_seams)
+                from freecad_cloth.sewing.SewingView import seam_color_map
+                expected_seam_colors = seam_color_map(tuple(str(item.SeamId) for item in seam_records))
+
+                def _assert_seam_colors(stage, records=seam_records):
+                    for item in records:
+                        actual = tuple(item.ViewObject.LineColor[:3])
+                        expected = tuple(expected_seam_colors[str(item.SeamId)])
+                        if any(abs(a - e) > 1e-6 for a, e in zip(actual, expected)):
+                            raise RuntimeError("%s seam color mismatch: %s actual=%r expected=%r" % (stage, item.SeamId, actual, expected))
+
+                for workbench, commands in (
+                    ("ClothPatternWorkbench", ["ClothPattern_CreatePieceWithSketch"]),
+                    ("ClothSewingWorkbench", ["ClothSewing_FocusSeam3D"]),
+                    ("ClothSimulationWorkbench", ["ClothSimulation_Edit", "ClothDrape_RefreshTarget"]),
+                ):
+                    _activate(workbench, commands)
+                    doc.recompute()
+                    _assert_seam_colors("%s activation" % workbench)
+                if len(set(expected_seam_colors.values())) != 3:
+                    raise RuntimeError("three semantic seams must retain three distinct deterministic colors")
                 original_piece_id = str(curved.PieceId)
                 original_width = float(curved_sketch.getDatum(width_index))
                 seam_id = str(seam.SeamId)
