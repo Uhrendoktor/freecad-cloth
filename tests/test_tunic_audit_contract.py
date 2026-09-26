@@ -17,13 +17,13 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
-def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
+def test_canonical_tunic_uses_target_aware_anchors_and_no_pins():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    assert 'ArrangementPoint.from_string' in source
-    assert 'shoulder_left = arrangement_world("shoulder_left")' in source
-    assert 'shoulder_right = arrangement_world("shoulder_right")' in source
-    assert 'hip_point = arrangement_world("hip")' in source
-    assert 'os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"' in source
+    assert "GarmentAnchor" in source
+    assert "fitting.GarmentAnchors" in source
+    assert 'Gui.runCommand("ClothFitting_TargetAwareArrange", 0)' in source
+    assert "target_relative_piece_placement" not in source
+    assert "-650.0" not in source and "650.0" not in source
     assert 'status = target_status(target)' in source
     assert 'scene.PinMode = "None"' in source
     assert 'scene.PinSelection = []' in source
@@ -107,3 +107,14 @@ def test_simulation_proxy_serializes_only_rebuildable_metadata():
     assert proxy.source_signature is None
     assert proxy.last_steps == 0
     assert proxy.collision_surface is None
+
+
+def test_target_aware_fitting_is_rigid_solver_neutral_and_transactional():
+    source = (ROOT / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    target = (ROOT / "freecad_cloth" / "avatar" / "TargetAwarePlacement.py").read_text(encoding="utf-8")
+    assert "target_aware_place_piece" in source
+    assert "solve_rigid_z" in target
+    assert "max_rotation" in source
+    assert "minimum_surface_clearance" in target
+    assert "HomePlacements" in source
+    assert "except Exception:" in source
