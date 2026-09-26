@@ -61,3 +61,24 @@ def test_stale_or_missing_targets_fail_closed():
         require_ready_target_status({"state": "missing", "message": "target missing"})
     with pytest.raises(TargetPlacementError):
         require_ready_target_status(None)
+
+
+def test_fitting_scene_persists_authoritative_target_and_handoff():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    fitting = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    assert 'App::PropertyLinkGlobal", "DrapeTarget", "Fitting"' in fitting
+    assert 'scene.DrapeTarget = target' in fitting
+    assert 'simulation.DrapeTarget = fitting_target' in fitting
+
+
+def test_target_aware_placement_is_transactional_on_post_transform_failure():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    fitting = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    assert 'original_placement = piece.Placement' in fitting
+    assert 'previous_piece_placements = list(getattr(scene, "PiecePlacements", ()))' in fitting
+    assert 'except Exception:' in fitting
+    assert 'piece.Placement = original_placement' in fitting
+    assert 'scene.PiecePlacements = previous_piece_placements' in fitting
+    assert 'scene.FitStatus = previous_fit_status' in fitting
