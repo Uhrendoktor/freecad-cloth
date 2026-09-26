@@ -36,6 +36,15 @@ def test_seam_colors_are_distinct_and_stable_by_seam_id():
     assert len(set(forward.values())) == len(seam_ids)
 
 
+def test_seam_colors_do_not_reassign_when_other_seams_are_added_or_removed():
+    baseline = seam_color_map(["seam-2", "seam-3"])
+    extended = seam_color_map(["seam-1", "seam-2", "seam-3", "seam-4"])
+    reduced = seam_color_map(["seam-3"])
+    assert extended["seam-2"] == baseline["seam-2"]
+    assert extended["seam-3"] == baseline["seam-3"]
+    assert reduced["seam-3"] == baseline["seam-3"]
+
+
 def test_seam_color_surface_contract_carries_identity_to_sewing_operations():
     source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "sewing" / "SewingObjects.py").read_text(encoding="utf-8")
     assert '"SeamId", "Sewing"' in source
