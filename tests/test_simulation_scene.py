@@ -74,6 +74,38 @@ def test_pin_selection_is_part_of_rebuild_signature():
 
 
 
+def test_pin_policy_is_part_of_rebuild_signature():
+    from types import SimpleNamespace
+    from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
+
+    source = SimpleNamespace(
+        Name="Body",
+        Shape=SimpleNamespace(isNull=lambda: False, hashCode=lambda: 123),
+        Placement=SimpleNamespace(
+            Base=SimpleNamespace(x=0.0, y=0.0, z=0.0),
+            Rotation=SimpleNamespace(Angle=0.0, Axis=SimpleNamespace(x=0.0, y=0.0, z=1.0)),
+        ),
+    )
+    target = SimpleNamespace(SourceObject=source, CollisionDeflection=1.0, CollisionThickness=0.0)
+    automatic = SimpleNamespace(DrapeTarget=target, PinPolicy="automatic", PinSelection=[], StitchSamples=8, Document=SimpleNamespace(Objects=[]))
+    pinless = SimpleNamespace(DrapeTarget=target, PinPolicy="none", PinSelection=[], StitchSamples=8, Document=SimpleNamespace(Objects=[]))
+    explicit = SimpleNamespace(DrapeTarget=target, PinPolicy="explicit", PinSelection=["1", "2"], StitchSamples=8, Document=SimpleNamespace(Objects=[]))
+    assert _simulation_source_signature(automatic, []) != _simulation_source_signature(pinless, [])
+    assert _simulation_source_signature(pinless, []) != _simulation_source_signature(explicit, [])
+
+
+def test_pinless_policy_suppresses_implicit_default_pins():
+    from types import SimpleNamespace
+    from freecad_cloth.simulation.SimulationObjects import _resolve_pins
+
+    automatic = SimpleNamespace(PinPolicy="automatic", PinSelection=[])
+    explicit = SimpleNamespace(PinPolicy="explicit", PinSelection=["3", "4"])
+    pinless = SimpleNamespace(PinPolicy="none", PinSelection=["3", "4"])
+    assert _resolve_pins(automatic, (0, 7), 8) == (0, 7)
+    assert _resolve_pins(explicit, (0, 7), 8) == (3, 4)
+    assert _resolve_pins(pinless, (0, 7), 8) == ()
+
+
 def test_seam_pair_records_preserve_exact_solver_stitch_provenance():
     from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR, PieceIR, SeamIR
     from freecad_cloth.simulation.SimulationObjects import _seam_pair_records
