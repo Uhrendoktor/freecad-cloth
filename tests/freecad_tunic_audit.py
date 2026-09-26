@@ -46,9 +46,16 @@ for old, new in replacements.items():
 preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
     if "ClothRealtimePreview" not in Gui.listCommands():
         raise RuntimeError("Realtime Cloth Preview GUI command is not registered")
+    from time import perf_counter as _tunic_perf_counter
+    _TUNIC_PHASE_ORIGIN = _tunic_perf_counter()
+    def _tunic_phase(label):
+        log("tunic-phase=%s elapsed_ms=%.1f" % (label, 1000.0 * (_tunic_perf_counter() - _TUNIC_PHASE_ORIGIN)))
+    _tunic_phase("preview-command-enter")
     preview_saved = {name: getattr(scene, name) for name in ("ParticleDistance", "SolverIterations", "SolverSubsteps", "TimeStep", "QualityPreset")}
     Gui.runCommand("ClothRealtimePreview")
+    _tunic_phase("preview-command-return")
     scene.Document.recompute()
+    _tunic_phase("preview-recompute-return")
     preview_base = scene.Proxy._base_or_restore()
     preview_backend = getattr(preview_base, "backend", None)
     if getattr(preview_backend, "name", None) != "tissu":
@@ -60,27 +67,33 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
         sleep(0.04)
     events()
     preview_steps = int(scene.Steps)
+    _tunic_phase("preview-first-step steps=%d" % preview_steps)
     if preview_steps <= 0:
         RealtimePreview.stop_realtime_preview()
         raise RuntimeError("Realtime Cloth Preview timer did not advance the simulation")
     Gui.runCommand("ClothRealtimePreview")
+    _tunic_phase("preview-stop-command-return")
     if int(scene.Steps) != 0:
         RealtimePreview.stop_realtime_preview()
         raise RuntimeError("Realtime Cloth Preview did not reset steps on stop")
     for name, value in preview_saved.items():
         if getattr(scene, name) != value:
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
+    _tunic_phase("preview-stop-reset-complete")
     log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
 '''
 anchor = '    for batch in (15,15,15,15,15,15):'
 if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
 timed_anchor = '''    from time import perf_counter
+    _tunic_phase("actual-simulation-enter")
     simulation_started = perf_counter()
-    for batch in (15,15,15,15,15,15):
+    for batch_index, batch in enumerate((15,15,15,15,15,15), 1):
         batch_started = perf_counter()
+        _tunic_phase("batch-%d-enter" % batch_index)
         simulation_panel.step(batch); doc.recompute(); events()
-        log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
+        log("tunic-simulation-batch index=%d steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch_index, batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
+        _tunic_phase("batch-%d-exit" % batch_index)
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
 '''
 source = source.replace(anchor, preview_probe + '\n' + timed_anchor, 1)
