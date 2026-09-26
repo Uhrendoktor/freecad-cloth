@@ -7,6 +7,7 @@ LABEL org.opencontainers.image.description="Published FreeCAD 1.1.0 CI image wit
 LABEL org.opencontainers.image.tissu.source-commit="$TISSU_COMMIT"
 
 COPY tissu-mesh-collider.patch /tmp/tissu-mesh-collider.patch
+COPY tissu-headless-core.patch /tmp/tissu-headless-core.patch
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
