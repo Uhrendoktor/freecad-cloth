@@ -3,7 +3,7 @@ from math import ceil
 import weakref
 
 from freecad_cloth.simulation.SimulationQuality import FabricMaterial, QUALITY_PRESETS, normalize_color_rgb, preset
-from freecad_cloth.simulation.SimulationObjects import PIN_MODE_NAMES, resolve_pin_indices
+from freecad_cloth.simulation.SimulationObjects import PIN_MODE_NAMES, resolve_pin_indices, _solver_collision_surface
 
 QUALITY_NAMES = tuple(QUALITY_PRESETS)
 _RUNTIME_BASES = weakref.WeakKeyDictionary()
@@ -68,15 +68,6 @@ def quality_discretization(point_count, perimeter, particle_distance):
     if int(point_count) < 3:
         raise ValueError("point_count must be at least three")
     return max(int(point_count), int(ceil(float(perimeter) / max(0.25, float(particle_distance)))))
-
-
-def _solver_collision_surface(base):
-    """Return the backend-owned solver surface without replacing authoritative state."""
-    authoritative = getattr(base, "collision_surface", None)
-    backend = getattr(base, "backend", None)
-    if getattr(backend, "name", "") == "tissu":
-        return getattr(backend, "_collision_surface", authoritative)
-    return authoritative
 
 
 def _material(scene):
