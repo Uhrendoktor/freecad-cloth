@@ -4,9 +4,9 @@ The reference solver remains the deterministic fallback. Tissu is imported lazil
 so installations without the optional wheel keep the existing backend usable.
 """
 from copy import deepcopy
+from math import sqrt
 from typing import Iterable, Sequence, Tuple
 import os
-from time import perf_counter
 
 from freecad_cloth.avatar.AvatarCollision import CollisionSurface, coarsen_collision_surface
 from freecad_cloth.simulation.TissuContainment import get_authored_surface_containment
