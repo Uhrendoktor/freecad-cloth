@@ -17,6 +17,14 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
+def test_canonical_tunic_fixture_matches_validated_start_geometry():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "clearance = max(8.0, 0.025 * body_depth);" in audit
+    assert '"front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)"' in audit
+    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance'," in audit
+    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance'," in audit
+
+
 def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert 'ArrangementPoint.from_string' in source
