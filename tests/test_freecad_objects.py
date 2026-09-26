@@ -466,7 +466,9 @@ def test_stale_drape_target_rejects_snap_before_mutation():
 
     document, source, target, _fitting, piece, _sketch, _home = _make_target_snap_fixture("StaleTargetSnap")
     try:
-        source.Placement.Base.x += 5.0
+        moved_base = source.Placement.Base
+        moved_base.x += 5.0
+        source.Placement.Base = moved_base
         document.recompute()
         try:
             FittingCommands.snap_piece_to_drape_target(piece, target=target)
@@ -505,7 +507,9 @@ def test_fitting_created_simulation_propagates_target_and_observes_source_stalen
         assert simulation.DrapeTarget == target
         assert target_status(simulation.DrapeTarget)["state"] == "ready"
 
-        source.Placement.Base.x += 15.0
+        moved_base = source.Placement.Base
+        moved_base.x += 15.0
+        source.Placement.Base = moved_base
         document.recompute()
         assert target_status(simulation.DrapeTarget)["state"] == "stale"
     finally:
