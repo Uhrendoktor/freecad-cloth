@@ -570,6 +570,20 @@ def run_acceptance():
         print("drape-target=passed type=Mannequin", flush=True)
 
         _select_objects(fitting)
+        from freecad_cloth.avatar.FittingCommands import snap_pattern_pieces_to_target
+        pre_fail_placements = {str(piece.PieceId): piece.Placement for piece in fitting.PatternPieces}
+        pre_fail_persisted = tuple(fitting.PiecePlacements)
+        pre_fail_status = str(fitting.FitStatus)
+        try:
+            snap_pattern_pieces_to_target(clearance=5000.0, max_translation=1.0)
+        except ValueError as exc:
+            print("target-placement-limit-guard=passed message=%s" % str(exc), flush=True)
+        else:
+            raise RuntimeError("target-aware fitting accepted a transform beyond the translation guard")
+        if str(fitting.FitStatus) != pre_fail_status or tuple(fitting.PiecePlacements) != pre_fail_persisted:
+            raise RuntimeError("target-aware fitting rollback changed persisted fitting state")
+        if any(piece.Placement != pre_fail_placements[str(piece.PieceId)] for piece in fitting.PatternPieces):
+            raise RuntimeError("target-aware fitting rollback changed PatternPiece placement")
         Gui.runCommand("ClothFitting_SnapPiecesToTarget", 0)
         _events()
         doc.recompute()
