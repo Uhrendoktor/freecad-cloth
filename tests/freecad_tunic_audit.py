@@ -103,6 +103,71 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
 """
 
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", 1)
+seam_lifecycle_probe = '''
+    from freecad_cloth.sewing.SewingView import refresh_seam_colors, seam_color_map, apply_seam_colors
+    semantic_seams = tuple(record[0] for record in seam_records)
+    seam_ids = tuple(str(seam.SeamId) for seam in semantic_seams)
+    if len(set(seam_ids)) < 3:
+        raise RuntimeError("seam presentation fixture requires at least three semantic SeamId values")
+    refresh_seam_colors(doc)
+    color_snapshot = {str(seam.SeamId): tuple(float(value) for value in seam.ViewObject.LineColor[:3]) for seam in semantic_seams}
+    expected_snapshot = seam_color_map(seam_ids)
+    if color_snapshot != {key: tuple(expected_snapshot[key]) for key in expected_snapshot}:
+        raise RuntimeError("initial seam colors do not match direct SeamId-derived colors")
+    if len(set(color_snapshot.values())) < 3:
+        raise RuntimeError("three semantic seams did not render three distinct colors")
+    apply_seam_colors(tuple(reversed(doc.Objects)))
+    for seam in semantic_seams:
+        if tuple(float(value) for value in seam.ViewObject.LineColor[:3]) != color_snapshot[str(seam.SeamId)]:
+            raise RuntimeError("seam color changed under reordered document presentation iteration")
+    activate("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_Show2D"])
+    Gui.runCommand("ClothPattern_Show2D", 0); events()
+    save("seam-lifecycle-pattern-2d.png", "Pattern 2D seam colors", ">=3 persistent SeamId values; Pattern 2D entry refresh")
+    activate("ClothSewingWorkbench", "Cloth Sewing", ["ClothSewing_Show2D", "ClothSewing_FocusSeam3D"])
+    Gui.runCommand("ClothSewing_Show2D", 0); events()
+    save("seam-lifecycle-sewing-2d.png", "Sewing 2D seam colors", ">=3 persistent SeamId values; Sewing 2D entry refresh")
+    Gui.Selection.clearSelection(); Gui.Selection.addSelection(semantic_seams[0])
+    Gui.runCommand("ClothSewing_FocusSeam3D", 0); events()
+    save("seam-lifecycle-sewing-3d-focus.png", "Sewing 3D seam focus", "selected semantic seam focused in 3D without changing presentation identity")
+    activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
+    view = Gui.activeDocument().activeView(); view.viewFront(); view.fitAll(); events()
+    save("seam-lifecycle-simulation.png", "Simulation workbench seam colors", "Simulation activation refresh preserves the same SeamId-derived RGB")
+    doc.recompute(); refresh_seam_colors(doc)
+    for seam in semantic_seams:
+        if tuple(float(value) for value in seam.ViewObject.LineColor[:3]) != color_snapshot[str(seam.SeamId)]:
+            raise RuntimeError("recompute changed semantic SeamId color for %s" % seam.SeamId)
+    log("seam-color-recompute=passed seams=%d" % len(semantic_seams))
+'''
+seam_lifecycle_anchor = "    scene.StartHeight = 0.0;"
+if seam_lifecycle_anchor not in source:
+    raise RuntimeError("canonical seam lifecycle anchor missing")
+source = source.replace(seam_lifecycle_anchor, seam_lifecycle_probe + "\n" + seam_lifecycle_anchor, 1)
+
+seam_reload_probe = '''
+    import tempfile
+    from freecad_cloth.sewing.SewingView import refresh_seam_colors
+    doc.recompute()
+    with tempfile.TemporaryDirectory() as directory:
+        seam_color_path = os.path.join(directory, "seam-color-lifecycle.FCStd")
+        doc.saveAs(seam_color_path)
+        saved_doc_name = doc.Name
+        App.closeDocument(saved_doc_name)
+        reloaded = App.openDocument(seam_color_path)
+        reloaded.recompute()
+        refresh_seam_colors(reloaded)
+        reloaded_seams = [obj for obj in reloaded.Objects if str(getattr(obj, "SeamId", "")).strip()]
+        reloaded_colors = {str(obj.SeamId): tuple(float(value) for value in obj.ViewObject.LineColor[:3]) for obj in reloaded_seams}
+        for seam_id, color in color_snapshot.items():
+            if reloaded_colors.get(seam_id) != color:
+                raise RuntimeError("save/reload changed semantic SeamId color for %s" % seam_id)
+        log("seam-color-save-reload=passed seams=%d" % len(reloaded_seams))
+        doc = reloaded
+'''
+seam_reload_anchor = "    task_dock.show(); task_dock.raise_(); events(); close_task(); App.closeDocument(doc.Name)"
+if seam_reload_anchor not in source:
+    raise RuntimeError("canonical seam save/reload anchor missing")
+source = source.replace(seam_reload_anchor, seam_reload_probe + "\n    App.closeDocument(doc.Name)", 1)
+
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
 exec(compile(source, str(source_path), "exec"), globals(), globals())
