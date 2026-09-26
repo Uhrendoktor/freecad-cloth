@@ -157,8 +157,11 @@ def test_tunic_seam_mapping_uses_opposite_shoulder_edges():
 def test_canonical_tunic_fixture_matches_validated_orientation():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert 'front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)' in audit
-    assert 'scene.ParticleDistance = 32.0; scene.SolverIterations = 2; scene.SolverSubsteps = 1;' in audit
-    assert 'scene.TimeStep = 1.0 / 120.0;' in audit
+    assert "ParticleDistance = 32.0" in audit
+    assert "SolverIterations = 2" in audit
+    assert "SolverSubsteps = 1" in audit
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "scene.TimeStep = 1.0 / 120.0;" in source
 
 if __name__ == "__main__":
     test_canonical_tunic_uses_independent_front_back_semantic_edge_ids()
