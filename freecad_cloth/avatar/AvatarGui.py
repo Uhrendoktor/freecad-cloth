@@ -296,13 +296,18 @@ class AvatarTaskPanel:
         self.arrangement_points.clear()
         if self.avatar is None:
             return
+        from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
         records = getattr(self.avatar, "ArrangementPoints", []) or []
         for item in records:
             try:
-                name, coords = str(item).split("|", 1)
+                point = ArrangementPoint.from_string(item)
             except ValueError:
                 continue
-            self.arrangement_points.addItem("%s: (%s)" % (name.replace("_", " ").title(), coords))
+            x, y, z = point.position()
+            coords = "%.12g,%.12g,%.12g" % (x, y, z)
+            self.arrangement_points.addItem(
+                "%s: (%s)" % (point.name.replace("_", " ").title(), coords)
+            )
 
     def _update_landmarks(self):
         if self.avatar is None or not self.show_measurements.isChecked():
