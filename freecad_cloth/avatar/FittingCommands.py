@@ -456,8 +456,8 @@ def snap_piece_to_drape_target(piece, target=None, clearance=8.0, max_translatio
         moved = 0.0
 
         for _ in range(max_iterations):
-            distance, nearest, _details = piece_shape.distToShape(target_shape)
-            distance = float(distance)
+            distance = _shape_clearance(piece_shape, target_shape)
+            _distance, nearest, _details = piece_shape.distToShape(target_shape)
             if before_distance is None:
                 before_distance = distance
             if distance + 1e-6 >= clearance:
@@ -489,7 +489,7 @@ def snap_piece_to_drape_target(piece, target=None, clearance=8.0, max_translatio
             moved += step
             piece_shape = _world_shape(piece)
 
-        final_distance = float(piece_shape.distToShape(target_shape)[0])
+        final_distance = _shape_clearance(piece_shape, target_shape)
         if final_distance + 1e-6 < clearance:
             raise RuntimeError(
                 "snap failed: final clearance %.6f mm is below %.6f mm" %
