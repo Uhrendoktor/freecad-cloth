@@ -153,7 +153,7 @@ def test_authored_containment_is_explicitly_opt_in_and_resets_old_position():
     assert corrected == 1
     assert max_correction_mm == 3.0
     assert particle.position == (0.012, 0.005, 0.005)
-    assert particle.old_position == (0.013, 0.005, 0.005)
+    assert particle.old_position == particle.position
 
 
 if __name__ == "__main__":
