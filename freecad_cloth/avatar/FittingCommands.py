@@ -253,27 +253,26 @@ def set_arrangement_point(name, x=None, y=None, offset=None, wrap_direction=None
 
 
 def _piece_world_surface_points(piece, deflection=1.0):
-    """Sample the complete PatternPiece surface in world coordinates.
+    """Sample PatternIR with the same placement semantics used by simulation."""
+    import FreeCAD as App
+    from freecad_cloth.common.PatternSimulationAdapter import geometry_from_piece_ir, resolve_piece_ir
+    from freecad_cloth.pattern.PatternMesh import refine_linear_boundary, triangulate
 
-    Target-aware placement must not prove clearance from anchors alone. A
-    tessellated face surface is the conservative geometry contract used before
-    simulation. If FreeCAD cannot provide a surface sample, fail closed.
-    """
-    shape = getattr(piece, "Shape", None)
-    if shape is None or getattr(shape, "isNull", lambda: True)():
-        raise ValueError("pattern piece has no usable shape for clearance validation")
-    try:
-        local_points, _triangles = shape.tessellate(max(0.25, float(deflection)), 0.4)
-    except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-        raise ValueError("pattern piece surface tessellation is unavailable") from exc
-    if not local_points:
-        raise ValueError("pattern piece surface tessellation produced no points")
+    piece_ir = resolve_piece_ir(piece)
+    pattern = geometry_from_piece_ir(piece_ir)
+    spacing = max(0.25, float(deflection))
+    mesh = triangulate(
+        refine_linear_boundary(pattern, spacing),
+        max_area=0.45 * spacing * spacing,
+    )
+    if not mesh.vertices:
+        raise ValueError("pattern piece mesh produced no clearance samples")
     placement = getattr(piece, "Placement", None)
     if placement is None:
         raise ValueError("pattern piece has no persistent placement")
     points = []
-    for local in local_points:
-        world = placement.multVec(local)
+    for x, y in mesh.vertices:
+        world = placement.multVec(App.Vector(float(x), float(y), 0.0))
         points.append((float(world.x), float(world.y), float(world.z)))
     if not points:
         raise ValueError("pattern piece produced no world-space clearance samples")
