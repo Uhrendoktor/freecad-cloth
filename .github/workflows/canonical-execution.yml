@@ -6,6 +6,18 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
+    inputs:
+      runner_mode:
+        description: "Trusted execution mode; local prefers the self-hosted Docker runner, hosted uses GitHub-hosted runners."
+        required: false
+        type: choice
+        default: local
+        options: [local, hosted]
+      fallback_source_run:
+        description: "Original run ID when invoked as an automatic hosted fallback."
+        required: false
+        type: string
+        default: ""
   schedule:
     - cron: '*/5 * * * *'
     - cron: '0 3 * * *'
@@ -20,6 +32,7 @@ env:
   QT_X11_NO_MITSHM: 1
   QT_QPA_PLATFORM: xcb
   LIBGL_ALWAYS_SOFTWARE: 1
+  CLOTH_CI_RUNNER_MODE: ${{ inputs.runner_mode || (github.event_name == 'pull_request' && 'hosted' || 'local') }}
   XDG_RUNTIME_DIR: /tmp/runtime-cloth
 
 permissions:
@@ -78,76 +91,54 @@ jobs:
             echo "Canceling remaining active canonical run $run_id (event=$event)"
             gh api --method POST "repos/$REPO/actions/runs/$run_id/cancel" >/dev/null
           done
-  runner_router:
-    name: Select trusted local runner or GitHub-hosted fallback
+  runner_watchdog:
+    name: Local runner watchdog with hosted fallback
+    if: ${{ github.event_name != 'pull_request' && inputs.runner_mode != 'hosted' }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
-    outputs:
-      runs_on: ${{ steps.select.outputs.runs_on }}
-      mode: ${{ steps.select.outputs.mode }}
-      runner_name: ${{ steps.select.outputs.runner_name }}
+    permissions:
+      actions: write
+      contents: read
     steps:
-      - id: select
-        name: Prefer an idle local Docker runner for trusted runs
+      - name: Prefer the local runner, otherwise dispatch hosted mode
         env:
-          GH_TOKEN: ${{ secrets.CLOTH_RUNNER_DISCOVERY_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          required='["self-hosted","linux","x64","docker"]'
-          fallback() {
-            local reason="$1"
-            echo "runner-router=github-hosted mode=fallback reason=$reason"
-            echo 'runs_on=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
-            echo 'mode=github-hosted' >> "$GITHUB_OUTPUT"
-            echo 'runner_name=ubuntu-latest' >> "$GITHUB_OUTPUT"
-          }
-
-          # Never route pull_request code onto a self-hosted runner.
-          if test "${{ github.event_name }}" = "pull_request"; then
-            fallback "pull-request-hosted-only"
-            exit 0
-          fi
-
-          # Runner discovery is privileged; an ordinary GITHUB_TOKEN is not sufficient.
-          if test -z "${GH_TOKEN:-}"; then
-            fallback "runner-discovery-token-not-configured"
-            exit 0
-          fi
-
-          for attempt in 1 2 3 4 5 6; do
-            response_file="$RUNNER_TEMP/runner-list-$attempt.json"
-            error_file="$RUNNER_TEMP/runner-list-$attempt.err"
-            if gh api "repos/$REPO/actions/runners?per_page=100" >"$response_file" 2>"$error_file"; then
-              if jq -e '.runners | type == "array"' "$response_file" >/dev/null 2>&1; then
-                local="$(jq -c '
-                  [(.runners // [])[]
-                    | select(.status == "online" and .busy == false)
-                    | select((["self-hosted","linux","x64","docker"] - [(.labels // [])[].name]) | length == 0)
-                  ][0] // empty
-                ' "$response_file")"
-                if test -n "$local"; then
-                  runner_name="$(printf '%s' "$local" | jq -r '.name')"
-                  runner_id="$(printf '%s' "$local" | jq -r '.id')"
-                  echo "runner-router=local mode=local name=$runner_name id=$runner_id"
-                  echo "runs_on=$required" >> "$GITHUB_OUTPUT"
-                  echo "mode=local" >> "$GITHUB_OUTPUT"
-                  echo "runner_name=$runner_name" >> "$GITHUB_OUTPUT"
-                  exit 0
-                fi
-              else
-                echo "runner-router=probe attempt=$attempt mode=github-hosted reason=invalid-runner-api-response"
-              fi
-            else
-              echo "runner-router=probe attempt=$attempt mode=github-hosted reason=runner-api-error"
-              sed -n '1,3p' "$error_file" || true
-            fi
-            if test "$attempt" -lt 6; then
-              sleep 2
-            fi
+          grace_seconds=45
+          interval_seconds=5
+          deadline=$((SECONDS + grace_seconds))
+          echo "runner-watchdog=local-preferred grace_seconds=$grace_seconds source_run=$GITHUB_RUN_ID"
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            jobs="$(gh api --paginate "repos/$REPO/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100")"
+            state="$(printf '%s' "$jobs" | jq -r '[.jobs[] | select(.name == "Python and FreeCAD non-GUI tests")][0].status // "missing"')"
+            case "$state" in
+              in_progress|completed)
+                echo "runner-watchdog=local-started sentinel_status=$state"
+                exit 0
+                ;;
+            esac
+            echo "runner-watchdog=waiting sentinel_status=$state seconds_remaining=$((deadline - SECONDS))"
+            sleep "$interval_seconds"
           done
 
-          fallback "local-runner-unreachable-or-busy"
+          echo "runner-watchdog=fallback reason=local-sentinel-not-started"
+          ref="$GITHUB_REF"
+          if [[ "$ref" != refs/* ]]; then
+            ref="$GITHUB_REF_NAME"
+          else
+            ref="${ref#refs/}"
+          fi
+          gh workflow run canonical-execution.yml \
+            --repo "$REPO" \
+            --ref "$ref" \
+            -f runner_mode=hosted \
+            -f fallback_source_run="$GITHUB_RUN_ID"
+          echo "runner-watchdog=hosted-dispatch ref=$ref source_run=$GITHUB_RUN_ID"
+          sleep 2
+          gh api --method POST "repos/$REPO/actions/runs/$GITHUB_RUN_ID/cancel" >/dev/null || true
+          echo "runner-watchdog=local-run-cancel-requested source_run=$GITHUB_RUN_ID"
 
   runner_heartbeat:
     name: Local Docker runner heartbeat
@@ -160,11 +151,12 @@ jobs:
 
   python:
     name: Python and FreeCAD non-GUI tests
-    needs: runner_router
-    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+      - name: Report canonical runner mode
+        run: echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE fallback_source_run=${{ inputs.fallback_source_run || 'none' }}"
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -239,8 +231,7 @@ jobs:
   sketcher-startup-diagnostic:
     name: FreeCAD Sketcher startup diagnostic
     if: github.event_name == 'pull_request'
-    needs: runner_router
-    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
@@ -341,8 +332,7 @@ jobs:
           compression-level: 1
   gui-sewing-creation:
     name: Sewing staged creation smoke
-    needs: runner_router
-    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
@@ -427,8 +417,7 @@ jobs:
 
   gui-sketcher-acceptance:
     name: Native Sketcher seam presentation acceptance
-    needs: runner_router
-    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
@@ -503,8 +492,7 @@ jobs:
           compression-level: 1
   gui-pattern-export:
     name: Pattern production export smoke
-    needs: runner_router
-    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
@@ -568,8 +556,7 @@ jobs:
 
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
-    needs: runner_router
-    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
@@ -689,8 +676,7 @@ jobs:
 
   gui-turntables:
     name: README simulation turntable
-    needs: runner_router
-    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
@@ -833,8 +819,7 @@ jobs:
 
   gui-visual-examples:
     name: Basic blanket visual example
-    needs: runner_router
-    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
@@ -881,13 +866,6 @@ jobs:
               xdpyinfo -display :99 >/dev/null 2>&1
               timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth /workspace/tests/freecad_visual_examples.py
             '
-          test -s docs/images/generated/blanket-example/blanket-visual.log
-          grep -q 'blanket-visual-acceptance=passed' docs/images/generated/blanket-example/blanket-visual.log
-          grep -q 'mesh=passed' docs/images/generated/blanket-example/blanket-visual.log
-          grep -q 'movement=passed' docs/images/generated/blanket-example/blanket-visual.log
-          grep -q 'material-presentation=passed viewport=true' docs/images/generated/blanket-example/blanket-visual.log
-          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'checkpoint-*.png' | wc -l)" -eq 5
-          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'motion-*.png' | wc -l)" -eq 16
       - name: Restore workspace from Docker volume
         if: ${{ always() }}
         run: |
@@ -898,6 +876,18 @@ jobs:
           docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
           docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
           docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Validate blanket visual evidence
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          test -s docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'blanket-visual-acceptance=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'mesh=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'movement=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'material-presentation=passed viewport=true' docs/images/generated/blanket-example/blanket-visual.log
+          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'checkpoint-*.png' | wc -l)" -eq 5
+          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'motion-*.png' | wc -l)" -eq 16
 
       - name: Build blanket motion GIF
         run: |
@@ -936,8 +926,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    needs: runner_router
-    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 10
     steps:
       - name: Download turntables
@@ -992,8 +981,7 @@ jobs:
   maintenance-cleanup:
     name: Repository retention cleanup
     if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * *' }}
-    needs: runner_router
-    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     permissions:
       actions: write
       contents: write
@@ -1038,8 +1026,7 @@ jobs:
   benchmark:
     name: Measured FreeCAD workbench benchmark
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
-    needs: runner_router
-    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v5
