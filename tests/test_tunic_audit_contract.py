@@ -64,6 +64,8 @@ def test_canonical_tunic_source_rewrite_compiles():
         % (result.stdout, result.stderr)
     )
     assert "tunic-audit-source-syntax=passed" in result.stdout
+    assert 'VisualTunicFront", "back", 0.78, 0.18' in audit_source
+    assert 'VisualTunicBack", "front", 0.76, 0.12' in audit_source
 
 def test_canonical_tunic_authoritative_gate_is_fail_closed():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
