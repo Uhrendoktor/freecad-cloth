@@ -203,4 +203,8 @@ def test_pattern_drafting_remains_compatibility_only():
     assert "ClothPattern_CreateDrafting" not in commands
 
 
+assert "from freecad_cloth.sewing.SewingView import refresh_seam_colors" in gui_base
+assert 'refresh_seam_colors(getattr(active, "Document", None))' in gui_base
+assert "super().Activated()" in (ROOT / "freecad_cloth" / "simulation" / "workbench.py").read_text()
+
 print("GUI structure checks passed")
