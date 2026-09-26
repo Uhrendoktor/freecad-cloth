@@ -109,6 +109,8 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'tunic-simulation-start' in source
 
 
+
+# Regression coverage: current-main tunic execution prerequisites.
 def test_solver_collision_surface_uses_tissu_owned_surface_without_replacing_authority():
     from types import SimpleNamespace
     from freecad_cloth.simulation.SimulationObjects import _solver_collision_surface
