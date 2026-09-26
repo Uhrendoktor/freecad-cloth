@@ -423,6 +423,8 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
     scene = _scene(doc)
     if scene is None:
         scene = create_fitting_scene()
+    if "GarmentAnchors" not in getattr(scene, "PropertiesList", ()):
+        scene.addProperty("App::PropertyStringList", "GarmentAnchors", "Arrangement").GarmentAnchors = []
     if target.SourceObject is not None and getattr(scene, "AvatarProxy", None) is None:
         scene.AvatarProxy = target.SourceObject
     pieces = [p for p in getattr(scene, "PatternPieces", ()) if p is not piece]
