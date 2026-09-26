@@ -27,7 +27,7 @@ def _signed_surface_volume(vertices, triangles):
         ax, ay, az = (float(v) for v in vertices[a])
         bx, by, bz = (float(v) for v in vertices[b])
         cx0, cy0, cz0 = (float(v) for v in vertices[c])
-        ab = (bx - ax, by - ay, bz - ay)
+        ab = (bx - ax, by - ay, bz - az)
         ac = (cx0 - ax, cy0 - ay, cz0 - az)
         normal = (
             ab[1] * ac[2] - ab[2] * ac[1],
