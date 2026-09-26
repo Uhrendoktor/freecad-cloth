@@ -29,6 +29,26 @@ class SimulationQualityTaskPanel:
             ensure_quality_properties(self.scene)
         self.form = QtWidgets.QWidget(); self.form.setObjectName("ClothSimulationQualityTaskPanel")
         root = QtWidgets.QVBoxLayout(self.form)
+
+        fitting = QtWidgets.QGroupBox("Arrange / fit")
+        flayout = QtWidgets.QVBoxLayout(fitting)
+        self.fitting_status = QtWidgets.QLabel("No simulation scene selected.")
+        self.fitting_status.setWordWrap(True)
+        self.fitting_status.setObjectName("ClothSimulationFittingStatus")
+        self.arrange_fit_button = QtWidgets.QPushButton("Arrange / Fit…")
+        self.arrange_fit_button.setObjectName("ClothSimulationArrangeFitButton")
+        self.arrange_fit_button.setToolTip("Open the existing fitting stage with the current cloth pieces and target.")
+        self.reset_arrangement_button = QtWidgets.QPushButton("Reset arrangement")
+        self.reset_arrangement_button.setObjectName("ClothSimulationResetArrangementButton")
+        self.reset_arrangement_button.setToolTip("Restore the fitting scene to its saved pre-arrangement placements.")
+        self.reset_arrangement_button.setEnabled(False)
+        flayout.addWidget(self.fitting_status)
+        fit_buttons = QtWidgets.QHBoxLayout()
+        fit_buttons.addWidget(self.arrange_fit_button)
+        fit_buttons.addWidget(self.reset_arrangement_button)
+        flayout.addLayout(fit_buttons)
+        root.addWidget(fitting)
+
         quality = QtWidgets.QGroupBox("Simulation quality"); qform = QtWidgets.QFormLayout(quality)
         self.quality = QtWidgets.QComboBox(); self.quality.addItems(self.QUALITY_NAMES)
         self.particle_distance = self._double(0.25, 100.0, 4.0, 2)
@@ -54,6 +74,8 @@ class SimulationQualityTaskPanel:
         self.fabric_color.clicked.connect(self._choose_fabric_color)
         for widget in (self.particle_distance, self.iterations, self.substeps, self.density, self.thickness, self.stretch, self.shear, self.bend, self.friction, self.specular, self.roughness, self.transparency, self.skin_offset, self.collision_radius): widget.valueChanged.connect(self._parameters_changed)
         self.step_button.clicked.connect(lambda: self.step(1)); self.run_button.clicked.connect(lambda: self.step(30)); self.reset_button.clicked.connect(self.reset)
+        self.arrange_fit_button.clicked.connect(self.open_arrange_fit)
+        self.reset_arrangement_button.clicked.connect(self.reset_arrangement)
         self._load()
 
     @staticmethod
@@ -63,6 +85,31 @@ class SimulationQualityTaskPanel:
     @staticmethod
     def _spin(low, high, value):
         _, _, QtWidgets, _ = _qt(); widget = QtWidgets.QSpinBox(); widget.setRange(low, high); widget.setValue(value); return widget
+
+    def _refresh_fitting_stage(self):
+        from freecad_cloth.simulation.FittingHandoff import fitting_stage_status
+        message, can_reset = fitting_stage_status(self.scene)
+        self.fitting_status.setText(message)
+        self.reset_arrangement_button.setEnabled(can_reset)
+
+    def open_arrange_fit(self):
+        if self.scene is None:
+            self.status.setText("Create or select a Cloth Simulation object before opening Arrange / Fit.")
+            return
+        try:
+            from freecad_cloth.simulation.FittingHandoff import open_arrange_fit_from_simulation
+            open_arrange_fit_from_simulation(self.scene)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            self.status.setText("Arrange / Fit unavailable — %s" % exc)
+
+    def reset_arrangement(self):
+        try:
+            from freecad_cloth.simulation.FittingHandoff import reset_arrangement_from_simulation
+            reset_arrangement_from_simulation()
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            self.status.setText("Arrangement reset unavailable — %s" % exc)
+            return
+        self._refresh()
 
     def _ensure_scene(self):
         if self.scene is None:
@@ -158,6 +205,7 @@ class SimulationQualityTaskPanel:
         self.steps.setValue(0); self._refresh("Simulation reset; quality and fabric values retained.")
 
     def _refresh(self, message=None):
+        self._refresh_fitting_stage()
         if self.scene is None:
             self.step_button.setEnabled(False); self.run_button.setEnabled(False); self.reset_button.setEnabled(False)
             self.status.setText(message or "Create or select a Cloth Simulation object."); return
