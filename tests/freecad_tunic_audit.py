@@ -90,7 +90,11 @@ timed_anchor = '''    from time import perf_counter
         log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
 '''
-source = source.replace(anchor, preview_probe + '\n' + timed_anchor, 1)
+source = source.replace(
+    anchor + '\n        simulation_panel.step(batch); doc.recompute(); events()\n',
+    preview_probe + '\n' + timed_anchor,
+    1,
+)
 
 seam_check = """    backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
