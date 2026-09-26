@@ -107,3 +107,9 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
     assert 'tunic-simulation-start' in source
+
+
+def test_canonical_tunic_experiment_reverses_only_left_seam_family():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'TunicLeftShoulder", "TunicLeftSide"' in audit
+    assert 'reversed_b=seam_id in {"TunicLeftShoulder", "TunicLeftSide"}' in audit
