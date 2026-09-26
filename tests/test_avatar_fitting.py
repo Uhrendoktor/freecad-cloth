@@ -174,6 +174,117 @@ class AvatarFittingTests(unittest.TestCase):
         points = arrangement_points_from_landmarks(["waist|0,0,900", "waist|0,0,905", "neck|0,0,1150"])
         self.assertEqual(points, ["neck|0,0,1150", "waist|0,0,905"])
 
+
+    def test_piece_placement_round_trip_preserves_rotation_axis(self):
+        placement = PiecePlacement("front", (1.0, 2.0, 3.0), 90.0, (1.0, 0.0, 0.0))
+        self.assertEqual(PiecePlacement.from_string(placement.to_string()), placement)
+
+    def test_snap_pieces_to_drape_target_reaches_clearance_and_preserves_rotation(self):
+        try:
+            import FreeCAD as App
+            import Part
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
+        from freecad_cloth.avatar.FittingCommands import snap_pieces_to_drape_target
+        from freecad_cloth.simulation.DrapeTarget import create_drape_target, target_status
+
+        doc = App.newDocument("FittingSnap")
+        try:
+            target_source = doc.addObject("Part::Feature", "TargetSource")
+            target_source.Shape = Part.makeBox(100.0, 100.0, 100.0)
+            target = create_drape_target(doc, target_source, "FreeCAD Geometry", 0.5, 0.0)
+            piece = doc.addObject("Part::Feature", "PatternPiece")
+            piece.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
+            piece.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = "snap-piece"
+            piece.Shape = Part.makeBox(10.0, 10.0, 1.0)
+            piece.Placement = App.Placement(App.Vector(140.0, 45.0, 50.0), App.Rotation(App.Vector(1, 0, 0), 90.0))
+            original_rotation = piece.Placement.Rotation
+            doc.recompute()
+            self.assertEqual(target_status(target)["state"], "ready")
+
+            results = snap_pieces_to_drape_target((piece,), target, clearance=5.0, max_translation=100.0)
+            self.assertEqual(len(results), 1)
+            self.assertAlmostEqual(float(results[0]["distance_before"]), 40.0, delta=1e-5)
+            self.assertAlmostEqual(float(results[0]["distance_after"]), 5.0, delta=1e-5)
+            self.assertAlmostEqual(float(results[0]["translation"]), 35.0, delta=1e-5)
+            self.assertEqual(piece.Placement.Rotation, original_rotation)
+        finally:
+            if doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
+
+    def test_snap_rejects_stale_or_ambiguous_targets(self):
+        try:
+            import FreeCAD as App
+            import Part
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
+        from freecad_cloth.avatar.FittingCommands import snap_pieces_to_drape_target
+        from freecad_cloth.simulation.DrapeTarget import create_drape_target
+
+        doc = App.newDocument("FittingSnapAmbiguous")
+        try:
+            source_a = doc.addObject("Part::Feature", "TargetSourceA")
+            source_a.Shape = Part.makeBox(100.0, 100.0, 100.0)
+            source_b = doc.addObject("Part::Feature", "TargetSourceB")
+            source_b.Shape = Part.makeBox(120.0, 100.0, 100.0)
+            target_a = create_drape_target(doc, source_a, "FreeCAD Geometry", 0.5, 0.0)
+            target_b = create_drape_target(doc, source_b, "FreeCAD Geometry", 0.5, 0.0)
+            piece = doc.addObject("Part::Feature", "PatternPiece")
+            piece.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
+            piece.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = "ambiguous-piece"
+            piece.Shape = Part.makeBox(10.0, 10.0, 1.0)
+            piece.Placement.Base = App.Vector(140.0, 45.0, 50.0)
+            doc.recompute()
+
+            with self.assertRaisesRegex(ValueError, "exactly one DrapeTarget"):
+                snap_pieces_to_drape_target((piece,), None, clearance=5.0, max_translation=100.0)
+
+            source_a.Placement.Base = App.Vector(2.0, 0.0, 0.0)
+            doc.recompute()
+            with self.assertRaisesRegex(RuntimeError, "snap blocked"):
+                snap_pieces_to_drape_target((piece,), target_b, clearance=5.0, max_translation=100.0)
+            _ = target_a
+        finally:
+            if doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
+
+    def test_snap_batch_rolls_back_every_piece_when_any_piece_exceeds_limit(self):
+        try:
+            import FreeCAD as App
+            import Part
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
+        from freecad_cloth.avatar.FittingCommands import snap_pieces_to_drape_target
+        from freecad_cloth.simulation.DrapeTarget import create_drape_target
+
+        doc = App.newDocument("FittingSnapRollback")
+        try:
+            source = doc.addObject("Part::Feature", "TargetSource")
+            source.Shape = Part.makeBox(100.0, 100.0, 100.0)
+            target = create_drape_target(doc, source, "FreeCAD Geometry", 0.5, 0.0)
+            near = doc.addObject("Part::Feature", "PatternPieceNear")
+            near.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
+            near.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = "near"
+            near.Shape = Part.makeBox(10.0, 10.0, 1.0)
+            near.Placement.Base = App.Vector(140.0, 45.0, 50.0)
+            far = doc.addObject("Part::Feature", "PatternPieceFar")
+            far.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
+            far.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = "far"
+            far.Shape = Part.makeBox(10.0, 10.0, 1.0)
+            far.Placement.Base = App.Vector(500.0, 45.0, 50.0)
+            original_near = near.Placement
+            original_far = far.Placement
+            doc.recompute()
+
+            with self.assertRaisesRegex(RuntimeError, "exceeds"):
+                snap_pieces_to_drape_target((near, far), target, clearance=5.0, max_translation=100.0)
+
+            self.assertEqual(near.Placement, original_near)
+            self.assertEqual(far.Placement, original_far)
+        finally:
+            if doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
+
     def test_freecad_mannequin_rebuild_invalidates_target_until_refreshed(self):
         try:
             import FreeCAD as App
