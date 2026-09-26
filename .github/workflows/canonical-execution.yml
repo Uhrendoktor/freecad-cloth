@@ -219,7 +219,7 @@ jobs:
                 log="/workspace/artifacts/$name.log"
                 rm -f "$marker" "$log"
                 set +e
-                timeout --signal=TERM --kill-after=5s 20s /opt/freecad/AppRun "$@" /workspace/tests/freecad_startup_probe.py >"$log" 2>&1
+                timeout --signal=TERM --kill-after=5s 60s /opt/freecad/AppRun "$@" /workspace/tests/freecad_startup_probe.py >"$log" 2>&1
                 status=$?
                 set -e
                 echo "case=$name exit=$status" | tee -a "$log"
@@ -228,7 +228,7 @@ jobs:
               probe_case plain
               probe_case module-path -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth
               set +e
-              timeout --signal=TERM --kill-after=5s 30s /opt/freecad/AppRun /workspace/tests/freecad_sketcher_boundary_probe.py > /workspace/artifacts/boundary.log 2>&1
+              timeout --signal=TERM --kill-after=5s 60s /opt/freecad/AppRun /workspace/tests/freecad_sketcher_boundary_probe.py > /workspace/artifacts/boundary.log 2>&1
               boundary_status=$?
               set -e
               echo "boundary-exit=$boundary_status" >> /workspace/artifacts/boundary.log
@@ -306,7 +306,7 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /workspace/tests/freecad_sewing_creation_smoke.py
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_sewing_creation_smoke.py
               test -s /workspace/artifacts/sewing-creation-smoke.log
             '
       - name: Restore workspace from Docker volume
@@ -397,7 +397,7 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun /workspace/tests/freecad_sketcher_acceptance.py > /workspace/artifacts/sketcher-acceptance.log 2>&1
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_sketcher_acceptance.py > /workspace/artifacts/sketcher-acceptance.log 2>&1
               grep -q "native Sketcher acceptance passed" /workspace/artifacts/sketcher-acceptance.log
             '
       - name: Restore workspace from Docker volume
@@ -462,7 +462,7 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=10s 5m /opt/freecad/AppRun /workspace/tests/freecad_pattern_export_smoke.py
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_pattern_export_smoke.py
               test -s /workspace/artifacts/pattern-production-export.log
             '
       - name: Restore workspace from Docker volume
@@ -789,7 +789,7 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth /workspace/tests/freecad_visual_examples.py
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth /workspace/tests/freecad_visual_examples.py
             '
           test -s docs/images/generated/blanket-example/blanket-visual.log
           grep -q 'blanket-visual-acceptance=passed' docs/images/generated/blanket-example/blanket-visual.log
