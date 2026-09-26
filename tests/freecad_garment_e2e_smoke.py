@@ -611,12 +611,6 @@ def run_acceptance():
             raise RuntimeError("target-aware fitting changed HomePlacements")
         print("target-placement=passed pieces=%d min-clearance-mm=%.3f" % (len(clearances), min(clearances.values())), flush=True)
 
-        _select_objects(*fitting_pieces, target)
-        Gui.runCommand("ClothFitting_ResetArrangement", 0)
-        _events()
-        doc.recompute()
-        if tuple(fitting.HomePlacements) != home_snapshot or str(fitting.FitStatus) != "Arrangement reset":
-            raise RuntimeError("Reset Arrangement did not preserve home state")
         _select_objects(fitting)
         Gui.runCommand("ClothFitting_CreateSimulation", 0)
         _events()
@@ -626,6 +620,14 @@ def run_acceptance():
         doc.recompute()
         if len(scene.ClothPieces) != 4:
             raise RuntimeError("fitting-created simulation did not inherit four pattern pieces")
+        if getattr(scene, "DrapeTarget", None) != target:
+            raise RuntimeError("fitting-created simulation did not inherit the authoritative DrapeTarget")
+        _select_objects(*fitting_pieces, target)
+        Gui.runCommand("ClothFitting_ResetArrangement", 0)
+        _events()
+        doc.recompute()
+        if tuple(fitting.HomePlacements) != home_snapshot or str(fitting.FitStatus) != "Arrangement reset":
+            raise RuntimeError("Reset Arrangement did not preserve home state")
         _activate(
             "ClothSimulationWorkbench",
             ["ClothDrape_CreateMannequinTarget"],
