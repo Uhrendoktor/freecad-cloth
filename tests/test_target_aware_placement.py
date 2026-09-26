@@ -90,3 +90,10 @@ def test_target_surface_transform_preserves_world_coordinates_under_non_identity
     hit = target_surface_anchor(transformed, (100.0, -20.0, 25.0), (0.0, 0.0, 1.0))
     assert hit.point == pytest.approx((100.0, -20.0, 15.0))
     assert hit.normal == (0.0, 0.0, 1.0)
+
+
+def test_target_surface_is_transformed_into_world_frame_before_matching():
+    from pathlib import Path
+    source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    assert "surface = transform_surface(" in source
+    assert "source_placement.multVec(App.Vector(*point))" in source
