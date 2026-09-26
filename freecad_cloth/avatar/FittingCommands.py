@@ -429,6 +429,82 @@ def reset_arrangement():
     return scene
 
 
+
+def arrange_pieces_against_target(scene=None, target=None, pieces=None, side_by_piece=None):
+    """Place assigned PatternPieces on deterministic sides of one current DrapeTarget."""
+    import FreeCAD as App
+    from freecad_cloth.avatar.AvatarFitting import ArrangementPoint, BodyMeasurements, BoundingVolume, FittingScene, PiecePlacement
+    from freecad_cloth.avatar.TargetPlacement import plan_target_relative_placement
+    from freecad_cloth.simulation.DrapeTarget import authoritative_collision_bounds, resolve_authoritative_target, source_signature
+
+    doc = App.ActiveDocument
+    if doc is None:
+        raise ValueError("open a document before arranging garments")
+    scene = scene or _scene(doc)
+    if scene is None:
+        raise ValueError("create a fitting scene first")
+    _ensure_target_placement_properties(scene)
+    target = resolve_authoritative_target(doc, target)
+    pieces = tuple(pieces or scene.PatternPieces or ())
+    if not pieces:
+        raise ValueError("assign at least one pattern piece before target arrangement")
+    mapping = dict(side_by_piece or {})
+    if not mapping:
+        raise ValueError("target arrangement requires explicit wrap/side semantics per piece")
+    bounds = authoritative_collision_bounds(target)
+    homes = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.HomePlacements)}
+    current = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)}
+    plans = {}
+    for piece in pieces:
+        if getattr(piece, "PatternType", "") != "PatternPiece":
+            raise ValueError("target arrangement accepts only PatternPiece objects")
+        piece_id = str(getattr(piece, "PieceId", ""))
+        home = homes.get(piece_id)
+        if home is None:
+            raise ValueError("piece %s has no saved HomePlacement" % piece_id)
+        direction = str(mapping.get(piece_id, mapping.get(str(getattr(piece, "Label", "")), ""))).strip().lower()
+        if not direction:
+            raise ValueError("piece %s has no wrap/side semantic" % piece_id)
+        plan = plan_target_relative_placement(
+            home.position,
+            home.rotation_axis,
+            home.rotation_z,
+            _piece_local_bounds(piece),
+            bounds,
+            direction,
+            float(scene.TargetPlacementClearance),
+            float(scene.TargetPlacementMaxTranslation),
+            float(scene.TargetPlacementMaxRotation),
+        )
+        placement = PiecePlacement(piece_id, plan.position, plan.rotation_angle, plan.rotation_axis)
+        _apply_piece_placement(piece, placement)
+        current[piece_id] = placement
+        plans[piece_id] = plan
+
+    scene.DrapeTarget = target
+    scene.ArrangementTargetSignature = repr(source_signature(
+        target.SourceObject,
+        float(getattr(target, "CollisionDeflection", 1.0)),
+        float(getattr(target, "CollisionThickness", 0.0)),
+    ))
+    scene.PiecePlacements = [current[k].to_string() for k in sorted(current)]
+    FittingScene(
+        BodyMeasurements.from_json(scene.MeasurementData),
+        getattr(scene.AvatarProxy, "Label", "") if scene.AvatarProxy else "",
+        tuple(current[k] for k in sorted(current)),
+        tuple(ArrangementPoint.from_string(v) for v in scene.ArrangementPoints),
+        tuple(BoundingVolume.from_string(v) for v in scene.BoundingVolumes),
+        bool(scene.SymmetryEnabled),
+        str(scene.ArrangementTargetSignature),
+        float(scene.TargetPlacementClearance),
+        float(scene.TargetPlacementMaxTranslation),
+        float(scene.TargetPlacementMaxRotation),
+    ).validate()
+    scene.FitStatus = "Target arranged"
+    doc.recompute()
+    return plans
+
+
 def create_simulation_from_fitting():
     import FreeCAD as App
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
@@ -442,6 +518,8 @@ def create_simulation_from_fitting():
     simulation.ClothPieces = list(scene.PatternPieces)
     if scene.AvatarProxy is not None:
         simulation.AvatarProxy = scene.AvatarProxy
+    if getattr(scene, "DrapeTarget", None) is not None:
+        simulation.DrapeTarget = scene.DrapeTarget
     doc.recompute()
     return simulation
 
@@ -472,6 +550,7 @@ COMMANDS = [
     "ClothFitting_DeleteBoundingVolume",
     "ClothFitting_SetSymmetry",
     "ClothFitting_ApplyArrangementPoint",
+    "ClothFitting_ArrangeToTarget",
     "ClothFitting_ResetArrangement",
     "ClothFitting_CreateSimulation",
 ]
@@ -487,6 +566,7 @@ _COMMAND_HANDLERS = {
     "ClothFitting_DeleteBoundingVolume": lambda: delete_bounding_volume("Volume1"),
     "ClothFitting_SetSymmetry": lambda: set_symmetry_enabled(True),
     "ClothFitting_ApplyArrangementPoint": lambda: _apply_selected_arrangement(),
+    "ClothFitting_ArrangeToTarget": lambda: arrange_pieces_against_target(),
     "ClothFitting_ResetArrangement": reset_arrangement,
     "ClothFitting_CreateSimulation": create_simulation_from_fitting,
 }
