@@ -137,7 +137,6 @@ jobs:
     permissions:
       actions: write
       contents: read
-      statuses: write
     steps:
       - name: Dispatch hosted validation from main
         env:
@@ -146,7 +145,6 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          dispatch_epoch="$(date -u +%s)"
           gh workflow run canonical-execution.yml \
             --repo "$REPO" \
             --ref main \
@@ -154,24 +152,28 @@ jobs:
             -f pull_request_number="$PR_NUMBER" \
             -f pull_request_sha="${{ github.event.pull_request.head.sha }}" \
             -f fallback_source_run="$GITHUB_RUN_ID"
-          hosted_run_id=""
-          for attempt in $(seq 1 12); do
-            hosted_run_id="$(gh api --paginate "repos/$REPO/actions/runs?event=workflow_dispatch&branch=main&per_page=100" \
-              --jq '.workflow_runs[] | select(.name == "Canonical execution") | select((.display_title | contains("source #" + env.GITHUB_RUN_ID)) and ((.created_at | fromdateiso8601) >= '"$dispatch_epoch"')) | .id' | head -n 1)"
-            if [ -n "$hosted_run_id" ]; then break; fi
-            sleep 1
-          done
-          if [ -z "$hosted_run_id" ]; then
-            echo "Unable to resolve dispatched hosted workflow run ID" >&2
-            exit 1
-          fi
-          gh api --method POST "repos/$REPO/statuses/${{ github.event.pull_request.head.sha }}" \
+          echo "pr-router=hosted-dispatch pr=$PR_NUMBER source_run=$GITHUB_RUN_ID workflow_ref=main"
+  brokered_hosted_status:
+    name: Publish brokered hosted run status
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.pull_request_number != '' && inputs.pull_request_sha != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: write
+      contents: read
+    steps:
+      - name: Publish hosted validation status on immutable PR head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_SHA: ${{ inputs.pull_request_sha }}
+          PR_NUMBER: ${{ inputs.pull_request_number }}
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/$REPO/statuses/$PR_SHA" \
             -f state=pending \
             -f context="canonical/hosted-validation" \
-            -f description="Hosted validation dispatched as workflow run $hosted_run_id" \
-            -f target_url="https://github.com/$REPO/actions/runs/$hosted_run_id" >/dev/null
-          echo "pr-router=hosted-dispatch pr=$PR_NUMBER source_run=$GITHUB_RUN_ID hosted_run=$hosted_run_id workflow_ref=main"
-
+            -f description="Hosted canonical validation run $GITHUB_RUN_ID for PR #$PR_NUMBER" \
+            -f target_url="https://github.com/$REPO/actions/runs/$GITHUB_RUN_ID" >/dev/null
   local_runner_readiness:
     name: Selected runner readiness
     if: ${{ github.event_name != 'pull_request_target' }}

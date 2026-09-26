@@ -127,3 +127,12 @@ def test_brokered_dispatch_run_name_includes_source_run_identity():
     assert "format(' · source #{0}', inputs.fallback_source_run)" in workflow
     broker = workflow.split("  pull_request_broker:", 1)[1].split("  local_runner_readiness:", 1)[0]
     assert 'contains("source #" + env.GITHUB_RUN_ID)' in broker
+
+
+def test_workflow_dispatch_publishes_its_own_hosted_run_status():
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    assert "Publish brokered hosted run status" in workflow
+    status_job = workflow.split("  brokered_hosted_status:", 1)[1].split("  local_runner_readiness:", 1)[0]
+    assert "statuses: write" in status_job
+    assert "inputs.pull_request_sha" in status_job
+    assert "GITHUB_RUN_ID" in status_job
