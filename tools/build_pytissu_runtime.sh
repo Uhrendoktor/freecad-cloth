@@ -34,8 +34,8 @@ docker run --rm --security-opt seccomp=unconfined \
     git checkout --quiet "$TISSU_COMMIT"
     test "$(git rev-parse HEAD)" = "$TISSU_COMMIT"
 
-    git apply --check /workspace/tools/tissu-mesh-collider-inside.patch
-    git apply /workspace/tools/tissu-mesh-collider-inside.patch
+    python3 /workspace/tools/patch_pytissu_source.py /tmp/Tissu
+    git diff --check
 
     sed -i "s/^version = \"1.1.0\"$/version = \"1.1.0+freecad_cloth.1\"/" pyproject.toml
 
@@ -55,7 +55,7 @@ docker run --rm --security-opt seccomp=unconfined \
     {
       echo "source_repo=https://github.com/evanrock520-ciencias/Tissu"
       echo "source_commit=$TISSU_COMMIT"
-      echo "patch_sha256=$(sha256sum /workspace/tools/tissu-mesh-collider-inside.patch | awk "{print \$1}")"
+      echo "source_transform_sha256=$(sha256sum /workspace/tools/patch_pytissu_source.py | awk "{print \$1}")"
       echo "wheel=$(basename "$WHEEL")"
       echo "python=$(python3 --version)"
       echo "cmake=$(cmake --version | head -n 1)"
