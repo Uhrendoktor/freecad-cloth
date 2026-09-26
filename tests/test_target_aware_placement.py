@@ -81,3 +81,13 @@ def test_fitting_action_checks_the_complete_piece_surface_not_only_anchors():
     assert "shape.tessellate" in fitting
     assert "piece_clearance = assert_minimum_surface_clearance" in fitting
 
+def test_target_snap_contract_is_atomic_and_matches_simulation_panel_adapter():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    fitting = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    gui = (root / "freecad_cloth" / "simulation" / "SimulationQualityGui.py").read_text(encoding="utf-8")
+    assert "snap_pieces_to_target" in fitting
+    assert "except Exception:" in fitting
+    assert "snap_pattern_pieces_to_target(pattern_pieces=None" in fitting
+    assert "snap_pattern_pieces_to_target(tuple(getattr(fitting, "PatternPieces", ()) or ()))" in gui
+
