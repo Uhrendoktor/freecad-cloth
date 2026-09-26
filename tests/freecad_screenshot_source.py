@@ -333,24 +333,35 @@ def pattern_and_sewing():
     if len(set(expected_colors.values())) != len(seam_objects):
         raise RuntimeError("canonical sewing fixture did not produce unique seam colors")
     if any(
-        any(abs(actual - expected) > 1e-6 for actual, expected in zip(
+        not bool(getattr(obj.ViewObject, "Visibility", False))
+        or any(abs(actual - expected) > 1e-6 for actual, expected in zip(
             tuple(obj.ViewObject.LineColor[:3]), tuple(expected_colors[str(obj.SeamId)])
         ))
         for obj in seam_objects
     ):
-        raise RuntimeError("Pattern workbench activation did not apply deterministic seam colors")
+        raise RuntimeError("Pattern workbench seam presentation is not simultaneously visible with canonical colors")
+    from freecad_cloth.pattern.PatternGui import show_pattern_view
+    show_pattern_view(); events()
+    if any(
+        not bool(getattr(obj.ViewObject, "Visibility", False))
+        or tuple(obj.ViewObject.LineColor[:3]) != tuple(expected_colors[str(obj.SeamId)])
+        for obj in seam_objects
+    ):
+        raise RuntimeError("Pattern 2D view did not retain visible canonical seam colors")
+    save("cloth-pattern-design.png", "Pattern Workbench", "native Sketcher tunic pattern with two simultaneously visible semantic seams")
     sewing = create_sewing_operation(); doc.recompute()
     if str(sewing.Status) != "Valid" or sewing.Shape.isNull():
         raise RuntimeError("sewing operation fixture is invalid")
     activate("ClothSewingWorkbench", "Cloth Sewing", ["ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_Validate"])
     if any(
-        any(abs(actual - expected) > 1e-6 for actual, expected in zip(
+        not bool(getattr(obj.ViewObject, "Visibility", False))
+        or any(abs(actual - expected) > 1e-6 for actual, expected in zip(
             tuple(obj.ViewObject.LineColor[:3]), tuple(expected_colors[str(obj.SeamId)])
         ))
         for obj in seam_objects
     ):
-        raise RuntimeError("Sewing workbench activation did not preserve seam presentation colors")
-    panel = SewingTaskPanel(sewing); show_task(panel, "Sewing Workbench", ("Seam", "Alignment", "Validation tolerance", "Stitch samples", "Status")); Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll(); events(); save("cloth-sewing.png", "Sewing Workbench", "native Sketcher boundary with two uniquely colored semantic seams"); close_task(); App.closeDocument(doc.Name)
+        raise RuntimeError("Sewing workbench seam presentation is not simultaneously visible with canonical colors")
+    panel = SewingTaskPanel(sewing); show_task(panel, "Sewing Workbench", ("Seam", "Alignment", "Validation tolerance", "Stitch samples", "Status")); Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll(); events(); save("cloth-sewing.png", "Sewing Workbench", "native Sketcher boundary with two simultaneously visible uniquely colored semantic seams"); close_task(); App.closeDocument(doc.Name)
 
 
 def style_mesh(obj, label):
@@ -433,17 +444,30 @@ def simulation():
     if int(getattr(avatar, "MeshVertexCount", 0)) <= 100 or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100:
         raise RuntimeError("visual fixture does not contain a real humanoid mesh")
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
-    from freecad_cloth.sewing.SewingView import seam_color_map
+    from freecad_cloth.sewing.SewingView import seam_color_map, refresh_seam_colors
     expected_colors = seam_color_map(str(obj.SeamId) for obj, _a, _b in seam_records)
     if len(set(expected_colors.values())) != len(seam_records):
         raise RuntimeError("Simulation visual fixture did not produce unique seam colors")
-    if any(
-        any(abs(actual - expected) > 1e-6 for actual, expected in zip(
-            tuple(obj.ViewObject.LineColor[:3]), tuple(expected_colors[str(obj.SeamId)])
-        ))
-        for obj, _a, _b in seam_records
-    ):
-        raise RuntimeError("Simulation workbench activation did not restore seam presentation colors")
+    refresh_seam_colors(doc)
+    seam_visuals = {
+        str(getattr(obj, "SimulationSeamId", "")): obj
+        for obj in doc.Objects
+        if str(getattr(obj, "SimulationSeamId", "")).strip()
+    }
+    for obj, _a, _b in seam_records:
+        seam_id = str(obj.SeamId)
+        visual = seam_visuals.get(seam_id)
+        if visual is None or not bool(getattr(visual.ViewObject, "Visibility", False)):
+            raise RuntimeError("Simulation seam %s is not simultaneously visible" % seam_id)
+        if tuple(visual.ViewObject.LineColor[:3]) != tuple(expected_colors[seam_id]):
+            raise RuntimeError("Simulation seam color mismatch for %s" % seam_id)
+    visible_colors = {
+        tuple(visual.ViewObject.LineColor[:3])
+        for visual in seam_visuals.values()
+        if bool(getattr(visual.ViewObject, "Visibility", False))
+    }
+    if len(visible_colors) < len(seam_records):
+        raise RuntimeError("Simulation seam overlays are not uniquely colored")
     simulation_panel = SimulationQualityTaskPanel(scene); task_dock = show_task(simulation_panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset")); view = Gui.activeDocument().activeView(); view.setCameraType("Orthographic"); view.viewFront(); view.fitAll(); events(); task_dock.hide(); events(); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical sewn tunic generated from native Sketcher pattern sources on production mannequin"); task_dock.show(); task_dock.raise_(); events()
     for batch in (15,15,15,15,15,15):
         simulation_panel.step(batch); doc.recompute(); events()
@@ -475,6 +499,19 @@ def simulation():
         raise RuntimeError("diagnostics created a map from a non-finite simulation state")
     finally:
         scene.FiniteState = original_finite
+    refresh_seam_colors(doc)
+    seam_visuals = {
+        str(getattr(obj, "SimulationSeamId", "")): obj
+        for obj in doc.Objects
+        if str(getattr(obj, "SimulationSeamId", "")).strip()
+    }
+    for obj, _a, _b in seam_records:
+        seam_id = str(obj.SeamId)
+        visual = seam_visuals.get(seam_id)
+        if visual is None or not bool(getattr(visual.ViewObject, "Visibility", False)):
+            raise RuntimeError("diagnostic view hid simulation seam %s" % seam_id)
+        if tuple(visual.ViewObject.LineColor[:3]) != tuple(expected_colors[seam_id]):
+            raise RuntimeError("diagnostic view changed simulation seam color for %s" % seam_id)
     view.viewFront(); view.fitAll(); events()
     save(
         "cloth-simulation-draped-diagnostics.png",
