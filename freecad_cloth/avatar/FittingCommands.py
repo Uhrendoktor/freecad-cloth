@@ -349,11 +349,12 @@ def _world_shape(obj):
             points = []
             for index in triangle:
                 vertex = vertices[int(index)]
-                points.append(App.Vector(
-                    float(getattr(vertex, "x", vertex[0])),
-                    float(getattr(vertex, "y", vertex[1])),
-                    float(getattr(vertex, "z", vertex[2])),
-                ))
+                x = getattr(vertex, "x", None)
+                y = getattr(vertex, "y", None)
+                z = getattr(vertex, "z", None)
+                if x is None or y is None or z is None:
+                    x, y, z = vertex[0], vertex[1], vertex[2]
+                points.append(App.Vector(float(x), float(y), float(z)))
             points.append(points[0])
             faces.append(Part.Face(Part.makePolygon(points)))
         if not faces:
@@ -416,11 +417,15 @@ def _snap_one_piece_to_target(piece, target, clearance, max_translation, max_ite
             break
         nearest = piece_shape.distToShape(target_shape)
         points = nearest[1] if len(nearest) > 1 else ()
-        if points and len(points) >= 2:
+        piece_center = _shape_center(piece_shape)
+        target_center = _shape_center(target_shape)
+        if distance <= 1e-9:
+            direction = piece_center.sub(target_center)
+        elif points and len(points) >= 2:
             target_point, piece_point = points[0], points[1]
             direction = piece_point.sub(target_point)
         else:
-            direction = _shape_center(piece_shape).sub(_shape_center(target_shape))
+            direction = piece_center.sub(target_center)
         if direction.Length <= 1e-9:
             direction = App.Vector(0.0, 0.0, 1.0)
         direction.normalize()
@@ -466,8 +471,12 @@ def snap_pieces_to_drape_target(pieces, target=None, clearance=8.0, max_translat
         raise ValueError("clearance must not be negative")
     if max_translation <= 0.0 or max_iterations < 1:
         raise ValueError("snap limits must be positive")
+    by_name = {}
+    for piece in pieces or ():
+        if getattr(piece, "PatternType", "") == "PatternPiece":
+            by_name[str(getattr(piece, "Name", ""))] = piece
     ordered = tuple(sorted(
-        {piece for piece in (pieces or ()) if getattr(piece, "PatternType", "") == "PatternPiece"},
+        by_name.values(),
         key=lambda piece: str(getattr(piece, "PieceId", "")),
     ))
     if not ordered:
