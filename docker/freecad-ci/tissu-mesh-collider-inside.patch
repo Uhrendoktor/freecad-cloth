@@ -37,7 +37,8 @@ diff --git a/tests/physics/test_mesh_collider.cpp b/tests/physics/test_mesh_coll
  
  using namespace Tissu;
 @@ -8,3 +10,30 @@
-+ 
+ using namespace Tissu;
+ 
 +static double maxOutwardPlaneDistance(const Eigen::Vector3d& point) {
 +    static const Eigen::Vector3d vertices[] = {
 +        {0.0, 0.0, 0.0},
