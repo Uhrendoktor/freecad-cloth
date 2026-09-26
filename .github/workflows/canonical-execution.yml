@@ -160,6 +160,7 @@ jobs:
                 tests/test_drape_visual_sanity.py \
                 tests/test_xpbd.py \
                 tests/test_cloth_solver.py \
+                tests/test_tissu_containment.py \
                 tests/test_side_tasks.py \
                 tests/test_collisions.py \
                 tests/test_pattern_sketch.py \
