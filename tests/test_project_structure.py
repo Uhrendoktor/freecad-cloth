@@ -50,6 +50,24 @@ def test_human_documentation_contract():
     docs_readme = root / "docs" / "README.md"
     assert user_guide.is_file()
     assert "USER_GUIDE.md" in docs_readme.read_text(encoding="utf-8")
+
+def test_target_placement_contract_is_solver_neutral():
+    root = Path(__file__).resolve().parents[1]
+    module = root / "freecad_cloth" / "avatar" / "TargetPlacement.py"
+    source = module.read_text(encoding="utf-8")
+    assert "class TargetProjection" in source
+    assert "def nearest_target_projection" in source
+    assert "def minimum_signed_clearance" in source
+    assert "import FreeCAD" not in source
+
+
+def test_fitting_exposes_target_arrangement_and_persists_reset_state():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    assert "def snap_pattern_pieces_to_target" in source
+    assert '"ClothFitting_SnapPiecesToTarget"' in source
+    assert "scene.HomePlacements" in source
+    assert 'scene.FitStatus = "Target snapped"' in source
 def test_canonical_workflow_pr_validation_contract():
     root = Path(__file__).resolve().parents[1]
     workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
