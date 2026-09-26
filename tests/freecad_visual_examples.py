@@ -244,7 +244,7 @@ def main():
         scene.GravityY = 0.0
         scene.GravityZ = -9810.0
         scene.StartHeight = 0.0
-        scene.TimeStep = 1.0 / 480.0
+        scene.TimeStep = 1.0 / 120.0
         # QualitySimulationProxy consumes SolverIterations; the legacy Iterations field is ignored for this runtime path.
         scene.ParticleDistance = max(20.0, float(scene.ParticleDistance))
         scene.SolverIterations = 1
@@ -350,6 +350,19 @@ def main():
             for vertex in cube.Shape.Vertexes
         )
         drape = inspect_drape(vertices, avatar_points, target_height=60.0, target_width=180.0)
+        cube_top_z = max(float(vertex.Point.z) for vertex in cube.Shape.Vertexes)
+        final_min_z = min(float(vertex[2]) for vertex in vertices)
+        target_clearance = final_min_z - cube_top_z
+        log("drape-target-clearance-mm=%.2f cube_top_z=%.2f cloth_min_z=%.2f" % (
+            target_clearance, cube_top_z, final_min_z,
+        ))
+        if drape.state != "structurally-plausible":
+            raise RuntimeError("blanket drape state is not structurally plausible: %s" % drape.state)
+        if target_clearance > 35.0:
+            raise RuntimeError(
+                "blanket did not approach cube surface: cloth_min_z=%.2f cube_top_z=%.2f clearance=%.2f"
+                % (final_min_z, cube_top_z, target_clearance)
+            )
         if not mesh_result.finite or mesh_result.components != 1 or mesh_result.degenerate_faces:
             raise RuntimeError("blanket mesh failed structural validation: %r" % mesh_result)
         if not shape["finite"] or shape["edge_spike_ratio"] > 4.0 or shape["spike_edge_fraction"] > 0.02:
