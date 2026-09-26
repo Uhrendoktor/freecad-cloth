@@ -31,7 +31,7 @@ os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "mesh")
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 BLANKET_SIZE = 200.0  # Validated 200 mm release fixture; keep pins/placement derived from this value.
 BLANKET_PARTICLE_DISTANCE = 16.0  # Bounded release resolution; contract requires >= 12 mm.
-BLANKET_PIN_MODE = "two-diagonal-corners"  # Benchmark candidate pin contract.
+BLANKET_PIN_MODE = "one-corner"  # Benchmark candidate pin contract.
 # The README fixture uses the same pinned Tissu mesh-collision runtime as the
 # canonical turntable job and the validated 200 mm blanket visual example.
 os.environ["CLOTH_SIMULATION_BACKEND"] = "tissu"
@@ -301,6 +301,24 @@ def _opposite_top_edge_pins(piece, positions, panel_indices):
     return tuple(int(panel_indices[top_index]) for top_index in top), span
 
 
+def _one_corner_pin(piece, panel_indices):
+    mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, BLANKET_PARTICLE_DISTANCE)
+    boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
+    if len(boundary_vertices) < 4:
+        raise RuntimeError("blanket boundary has fewer than four vertices")
+    half = 0.5 * BLANKET_SIZE
+    target = App.Vector(-half, half, 0.0)
+    pin = min(
+        panel_indices,
+        key=lambda i: (
+            (mesh_positions[i][0] - target.x) ** 2
+            + (mesh_positions[i][1] - target.y) ** 2
+            + (mesh_positions[i][2] - target.z) ** 2
+        ),
+    )
+    return (int(pin),)
+
+
 def _two_diagonal_corner_pins(piece, panel_indices):
     mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, BLANKET_PARTICLE_DISTANCE)
     boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
@@ -482,6 +500,9 @@ def build_simulation_state(doc):
     panel_indices = tuple(proxy.panel_indices[panel.Name])
     if BLANKET_PIN_MODE == "two-opposite-corners":
         pins, span = _opposite_top_edge_pins(blanket, positions, panel_indices)
+    elif BLANKET_PIN_MODE == "one-corner":
+        pins = _one_corner_pin(blanket, panel_indices)
+        span = 0.0
     elif BLANKET_PIN_MODE == "two-diagonal-corners":
         pins = _two_diagonal_corner_pins(blanket, panel_indices)
         span = ((float(positions[pins[1]][0]) - float(positions[pins[0]][0])) ** 2
