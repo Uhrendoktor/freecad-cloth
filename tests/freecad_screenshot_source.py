@@ -452,6 +452,34 @@ def simulation():
         raise RuntimeError("target-aware tunic step-0 clearance %.3f mm < %.3f mm" % (step0_clearance, float(clearance)))
     log("target-placement=passed step0-clearance-mm=%.3f authored-spacing-preserved=true" % float(step0_clearance))
 
+    # Exercise the public recovery path, including linked Sketch placement.
+    reset_front = front.Placement
+    reset_back = back.Placement
+    reset_front_sketch = front.Sketch.Placement
+    reset_back_sketch = back.Sketch.Placement
+    Gui.runCommand("ClothFitting_ResetArrangement")
+    doc.recompute()
+    for actual, expected, label in (
+        (front.Placement, front_home, "front"),
+        (back.Placement, back_home, "back"),
+        (front.Sketch.Placement, reset_front_sketch, "front-sketch"),
+        (back.Sketch.Placement, reset_back_sketch, "back-sketch"),
+    ):
+        if any(abs(getattr(actual.Base, axis) - getattr(expected.Base, axis)) > 1e-6 for axis in ("x", "y", "z")):
+            raise RuntimeError("Reset Arrangement did not restore %s HomePlacement" % label)
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(front)
+    Gui.Selection.addSelection(back)
+    Gui.runCommand("ClothFitting_SnapPiecesToTarget")
+    doc.recompute()
+    step0_clearance = min(
+        minimum_signed_clearance(_piece_world_samples(piece), target_world).minimum_signed_clearance
+        for piece in (front, back)
+    )
+    if step0_clearance < float(clearance) - 1e-6:
+        raise RuntimeError("target-aware re-snap after reset produced %.3f mm < %.3f mm clearance" % (step0_clearance, float(clearance)))
+    log("arrangement-reset=passed linked-sketch-home=true")
+
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
     for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
