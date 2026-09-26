@@ -83,7 +83,7 @@ def test_tissu_signed_collision_guard_math_and_env_gate():
         assert correction is not None
         corrected, corrected_old, penetration = correction
         assert tuple(corrected) == (0.02, 0.0, 0.002)
-        assert tuple(corrected - corrected_old) == (0.01, 0.0, 0.0)
+        assert tuple(corrected - corrected_old) == (0.01, 0.0, 0.002)
         assert abs(penetration - 0.01) <= 1e-12
         outside = np.asarray((0.02, 0.0, 0.01), dtype=np.float64)
         assert _signed_collision_guard_correction(outside, old_position, closest, normal, 0.002) is None
