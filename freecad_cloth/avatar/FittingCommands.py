@@ -337,7 +337,7 @@ def snap_piece_to_target(piece, target=None, clearance=None, max_translation=Non
     """Place one pattern piece outside the persistent target surface without solver pins."""
     import FreeCAD as App
     from freecad_cloth.avatar.AvatarCollision import surface_from_freecad
-    from freecad_cloth.avatar.TargetPlacement import rigid_translation_for_clearance, minimum_signed_clearance
+    from freecad_cloth.avatar.TargetPlacement import rigid_translation_for_clearance, minimum_signed_clearance, surface_outward_direction
     doc = App.ActiveDocument
     scene = _scene(doc) if doc else None
     if scene is None:
@@ -375,7 +375,7 @@ def snap_piece_to_target(piece, target=None, clearance=None, max_translation=Non
     doc.recompute()
     new_shape = getattr(piece, "Shape", None)
     new_points = tuple((float(v.Point.x), float(v.Point.y), float(v.Point.z)) for v in getattr(new_shape, "Vertexes", ()) if hasattr(v, "Point"))
-    if not new_points or minimum_signed_clearance(new_points, surface, delta) < clearance - 1e-4:
+    direction = surface_outward_direction(new_points or points, surface)\n    if not new_points or minimum_signed_clearance(new_points, surface, direction) < clearance - 1e-4:
         piece.Placement = old_placement
         doc.recompute()
         raise RuntimeError("target-relative placement failed its post-transform clearance gate")
