@@ -1,5 +1,5 @@
 name: Canonical execution
-run-name: Canonical execution · ${{ github.event_name }}${{ github.event_name == 'workflow_dispatch' && inputs.pull_request_number != '' && format(' · PR #{0}', inputs.pull_request_number) || '' }}
+run-name: Canonical execution · ${{ github.event_name }}${{ github.event_name == 'workflow_dispatch' && inputs.pull_request_number != '' && format(' · PR #{0}', inputs.pull_request_number) || '' }}${{ github.event_name == 'workflow_dispatch' && inputs.fallback_source_run != '' && format(' · source #{0}', inputs.fallback_source_run) || '' }}
 
 on:
   push:
@@ -157,7 +157,7 @@ jobs:
           hosted_run_id=""
           for attempt in $(seq 1 12); do
             hosted_run_id="$(gh api --paginate "repos/$REPO/actions/runs?event=workflow_dispatch&branch=main&per_page=100" \
-              --jq '.workflow_runs[] | select(.name == "Canonical execution") | select((.display_title | contains("PR #" + env.PR_NUMBER)) and ((.created_at | fromdateiso8601) >= '"$dispatch_epoch"')) | .id' | head -n 1)"
+              --jq '.workflow_runs[] | select(.name == "Canonical execution") | select((.display_title | contains("source #" + env.GITHUB_RUN_ID)) and ((.created_at | fromdateiso8601) >= '"$dispatch_epoch"')) | .id' | head -n 1)"
             if [ -n "$hosted_run_id" ]; then break; fi
             sleep 1
           done
