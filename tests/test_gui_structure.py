@@ -42,6 +42,9 @@ assert '"Simulation quality"' in quality_gui
 assert '"Fabric"' in quality_gui
 assert '"Collision"' in quality_gui
 assert '"Run"' in quality_gui
+assert '"Pinning mode"' in quality_gui
+assert '"PinMode"' in quality_gui
+assert '"None creates the simulation with zero solver pins."' in quality_gui
 assert "show_simulation_quality_task" in quality_gui
 assert "class SewingTaskPanel" in sewing_gui
 assert "Gui.Control.showDialog(panel)" in sewing_gui

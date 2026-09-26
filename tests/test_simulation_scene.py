@@ -62,6 +62,54 @@ def test_stale_drape_target_recompute_guard_is_safe():
     assert "source, placement" in scene.InvalidationReason
 
 
+def test_pin_mode_semantics_preserve_automatic_defaults_and_support_no_pins():
+    from types import SimpleNamespace
+    from freecad_cloth.simulation.SimulationObjects import resolve_pin_indices
+
+    legacy = SimpleNamespace(PinSelection=[])
+    automatic = SimpleNamespace(PinSelection=[], PinMode="Automatic")
+    explicit = SimpleNamespace(PinSelection=["2", "5"], PinMode="Explicit")
+    explicit_empty = SimpleNamespace(PinSelection=[], PinMode="Explicit")
+    none = SimpleNamespace(PinSelection=["2", "5"], PinMode="None")
+
+    assert resolve_pin_indices(legacy, 8, (0, 7)) == (0, 7)
+    assert resolve_pin_indices(automatic, 8, (0, 7)) == (0, 7)
+    assert resolve_pin_indices(explicit, 8, (0, 7)) == (2, 5)
+    assert resolve_pin_indices(explicit_empty, 8, (0, 7)) == ()
+    assert resolve_pin_indices(none, 8, (0, 7)) == ()
+
+
+def test_pin_mode_is_part_of_rebuild_signature_and_none_ignores_pin_selection():
+    from types import SimpleNamespace
+    from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
+
+    source = SimpleNamespace(
+        Name="Body",
+        Shape=SimpleNamespace(isNull=lambda: False, hashCode=lambda: 123),
+        Placement=SimpleNamespace(
+            Base=SimpleNamespace(x=0.0, y=0.0, z=0.0),
+            Rotation=SimpleNamespace(
+                Angle=0.0,
+                Axis=SimpleNamespace(x=0.0, y=0.0, z=1.0),
+            ),
+        ),
+    )
+    target = SimpleNamespace(
+        SourceObject=source,
+        CollisionDeflection=1.0,
+        CollisionThickness=0.0,
+    )
+    base = dict(DrapeTarget=target, StitchSamples=8, Document=SimpleNamespace(Objects=[]))
+    automatic = SimpleNamespace(**base, PinMode="Automatic", PinSelection=[])
+    explicit = SimpleNamespace(**base, PinMode="Explicit", PinSelection=["1", "2"])
+    none_a = SimpleNamespace(**base, PinMode="None", PinSelection=["1", "2"])
+    none_b = SimpleNamespace(**base, PinMode="None", PinSelection=["6", "7"])
+
+    assert _simulation_source_signature(automatic, []) != _simulation_source_signature(explicit, [])
+    assert _simulation_source_signature(explicit, []) != _simulation_source_signature(none_a, [])
+    assert _simulation_source_signature(none_a, []) == _simulation_source_signature(none_b, [])
+
+
 def test_pin_selection_is_part_of_rebuild_signature():
     from types import SimpleNamespace
     from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
