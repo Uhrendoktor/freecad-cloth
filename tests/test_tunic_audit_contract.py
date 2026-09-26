@@ -151,3 +151,21 @@ def test_tissu_backend_keeps_authoritative_mesh_separate_from_solver_surface():
     assert "collision_surface = coarsen_collision_surface(collision_surface, collision_limit)" in source
     assert "self._collision_surface = collision_surface" in source
     assert "source_triangles=%d solver_triangles=%d limit=%d" in source
+
+
+def test_tunic_step_zero_clearance_gate_is_preserved_and_fixture_starts_outside_target():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "clearance = max(8.0, 0.025 * body_depth)" in audit
+    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance'," in audit
+    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance'," in audit
+
+
+def test_tunic_seam_mapping_uses_opposite_shoulder_edges():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"),(front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"),(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"))' in audit
+
+
+def test_canonical_tunic_fixture_matches_validated_orientation():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)' in audit
+    assert 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0;' in audit
