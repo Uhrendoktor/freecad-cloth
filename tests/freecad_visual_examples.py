@@ -21,6 +21,7 @@ except ImportError:
 
 # A generic FreeCAD cube requires Tissu's mesh collision path; torso-envelope is for avatar-style targets.
 os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "mesh")
+os.environ.setdefault("CLOTH_SIMULATION_BACKEND", "xpbd-cpu")
 
 OUT = Path(os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")) / "blanket-example"
 OUT.mkdir(parents=True, exist_ok=True)
@@ -244,10 +245,10 @@ def main():
         scene.GravityY = 0.0
         scene.GravityZ = -9810.0
         scene.StartHeight = 0.0
-        scene.TimeStep = 1.0 / 120.0
+        scene.TimeStep = 1.0 / 480.0
         # QualitySimulationProxy consumes SolverIterations; the legacy Iterations field is ignored for this runtime path.
-        scene.ParticleDistance = max(20.0, float(scene.ParticleDistance))
-        scene.SolverIterations = 1
+        scene.ParticleDistance = max(12.0, float(scene.ParticleDistance))
+        scene.SolverIterations = 4
         scene.SolverSubsteps = 1
         scene.FabricColor = (0.14, 0.32, 0.78)
         scene.FabricSpecular = 0.70
