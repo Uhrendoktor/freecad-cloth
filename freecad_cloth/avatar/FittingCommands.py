@@ -276,11 +276,19 @@ def _piece_world_samples(piece, deflection=1.0):
 def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=600.0, sample_deflection=1.0):
     """Apply one shared rigid translation to all selected pieces.
 
-    A shared transform preserves every authored pairwise displacement and rotation.
-    Clearance is proven against the exact PatternMesh consumed by Simulation.
+    The target operation solves two coupled invariants without changing solver
+    physics: move the assembled group toward its nearest authoritative target
+    projections, then prove the exact PatternMesh remains outside the target by
+    at least the requested clearance. A group translation is the only allowed
+    transform, so authored pairwise spacing and rotation are preserved.
     """
     import FreeCAD as App
-    from freecad_cloth.avatar.TargetPlacement import minimum_signed_clearance
+    from freecad_cloth.avatar.TargetPlacement import (
+        average_point,
+        minimum_signed_clearance,
+        nearest_target_projection,
+    )
+
     doc = App.ActiveDocument
     if doc is None:
         raise ValueError("open a document before arranging garment pieces")
@@ -292,9 +300,14 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
     required = float(clearance)
     if required < 0.0:
         raise ValueError("clearance must be non-negative")
+
     selected = tuple(
         sorted(
-            (piece for piece in (pieces or scene.PatternPieces) if getattr(piece, "PatternType", "") == "PatternPiece"),
+            (
+                piece
+                for piece in (pieces or scene.PatternPieces)
+                if getattr(piece, "PatternType", "") == "PatternPiece"
+            ),
             key=lambda item: str(getattr(item, "PieceId", getattr(item, "Name", ""))),
         )
     )
@@ -312,81 +325,193 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
         piece: getattr(getattr(piece, "Sketch", None), "Placement", None)
         for piece in selected
     }
+
     try:
         surface = _world_target_surface(target)
         total_translation = App.Vector(0.0, 0.0, 0.0)
-        last_violation = None
+        previous_proximity_error = None
+
         for _iteration in range(16):
-            reports = [
-                minimum_signed_clearance(_piece_world_samples(piece, sample_deflection), surface)
-                for piece in selected
-            ]
-            violations = [
-                (report, max(0.0, required - report.minimum_signed_clearance))
-                for report in reports
-                if report.minimum_signed_clearance < required - 1e-6
-            ]
-            if not violations:
+            centers = []
+            projections = []
+            proximity_errors = []
+            clearance_reports = []
+
+            for piece in selected:
+                samples = _piece_world_samples(piece, sample_deflection)
+                center = average_point(samples)
+                projection = nearest_target_projection(center, surface)
+                target_point = tuple(
+                    float(projection.point[index]) + float(projection.normal[index]) * required
+                    for index in range(3)
+                )
+                error_vector = tuple(
+                    target_point[index] - center[index]
+                    for index in range(3)
+                )
+                error_norm = sum(value * value for value in error_vector) ** 0.5
+                centers.append(center)
+                projections.append(projection)
+                proximity_errors.append(error_norm)
+                clearance_reports.append(
+                    minimum_signed_clearance(samples, surface)
+                )
+
+            proximity_error = sum(value * value for value in proximity_errors) ** 0.5
+
+            if (
+                proximity_error <= 1e-6
+                and all(
+                    report.minimum_signed_clearance >= required - 1e-6
+                    for report in clearance_reports
+                )
+            ):
                 break
-            weighted = App.Vector(0.0, 0.0, 0.0)
+
+            # The same rigid displacement must serve every panel. Weight each
+            # target pull by its current distance so a far detached panel cannot
+            # be ignored merely because it already has positive clearance.
+            weighted_step = App.Vector(0.0, 0.0, 0.0)
             weight_total = 0.0
-            for report, violation in violations:
-                normal = report.projection.normal
-                weight = max(float(violation), 1e-6)
-                weighted += App.Vector(
-                    float(normal[0]) * weight,
-                    float(normal[1]) * weight,
-                    float(normal[2]) * weight,
+            for center, projection, error_norm in zip(
+                centers, projections, proximity_errors
+            ):
+                if error_norm <= 1e-9:
+                    continue
+                weight = max(error_norm, 1e-6)
+                desired = App.Vector(
+                    float(projection.point[0]) + float(projection.normal[0]) * required,
+                    float(projection.point[1]) + float(projection.normal[1]) * required,
+                    float(projection.point[2]) + float(projection.normal[2]) * required,
                 )
+                current = App.Vector(*center)
+                weighted_step += (desired - current) * weight
                 weight_total += weight
+
             if weight_total <= 0.0:
-                raise ValueError("target-aware group correction has no usable target normal")
-            step = weighted * (1.0 / weight_total) * max(v for _r, v in violations)
-            proposed = total_translation + step
-            travel = proposed.Length
-            if travel > float(max_translation) + 1e-9:
-                raise ValueError(
-                    "target-aware group translation exceeds %.3f mm" % float(max_translation)
-                )
-            if step.Length <= 1e-6 or proposed.Length <= total_translation.Length + 1e-9:
-                last_violation = max(v for _r, v in violations)
+                if previous_proximity_error is None:
+                    raise ValueError("target-aware group correction has no usable target projection")
                 break
+
+            step = weighted_step * (1.0 / weight_total)
+            proposed = total_translation + step
+            if proposed.Length > float(max_translation) + 1e-9:
+                raise ValueError(
+                    "target-aware group translation exceeds %.3f mm"
+                    % float(max_translation)
+                )
+            if step.Length <= 1e-6:
+                if previous_proximity_error is None or (
+                    proximity_error > previous_proximity_error + 1e-6
+                ):
+                    raise ValueError(
+                        "target-aware group placement stalled before reaching the target"
+                    )
+                break
+
             for piece in selected:
                 placement = piece.Placement
-                base = placement.Base
-                new_base = base + step
-                piece.Placement = App.Placement(new_base, placement.Rotation)
+                piece.Placement = App.Placement(
+                    placement.Base + step,
+                    placement.Rotation,
+                )
                 sketch = getattr(piece, "Sketch", None)
                 if sketch is not None:
                     sketch.Placement = piece.Placement
-            total_translation = proposed
+
             doc.recompute()
-            last_violation = max(v for _r, v in violations)
+
+            next_proximity_errors = []
+            next_clearance_reports = []
+            for piece in selected:
+                samples = _piece_world_samples(piece, sample_deflection)
+                center = average_point(samples)
+                projection = nearest_target_projection(center, surface)
+                error_vector = tuple(
+                    float(projection.point[index]) + float(projection.normal[index]) * required - center[index]
+                    for index in range(3)
+                )
+                next_proximity_errors.append(
+                    sum(value * value for value in error_vector) ** 0.5
+                )
+                next_clearance_reports.append(minimum_signed_clearance(samples, surface))
+
+            next_proximity_error = (
+                sum(value * value for value in next_proximity_errors) ** 0.5
+            )
+            if next_proximity_error >= proximity_error - 1e-6:
+                raise ValueError(
+                    "target-aware group placement did not reduce target proximity error"
+                )
+
+            total_translation = proposed
+            previous_proximity_error = proximity_error
+
+            if all(
+                report.minimum_signed_clearance >= required - 1e-6
+                for report in next_clearance_reports
+            ) and next_proximity_error <= 1e-6:
+                break
+
         final_reports = [
             minimum_signed_clearance(_piece_world_samples(piece, sample_deflection), surface)
             for piece in selected
         ]
-        if any(report.minimum_signed_clearance < required - 1e-6 for report in final_reports):
-            worst = min(final_reports, key=lambda report: report.minimum_signed_clearance)
+        if any(
+            report.minimum_signed_clearance < required - 1e-6
+            for report in final_reports
+        ):
+            worst = min(
+                final_reports,
+                key=lambda report: report.minimum_signed_clearance,
+            )
             raise ValueError(
                 "target-aware group placement left %.3f mm signed clearance; required %.3f mm"
                 % (worst.minimum_signed_clearance, required)
             )
+
+        final_proximity_error = 0.0
+        for piece in selected:
+            samples = _piece_world_samples(piece, sample_deflection)
+            center = average_point(samples)
+            projection = nearest_target_projection(center, surface)
+            error_vector = tuple(
+                float(projection.point[index]) + float(projection.normal[index]) * required - center[index]
+                for index in range(3)
+            )
+            final_proximity_error += sum(value * value for value in error_vector)
+        final_proximity_error = final_proximity_error ** 0.5
+        if final_proximity_error > 1e-3:
+            raise ValueError(
+                "target-aware group placement stopped %.3f mm from target alignment"
+                % final_proximity_error
+            )
+
         from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+
         placements = {
             item.piece_id: item
-            for item in (PiecePlacement.from_string(value) for value in scene.PiecePlacements)
+            for item in (
+                PiecePlacement.from_string(value)
+                for value in scene.PiecePlacements
+            )
         }
         for piece in selected:
             placement = piece.Placement
             axis = placement.Rotation.Axis
             placements[str(piece.PieceId)] = PiecePlacement(
                 str(piece.PieceId),
-                (float(placement.Base.x), float(placement.Base.y), float(placement.Base.z)),
+                (
+                    float(placement.Base.x),
+                    float(placement.Base.y),
+                    float(placement.Base.z),
+                ),
                 float(placement.Rotation.Angle),
                 (float(axis.x), float(axis.y), float(axis.z)),
             )
-        scene.PiecePlacements = [placements[key].to_string() for key in sorted(placements)]
+        scene.PiecePlacements = [
+            placements[key].to_string() for key in sorted(placements)
+        ]
         if tuple(scene.HomePlacements) != home_before:
             raise RuntimeError("target-aware group placement mutated HomePlacements")
         scene.FitStatus = "Target snapped"
@@ -395,11 +520,15 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
             "target": str(getattr(target, "Name", "DrapeTarget")),
             "clearance_mm": required,
             "translation_mm": float(total_translation.Length),
+            "proximity_error_mm": float(final_proximity_error),
             "pieces": tuple(
-                (str(piece.PieceId), float(report.minimum_signed_clearance))
+                (
+                    str(piece.PieceId),
+                    float(report.minimum_signed_clearance),
+                )
                 for piece, report in zip(selected, final_reports)
             ),
-            "iterations": 16 if last_violation else 0,
+            "iterations": _iteration + 1,
         }
     except BaseException:
         for piece, original in piece_before.items():
