@@ -18,6 +18,7 @@ def _scene():
         FabricBend=0.01,
         FabricFriction=0.5,
         AvatarSkinOffset=0.0,
+        AutoPinning=True,
         ClothPieces=(),
         Document=SimpleNamespace(Objects=()),
     )
@@ -39,6 +40,7 @@ def test_signature_changes_for_every_derived_simulation_control():
         ("FabricBend", 0.02),
         ("FabricFriction", 0.8),
         ("AvatarSkinOffset", 3.0),
+        ("AutoPinning", False),
     )
     for name, value in controls:
         changed = _scene()
