@@ -60,6 +60,7 @@ class _FakeSimulation:
 
 
 def test_tissu_backend_caches_invariant_solver_state(monkeypatch):
+    # Reapplying invariant solver controls per physics step can rebuild native state.
     fake_tissu = ModuleType("tissu")
     fake_tissu.Simulation = _FakeSimulation
     _FakeSimulation.created.clear()
