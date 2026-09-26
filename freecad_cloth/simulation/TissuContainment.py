@@ -14,8 +14,14 @@ from weakref import WeakKeyDictionary
 from freecad_cloth.avatar.AvatarCollision import CollisionSurface
 
 
-_RAY_DIRECTION = (1.0, 0.2718281828, 0.1618033989)
+_RAY_DIRECTIONS = (
+    (1.0, 0.2718281828, 0.1618033989),
+    (-0.2113248654, 1.0, 0.5773502692),
+    (0.4472135955, -0.8017837257, 1.0),
+)
 _RAY_EPSILON = 1e-9
+_BOUNDARY_TOLERANCE = 1e-6
+_BARYCENTRIC_EPSILON = 1e-8
 _TRIANGLE_EPSILON = 1e-12
 _LEAF_SIZE = 8
 _SURFACE_CACHE = WeakKeyDictionary()
@@ -47,6 +53,16 @@ def _cross(a, b):
 
 def _norm_sq(a):
     return _dot(a, a)
+
+
+def _signed_volume(surface):
+    total = 0.0
+    for ia, ib, ic in surface.triangles:
+        total += _dot(
+            surface.vertices[ia],
+            _cross(surface.vertices[ib], surface.vertices[ic]),
+        )
+    return total / 6.0
 
 
 def _normal(a, b, c):
@@ -103,17 +119,19 @@ def _ray_triangle_hit(origin, direction, a, b, c):
     inv_det = 1.0 / determinant
     tvec = _sub(origin, a)
     u = _dot(tvec, pvec) * inv_det
-    if u <= _RAY_EPSILON or u >= 1.0 - _RAY_EPSILON:
+    if u < -_BARYCENTRIC_EPSILON or u > 1.0 + _BARYCENTRIC_EPSILON:
         return None
     qvec = _cross(tvec, edge1)
     v = _dot(direction, qvec) * inv_det
-    if v <= _RAY_EPSILON or u + v >= 1.0 - _RAY_EPSILON:
+    if v < -_BARYCENTRIC_EPSILON or u + v > 1.0 + _BARYCENTRIC_EPSILON:
         return None
     distance = _dot(edge2, qvec) * inv_det
     if distance <= _RAY_EPSILON:
         return None
-    return distance
-
+    ambiguous = min(
+        abs(u), abs(v), abs(1.0 - u - v)
+    ) <= _BARYCENTRIC_EPSILON
+    return float(distance), ambiguous
 
 def _closest_point_triangle(point, a, b, c):
     ab = _sub(b, a)
@@ -193,31 +211,28 @@ class AuthoredSurfaceContainment:
         if not surface.triangles:
             raise ValueError("containment surface needs triangles")
 
-        edge_counts = {}
-        winding = {}
+        edge_winding = {}
         for a, b, c in surface.triangles:
-            triangle = (int(a), int(b), int(c))
-            for left, right in ((triangle[0], triangle[1]), (triangle[1], triangle[2]), (triangle[2], triangle[0])):
-                edge = (min(left, right), max(left, right))
-                orientation = 1 if left < right else -1
-                edge_counts[edge] = edge_counts.get(edge, 0) + 1
-                winding[edge] = winding.get(edge, 0) + orientation
+            for left, right in ((a, b), (b, c), (c, a)):
+                low, high = min(int(left), int(right)), max(int(left), int(right))
+                edge = (low, high)
+                direction = 1 if int(left) == low else -1
+                count, winding = edge_winding.get(edge, (0, 0))
+                edge_winding[edge] = (count + 1, winding + direction)
         invalid_edges = [
-            edge for edge, count in edge_counts.items()
-            if count != 2 or winding.get(edge, 0) != 0
+            edge
+            for edge, (count, winding) in edge_winding.items()
+            if count != 2 or winding != 0
         ]
         if invalid_edges:
-            raise ValueError("authored containment surface must be closed and consistently wound")
+            raise ValueError(
+                "authored containment surface must be closed, two-manifold, and consistently oriented"
+            )
 
-        signed_volume6 = 0.0
-        for ia, ib, ic in surface.triangles:
-            a = tuple(float(value) for value in surface.vertices[ia])
-            b = tuple(float(value) for value in surface.vertices[ib])
-            c = tuple(float(value) for value in surface.vertices[ic])
-            signed_volume6 += _dot(a, _cross(b, c))
-        if abs(signed_volume6) <= _TRIANGLE_EPSILON:
-            raise ValueError("authored containment surface has indeterminate winding")
-        outward_sign = 1.0 if signed_volume6 > 0.0 else -1.0
+        signed_volume = _signed_volume(surface)
+        if abs(signed_volume) <= 1.0e-12:
+            raise ValueError("authored containment surface has indeterminate orientation")
+        outward_sign = 1.0 if signed_volume > 0.0 else -1.0
 
         prepared = []
         for index, (ia, ib, ic) in enumerate(surface.triangles):
@@ -263,27 +278,67 @@ class AuthoredSurfaceContainment:
         self._nodes[node_id] = _Node(lower, upper, left=left, right=right)
         return node_id
 
-    def contains(self, point):
-        """Classify a point by deterministic odd/even ray parity."""
-        origin = _add(point, _scale(_RAY_DIRECTION, 1e-8))
+    def _ray_parity(self, point, direction):
+        origin = _add(point, _scale(direction, 1.0e-8))
         stack = [self._root]
         intersections = 0
+        ambiguous = False
         while stack:
             node_id = stack.pop()
             node = self._nodes[node_id]
-            if not _ray_aabb_hit(origin, _RAY_DIRECTION, node.lower, node.upper):
+            if not _ray_aabb_hit(origin, direction, node.lower, node.upper):
                 continue
             if node.triangles:
                 for triangle_index in node.triangles:
                     triangle = self._triangles[triangle_index]
-                    if _ray_aabb_hit(origin, _RAY_DIRECTION, triangle.lower, triangle.upper):
-                        if _ray_triangle_hit(origin, _RAY_DIRECTION, triangle.a, triangle.b, triangle.c) is not None:
-                            intersections += 1
+                    if not _ray_aabb_hit(
+                        origin,
+                        direction,
+                        triangle.lower,
+                        triangle.upper,
+                    ):
+                        continue
+                    hit = _ray_triangle_hit(
+                        origin,
+                        direction,
+                        triangle.a,
+                        triangle.b,
+                        triangle.c,
+                    )
+                    if hit is None:
+                        continue
+                    distance, hit_ambiguous = hit
+                    if distance <= _BOUNDARY_TOLERANCE:
+                        ambiguous = True
+                        continue
+                    intersections += 1
+                    ambiguous = ambiguous or hit_ambiguous
                 continue
-            children = [child for child in (node.left, node.right) if child is not None]
+            children = [
+                child for child in (node.left, node.right) if child is not None
+            ]
             children.sort(reverse=True)
             stack.extend(children)
-        return intersections % 2 == 1
+        return intersections % 2 == 1, ambiguous
+
+    def contains(self, point):
+        """Classify a point with deterministic multi-ray parity voting."""
+        parities = []
+        for direction in _RAY_DIRECTIONS:
+            parity, ambiguous = self._ray_parity(point, direction)
+            if not ambiguous:
+                parities.append(parity)
+                if len(parities) >= 2 and parities[-1] == parities[-2]:
+                    return parities[-1]
+
+        if parities and all(value == parities[0] for value in parities):
+            return parities[0]
+
+        # A disagreement is expected only at shared-edge/corner cases. Keep the
+        # correction fail-closed there: a false positive could move cloth through
+        # a nearby avatar surface, while an outside result leaves the solver's
+        # existing mesh collision response untouched.
+        return False
 
     def nearest_surface_point(self, point):
         """Return (point, outward_normal, squared_distance, triangle_index)."""
