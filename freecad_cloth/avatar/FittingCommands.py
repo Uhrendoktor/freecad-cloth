@@ -253,30 +253,30 @@ def set_arrangement_point(name, x=None, y=None, offset=None, wrap_direction=None
 
 
 def _piece_world_surface_points(piece, deflection=1.0):
-    """Sample the complete PatternPiece surface in world coordinates.
+    """Sample the authoritative PatternMesh surface in world coordinates.
 
-    Target-aware placement must not prove clearance from anchors alone. A
-    tessellated face surface is the conservative geometry contract used before
-    simulation. If FreeCAD cannot provide a surface sample, fail closed.
+    Target-aware placement must not prove clearance from anchors alone. Use the
+    same deterministic PatternIR/PatternMesh geometry that the simulation
+    backend consumes, then apply the live PatternPiece Placement.
     """
-    shape = getattr(piece, "Shape", None)
-    if shape is None or getattr(shape, "isNull", lambda: True)():
-        raise ValueError("pattern piece has no usable shape for clearance validation")
-    try:
-        local_points, _triangles = shape.tessellate(max(0.25, float(deflection)), 0.4)
-    except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-        raise ValueError("pattern piece surface tessellation is unavailable") from exc
-    if not local_points:
-        raise ValueError("pattern piece surface tessellation produced no points")
+    from freecad_cloth.common.PatternSimulationAdapter import geometry_from_piece_ir, resolve_piece_ir
+    from freecad_cloth.pattern.PatternMesh import triangulate
+
     placement = getattr(piece, "Placement", None)
     if placement is None:
         raise ValueError("pattern piece has no persistent placement")
+    try:
+        piece_ir = resolve_piece_ir(piece)
+        mesh = triangulate(geometry_from_piece_ir(piece_ir))
+    except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        raise ValueError("pattern piece PatternMesh sampling is unavailable") from exc
+    if not mesh.vertices:
+        raise ValueError("pattern piece PatternMesh sampling produced no points")
     points = []
-    for local in local_points:
+    for local_x, local_y in mesh.vertices:
+        local = type(placement.Base)(float(local_x), float(local_y), 0.0)
         world = placement.multVec(local)
         points.append((float(world.x), float(world.y), float(world.z)))
-    if not points:
-        raise ValueError("pattern piece produced no world-space clearance samples")
     return tuple(points)
 
 
