@@ -89,6 +89,7 @@ def test_show_2d_does_not_select_seams_over_their_colors():
     assert Selection.added == []
     assert view.top == 1
     assert view.fit == 1
+    assert seam.ViewObject.LineColor == seam_color_map(["seam-1"])["seam-1"]
 
 
 def test_seam_visual_markers_are_deterministic_and_directional():
