@@ -367,6 +367,15 @@ def _collision_for_scene(obj):
     return None
 
 
+def _collision_surface_for_step(proxy):
+    """Return the exact backend surface required for a step without changing authority."""
+    authoritative = getattr(proxy, "collision_surface", None)
+    backend = getattr(proxy, "backend", None)
+    if getattr(backend, "name", "") == "tissu":
+        return getattr(backend, "solver_collision_surface", authoritative)
+    return authoritative
+
+
 class SimulationProxy:
     Type = "ClothSimulation"
 
@@ -420,7 +429,7 @@ class SimulationProxy:
                     float(obj.TimeStep), int(obj.Iterations),
                     (float(obj.GravityX), float(obj.GravityY), float(obj.GravityZ)),
                     fallback_sphere,
-                    getattr(self, "collision_surface", None),
+                    _collision_surface_for_step(self),
                 )
             self.last_steps = steps
         positions = self.backend.positions()
@@ -531,11 +540,7 @@ class SimulationProxy:
             self.panel_piece_names[panel.Name] = str(getattr(piece, "Name", ""))
         self.source_signature = signature or _simulation_source_signature(obj, pieces)
         self.last_steps = 0
-        self.collision_surface = (
-            self.backend.solver_collision_surface
-            if getattr(self.backend, "solver_collision_surface", None) is not None
-            else collision_surface
-        )
+        self.collision_surface = collision_surface
         for panel in panels:
             _write_mesh(panel, self.backend.positions(), self.panel_triangles[panel.Name])
 
