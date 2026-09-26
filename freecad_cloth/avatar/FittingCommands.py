@@ -105,11 +105,13 @@ def create_fitting_scene():
     obj.addProperty("App::PropertyString", "MeasurementData", "Measurements").MeasurementData = BodyMeasurements().to_json()
     obj.addProperty("App::PropertyString", "MeasurementUnit", "Measurements").MeasurementUnit = "mm"
     obj.addProperty("App::PropertyLink", "AvatarProxy", "Fitting")
+    obj.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")
     obj.addProperty("App::PropertyLinkListGlobal", "PatternPieces", "Fitting")
     obj.addProperty("App::PropertyStringList", "PiecePlacements", "Fitting").PiecePlacements = []
     obj.addProperty("App::PropertyStringList", "HomePlacements", "Fitting").HomePlacements = []
     obj.addProperty("App::PropertyStringList", "ArrangementPoints", "Arrangement").ArrangementPoints = []
     obj.addProperty("App::PropertyStringList", "BoundingVolumes", "Arrangement").BoundingVolumes = []
+    obj.addProperty("App::PropertyStringList", "GarmentAnchors", "Arrangement").GarmentAnchors = []
     obj.addProperty("App::PropertyStringList", "ArrangementPointObjects", "Arrangement").ArrangementPointObjects = []
     obj.addProperty("App::PropertyStringList", "BoundingVolumeObjects", "Arrangement").BoundingVolumeObjects = []
     obj.addProperty("App::PropertyBool", "SymmetryEnabled", "Arrangement").SymmetryEnabled = True
@@ -148,6 +150,10 @@ def assign_avatar_source(source=None):
     avatar = create_avatar_collision(doc) if doc.getObject("AvatarCollision") is None else doc.getObject("AvatarCollision")
     avatar = set_avatar_collision_source(scene, source)
     scene.AvatarProxy = avatar
+    target = doc.getObject("DrapeTarget")
+    if target is None:
+        raise RuntimeError("avatar assignment did not create a DrapeTarget")
+    scene.DrapeTarget = target
     scene.FitStatus = "Avatar assigned"
     doc.recompute()
     return scene
@@ -170,7 +176,13 @@ def add_selected_pattern_pieces():
     for piece in pieces:
         placement = piece.Placement
         base = placement.Base
-        value = PiecePlacement(str(piece.PieceId), (float(base.x), float(base.y), float(base.z)), float(placement.Rotation.Angle))
+        axis = placement.Rotation.Axis
+        value = PiecePlacement(
+            str(piece.PieceId),
+            (float(base.x), float(base.y), float(base.z)),
+            float(placement.Rotation.Angle),
+            (float(axis.x), float(axis.y), float(axis.z)),
+        )
         by_id[value.piece_id] = value
         home_by_id.setdefault(value.piece_id, value)
     scene.PatternPieces = sorted(set(list(scene.PatternPieces) + pieces), key=lambda o: str(o.PieceId))
@@ -192,7 +204,7 @@ def position_piece(piece, x, y, z=0.0, rotation_z=0.0):
     placement = App.Placement(App.Vector(float(x), float(y), float(z)), App.Rotation(App.Vector(0, 0, 1), float(rotation_z)))
     piece.Placement = placement
     entries = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)}
-    entries[str(piece.PieceId)] = PiecePlacement(str(piece.PieceId), (float(x), float(y), float(z)), float(rotation_z))
+    entries[str(piece.PieceId)] = PiecePlacement(str(piece.PieceId), (float(x), float(y), float(z)), float(rotation_z), (0.0, 0.0, 1.0))
     scene.PiecePlacements = [entries[k].to_string() for k in sorted(entries)]
     doc.recompute()
     return piece
@@ -239,6 +251,194 @@ def set_arrangement_point(name, x=None, y=None, offset=None, wrap_direction=None
     doc.recompute()
     return point
 
+
+def set_garment_anchors(anchors):
+    """Persist deterministic garment-local anchors on the existing fitting scene."""
+    import FreeCAD as App
+    from freecad_cloth.avatar.AvatarFitting import GarmentAnchor
+    doc = App.ActiveDocument or App.newDocument("ClothSewing")
+    scene = _scene(doc) or create_fitting_scene()
+    parsed = []
+    for anchor in anchors or ():
+        item = anchor if isinstance(anchor, GarmentAnchor) else GarmentAnchor.from_string(anchor)
+        item.validate()
+        parsed.append(item)
+    scene.GarmentAnchors = [item.to_string() for item in sorted(parsed, key=lambda a: (a.piece_id, a.name))]
+    doc.recompute()
+    return scene
+
+
+def _piece_world_points(piece):
+    shape = getattr(piece, "Shape", None)
+    vertices = tuple(getattr(shape, "Vertexes", ()) or ()) if shape is not None else ()
+    if not vertices:
+        raise ValueError("pattern piece has no geometry to validate")
+    placement = getattr(piece, "Placement", None)
+    if placement is None:
+        return tuple((float(v.Point.x), float(v.Point.y), float(v.Point.z)) for v in vertices)
+    points = []
+    for vertex in vertices:
+        point = placement.multVec(vertex.Point)
+        points.append((float(point.x), float(point.y), float(point.z)))
+    return tuple(points)
+
+
+def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translation=600.0, max_rotation=45.0):
+    """Place one pattern piece rigidly against the persistent DrapeTarget transactionally."""
+    import FreeCAD as App
+    from freecad_cloth.avatar.AvatarFitting import GarmentAnchor, PiecePlacement
+    from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
+    from freecad_cloth.avatar.TargetAwarePlacement import (
+        assert_minimum_surface_clearance, require_ready_target_status,
+        solve_rigid_z, target_surface_anchor, wrap_normal,
+    )
+    if getattr(piece, "PatternType", "") != "PatternPiece":
+        raise ValueError("piece must be a Cloth PatternPiece object")
+    doc = piece.Document
+    scene = _scene(doc)
+    original_placement = piece.Placement
+    original_sketch_placement = getattr(getattr(piece, "Sketch", None), "Placement", None)
+    previous_piece_placements = list(getattr(scene, "PiecePlacements", ())) if scene is not None else []
+    previous_fit_status = str(getattr(scene, "FitStatus", "")) if scene is not None else ""
+    try:
+        require_ready_target_status(target_status(target))
+        source_object = getattr(target, "SourceObject", None)
+        if source_object is None:
+            raise ValueError("drape target source is required")
+        surface = collision_surface(
+            source_object,
+            float(getattr(target, "CollisionDeflection", 1.0)),
+            float(getattr(target, "CollisionThickness", 0.0)),
+        )
+        piece_id = str(piece.PieceId)
+        selected = tuple(
+            item if isinstance(item, GarmentAnchor) else GarmentAnchor.from_string(item)
+            for item in anchors or ()
+        )
+        selected = tuple(sorted((item for item in selected if str(item.piece_id) == piece_id), key=lambda item: item.name))
+        if not selected:
+            raise ValueError("target-aware placement requires at least one garment anchor")
+        source_points, target_points = [], []
+        for anchor in selected:
+            anchor.validate()
+            source = piece.Placement.multVec(App.Vector(*anchor.position))
+            hit = target_surface_anchor(surface, (source.x, source.y, source.z), wrap_normal(anchor.wrap_direction))
+            desired = tuple(hit.point[i] + hit.normal[i] * (float(surface.thickness) + float(clearance)) for i in range(3))
+            source_points.append((float(source.x), float(source.y), float(source.z)))
+            target_points.append(desired)
+
+        delta = solve_rigid_z(source_points, target_points, max_translation, max_rotation)
+        delta_rotation = App.Rotation(App.Vector(0, 0, 1), float(delta.rotation_z))
+        current = piece.Placement
+        piece.Placement = App.Placement(
+            delta_rotation.multVec(current.Base) + App.Vector(*delta.translation),
+            delta_rotation.multiply(current.Rotation),
+        )
+        sketch = getattr(piece, "Sketch", None)
+        if sketch is not None:
+            sketch.Placement = piece.Placement
+        doc.recompute()
+
+        placed_points = tuple(
+            tuple(float(v) for v in (point.x, point.y, point.z))
+            for point in (piece.Placement.multVec(App.Vector(*anchor.position)) for anchor in selected)
+        )
+        anchor_clearance = assert_minimum_surface_clearance(surface, placed_points, float(clearance))
+        piece_clearance = assert_minimum_surface_clearance(surface, _piece_world_points(piece), float(clearance))
+
+        if scene is not None:
+            entries = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)}
+            axis = piece.Placement.Rotation.Axis
+            entries[piece_id] = PiecePlacement(
+                piece_id,
+                (float(piece.Placement.Base.x), float(piece.Placement.Base.y), float(piece.Placement.Base.z)),
+                float(piece.Placement.Rotation.Angle),
+                (float(axis.x), float(axis.y), float(axis.z)),
+            )
+            scene.PiecePlacements = [entries[k].to_string() for k in sorted(entries)]
+            scene.FitStatus = "Target-aware placement applied"
+        doc.recompute()
+        return {
+            "translation": tuple(float(v) for v in delta.translation),
+            "rotation_z": float(delta.rotation_z),
+            "anchor_residual": float(delta.residual_max),
+            "anchor_clearance": float(anchor_clearance),
+            "piece_clearance": float(piece_clearance),
+        }
+    except Exception:
+        piece.Placement = original_placement
+        sketch = getattr(piece, "Sketch", None)
+        if sketch is not None and original_sketch_placement is not None:
+            sketch.Placement = original_sketch_placement
+        if scene is not None:
+            scene.PiecePlacements = previous_piece_placements
+            scene.FitStatus = previous_fit_status
+        try:
+            doc.recompute()
+        except Exception:
+            pass
+        raise
+
+
+def arrange_garment_on_avatar(scene=None, pieces=None, clearance=8.0, max_translation=600.0, max_rotation=45.0):
+    """Arrange the supported two-panel garment against the scene's authoritative DrapeTarget."""
+    import FreeCAD as App
+    from freecad_cloth.avatar.AvatarFitting import GarmentAnchor
+    from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
+
+    doc = App.ActiveDocument
+    if scene is None and doc is not None:
+        scene = _scene(doc)
+    if scene is None:
+        raise ValueError("create a fitting scene first")
+    target = getattr(scene, "DrapeTarget", None)
+    if target is None and doc is not None:
+        target = doc.getObject("DrapeTarget")
+    status = target_status(target)
+    if status.get("state") != "ready":
+        raise RuntimeError(status.get("message") or "drape target is not ready")
+    selected = tuple(pieces or tuple(getattr(scene, "PatternPieces", ()) or ()))
+    selected = tuple(sorted(selected, key=lambda obj: str(getattr(obj, "PieceId", getattr(obj, "Name", "")))))
+    if len(selected) != 2:
+        raise ValueError("target-aware garment arrangement requires exactly two PatternPieces")
+    if any(getattr(piece, "PatternType", "") != "PatternPiece" for piece in selected):
+        raise ValueError("target-aware garment arrangement requires PatternPiece objects")
+
+    anchors = []
+    for piece, wrap in zip(selected, ("front", "back")):
+        width = max(1.0, float(getattr(piece, "Width", 0.0) or 0.0))
+        height = max(1.0, float(getattr(piece, "Height", 0.0) or 0.0))
+        anchors.extend((
+            GarmentAnchor(str(piece.PieceId), "shoulder_left", (0.14 * width, 0.97 * height, 0.0), wrap),
+            GarmentAnchor(str(piece.PieceId), "shoulder_right", (0.86 * width, 0.97 * height, 0.0), wrap),
+        ))
+    set_garment_anchors(anchors)
+
+    target_surface = collision_surface(
+        getattr(target, "SourceObject", None),
+        float(getattr(target, "CollisionDeflection", 1.0)),
+        float(getattr(target, "CollisionThickness", 0.0)),
+    )
+    results = {}
+    for piece in selected:
+        results[str(piece.PieceId)] = target_aware_place_piece(
+            piece, target, anchors,
+            clearance=clearance,
+            max_translation=max_translation,
+            max_rotation=max_rotation,
+        )
+
+    if "PinMode" in getattr(scene, "PropertiesList", ()):
+        scene.PinMode = "None"
+    if "PinSelection" in getattr(scene, "PropertiesList", ()):
+        scene.PinSelection = []
+    scene.FitStatus = "Target-aware arrangement applied"
+    doc.recompute()
+    for piece in selected:
+        results[str(piece.PieceId)]["piece_clearance"] = assert_minimum_surface_clearance(
+            target_surface, _piece_world_points(piece), float(clearance)
+        )
+    return results
 
 def delete_arrangement_point(name):
     import FreeCAD as App
@@ -343,7 +543,7 @@ def reset_arrangement():
         if piece is None:
             continue
         x, y, z = placement.position
-        piece.Placement = App.Placement(App.Vector(x, y, z), App.Rotation(App.Vector(0, 0, 1), placement.rotation_z))
+        piece.Placement = App.Placement(App.Vector(x, y, z), App.Rotation(App.Vector(*placement.rotation_axis), placement.rotation_z))
         current[pid] = placement
     scene.PiecePlacements = [current[k].to_string() for k in sorted(current)]
     scene.FitStatus = "Arrangement reset"
@@ -364,6 +564,9 @@ def create_simulation_from_fitting():
     simulation.ClothPieces = list(scene.PatternPieces)
     if scene.AvatarProxy is not None:
         simulation.AvatarProxy = scene.AvatarProxy
+    fitting_target = getattr(scene, "DrapeTarget", None)
+    if fitting_target is not None:
+        simulation.DrapeTarget = fitting_target
     doc.recompute()
     return simulation
 
@@ -372,14 +575,15 @@ class _FittingProxy:
     Type = "ClothFittingScene"
 
     def execute(self, obj):
-        from freecad_cloth.avatar.AvatarFitting import BodyMeasurements, FittingScene, PiecePlacement, ArrangementPoint, BoundingVolume
+        from freecad_cloth.avatar.AvatarFitting import BodyMeasurements, FittingScene, PiecePlacement, ArrangementPoint, BoundingVolume, GarmentAnchor
         _migrate_visual_output_references(obj)
         measurements = BodyMeasurements.from_json(obj.MeasurementData)
         avatar_name = getattr(obj.AvatarProxy, "Label", "") if obj.AvatarProxy else ""
         placements = tuple(PiecePlacement.from_string(v) for v in obj.PiecePlacements)
         points = tuple(ArrangementPoint.from_string(v) for v in obj.ArrangementPoints)
         volumes = tuple(BoundingVolume.from_string(v) for v in obj.BoundingVolumes)
-        FittingScene(measurements, avatar_name, placements, points, volumes, bool(obj.SymmetryEnabled)).validate()
+        anchors = tuple(GarmentAnchor.from_string(v) for v in getattr(obj, "GarmentAnchors", ()))
+        FittingScene(measurements, avatar_name, placements, points, volumes, bool(obj.SymmetryEnabled), anchors).validate()
 
 
 COMMANDS = [
@@ -396,6 +600,7 @@ COMMANDS = [
     "ClothFitting_ApplyArrangementPoint",
     "ClothFitting_ResetArrangement",
     "ClothFitting_CreateSimulation",
+    "ClothFitting_ArrangeGarmentOnAvatar",
 ]
 _COMMAND_HANDLERS = {
     "ClothFitting_CreateScene": create_fitting_scene,
@@ -411,6 +616,7 @@ _COMMAND_HANDLERS = {
     "ClothFitting_ApplyArrangementPoint": lambda: _apply_selected_arrangement(),
     "ClothFitting_ResetArrangement": reset_arrangement,
     "ClothFitting_CreateSimulation": create_simulation_from_fitting,
+    "ClothFitting_ArrangeGarmentOnAvatar": arrange_garment_on_avatar,
 }
 
 
