@@ -381,6 +381,37 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
         raise
 
 
+def _default_garment_anchors(piece, target):
+    """Derive and persist two deterministic shoulder anchors when none were authored."""
+    import FreeCAD as App
+    from freecad_cloth.avatar.AvatarFitting import GarmentAnchor
+    from freecad_cloth.avatar.TargetAwarePlacement import target_surface_anchor, wrap_normal
+
+    surface = target_surface_world(target)
+    width = float(getattr(piece, "Width", 0.0))
+    height = float(getattr(piece, "Height", 0.0))
+    if width <= 0.0 or height <= 0.0:
+        raise ValueError("selected PatternPiece needs positive Width and Height for default anchors")
+    directions = ("front", "back", "left", "right")
+    result = []
+    for name, ratio in (("shoulder_left", 0.14), ("shoulder_right", 0.86)):
+        local = App.Vector(ratio * width, 0.97 * height, 0.0)
+        world = piece.Placement.multVec(local)
+        point = (float(world.x), float(world.y), float(world.z))
+        candidates = []
+        for order, direction in enumerate(directions):
+            try:
+                hit = target_surface_anchor(surface, point, wrap_normal(direction))
+            except Exception:
+                continue
+            candidates.append((float(hit.distance), order, direction))
+        if not candidates:
+            raise ValueError("could not derive a target-facing default anchor for %s" % name)
+        _, _, direction = min(candidates)
+        result.append(GarmentAnchor(str(piece.PieceId), name, (float(local.x), float(local.y), float(local.z)), direction))
+    return tuple(result)
+
+
 def target_aware_arrange_selected():
     """Target-aware place exactly one selected PatternPiece using persisted garment anchors."""
     import FreeCADGui as Gui
@@ -396,11 +427,19 @@ def target_aware_arrange_selected():
     pieces = [o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"]
     if len(pieces) != 1:
         raise ValueError("select exactly one PatternPiece for target-aware arrangement")
-    if not scene.GarmentAnchors:
-        raise ValueError("define garment anchors on the fitting scene before target-aware arrangement")
     from freecad_cloth.avatar.AvatarFitting import GarmentAnchor
-    anchors = tuple(GarmentAnchor.from_string(value) for value in scene.GarmentAnchors)
-    target_aware_place_piece(pieces[0], target, anchors)
+    anchors_before = tuple(scene.GarmentAnchors)
+    if scene.GarmentAnchors:
+        anchors = tuple(GarmentAnchor.from_string(value) for value in scene.GarmentAnchors)
+    else:
+        anchors = _default_garment_anchors(pieces[0], target)
+        scene.GarmentAnchors = [anchor.to_string() for anchor in anchors]
+    try:
+        target_aware_place_piece(pieces[0], target, anchors)
+    except Exception:
+        scene.GarmentAnchors = list(anchors_before)
+        doc.recompute()
+        raise
     return scene
 
 
