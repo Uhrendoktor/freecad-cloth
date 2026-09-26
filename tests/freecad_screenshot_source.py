@@ -348,7 +348,10 @@ def simulation():
         raise RuntimeError("visual fixture did not create the production ClothAvatar")
     if target is None:
         raise RuntimeError("visual fixture did not create DrapeTarget")
-    box = avatar.Mesh.BoundBox; x_mid = (box.XMin + box.XMax) / 2.0; y_span = box.YMax - box.YMin; z_span = box.ZMax - box.ZMin
+    target_source = getattr(target, "SourceObject", None)
+    if target_source is not avatar:
+        raise RuntimeError("visual fixture DrapeTarget does not reference the production ClothAvatar")
+    box = target_source.Mesh.BoundBox; x_mid = (box.XMin + box.XMax) / 2.0; y_span = box.YMax - box.YMin; z_span = box.ZMax - box.ZMin
     chest = 980.0; hip = 1020.0; ease = 55.0; panel_width = max(420.0, 0.50 * chest + ease); hem_width = max(450.0, 0.50 * hip + ease)
     shoulder_z = box.ZMin + 0.76 * z_span; hem_z = box.ZMin + 0.40 * z_span; garment_height = max(560.0, shoulder_z - hem_z); body_depth = max(120.0, min(260.0, y_span)); clearance = max(20.0, 0.08 * body_depth); rot = App.Rotation(App.Vector(1,0,0), 90.0)
     def target_relative_piece_placement(target_box, side):
@@ -369,6 +372,10 @@ def simulation():
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.PinMode = "None"; scene.PinSelection = []; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
     proxy = scene.Proxy
     backend = getattr(proxy, "backend", None)
+    if backend is None:
+        raise RuntimeError("canonical tunic did not build a simulation backend")
+    if list(getattr(scene, "PinSelection", ())) != []:
+        raise RuntimeError("canonical tunic PinMode=None retained explicit PinSelection values")
     solver_pins = tuple(int(i) for i in getattr(backend, "_pin_indices", ()))
     if not solver_pins:
         system = getattr(backend, "system", None)
