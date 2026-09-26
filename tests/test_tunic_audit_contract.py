@@ -110,7 +110,7 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
     assert "ParticleDistance = 32.0" in source
-    assert "SolverIterations = 1" in source
+    assert "SolverIterations = 2" in source
     assert "SolverSubsteps = 1" in source
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
@@ -120,3 +120,10 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
 def test_tunic_right_shoulder_experiment_uses_semantic_edge_3_pair():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' in audit
+
+
+def test_tunic_solver_iterations_two_preserves_right_shoulder_mapping():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "scene.SolverIterations = 2" in audit
+    assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' in audit
+    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' in audit
