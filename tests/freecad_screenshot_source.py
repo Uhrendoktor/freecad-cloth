@@ -538,7 +538,7 @@ finally:
         if exit_code == 0:
             log("tunic-audit-process-exit=success")
             sys.stdout.flush()
-            getattr(os, "_" + "exit")(0)
+            App.exit()
         window = Gui.getMainWindow()
         if window is not None: window.close()
         app = QtWidgets.QApplication.instance()
