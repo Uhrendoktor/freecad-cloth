@@ -107,3 +107,13 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
     assert 'tunic-simulation-start' in source
+
+
+def test_tunic_authoritative_seam_diagnostic_reports_each_seam_and_preserves_global_gate():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "seam_gaps_by_id = {}" in audit
+    assert 'log("authoritative-seam-gap-mm seam=%s max=%.2f" % (seam_id, seam_gap))' in audit
+    assert 'max_seam_gap = max(seam_gaps_by_id.values()) if seam_gaps_by_id else 0.0' in audit
+    assert 'if max_seam_gap > 35.0' in audit
+    for seam_id in ("TunicRightSide", "TunicRightShoulder", "TunicLeftShoulder", "TunicLeftSide"):
+        assert seam_id in audit
