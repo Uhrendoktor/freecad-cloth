@@ -108,6 +108,7 @@ def test_avatar_collision_source_supports_fitting_and_simulation_scopes():
 
         body = document.addObject("Part::Feature", "FixtureBody")
         body.Shape = Part.makeBox(80, 80, 160, App.Vector(-40, -40, -80))
+        body.Placement.Base.x = 25.0
         document.recompute()
 
         fitting = create_fitting_scene()
@@ -121,6 +122,10 @@ def test_avatar_collision_source_supports_fitting_and_simulation_scopes():
         assert fitting.DrapeTarget == target
         assert target is not None
         assert target.SourceObject == body
+        from freecad_cloth.avatar.FittingCommands import _world_target_surface
+        world_surface = _world_target_surface(target)
+        assert min(point[0] for point in world_surface.vertices) == -15.0
+        assert max(point[0] for point in world_surface.vertices) == 65.0
 
         simulation = create_simulation_scene(document)
         proxy2 = set_avatar_collision_source(simulation, body, thickness=3.0, deflection=0.5)
