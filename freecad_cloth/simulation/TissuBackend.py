@@ -71,7 +71,7 @@ def _collision_envelope(surface):
     samples = (0.0, 0.25, 0.50, 0.75, 1.0)
     return tuple(
         (
-            (center_x, center_y, bottom + (top - bottom) * t),
+            (center_x, center_y, min_z + (max_z - min_z) * t),
             radius,
         )
         for t in samples
