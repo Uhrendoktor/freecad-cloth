@@ -47,6 +47,20 @@ def test_refresh_seam_colors_uses_document_objects():
     assert operation.ViewObject.LineColor == colors["seam-y"]
 
 
+def test_show_sewing_2d_executes_the_refresh_lifecycle(monkeypatch):
+    seam = SimpleNamespace(SeamId="seam-2d", ViewObject=SimpleNamespace(LineColor=None))
+    document = SimpleNamespace(Objects=[seam])
+    view = SimpleNamespace(viewTop=lambda: None, fitAll=lambda: None)
+    active = SimpleNamespace(Document=document, activeView=lambda: view)
+    fake_gui = SimpleNamespace(
+        activeDocument=lambda: active,
+        Selection=SimpleNamespace(clearSelection=lambda: None),
+    )
+    monkeypatch.setitem(sys.modules, "FreeCADGui", fake_gui)
+    show_sewing_2d()
+    assert seam.ViewObject.LineColor == seam_color_map(["seam-2d"])["seam-2d"]
+
+
 def test_seam_color_surface_contract_carries_identity_to_sewing_operations():
     source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "sewing" / "SewingObjects.py").read_text(encoding="utf-8")
     assert '"SeamId", "Sewing"' in source
