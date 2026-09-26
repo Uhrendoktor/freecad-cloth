@@ -114,3 +114,4 @@ def test_canonical_tunic_experiment_reverses_b_side_stitch_correspondence():
     assert 'reversed_b=True' in audit
     assert 'VisualTunicFront", "back", 0.78, 0.18' in audit
     assert 'VisualTunicBack", "front", 0.76, 0.12' in audit
+# Diagnostic branch intentionally keeps the physical gate unchanged while exposing per-seam deltas.
