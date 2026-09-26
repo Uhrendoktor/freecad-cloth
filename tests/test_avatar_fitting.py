@@ -37,7 +37,7 @@ class AvatarFittingTests(unittest.TestCase):
     def test_scene_metadata_is_deterministic(self):
         scene = FittingScene(BodyMeasurements({"hip": 960, "waist": 760}), "Avatar Collision Proxy", (PiecePlacement("piece-b", (10, 20, 30), 45), PiecePlacement("piece-a")))
         payload = scene.to_json()
-        self.assertEqual(json.loads(payload)["pieces"], ["piece-a|0,0,0|0", "piece-b|10,20,30|45"])
+        self.assertEqual(json.loads(payload)["pieces"], ["piece-a|0,0,0|0|0,0,1", "piece-b|10,20,30|45|0,0,1"])
 
     def test_duplicate_piece_placement_is_rejected(self):
         with self.assertRaises(ValueError): FittingScene(pieces=(PiecePlacement("piece"), PiecePlacement("piece"))).validate()
@@ -272,6 +272,140 @@ class AvatarFittingTests(unittest.TestCase):
                     os.unlink(path)
                 except OSError:
                     pass
+
+
+    def test_piece_placement_round_trip_preserves_rotation_axis(self):
+        placement = PiecePlacement("front", (1.5, -2.0, 3.25), 90.0, (1.0, 0.0, 0.0))
+        self.assertEqual(PiecePlacement.from_string(placement.to_string()), placement)
+        self.assertEqual(PiecePlacement.from_string("front|1.5,-2,3.25|90").rotation_axis, (0.0, 0.0, 1.0))
+
+    def test_target_aware_rigid_solver_preserves_group_pairwise_distances(self):
+        from freecad_cloth.avatar.TargetAwarePlacement import apply_rigid_delta, solve_rigid_z
+        source = ((-40.0, -20.0, 10.0), (40.0, -20.0, 10.0), (-40.0, 20.0, 10.0), (40.0, 20.0, 10.0))
+        target = tuple((x + 18.0, y + 26.0, z + 4.0) for x, y, z in source)
+        delta = solve_rigid_z(source, target, max_translation=100.0, max_rotation=45.0)
+        transformed = apply_rigid_delta(source, delta)
+        self.assertAlmostEqual(delta.rotation_z, 0.0, places=10)
+        before = []
+        after = []
+        for index, first in enumerate(source):
+            for second in source[index + 1:]:
+                before.append(sum((first[i] - second[i]) ** 2 for i in range(3)) ** 0.5)
+        for index, first in enumerate(transformed):
+            for second in transformed[index + 1:]:
+                after.append(sum((first[i] - second[i]) ** 2 for i in range(3)) ** 0.5)
+        self.assertEqual(len(before), len(after))
+        for expected, actual in zip(before, after):
+            self.assertAlmostEqual(expected, actual, places=9)
+
+    def test_target_aware_status_fails_closed(self):
+        from freecad_cloth.avatar.TargetAwarePlacement import TargetPlacementError, require_ready_target_status
+        for status in (None, {"state": "missing", "message": "target missing"}, {"state": "stale", "message": "target changed"}):
+            with self.assertRaises(TargetPlacementError):
+                require_ready_target_status(status)
+
+    def test_target_aware_public_command_has_registered_icon_and_group_contract(self):
+        root = Path(__file__).resolve().parents[1]
+        commands = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+        self.assertIn('"ClothFitting_SnapPiecesToTarget"', commands)
+        self.assertIn('"ClothFitting_SnapPiecesToTarget": snap_pieces_to_target', commands)
+        icon = root / "resources" / "icons" / "ClothFitting_SnapPiecesToTarget.svg"
+        self.assertTrue(icon.is_file())
+        self.assertIn('viewBox="', icon.read_text(encoding="utf-8"))
+
+    def test_target_aware_group_rolls_back_piece_sketch_and_fit_state_on_failure(self):
+        try:
+            import FreeCAD as App
+            import Part
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
+        from unittest.mock import patch
+        from freecad_cloth.avatar.AvatarFitting import GarmentAnchor
+        from freecad_cloth.avatar.FittingCommands import create_fitting_scene, snap_pattern_pieces_to_target
+        from freecad_cloth.avatar.TargetAwarePlacement import TargetPlacementError
+        from freecad_cloth.simulation.DrapeTarget import create_drape_target
+
+        doc = App.newDocument("TargetAwareRollback")
+        try:
+            source = doc.addObject("Part::Feature", "TargetSource")
+            source.Shape = Part.makeBox(100.0, 100.0, 100.0, App.Vector(-50.0, -50.0, -50.0))
+            pieces = []
+            sketches = []
+            anchors = []
+            for name, y, wrap in (("Front", -58.0, "front"), ("Back", 58.0, "back")):
+                piece = doc.addObject("Part::Feature", "PatternPiece" + name)
+                piece.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
+                piece.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = "piece-" + name.lower()
+                piece.Shape = Part.makeBox(20.0, 10.0, 20.0, App.Vector(-10.0, -5.0, -10.0))
+                piece.Placement.Base = App.Vector(0.0, y, 0.0)
+                sketch = doc.addObject("Part::Feature", "Sketch" + name)
+                piece.addProperty("App::PropertyLink", "Sketch", "Pattern")
+                piece.Sketch = sketch
+                sketch.Placement = App.Placement(App.Vector(3.0, y + 2.0, 4.0), App.Rotation(App.Vector(0, 1, 0), 25.0))
+                pieces.append(piece)
+                anchors.append(GarmentAnchor(str(piece.PieceId), "shoulder", (0.0, 0.0, 0.0), wrap))
+                sketches.append(sketch)
+
+            target = create_drape_target(doc, source, "FreeCAD Geometry", 0.5, 0.0)
+            fitting = create_fitting_scene()
+            fitting.DrapeTarget = target
+            fitting.PatternPieces = pieces
+            fitting.FitStatus = "Before transaction"
+            fitting.PiecePlacements = [
+                PiecePlacement(str(piece.PieceId), (float(piece.Placement.Base.x), float(piece.Placement.Base.y), float(piece.Placement.Base.z)), float(piece.Placement.Rotation.Angle)).to_string()
+                for piece in pieces
+            ]
+            doc.recompute()
+            before_piece = [piece.Placement for piece in pieces]
+            before_sketch = [sketch.Placement for sketch in sketches]
+            before_placements = list(fitting.PiecePlacements)
+            before_status = fitting.FitStatus
+            with patch(
+                "freecad_cloth.avatar.TargetAwarePlacement.assert_minimum_surface_clearance",
+                side_effect=TargetPlacementError("forced post-transform validation failure"),
+            ):
+                with self.assertRaises(TargetPlacementError):
+                    snap_pattern_pieces_to_target(pieces, target, anchors, clearance=8.0)
+            self.assertEqual([piece.Placement for piece in pieces], before_piece)
+            self.assertEqual([sketch.Placement for sketch in sketches], before_sketch)
+            self.assertEqual(list(fitting.PiecePlacements), before_placements)
+            self.assertEqual(fitting.FitStatus, before_status)
+        finally:
+            if doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
+
+    def test_create_simulation_from_fitting_reuses_authoritative_target(self):
+        try:
+            import FreeCAD as App
+            import Part
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from freecad_cloth.avatar.FittingCommands import create_fitting_scene, create_simulation_from_fitting
+        from freecad_cloth.simulation.DrapeTarget import create_drape_target
+
+        doc = App.newDocument("TargetHandoff")
+        try:
+            source = doc.addObject("Part::Feature", "TargetSource")
+            source.Shape = Part.makeBox(100.0, 100.0, 100.0)
+            piece = doc.addObject("Part::Feature", "PatternPiece")
+            piece.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
+            piece.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = "handoff-piece"
+            target = create_drape_target(doc, source, "FreeCAD Geometry", 0.5, 0.0)
+            fitting = create_fitting_scene()
+            fitting.DrapeTarget = target
+            fitting.PatternPieces = [piece]
+            doc.recompute()
+            simulated = SimpleNamespace(DrapeTarget=target)
+            with patch("freecad_cloth.simulation.SimulationObjects.create_simulation_scene", return_value=simulated) as create_scene:
+                result = create_simulation_from_fitting()
+            self.assertIs(result, simulated)
+            self.assertIs(result.DrapeTarget if hasattr(result, "DrapeTarget") else None, target)
+            create_scene.assert_called_once_with(doc, drape_target=target)
+        finally:
+            if doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
 
 
 if __name__ == "__main__": unittest.main()
