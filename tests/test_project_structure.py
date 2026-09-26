@@ -60,6 +60,17 @@ def test_canonical_workflow_pr_validation_contract():
 
 
 
+def test_canonical_pr_workloads_cannot_route_to_self_hosted():
+    root = Path(__file__).resolve().parents[1]
+    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    assert workflow.count("runs-on: [self-hosted, linux, x64, docker]") == 1
+    heartbeat = workflow.split("  runner_heartbeat:", 1)[1].split("  python:", 1)[0]
+    assert "if: ${{ github.event_name == 'schedule' }}" in heartbeat
+    assert "runs-on: [self-hosted, linux, x64, docker]" in heartbeat
+    pr_header = workflow.split("  pull_request:", 1)[1].split("concurrency:", 1)[0]
+    assert "self-hosted" not in pr_header
+
+
 def test_workbench_benchmark_merge_script_is_checked_in():
     root = Path(__file__).resolve().parents[1]
     script = root / "tools" / "merge_workbench_benchmark.py"
