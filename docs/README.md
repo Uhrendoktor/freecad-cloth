@@ -1,27 +1,39 @@
 # FreeCAD Cloth documentation
 
-This directory is intentionally small. Read the documents in this order:
+This is the repository's human-facing, wiki-ready documentation hub. GitHub Wiki is enabled for the repository, but the available repository tooling cannot publish or edit the wiki namespace, so the canonical user documentation remains versioned under `docs/`.
 
-1. **[USER_GUIDE.md](USER_GUIDE.md)** — first-run human workflow, recovery, and visual inspection.
-2. **WORKBENCH_GUIDE.md** — detailed workflow and UI behavior.
-3. **ARCHITECTURE.md** — authoritative data, dependency and invalidation contracts.
-4. **PROJECT_STRUCTURE.md** — canonical package/module tree and FreeCAD bootstrap layout.
-5. **[ROADMAP.md](../ROADMAP.md)** — prototype → MVP → production scope and release gates.
-6. **RESEARCH.md** — condensed CLO/garment-workflow research and FreeCAD mapping.
-7. **DEVELOPMENT.md** — testing, CI, screenshots, agent handoff and contribution rules.
+For a new user, use this path:
 
-## Source of truth
+1. **[Installation](INSTALLATION.md)** — supported runtime, installation, first-run verification, and developer/CI notes.
+2. **[User guide](USER_GUIDE.md)** — the shortest Pattern → Sewing → Arrange/Fit → Simulate journey, recovery, and diagnostics.
+3. **[Examples](EXAMPLES.md)** — the validated Blanket over Cube smoke test and the advanced tunic path.
+4. **[Workbench guide](WORKBENCH_GUIDE.md)** — command-level details and the document/data model behind the UI.
+5. **[Release gates](RELEASE_GATES.md)** — what is actually implemented and validated, and what remains roadmap work.
 
-- `README.md` is the project-level orientation.
-- `AGENT_STATUS.md` is the current machine-readable supervisor/release record.
-- `TOOL_STATE.md` is the compact execution-policy/state record.
-- `docs/PROJECT_STRUCTURE.md` is the source of truth for where implementation modules belong.
-- `docs/ARCHITECTURE.md` is the source of truth for domain ownership and dependency direction.
-- `docs/` contains durable guidance, not dated scratch notes.
+The remaining technical references are intentionally separate:
 
-## Documentation rule
+- **[Architecture](ARCHITECTURE.md)** — authoritative data ownership, dependency direction, invalidation, and persistence contracts.
+- **[Project structure](PROJECT_STRUCTURE.md)** — canonical package/module layout.
+- **[Research](RESEARCH.md)** — garment-workflow research and FreeCAD mapping; research is not a feature promise.
+- **[Development](DEVELOPMENT.md)** — testing, CI, screenshots, and contribution/agent guidance.
+- **[Roadmap](../ROADMAP.md)** — planned capability beyond the currently validated product boundary.
 
-Prefer updating an existing canonical document over adding a new note. Dated audit material belongs in the relevant issue/PR or in the compact supervisor state, not as another permanent document. If a new document is genuinely necessary, link it here and explain why it cannot fit an existing contract.
+## Wiki-ready information architecture
+
+If the same content is later mirrored into GitHub Wiki pages, keep this navigation and source-of-truth split:
+
+| Human-facing page | Repository source |
+|---|---|
+| Home / Getting Started | `README.md` + `docs/README.md` |
+| Installation | `docs/INSTALLATION.md` |
+| User Guide | `docs/USER_GUIDE.md` |
+| Examples | `docs/EXAMPLES.md` |
+| Workbench Guide | `docs/WORKBENCH_GUIDE.md` |
+| Troubleshooting | `docs/USER_GUIDE.md#troubleshooting-and-diagnostics` |
+| Technical Reference | `docs/ARCHITECTURE.md` + `docs/PROJECT_STRUCTURE.md` |
+| Release / capability boundary | `docs/RELEASE_GATES.md` + `ROADMAP.md` |
+
+Do not create a second, competing copy of these procedures without a concrete reason. Versioned `docs/` is the source of truth for behavior that must match a particular repository revision.
 
 ## Workbench model
 
@@ -34,10 +46,25 @@ Cloth Pattern → Cloth Sewing → Cloth Simulation
                      derived state
 ```
 
-The project aims for a CLO-like garment workflow while remaining FreeCAD-native: Sketcher/Part own editable geometry, Cloth owns garment semantics, and the solver owns physics. The human mannequin and arbitrary FreeCAD geometry are interchangeable providers of one `DrapeTarget` contract.
+FreeCAD remains the geometry and document-persistence authority. Cloth owns garment semantics such as PatternPieces and seams. Simulation owns derived mesh, collision, and solver state.
 
-## Module model
+## Authoritative technical references
 
-All implementation code lives under `freecad_cloth/`. Root `Init.py` and `InitGui.py` are FreeCAD bootstrap adapters, and root `sitecustomize.py` is an interpreter/CI hook. Root-level domain modules and compatibility copies are not part of the supported architecture.
+- [FreeCAD documentation](https://wiki.freecad.org/) — host application, workbench, Sketcher, Python-console, and package guidance.
+- [FreeCAD documentation source](https://github.com/FreeCAD/FreeCAD-documentation) — versioned source for the official documentation.
+- [Python 3.12 documentation](https://docs.python.org/3.12/) — runtime/library reference for the supported Python baseline.
+- [FreeCAD Cloth repository](https://github.com/Uhrendoktor/freecad-cloth) — implementation, tests, releases, and issue history.
 
-- `USER_GUIDE.md` — human-facing workflow from first run through seams, materials, simulation and recovery.
+External documentation can change independently of this repository; use the current vendor documentation for host-application details. The repository-specific commands and capability boundary are defined by `main` and the documents linked above.
+
+## Visual evidence
+
+The README and example pages refer only to stable assets published by the canonical workflow on the `docs/screenshots` branch. They are derived evidence, not hand-edited screenshots:
+
+- Blanket motion: `cloth-blanket-motion.gif`
+- Tunic final view: `cloth-simulation-draped-front.png`
+- Arranged simulation turntable: `cloth-simulation-arranged-turntable.gif`
+- Draped simulation turntable: `cloth-simulation-draped-turntable.gif`
+- Avatar turntable: `cloth-avatar-turntable.gif`
+
+The repository's visual acceptance policy is documented in [Release gates](RELEASE_GATES.md).
