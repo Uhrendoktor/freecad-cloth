@@ -39,6 +39,12 @@ class ClothSewingWorkbench(ClothWorkbenchBase):
         super().__init__()
         self.Icon = str(Path(__file__).resolve().parents[2] / "resources" / "icons" / "ClothSewing.svg")
 
+    def Activated(self):
+        import FreeCAD as App
+        from freecad_cloth.sewing.SewingView import apply_seam_colors
+        if App.ActiveDocument is not None:
+            apply_seam_colors(App.ActiveDocument.Objects)
+
     def Initialize(self):
         if self.commands:
             return
