@@ -318,6 +318,10 @@ def main():
             float(scene.ParticleDistance), int(scene.SolverIterations), int(scene.ParticleCount),
             getattr(scene.Proxy._base_or_restore().backend, "name", "unknown"),
         ))
+        log("blanket-backend-selection requested=%s collision_mode=%s" % (
+            os.environ.get("CLOTH_SIMULATION_BACKEND", "auto"),
+            os.environ.get("CLOTH_TISSU_COLLISION_MODE", "auto"),
+        ))
 
         backend = scene.Proxy._base_or_restore().backend
         original_backend_step = backend.step
