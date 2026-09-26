@@ -7,9 +7,7 @@ source = source_path.read_text(encoding="utf-8")
 
 # Tunic fixture profile: stable drape plus a closer-fitting shoulder/neckline silhouette.
 replacements = {
-    'clearance = max(20.0, 0.08 * body_depth);': 'clearance = max(8.0, 0.025 * body_depth);',
     'chest = 980.0; hip = 1020.0; ease = 55.0;': 'chest = 860.0; hip = 880.0; ease = 10.0;',
-    'front_y = box.YMin - clearance; back_y = box.YMax + clearance;': 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
         'front, front_outline = make_piece("VisualTunicFront", front_y, 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", back_y, 0.76, 0.12)',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
@@ -62,19 +60,29 @@ seam_check = '''    backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
     if not simulated_positions:
         raise RuntimeError("Tissu backend returned no simulated particle positions")
-    back_offset = len(front_positions)
+    stitch_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
+    if not stitch_pairs_by_seam:
+        raise RuntimeError("Tissu seam check has no exact solver stitch provenance")
     seam_gaps = []
-    for edge_a, edge_b in ((1, 1), (2, 6), (6, 2), (7, 7)):
-        front_a0 = front_boundary[edge_a]; front_a1 = front_boundary[(edge_a + 1) % len(front_boundary)]
-        back_a0 = back_boundary[edge_b] + back_offset; back_a1 = back_boundary[(edge_b + 1) % len(back_boundary)] + back_offset
-        for ia, ib in ((front_a0, back_a0), (front_a1, back_a1)):
-            a = simulated_positions[ia]; b = simulated_positions[ib]
+    for seam, piece_a, piece_b in seam_records:
+        expected_a = f"{piece_a.PieceId}:edge:"
+        expected_b = f"{piece_b.PieceId}:edge:"
+        edge_a_id = str(getattr(seam, "EdgeAId", ""))
+        edge_b_id = str(getattr(seam, "EdgeBId", ""))
+        if not edge_a_id.startswith(expected_a) or not edge_b_id.startswith(expected_b):
+            raise RuntimeError("Tissu tunic seam lost semantic edge identity")
+        pairs = tuple(stitch_pairs_by_seam.get(str(seam.SeamId), ()))
+        if not pairs:
+            raise RuntimeError("Tissu seam check cannot resolve exact solver pairs for %s" % seam.SeamId)
+        for ga, gb in pairs:
+            a = simulated_positions[int(ga)]; b = simulated_positions[int(gb)]
             seam_gaps.append(((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2) ** 0.5)
     seam_gap = max(seam_gaps) if seam_gaps else 0.0
     if seam_gap > 35.0:
-        raise RuntimeError("simulated tunic seams did not converge: max endpoint gap %.1f mm" % seam_gap)
-    log("tunic-seam-max-gap-mm=%.2f" % seam_gap)
+        raise RuntimeError("simulated tunic seams did not converge: max gap %.1f mm" % seam_gap)
+    log("tunic-seam-max-gap-mm=%.2f seam-ids=%s" % (seam_gap, tuple(str(seam.SeamId) for seam, _a, _b in seam_records)))
 '''
+
 anchor = '    write_drape_metrics(panels, avatar, x_mid, shoulder_z=shoulder_z, hem_z=hem_z); bounds = []'
 if anchor not in source:
     raise RuntimeError("drape metrics anchor missing")
