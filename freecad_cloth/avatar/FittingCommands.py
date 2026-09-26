@@ -543,7 +543,7 @@ class _FittingProxy:
         volumes = tuple(BoundingVolume.from_string(v) for v in obj.BoundingVolumes)
         from freecad_cloth.avatar.AvatarFitting import GarmentAnchor
         anchors = tuple(GarmentAnchor.from_string(v) for v in getattr(obj, "GarmentAnchors", ()) or ())
-        FittingScene(measurements, avatar_name, placements, points, volumes, anchors, bool(obj.SymmetryEnabled)).validate()
+        FittingScene(measurements, avatar_name, placements, points, volumes, bool(obj.SymmetryEnabled), anchors).validate()
 
 
 COMMANDS = [
