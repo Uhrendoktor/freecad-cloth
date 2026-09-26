@@ -347,8 +347,13 @@ def reset_arrangement():
         piece = pieces.get(pid)
         if piece is None:
             continue
-        x, y, z = placement.position
-        piece.Placement = App.Placement(App.Vector(x, y, z), App.Rotation(App.Vector(0, 0, 1), placement.rotation_z))
+        piece.Placement = App.Placement(
+            App.Vector(*placement.position),
+            App.Rotation(App.Vector(*placement.rotation_axis), placement.rotation_z),
+        )
+        sketch = getattr(piece, "Sketch", None)
+        if sketch is not None:
+            sketch.Placement = piece.Placement
         current[pid] = placement
     scene.PiecePlacements = [current[k].to_string() for k in sorted(current)]
     scene.FitStatus = "Arrangement reset"
