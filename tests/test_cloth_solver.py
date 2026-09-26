@@ -76,6 +76,16 @@ def test_mesh_collision_edge_projection_is_idempotent():
     assert max(abs(value) for value in drift) <= 1e-9, drift
 
 
+
+def test_tissu_backend_exposes_solver_collision_surface():
+    from freecad_cloth.simulation.TissuBackend import TissuBackend
+
+    sentinel = object()
+    backend = object.__new__(TissuBackend)
+    backend._collision_surface = sentinel
+    assert backend.solver_collision_surface is sentinel
+
+
 if __name__ == "__main__":
     for name, test in sorted(globals().items()):
         if name.startswith("test_") and callable(test):
