@@ -62,6 +62,106 @@ def test_mesh_collision_corner_projects_against_both_local_faces():
     assert particle.position() == (11.0, 11.0, 0.0)
 
 
+
+
+def test_tissu_signed_collision_guard_math_and_env_gate():
+    import os
+    import numpy as np
+
+    from freecad_cloth.simulation.TissuBackend import (
+        _signed_collision_guard_correction,
+        _tissu_signed_collision_guard,
+    )
+
+    original = os.environ.pop("CLOTH_TISSU_SIGNED_COLLISION_GUARD", None)
+    try:
+        assert _tissu_signed_collision_guard() is False
+        os.environ["CLOTH_TISSU_SIGNED_COLLISION_GUARD"] = "1"
+        assert _tissu_signed_collision_guard() is True
+        os.environ["CLOTH_TISSU_SIGNED_COLLISION_GUARD"] = "false"
+        assert _tissu_signed_collision_guard() is False
+
+        position = np.asarray((0.02, 0.0, -0.01), dtype=np.float64)
+        old_position = np.asarray((0.01, 0.0, 0.0), dtype=np.float64)
+        closest = np.asarray((0.02, 0.0, 0.0), dtype=np.float64)
+        normal = np.asarray((0.0, 0.0, 1.0), dtype=np.float64)
+        correction = _signed_collision_guard_correction(position, old_position, closest, normal, 0.002)
+        assert correction is not None
+        corrected, corrected_old, penetration = correction
+        assert tuple(corrected) == (0.02, 0.0, 0.002)
+        assert tuple(corrected - corrected_old) == (0.01, 0.0, 0.0)
+        assert abs(penetration - 0.01) <= 1e-12
+
+        outside = np.asarray((0.02, 0.0, 0.01), dtype=np.float64)
+        assert _signed_collision_guard_correction(outside, old_position, closest, normal, 0.002) is None
+    finally:
+        if original is None:
+            os.environ.pop("CLOTH_TISSU_SIGNED_COLLISION_GUARD", None)
+        else:
+            os.environ["CLOTH_TISSU_SIGNED_COLLISION_GUARD"] = original
+
+
+def test_tissu_signed_collision_bvh_preserves_authored_outward_winding():
+    import numpy as np
+
+    from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
+    from freecad_cloth.simulation.TissuBackend import (
+        _build_signed_collision_bvh,
+        _nearest_signed_collision,
+        _signed_collision_guard_correction,
+        _to_tissu_position,
+    )
+
+    vertices = (
+        (-10, -10, -10), (10, -10, -10), (10, 10, -10), (-10, 10, -10),
+        (-10, -10, 10), (10, -10, 10), (10, 10, 10), (-10, 10, 10),
+    )
+    outward = (
+        (0, 1, 2), (0, 2, 3),
+        (4, 6, 5), (4, 7, 6),
+        (0, 4, 5), (0, 5, 1),
+        (3, 2, 6), (3, 6, 7),
+        (0, 3, 7), (0, 7, 4),
+        (1, 5, 6), (1, 6, 2),
+    )
+    surface = surface_from_triangles(vertices, outward, thickness=1.0)
+    bvh = _build_signed_collision_bvh(surface)
+    assert bvh is not None
+
+    triangle_centroids = np.asarray(bvh["triangles"]).mean(axis=1)
+    signed_outward = np.einsum("ij,ij->i", triangle_centroids, bvh["normals"])
+    assert np.all(signed_outward > 0.0)
+
+    inside = np.asarray(_to_tissu_position((0.0, 0.0, 0.0)), dtype=np.float64)
+    nearest_inside = _nearest_signed_collision(bvh, inside)
+    assert nearest_inside is not None
+    closest_inside, normal_inside, distance_inside = nearest_inside
+    assert distance_inside > 0.0
+    assert float(np.dot(inside - closest_inside, normal_inside)) < 0.0
+    inside_correction = _signed_collision_guard_correction(
+        inside,
+        inside.copy(),
+        closest_inside,
+        normal_inside,
+        0.002,
+    )
+    assert inside_correction is not None
+
+    outside = np.asarray(_to_tissu_position((12.0, 0.0, 0.0)), dtype=np.float64)
+    nearest_outside = _nearest_signed_collision(bvh, outside)
+    assert nearest_outside is not None
+    closest_outside, normal_outside, distance_outside = nearest_outside
+    assert distance_outside > 0.0
+    assert float(np.dot(outside - closest_outside, normal_outside)) > 0.0
+    assert _signed_collision_guard_correction(
+        outside,
+        outside.copy(),
+        closest_outside,
+        normal_outside,
+        0.002,
+    ) is None
+
+
 def test_tissu_collision_surface_abi_preserves_solver_surface_identity():
     from pathlib import Path
 
@@ -73,6 +173,8 @@ def test_tissu_collision_surface_abi_preserves_solver_surface_identity():
     assert "def solver_collision_surface(self):" in backend_source
     assert "def solver_collision_surface(self):" in tissu_source
     assert "return self._collision_surface" in tissu_source
+    assert "get_particle_indices" in tissu_source
+    assert "Tissu did not preserve cloth particle ordering" in tissu_source
     assert "self.backend.solver_collision_surface" in objects_source
     assert "else collision_surface" in objects_source
 
