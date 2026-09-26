@@ -240,6 +240,10 @@ class SeamProxy:
     """Recompute semantic seam validity and visualization from pattern geometry."""
     Type = "ClothSeam"
 
+    def onDocumentRestored(self, obj):
+        from freecad_cloth.sewing.SewingView import refresh_seam_colors
+        refresh_seam_colors(getattr(obj, "Document", None))
+
     def execute(self, obj):
         import Part
         piece_a = getattr(obj, "PatternA", None)
