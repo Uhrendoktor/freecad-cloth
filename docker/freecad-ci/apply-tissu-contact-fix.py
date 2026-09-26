@@ -31,51 +31,7 @@ def main() -> int:
 
     binding_paths = (bindings, bindings_headless)
     for binding in binding_paths:
-        binding_text = binding.read_text(encoding="utf-8")
-    binding_old = """        .def("get_mesh_path", &MeshCollider::getMeshPath)
-        .def("get_world_vertices", &MeshCollider::getWorldVertices);"""
-    binding_new = """        .def("get_mesh_path", &MeshCollider::getMeshPath)
-        .def("get_world_vertices", &MeshCollider::getWorldVertices)
-        .def("set_closed_manifold_hint", &MeshCollider::setClosedManifoldHint,
-             py::arg("closed_manifold"), py::arg("outward_normal_sign"));"""
-        if binding_text.count(binding_old) != 1:
-            raise RuntimeError(f"{binding.name} MeshCollider anchor mismatch")
-        binding.write_text(binding_text.replace(binding_old, binding_new), encoding="utf-8")
-
-    engine_text = engine.read_text(encoding="utf-8")
-    engine_old = """    def add_mesh_from_arrays(
-        self,
-        name: str,
-        vertices: np.ndarray,
-        triangles: np.ndarray,
-        friction: float = 0.5,
-    ):
-        collider = sdk.MeshCollider(vertices, triangles, float(friction))
-        collider.set_name(name)
-        self.world.add_collider(collider)
-        self._colliders[name] = len(self.world.get_colliders()) - 1
-"""
-    engine_new = """    def add_mesh_from_arrays(
-        self,
-        name: str,
-        vertices: np.ndarray,
-        triangles: np.ndarray,
-        friction: float = 0.5,
-        closed_manifold: bool = False,
-        outward_normal_sign: float = 1.0,
-    ):
-        collider = sdk.MeshCollider(vertices, triangles, float(friction))
-        collider.set_name(name)
-        if closed_manifold:
-            collider.set_closed_manifold_hint(True, float(outward_normal_sign))
-        self.world.add_collider(collider)
-        self._colliders[name] = len(self.world.get_colliders()) - 1
-"""
-    if engine_text.count(engine_old) != 1:
-        raise RuntimeError("engine add_mesh_from_arrays anchor mismatch")
-    engine.write_text(engine_text.replace(engine_old, engine_new), encoding="utf-8")
-
-    if run("git", "rev-parse", "HEAD") != EXPECTED_COMMIT:
+if run("git", "rev-parse", "HEAD") != EXPECTED_COMMIT:
         raise RuntimeError("Tissu source commit does not match the pinned revision")
 
     header = ROOT / "core/include/physics/MeshCollider.hpp"
@@ -511,7 +467,51 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     test_cpp = test_cpp.replace(old, new, 1)
     test.write_text(test_cpp, encoding="utf-8")
 
-    if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
+        binding_text = binding.read_text(encoding="utf-8")
+    binding_old = """        .def("get_mesh_path", &MeshCollider::getMeshPath)
+        .def("get_world_vertices", &MeshCollider::getWorldVertices);"""
+    binding_new = """        .def("get_mesh_path", &MeshCollider::getMeshPath)
+        .def("get_world_vertices", &MeshCollider::getWorldVertices)
+        .def("set_closed_manifold_hint", &MeshCollider::setClosedManifoldHint,
+             py::arg("closed_manifold"), py::arg("outward_normal_sign"));"""
+        if binding_text.count(binding_old) != 1:
+            raise RuntimeError(f"{binding.name} MeshCollider anchor mismatch")
+        binding.write_text(binding_text.replace(binding_old, binding_new), encoding="utf-8")
+
+    engine_text = engine.read_text(encoding="utf-8")
+    engine_old = """    def add_mesh_from_arrays(
+        self,
+        name: str,
+        vertices: np.ndarray,
+        triangles: np.ndarray,
+        friction: float = 0.5,
+    ):
+        collider = sdk.MeshCollider(vertices, triangles, float(friction))
+        collider.set_name(name)
+        self.world.add_collider(collider)
+        self._colliders[name] = len(self.world.get_colliders()) - 1
+"""
+    engine_new = """    def add_mesh_from_arrays(
+        self,
+        name: str,
+        vertices: np.ndarray,
+        triangles: np.ndarray,
+        friction: float = 0.5,
+        closed_manifold: bool = False,
+        outward_normal_sign: float = 1.0,
+    ):
+        collider = sdk.MeshCollider(vertices, triangles, float(friction))
+        collider.set_name(name)
+        if closed_manifold:
+            collider.set_closed_manifold_hint(True, float(outward_normal_sign))
+        self.world.add_collider(collider)
+        self._colliders[name] = len(self.world.get_colliders()) - 1
+"""
+    if engine_text.count(engine_old) != 1:
+        raise RuntimeError("engine add_mesh_from_arrays anchor mismatch")
+    engine.write_text(engine_text.replace(engine_old, engine_new), encoding="utf-8")
+
+        if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
     changed = run("git", "diff", "--name-only")
     expected = {
