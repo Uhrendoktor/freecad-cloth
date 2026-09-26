@@ -385,17 +385,55 @@ def simulation():
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
     rot = App.Rotation(App.Vector(1,0,0), 90.0)
-    def target_relative_piece_placement(side):
+    def arrangement_seed_placement(side):
         if side == "front":
             y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
         elif side == "back":
             y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
         else:
-            raise ValueError("tunic target-relative side must be front or back")
+            raise ValueError("tunic arrangement side must be front or back")
         return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
     def make_piece(name, side, neckline_ratio, neckline_drop):
-        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(side); piece.Sketch.Placement = piece.Placement; return piece, outline
-    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
+        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop)
+        doc.recompute()
+        piece = _adopt_sketch(sketch, name, 10.0, 0.0)
+        piece.Label = name
+        piece.Placement = arrangement_seed_placement(side)
+        piece.Sketch.Placement = piece.Placement
+        return piece, outline
+    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10)
+    back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
+
+    # Arrangement points determine the initial garment pose; the production fitting
+    # command then verifies/corrects surface clearance against the persistent target.
+    from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+    from freecad_cloth.avatar.FittingCommands import create_fitting_scene, snap_piece_to_drape_target
+    fitting_scene = create_fitting_scene()
+    fitting_scene.DrapeTarget = target
+    fitting_scene.PatternPieces = [front, back]
+    fitting_scene.PiecePlacements = []
+    fitting_scene.HomePlacements = []
+    for piece in (front, back):
+        base = piece.Placement.Base
+        rotation = piece.Placement.Rotation
+        axis = rotation.Axis
+        record = PiecePlacement(
+            str(piece.PieceId),
+            (float(base.x), float(base.y), float(base.z)),
+            float(rotation.Angle),
+            (float(axis.x), float(axis.y), float(axis.z)),
+            float(rotation.Angle),
+        )
+        fitting_scene.PiecePlacements.append(record.to_string())
+        fitting_scene.HomePlacements.append(record.to_string())
+    fitting_scene.FitStatus = "Ready"
+    snap_results = tuple(
+        snap_piece_to_drape_target(piece, target, clearance=max(8.0, 0.03 * body_depth))
+        for piece in (front, back)
+    )
+    if any(float(result["distance_after"]) + 1e-6 < float(result["clearance"]) for result in snap_results):
+        raise RuntimeError("target-aware tunic placement did not reach requested target clearance")
+    log("tunic-placement=target-aware production snap results=%s" % (snap_results,))
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
     for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
@@ -411,6 +449,13 @@ def simulation():
     backend = getattr(proxy, "backend", None)
     if backend is None:
         raise RuntimeError("canonical tunic did not build a simulation backend")
+    if str(getattr(scene, "PinMode", "")) != "None":
+        raise RuntimeError("canonical tunic must use PinMode=None")
+    from freecad_cloth.simulation.SimulationObjects import resolve_pin_indices
+    automatic_default = tuple(getattr(proxy, "panel_boundary_edges", {}).get("VisualTunicFront", ()))
+    resolved_pins = resolve_pin_indices(scene, int(getattr(scene, "ParticleCount", 0)), automatic_default)
+    if resolved_pins:
+        raise RuntimeError("canonical tunic PinMode=None resolved active solver pins: %s" % (resolved_pins,))
     if list(getattr(scene, "PinSelection", ())) != []:
         raise RuntimeError("canonical tunic PinMode=None retained explicit PinSelection values")
     solver_pins = tuple(int(i) for i in getattr(backend, "_pin_indices", ()))
