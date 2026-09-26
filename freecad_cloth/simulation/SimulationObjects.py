@@ -29,6 +29,56 @@ def _write_grid_mesh(obj, positions, indices, nx, ny):
     _write_mesh(obj, positions, triangles)
 
 
+def _update_seam_visuals(doc, seam_stitch_pairs, positions):
+    """Render each semantic solver seam as one canonical-color native overlay."""
+    if doc is None:
+        return ()
+    import FreeCAD as App
+    import Part
+    from freecad_cloth.sewing.SewingView import seam_color_map
+    seam_ids = tuple(sorted(
+        str(seam_id).strip()
+        for seam_id in (seam_stitch_pairs or {})
+        if str(seam_id).strip()
+    ))
+    colors = seam_color_map(seam_ids)
+    existing = {
+        str(getattr(obj, "SimulationSeamId", "")).strip(): obj
+        for obj in getattr(doc, "Objects", ())
+        if str(getattr(obj, "SimulationSeamId", "")).strip()
+    }
+    active = set()
+    for seam_id in seam_ids:
+        visual = existing.get(seam_id)
+        if visual is None:
+            safe_id = "".join(char if char.isalnum() else "_" for char in seam_id).strip("_") or "seam"
+            visual = doc.addObject("Part::Feature", "SimulationSeamVisual_%s" % safe_id)
+            visual.Label = "Simulation seam: %s" % seam_id
+            visual.addProperty("App::PropertyString", "SimulationSeamId", "Simulation").SimulationSeamId = seam_id
+            existing[seam_id] = visual
+        stitch_pairs = tuple(seam_stitch_pairs.get(seam_id, ()))
+        side_a = [App.Vector(*positions[a]) for a, _ in stitch_pairs]
+        side_b = [App.Vector(*positions[b]) for _, b in stitch_pairs]
+        shapes = []
+        if len(side_a) >= 2:
+            shapes.append(Part.makePolygon(side_a))
+        if len(side_b) >= 2:
+            shapes.append(Part.makePolygon(side_b))
+        visual.Shape = Part.makeCompound(shapes) if shapes else Part.Shape()
+        view = getattr(visual, "ViewObject", None)
+        if view is not None:
+            view.LineColor = colors[seam_id]
+            view.LineWidth = 3.0
+            view.Visibility = bool(shapes)
+        active.add(seam_id)
+    for seam_id, visual in existing.items():
+        if seam_id not in active:
+            view = getattr(visual, "ViewObject", None)
+            if view is not None:
+                view.Visibility = False
+    return tuple(existing[seam_id] for seam_id in seam_ids)
+
+
 def _parse_pair_list(values, particle_count=None):
     pairs = []
     for value in values or ():
@@ -74,32 +124,6 @@ def _placement_signature(piece):
     )
 
 
-PIN_MODE_NAMES = ("Automatic", "Explicit", "None")
-
-
-def normalize_pin_mode(value):
-    """Return a supported persistent pinning mode, preserving legacy defaults."""
-    mode = str(value or "Automatic").strip()
-    return mode if mode in PIN_MODE_NAMES else "Automatic"
-
-
-def resolve_pin_indices(obj, particle_count, automatic_default=()):
-    """Resolve the solver pin indices from the persistent pinning mode."""
-    mode = normalize_pin_mode(getattr(obj, "PinMode", "Automatic"))
-    explicit = _parse_int_list(getattr(obj, "PinSelection", ()), particle_count)
-    if mode == "None":
-        return ()
-    if mode == "Explicit":
-        return explicit
-    if explicit:
-        return explicit
-    return tuple(
-        int(index)
-        for index in automatic_default
-        if 0 <= int(index) < int(particle_count)
-    )
-
-
 def _simulation_source_signature(obj, pieces):
     """Return deterministic inputs that require rebuilding the cloth scene."""
     if pieces:
@@ -133,11 +157,7 @@ def _simulation_source_signature(obj, pieces):
             float(getattr(avatar, "CollisionDeflection", 0.0)) if avatar is not None else 0.0,
             float(getattr(avatar, "CollisionThickness", 0.0)) if avatar is not None else 0.0,
         )
-    pin_mode = normalize_pin_mode(getattr(obj, "PinMode", "Automatic"))
-    pin_signature = (
-        pin_mode,
-        _parse_int_list(getattr(obj, "PinSelection", ())) if pin_mode != "None" else (),
-    )
+    pin_signature = _parse_int_list(getattr(obj, "PinSelection", ()))
     return (
         pattern_signature,
         target_signature,
@@ -426,6 +446,7 @@ class SimulationProxy:
         positions = self.backend.positions()
         for panel in getattr(obj, "DrapePanels", ()):
             _write_mesh(panel, positions, self.panel_triangles.get(panel.Name, ()))
+        _update_seam_visuals(obj.Document, self.seam_stitch_pairs, positions)
         obj.SimulatedTime = self.backend.time
         obj.ParticleCount = len(positions)
         obj.FiniteState = self.backend.finite()
@@ -489,18 +510,17 @@ class SimulationProxy:
             int(getattr(obj, "StitchSamples", 8)),
         )
         system.add_stitches(seam_pairs)
-        first = panel_data[str(pieces[0].PieceId)] if pieces else None
-        boundary = (
-            tuple(dict.fromkeys(i for edge in first["boundary_edges"] for i in edge))
-            if first is not None else ()
-        )
-        pins = resolve_pin_indices(
-            obj,
-            len(particles),
-            tuple(boundary[:2] + boundary[-2:]),
-        )
-        if pins:
+        explicit_pins = _parse_int_list(getattr(obj, "PinSelection", ()), len(particles))
+        if explicit_pins:
+            pins = explicit_pins
             system.pin(pins)
+        elif pieces:
+            first = panel_data[str(pieces[0].PieceId)]
+            boundary = list(dict.fromkeys(i for edge in first["boundary_edges"] for i in edge))
+            pins = tuple(boundary[:2] + boundary[-2:])
+            system.pin(pins)
+        else:
+            pins = ()
         collision_surface = _collision_for_scene(obj)
         registry = default_backend_registry()
         backend_name = preferred_backend_name(registry)
@@ -546,13 +566,8 @@ class SimulationProxy:
         constraints = list(left.constraints) + [type(c)(c.a + offset, c.b + offset, c.rest, c.compliance) for c in right.constraints]
         system = ClothSystem(particles, constraints)
         system.add_stitches(_parse_pair_list(getattr(obj, "SeamSelection", ()), len(particles)) or tuple((j * nx + nx - 1, offset + j * nx) for j in range(ny)))
-        pins = resolve_pin_indices(
-            obj,
-            len(particles),
-            (0, nx - 1, offset, offset + nx - 1),
-        )
-        if pins:
-            system.pin(pins)
+        pins = _parse_int_list(getattr(obj, "PinSelection", ()), len(particles)) or (0, nx - 1, offset, offset + nx - 1)
+        system.pin(pins)
         self.backend = default_backend_registry().create("xpbd-cpu", system)
         tris = []
         for j in range(ny - 1):
@@ -676,9 +691,6 @@ def create_simulation_scene(doc):
     scene.addProperty("App::PropertyLinkListGlobal", "DrapePanels", "Output")
     scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Selection")
     scene.addProperty("App::PropertyLinkGlobal", "AvatarProxy", "Compatibility")
-    scene.addProperty("App::PropertyEnumeration", "PinMode", "Quality")
-    scene.PinMode = list(PIN_MODE_NAMES)
-    scene.PinMode = "Automatic"
     scene.addProperty("App::PropertyStringList", "PinSelection", "Selection").PinSelection = []
     scene.addProperty("App::PropertyStringList", "SeamSelection", "Selection").SeamSelection = []
     scene.addProperty("App::PropertyFloat", "SimulatedTime", "State").SimulatedTime = 0.0
