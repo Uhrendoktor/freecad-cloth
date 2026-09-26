@@ -34,17 +34,34 @@ def main():
         # _prepare builds the realtime-quality system; avoid an extra GUI panel entirely.
         view = Gui.activeDocument().activeView() if Gui.activeDocument() else None
         times = []
+        recompute_times = []
+        redraw_times = []
         started = time.perf_counter()
         for _ in range(FRAMES):
             t0 = time.perf_counter()
             scene.Steps = int(scene.Steps) + 1
+            recompute_started = time.perf_counter()
             doc.recompute()
+            recompute_times.append(time.perf_counter() - recompute_started)
+            redraw_started = time.perf_counter()
             if view is not None:
                 view.redraw()
+            redraw_times.append(time.perf_counter() - redraw_started)
             times.append(time.perf_counter() - t0)
         elapsed = time.perf_counter() - started
+        def _stats(values):
+            ordered = sorted(values)
+            p95_index = max(0, min(len(ordered) - 1, int(0.95 * len(ordered)) - 1))
+            return {
+                "mean_ms": 1000.0 * sum(values) / len(values),
+                "p95_ms": 1000.0 * ordered[p95_index],
+                "max_ms": 1000.0 * max(values),
+            }
         ordered = sorted(times)
         p95 = ordered[max(0, min(len(ordered) - 1, int(0.95 * len(ordered)) - 1))]
+        steady_recompute = recompute_times[1:] if len(recompute_times) > 1 else recompute_times
+        steady_redraw = redraw_times[1:] if len(redraw_times) > 1 else redraw_times
+        steady_total = times[1:] if len(times) > 1 else times
         result = {
             "backend": getattr(backend, "name", "unknown"),
             "frames": FRAMES,
@@ -60,6 +77,23 @@ def main():
             "fps_mean": 1.0 / (sum(times) / len(times)),
             "finite": bool(backend.finite()),
             "frame_budget_ms": FRAME_BUDGET_MS,
+            "phase_timing_ms": {
+                "cold": {
+                    "recompute": _stats(recompute_times[:1]),
+                    "redraw": _stats(redraw_times[:1]),
+                    "frame": _stats(times[:1]),
+                },
+                "all_frames": {
+                    "recompute": _stats(recompute_times),
+                    "redraw": _stats(redraw_times),
+                    "frame": _stats(times),
+                },
+                "steady_state": {
+                    "recompute": _stats(steady_recompute),
+                    "redraw": _stats(steady_redraw),
+                    "frame": _stats(steady_total),
+                },
+            },
         }
         (OUT / "metrics.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
         print(json.dumps(result, sort_keys=True), flush=True)
