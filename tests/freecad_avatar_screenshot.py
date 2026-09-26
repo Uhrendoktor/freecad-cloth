@@ -208,4 +208,4 @@ except BaseException as error:
     print("AVATAR SCREENSHOT FAILURE: %r" % (error,), flush=True)
     print(traceback.format_exc(), flush=True)
     log("avatar-script-fail exception=%r" % (error,))
-    raise
+    os._exit(1)
