@@ -247,6 +247,23 @@ class AvatarFittingTests(unittest.TestCase):
             if doc.Name in App.listDocuments():
                 App.closeDocument(doc.Name)
 
+    def test_create_simulation_from_fitting_propagates_drape_target(self):
+        try:
+            import FreeCAD as App
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
+        from freecad_cloth.avatar.FittingCommands import create_simulation_from_fitting
+
+        doc = App.newDocument("TargetFitSimulationHandoff")
+        try:
+            piece, _sketch = self._make_target_fit_piece(doc, "PatternPiece", 120.0)
+            scene, target = self._make_target_fit_scene(doc, [piece])
+            simulation = create_simulation_from_fitting()
+            self.assertIs(getattr(simulation, "DrapeTarget", None), target)
+        finally:
+            if doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
+
     def test_target_placement_rolls_back_partial_piece_and_sketch_changes(self):
         try:
             import FreeCAD as App
