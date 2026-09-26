@@ -107,3 +107,24 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
     assert 'tunic-simulation-start' in source
+
+
+def test_tissu_ci_image_is_pinned_and_self_regressing():
+    dockerfile = (ROOT / "docker" / "freecad-ci" / "Dockerfile").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    patch = (ROOT / "docker" / "freecad-ci" / "tissu-mesh-collider-inside.patch").read_text(encoding="utf-8")
+    source_commit = "c28a3c7504ddc782bef844ab5bd4cd0bde14b628"
+
+    assert f"ARG TISSU_SOURCE_COMMIT={source_commit}" in dockerfile
+    assert "git checkout --detach \"$TISSU_SOURCE_COMMIT\"" in dockerfile
+    assert "git apply /tmp/tissu-mesh-collider-inside.patch" in dockerfile
+    assert "--target _cloth_sdk_core unit_tests" in dockerfile
+    assert "--gtest_filter='MeshCollider.*'" in dockerfile
+    assert "ParticleInsideMeshMovesOutside" in patch
+    assert "maxOutwardPlaneDistance" in patch
+
+    tunic = workflow[workflow.index("  gui-tunic-visual:") : workflow.index("\n  gui-", workflow.index("  gui-tunic-visual:") + 5)]
+    assert "FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix" in tunic
+    assert "docker build --pull --progress=plain" in tunic
+    assert 'docker run --rm --init' in tunic
+    assert '"$FREECAD_TUNIC_IMAGE" bash -lc' in tunic
