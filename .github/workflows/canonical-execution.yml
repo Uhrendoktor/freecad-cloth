@@ -488,7 +488,7 @@ jobs:
           CLOTH_SIMULATION_BACKEND: tissu
           CLOTH_TISSU_SUBSTEPS: 1
           CLOTH_TISSU_COLLISION_MODE: mesh
-          CLOTH_TISSU_COLLISION_TRIANGLES: 2048
+          CLOTH_TISSU_COLLISION_TRIANGLES: 0
         run: |
           set -euo pipefail
           rm -rf docs/images/generated
