@@ -124,6 +124,11 @@ class TissuBackend(ClothSimulationBackend):
         self._build(Simulation)
 
     @property
+    def solver_collision_surface(self):
+        """Return the exact surface registered with Tissu's solver."""
+        return self._collision_surface
+
+    @property
     def time(self):
         return self._time
 
