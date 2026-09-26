@@ -135,6 +135,32 @@ class ArrangementPoint:
 
 
 @dataclass(frozen=True)
+def garment_arrangement_pose(point, avatar_bounds, garment_width, garment_height, clearance):
+    """Return a deterministic base pose for a flat 2D garment panel around an avatar.
+
+    ``avatar_bounds`` and returned coordinates are in the avatar local
+    coordinate system. Front/back use avatar Y extents; left/right use X.
+    The panel is authored in XY and the caller rotates it upright.
+    """
+    point.validate()
+    min_x, max_x, min_y, max_y, _min_z, _max_z = (float(value) for value in avatar_bounds)
+    width = max(0.0, float(garment_width))
+    height = max(0.0, float(garment_height))
+    gap = max(0.0, float(clearance))
+    side = str(point.wrap_direction)
+    center_x = float(point.x)
+    center_y = float(point.y)
+    center_z = float(point.offset)
+    if side == "front":
+        return center_x - width / 2.0, max_y + gap, center_z - height * 0.5, 0.0
+    if side == "back":
+        return center_x - width / 2.0, min_y - gap, center_z - height * 0.5, 180.0
+    if side == "left":
+        return min_x - gap, center_y - width / 2.0, center_z - height * 0.5, 90.0
+    if side == "right":
+        return max_x + gap, center_y - width / 2.0, center_z - height * 0.5, -90.0
+    raise ValueError("unsupported garment wrap direction: %s" % side)
+
 class BoundingVolume:
     """Named axis-aligned avatar volume used for deterministic fitting metadata."""
 
