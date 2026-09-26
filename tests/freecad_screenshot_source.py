@@ -363,7 +363,13 @@ def simulation():
     )
     if not target_surface.vertices or not target_surface.triangles:
         raise RuntimeError("canonical tunic DrapeTarget has no authoritative collision triangles")
-    from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
+    from freecad_cloth.avatar.AvatarFitting import ArrangementPoint, PiecePlacement
+    from freecad_cloth.avatar.FittingCommands import (
+        _surface_anchor,
+        _world_collision_surface,
+        _world_vertices,
+        create_fitting_scene,
+    )
     def arrangement_world(name):
         raw = next((value for value in getattr(avatar, "ArrangementPoints", ()) if str(value).split("|", 1)[0] == name), None)
         if raw is None:
@@ -373,8 +379,6 @@ def simulation():
     shoulder_left = arrangement_world("shoulder_left")
     shoulder_right = arrangement_world("shoulder_right")
     hip_point = arrangement_world("hip")
-    target_ys = [float(vertex[1]) for vertex in target_surface.vertices]
-    y_span = max(target_ys) - min(target_ys)
     x_mid = (shoulder_left.x + shoulder_right.x) / 2.0
     shoulder_z = (shoulder_left.z + shoulder_right.z) / 2.0
     hem_z = hip_point.z
@@ -385,25 +389,61 @@ def simulation():
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
     rot = App.Rotation(App.Vector(1,0,0), 90.0)
-    def target_relative_piece_placement(side):
-        if side == "front":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
-        elif side == "back":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
-        else:
-            raise ValueError("tunic target-relative side must be front or back")
-        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
-    def make_piece(name, side, neckline_ratio, neckline_drop):
-        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(side); piece.Sketch.Placement = piece.Placement; return piece, outline
-    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
-    # Same-side side seams and authored shoulder seams; the neckline remains open.
+    def make_piece(name, y, neckline_ratio, neckline_drop):
+        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot); piece.Sketch.Placement = piece.Placement; return piece, outline
+    front, front_outline = make_piece("VisualTunicFront", -650.0, 0.64, 0.10)
+    back, back_outline = make_piece("VisualTunicBack", 650.0, 0.64, 0.07)
     seam_records = []
     for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
         seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
-    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.PinMode = "None"; scene.PinSelection = []; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
+
+    fitting = create_fitting_scene()
+    fitting.AvatarProxy = scene.AvatarProxy
+    fitting.DrapeTarget = target
+    fitting.PatternPieces = [front, back]
+    home_values = []
+    for piece in (front, back):
+        base = piece.Placement.Base
+        placement = PiecePlacement(
+            str(piece.PieceId),
+            (float(base.x), float(base.y), float(base.z)),
+            float(piece.Placement.Rotation.Angle),
+        )
+        home_values.append(placement.to_string())
+    fitting.PiecePlacements = list(home_values)
+    fitting.HomePlacements = list(home_values)
+    fitting.FitStatus = "Ready"
+    doc.recompute()
+
+    activate("ClothSewingWorkbench", "Cloth Sewing", ["ClothFitting_SnapPiecesToTarget"])
+    def snap_with_public_command(piece):
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(piece)
+        Gui.Selection.addSelection(target)
+        Gui.runCommand("ClothFitting_SnapPiecesToTarget", 0)
+        events(); doc.recompute()
+        if str(getattr(fitting, "FitStatus", "")) != "Snapped to target":
+            raise RuntimeError("public target snap command did not persist FitStatus")
+    snap_with_public_command(front)
+    snap_with_public_command(back)
+
+    if tuple(fitting.HomePlacements) != tuple(home_values):
+        raise RuntimeError("target snap changed canonical HomePlacements")
+    surface_for_proof = _world_collision_surface(target)
+    minimum_signed = min(
+        min(
+            sum((point[i] - _surface_anchor(surface_for_proof, point)[0][i]) * _surface_anchor(surface_for_proof, point)[1][i] for i in range(3))
+            for point in _world_vertices(piece)
+        )
+        for piece in (front, back)
+    )
+    if float(minimum_signed) < float(clearance) - 1e-6:
+        raise RuntimeError("public target snap did not prove step-0 signed surface clearance: %.3f < %.3f" % (float(minimum_signed), float(clearance)))
+
+    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.PinMode = "None"; scene.PinSelection = []; scene.ClothPieces = [front, back]; scene.DrapeTarget = target; refresh_drape_target(target); doc.recompute()
     status = target_status(target)
     if str(status.get("state", "")) != "ready":
         raise RuntimeError("canonical tunic DrapeTarget is not current: %s" % status.get("message", status))
@@ -421,25 +461,9 @@ def simulation():
         raise RuntimeError("canonical tunic must use PinMode=None")
     if solver_pins:
         raise RuntimeError("canonical tunic PinMode=None still has solver pins: %s" % (solver_pins,))
-    surface = collision_surface(
-        target_source,
-        float(getattr(target, "CollisionDeflection", 1.0)),
-        float(getattr(target, "CollisionThickness", 0.0)),
-    )
-    initial_clearance = None
-    try:
-        from freecad_cloth.common.MeshValidation import nearest_target_clearance
-        initial_clearance = nearest_target_clearance(tuple(backend.positions()), tuple(surface.vertices))
-    except (ImportError, ValueError):
-        initial_clearance = None
-    if initial_clearance is None or float(initial_clearance) < float(clearance):
-        raise RuntimeError(
-            "canonical tunic step-0 target clearance is below configured separation: "
-            "%.2f mm < %.2f mm" % (float(initial_clearance or 0.0), float(clearance))
-        )
     log("pin-mode=None solver-pins=0")
-    log("target-collision-mode=mesh")
-    log("step0-target-vertex-clearance-mm=%.2f required-mm=%.2f" % (float(initial_clearance), float(clearance)))
+    log("target-snap=public-command home-placements-preserved")
+    log("step0-target-signed-clearance-mm=%.2f required-mm=%.2f" % (float(minimum_signed), float(clearance)))
     for source in (doc.getObject("VisualTunicFront"), doc.getObject("VisualTunicBack")):
         if source is not None: source.ViewObject.Visibility = False
         sketch = getattr(source, "Sketch", None) if source is not None else None
