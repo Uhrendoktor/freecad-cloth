@@ -14,12 +14,27 @@ from freecad_cloth.simulation.ClothSolver import ClothSystem
 _MM = 1000.0
 _TISSU_SUBSTEPS_DEFAULT = 1
 _TISSU_COLLISION_TRIANGLES_DEFAULT = 0
+_TISSU_COLLIDER_FRICTION_DEFAULT = 0.5
 
 
 def _tissu_substeps():
     value = int(os.environ.get("CLOTH_TISSU_SUBSTEPS", str(_TISSU_SUBSTEPS_DEFAULT)))
     if value < 1:
         raise ValueError("CLOTH_TISSU_SUBSTEPS must be >= 1")
+    return value
+
+
+def _tissu_collider_friction():
+    raw = os.environ.get(
+        "CLOTH_TISSU_COLLIDER_FRICTION",
+        str(_TISSU_COLLIDER_FRICTION_DEFAULT),
+    ).strip()
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise ValueError("CLOTH_TISSU_COLLIDER_FRICTION must be a number in [0, 1]") from exc
+    if not 0.0 <= value <= 1.0:
+        raise ValueError("CLOTH_TISSU_COLLIDER_FRICTION must be in [0, 1]")
     return value
 
 
@@ -146,7 +161,12 @@ class TissuBackend(ClothSimulationBackend):
                 )
             return
         vtx, idx = _to_tissu_mesh(self._collision_surface)
-        self._sim.add_mesh_from_arrays("drape-target", vtx, idx, friction=0.5)
+        self._sim.add_mesh_from_arrays(
+            "drape-target",
+            vtx,
+            idx,
+            friction=_tissu_collider_friction(),
+        )
 
     def _build(self, Simulation):
         import numpy as np
