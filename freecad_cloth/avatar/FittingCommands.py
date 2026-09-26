@@ -345,24 +345,50 @@ def snap_pattern_pieces_to_target(pieces=None, target=None, clearance=None, max_
     fit_status_before = str(getattr(scene, "FitStatus", ""))
     try:
         world_samples = {piece: _piece_world_samples(piece, sample_deflection) for piece in selected}
-        all_samples = tuple(point for samples in world_samples.values() for point in samples)
-        group_center = average_point(all_samples)
-        projection = nearest_target_projection(group_center, surface)
-        desired = tuple(projection.point[i] + projection.normal[i] * required_clearance for i in range(3))
-        delta = tuple(desired[i] - group_center[i] for i in range(3))
-        travel = (sum(value * value for value in delta)) ** 0.5
-        if travel > guard + 1e-9:
-            raise ValueError("target-aware placement exceeds the translation guard: %.3f > %.3f mm" % (travel, guard))
+        current_reports = {
+            piece: minimum_signed_clearance(samples, surface)
+            for piece, samples in world_samples.items()
+        }
+        if all(
+            report.minimum_signed_clearance + 1e-6 >= required_clearance
+            for report in current_reports.values()
+        ):
+            # A fully target-clear garment is already correctly arranged. Keep its
+            # authored placement unchanged; idempotent Arrange/Fit is a hard invariant.
+            delta = (0.0, 0.0, 0.0)
+            travel = 0.0
+        else:
+            all_samples = tuple(point for samples in world_samples.values() for point in samples)
+            group_center = average_point(all_samples)
+            projection = nearest_target_projection(group_center, surface)
+            desired = tuple(
+                projection.point[i] + projection.normal[i] * required_clearance
+                for i in range(3)
+            )
+            delta = tuple(desired[i] - group_center[i] for i in range(3))
+            travel = (sum(value * value for value in delta)) ** 0.5
+            if travel > guard + 1e-9:
+                raise ValueError(
+                    "target-aware placement exceeds the translation guard: %.3f > %.3f mm"
+                    % (travel, guard)
+                )
 
-        for piece in selected:
-            placement = piece.Placement
-            base = placement.Base
-            updated = App.Placement(App.Vector(float(base.x) + delta[0], float(base.y) + delta[1], float(base.z) + delta[2]), placement.Rotation)
-            piece.Placement = updated
-            sketch = getattr(piece, "Sketch", None)
-            if sketch is not None:
-                sketch.Placement = updated
-        doc.recompute()
+            for piece in selected:
+                placement = piece.Placement
+                base = placement.Base
+                updated = App.Placement(
+                    App.Vector(
+                        float(base.x) + delta[0],
+                        float(base.y) + delta[1],
+                        float(base.z) + delta[2],
+                    ),
+                    placement.Rotation,
+                )
+                piece.Placement = updated
+                sketch = getattr(piece, "Sketch", None)
+                if sketch is not None:
+                    sketch.Placement = updated
+            doc.recompute()
 
         reports = {}
         for _attempt in range(3):
@@ -407,7 +433,7 @@ def snap_pattern_pieces_to_target(pieces=None, target=None, clearance=None, max_
         scene.FitStatus = "Target snapped"
         doc.recompute()
         return {"target": str(getattr(target, "Name", "DrapeTarget")), "clearance_mm": required_clearance, "pieces": results}
-    except BaseException:
+    except Exception:
         for piece, original in placement_before.items():
             piece.Placement = original
         for piece, original in sketch_before.items():
