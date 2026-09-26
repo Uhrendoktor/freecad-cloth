@@ -417,15 +417,6 @@ def _target_aware_place_piece_impl(piece, target, anchors, clearance=8.0, max_tr
     from freecad_cloth.avatar.TargetAwarePlacement import apply_rigid_delta
     predicted_points = apply_rigid_delta(source_points, delta)
     anchor_clearance = assert_minimum_surface_clearance(surface, predicted_points, float(clearance))
-    original_piece_placement = PiecePlacement(
-        piece_id,
-        (
-            float(piece.Placement.Base.x),
-            float(piece.Placement.Base.y),
-            float(piece.Placement.Base.z),
-        ),
-        float(piece.Placement.Rotation.Angle),
-    )
     delta_rotation = App.Rotation(App.Vector(0, 0, 1), float(delta.rotation_z))
     current = piece.Placement
     new_base = delta_rotation.multVec(current.Base) + App.Vector(*delta.translation)
@@ -499,6 +490,8 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
     original_sketch_placement = getattr(sketch, "Placement", None) if sketch is not None else None
     piece_placements_before = tuple(getattr(scene, "PiecePlacements", ()) or ())
     home_placements_before = tuple(getattr(scene, "HomePlacements", ()) or ())
+    pattern_pieces_before = tuple(getattr(scene, "PatternPieces", ()) or ())
+    avatar_proxy_before = getattr(scene, "AvatarProxy", None)
     fitting_status_before = str(getattr(scene, "FitStatus", ""))
     garment_anchors_before = tuple(getattr(scene, "GarmentAnchors", ()) or ())
     try:
@@ -534,6 +527,8 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
             sketch.Placement = original_sketch_placement
         scene.PiecePlacements = list(piece_placements_before)
         scene.HomePlacements = list(home_placements_before)
+        scene.PatternPieces = list(pattern_pieces_before)
+        scene.AvatarProxy = avatar_proxy_before
         scene.FitStatus = fitting_status_before
         if "GarmentAnchors" in getattr(scene, "PropertiesList", ()):
             scene.GarmentAnchors = list(garment_anchors_before)
