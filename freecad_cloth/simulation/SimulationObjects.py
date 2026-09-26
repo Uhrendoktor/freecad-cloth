@@ -108,12 +108,28 @@ def _simulation_source_signature(obj, pieces):
             float(getattr(avatar, "CollisionThickness", 0.0)) if avatar is not None else 0.0,
         )
     pin_signature = _parse_int_list(getattr(obj, "PinSelection", ()))
+    auto_pin_signature = bool(getattr(obj, "AutoPinning", True))
     return (
         pattern_signature,
         target_signature,
         int(getattr(obj, "StitchSamples", 8)),
         pin_signature,
+        auto_pin_signature,
     )
+
+
+def _resolve_pin_indices(obj, panel_data, pieces, particle_count):
+    """Resolve explicit pins without hiding the deliberate unpinned state."""
+    explicit = _parse_int_list(getattr(obj, "PinSelection", ()), particle_count)
+    if explicit:
+        return explicit
+    if not bool(getattr(obj, "AutoPinning", True)):
+        return ()
+    if pieces:
+        first = panel_data[str(pieces[0].PieceId)]
+        boundary = list(dict.fromkeys(i for edge in first["boundary_edges"] for i in edge))
+        return tuple(boundary[:2] + boundary[-2:])
+    return ()
 
 
 def _piece_mesh(piece, start_height, piece_ir=None):
@@ -459,17 +475,9 @@ class SimulationProxy:
             int(getattr(obj, "StitchSamples", 8)),
         )
         system.add_stitches(seam_pairs)
-        explicit_pins = _parse_int_list(getattr(obj, "PinSelection", ()), len(particles))
-        if explicit_pins:
-            pins = explicit_pins
+        pins = _resolve_pin_indices(obj, panel_data, pieces, len(particles))
+        if pins:
             system.pin(pins)
-        elif pieces:
-            first = panel_data[str(pieces[0].PieceId)]
-            boundary = list(dict.fromkeys(i for edge in first["boundary_edges"] for i in edge))
-            pins = tuple(boundary[:2] + boundary[-2:])
-            system.pin(pins)
-        else:
-            pins = ()
         collision_surface = _collision_for_scene(obj)
         registry = default_backend_registry()
         backend_name = preferred_backend_name(registry)
@@ -515,8 +523,12 @@ class SimulationProxy:
         constraints = list(left.constraints) + [type(c)(c.a + offset, c.b + offset, c.rest, c.compliance) for c in right.constraints]
         system = ClothSystem(particles, constraints)
         system.add_stitches(_parse_pair_list(getattr(obj, "SeamSelection", ()), len(particles)) or tuple((j * nx + nx - 1, offset + j * nx) for j in range(ny)))
-        pins = _parse_int_list(getattr(obj, "PinSelection", ()), len(particles)) or (0, nx - 1, offset, offset + nx - 1)
-        system.pin(pins)
+        if bool(getattr(obj, "AutoPinning", True)):
+            pins = _parse_int_list(getattr(obj, "PinSelection", ()), len(particles)) or (0, nx - 1, offset, offset + nx - 1)
+        else:
+            pins = _parse_int_list(getattr(obj, "PinSelection", ()), len(particles))
+        if pins:
+            system.pin(pins)
         self.backend = default_backend_registry().create("xpbd-cpu", system)
         tris = []
         for j in range(ny - 1):
@@ -641,6 +653,7 @@ def create_simulation_scene(doc):
     scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Selection")
     scene.addProperty("App::PropertyLinkGlobal", "AvatarProxy", "Compatibility")
     scene.addProperty("App::PropertyStringList", "PinSelection", "Selection").PinSelection = []
+    scene.addProperty("App::PropertyBool", "AutoPinning", "Selection").AutoPinning = True
     scene.addProperty("App::PropertyStringList", "SeamSelection", "Selection").SeamSelection = []
     scene.addProperty("App::PropertyFloat", "SimulatedTime", "State").SimulatedTime = 0.0
     scene.addProperty("App::PropertyInteger", "ParticleCount", "State").ParticleCount = 0
