@@ -239,8 +239,8 @@ class SimulationQualityTaskPanel:
 
     def _load(self):
         if self.scene is None:
-            self.step_button.setEnabled(False); self.run_button.setEnabled(False); self.reset_button.setEnabled(False)
-            self.status.setText("Create or select a Cloth Simulation object."); return
+            self._refresh("Create or select a Cloth Simulation object.")
+            return
         from freecad_cloth.simulation.SimulationQualityRuntimeV2 import ensure_quality_properties
         ensure_quality_properties(self.scene)
         self._load_widgets_only()
