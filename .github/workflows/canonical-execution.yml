@@ -39,7 +39,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if gh api "repos/$GITHUB_REPOSITORY/actions/runners?per_page=100" --jq '.runners[] | select(.status == "online" and .busy == false) | .labels[].name' | grep -qx 'docker'; then
+          if gh api "repos/$GITHUB_REPOSITORY/actions/runners?per_page=100" --jq '.runners[] | select(.status == "online" and .busy == false and ([.labels[].name] | contains(["self-hosted","linux","x64","docker"]))) | .id' | grep -q .; then
             echo 'runner=["self-hosted","linux","x64","docker"]' >> "$GITHUB_OUTPUT"
           else
             echo 'runner=ubuntu-latest' >> "$GITHUB_OUTPUT"
@@ -55,8 +55,9 @@ jobs:
         run: docker info >/dev/null
 
   python:
+    needs: runner_selector
     name: Python and FreeCAD non-GUI tests
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(needs.runner_selector.outputs.runner) }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
@@ -132,9 +133,10 @@ jobs:
           docker start -a "$CID"
 
   sketcher-startup-diagnostic:
+    needs: runner_selector
     name: FreeCAD Sketcher startup diagnostic
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(needs.runner_selector.outputs.runner) }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
@@ -214,8 +216,9 @@ jobs:
           if-no-files-found: warn
           compression-level: 1
   gui-sewing-creation:
+    needs: runner_selector
     name: Sewing staged creation smoke
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(needs.runner_selector.outputs.runner) }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
@@ -279,8 +282,9 @@ jobs:
           compression-level: 1
 
   gui-sketcher-acceptance:
+    needs: runner_selector
     name: Native Sketcher seam presentation acceptance
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(needs.runner_selector.outputs.runner) }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
@@ -334,8 +338,9 @@ jobs:
           if-no-files-found: error
           compression-level: 1
   gui-pattern-export:
+    needs: runner_selector
     name: Pattern production export smoke
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(needs.runner_selector.outputs.runner) }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
@@ -378,8 +383,9 @@ jobs:
           compression-level: 1
 
   gui-tunic-visual:
+    needs: runner_selector
     name: Full tunic visual and simulation audit
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(needs.runner_selector.outputs.runner) }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
@@ -467,8 +473,9 @@ jobs:
           compression-level: 1
 
   gui-turntables:
+    needs: runner_selector
     name: README simulation turntable
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(needs.runner_selector.outputs.runner) }}
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
@@ -590,8 +597,9 @@ jobs:
 
 
   gui-visual-examples:
+    needs: runner_selector
     name: Basic blanket visual example
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(needs.runner_selector.outputs.runner) }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
@@ -668,12 +676,12 @@ jobs:
           compression-level: 1
   publish-readme-turntables:
     name: Publish README turntables and example motion
-    needs: [gui-tunic-visual, gui-turntables, gui-visual-examples]
+    needs: [runner_selector, gui-tunic-visual, gui-turntables, gui-visual-examples]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: write
       packages: read
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(needs.runner_selector.outputs.runner) }}
     timeout-minutes: 10
     steps:
       - name: Download turntables
@@ -726,9 +734,10 @@ jobs:
           git commit -m "ci: publish stable README turntables"
           git push origin "HEAD:$branch"
   maintenance-cleanup:
+    needs: runner_selector
     name: Repository retention cleanup
     if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * *' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(needs.runner_selector.outputs.runner) }}
     permissions:
       actions: write
       contents: write
@@ -771,9 +780,10 @@ jobs:
               fi
             done
   benchmark:
+    needs: runner_selector
     name: Measured FreeCAD workbench benchmark
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(needs.runner_selector.outputs.runner) }}
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v5
