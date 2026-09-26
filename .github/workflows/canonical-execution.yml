@@ -85,6 +85,7 @@ jobs:
                 tests/test_sewing_network_gui_contract.py \
                 tests/test_gui_structure.py \
                 tests/test_simulation_scene.py \
+                tests/test_target_placement.py \
                 tests/test_simulation_quality.py \
                 tests/test_simulation_quality_runtime.py \
                 tests/test_avatar_fitting.py \
