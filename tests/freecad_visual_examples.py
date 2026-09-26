@@ -319,6 +319,22 @@ def main():
             getattr(scene.Proxy._base_or_restore().backend, "name", "unknown"),
         ))
 
+        backend = scene.Proxy._base_or_restore().backend
+        original_backend_step = backend.step
+        original_write_mesh = __import__("freecad_cloth.simulation.SimulationObjects", fromlist=["_write_mesh"])._write_mesh
+        def timed_backend_step(*args, **kwargs):
+            started = time.perf_counter()
+            result = original_backend_step(*args, **kwargs)
+            log("blanket-backend-step-ms=%.1f" % (1000.0 * (time.perf_counter() - started)))
+            return result
+        def timed_write_mesh(*args, **kwargs):
+            started = time.perf_counter()
+            result = original_write_mesh(*args, **kwargs)
+            log("blanket-write-mesh-ms=%.1f" % (1000.0 * (time.perf_counter() - started)))
+            return result
+        backend.step = timed_backend_step
+        __import__("freecad_cloth.simulation.SimulationObjects", fromlist=["_write_mesh"])._write_mesh = timed_write_mesh
+
         first_step_started = time.perf_counter()
         scene.Steps = 1
         doc.recompute()
