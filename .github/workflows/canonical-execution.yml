@@ -217,7 +217,7 @@ jobs:
               test -n "$FREECAD_CMD"
               test -x "$FREECAD_CMD"
               echo "mesh-parity-freecadcmd=$FREECAD_CMD"
-              PYTHONUNBUFFERED=1 PYTHONPATH=/workspace timeout --signal=TERM --kill-after=10s 60s "$FREECAD_CMD" /workspace/tests/freecad_mesh_point_parity_probe.py
+              PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=10s 60s "$FREECAD_CMD" -P /workspace /workspace/tests/freecad_mesh_point_parity_probe.py
             ')"
           cleanup() {
             set +e
