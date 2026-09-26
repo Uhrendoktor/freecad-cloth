@@ -492,6 +492,7 @@ jobs:
           CLOTH_SIMULATION_BACKEND: tissu
           CLOTH_TISSU_SUBSTEPS: 1
           CLOTH_TISSU_COLLISION_MODE: mesh
+          CLOTH_TISSU_SIGNED_COLLISION_GUARD: 1
           CLOTH_TISSU_COLLISION_TRIANGLES: 2048
         run: |
           set -euo pipefail
@@ -503,6 +504,7 @@ jobs:
             -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
             -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" \
             -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
+            -e CLOTH_TISSU_SIGNED_COLLISION_GUARD="$CLOTH_TISSU_SIGNED_COLLISION_GUARD" \
             -e CLOTH_TISSU_COLLISION_TRIANGLES="$CLOTH_TISSU_COLLISION_TRIANGLES" \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
