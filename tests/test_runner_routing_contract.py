@@ -1,4 +1,5 @@
 """Contract checks for canonical runner safety and local-first fallback."""
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -94,7 +95,7 @@ def test_pr_validation_checks_out_only_the_requested_pr_head_sha():
     source = WORKFLOW.read_text(encoding="utf-8")
     python = _job_block(source, "python")
     assert "inputs.pull_request_number != ''" in python
-    assert "refs/pull/{0}/merge" in python
+    assert "inputs.pull_request_sha != ''" in python
     assert "persist-credentials: false" in python
     assert "inputs.runner_mode == 'hosted'" in python
 
