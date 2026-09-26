@@ -107,3 +107,13 @@ def test_simulation_proxy_serializes_only_rebuildable_metadata():
     assert proxy.source_signature is None
     assert proxy.last_steps == 0
     assert proxy.collision_surface is None
+
+
+
+def test_tunic_audit_emits_phase_profile():
+    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'tunic-phase=%s elapsed_ms=%.1f' in source
+    assert '_tunic_phase("preview-command-enter")' in source
+    assert '_tunic_phase("actual-simulation-enter")' in source
+    assert 'batch_index, batch in enumerate((15,15,15,15,15,15), 1)' in source
+    assert 'tunic-simulation-batch index=%d' in source
