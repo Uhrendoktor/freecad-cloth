@@ -453,6 +453,12 @@ def main():
         started = time.perf_counter()
         scene, cube, blanket, panel, initial_positions = build_simulation_state(doc)
         log_timing("build-scene", started)
+        log("blanket-turntable-config backend=%s collision_mode=%s tissu_substeps=%s particle_distance=%.1f iterations=%d steps=%d" % (
+            os.environ.get("CLOTH_SIMULATION_BACKEND", "unknown"),
+            os.environ.get("CLOTH_TISSU_COLLISION_MODE", "default"),
+            os.environ.get("CLOTH_TISSU_SUBSTEPS", "default"),
+            float(scene.ParticleDistance), int(scene.SolverIterations), int(os.environ.get("CLOTH_BLANKET_STEPS", "120")),
+        ))
         view = Gui.activeDocument().activeView()
         arranged_objects = [cube, panel]
         render_turntable(view, arranged_objects, os.path.join(OUT, "cloth-simulation-arranged-turntable-frames"))
@@ -460,6 +466,7 @@ def main():
         steps = int(os.environ.get("CLOTH_BLANKET_STEPS", "120"))
         scene.Steps = steps
         started = time.perf_counter()
+        log("timing-start stage=simulate:%d-steps total_s=%.3f" % (steps, time.perf_counter() - _TIMING_START))
         doc.recompute()
         events()
         log_timing("simulate:%d-steps" % steps, started)
