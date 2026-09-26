@@ -251,6 +251,70 @@ class AvatarFittingTests(unittest.TestCase):
             if doc.Name in App.listDocuments():
                 App.closeDocument(doc.Name)
 
+    def test_target_snap_preserves_pairwise_relative_transform(self):
+        try:
+            import FreeCAD as App
+            import Part
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
+        from freecad_cloth.avatar.FittingCommands import create_fitting_scene, snap_pieces_to_target
+        from freecad_cloth.simulation.DrapeTarget import create_drape_target
+
+        doc = App.newDocument("PatternTargetSnapPairwise")
+        try:
+            target_source = doc.addObject("Part::Feature", "TargetSource")
+            target_source.Shape = Part.makeBox(50.0, 50.0, 20.0, App.Vector(-25.0, -25.0, 0.0))
+            pieces = []
+            for name, x in (("PatternPieceA", -18.0), ("PatternPieceB", 8.0)):
+                piece = doc.addObject("Part::Feature", name)
+                piece.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
+                piece.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = name
+                piece.Shape = Part.makeBox(8.0, 8.0, 1.0)
+                piece.Placement = App.Placement(
+                    App.Vector(x, -4.0, 1.0),
+                    App.Rotation(App.Vector(0, 0, 1), 15.0),
+                )
+                pieces.append(piece)
+            target = create_drape_target(doc, target_source, "FreeCAD Geometry", 0.5, 0.0)
+            scene = create_fitting_scene()
+            scene.PatternPieces = pieces
+            initial_entries = []
+            for piece in pieces:
+                base = piece.Placement.Base
+                from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+                initial_entries.append(PiecePlacement(
+                    str(piece.PieceId),
+                    (float(base.x), float(base.y), float(base.z)),
+                    float(piece.Placement.Rotation.Angle),
+                ).to_string())
+            scene.PiecePlacements = list(initial_entries)
+            scene.HomePlacements = list(initial_entries)
+            scene.FitStatus = "Ready"
+            doc.recompute()
+
+            before_delta = pieces[1].Placement.Base.sub(pieces[0].Placement.Base)
+            before_rotation = tuple(float(piece.Placement.Rotation.Angle) for piece in pieces)
+            before_home = tuple(scene.HomePlacements)
+
+            snap_pieces_to_target(pieces, target, clearance=2.0, max_translation=400.0)
+
+            after_delta = pieces[1].Placement.Base.sub(pieces[0].Placement.Base)
+            after_rotation = tuple(float(piece.Placement.Rotation.Angle) for piece in pieces)
+            self.assertAlmostEqual(float(after_delta.x), float(before_delta.x), places=6)
+            self.assertAlmostEqual(float(after_delta.y), float(before_delta.y), places=6)
+            self.assertAlmostEqual(float(after_delta.z), float(before_delta.z), places=6)
+            self.assertEqual(after_rotation, before_rotation)
+            self.assertEqual(tuple(scene.HomePlacements), before_home)
+            self.assertEqual(str(scene.FitStatus), "Snapped to target")
+            self.assertGreater(
+                abs(float(pieces[0].Placement.Base.z) - 1.0)
+                + abs(float(pieces[1].Placement.Base.z) - 1.0),
+                1e-6,
+            )
+        finally:
+            if doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
+
     def test_target_snap_command_is_registered_and_fail_closed(self):
         root = Path(__file__).resolve().parents[1]
         source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
