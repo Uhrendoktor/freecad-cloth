@@ -302,7 +302,8 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
     from freecad_cloth.avatar.AvatarFitting import GarmentAnchor, PiecePlacement
     from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
     from freecad_cloth.avatar.TargetAwarePlacement import (
-        TargetPlacementError, assert_minimum_surface_clearance, minimum_surface_clearance, require_ready_target_status,
+        TargetPlacementError, assert_minimum_surface_clearance, minimum_surface_clearance,
+        minimum_surface_clearance_detail, require_ready_target_status,
         solve_rigid_z, target_surface_anchor, wrap_normal,
     )
     if getattr(piece, "PatternType", "") != "PatternPiece":
@@ -348,18 +349,14 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
             placed_points.append((float(point.x), float(point.y), float(point.z)))
         anchor_clearance = assert_minimum_surface_clearance(surface, placed_points, float(clearance))
         piece_points = _piece_world_surface_points(piece, deflection=max(0.25, float(clearance) / 2.0))
-        piece_clearance = minimum_surface_clearance(surface, piece_points)
-        if piece_clearance < float(clearance) - 1e-6:
-            normal_sum = tuple(
-                sum(float(hit.normal[i]) for hit in anchor_hits)
-                for i in range(3)
-            )
-            outward_length = max(1e-12, sum(value * value for value in normal_sum) ** 0.5)
+        piece_clearance, worst_hit = minimum_surface_clearance_detail(surface, piece_points)
+        correction_count = 0
+        while piece_clearance < float(clearance) - 1e-6 and correction_count < 8:
             correction = float(clearance) - float(piece_clearance)
             correction_vec = App.Vector(
-                normal_sum[0] / outward_length * correction,
-                normal_sum[1] / outward_length * correction,
-                normal_sum[2] / outward_length * correction,
+                float(worst_hit.normal[0]) * correction,
+                float(worst_hit.normal[1]) * correction,
+                float(worst_hit.normal[2]) * correction,
             )
             corrected_base = piece.Placement.Base + correction_vec
             if (corrected_base - original_placement.Base).Length > float(max_translation):
@@ -368,7 +365,9 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
             if sketch is not None:
                 sketch.Placement = piece.Placement
             piece_points = _piece_world_surface_points(piece, deflection=max(0.25, float(clearance) / 2.0))
-            piece_clearance = assert_minimum_surface_clearance(surface, piece_points, float(clearance))
+            piece_clearance, worst_hit = minimum_surface_clearance_detail(surface, piece_points)
+            correction_count += 1
+        piece_clearance = assert_minimum_surface_clearance(surface, piece_points, float(clearance))
         if scene is not None:
             entries = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)}
             axis = piece.Placement.Rotation.Axis
