@@ -85,8 +85,8 @@ class SewingTaskPanel:
         doc=self.App.ActiveDocument; aborter=getattr(doc,"abortTransaction",None) if doc is not None else None
         if callable(aborter): aborter(); self._transaction_active=False; return True
         self._transaction_active=False; return False
-    def _refresh(self):
-        self.status.setText(str(self.obj.Status)); self.lengths.setText("%.2f / %.2f mm (Δ %.2f)"%(float(self.obj.LengthA),float(self.obj.LengthB),float(self.obj.LengthDifference)))
+    def _refresh(self, message=None):
+        self.status.setText(message or str(self.obj.Status)); self.lengths.setText("%.2f / %.2f mm (Δ %.2f)"%(float(self.obj.LengthA),float(self.obj.LengthB),float(self.obj.LengthDifference)))
         report=correspondence_report(self.seam,self.obj.LengthA,self.obj.LengthB,float(getattr(self.obj,"RelativeTolerance",0.05)))
         if report is None: self.correspondence.setText("No seam correspondence"); return
         self.correspondence.setText("%s — %s (severity %s, ratio %.4f); recovery: %s"%(report.status,report.message,report.severity,report.length_ratio,report.recovery))
