@@ -62,6 +62,39 @@ def test_stale_drape_target_recompute_guard_is_safe():
     assert "source, placement" in scene.InvalidationReason
 
 
+def test_auto_pinning_policy_is_part_of_rebuild_signature():
+    from types import SimpleNamespace
+    from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
+
+    source = SimpleNamespace(
+        Name="Body",
+        Shape=SimpleNamespace(isNull=lambda: False, hashCode=lambda: 123),
+        Placement=SimpleNamespace(
+            Base=SimpleNamespace(x=0.0, y=0.0, z=0.0),
+            Rotation=SimpleNamespace(Angle=0.0, Axis=SimpleNamespace(x=0.0, y=0.0, z=1.0)),
+        ),
+    )
+    target = SimpleNamespace(SourceObject=source, CollisionDeflection=1.0, CollisionThickness=0.0)
+    automatic = SimpleNamespace(DrapeTarget=target, PinSelection=[], AutoPinning=True, StitchSamples=8, Document=SimpleNamespace(Objects=[]))
+    unpinned = SimpleNamespace(DrapeTarget=target, PinSelection=[], AutoPinning=False, StitchSamples=8, Document=SimpleNamespace(Objects=[]))
+    assert _simulation_source_signature(automatic, []) != _simulation_source_signature(unpinned, [])
+
+
+def test_empty_pin_selection_can_be_deliberately_unpinned():
+    from types import SimpleNamespace
+    from freecad_cloth.simulation.SimulationObjects import _resolve_pin_indices
+
+    piece = SimpleNamespace(PieceId="front")
+    panel_data = {"front": {"boundary_edges": ((0, 1, 2, 3),)}}
+    explicit = SimpleNamespace(PinSelection=["2"], AutoPinning=False)
+    disabled = SimpleNamespace(PinSelection=[], AutoPinning=False)
+    enabled = SimpleNamespace(PinSelection=[], AutoPinning=True)
+
+    assert _resolve_pin_indices(explicit, panel_data, [piece], 4) == (2,)
+    assert _resolve_pin_indices(disabled, panel_data, [piece], 4) == ()
+    assert _resolve_pin_indices(enabled, panel_data, [piece], 4) == (0, 1, 2, 3)
+
+
 def test_pin_selection_is_part_of_rebuild_signature():
     from types import SimpleNamespace
     from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
