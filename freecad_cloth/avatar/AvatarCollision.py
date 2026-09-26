@@ -19,6 +19,14 @@ class CollisionSurface:
         n = len(self.vertices)
         if n < 3 or not self.triangles:
             raise ValueError("collision surface needs vertices and triangles")
+        if self.thickness < 0:
+            raise ValueError("collision thickness must not be negative")
+        for tri in self.triangles:
+            if len(tri) != 3 or any(i < 0 or i >= n for i in tri):
+                raise ValueError("collision triangle index out of range")
+        if not self.region.strip():
+            raise ValueError("collision region must not be empty")
+
     @property
     def is_closed_manifold(self) -> bool:
         """Return whether the triangle surface is a consistently oriented closed 2-manifold."""
@@ -48,14 +56,6 @@ class CollisionSurface:
             if a0 != b1 or b0 != a1:
                 return False
         return True
-
-        if self.thickness < 0:
-            raise ValueError("collision thickness must not be negative")
-        for tri in self.triangles:
-            if len(tri) != 3 or any(i < 0 or i >= n for i in tri):
-                raise ValueError("collision triangle index out of range")
-        if not self.region.strip():
-            raise ValueError("collision region must not be empty")
 
     @property
     def center(self) -> Tuple[float, float, float]:
