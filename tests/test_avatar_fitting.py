@@ -324,6 +324,8 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertIn('scene.FitStatus = "Snapped to target"', source)
         self.assertIn("scene.HomePlacements", source)
         self.assertIn("scene.FitStatus = fit_status_before", source)
+        self.assertIn("simulation.DrapeTarget = target", source)
+        self.assertIn('target = getattr(scene, "DrapeTarget", None)', source)
         self.assertIn("sketch.Placement = translated", source)
         self.assertTrue(icon.exists())
         self.assertIn("<svg", icon.read_text(encoding="utf-8"))
