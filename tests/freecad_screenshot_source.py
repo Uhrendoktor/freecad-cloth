@@ -345,6 +345,7 @@ def simulation():
     from freecad_cloth.simulation.DrapeTarget import collision_surface, refresh_drape_target, target_status
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint, GarmentAnchor, PiecePlacement
     from freecad_cloth.avatar.FittingCommands import create_fitting_scene, target_surface_world
+    from freecad_cloth.avatar.TargetAwarePlacement import target_surface_anchor, wrap_normal
     from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternObjects import add_seam
     doc = App.newDocument("ClothSimulationVisualRegression"); scene = create_quality_simulation_scene(doc); avatar = getattr(scene.AvatarProxy, "SourceObject", None); target = scene.DrapeTarget
@@ -388,11 +389,22 @@ def simulation():
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
     rot = App.Rotation(App.Vector(1,0,0), 90.0)
+    average_anchor_x = x_mid + (0.50 * panel_width - 0.50 * hem_width)
+    average_anchor_z = hem_z + 0.97 * garment_height
+    average_body_y = (shoulder_left.y + shoulder_right.y) / 2.0
+    probe = (float(average_anchor_x), float(average_body_y), float(average_anchor_z))
+    front_hit = target_surface_anchor(world_target, probe, wrap_normal("front"))
+    back_hit = target_surface_anchor(world_target, probe, wrap_normal("back"))
+    front_y = float(front_hit.point[1]) + float(front_hit.normal[1]) * clearance
+    back_y = float(back_hit.point[1]) + float(back_hit.normal[1]) * clearance
+    if not front_y < back_y:
+        raise RuntimeError("canonical tunic target projections do not define ordered front/back placement")
+    log("target-projected-sides front-y=%.3f back-y=%.3f" % (front_y, back_y))
     def target_relative_piece_placement(side):
         if side == "front":
-            y = min(target_ys) - clearance
+            y = front_y
         elif side == "back":
-            y = max(target_ys) + clearance
+            y = back_y
         else:
             raise ValueError("tunic target-relative side must be front or back")
         return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
