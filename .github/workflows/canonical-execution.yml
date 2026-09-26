@@ -6,16 +6,45 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
+    inputs:
+      execution_mode:
+        description: "Trusted execution mode. PR runs are always hosted."
+        required: false
+        default: local
+        type: choice
+        options:
+          - local
+          - hosted
+      fallback_from_run_id:
+        description: "Set automatically for an automatic hosted fallback."
+        required: false
+        default: ""
+        type: string
+      fallback_group:
+        description: "Set automatically so fallback cancellation shares the stalled run's concurrency group."
+        required: false
+        default: ""
+        type: string
+      fallback_reason:
+        description: "Set automatically with the watchdog fallback reason."
+        required: false
+        default: ""
+        type: string
   schedule:
     - cron: '*/5 * * * *'
     - cron: '0 3 * * *'
 
 concurrency:
   # Keep only the newest PR run for each PR; older pushes are obsolete.
-  group: ${{ github.event_name == 'pull_request' && format('canonical-{0}-pr-{1}', github.workflow, github.event.pull_request.number) || format('canonical-{0}-{1}-{2}', github.workflow, github.event_name, github.ref) }}
+  # Automatic hosted fallbacks reuse the stalled trusted run's concurrency group.
+  group: ${{ github.event_name == 'pull_request' && format('canonical-{0}-pr-{1}', github.workflow, github.event.pull_request.number) || (github.event_name == 'workflow_dispatch' && inputs.fallback_group != '' && inputs.fallback_group || format('canonical-{0}-{1}-{2}', github.workflow, github.event_name, github.ref)) }}
   cancel-in-progress: true
 
 env:
+  # PRs are always hosted. Trusted push/schedule/manual runs default to local.
+  EXECUTION_MODE: ${{ github.event_name == 'pull_request' && 'hosted' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'hosted' && 'hosted' || 'local') }}
+  FALLBACK_FROM_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.fallback_from_run_id || '' }}
+  FALLBACK_REASON: ${{ github.event_name == 'workflow_dispatch' && inputs.fallback_reason || '' }}
   FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
   QT_X11_NO_MITSHM: 1
   QT_QPA_PLATFORM: xcb
@@ -78,20 +107,142 @@ jobs:
             echo "Canceling remaining active canonical run $run_id (event=$event)"
             gh api --method POST "repos/$REPO/actions/runs/$run_id/cancel" >/dev/null
           done
-  runner_heartbeat:
-    name: Local Docker runner heartbeat
-    if: ${{ github.event_name == 'schedule' }}
-    runs-on: [self-hosted, linux, x64, docker]
+  local_runner_readiness:
+    name: Selected runner readiness
+    # Every production/test job depends on this short gate. The watchdog observes
+    # only this job, so the workflow never enumerates repository runners.
+    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
     timeout-minutes: 2
     steps:
+      - name: Record selected execution mode
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          {
+            echo "execution-mode=$EXECUTION_MODE"
+            echo "event=$GITHUB_EVENT_NAME"
+            echo "run-id=$GITHUB_RUN_ID"
+            echo "run-attempt=$GITHUB_RUN_ATTEMPT"
+            echo "runner=$RUNNER_NAME"
+            echo "runner-os=$RUNNER_OS"
+            echo "fallback-from-run-id=${FALLBACK_FROM_RUN_ID:-none}"
+            echo "fallback-reason=${FALLBACK_REASON:-none}"
+          } | tee artifacts/execution-mode.txt
+      - name: Verify Docker capability on the selected runner
+        run: timeout --signal=TERM --kill-after=5s 20s docker info >/dev/null
+      - name: Upload selected execution mode evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: execution-mode
+          path: artifacts/execution-mode.txt
+          if-no-files-found: error
+          compression-level: 1
+
+  local_runner_watchdog:
+    name: Hosted watchdog for local runner
+    if: ${{ github.event_name != 'pull_request' && env.EXECUTION_MODE == 'local' }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    timeout-minutes: 4
+    steps:
+      - name: Wait through the bounded local-runner grace period
+        env:
+          GRACE_SECONDS: 120
+        run: |
+          set -euo pipefail
+          echo "execution-mode=local"
+          echo "watchdog=enabled"
+          echo "grace-seconds=$GRACE_SECONDS"
+          echo "observed-job=Selected runner readiness"
+          sleep "$GRACE_SECONDS"
+
+      - name: Recheck readiness and fall back only if still blocked
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          GRACE_RECHECK_SECONDS: 15
+        run: |
+          set -euo pipefail
+          status="$(gh api --paginate "repos/$REPO/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" --jq '.jobs[] | select(.name == "Selected runner readiness") | .status' | head -n 1 || true)"
+          conclusion="$(gh api --paginate "repos/$REPO/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" --jq '.jobs[] | select(.name == "Selected runner readiness") | .conclusion' | head -n 1 || true)"
+          echo "readiness-status=${status:-absent}"
+          echo "readiness-conclusion=${conclusion:-absent}"
+          case "$status/$conclusion" in
+            in_progress/*|completed/success)
+              echo "Local runner started within the grace period; no fallback."
+              exit 0
+              ;;
+            completed/*)
+              echo "Readiness failed after starting; using hosted fallback."
+              ;;
+            *)
+              echo "Readiness is not started/successful; rechecking after ${GRACE_RECHECK_SECONDS}s."
+              sleep "$GRACE_RECHECK_SECONDS"
+              status="$(gh api --paginate "repos/$REPO/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" --jq '.jobs[] | select(.name == "Selected runner readiness") | .status' | head -n 1 || true)"
+              conclusion="$(gh api --paginate "repos/$REPO/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" --jq '.jobs[] | select(.name == "Selected runner readiness") | .conclusion' | head -n 1 || true)"
+              echo "final-readiness-status=${status:-absent}"
+              echo "final-readiness-conclusion=${conclusion:-absent}"
+              if [ "$status" = "in_progress" ] || { [ "$status" = "completed" ] && [ "$conclusion" = "success" ]; }; then
+                echo "Local runner started during final recheck; no fallback."
+                exit 0
+              fi
+              ;;
+          esac
+          fallback_group="canonical-${GITHUB_WORKFLOW}-${GITHUB_EVENT_NAME}-${GITHUB_REF}"
+          reason="local runner readiness did not start successfully within bounded grace"
+          echo "Dispatching hosted fallback with group=$fallback_group"
+          gh workflow run canonical-execution.yml \
+            --repo "$REPO" \
+            --ref "$GITHUB_REF_NAME" \
+            -f execution_mode=hosted \
+            -f fallback_from_run_id="$GITHUB_RUN_ID" \
+            -f fallback_group="$fallback_group" \
+            -f fallback_reason="$reason"
+          echo "Hosted fallback dispatch requested."
+          gh api --method POST "repos/$REPO/actions/runs/$GITHUB_RUN_ID/cancel" >/dev/null 2>&1 || true
+          echo "Stalled local run cancellation requested."
+
+      - name: Persist watchdog evidence
+        if: always()
+        run: |
+          mkdir -p artifacts
+          printf 'execution-mode=local\nwatchdog=enabled\nrun-id=%s\n' "$GITHUB_RUN_ID" > artifacts/local-watchdog.txt
+      - name: Upload watchdog evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: local-runner-watchdog
+          path: artifacts/local-watchdog.txt
+          if-no-files-found: error
+          compression-level: 1
+
+  runner_heartbeat:
+    name: Local Docker runner heartbeat
+    needs: [local_runner_readiness]
+    if: ${{ github.event_name == 'schedule' }}
+    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
+    timeout-minutes: 2
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "execution-mode=$EXECUTION_MODE"
+          echo "runner=$RUNNER_NAME"
       - name: Verify local Docker runner is usable
         run: docker info >/dev/null
 
   python:
     name: Python and FreeCAD non-GUI tests
-    runs-on: [self-hosted, linux, x64, docker]
+    needs: [local_runner_readiness]
+    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
     timeout-minutes: 20
     steps:
+      - name: Log selected execution mode
+        run: |
+          echo "execution-mode=$EXECUTION_MODE"
+          echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
       - uses: docker/login-action@v3
         with:
@@ -166,10 +317,15 @@ jobs:
 
   sketcher-startup-diagnostic:
     name: FreeCAD Sketcher startup diagnostic
+    needs: [local_runner_readiness]
     if: github.event_name == 'pull_request'
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
     timeout-minutes: 5
     steps:
+      - name: Log selected execution mode
+        run: |
+          echo "execution-mode=$EXECUTION_MODE"
+          echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
       - uses: docker/login-action@v3
         with:
@@ -268,9 +424,14 @@ jobs:
           compression-level: 1
   gui-sewing-creation:
     name: Sewing staged creation smoke
-    runs-on: [self-hosted, linux, x64, docker]
+    needs: [local_runner_readiness]
+    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
     timeout-minutes: 10
     steps:
+      - name: Log selected execution mode
+        run: |
+          echo "execution-mode=$EXECUTION_MODE"
+          echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
       - uses: docker/login-action@v3
         with:
@@ -353,9 +514,14 @@ jobs:
 
   gui-sketcher-acceptance:
     name: Native Sketcher seam presentation acceptance
-    runs-on: [self-hosted, linux, x64, docker]
+    needs: [local_runner_readiness]
+    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
     timeout-minutes: 10
     steps:
+      - name: Log selected execution mode
+        run: |
+          echo "execution-mode=$EXECUTION_MODE"
+          echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
       - uses: docker/login-action@v3
         with:
@@ -428,9 +594,14 @@ jobs:
           compression-level: 1
   gui-pattern-export:
     name: Pattern production export smoke
-    runs-on: [self-hosted, linux, x64, docker]
+    needs: [local_runner_readiness]
+    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
     timeout-minutes: 10
     steps:
+      - name: Log selected execution mode
+        run: |
+          echo "execution-mode=$EXECUTION_MODE"
+          echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
       - uses: docker/login-action@v3
         with:
@@ -492,9 +663,14 @@ jobs:
 
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
-    runs-on: [self-hosted, linux, x64, docker]
+    needs: [local_runner_readiness]
+    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
     timeout-minutes: 20
     steps:
+      - name: Log selected execution mode
+        run: |
+          echo "execution-mode=$EXECUTION_MODE"
+          echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
       - uses: docker/login-action@v3
         with:
@@ -612,9 +788,14 @@ jobs:
 
   gui-turntables:
     name: README simulation turntable
-    runs-on: [self-hosted, linux, x64, docker]
+    needs: [local_runner_readiness]
+    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
     timeout-minutes: 25
     steps:
+      - name: Log selected execution mode
+        run: |
+          echo "execution-mode=$EXECUTION_MODE"
+          echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
       - uses: docker/login-action@v3
         with:
@@ -755,9 +936,14 @@ jobs:
 
   gui-visual-examples:
     name: Basic blanket visual example
-    runs-on: [self-hosted, linux, x64, docker]
+    needs: [local_runner_readiness]
+    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
     timeout-minutes: 15
     steps:
+      - name: Log selected execution mode
+        run: |
+          echo "execution-mode=$EXECUTION_MODE"
+          echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
       - uses: docker/login-action@v3
         with:
@@ -852,14 +1038,18 @@ jobs:
           compression-level: 1
   publish-readme-turntables:
     name: Publish README turntables and example motion
-    needs: [gui-tunic-visual, gui-turntables, gui-visual-examples]
+    needs: [local_runner_readiness, gui-tunic-visual, gui-turntables, gui-visual-examples]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: write
       packages: read
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
     timeout-minutes: 10
     steps:
+      - name: Log selected execution mode
+        run: |
+          echo "execution-mode=$EXECUTION_MODE"
+          echo "runner=$RUNNER_NAME"
       - name: Download turntables
         uses: actions/download-artifact@v6
         with:
@@ -911,13 +1101,18 @@ jobs:
           git push origin "HEAD:$branch"
   maintenance-cleanup:
     name: Repository retention cleanup
+    needs: [local_runner_readiness]
     if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * *' }}
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
     permissions:
       actions: write
       contents: write
     timeout-minutes: 10
     steps:
+      - name: Log selected execution mode
+        run: |
+          echo "execution-mode=$EXECUTION_MODE"
+          echo "runner=$RUNNER_NAME"
       - name: Remove stale agent branches and old completed workflow runs
         env:
           GH_TOKEN: ${{ github.token }}
@@ -956,10 +1151,15 @@ jobs:
             done
   benchmark:
     name: Measured FreeCAD workbench benchmark
+    needs: [local_runner_readiness]
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
     timeout-minutes: 12
     steps:
+      - name: Log selected execution mode
+        run: |
+          echo "execution-mode=$EXECUTION_MODE"
+          echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
       - name: Pull published FreeCAD image
         env:
