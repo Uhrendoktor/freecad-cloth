@@ -94,12 +94,18 @@ def test_tissu_signed_collision_guard_math_and_env_gate():
             os.environ["CLOTH_TISSU_SIGNED_COLLISION_GUARD"] = original
 
 
-def test_tissu_signed_collision_bvh_orients_cube_normals_outward():
+def test_tissu_signed_collision_bvh_preserves_authored_winding():
+    from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
     from freecad_cloth.simulation.TissuBackend import _build_signed_collision_bvh, _nearest_signed_collision, _to_tissu_position
     import numpy as np
 
-    surface = _cube_collision_surface(thickness=1.0)
-    bvh = _build_signed_collision_bvh(surface)
+    authored = _cube_collision_surface(thickness=1.0)
+    outward = surface_from_triangles(
+        authored.vertices,
+        tuple((a, c, b) for a, b, c in authored.triangles),
+        thickness=1.0,
+    )
+    bvh = _build_signed_collision_bvh(outward)
     point = np.asarray(_to_tissu_position((0.0, 0.0, 0.0)), dtype=np.float64)
     nearest = _nearest_signed_collision(bvh, point)
     assert nearest is not None
