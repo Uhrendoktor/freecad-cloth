@@ -151,7 +151,7 @@ def test_refresh_seam_colors_uses_document_objects():
     assert operation.ViewObject.LineColor == colors["seam-y"]
 
 
-def test_show_sewing_2d_executes_the_refresh_lifecycle(monkeypatch):
+def test_show_sewing_2d_executes_the_refresh_lifecycle():
     seam = SimpleNamespace(SeamId="seam-2d", ViewObject=SimpleNamespace(LineColor=None))
     document = SimpleNamespace(Objects=[seam])
     view = SimpleNamespace(viewTop=lambda: None, fitAll=lambda: None)
@@ -160,6 +160,18 @@ def test_show_sewing_2d_executes_the_refresh_lifecycle(monkeypatch):
         activeDocument=lambda: active,
         Selection=SimpleNamespace(clearSelection=lambda: None),
     )
-    monkeypatch.setitem(sys.modules, "FreeCADGui", fake_gui)
-    show_sewing_2d()
+    previous_gui = sys.modules.get("FreeCADGui")
+    sys.modules["FreeCADGui"] = fake_gui
+    try:
+        show_sewing_2d()
+    finally:
+        if previous_gui is None:
+            sys.modules.pop("FreeCADGui", None)
+        else:
+            sys.modules["FreeCADGui"] = previous_gui
     assert seam.ViewObject.LineColor == seam_color_map(["seam-2d"])["seam-2d"]
+
+
+if __name__ == "__main__":
+    test_refresh_seam_colors_uses_document_objects()
+    test_show_sewing_2d_executes_the_refresh_lifecycle()
