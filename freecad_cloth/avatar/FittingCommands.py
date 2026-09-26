@@ -402,6 +402,9 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
         source_points.append((float(source.x), float(source.y), float(source.z)))
         target_points.append(desired)
     delta = solve_rigid_z(source_points, target_points, max_translation, max_rotation)
+    from freecad_cloth.avatar.TargetAwarePlacement import apply_rigid_delta
+    predicted_points = apply_rigid_delta(source_points, delta)
+    anchor_clearance = assert_minimum_surface_clearance(surface, predicted_points, float(clearance))
     delta_rotation = App.Rotation(App.Vector(0, 0, 1), float(delta.rotation_z))
     current = piece.Placement
     new_base = delta_rotation.multVec(current.Base) + App.Vector(*delta.translation)
@@ -413,7 +416,9 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
     for anchor in selected:
         point = piece.Placement.multVec(App.Vector(*anchor.position))
         placed_points.append((float(point.x), float(point.y), float(point.z)))
-    anchor_clearance = assert_minimum_surface_clearance(surface, placed_points, float(clearance))
+    verified_clearance = assert_minimum_surface_clearance(surface, placed_points, float(clearance))
+    if abs(verified_clearance - anchor_clearance) > 1e-6:
+        raise RuntimeError("target-aware placement changed after applying bounded transform")
     doc = piece.Document
     scene = _scene(doc)
     if scene is None:
@@ -450,7 +455,7 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
         "translation": tuple(float(v) for v in delta.translation),
         "rotation_z": float(delta.rotation_z),
         "anchor_residual": float(delta.residual_max),
-        "anchor_clearance": float(anchor_clearance),
+        "anchor_clearance": float(verified_clearance),
         "wrap_direction": selected[0].wrap_direction,
         "target": str(getattr(target, "Label", getattr(target, "Name", "DrapeTarget"))),
     }
