@@ -195,7 +195,7 @@ class _SurfaceIndex:
                 lower_bound = min(lower_bound, max(0.0, point[axis] - boundary))
         return lower_bound
 
-    def nearest(self, point, ambiguity_tolerance):
+    def nearest(self, point, ambiguity_tolerance, preferred_normal=None):
         query = tuple(float(value) for value in point)
         base = self._cell_coords(query)
         best = None
@@ -219,12 +219,7 @@ class _SurfaceIndex:
                     )
                     if best is None or distance < best.distance - 1e-12:
                         best = candidate
-                        candidates = [candidate]
-                    elif abs(distance - best.distance) <= max(
-                        float(ambiguity_tolerance),
-                        best.distance * 1e-9,
-                    ):
-                        candidates.append(candidate)
+                    candidates.append(candidate)
             if best is not None:
                 unseen_bound = self._unsearched_lower_bound(query, base, radius)
                 if unseen_bound > best.distance + max(
@@ -236,10 +231,41 @@ class _SurfaceIndex:
                 break
         if best is None:
             raise ValueError("target surface has no usable non-degenerate triangles")
-        for candidate in candidates[1:]:
-            if _dot(candidate.normal, best.normal) < 0.5:
-                raise ValueError("target projection is ambiguous across opposing surface normals")
-        return best
+
+        tolerance = max(
+            float(ambiguity_tolerance),
+            best.distance * 1e-9,
+        )
+        nearest = tuple(
+            candidate
+            for candidate in candidates
+            if abs(candidate.distance - best.distance) <= tolerance
+        )
+        opposing = tuple(
+            candidate
+            for candidate in nearest
+            if _dot(candidate.normal, best.normal) < 0.5
+        )
+        if opposing:
+            if preferred_normal is None or _norm(preferred_normal) <= 1e-12:
+                raise ValueError(
+                    "target projection is ambiguous across opposing surface normals"
+                )
+            direction = _normalize(tuple(float(v) for v in preferred_normal))
+            scored = tuple(
+                (
+                    _dot(candidate.normal, direction),
+                    candidate,
+                )
+                for candidate in nearest
+            )
+            scored = tuple(sorted(scored, key=lambda item: (item[0], -item[1].triangle_index), reverse=True))
+            if len(scored) < 2 or scored[0][0] - scored[1][0] <= 0.25:
+                raise ValueError(
+                    "target projection is ambiguous across opposing surface normals"
+                )
+            return scored[0][1]
+        return min(nearest, key=lambda candidate: candidate.triangle_index)
 
 
 _LAST_INDEX_SURFACE = None
@@ -264,8 +290,17 @@ class TargetProjection:
     distance: float
 
 
-def nearest_target_projection(point: Vector, surface, ambiguity_tolerance: float = 1e-6) -> TargetProjection:
-    return _surface_index(surface).nearest(point, ambiguity_tolerance)
+def nearest_target_projection(
+    point: Vector,
+    surface,
+    ambiguity_tolerance: float = 1e-6,
+    preferred_normal: Vector | None = None,
+) -> TargetProjection:
+    return _surface_index(surface).nearest(
+        point,
+        ambiguity_tolerance,
+        preferred_normal=preferred_normal,
+    )
 
 
 @dataclass(frozen=True)
