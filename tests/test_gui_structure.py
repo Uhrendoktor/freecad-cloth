@@ -38,6 +38,10 @@ assert "Gui.Control.showDialog(panel)" in pattern_gui
 assert "class SimulationTaskPanel" in sim_gui
 assert "Gui.Control.showDialog(panel)" in sim_gui
 assert "class SimulationQualityTaskPanel" in quality_gui
+assert '"Sewing & pinning"' in quality_gui
+assert "AutomaticPins" in quality_gui
+assert "PinSelection" in quality_gui
+assert '"AutomaticPins", "PinSelection", "Steps"' in quality_gui
 assert '"Simulation quality"' in quality_gui
 assert '"Fabric"' in quality_gui
 assert '"Collision"' in quality_gui
