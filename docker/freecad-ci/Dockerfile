@@ -4,6 +4,8 @@ ARG TISSU_SOURCE_COMMIT=c28a3c7504ddc782bef844ab5bd4cd0bde14b628
 
 COPY docker/freecad-ci/apply-tissu-contact-fix.py /tmp/apply-tissu-contact-fix.py
 
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 LABEL org.opencontainers.image.source="https://github.com/Uhrendoktor/freecad-cloth"
 LABEL org.opencontainers.image.description="FreeCAD 1.1.0 conda-forge CI image using Python 3.12 for freecad-cloth with Tissu cloth backend"
 
