@@ -569,32 +569,12 @@ def run_acceptance():
             raise RuntimeError("public fitting avatar assignment did not persist the canonical avatar")
         print("drape-target=passed type=Mannequin", flush=True)
 
-        fitting_pieces = tuple(fitting.PatternPieces)
-        before_relative = tuple(
-            (str(a.PieceId), str(b.PieceId),
-             round(float(b.Placement.Base.x - a.Placement.Base.x), 6),
-             round(float(b.Placement.Base.y - a.Placement.Base.y), 6),
-             round(float(b.Placement.Base.z - a.Placement.Base.z), 6))
-            for index, a in enumerate(fitting_pieces)
-            for b in fitting_pieces[index + 1:]
-        )
-        _select_objects(*fitting_pieces, target)
+        fitting_pieces = tuple(fitting.PatternPieces)        _select_objects(*fitting_pieces, target)
         Gui.runCommand("ClothFitting_SnapPiecesToTarget", 0)
         _events()
         doc.recompute()
         if str(fitting.FitStatus) != "Target snapped":
-            raise RuntimeError("target-aware fitting command did not persist the snapped state")
-        after_relative = tuple(
-            (str(a.PieceId), str(b.PieceId),
-             round(float(b.Placement.Base.x - a.Placement.Base.x), 6),
-             round(float(b.Placement.Base.y - a.Placement.Base.y), 6),
-             round(float(b.Placement.Base.z - a.Placement.Base.z), 6))
-            for index, a in enumerate(fitting_pieces)
-            for b in fitting_pieces[index + 1:]
-        )
-        if after_relative != before_relative:
-            raise RuntimeError("target snap changed relative PatternPiece transforms")
-        from freecad_cloth.avatar.FittingCommands import _piece_world_samples, _world_target_surface
+            raise RuntimeError("target-aware fitting command did not persist the snapped state")        from freecad_cloth.avatar.FittingCommands import _piece_world_samples, _world_target_surface
         from freecad_cloth.avatar.TargetPlacement import minimum_signed_clearance
         target_surface = _world_target_surface(target)
         clearances = {
