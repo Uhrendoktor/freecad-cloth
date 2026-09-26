@@ -30,7 +30,9 @@ def main() -> int:
 
     header = ROOT / "core/include/physics/MeshCollider.hpp"
     cpp = ROOT / "core/src/physics/MeshCollider.cpp"
+    solver_cpp = ROOT / "core/src/physics/Solver.cpp"
     test = ROOT / "tests/physics/test_mesh_collider.cpp"
+    solver_test = ROOT / "tests/physics/test_cloth.cpp"
 
     replace_once(
         header,
@@ -207,6 +209,13 @@ MeshOrientation inferMeshOrientation(
         cpp = cpp.replace(old, new, 1)
     Path(cpp_path := ROOT / "core/src/physics/MeshCollider.cpp").write_text(cpp, encoding="utf-8")
 
+    replace_once(
+        solver_cpp,
+        "    predictPositions(dt);\n\n    for (auto& constraint : m_constraints) {\n        constraint->resetLambda();\n    }\n\n    for (int i = 0; i < m_iterations; i++) {\n        solveConstraints(dt);\n    }\n\n    const auto& colliders = world.getColliders();\n    for (auto& collider : colliders)\n        collider->resolve(m_particles, dt, world.getThickness());\n\n    solveSelfCollisions(dt, world.getThickness());",
+        "    predictPositions(dt);\n\n    const auto& colliders = world.getColliders();\n    for (auto& collider : colliders)\n        collider->resolve(m_particles, dt, world.getThickness());\n\n    for (auto& constraint : m_constraints) {\n        constraint->resetLambda();\n    }\n\n    for (int i = 0; i < m_iterations; i++) {\n        solveConstraints(dt);\n    }\n\n    solveSelfCollisions(dt, world.getThickness());",
+        "Solver.cpp external collision/constraint ordering",
+    )
+
     test_cpp = test.read_text(encoding="utf-8")
     test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
     helper = """static bool tetrahedronContains(const Eigen::Vector3d& point) {
@@ -288,13 +297,53 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     test_cpp = test_cpp.replace(old, new, 1)
     test.write_text(test_cpp, encoding="utf-8")
 
+    solver_test_cpp = solver_test.read_text(encoding="utf-8")
+    solver_test_cpp = solver_test_cpp.replace(
+        '#include "physics/Solver.hpp"\n',
+        '#include "physics/Collider.hpp"\n#include "physics/Solver.hpp"\n',
+        1,
+    )
+    collider_helper = """class OrderProbeCollider final : public Collider {
+public:
+    void resolve(std::vector<Particle>& particles, double, double) override {
+        particles.at(0).setPosition(Eigen::Vector3d::Zero());
+    }
+};
+
+"""
+    if solver_test_cpp.count("TEST(Cloth, SettersAndGetters)") != 1:
+        raise RuntimeError("Solver ordering test anchor missing")
+    solver_test_cpp = solver_test_cpp.replace(
+        "TEST(Cloth, SettersAndGetters) {",
+        collider_helper + "TEST(Solver, ExternalCollisionPrecedesStitchProjection) {\n"
+        "    Solver solver;\n"
+        "    World world;\n"
+        "    solver.addParticle(Particle(Eigen::Vector3d(0.0, 0.0, 0.0)));\n"
+        "    solver.addParticle(Particle(Eigen::Vector3d(0.0, 1.0, 0.0)));\n"
+        "    solver.addStitch(0, 1, 0.0);\n"
+        "    solver.setIterations(1);\n"
+        "    solver.setSubsteps(1);\n"
+        "    world.setThickness(0.0);\n"
+        "    world.addCollider(std::make_shared<OrderProbeCollider>());\n\n"
+        "    solver.update(world, 1.0 / 60.0);\n\n"
+        "    const auto& particles = solver.getParticles();\n"
+        "    EXPECT_NEAR((particles[0].getPosition() - particles[1].getPosition()).norm(), 0.0, 1e-9);\n"
+        "    EXPECT_NEAR(particles[0].getPosition().x(), particles[1].getPosition().x(), 1e-9);\n"
+        "}\n\n"
+        "TEST(Cloth, SettersAndGetters) {",
+        1,
+    )
+    solver_test.write_text(solver_test_cpp, encoding="utf-8")
+
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
     changed = run("git", "diff", "--name-only")
     expected = {
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
+        "core/src/physics/Solver.cpp",
         "tests/physics/test_mesh_collider.cpp",
+        "tests/physics/test_cloth.cpp",
     }
     if set(changed.splitlines()) != expected:
         raise RuntimeError(f"unexpected patched files: {changed!r}")
