@@ -3,14 +3,17 @@ from colorsys import hsv_to_rgb
 
 
 _SEAM_GOLDEN_ANGLE = 0.618033988749895
+_SEAM_COLOR_HASH_MODULUS = float(1 << 64)
 
 
 def seam_color_map(seam_ids):
-    """Return deterministic, visually distinct colors keyed by seam id."""
-    ids = sorted({str(seam_id) for seam_id in seam_ids if str(seam_id).strip()})
+    """Return deterministic, visually distinct colors keyed solely by SeamId."""
+    import hashlib
     result = {}
-    for index, seam_id in enumerate(ids):
-        hue = (index * _SEAM_GOLDEN_ANGLE) % 1.0
+    for seam_id in sorted({str(value) for value in seam_ids if str(value).strip()}):
+        digest = hashlib.sha256(seam_id.encode("utf-8")).digest()
+        seed = int.from_bytes(digest[:8], "big", signed=False)
+        hue = ((seed / _SEAM_COLOR_HASH_MODULUS) * _SEAM_GOLDEN_ANGLE) % 1.0
         rgb = hsv_to_rgb(hue, 0.78, 0.92)
         result[seam_id] = tuple(round(channel, 6) for channel in rgb)
     return result
