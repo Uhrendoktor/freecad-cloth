@@ -3,7 +3,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_pytissu_patch_contract_is_pinned_and_reproducible():
+def test_pytissu_source_transform_contract_is_pinned_and_reproducible():
     transform = (ROOT / "tools" / "patch_pytissu_source.py").read_text(encoding="utf-8")
     script = (ROOT / "tools" / "build_pytissu_runtime.sh").read_text(encoding="utf-8")
     docs = (ROOT / "docs" / "TISSU_RUNTIME.md").read_text(encoding="utf-8")
