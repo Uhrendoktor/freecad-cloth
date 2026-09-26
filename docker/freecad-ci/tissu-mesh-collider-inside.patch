@@ -27,7 +27,15 @@ diff --git a/core/src/physics/MeshCollider.cpp b/core/src/physics/MeshCollider.c
 diff --git a/tests/physics/test_mesh_collider.cpp b/tests/physics/test_mesh_collider.cpp
 --- a/tests/physics/test_mesh_collider.cpp
 +++ b/tests/physics/test_mesh_collider.cpp
-@@ -6,6 +6,31 @@
+@@ -1,8 +1,10 @@
++#include <algorithm>
++#include <limits>
+ #include <vector>
+ 
+ #include "Eigen/Dense"
+ #include "physics/MeshCollider.hpp"
+ #include "physics/Particle.hpp"
+ #include "gtest/gtest.h"
  
  using namespace Tissu;
  
