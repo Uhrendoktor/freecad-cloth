@@ -42,7 +42,7 @@ def _to_tissu_mesh(surface):
 
 
 def _collision_aabb_planes(surface):
-    """Build six inward-facing planes for an axis-aligned box collision surface."""
+    """Build six outward-facing planes for an axis-aligned box collision surface."""
     if surface is None or not surface.vertices:
         return ()
     positions = tuple(_to_tissu_position(vertex) for vertex in surface.vertices)
