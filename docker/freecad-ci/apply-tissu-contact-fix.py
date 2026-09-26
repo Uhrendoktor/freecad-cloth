@@ -25,46 +25,10 @@ def run(*args: str) -> str:
 
 
 
-def patch_headless_core() -> None:
-    core_path = ROOT / "core/CMakeLists.txt"
-    core = core_path.read_text(encoding="utf-8")
-    replace_once(
-        core_path,
-        "    src/io/AlembicExporter.cpp\n",
-        "",
-        "headless core AlembicExporter source",
-    )
-    replace_once(
-        core_path,
-        """if(NOT TARGET Alembic::Alembic)
-    find_package(Alembic REQUIRED)
-endif()
-if(NOT TARGET Imath::Imath)
-    find_package(Imath REQUIRED)
-endif()
-
-""",
-        "",
-        "headless core Alembic/Imath find",
-    )
-    replace_once(
-        core_path,
-        """target_link_libraries(TissuCore PUBLIC 
-    Alembic::Alembic 
-    Imath::Imath
-)
-
-""",
-        "",
-        "headless core Alembic/Imath link",
-    )
-
 def main() -> int:
     if run("git", "rev-parse", "HEAD") != EXPECTED_COMMIT:
         raise RuntimeError("Tissu source commit does not match the pinned revision")
 
-
-    patch_headless_core()
 
     header = ROOT / "core/include/physics/MeshCollider.hpp"
     cpp = ROOT / "core/src/physics/MeshCollider.cpp"
