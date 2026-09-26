@@ -2,7 +2,7 @@ FROM condaforge/miniforge3:25.3.1-0
 
 ARG TISSU_SOURCE_COMMIT=c28a3c7504ddc782bef844ab5bd4cd0bde14b628
 
-COPY docker/freecad-ci/tissu-mesh-collider-inside.patch /tmp/tissu-mesh-collider-inside.patch
+COPY docker/freecad-ci/apply-tissu-contact-fix.py /tmp/apply-tissu-contact-fix.py
 
 LABEL org.opencontainers.image.source="https://github.com/Uhrendoktor/freecad-cloth"
 LABEL org.opencontainers.image.description="FreeCAD 1.1.0 conda-forge CI image using Python 3.12 for freecad-cloth with Tissu cloth backend"
@@ -18,11 +18,8 @@ RUN apt-get update -qq \
     && git fetch --depth 1 origin "$TISSU_SOURCE_COMMIT" \
     && git checkout --detach "$TISSU_SOURCE_COMMIT" \
     && test "$(git rev-parse HEAD)" = "$TISSU_SOURCE_COMMIT" \
-    && git apply --check /tmp/tissu-mesh-collider-inside.patch \
-    && git apply /tmp/tissu-mesh-collider-inside.patch \
-    && git diff --check \
-    && printf 'Tissu source commit: ' && git rev-parse HEAD \
-    && printf 'Tissu patch sha256: ' && sha256sum /tmp/tissu-mesh-collider-inside.patch | cut -d' ' -f1 \
+    && /opt/conda/envs/freecad/bin/python /tmp/apply-tissu-contact-fix.py \
+
     && /opt/conda/envs/freecad/bin/cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBENCHMARK_ENABLE_WERROR=OFF -DTISSU_BUILD_VIEWER=OFF -DTISSU_ENABLE_TRACY=OFF -DCMAKE_C_FLAGS=-Wno-c2y-extensions \
     && /opt/conda/envs/freecad/bin/cmake --build build --config Release --target _cloth_sdk_core unit_tests --parallel 2 \
     && /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir --no-deps --no-build-isolation --force-reinstall . \
