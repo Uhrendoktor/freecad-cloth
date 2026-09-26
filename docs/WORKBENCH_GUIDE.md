@@ -28,11 +28,11 @@ If a Sketch edit invalidates a semantic edge reference, the seam remains invalid
 
 ### 3. Arrange and fit
 
-Create/select a `DrapeTarget`: either the native human mannequin or an ordinary FreeCAD Shape/PartDesign/Body/Mesh. Arrange pieces using persistent placements/arrangement metadata. Reset and superimpose are deterministic fitting operations, not solver state.
+Create/select a `DrapeTarget`: either the native human mannequin or an ordinary FreeCAD Shape/PartDesign/Body/Mesh. Arrange pieces using persistent placements/arrangement metadata. Garments with authored `GarmentAnchor` inputs can use target-aware starting placement, which derives a bounded rigid translation/rotation from the current target surface and an outward clearance. It fails closed when the target is stale, missing, ambiguous, or the transform exceeds its bound. Reset and superimpose remain deterministic fitting operations, not solver state; target-aware placement does not wrap or deform the pattern.
 
 ### 4. Simulate
 
-Generate a preview/final mesh, choose material and quality, confirm target validity, then Run. Step is for controlled/debug advancement; Reset recovers simulation state. Pins/stitches and collision settings are persistent inputs. Fabric presentation properties include color, specular response, roughness and transparency and are persisted with the simulation/material state.
+Generate a preview/final mesh, choose material and quality, confirm target validity, then Run. Step is for controlled/debug advancement; Reset recovers simulation state. Pin policy is explicit: **Auto** preserves existing default-pin compatibility, **Explicit** uses only the persisted `PinSelection`, and **None (pinless)** deliberately creates no implicit pins. Pins/stitches and collision settings are persistent inputs. Fabric presentation properties include color, specular response, roughness and transparency and are persisted with the simulation/material state.
 
 ### 5. Iterate
 
