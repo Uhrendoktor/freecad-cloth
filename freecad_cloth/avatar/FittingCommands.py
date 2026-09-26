@@ -352,7 +352,7 @@ def reset_arrangement():
     return scene
 
 
-def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translation=600.0, max_rotation=45.0):
+def _target_aware_place_piece_impl(piece, target, anchors, clearance=8.0, max_translation=600.0, max_rotation=45.0):
     """Rigidly place one PatternPiece against the authoritative DrapeTarget."""
     import FreeCAD as App
     from freecad_cloth.avatar.AvatarFitting import GarmentAnchor, PiecePlacement
@@ -463,6 +463,50 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
     }
 
 
+
+def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translation=600.0, max_rotation=45.0):
+    """Apply target-aware placement transactionally and preserve fitting ledger state."""
+    import FreeCAD as App
+    doc = getattr(piece, "Document", None)
+    if doc is None:
+        raise ValueError("pattern piece must belong to a document")
+    scene = _scene(doc)
+    if scene is None:
+        raise ValueError("create a fitting scene first")
+    original_placement = piece.Placement
+    sketch = getattr(piece, "Sketch", None)
+    original_sketch_placement = getattr(sketch, "Placement", None) if sketch is not None else None
+    piece_placements_before = tuple(getattr(scene, "PiecePlacements", ()) or ())
+    home_placements_before = tuple(getattr(scene, "HomePlacements", ()) or ())
+    fitting_status_before = str(getattr(scene, "FitStatus", ""))
+    garment_anchors_before = tuple(getattr(scene, "GarmentAnchors", ()) or ())
+    try:
+        result = _target_aware_place_piece_impl(
+            piece, target, anchors,
+            clearance=clearance,
+            max_translation=max_translation,
+            max_rotation=max_rotation,
+        )
+        if tuple(getattr(scene, "HomePlacements", ()) or ()) != home_placements_before:
+            raise RuntimeError("target-aware placement mutated HomePlacements")
+        return result
+    except BaseException:
+        piece.Placement = original_placement
+        if sketch is not None and original_sketch_placement is not None:
+            sketch.Placement = original_sketch_placement
+        scene.PiecePlacements = list(piece_placements_before)
+        scene.HomePlacements = list(home_placements_before)
+        scene.FitStatus = fitting_status_before
+        if "GarmentAnchors" in getattr(scene, "PropertiesList", ()):
+            scene.GarmentAnchors = list(garment_anchors_before)
+        try:
+            doc.recompute()
+        except Exception:
+            pass
+        raise
+
+
+
 def _infer_piece_wrap_direction(piece, target, surface):
     """Infer front/back/left/right only from the piece's current side of the target."""
     import FreeCAD as App
@@ -533,6 +577,9 @@ def create_simulation_from_fitting():
     simulation.ClothPieces = list(scene.PatternPieces)
     if scene.AvatarProxy is not None:
         simulation.AvatarProxy = scene.AvatarProxy
+    fitting_target = getattr(scene, "DrapeTarget", None)
+    if fitting_target is not None:
+        simulation.DrapeTarget = fitting_target
     doc.recompute()
     return simulation
 
