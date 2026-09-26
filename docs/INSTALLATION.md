@@ -1,49 +1,86 @@
 # Installation
 
-FreeCAD Cloth is a native FreeCAD workbench extension. The repository itself is the source tree; the supported runtime boundary is FreeCAD's user `Mod` directory.
+FreeCAD Cloth is a native FreeCAD workbench extension. The repository itself is the source tree; installation places the repository directory directly below FreeCAD's user Mod directory.
 
 ## Requirements
 
-- FreeCAD with Python 3.12 for the canonical development/CI environment.
-- The Python package `triangle==20250106` for constrained pattern meshing.
-- Optional: Tissu is used by the canonical visual regression path when the environment provides it. The reference CPU backend remains the fallback.
-- A FreeCAD GUI session is required for the visual workbench tests.
+### User prerequisites
 
-The repository publishes its exact CI image and dependency versions in `.github/workflows/canonical-execution.yml` and `docker/freecad-ci/Dockerfile`.
+- A supported FreeCAD build with an embedded Python 3.12 or newer runtime for the current project baseline.
+- A FreeCAD GUI session.
+- The dependency triangle==20250106 available to the same Python environment used by FreeCAD for the project.
+- Tissu is optional. The deterministic XPBD CPU backend remains the correctness fallback when the optional Tissu package is not available.
+
+The canonical validation environment is the FreeCAD 1.1.0 / Python 3.12 container recorded in .github/workflows/canonical-execution.yml. The repository currently targets Python 3.12+ in pyproject.toml.
+
+### Find the user Mod directory
+
+From FreeCAD's Python console, this prints the user application-data directory:
+
+    App.getUserAppDataDir()
+
+The installation target is the Mod subdirectory of that location. If your FreeCAD package uses a platform-specific user-data layout, use the path reported by FreeCAD rather than guessing it.
 
 ## User installation
 
-1. Download or clone this repository.
-2. Copy the repository directory into FreeCAD's user `Mod` directory.
-3. Restart FreeCAD.
-4. Select **Cloth Pattern**, **Cloth Sewing**, or **Cloth Simulation** from the workbench selector.
+1. Download or clone the repository.
+2. Copy the complete repository directory into the FreeCAD user Mod directory, for example:
+   <FreeCAD user data>/Mod/freecad-cloth/
+3. Keep Init.py and InitGui.py at the repository root. Do not put them below another directory level.
+4. Ensure triangle==20250106 is installed for the Python runtime that FreeCAD actually uses.
+5. Restart FreeCAD.
+6. Confirm that **Cloth Pattern**, **Cloth Sewing**, and **Cloth Simulation** appear in the workbench selector.
 
-The repository root contains the required FreeCAD bootstrap files `Init.py` and `InitGui.py`; do not move those files below another directory level.
+For an existing installation, remove the previous freecad-cloth directory before replacing it so stale Python modules are not left on the module search path.
 
-For an existing installation, remove the previous `freecad-cloth` directory before replacing it so stale Python modules cannot remain on the module search path.
+## First successful result
 
-## First run
+Do not start with the full tunic. First run the **Blanket over Cube** example in [EXAMPLES.md](EXAMPLES.md). A successful smoke test means the Cloth workbenches load, a native Sketcher pattern can become a PatternPiece, a persistent FreeCAD-geometry DrapeTarget can be created for the cube, the cloth mesh remains finite, and the simulation changes the cloth position.
 
-Start with the **Blanket over Cube** example in [EXAMPLES.md](EXAMPLES.md). It is deliberately smaller than the tunic and is the recommended smoke test for a new installation.
+The canonical visual fixture is tests/freecad_visual_examples.py; it is the repository's authoritative installation smoke test because it also checks mesh structure, material presentation and real viewport motion.
 
-Then read the concise [User guide](USER_GUIDE.md) and run the tunic workflow documented in [WORKBENCH_GUIDE.md](WORKBENCH_GUIDE.md).
+After the blanket result is working, continue with the tunic path in [EXAMPLES.md](EXAMPLES.md) and then use [USER_GUIDE.md](USER_GUIDE.md) as the day-to-day reference.
 
 ## Developer setup
 
-The canonical test environment installs the Triangle dependency with:
+The dependency used by the canonical workflow is installed with:
 
     python3 -m pip install triangle==20250106
 
-The repository's non-GUI tests are regular Python scripts. The FreeCAD/Xvfb acceptance tests are intentionally run inside the published CI environment because they exercise the actual FreeCAD GUI, solver backends and rendering path.
+Run that in the same Python 3.12 environment used for the FreeCAD development/CI runtime. The repository's non-GUI tests are normal Python scripts; the real FreeCAD GUI/Xvfb acceptance path is the single canonical workflow in .github/workflows/canonical-execution.yml.
 
-The canonical command set is defined in `.github/workflows/canonical-execution.yml`; do not create a second workflow for a one-off GUI test.
+Do not create a second workflow for a one-off documentation or GUI check.
 
-## Troubleshooting
+## Troubleshooting and recovery
 
-**The workbenches do not appear:** verify that the repository directory is directly below FreeCAD's `Mod` directory and restart FreeCAD.
+**The workbenches do not appear**
 
-**Simulation is blocked:** select a current `DrapeTarget` and rebuild it after changing the target geometry. Cloth intentionally refuses stale collision state.
+Check that the repository directory is directly below the FreeCAD user Mod directory, that Init.py and InitGui.py are still at the repository root, and restart FreeCAD. If an older installation was present, remove the old directory and reinstall it.
 
-**A seam becomes invalid after editing a sketch:** recompute the document and use the explicit seam repair/remap workflow. Cloth never silently retargets a seam to another edge.
+**Pattern creation fails with a Triangle/import error**
 
-**Visual CI differs from local FreeCAD:** use the same FreeCAD/Triangle/Tissu versions recorded by the canonical workflow before comparing screenshots.
+Install triangle==20250106 into the Python environment used by FreeCAD, then restart FreeCAD. A successful import in a separate system Python does not prove that the embedded FreeCAD runtime can import it.
+
+**A seam becomes invalid after editing a Sketcher pattern**
+
+Recompute the document and use **Cloth Sewing → Repair Seam** only for an existing semantic seam whose referenced edge still exists. If the semantic edge no longer exists, recreate the seam against the intended edge; Cloth does not silently retarget it.
+
+**The Drape Target is stale, unbuilt, disabled or invalid**
+
+Open **Edit Drape Target**, confirm the Provider and Source, then use **Apply & Refresh**. The simulation intentionally blocks **Step** and **Run 30** until the target is valid. Do not bypass the stale state by continuing with an old collision mesh.
+
+**Simulation has no cloth or the scene is empty**
+
+Select the intended PatternPiece objects and verify the simulation scene's ClothPieces links in the FreeCAD Property Editor. The quality task panel does not substitute for missing cloth-piece links.
+
+**The tunic intersects the mannequin**
+
+Do not assume the project currently performs automatic CLO-style garment snapping. Arrangement is explicit: use the fitting scene's arrangement points or direct persistent piece placements, verify the DrapeTarget source, and refresh it after source changes. The validated tunic fixture uses Pinning mode = None and target-relative start placement; it does not establish a general automatic-snap requirement.
+
+**Local screenshots differ from CI**
+
+Use the same FreeCAD/Triangle/Tissu versions recorded by the canonical workflow before comparing screenshots. Published README media is generated from validated CI artifacts; do not manually replace those assets with ad-hoc captures.
+
+## Current release boundary
+
+The project is currently at package version 0.1.0 with the P0 end-to-end workflow validated. It does not claim full commercial garment-suite parity. Capabilities listed in the roadmap as P1 or Production work should be treated as future scope unless their own acceptance evidence says otherwise.
