@@ -17,11 +17,12 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
-def test_canonical_tunic_pins_only_one_side_of_sewn_shoulders():
+def test_canonical_tunic_auto_arranges_without_solver_pins():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    assert "scene.PinSelection = [str(i) for i in front_pins]" in source
-    assert "scene.PinSelection = [str(i) for i in front_pins + back_pins]" not in source
-    assert "the back panel must follow through the" in source
+    assert "auto_arrange_garment(clearance=clearance)" in source
+    assert "scene.PinSelection = []" in source
+    assert "scene.PinSelection = [str(i) for i in front_pins]" not in source
+    assert "authored_shoulder_pins" not in source
 
 
 def test_canonical_tunic_uses_validated_authored_mapping():
@@ -50,7 +51,7 @@ def test_canonical_tunic_source_rewrite_compiles():
     assert replacements is not None
     seam_keys = [key for key in replacements if "for edge_a, edge_b, seam_id" in key]
     assert seam_keys == [
-        '    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):\n'
+        '    for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):\n'
         '        seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
         '        add_seam(doc, seam)\n'
         '        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)\n'
