@@ -449,7 +449,12 @@ def simulation():
         raise RuntimeError("expected two drape panels, got %d" % len(panels))
     for panel, label in zip(panels, ("Drape: Tunic Front", "Drape: Tunic Back")):
         style_mesh(panel, label); panel.ViewObject.Visibility = True
-    avatar.ViewObject.Visibility = True; doc.recompute(); log("avatar-bounds x=%.1f..%.1f y=%.1f..%.1f z=%.1f..%.1f" % (box.XMin,box.XMax,box.YMin,box.YMax,box.ZMin,box.ZMax)); log("tunic-source=freecad-native-sketcher edges=%d front=%s back=%s" % (len(front.Sketch.Geometry),front.Sketch.Name,back.Sketch.Name))
+    avatar.ViewObject.Visibility = True; doc.recompute()
+    target_xs = [float(vertex[0]) for vertex in target_surface.vertices]
+    target_ys = [float(vertex[1]) for vertex in target_surface.vertices]
+    target_zs = [float(vertex[2]) for vertex in target_surface.vertices]
+    log("target-surface-bounds x=%.1f..%.1f y=%.1f..%.1f z=%.1f..%.1f" % (min(target_xs),max(target_xs),min(target_ys),max(target_ys),min(target_zs),max(target_zs)))
+    log("tunic-source=freecad-native-sketcher edges=%d front=%s back=%s" % (len(front.Sketch.Geometry),front.Sketch.Name,back.Sketch.Name))
     if int(getattr(avatar, "MeshVertexCount", 0)) <= 100 or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100:
         raise RuntimeError("visual fixture does not contain a real humanoid mesh")
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
