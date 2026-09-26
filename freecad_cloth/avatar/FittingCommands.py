@@ -342,10 +342,12 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=6
         for piece in selected:
             placement = piece.Placement
             base = placement.Base
+            axis = placement.Rotation.Axis
             placements[str(piece.PieceId)] = PiecePlacement(
                 str(piece.PieceId),
                 (float(base.x), float(base.y), float(base.z)),
                 float(placement.Rotation.Angle),
+                (float(axis.x), float(axis.y), float(axis.z)),
             )
         scene.PiecePlacements = [placements[key].to_string() for key in sorted(placements)]
         if tuple(scene.HomePlacements) != home_before:
@@ -534,7 +536,14 @@ def reset_arrangement():
         if piece is None:
             continue
         x, y, z = placement.position
-        piece.Placement = App.Placement(App.Vector(x, y, z), App.Rotation(App.Vector(0, 0, 1), placement.rotation_z))
+        axis = placement.rotation_axis
+        piece.Placement = App.Placement(
+            App.Vector(x, y, z),
+            App.Rotation(App.Vector(*axis), placement.rotation_z),
+        )
+        sketch = getattr(piece, "Sketch", None)
+        if sketch is not None:
+            sketch.Placement = piece.Placement
         current[pid] = placement
     scene.PiecePlacements = [current[k].to_string() for k in sorted(current)]
     scene.FitStatus = "Arrangement reset"
