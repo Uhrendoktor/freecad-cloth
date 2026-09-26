@@ -40,6 +40,34 @@ def _panel_value(panel, widget_name):
     return getattr(panel, widget_name).value()
 
 
+SCREENSHOT_DIR = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
+TASK_PANEL_EVIDENCE = os.path.join(SCREENSHOT_DIR, "arrange-fit-task-panel.log")
+
+
+def _capture_task_panel(name, state, proof):
+    os.makedirs(SCREENSHOT_DIR, exist_ok=True)
+    window = Gui.getMainWindow()
+    if window is None or not window.isVisible():
+        raise RuntimeError("FreeCAD main window unavailable for task-panel evidence")
+    window.show()
+    window.raise_()
+    window.activateWindow()
+    window.resize(1280, 720)
+    _events()
+    image = window.grab()
+    path = os.path.join(SCREENSHOT_DIR, name)
+    if image.isNull() or (image.width(), image.height()) != (1280, 720):
+        raise RuntimeError("invalid GUI task-panel capture for %s" % state)
+    if not image.save(path) or os.path.getsize(path) < 20000:
+        raise RuntimeError("failed or suspiciously small task-panel screenshot: %s" % path)
+    with open(TASK_PANEL_EVIDENCE, "a", encoding="utf-8") as handle:
+        handle.write("%s\t%s\t%s\t%d\n" % (name, state, proof, os.path.getsize(path)))
+
+
+def _task_panel_commands():
+    return Gui.listCommands()
+
+
 def run_acceptance():
     doc = App.newDocument("SimulationQualityAcceptance")
     try:
@@ -99,9 +127,59 @@ def run_acceptance():
         _events()
         if not hasattr(panel, "arrange_fit_button") or not hasattr(panel, "snap_to_target_button"):
             raise RuntimeError("simulation panel did not expose the Arrange / Fit / target-snap bridge")
+        if "Arrange / Fit: not started" not in panel.fitting_status.text():
+            raise RuntimeError("missing FittingScene state was not visible in the Simulation task panel")
+        if "target: ready" not in panel.fitting_status.text():
+            raise RuntimeError("ready DrapeTarget state was not visible in the Arrange / Fit bridge")
         if panel.reset_arrangement_button.isEnabled():
             raise RuntimeError("reset arrangement should be disabled before fitting handoff")
-        panel.quality.setCurrentText("Final")
+        commands = _task_panel_commands()
+        if "ClothFitting_SnapPiecesToTarget" in commands:
+            if not panel.snap_to_target_button.isEnabled():
+                raise RuntimeError("ready target did not enable the public target-aware placement action")
+        elif panel.snap_to_target_button.isEnabled():
+            raise RuntimeError("target-aware placement action was enabled without its public command")
+        _capture_task_panel(
+            "arrange-fit-task-panel-not-started.png",
+            "Arrange/Fit missing scene",
+            "ready DrapeTarget; no FittingScene; reset disabled",
+        )
+
+        panel.arrange_fit_button.click()
+        _events()
+        fitting = next(
+            (
+                obj for obj in scene.Document.Objects
+                if getattr(obj, "FittingType", "") == "FittingScene"
+            ),
+            None,
+        )
+        if fitting is None:
+            raise RuntimeError("Arrange / Fit action did not create/reuse the persisted FittingScene")
+        if fitting.DrapeTarget != scene.DrapeTarget:
+            raise RuntimeError("Arrange / Fit changed the Simulation DrapeTarget authority")
+        if len(tuple(getattr(fitting, "PatternPieces", ()) or ())) != 2:
+            raise RuntimeError("Arrange / Fit did not preserve both Simulation ClothPieces")
+        if len(tuple(getattr(fitting, "PiecePlacements", ()) or ())) != 2:
+            raise RuntimeError("Arrange / Fit did not persist one placement entry per piece")
+
+        panel = SimulationQualityTaskPanel(scene)
+        Gui.Control.showDialog(panel)
+        _events()
+        if panel.reset_arrangement_button.isEnabled() is not True:
+            raise RuntimeError("present FittingScene state did not enable Reset arrangement")
+        if "2 pieces assigned" not in panel.fitting_status.text() or "2/2 saved placement(s)" not in panel.fitting_status.text():
+            raise RuntimeError("present FittingScene state did not expose saved piece/placement counts")
+        _capture_task_panel(
+            "arrange-fit-task-panel-present.png",
+            "Arrange/Fit present",
+            "FittingScene persisted; 2 pieces; 2/2 placements; shared DrapeTarget identity",
+        )
+        _close_task()
+
+        target_body.Placement.Base.x += 15.0
+        scene.Document.recompute()
+        status = target_status(scene.DrapeTarget)
         _events()
         doc.recompute()
         if str(scene.QualityPreset) != "Final":
@@ -164,7 +242,32 @@ def run_acceptance():
                 raise RuntimeError("stale-target status did not block Step/Run while preserving Reset")
             if "Simulation blocked" not in panel.status.text():
                 raise RuntimeError("stale-target status did not expose a user-facing blocked reason")
+            if "target: stale" not in panel.fitting_status.text():
+                raise RuntimeError("stale DrapeTarget state was not visible in the Arrange / Fit bridge")
+            _capture_task_panel(
+                "arrange-fit-task-panel-blocked.png",
+                "Arrange/Fit blocked",
+                "stale DrapeTarget; Step/Run blocked; Reset retained",
+            )
+            panel.refresh_target_button.click()
+            _events()
+            reloaded.recompute()
+            recovered_status = target_status(target)
+            if recovered_status["state"] != "ready":
+                raise RuntimeError("Arrange / Fit target recovery did not rebuild a ready DrapeTarget")
+            if not panel.step_button.isEnabled() or not panel.run_button.isEnabled():
+                raise RuntimeError("target recovery did not re-enable Simulation Step/Run")
+            if "target: ready" not in panel.fitting_status.text():
+                raise RuntimeError("target recovery did not update the Arrange / Fit bridge to ready")
+            _capture_task_panel(
+                "arrange-fit-task-panel-recovered.png",
+                "Arrange/Fit recovered",
+                "Refresh target restored ready state; Step/Run enabled",
+            )
             _close_task()
+
+            with open(TASK_PANEL_EVIDENCE, "a", encoding="utf-8") as handle:
+                handle.write("arrange-fit-task-panels=passed states=not-started,present,blocked,recovered\n")
 
             Gui.Selection.clearSelection()
             Gui.Selection.addSelection(scene)
