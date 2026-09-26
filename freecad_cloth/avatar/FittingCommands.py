@@ -359,7 +359,7 @@ def _target_aware_place_piece_impl(piece, target, anchors, clearance=8.0, max_tr
     from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
     from freecad_cloth.avatar.TargetAwarePlacement import (
         assert_minimum_surface_clearance, require_ready_target_status,
-        solve_rigid_z, target_surface_anchor, wrap_normal,
+        solve_rigid_z, target_surface_anchor, transform_surface, wrap_normal,
     )
     if getattr(piece, "PatternType", "") != "PatternPiece":
         raise ValueError("piece must be a Cloth PatternPiece object")
@@ -373,6 +373,18 @@ def _target_aware_place_piece_impl(piece, target, anchors, clearance=8.0, max_tr
         float(getattr(target, "CollisionDeflection", 1.0)),
         float(getattr(target, "CollisionThickness", 0.0)),
     )
+    source_placement = getattr(source_object, "Placement", None)
+    if source_placement is not None:
+        surface = transform_surface(
+            surface,
+            lambda point: tuple(
+                float(value) for value in (
+                    source_placement.multVec(App.Vector(*point)).x,
+                    source_placement.multVec(App.Vector(*point)).y,
+                    source_placement.multVec(App.Vector(*point)).z,
+                )
+            ),
+        )
     piece_id = str(piece.PieceId)
     selected = tuple(
         item if isinstance(item, GarmentAnchor) else GarmentAnchor.from_string(item)
