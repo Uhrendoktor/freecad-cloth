@@ -117,7 +117,6 @@ pattern_lifecycle_probe = r'''    from freecad_cloth.sewing.SewingView import re
         App.closeDocument(doc.Name)
         reloaded = App.openDocument(seam_color_path)
         reloaded.recompute()
-        refresh_seam_colors(reloaded)
         reloaded_seams = [obj for obj in reloaded.Objects if str(getattr(obj, "SeamId", "")).strip()]
         reloaded_colors = {str(obj.SeamId): seam_rgb(obj) for obj in reloaded_seams}
         for seam_id, expected_color in color_snapshot.items():
