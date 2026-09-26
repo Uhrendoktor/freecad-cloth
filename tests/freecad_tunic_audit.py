@@ -10,6 +10,24 @@ if str(ROOT) not in sys.path:
 
 source_path = Path(__file__).with_name("freecad_screenshot_source.py")
 source = source_path.read_text(encoding="utf-8")
+source = source.replace(
+    "    for path, name, marker in ((",
+    "    from time import perf_counter\n"
+    "    for path, name, marker in ((",
+    1,
+)
+source = source.replace(
+    "        if name == \"freecad_garment_e2e_smoke\":",
+    "        stage_started = perf_counter()\n"
+    "        log(\"canonical-acceptance-start=%s\" % name)\n"
+    "        if name == \"freecad_garment_e2e_smoke\":",
+    1,
+)
+source = source.replace(
+    '        log(marker + "=passed")',
+    '        log(marker + "=passed")\n        log("canonical-acceptance-end=%s elapsed_ms=%.1f" % (name, 1000.0 * (perf_counter() - stage_started)))',
+    1,
+)
 
 # The canonical tunic audit must use the authoritative DrapeTarget collision
 # surface; do not replace it with the optional torso-envelope approximation.
