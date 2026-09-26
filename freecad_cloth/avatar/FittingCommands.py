@@ -204,7 +204,12 @@ def position_piece(piece, x, y, z=0.0, rotation_z=0.0):
     placement = App.Placement(App.Vector(float(x), float(y), float(z)), App.Rotation(App.Vector(0, 0, 1), float(rotation_z)))
     piece.Placement = placement
     entries = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)}
-    entries[str(piece.PieceId)] = PiecePlacement(str(piece.PieceId), (float(x), float(y), float(z)), float(rotation_z))
+    entries[str(piece.PieceId)] = PiecePlacement(
+        str(piece.PieceId),
+        (float(x), float(y), float(z)),
+        float(placement.Rotation.Angle),
+        (float(placement.Rotation.Axis.x), float(placement.Rotation.Axis.y), float(placement.Rotation.Axis.z)),
+    )
     scene.PiecePlacements = [entries[k].to_string() for k in sorted(entries)]
     doc.recompute()
     return piece
@@ -738,6 +743,20 @@ def _apply_selected_arrangement():
     if piece is None or point is None:
         raise ValueError("select a pattern piece and an arrangement point")
     return apply_arrangement_point(piece, point.PointName)
+
+
+def _snap_selected_to_target():
+    """Select exactly one DrapeTarget and one or more PatternPieces, then snap."""
+    import FreeCADGui as Gui
+    active = Gui.activeDocument()
+    if active is None:
+        raise ValueError("open a document before snapping pattern pieces to a target")
+    selection = tuple(Gui.Selection.getSelection())
+    pieces = tuple(obj for obj in selection if getattr(obj, "PatternType", "") == "PatternPiece")
+    targets = tuple(obj for obj in selection if getattr(obj, "TargetType", "") in ("Mannequin", "FreeCAD Geometry"))
+    if not pieces or len(targets) != 1:
+        raise ValueError("select exactly one DrapeTarget and one or more PatternPiece objects")
+    return snap_pattern_pieces_to_target(pieces, targets[0])
 
 
 try:
