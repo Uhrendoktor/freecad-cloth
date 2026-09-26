@@ -1,27 +1,26 @@
 # FreeCAD Cloth documentation
 
-This directory is intentionally small. Read the documents in this order:
+This directory is intentionally small. Prefer these canonical documents over a separate wiki.
 
-1. **[USER_GUIDE.md](USER_GUIDE.md)** — first-run human workflow, recovery, and visual inspection.
-2. **WORKBENCH_GUIDE.md** — detailed workflow and UI behavior.
-3. **ARCHITECTURE.md** — authoritative data, dependency and invalidation contracts.
-4. **PROJECT_STRUCTURE.md** — canonical package/module tree and FreeCAD bootstrap layout.
-5. **[ROADMAP.md](../ROADMAP.md)** — prototype → MVP → production scope and release gates.
-6. **RESEARCH.md** — condensed CLO/garment-workflow research and FreeCAD mapping.
-7. **DEVELOPMENT.md** — testing, CI, screenshots, agent handoff and contribution rules.
+## Human quickstart
+
+Read these in order when using FreeCAD Cloth:
+
+1. **[INSTALLATION.md](INSTALLATION.md)** — prerequisites, installation into FreeCAD's user `Mod` directory, first launch, and installation recovery.
+2. **[USER_GUIDE.md](USER_GUIDE.md)** — the first successful Blanket over Cube run, then the Pattern → Sewing → Arrange/Fit → Simulate garment workflow and recovery.
+3. **[EXAMPLES.md](EXAMPLES.md)** — the basic blanket and advanced tunic examples, including where their executable fixtures and visual evidence are generated.
+4. **[WORKBENCH_GUIDE.md](WORKBENCH_GUIDE.md)** — exact workbench behavior, public commands, seam inspection, fitting, simulation controls, and invalid-state recovery.
+
+For project scope rather than human usage, see [ROADMAP.md](../ROADMAP.md) and [RELEASE_GATES.md](RELEASE_GATES.md).
 
 ## Source of truth
 
 - `README.md` is the project-level orientation.
-- `AGENT_STATUS.md` is the current machine-readable supervisor/release record.
-- `TOOL_STATE.md` is the compact execution-policy/state record.
-- `docs/PROJECT_STRUCTURE.md` is the source of truth for where implementation modules belong.
-- `docs/ARCHITECTURE.md` is the source of truth for domain ownership and dependency direction.
-- `docs/` contains durable guidance, not dated scratch notes.
-
-## Documentation rule
-
-Prefer updating an existing canonical document over adding a new note. Dated audit material belongs in the relevant issue/PR or in the compact supervisor state, not as another permanent document. If a new document is genuinely necessary, link it here and explain why it cannot fit an existing contract.
+- `docs/INSTALLATION.md`, `docs/USER_GUIDE.md`, `docs/WORKBENCH_GUIDE.md`, and `docs/EXAMPLES.md` are the canonical human-facing usage surface.
+- `docs/ARCHITECTURE.md` is the source of truth for data ownership, dependency direction, and invalidation.
+- `docs/PROJECT_STRUCTURE.md` is the source of truth for the package/module layout.
+- `AGENT_STATUS.md` and `TOOL_STATE.md` are coordination records, not user guides.
+- Dated audits and scratch notes belong in issues/PRs rather than new permanent documentation.
 
 ## Workbench model
 
@@ -34,10 +33,17 @@ Cloth Pattern → Cloth Sewing → Cloth Simulation
                      derived state
 ```
 
-The project aims for a CLO-like garment workflow while remaining FreeCAD-native: Sketcher/Part own editable geometry, Cloth owns garment semantics, and the solver owns physics. The human mannequin and arbitrary FreeCAD geometry are interchangeable providers of one `DrapeTarget` contract.
+The project remains FreeCAD-native: Sketcher/Part own editable geometry, Cloth owns garment semantics, and the solver owns derived physics state. A human mannequin and supported generic FreeCAD Shape/PartDesign/Body/Mesh geometry are providers of the same persistent `DrapeTarget` contract.
 
-## Module model
+## Where examples and visual evidence live
 
-All implementation code lives under `freecad_cloth/`. Root `Init.py` and `InitGui.py` are FreeCAD bootstrap adapters, and root `sitecustomize.py` is an interpreter/CI hook. Root-level domain modules and compatibility copies are not part of the supported architecture.
+The executable example drivers live in `tests/`, including:
 
-- `USER_GUIDE.md` — human-facing workflow from first run through seams, materials, simulation and recovery.
+- `tests/freecad_visual_examples.py` for the basic Blanket over Cube fixture.
+- `tests/freecad_garment_e2e_smoke.py` for the broader garment/tunic workflow.
+
+The canonical GitHub Actions workflow writes generated visual evidence under `docs/images/generated/` while the visual jobs run. The stable README-facing assets are published separately to the `docs/screenshots` branch and are referenced by the root README. Treat generated files as validation artifacts; do not hand-edit them and present the result as a test.
+
+## Developer/contributor pointer
+
+Development, CI, screenshots, and contribution mechanics are documented separately in [DEVELOPMENT.md](DEVELOPMENT.md). That document is intentionally not part of the human quickstart.
