@@ -11,9 +11,9 @@ on:
     - cron: '0 3 * * *'
 
 concurrency:
-  # Key validation by commit so a newer commit cannot replace this commit's pending run.
-  group: canonical-${{ github.workflow }}-${{ github.sha }}
-  cancel-in-progress: false
+  # Keep only the newest PR run for each PR; older pushes are obsolete.
+  group: ${{ github.event_name == 'pull_request' && format('canonical-{0}-pr-{1}', github.workflow, github.event.pull_request.number) || format('canonical-{0}-{1}-{2}', github.workflow, github.event_name, github.ref) }}
+  cancel-in-progress: true
 
 env:
   FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
@@ -28,6 +28,23 @@ permissions:
   packages: read
 
 jobs:
+  runner_selector:
+    name: Select local runner with GitHub fallback
+    runs-on: ubuntu-latest
+    outputs:
+      runner: ${{ steps.select.outputs.runner }}
+    steps:
+      - id: select
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh api "repos/$GITHUB_REPOSITORY/actions/runners?per_page=100" --jq '.runners[] | select(.status == "online" and .busy == false) | .labels[].name' | grep -qx 'docker'; then
+            echo 'runner=["self-hosted","linux","x64","docker"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'runner=ubuntu-latest' >> "$GITHUB_OUTPUT"
+          fi
+
   runner_heartbeat:
     name: Local Docker runner heartbeat
     if: ${{ github.event_name == 'schedule' }}
