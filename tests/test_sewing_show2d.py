@@ -36,13 +36,6 @@ def test_seam_colors_are_distinct_and_stable_by_seam_id():
     assert len(set(forward.values())) == len(seam_ids)
 
 
-def test_seam_color_surface_contract_carries_identity_to_sewing_operations():
-    source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "sewing" / "SewingObjects.py").read_text(encoding="utf-8")
-    assert '"SeamId", "Sewing"' in source
-    assert 'obj.SeamId = str(getattr(seam, "SeamId", "") or "")' in source
-    assert "apply_seam_colors(doc.Objects)" in source
-
-
 def test_apply_seam_colors_marks_each_seam_pair():
     first = SimpleNamespace(SeamId="seam-a", ViewObject=SimpleNamespace(LineColor=None))
     second = SimpleNamespace(SeamId="seam-b", ViewObject=SimpleNamespace(LineColor=None))
@@ -96,6 +89,12 @@ def test_show_2d_does_not_select_seams_over_their_colors():
     assert Selection.added == []
     assert view.top == 1
     assert view.fit == 1
+
+
+def test_seam_proxy_reapplies_deterministic_colors_after_recompute():
+    source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "pattern" / "PatternObjects.py").read_text(encoding="utf-8")
+    assert "apply_seam_colors, build_seam_visual_shape" in source
+    assert "apply_seam_colors(obj.Document.Objects)" in source
 
 
 def test_seam_visual_markers_are_deterministic_and_directional():
