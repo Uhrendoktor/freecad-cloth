@@ -625,6 +625,35 @@ class _FittingProxy:
         FittingScene(measurements, avatar_name, placements, points, volumes, bool(obj.SymmetryEnabled)).validate()
 
 
+def _snap_selected_pieces_to_target():
+    import FreeCADGui as Gui
+    active = Gui.activeDocument()
+    if active is None:
+        raise ValueError("open a document before snapping pattern pieces")
+    scene = _scene(active.Document)
+    if scene is None:
+        raise ValueError("create a fitting scene first")
+    selected = [
+        obj for obj in Gui.Selection.getSelection()
+        if getattr(obj, "PatternType", "") == "PatternPiece"
+    ]
+    if not selected:
+        selected = list(scene.PatternPieces)
+    return snap_pattern_pieces_to_target(selected)
+
+
+def _apply_selected_arrangement():
+    import FreeCADGui as Gui
+    scene = _scene(Gui.activeDocument().Document)
+    if scene is None:
+        raise ValueError("create a fitting scene first")
+    piece = next((o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"), None)
+    point = next((o for o in Gui.Selection.getSelection() if getattr(o, "FittingType", "") == "ArrangementPoint"), None)
+    if piece is None or point is None:
+        raise ValueError("select a pattern piece and an arrangement point")
+    return apply_arrangement_point(piece, point.PointName)
+
+
 COMMANDS = [
     "ClothFitting_CreateScene",
     "ClothFitting_SetMeasurements",
@@ -657,35 +686,6 @@ _COMMAND_HANDLERS = {
     "ClothFitting_ResetArrangement": reset_arrangement,
     "ClothFitting_CreateSimulation": create_simulation_from_fitting,
 }
-
-
-def _snap_selected_pieces_to_target():
-    import FreeCADGui as Gui
-    active = Gui.activeDocument()
-    if active is None:
-        raise ValueError("open a document before snapping pattern pieces")
-    scene = _scene(active.Document)
-    if scene is None:
-        raise ValueError("create a fitting scene first")
-    selected = [
-        obj for obj in Gui.Selection.getSelection()
-        if getattr(obj, "PatternType", "") == "PatternPiece"
-    ]
-    if not selected:
-        selected = list(scene.PatternPieces)
-    return snap_pattern_pieces_to_target(selected)
-
-
-def _apply_selected_arrangement():
-    import FreeCADGui as Gui
-    scene = _scene(Gui.activeDocument().Document)
-    if scene is None:
-        raise ValueError("create a fitting scene first")
-    piece = next((o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"), None)
-    point = next((o for o in Gui.Selection.getSelection() if getattr(o, "FittingType", "") == "ArrangementPoint"), None)
-    if piece is None or point is None:
-        raise ValueError("select a pattern piece and an arrangement point")
-    return apply_arrangement_point(piece, point.PointName)
 
 
 try:
