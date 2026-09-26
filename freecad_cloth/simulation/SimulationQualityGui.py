@@ -15,7 +15,7 @@ class SimulationQualityTaskPanel:
         "QualityPreset", "ParticleDistance", "SolverIterations", "SolverSubsteps",
         "FabricDensity", "FabricThickness", "FabricStretch", "FabricShear",
         "FabricBend", "FabricFriction", "FabricColor", "FabricSpecular",
-        "FabricRoughness", "FabricTransparency", "AvatarSkinOffset", "CollisionRadius", "Steps",
+        "FabricRoughness", "FabricTransparency", "AvatarSkinOffset", "CollisionRadius", "PinMode", "Steps",
     )
 
     def __init__(self, scene=None):
@@ -45,6 +45,10 @@ class SimulationQualityTaskPanel:
         collision = QtWidgets.QGroupBox("Collision"); cform = QtWidgets.QFormLayout(collision)
         self.skin_offset = self._double(0.0, 100.0, 0.0, 2); self.collision_radius = self._double(0.0, 10000.0, 38.0, 2)
         cform.addRow("Avatar skin offset (mm)", self.skin_offset); cform.addRow("Fallback sphere radius (mm)", self.collision_radius); root.addWidget(collision)
+        pinning = QtWidgets.QGroupBox("Sewing & pinning"); pform = QtWidgets.QFormLayout(pinning)
+        self.pin_mode = QtWidgets.QComboBox(); self.pin_mode.addItems(("Automatic", "Explicit", "None"))
+        self.pin_mode.setToolTip("Automatic preserves legacy fallback pins. Explicit uses PinSelection. None disables solver pins so target-relative arrangement, sewing, gravity, and collision determine the drape.")
+        pform.addRow("Pinning", self.pin_mode); root.addWidget(pinning)
         solver = QtWidgets.QGroupBox("Run"); sform = QtWidgets.QFormLayout(solver)
         self.steps = self._spin(0, 1000000, 0); sform.addRow("Simulation steps", self.steps); root.addWidget(solver)
         buttons = QtWidgets.QHBoxLayout(); self.step_button = QtWidgets.QPushButton("Step"); self.run_button = QtWidgets.QPushButton("Run 30"); self.reset_button = QtWidgets.QPushButton("Reset")
