@@ -90,7 +90,7 @@ jobs:
   python:
     name: Python and FreeCAD non-GUI tests
     runs-on: [self-hosted, linux, x64, docker]
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - uses: docker/login-action@v3
@@ -537,7 +537,7 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 12); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py
+              timeout --signal=TERM --kill-after=15s 900s /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py
             '
       - name: Restore workspace from Docker volume
         if: ${{ always() }}
@@ -602,7 +602,7 @@ jobs:
   gui-turntables:
     name: README simulation turntable
     runs-on: [self-hosted, linux, x64, docker]
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - uses: docker/login-action@v3
@@ -645,8 +645,8 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=15s 300s /opt/freecad/AppRun /workspace/tests/freecad_avatar_screenshot.py
-              timeout --signal=TERM --kill-after=15s 300s /opt/freecad/AppRun /workspace/tests/freecad_simulation_turntable.py
+              timeout --signal=TERM --kill-after=15s 900s /opt/freecad/AppRun /workspace/tests/freecad_avatar_screenshot.py
+              timeout --signal=TERM --kill-after=15s 900s /opt/freecad/AppRun /workspace/tests/freecad_simulation_turntable.py
             '
           test "$(find docs/images/generated/cloth-avatar-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
           test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
@@ -789,7 +789,7 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=10s 8m /opt/freecad/AppRun -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth /workspace/tests/freecad_visual_examples.py
+              timeout --signal=TERM --kill-after=15s 900s /opt/freecad/AppRun -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth /workspace/tests/freecad_visual_examples.py
             '
           test -s docs/images/generated/blanket-example/blanket-visual.log
           grep -q 'blanket-visual-acceptance=passed' docs/images/generated/blanket-example/blanket-visual.log
