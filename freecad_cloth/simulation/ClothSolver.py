@@ -330,7 +330,7 @@ class ClothSystem:
             constraints = [(normal, target) for normal, target, _ in local]
             correction_vector = _minimal_mesh_correction(position, constraints)
             if correction_vector is None:
-                _, normal, _, _, correction = best
+                _, _, normal, _, correction = best
                 correction_vector = tuple(normal[i] * correction for i in range(3))
             p.x += correction_vector[0]
             p.y += correction_vector[1]
