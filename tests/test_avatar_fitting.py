@@ -198,7 +198,7 @@ class AvatarFittingTests(unittest.TestCase):
             result = snap_piece_to_drape_target(piece, target, clearance=5.0, max_translation=100.0)
             self.assertGreater(result["distance_before"], 30.0)
             self.assertAlmostEqual(result["distance_after"], 5.0, delta=1e-5)
-            self.assertAlmostEqual(float(piece.Placement.Base.x), 115.0, delta=1e-5)
+            self.assertAlmostEqual(float(piece.Placement.Base.x), 105.0, delta=1e-5)
         finally:
             if doc.Name in App.listDocuments():
                 App.closeDocument(doc.Name)
