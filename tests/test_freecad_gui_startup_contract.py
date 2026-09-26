@@ -79,7 +79,7 @@ def test_canonical_gui_jobs_use_deterministic_startup_boundaries():
 
 def test_canonical_concurrency_groups_pull_requests():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
-    assert "canonical-{0}-pr-{1}" in workflow
+    assert "canonical-pr-{0}" in workflow
     assert "cancel-in-progress: true" in workflow
     assert "cancel-stale-pr-runs:" not in workflow
 
