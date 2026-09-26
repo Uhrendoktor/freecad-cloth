@@ -146,7 +146,7 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts
           CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g \
-            -e PYTHONPATH=/workspace -w /workspace "$FREECAD_IMAGE" bash -lc '
+            -e PYTHONPATH=/workspace -w /tmp "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               test "$(python3 -c "import sys; print(sys.version_info[:2])")" = "(3, 12)"
@@ -217,7 +217,7 @@ jobs:
               test -n "$FREECAD_CMD"
               test -x "$FREECAD_CMD"
               echo "mesh-parity-freecadcmd=$FREECAD_CMD"
-              QT_QPA_PLATFORM=offscreen PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_mesh_point_parity_probe.py
+              PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=10s 60s "$FREECAD_CMD" -P /workspace /workspace/tests/freecad_mesh_point_parity_probe.py
             ')"
           cleanup() {
             set +e
