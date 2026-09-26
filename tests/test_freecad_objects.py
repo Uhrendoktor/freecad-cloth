@@ -310,6 +310,10 @@ if __name__ == "__main__":
     test_pattern_piece_proxy_rejects_invalid_dimensions()
     test_native_seam_reference_save_reload_curve_edit_and_missing()
     test_native_mn_network_save_reload_curve_edit_invalidates_and_repairs()
+    test_target_snap_uses_world_target_placement_and_reset_restores_linked_sketch()
+    test_target_snap_rollback_restores_all_touched_state_after_forced_post_transform_failure()
+    test_stale_drape_target_rejects_snap_before_mutation()
+    test_fitting_created_simulation_propagates_target_and_observes_source_staleness()
     print("FreeCAD object proxy and native seam reference tests passed")
 
 
