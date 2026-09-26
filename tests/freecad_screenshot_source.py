@@ -461,6 +461,13 @@ def simulation():
     ):
         if any(abs(getattr(actual.Base, axis) - getattr(expected.Base, axis)) > 1e-6 for axis in ("x", "y", "z")):
             raise RuntimeError("Reset Arrangement did not restore %s HomePlacement" % label)
+        actual_axis = actual.Rotation.Axis
+        expected_axis = expected.Rotation.Axis
+        if (
+            abs(float(actual.Rotation.Angle) - float(expected.Rotation.Angle)) > 1e-6
+            or any(abs(float(getattr(actual_axis, axis)) - float(getattr(expected_axis, axis))) > 1e-6 for axis in ("x", "y", "z"))
+        ):
+            raise RuntimeError("Reset Arrangement did not restore %s rotation exactly" % label)
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(front)
     Gui.Selection.addSelection(back)
@@ -536,7 +543,16 @@ def simulation():
     if int(getattr(avatar, "MeshVertexCount", 0)) <= 100 or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100:
         raise RuntimeError("visual fixture does not contain a real humanoid mesh")
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
-    simulation_panel = SimulationQualityTaskPanel(scene); task_dock = show_task(simulation_panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset")); view = Gui.activeDocument().activeView(); view.setCameraType("Orthographic"); view.viewFront(); view.fitAll(); events(); task_dock.hide(); events(); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical sewn tunic generated from native Sketcher pattern sources on production mannequin"); task_dock.show(); task_dock.raise_(); events()
+    simulation_panel = SimulationQualityTaskPanel(scene); task_dock = show_task(simulation_panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Pin mode", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset")); view = Gui.activeDocument().activeView(); view.setCameraType("Orthographic"); view.viewFront(); view.fitAll(); events(); task_dock.hide(); events(); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical sewn tunic generated from native Sketcher pattern sources on production mannequin; target-aware public fitting"); task_dock.show(); task_dock.raise_(); events()
+    simulation_panel.step(1); doc.recompute(); events()
+    if not bool(scene.FiniteState):
+        raise RuntimeError("canonical tunic did not reach a finite state after the first solver step")
+    first_positions = tuple(scene.Proxy.backend.positions())
+    first_clearance = minimum_signed_clearance(first_positions, target_world).minimum_signed_clearance
+    if first_clearance < -1e-6:
+        raise RuntimeError("canonical tunic penetrated the DrapeTarget after the first solver step: %.6f mm" % first_clearance)
+    log("first-step-target-clearance=%.6f required=0.000000" % first_clearance)
+    simulation_panel.reset(); doc.recompute(); events()
     for batch in (15,15,15,15,15,15):
         simulation_panel.step(batch); doc.recompute(); events()
     if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
