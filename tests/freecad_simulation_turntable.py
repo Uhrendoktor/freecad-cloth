@@ -395,7 +395,8 @@ def build_simulation_state(doc):
     scene.GravityZ = -9810.0
     scene.TimeStep = 1.0 / 60.0
     scene.ParticleDistance = max(12.0, float(scene.ParticleDistance))
-    scene.SolverIterations = 4
+    # Keep one internal Tissu substep for realtime; eight XPBD iterations stabilize cloth edges.
+    scene.SolverIterations = 8
     scene.FabricColor = (0.14, 0.32, 0.78)
     scene.FabricSpecular = 0.70
     scene.FabricRoughness = 0.20
