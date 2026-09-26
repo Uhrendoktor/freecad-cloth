@@ -36,6 +36,13 @@ def test_seam_colors_are_distinct_and_stable_by_seam_id():
     assert len(set(forward.values())) == len(seam_ids)
 
 
+def test_seam_color_surface_contract_carries_identity_to_sewing_operations():
+    source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "sewing" / "SewingObjects.py").read_text(encoding="utf-8")
+    assert '"SeamId", "Sewing"' in source
+    assert 'obj.SeamId = str(getattr(seam, "SeamId", "") or "")' in source
+    assert "apply_seam_colors(doc.Objects)" in source
+
+
 def test_apply_seam_colors_marks_each_seam_pair():
     first = SimpleNamespace(SeamId="seam-a", ViewObject=SimpleNamespace(LineColor=None))
     second = SimpleNamespace(SeamId="seam-b", ViewObject=SimpleNamespace(LineColor=None))
