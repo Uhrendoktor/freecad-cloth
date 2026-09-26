@@ -435,6 +435,11 @@ jobs:
           grep -q 'determinism-signature=passed' artifacts/garment-e2e.log
           grep -q 'pattern-export=passed formats=SVG,DXF' artifacts/garment-e2e.log
           grep -q 'canonical garment end-to-end acceptance passed' artifacts/garment-e2e.log
+          grep -q 'seam-color-recompute=passed seams=4' docs/images/generated/gui-progress.log
+          grep -q 'seam-color-save-reload=passed seams=4' docs/images/generated/gui-progress.log
+          for seam_state in seam-lifecycle-pattern-2d.png seam-lifecycle-sewing-2d.png seam-lifecycle-sewing-3d-focus.png seam-lifecycle-simulation.png; do
+            test -s "docs/images/generated/$seam_state"
+          done
       - name: Upload tunic visual audit
         if: always()
         uses: actions/upload-artifact@v6
@@ -446,6 +451,7 @@ jobs:
             docs/images/generated/gui-progress.log
             docs/images/generated/gui-screenshot-manifest.txt
             artifacts/garment-e2e.log
+            docs/images/generated/seam-lifecycle-*.png
           if-no-files-found: error
           compression-level: 1
 
