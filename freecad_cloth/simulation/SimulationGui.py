@@ -131,7 +131,10 @@ class SimulationTaskPanel:
 
     def _load_scene_values(self):
         if self.scene is None: return
-        self._ensure_property("PinMode", "App::PropertyEnumeration", "Selection", ["None", "Explicit", "Automatic"], "Explicit")
+        if not hasattr(self.scene, "PinMode"):
+            self.scene.addProperty("App::PropertyEnumeration", "PinMode", "Selection")
+            self.scene.PinMode = ["None", "Explicit", "Automatic"]
+            self.scene.PinMode = "Explicit"
         index = self.pin_mode.findText(str(getattr(self.scene, "PinMode", "Explicit")))
         self.pin_mode.setCurrentIndex(index if index >= 0 else 0)
         for name, type_name, default in (("MaterialPreset", "App::PropertyString", "Cotton"), ("StretchCompliance", "App::PropertyFloat", 0.35), ("BendCompliance", "App::PropertyFloat", 0.20), ("ArealDensity", "App::PropertyFloat", 0.01)):
