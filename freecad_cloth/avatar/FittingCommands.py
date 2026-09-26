@@ -476,6 +476,7 @@ COMMANDS = [
     "ClothFitting_DeleteBoundingVolume",
     "ClothFitting_SetSymmetry",
     "ClothFitting_ApplyArrangementPoint",
+    "ClothFitting_SnapToDrapeTarget",
     "ClothFitting_ResetArrangement",
     "ClothFitting_CreateSimulation",
 ]
@@ -491,10 +492,33 @@ _COMMAND_HANDLERS = {
     "ClothFitting_DeleteBoundingVolume": lambda: delete_bounding_volume("Volume1"),
     "ClothFitting_SetSymmetry": lambda: set_symmetry_enabled(True),
     "ClothFitting_ApplyArrangementPoint": lambda: _apply_selected_arrangement(),
+    "ClothFitting_SnapToDrapeTarget": lambda: _snap_selected_to_drape_target(),
     "ClothFitting_ResetArrangement": reset_arrangement,
     "ClothFitting_CreateSimulation": create_simulation_from_fitting,
 }
 
+
+
+def _snap_selected_to_drape_target():
+    import FreeCADGui as Gui
+    active = Gui.activeDocument()
+    if active is None:
+        raise ValueError("open a document before snapping a pattern piece")
+    scene = _scene(active.Document)
+    if scene is None:
+        raise ValueError("create a fitting scene first")
+    target = getattr(scene, "DrapeTarget", None) or active.Document.getObject("DrapeTarget")
+    piece = next((o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"), None)
+    if piece is None:
+        raise ValueError("select a pattern piece to snap to the drape target")
+    if target is None:
+        raise ValueError("select or create a DrapeTarget before snapping a pattern piece")
+    from freecad_cloth.avatar.FittingCommands import target_aware_place_piece as _snap
+    from freecad_cloth.avatar.AvatarFitting import GarmentAnchor
+    anchors = getattr(scene, "GarmentAnchors", ())
+    if not anchors:
+        raise ValueError("add garment anchors before target-aware placement")
+    return _snap(piece, target, anchors)
 
 def _apply_selected_arrangement():
     import FreeCADGui as Gui
