@@ -326,11 +326,28 @@ def apply_arrangement_point(piece, point, mirror=None):
 
 
 def _world_shape(obj):
-    """Return a copy of an object's shape with its document placement applied."""
+    """Return a copy of an object's geometry with its document placement applied."""
     shape = getattr(obj, "Shape", None)
-    if shape is None or shape.isNull():
-        raise ValueError("object has no usable Part Shape")
-    world = shape.copy()
+    if shape is not None and not shape.isNull():
+        world = shape.copy()
+    else:
+        mesh = getattr(obj, "Mesh", None)
+        topology = getattr(mesh, "Topology", None) if mesh is not None else None
+        if topology is None:
+            raise ValueError("object has no usable Part Shape or Mesh topology")
+        import Part
+        faces = []
+        vertices, triangles = topology
+        for triangle in triangles:
+            try:
+                points = [App.Vector(*vertices[int(i)]) for i in triangle]
+                points.append(points[0])
+                faces.append(Part.Face(Part.makePolygon(points)))
+            except (IndexError, TypeError, ValueError, RuntimeError):
+                continue
+        if not faces:
+            raise ValueError("object mesh has no usable triangular faces")
+        world = Part.makeCompound(faces)
     placement = getattr(obj, "Placement", None)
     if placement is not None:
         world.Placement = placement
