@@ -72,7 +72,9 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
     log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
 '''
-anchor = '    for batch in (15,15,15,15,15,15):'
+anchor = '''    for batch in (15,15,15,15,15,15):
+        simulation_panel.step(batch); doc.recompute(); events()
+'''
 if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
 timed_anchor = '''    from time import perf_counter
@@ -118,8 +120,33 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
 """
 
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", 1)
+def _compile_generated_source(source_text):
+    try:
+        return compile(source_text, str(source_path), "exec")
+    except SyntaxError as error:
+        lines = source_text.splitlines()
+        line_number = int(getattr(error, "lineno", 1) or 1)
+        start = max(1, line_number - 2)
+        end = min(len(lines), line_number + 2)
+        context = "\n".join(
+            "%4d | %s" % (number, lines[number - 1])
+            for number in range(start, end + 1)
+        )
+        raise RuntimeError(
+            "generated tunic audit source failed syntax validation: %s at line %d\n%s"
+            % (error.msg, line_number, context)
+        ) from error
+
+
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
-exec(compile(source, str(source_path), "exec"), globals(), globals())
+compiled_source = _compile_generated_source(source)
+if "--syntax-check" in sys.argv:
+    print(
+        "tunic-audit-source-syntax=passed lines=%d" % len(source.splitlines()),
+        flush=True,
+    )
+    raise SystemExit(0)
+exec(compiled_source, globals(), globals())
 print("tunic-audit-process-exit=success", flush=True)
 os._exit(0)
