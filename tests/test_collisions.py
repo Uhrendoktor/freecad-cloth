@@ -46,9 +46,13 @@ def test_mesh_corner_collision_resolves_multiple_contact_planes():
         (3, 0, 4), (3, 4, 7),
     )
     surface = surface_from_triangles(vertices, triangles, region="cube", thickness=0.0)
-    state = ClothState([(9.0, 9.0, 9.0)], inverse_masses=[1.0])
     solver = XPBDClothSolver(gravity=(0.0, 0.0, 0.0), iterations=1)
+    from freecad_cloth.simulation.ClothSolver import Particle
+    solver.particles = [Particle(9.0, 9.0, 9.0, 1.0)]
     solver._collide_surface(surface)
-    x, y, z = state.positions[0]
-    solver._collide_surface(surface)
-   
+    x, y, z = solver.particles[0].position()
+    assert x >= 10.0 - 1e-9
+    assert y >= 10.0 - 1e-9
+    assert z >= 10.0 - 1e-9
+
+
