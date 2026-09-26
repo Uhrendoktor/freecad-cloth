@@ -137,6 +137,14 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert 'docker run --rm "$FREECAD_TUNIC_IMAGE" cat /opt/tissu-provenance.txt' in workflow
     assert 'artifacts/tissu-provenance.txt' in workflow
 
+def test_closed_tissu_collision_topology_is_not_coarsened():
+    source = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    assert 'source_closed = bool(getattr(collision_surface, "is_closed_manifold", False))' in source
+    assert 'if not source_closed:' in source
+    assert 'collision_surface = coarsen_collision_surface(collision_surface, collision_limit)' in source
+    assert 'preserving_closed_surface=true' in source
+
+
 def test_canonical_tunic_fixture_matches_validated_start_geometry():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert '"front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)"' in audit
