@@ -68,6 +68,7 @@ def test_fitting_exposes_target_arrangement_and_persists_reset_state():
     assert '"ClothFitting_SnapPiecesToTarget"' in source
     assert "scene.HomePlacements" in source
     assert 'scene.FitStatus = "Target snapped"' in source
+    assert 'raise ValueError("assign a current DrapeTarget before creating simulation")' in source
 def test_canonical_workflow_pr_validation_contract():
     root = Path(__file__).resolve().parents[1]
     workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
