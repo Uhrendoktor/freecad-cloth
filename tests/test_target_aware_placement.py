@@ -5,6 +5,7 @@ from freecad_cloth.avatar.TargetAwarePlacement import (
     TargetPlacementError,
     apply_rigid_delta,
     assert_minimum_surface_clearance,
+    minimum_surface_clearance_detail,
     require_ready_target_status,
     solve_rigid_z,
     target_surface_anchor,
@@ -53,6 +54,21 @@ def test_step_zero_clearance_is_enforced_against_authoritative_surface():
     with pytest.raises(TargetPlacementError):
         assert_minimum_surface_clearance(surface, ((0, 0, 11),), 8.0)
 
+
+def test_minimum_surface_clearance_detail_returns_worst_hit_normal():
+    surface = _box_surface()
+    clearance, hit = minimum_surface_clearance_detail(surface, ((0, 0, 11), (0, 0, 8)))
+    assert clearance == pytest.approx(-2.0)
+    assert hit.normal == (0.0, 0.0, 1.0)
+
+
+def test_target_clearance_correction_is_bounded_and_uses_worst_sample_normal():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    fitting = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    assert "minimum_surface_clearance_detail" in fitting
+    assert "while piece_clearance < float(clearance) - 1e-6 and correction_count < 8" in fitting
+    assert "worst_hit.normal[0]" in fitting
 
 def test_stale_or_missing_targets_fail_closed():
     with pytest.raises(TargetPlacementError):
