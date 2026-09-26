@@ -46,6 +46,13 @@ class AvatarFittingTests(unittest.TestCase):
         placement = PiecePlacement("front", (1.5, -2.0, 3.25), 90.0)
         self.assertEqual(PiecePlacement.from_string(placement.to_string()), placement)
 
+    def test_piece_placement_preserves_full_axis_angle_transform(self):
+        placement = PiecePlacement("front", (1.5, -2.0, 3.25), 90.0, (1.0, 0.0, 0.0))
+        restored = PiecePlacement.from_string(placement.to_string())
+        self.assertEqual(restored, placement)
+        self.assertEqual(restored.rotation_axis, (1.0, 0.0, 0.0))
+
+
     def test_arrangement_point_round_trip_and_mirror(self):
         point = ArrangementPoint("shoulder-left", 120, 80, 15, "left", 10, "shoulders")
         self.assertEqual(ArrangementPoint.from_string(point.to_string()), point)
@@ -59,6 +66,16 @@ class AvatarFittingTests(unittest.TestCase):
         with self.assertRaises(ValueError): ArrangementPoint("", wrap_direction="front").validate()
         with self.assertRaises(ValueError): ArrangementPoint("p", wrap_direction="inside").validate()
         with self.assertRaises(ValueError): BoundingVolume("body", size=(1, 0, 2)).validate()
+
+    def test_fitting_scene_round_trip_preserves_target_placement_metadata(self):
+        scene = FittingScene(
+            arrangement_target_signature="target-signature",
+            target_placement_clearance=9.5,
+            target_placement_max_translation=900.0,
+            target_placement_max_rotation=120.0,
+        )
+        restored = FittingScene.from_json(scene.to_json())
+        self.assertEqual(restored, scene)
 
     def test_fitting_scene_round_trip_preserves_arrangement_metadata(self):
         scene = FittingScene(BodyMeasurements({"waist": 760}), "Avatar", (PiecePlacement("front", (1, 2, 3), 15),), (ArrangementPoint("chest", 10, 20, 5, "front", 30, "torso"),), (BoundingVolume("torso", (0, 0, 50), (400, 250, 800)),), False)
