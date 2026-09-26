@@ -5,7 +5,7 @@ The project uses a complexity ladder so a new user can validate the installation
 | Example | Complexity | What it demonstrates | Visual validation |
 |---|---|---|---|
 | Blanket over Cube | Basic | one native Sketcher pattern, one FreeCAD collision target, pins, gravity and drape | five checkpoints + motion GIF |
-| Tunic | Advanced | multiple native pattern pieces, semantic seams, mannequin collision, material/quality controls, diagnostics and production export | six views + diagnostic map + arranged/draped turntables + motion GIF |
+| Tunic | Advanced | native Sketcher pieces, semantic seams, persistent DrapeTarget, Arrange / Fit, target-aware placement, material/quality controls, diagnostics and simulation | six-side FreeCAD GUI audit + solver/visual metrics |
 
 ## 1. Blanket over Cube
 
@@ -24,9 +24,20 @@ This fixture intentionally avoids the human avatar so users can isolate cloth, c
 
 ## 2. Tunic
 
-The tunic is the full garment acceptance scenario. It uses two pattern pieces, semantic sewing, a production MakeHuman mannequin, persisted quality/material settings, diagnostics, save/reload and invalidation.
+The tunic is the advanced end-to-end scenario. It uses two native Sketcher PatternPieces, semantic seams, a persistent mannequin DrapeTarget, fitting metadata, quality/material settings, diagnostics and a real FreeCAD GUI/simulation audit.
 
-Use the generated artifacts only as evidence: the tunic is not a substitute for the simpler blanket when debugging a local installation.
+### Arrange / Fit
+
+1. Create the mannequin and persistent DrapeTarget.
+2. Create a Fitting Scene and add the front/back PatternPieces.
+3. Use Arrangement Points or saved piece placements for deterministic manual positioning.
+4. From **Cloth Simulation → Arrange / Fit**, use **Snap pieces to target** only when authored GarmentAnchors are present. The action is bounded by the persistent DrapeTarget and validates complete piece-surface clearance.
+5. Use **Reset arrangement** to return to the saved home placements.
+6. If the mannequin changes, use **Refresh target** before fitting or simulation.
+
+The production audit exercises the same fitting command through the actual Simulation task-panel button; it is not a separate fixture-only placement path.
+
+Use generated artifacts as evidence: the tunic remains more complex than the blanket smoke test.
 
 ## Visual regression policy
 
