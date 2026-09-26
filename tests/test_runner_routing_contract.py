@@ -104,7 +104,12 @@ def test_broker_dispatches_immutable_pr_head_sha_and_checkout_avoids_ephemeral_m
     assert "refs/pull/{0}/merge" not in source
 
 
-def test_stale_run_cleanup_tolerates_only_completed_run_409():
+def test_stale_run_cleanup_tolerates_only_completed_or_canceled_409():
     source = WORKFLOW.read_text(encoding="utf-8")
-    assert "HTTP 409" in source
-    assert 'exit "$cancel_status"' in source
+    assert 'cancel_run "$run_id"' in source
+    assert '[[ "$cancel_output" == *"HTTP 409"* ]]' in source
+    assert 'Cannot cancel a workflow run that is completed' in source
+    assert 'Cannot cancel a workflow run that is canceled' in source
+    assert 'echo "$cancel_output" >&2' in source
+    assert 'return "$cancel_status"' in source
+    assert 'grep -q "HTTP 409"' not in source
