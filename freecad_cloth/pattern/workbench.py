@@ -16,6 +16,10 @@ class ClothPatternWorkbench(ClothWorkbenchBase):
         super().__init__()
         self.Icon = str(Path(__file__).resolve().parents[2] / "resources" / "icons" / "ClothPattern.svg")
 
+    def Activated(self):
+        from freecad_cloth.sewing.SewingView import refresh_seam_colors
+        refresh_seam_colors()
+
     def Initialize(self):
         if self.commands:
             return
