@@ -46,11 +46,11 @@ class SimulationQualityTaskPanel:
         self.fitting_status.setWordWrap(True)
         self.fitting_status.setObjectName("ClothSimulationFittingStatus")
         self.arrange_fit_button = QtWidgets.QPushButton("Arrange / Fit…")
-        self.snap_to_target_button = QtWidgets.QPushButton("Snap pieces to target")
+
         self.arrange_fit_button.setObjectName("ClothSimulationArrangeFitButton")
-        self.snap_to_target_button.setObjectName("ClothSimulationSnapToTargetButton")
+
         self.arrange_fit_button.setToolTip("Open the existing fitting stage with the current simulation garment pieces.")
-        self.snap_to_target_button.setToolTip("Apply the production bounded target-aware placement to the current fitting pieces.")
+
         self.reset_arrangement_button = QtWidgets.QPushButton("Reset arrangement")
         self.reset_arrangement_button.setObjectName("ClothSimulationResetArrangementButton")
         self.reset_arrangement_button.setToolTip("Restore the fitting stage to its saved pre-arrangement placements.")
@@ -58,7 +58,7 @@ class SimulationQualityTaskPanel:
         flayout.addWidget(self.fitting_status)
         fit_buttons = QtWidgets.QHBoxLayout()
         fit_buttons.addWidget(self.arrange_fit_button)
-        fit_buttons.addWidget(self.snap_to_target_button)
+
         fit_buttons.addWidget(self.reset_arrangement_button)
         flayout.addLayout(fit_buttons)
         root.addWidget(fitting)
@@ -89,7 +89,7 @@ class SimulationQualityTaskPanel:
         self.quality.currentTextChanged.connect(self._preset_changed)
         self.pin_mode.currentTextChanged.connect(self._parameters_changed)
         self.arrange_fit_button.clicked.connect(self.open_arrange_fit)
-        self.snap_to_target_button.clicked.connect(self.snap_to_target)
+
         self.reset_arrangement_button.clicked.connect(self.reset_arrangement)
         self.refresh_target_button.clicked.connect(self._refresh_target)
         self.fabric_color.clicked.connect(self._choose_fabric_color)
@@ -110,14 +110,6 @@ class SimulationQualityTaskPanel:
         message, can_reset = fitting_stage_status(self.scene)
         self.fitting_status.setText(message)
         self.reset_arrangement_button.setEnabled(bool(can_reset))
-        target_ready = False
-        if self.scene is not None:
-            try:
-                from freecad_cloth.simulation.DrapeTarget import target_status
-                target_info = target_status(getattr(self.scene, "DrapeTarget", None))
-                target_ready = target_info["state"] == "ready" and bool(self.scene)
-            except Exception:
-                target_ready = False
         self.snap_to_target_button.setEnabled(target_ready)
 
     def open_arrange_fit(self):
@@ -130,20 +122,8 @@ class SimulationQualityTaskPanel:
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             self.status.setText("Arrange / Fit unavailable — %s" % exc)
 
-    def snap_to_target(self):
-        if self.scene is None:
-            self.status.setText("Create or select a Cloth Simulation object before snapping pieces to target.")
-            return
+    def reset_arrangement(self):
         try:
-            from freecad_cloth.simulation.FittingHandoff import open_arrange_fit_from_simulation
-            from freecad_cloth.avatar.FittingCommands import snap_pattern_pieces_to_target
-            fitting = open_arrange_fit_from_simulation(self.scene)
-            snap_pattern_pieces_to_target(tuple(getattr(fitting, "PatternPieces", ()) or ()))
-            self._refresh("Garment pieces arranged on the persistent DrapeTarget.")
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            self.status.setText("Target-aware arrangement unavailable — %s" % exc)
-
-    def reset_arrangement(self):\n        try:
             from freecad_cloth.simulation.FittingHandoff import reset_arrangement_from_simulation
             reset_arrangement_from_simulation()
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
@@ -277,7 +257,7 @@ class SimulationQualityTaskPanel:
         if self.scene is None:
             self.step_button.setEnabled(False); self.run_button.setEnabled(False); self.reset_button.setEnabled(False)
             self.arrange_fit_button.setEnabled(False)
-            self.snap_to_target_button.setEnabled(False)
+        
             self.refresh_target_button.setEnabled(False)
             self.target_context.setText("No simulation scene is selected.")
             self.status.setText(message or "Create or select a Cloth Simulation object.")
