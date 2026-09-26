@@ -699,6 +699,10 @@ def run_acceptance():
                 raise RuntimeError("native Sketcher edit did not invalidate downstream curved seam: %s" % seam_11.Status)
             print("invalidation=passed seam=%s" % seam_11.Status, flush=True)
 
+            # Keep the intentionally stale seam isolated from the simulation proxy while
+            # verifying that restoring Sketch geometry does not silently retarget it.
+            original_cloth_pieces = tuple(scene.ClothPieces)
+            scene.ClothPieces = []
             curved.Sketch.setDatum(dimensional, App.Units.Quantity("50 mm"))
             reloaded.recompute()
             if str(seam_11.Status) not in {"Changed reference", "Missing reference"}:
@@ -706,6 +710,8 @@ def run_acceptance():
             _select_objects(seam_11)
             Gui.runCommand("ClothSewing_RepairSeam", 0)
             _events()
+            reloaded.recompute()
+            scene.ClothPieces = list(original_cloth_pieces)
             reloaded.recompute()
             if str(seam_11.Status) != "Valid":
                 raise RuntimeError("explicit seam repair did not recover the curved seam")
