@@ -133,3 +133,13 @@ def test_target_aware_command_icon_and_ci_evidence_contract():
     assert "grep -q 'first-step-target-clearance=' docs/images/generated/gui-progress.log" in workflow
     assert "grep -q 'pin-mode=None solver-pins=0' docs/images/generated/gui-progress.log" in workflow
     assert "cloth-simulation-arranged.png" in workflow
+
+
+def test_rigid_anchor_transform_preserves_intra_panel_anchor_distance():
+    source = ((-20.0, 0.0, 10.0), (20.0, 0.0, 10.0))
+    target = ((-15.0, 25.0, 13.0), (15.0, 25.0, 13.0))
+    delta = solve_rigid_z(source, target, max_translation=100.0, max_rotation=45.0)
+    transformed = apply_rigid_delta(source, delta)
+    def distance(a, b):
+        return sum((a[i] - b[i]) ** 2 for i in range(3)) ** 0.5
+    assert distance(source[0], source[1]) == pytest.approx(distance(transformed[0], transformed[1]))
