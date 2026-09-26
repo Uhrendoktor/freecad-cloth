@@ -162,14 +162,20 @@ bool intersectSegmentTriangle(
         raise RuntimeError("MeshCollider.cpp include anchor mismatch")
     cpp = cpp.replace(include_old, include_new, 1)
 
-    replace_cpp = [
-        (
-            """    m_triangles.reserve(indices.size() / 3);
+    def replace_cpp_once(old: str, new: str, label: str) -> None:
+        nonlocal cpp
+        count = cpp.count(old)
+        if count != 1:
+            raise RuntimeError(f"{label}: expected one source anchor, found {count}")
+        cpp = cpp.replace(old, new, 1)
+
+    replace_cpp_once(
+        """    m_triangles.reserve(indices.size() / 3);
     for (size_t i = 0; i + 2 < indices.size(); i += 3)
         m_triangles.emplace_back(indices[i], indices[i + 1], indices[i + 2]);
 
     m_bvh.build(m_worldVertices, m_triangles);""",
-            """    m_triangles.reserve(indices.size() / 3);
+        """    m_triangles.reserve(indices.size() / 3);
     for (size_t i = 0; i + 2 < indices.size(); i += 3)
         m_triangles.emplace_back(indices[i], indices[i + 1], indices[i + 2]);
 
@@ -179,16 +185,17 @@ bool intersectSegmentTriangle(
     m_outwardNormalSign = orientation.outwardNormalSign;
 
     m_bvh.build(m_worldVertices, m_triangles);""",
-            "MeshCollider.cpp file constructor",
-        ),
-        (
-            """    m_triangles.reserve(triangles.size());
+        "MeshCollider.cpp file constructor",
+    )
+
+    replace_cpp_once(
+        """    m_triangles.reserve(triangles.size());
     for (const auto& tri : triangles) {
         m_triangles.emplace_back(tri[0], tri[1], tri[2]);
     }
 
     m_bvh.build(m_worldVertices, m_triangles);""",
-            """    m_triangles.reserve(triangles.size());
+        """    m_triangles.reserve(triangles.size());
     for (const auto& tri : triangles) {
         m_triangles.emplace_back(tri[0], tri[1], tri[2]);
     }
@@ -199,16 +206,17 @@ bool intersectSegmentTriangle(
     m_outwardNormalSign = orientation.outwardNormalSign;
 
     m_bvh.build(m_worldVertices, m_triangles);""",
-            "MeshCollider.cpp vector constructor",
-        ),
-        (
-            """        if (distance <= thickness) {
+        "MeshCollider.cpp vector constructor",
+    )
+
+    replace_cpp_once(
+        """        if (distance <= thickness) {
             Eigen::Vector3d normal = (distance > 1e-6)
                                          ? toParticle.normalized()
                                          : ((b - a).cross(c - a)).normalized();
 
             Eigen::Vector3d newPosition = cp + normal * thickness;""",
-            """        bool sweptHit = false;
+        """        bool sweptHit = false;
         Eigen::Vector3d collisionPoint = cp;
         Eigen::Vector3d sweptFaceNormal;
         if (m_closedManifold) {
@@ -292,14 +300,8 @@ bool intersectSegmentTriangle(
 
             Eigen::Vector3d newPosition =
                 collisionPoint + normal * thickness;""",
-            "MeshCollider.cpp contact response",
-        ),
-    ]
-    for old, new, label in replace_cpp:
-        count = cpp.count(old)
-        if count != 1:
-            raise RuntimeError(f"{label}: expected one source anchor, found {count}")
-        cpp = cpp.replace(old, new, 1)
+        "MeshCollider.cpp contact response",
+    )
     Path(cpp_path := ROOT / "core/src/physics/MeshCollider.cpp").write_text(cpp, encoding="utf-8")
 
     test_cpp = test.read_text(encoding="utf-8")
