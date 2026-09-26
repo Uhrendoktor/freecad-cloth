@@ -361,6 +361,21 @@ def simulation():
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
+    from freecad_cloth.avatar.FittingCommands import snap_pattern_pieces_to_target
+    snap_results = snap_pattern_pieces_to_target(
+        [front, back],
+        clearance=max(8.0, 0.03 * body_depth),
+        max_translation=240.0,
+    )
+    if len(snap_results) != 2 or any(
+        float(result["distance_after"]) + 1e-6 < float(result["clearance"])
+        for result in snap_results
+    ):
+        raise RuntimeError("target-aware tunic placement did not establish step-0 surface clearance")
+    log(
+        "tunic-arrangement=target-aware step0-clearance=true results=%s"
+        % json.dumps(snap_results, sort_keys=True)
+    )
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
     def authored_shoulder_pins(piece, particle_indices, positions):
         targets = (
