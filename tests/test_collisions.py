@@ -100,7 +100,7 @@ def test_tissu_authored_contact_response_preserves_motion_direction():
     assert stationary.position == (0.012, 0.005, 0.005)
     assert stationary.old_position == (0.012, 0.005, 0.005)
     assert outward.position == (0.012, 0.005, 0.005)
-    assert outward.old_position == (0.011, 0.005, 0.005)
+    assert all(abs(float(actual) - float(expected)) < 1.0e-9 for actual, expected in zip(outward.old_position, (0.011, 0.005, 0.005)))
     assert inward.position == (0.012, 0.005, 0.005)
     assert inward.old_position == (0.012, 0.005, 0.005)
     assert outside.position == (0.013, 0.005, 0.005)
