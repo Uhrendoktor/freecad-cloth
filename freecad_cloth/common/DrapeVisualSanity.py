@@ -142,8 +142,8 @@ def inspect_drape(
     )
 
 
-_FATAL_DUTY_STATES = frozenset({"detached-candidate"})
-_FATAL_DUTY_DIAGNOSTICS = frozenset(
+_FATAL_VISUAL_STATES = frozenset({"detached-candidate"})
+_FATAL_VISUAL_DIAGNOSTICS = frozenset(
     {"lateral-detached-candidate", "collapsed-candidate", "below-hem-candidate"}
 )
 
