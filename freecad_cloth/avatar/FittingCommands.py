@@ -174,7 +174,13 @@ def add_selected_pattern_pieces():
     for piece in pieces:
         placement = piece.Placement
         base = placement.Base
-        value = PiecePlacement(str(piece.PieceId), (float(base.x), float(base.y), float(base.z)), float(placement.Rotation.Angle))
+        axis = placement.Rotation.Axis
+        value = PiecePlacement(
+            str(piece.PieceId),
+            (float(base.x), float(base.y), float(base.z)),
+            float(placement.Rotation.Angle),
+            (float(axis.x), float(axis.y), float(axis.z)),
+        )
         by_id[value.piece_id] = value
         home_by_id.setdefault(value.piece_id, value)
     scene.PatternPieces = sorted(set(list(scene.PatternPieces) + pieces), key=lambda o: str(o.PieceId))
@@ -333,8 +339,13 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=7
             results.append({"piece_id": str(piece.PieceId), "translation_mm": float(total_travel), "minimum_signed_clearance_mm": float(report.minimum_signed_clearance), "triangle_index": int(report.projection.triangle_index)})
         placements = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)}
         for piece in selected:
-            final = piece.Placement; base = final.Base
-            placements[str(piece.PieceId)] = PiecePlacement(str(piece.PieceId), (float(base.x), float(base.y), float(base.z)), float(final.Rotation.Angle))
+            final = piece.Placement; base = final.Base; axis = final.Rotation.Axis
+            placements[str(piece.PieceId)] = PiecePlacement(
+                str(piece.PieceId),
+                (float(base.x), float(base.y), float(base.z)),
+                float(final.Rotation.Angle),
+                (float(axis.x), float(axis.y), float(axis.z)),
+            )
         scene.PiecePlacements = [placements[key].to_string() for key in sorted(placements)]
         if tuple(scene.HomePlacements) != home_before:
             raise RuntimeError("target-aware placement mutated HomePlacements")
@@ -496,7 +507,8 @@ def reset_arrangement():
         if piece is None:
             continue
         x, y, z = placement.position
-        piece.Placement = App.Placement(App.Vector(x, y, z), App.Rotation(App.Vector(0, 0, 1), placement.rotation_z))
+        axis = getattr(placement, "rotation_axis", (0.0, 0.0, 1.0))
+        piece.Placement = App.Placement(App.Vector(x, y, z), App.Rotation(App.Vector(*axis), placement.rotation_z))
         current[pid] = placement
     scene.PiecePlacements = [current[k].to_string() for k in sorted(current)]
     scene.FitStatus = "Arrangement reset"
