@@ -110,3 +110,9 @@ def test_canonical_tunic_fixture_uses_narrow_panel_ease():
 def test_canonical_tunic_fixture_uses_experimental_clearance_profile():
     fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "clearance = max(8.0, 0.025 * body_depth);" in fixture
+
+
+def test_tissu_mesh_collision_uses_bounded_derived_surface():
+    source = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    assert "coarsen_collision_surface(self._collision_surface, 512)" in source
+    assert "Keep the persistent DrapeTarget authoritative" in source
