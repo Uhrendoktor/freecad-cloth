@@ -428,12 +428,14 @@ def build_simulation_state(doc):
     positions = tuple(proxy.backend.positions())
     panel_indices = tuple(proxy.panel_indices[panel.Name])
     half = 0.5 * BLANKET_SIZE
+    mesh_positions, _, _ = quality_piece_mesh(blanket, 0.0, BLANKET_PARTICLE_DISTANCE)
     pin_targets = (
         App.Vector(-half, 0.0, 150.0),
         App.Vector(half, 0.0, 150.0),
     )
-    pins = _nearest_pin_indices(panel_indices, positions, pin_targets)
-    span = abs(float(positions[pins[1]][0]) - float(positions[pins[0]][0]))
+    quality_indices = _nearest_pin_indices(tuple(range(len(mesh_positions))), mesh_positions, pin_targets)
+    pins = tuple(int(panel_indices[index]) for index in quality_indices)
+    span = abs(float(mesh_positions[quality_indices[1]][0]) - float(mesh_positions[quality_indices[0]][0]))
     if span < 0.75 * BLANKET_SIZE:
         raise RuntimeError("blanket edge-midpoint pins are not opposite: span=%.3f" % span)
     scene.PinSelection = [str(index) for index in pins]
