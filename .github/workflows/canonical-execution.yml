@@ -195,12 +195,7 @@ jobs:
           done
 
           echo "runner-watchdog=fallback reason=local-sentinel-not-started"
-          ref="$GITHUB_REF"
-          if [[ "$ref" != refs/* ]]; then
-            ref="$GITHUB_REF_NAME"
-          else
-            ref="${ref#refs/}"
-          fi
+          ref="$GITHUB_REF_NAME"
           gh workflow run canonical-execution.yml \
             --repo "$REPO" \
             --ref "$ref" \
