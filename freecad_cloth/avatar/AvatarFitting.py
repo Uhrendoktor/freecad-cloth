@@ -7,6 +7,12 @@ from dataclasses import dataclass, field
 import json
 from typing import Dict, Mapping, Tuple
 
+from freecad_cloth.avatar.AvatarArrangement import (
+    ARRANGEMENT_POINT_DEFAULT_ROTATION,
+    ARRANGEMENT_POINT_DEFAULT_SYMMETRY,
+    ARRANGEMENT_POINT_DEFAULT_WRAP,
+)
+
 
 _DEFAULT_MEASUREMENTS = {
     "height": 1700.0,
@@ -125,18 +131,21 @@ class ArrangementPoint:
 
     @classmethod
     def from_string(cls, value: str) -> "ArrangementPoint":
+        """Read canonical five-field records and preserve two-field legacy records."""
         parts = str(value).split("|")
         if len(parts) == 2:
             # Existing FreeCAD documents store landmark-backed arrangement
             # points as name|x,y,z. Normalize that legacy form to the
-            # dataclass defaults without changing persisted coordinates.
+            # legacy ABI unchanged, without changing persisted coordinates.
             name, position = parts
-            wrap, rotation, symmetry = "front", 0.0, ""
+            wrap = ARRANGEMENT_POINT_DEFAULT_WRAP
+            rotation = ARRANGEMENT_POINT_DEFAULT_ROTATION
+            symmetry = ARRANGEMENT_POINT_DEFAULT_SYMMETRY
         elif len(parts) == 5:
             name, position, wrap, rotation, symmetry = parts
         else:
-            raise ValueError("arrangement point requires name|x,y,z or "
-                             "name|x,y,z|wrap|rotation|symmetry")
+            raise ValueError("arrangement point requires canonical "
+                             "name|x,y,z|wrap|rotation|symmetry or legacy name|x,y,z")
         coords = tuple(float(v) for v in position.split(","))
         if len(coords) != 3:
             raise ValueError("arrangement point position requires x, y, and offset")
