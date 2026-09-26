@@ -303,7 +303,8 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
     from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
     from freecad_cloth.avatar.TargetAwarePlacement import (
         TargetPlacementError, assert_minimum_surface_clearance, minimum_surface_clearance,
-        minimum_surface_clearance_detail, require_ready_target_status,
+        minimum_surface_clearance_detail, minimum_target_vertex_clearance,
+        require_ready_target_status,
         solve_rigid_z, target_surface_anchor, wrap_normal,
     )
     if getattr(piece, "PatternType", "") != "PatternPiece":
@@ -350,9 +351,15 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
         anchor_clearance = assert_minimum_surface_clearance(surface, placed_points, float(clearance))
         piece_points = _piece_world_surface_points(piece, deflection=max(0.25, float(clearance) / 2.0))
         piece_clearance, worst_hit = minimum_surface_clearance_detail(surface, piece_points)
+        vertex_clearance = minimum_target_vertex_clearance(surface, piece_points)
         correction_count = 0
-        while piece_clearance < float(clearance) - 1e-6 and correction_count < 8:
-            correction = float(clearance) - float(piece_clearance)
+        while (
+            (piece_clearance < float(clearance) - 1e-6 or vertex_clearance < float(clearance) - 1e-6)
+            and correction_count < 8
+        ):
+            surface_deficit = float(clearance) - float(piece_clearance)
+            vertex_deficit = float(clearance) - float(vertex_clearance)
+            correction = max(surface_deficit, vertex_deficit)
             correction_vec = App.Vector(
                 float(worst_hit.normal[0]) * correction,
                 float(worst_hit.normal[1]) * correction,
@@ -366,8 +373,14 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
                 sketch.Placement = piece.Placement
             piece_points = _piece_world_surface_points(piece, deflection=max(0.25, float(clearance) / 2.0))
             piece_clearance, worst_hit = minimum_surface_clearance_detail(surface, piece_points)
+            vertex_clearance = minimum_target_vertex_clearance(surface, piece_points)
             correction_count += 1
         piece_clearance = assert_minimum_surface_clearance(surface, piece_points, float(clearance))
+        if vertex_clearance < float(clearance) - 1e-6:
+            raise TargetPlacementError(
+                "target-aware vertex clearance %.6f mm is below the required %.6f mm"
+                % (float(vertex_clearance), float(clearance))
+            )
         if scene is not None:
             entries = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)}
             axis = piece.Placement.Rotation.Axis
