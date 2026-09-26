@@ -131,6 +131,8 @@ def test_fitting_action_checks_the_complete_piece_surface_not_only_anchors():
     assert "resolve_piece_ir(piece)" in fitting
     assert "geometry_from_piece_ir(piece_ir)" in fitting
     assert "piece_clearance = assert_minimum_surface_clearance" in fitting
+    assert "minimum_surface_clearance_hit" in fitting
+    assert "range(8)" in fitting
 
 def test_target_snap_contract_is_atomic_and_matches_simulation_panel_adapter():
     from pathlib import Path
