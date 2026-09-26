@@ -392,7 +392,7 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=6
         scene.FitStatus = status_before
         if tuple(scene.HomePlacements) != home_before:
             scene.HomePlacements = list(home_before)
-        scene.DrapeTarget = target_before
+        scene.DrapeTarget = drape_target_before
         doc.recompute()
         raise
 
