@@ -3,75 +3,204 @@
 FreeCAD Cloth has three cooperating native workbenches:
 
 - **Cloth Pattern** — author and inspect 2D pattern pieces.
-- **Cloth Sewing** — create, edit and validate semantic sewing relationships.
-- **Cloth Simulation** — choose a fitting target, arrange, mesh, drape and inspect results.
+- **Cloth Sewing** — create, edit and validate semantic sewing relationships, plus fitting/avatar arrangement.
+- **Cloth Simulation** — create the DrapeTarget, configure quality/material state and simulate.
 
-## Production 2D export
+The public command IDs below are useful when reproducing a scenario or when a command is easier to find by its stable name.
 
-In the Cloth Pattern workbench, select a PatternPiece and run the public `ClothPattern_Export` command. The task panel emits deterministic SVG or DXF derived from the authoritative native Sketcher geometry and reports piece/edge/seam identities, units, scale, seam allowance and construction-mark metadata. Export is read-only: source PatternPiece/Sketch state is not mutated.
+## Pattern workbench
 
-Exports fail closed when the selected piece has missing native geometry or invalid/stale semantic seam references. Re-running an export with identical document state produces byte-identical output.
+### New pattern piece
 
-## User workflow
+Use **Create Pattern Piece Task** (ClothPattern_CreatePieceTask) or **Create Pattern Piece With Sketch** (ClothPattern_CreatePiece).
 
-### 1. Pattern
+The PatternPiece task panel exposes:
 
-Create at least two PatternPieces. Use the native Sketcher representation for editable dimensions, constraints and curves. The normal Cloth Pattern authoring/editing commands are Sketcher-backed (`ClothPattern_CreatePieceWithSketch`, `ClothPattern_CreateFromSketch`, and `ClothPattern_EditSketch`); `ClothPattern_EditPiece` exposes persistent garment metadata and an explicit **Edit native Sketch…** action rather than a second geometry editor. Add seam allowance, notches, grainline and internal-mark metadata as needed. Recompute and validate before sewing.
+- Piece name
+- Geometry source
+- Width (derived)
+- Height (derived)
+- Seam allowance
+- Grainline angle
+- **Edit native Sketch…** when the piece is Sketcher-authoritative
 
-The former `PatternDrafting` polygon editor is compatibility-only. Its parser and persisted `DraftingBoundary` data remain supported for legacy documents, but no normal Pattern workbench menu, toolbar or command registers that editor.
+The authoritative authoring path is native FreeCAD Sketcher. Public command IDs include:
 
-### 2. Sewing
+- ClothPattern_CreatePieceTask
+- ClothPattern_CreatePiece
+- ClothPattern_CreatePieceWithSketch
+- ClothPattern_CreateFromSketch
+- ClothPattern_EditSketch
+- ClothPattern_EditPiece
+- ClothPattern_Show2D
+- ClothPattern_RepairTopology
+- ClothPattern_Export
 
-Select compatible pattern edges/ranges and explicitly create a seam or M:N/free sewing relationship. Review direction, reversal, correspondence and length diagnostics before committing. Use the task panel for staged operations and the Property Editor for persistent state.
+The former PatternDrafting polygon editor is compatibility-only for legacy documents. It is not the normal Pattern workbench authoring command.
 
-If a Sketch edit invalidates a semantic edge reference, the seam remains invalid until explicitly repaired/recreated. Never rely on generated mesh edge order. Seam objects are assigned deterministic colors. In the sewing task panel, **Focus seam in 3D** fits the assembled world-space seam; **Edit side A/B in Sketcher** opens the authoritative native Sketcher source and selects the semantic edge used by the seam.
+### Production 2D export
 
-### 3. Arrange and fit
+Select a PatternPiece and run **Export Pattern** (ClothPattern_Export). The task panel produces deterministic SVG or DXF derived from the authoritative native Sketcher geometry and preserves the source document.
 
-Create/select a `DrapeTarget`: either the native human mannequin or an ordinary FreeCAD Shape/PartDesign/Body/Mesh. Arrange pieces using persistent placements/arrangement metadata. Reset and superimpose are deterministic fitting operations, not solver state.
+Exports fail closed when required native geometry or semantic seam references are missing/stale.
 
-### 4. Simulate
+## Sewing workbench
 
-Generate a preview/final mesh, choose material and quality, confirm target validity, then Run. Step is for controlled/debug advancement; Reset recovers simulation state. Pinning is persistent and explicit: **Automatic** preserves the legacy behavior (use `PinSelection` when present, otherwise the existing automatic boundary pins), **Explicit** uses only `PinSelection`, and **None** runs with zero solver pins. Changing the pinning mode or selection participates in the deterministic rebuild signature. Pins/stitches and collision settings are persistent inputs. Fabric presentation properties include color, specular response, roughness and transparency and are persisted with the simulation/material state.
+### Create a seam
 
-### 5. Iterate
+The normal selection contract is exact and deliberate:
 
-After pattern, seam or target edits: recompute, inspect the stale/invalid reason, refresh/rebuild the affected derived state, then simulate again. A stale target must never be silently substituted or consumed.
+1. Select a PatternPiece edge.
+2. Select one edge on a second PatternPiece.
+3. Run **Create Seam** (ClothSewing_CreateSeam).
+4. Use the staged **Preview** action.
+5. Inspect validation.
+6. **Commit** or **Cancel**.
 
-## Native garment hierarchy
+The task panel is transactional: Preview stages the normal persisted objects; Commit closes the transaction; Cancel aborts it.
 
-Use the public `ClothPattern_CreateGarment` command to create a production garment document. The FCStd document remains the only persistence authority: the native `Garment` root contains deterministic `Patterns`, `Sewing`, `Fabric`, `Avatar`, and `Simulation` groups. A persisted native `FabricMaterial` object lives in the Fabric group; pattern, sewing, fitting, avatar/target, and simulation outputs are linked into the corresponding group when the garment root exists. Existing standalone object-creation commands remain supported in documents without a Garment root.
+Other sewing commands include:
 
-## Document authority
+- **Create M:N Sewing** — deterministic 1:N/M:1/M:N sewing relationships.
+- **Create Sewing Network** — group canonical seam segments into a sewing network.
+- **Free Sewing** — partial-edge sewing relationships.
+- **Create Sewing Operation** — build the persistent operation from the selected seam.
+- **Edit Sewing Operation** — edit alignment, orientation, tolerance and stitch samples.
+- **Reverse Seam** / **Toggle Seam Alignment** — change correspondence behavior.
+- **Validate Sewing** — report seam validity and length mismatches.
+- **Repair Seam** — repair reversible or invalid-range correspondence without hiding physical mismatch.
+- **Focus Seam in 3D** — isolate the selected seam and fit the view.
+- **Edit Seam Side A/B in Sketcher** — open the authoritative source edge for direct correction.
+- **Show Sewing 2D** — top view of pattern, seams and stitch correspondence.
 
-```text
-Sketcher geometry
-      ↓
-PatternPiece / PatternMark
-      ↓
-PatternIR + SewingGraph
-      ↓
-SimulationScene + DrapeTarget
-      ↓
-Derived mesh / solver state
-```
+### Seam colors
+
+Seams use deterministic colors in the 2D sewing view and preserve the placed/world-space 3D presentation. Use **Show Sewing 2D** or **Focus Seam in 3D** when a seam is difficult to identify.
+
+## Fitting and avatar
+
+The fitting/avatar commands live in the **Cloth Sewing** workbench under **Fitting & Avatar**.
+
+Typical sequence:
+
+1. **Create Avatar** (ClothFitting_CreateAvatar).
+2. **Edit Avatar** (ClothFitting_EditAvatar) to change Body measurements, Proportions, Avatar provider, Pose and Display.
+3. **Create Fitting Scene** (ClothFitting_CreateScene).
+4. Select PatternPieces and run **Add Selected Pattern Pieces** (ClothFitting_AddPieces).
+5. Use **Create Arrangement Point**, **Set Arrangement Point**, and **Apply Selected Arrangement** to establish persistent placements.
+6. Use **Reset Arrangement** when needed.
+7. Create the simulation from the fitting scene with **Create Simulation**.
+
+The avatar editor has pose presets **standing**, **sewing**, and **sitting**, plus an explicit **Apply & Rebuild** action.
+
+Arrangement points are persistent placement metadata. They are a deterministic foundation for garment placement, not a generic automatic body-snap algorithm.
+
+## Drape Target
+
+The DrapeTarget is the authoritative collision input for simulation.
+
+Public commands:
+
+- **Create Target** (ClothDrape_CreateTarget) — use the selected FreeCAD Shape/Mesh.
+- **Create Mannequin Target** (ClothDrape_CreateMannequinTarget) — use the Cloth mannequin.
+- **Edit Drape Target** (ClothDrape_EditTarget).
+- **Refresh Drape Target** (ClothDrape_RefreshTarget).
+- **Enable Target** / **Disable Target**.
+- **Cloth Diagnostics** after simulation.
+
+The target panel exposes:
+
+- Provider: **Mannequin** / **FreeCAD Geometry**
+- Source
+- Collision-quality preset: **Preview**, **Normal**, **Final**
+- Tessellation
+- Collision thickness
+- **Apply & Refresh**
+- **Cancel**
+
+**Apply & Refresh** rebuilds collision geometry. **Cancel** leaves the document unchanged.
+
+## Simulation
+
+Create or edit a simulation with:
+
+- **Create Simulation** (ClothSimulation_Create)
+- **Simulation Controls** (ClothSimulation_Edit)
+- **Step Simulation** (ClothSimulation_Step) — the task-panel button is **Step**.
+- **Run Simulation** (ClothSimulation_Run) — the task-panel button is **Run 30**.
+- **Reset Simulation** (ClothSimulation_Reset) — the task-panel button is **Reset**.
+
+The quality panel separates the authored simulation configuration into three groups:
+
+### Simulation quality
+
+- Preset: **Fast**, **Balanced**, **Final**
+- Pinning mode: **Automatic**, **Explicit**, **None**
+- Particle distance (mm)
+- Solver iterations
+- Solver substeps
+
+### Fabric
+
+- Density
+- Thickness
+- Stretch
+- Shear
+- Bend
+- Friction
+- Color
+- Specular
+- Roughness
+- Transparency
+
+### Collision / run
+
+- Avatar skin offset
+- Fallback sphere radius
+- Simulation steps
+- **Step**
+- **Run 30**
+- **Reset**
+
+The status message reports target state, solver state and pinning state. **Automatic** preserves legacy boundary-pin behavior, **Explicit** uses only PinSelection, and **None** produces zero solver pins. Run/Step is blocked when the DrapeTarget is stale, unbuilt, unassigned, invalid, missing or disabled.
+
+## Pattern → Sewing → Arrange/Fit → Simulate example
+
+For a compact reproducible garment flow:
+
+1. **Pattern:** create two native Sketcher sketches and adopt them with **Create Pattern Piece From Selected Sketch**.
+2. **Sewing:** select matching semantic edges, **Create Seam**, **Preview**, then **Commit**; create a Sewing Operation and validate it.
+3. **Arrange/Fit:** create a mannequin and fitting scene, add the two PatternPieces, create arrangement points and apply them to establish persistent placements.
+4. **Drape Target:** create the mannequin target and **Apply & Refresh** it.
+5. **Simulate:** create the simulation scene, verify the PatternPieces are linked in ClothPieces, select a quality preset, then use **Run 30**; use **Step** for debugging and **Reset** for recovery.
+6. **Inspect:** use seam focus and diagnostics before export/save.
+
+## Persistence and invalidation
 
 The saved FreeCAD document is authoritative. Transient GUI selection and previews are not.
 
-## UI/UX rules
+After a Pattern, seam-source or target edit:
 
-Task panels read **Context → Primary action → Secondary actions → Parameters → Recovery**.
+    recompute
+    → inspect stale/invalid reason
+    → repair semantic sewing only when the referenced identity survives
+    → refresh/rebuild the DrapeTarget
+    → simulate again
 
-Important state is visible in the document tree/Property Editor. Multi-step sewing stages selection before commit: `Enter` completes the stage, `Delete` undoes the latest stage, `Esc` cancels. Invalid selections are visibly rejected.
-
-Simulation shows target identity/validity before Run/Step. Quality/material controls are separate from target selection. Stale state always has an actionable recovery path.
+Do not compensate for stale state by changing generated mesh edge order or silently reassigning a seam.
 
 ## Troubleshooting
 
-**Workbench missing:** restart FreeCAD and verify the Cloth module is installed as a FreeCAD `Mod` package.
+**Workbench missing:** restart FreeCAD and verify the repository is installed as a FreeCAD Mod package.
 
-**Command disabled:** check the active document and selection; commands intentionally reject incomplete inputs.
+**Command disabled:** check the active document and selection. The commands intentionally reject incomplete inputs.
 
-**Seam invalid after editing:** recompute and validate; repair semantic references explicitly.
+**Seam invalid after editing:** use **Validate Sewing**, then **Repair Seam** only when the semantic edge still exists; otherwise recreate the seam.
 
-**Simulation stale:** inspect target/scene status, refresh the target or regenerate the derived mesh, then run again.
+**Drape target stale:** open **Edit Drape Target**, verify Provider/Source, and use **Apply & Refresh**.
+
+**Simulation blocked:** read the target status before changing solver quality. Stale collision state is intentionally fail-closed.
+
+**Simulation has no cloth:** verify the simulation object's ClothPieces links and recompute.
+
+**Tunic intersects the mannequin:** verify explicit arrangement/placements and target refresh first. The current release does not claim automatic CLO-style body snapping.
