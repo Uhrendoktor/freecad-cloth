@@ -72,7 +72,9 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
     log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
 '''
-anchor = '    for batch in (15,15,15,15,15,15):'
+anchor = '''    for batch in (15,15,15,15,15,15):
+        simulation_panel.step(batch); doc.recompute(); events()
+'''
 if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
 timed_anchor = '''    from time import perf_counter
@@ -111,6 +113,25 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
 """
 
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", 1)
+
+# Compile the transformed source before FreeCAD is started. If a future rewrite
+# drifts, fail immediately with the generated-source context instead of waiting
+# for a GUI timeout.
+try:
+    compile(source, str(source_path), "exec")
+except SyntaxError as error:
+    generated_lines = source.splitlines()
+    start = max(1, int(error.lineno or 1) - 3)
+    end = min(len(generated_lines), int(error.lineno or 1) + 3)
+    context = "\n".join(
+        "%04d: %s" % (line_number, generated_lines[line_number - 1])
+        for line_number in range(start, end + 1)
+    )
+    raise RuntimeError(
+        "generated tunic audit source failed syntax validation at %s:%s:\n%s"
+        % (source_path, error.lineno, context)
+    ) from error
+
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
 exec(compile(source, str(source_path), "exec"), globals(), globals())
