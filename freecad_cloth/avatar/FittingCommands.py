@@ -325,6 +325,280 @@ def apply_arrangement_point(piece, point, mirror=None):
     return position_piece(piece, point.x, point.y, point.offset, rotations[point.wrap_direction])
 
 
+
+def _target_world_surface(target):
+    """Return the authoritative DrapeTarget collision surface in world coordinates."""
+    import FreeCAD as App
+    from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
+
+    status = target_status(target)
+    if status["state"] != "ready":
+        raise ValueError("drape target is not ready: %s" % status["message"])
+    source = getattr(target, "SourceObject", None)
+    if source is None:
+        raise ValueError("drape target has no source object")
+    surface = collision_surface(
+        source,
+        float(getattr(target, "CollisionDeflection", 1.0)),
+        float(getattr(target, "CollisionThickness", 0.0)),
+    )
+    placement = getattr(source, "Placement", None)
+    vertices = []
+    for x, y, z in surface.vertices:
+        point = App.Vector(float(x), float(y), float(z))
+        world = placement.multVec(point) if placement is not None else point
+        vertices.append((float(world.x), float(world.y), float(world.z)))
+    return vertices
+
+
+def _surface_y_envelope(surface_vertices, x, z, side, window=None, limit=128):
+    """Find a deterministic front/back surface Y near a target-relative X/Z anchor."""
+    if not surface_vertices:
+        raise ValueError("drape target collision surface is empty")
+    points = sorted(
+        surface_vertices,
+        key=lambda p: ((p[0] - float(x)) ** 2 + (p[2] - float(z)) ** 2),
+    )[: max(8, int(limit))]
+    if window is not None:
+        local = [p for p in points if abs(p[0] - float(x)) <= window and abs(p[2] - float(z)) <= window]
+        if len(local) >= 4:
+            points = local
+    return (min(p[1] for p in points) if side == "front" else max(p[1] for p in points))
+
+
+def _target_semantic_anchor(target, surface_vertices):
+    """Return target-relative centerline and shoulder height from persistent avatar semantics."""
+    source = getattr(target, "SourceObject", None)
+    points = {}
+    for record in getattr(source, "ArrangementPoints", ()) or ():
+        try:
+            name, coords = str(record).split("|", 1)
+            values = tuple(float(v) for v in coords.split(","))
+            if len(values) == 3:
+                points[name] = values
+        except (ValueError, TypeError):
+            continue
+    placement = getattr(source, "Placement", None)
+    def world(value):
+        if placement is None:
+            return value
+        vector = placement.multVec(__import__("FreeCAD").Vector(*value))
+        return (float(vector.x), float(vector.y), float(vector.z))
+    shoulder = [points[name] for name in ("shoulder_left", "shoulder_right") if name in points]
+    if shoulder:
+        shoulder_world = [world(value) for value in shoulder]
+        center_x = sum(p[0] for p in shoulder_world) / len(shoulder_world)
+        shoulder_z = sum(p[2] for p in shoulder_world) / len(shoulder_world)
+        waist_values = [points[name] for name in ("waist", "hip") if name in points]
+        lower_z = min(world(value)[2] for value in waist_values) if waist_values else shoulder_z
+        target_span = max(abs(p[0] - center_x) for p in shoulder_world) * 2.0
+        return center_x, shoulder_z, lower_z, max(1.0, target_span)
+    xs = [p[0] for p in surface_vertices]
+    zs = [p[2] for p in surface_vertices]
+    return (0.5 * (min(xs) + max(xs)), max(zs), min(zs), max(1.0, max(xs) - min(xs)))
+
+
+def _piece_world_points(piece, limit=512):
+    """Sample one pattern piece in world space without mutating its placement."""
+    import FreeCAD as App
+    shape = getattr(piece, "Shape", None)
+    if shape is None or getattr(shape, "isNull", lambda: True)():
+        placement = getattr(piece, "Placement", None)
+        box = getattr(getattr(piece, "Mesh", None), "BoundBox", None)
+        if box is None:
+            raise ValueError("pattern piece has no usable Shape/Mesh geometry")
+        local_points = (
+            App.Vector(box.XMin, box.YMin, box.ZMin),
+            App.Vector(box.XMin, box.YMin, box.ZMax),
+            App.Vector(box.XMin, box.YMax, box.ZMin),
+            App.Vector(box.XMin, box.YMax, box.ZMax),
+            App.Vector(box.XMax, box.YMin, box.ZMin),
+            App.Vector(box.XMax, box.YMin, box.ZMax),
+            App.Vector(box.XMax, box.YMax, box.ZMin),
+            App.Vector(box.XMax, box.YMax, box.ZMax),
+        )
+    else:
+        try:
+            local_points, _triangles = shape.tessellate(2.0)
+        except Exception:
+            local_points = ()
+        if not local_points:
+            box = shape.BoundBox
+            local_points = (
+                App.Vector(box.XMin, box.YMin, box.ZMin),
+                App.Vector(box.XMin, box.YMin, box.ZMax),
+                App.Vector(box.XMin, box.YMax, box.ZMin),
+                App.Vector(box.XMin, box.YMax, box.ZMax),
+                App.Vector(box.XMax, box.YMin, box.ZMin),
+                App.Vector(box.XMax, box.YMin, box.ZMax),
+                App.Vector(box.XMax, box.YMax, box.ZMin),
+                App.Vector(box.XMax, box.YMax, box.ZMax),
+            )
+    if limit and len(local_points) > limit:
+        stride = max(1, len(local_points) // int(limit))
+        local_points = local_points[::stride][: int(limit)]
+    placement = getattr(piece, "Placement", None)
+    return [
+        tuple(float(v) for v in (
+            (placement.multVec(point) if placement is not None else point).x,
+            (placement.multVec(point) if placement is not None else point).y,
+            (placement.multVec(point) if placement is not None else point).z,
+        ))
+        for point in local_points
+    ]
+
+
+def target_relative_clearance_report(pieces, target, side_by_piece, required_clearance):
+    """Return a deterministic step-0 outward-clearance report against the DrapeTarget surface."""
+    surface = _target_world_surface(target)
+    report = {}
+    global_min = float("inf")
+    for piece in pieces:
+        side = side_by_piece[str(getattr(piece, "PieceId", piece.Name))]
+        points = _piece_world_points(piece)
+        gaps = []
+        for point in points:
+            envelope = _surface_y_envelope(surface, point[0], point[2], side)
+            gap = (envelope - point[1]) if side == "front" else (point[1] - envelope)
+            gaps.append(float(gap))
+        if not gaps:
+            raise ValueError("pattern piece has no geometry for clearance validation")
+        minimum = min(gaps)
+        report[str(getattr(piece, "PieceId", piece.Name))] = minimum
+        global_min = min(global_min, minimum)
+    if global_min < float(required_clearance):
+        raise ValueError(
+            "target-relative arrangement penetrates the DrapeTarget envelope: min clearance %.3f < %.3f"
+            % (global_min, float(required_clearance))
+        )
+    return {"min_clearance": float(global_min), "per_piece": report}
+
+
+def snap_pattern_pieces_to_target(
+    scene=None,
+    pieces=None,
+    target=None,
+    clearance=None,
+    max_translation=None,
+    max_rotation=None,
+    side_by_piece=None,
+):
+    """Place a bounded garment rigidly around the authoritative DrapeTarget.
+
+    The operation is solver-neutral fitting state. It uses persistent target
+    geometry/landmarks, preserves authored piece rotation and relative X/Z
+    spacing, rejects stale/missing/ambiguous targets, and records the resulting
+    placements in the fitting scene so HomePlacements can restore them.
+    """
+    import FreeCAD as App
+    from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+    from freecad_cloth.simulation.DrapeTarget import target_status
+
+    doc = App.ActiveDocument
+    if doc is None:
+        raise ValueError("open a document before fitting garment pieces")
+    scene = scene or _scene(doc)
+    if scene is None:
+        raise ValueError("create a fitting scene first")
+    target = target or getattr(scene, "DrapeTarget", None)
+    if target is None:
+        raise ValueError("assign a persistent DrapeTarget before target-relative fitting")
+    status = target_status(target)
+    if status["state"] != "ready":
+        raise ValueError("drape target is not ready: %s" % status["message"])
+    selected = tuple(pieces or scene.PatternPieces)
+    selected = tuple(sorted(
+        (piece for piece in selected if getattr(piece, "PatternType", "") == "PatternPiece"),
+        key=lambda item: str(getattr(item, "PieceId", item.Name)),
+    ))
+    if not selected:
+        raise ValueError("no PatternPiece objects were supplied")
+    if side_by_piece is None:
+        if len(selected) == 1:
+            side_by_piece = {str(getattr(selected[0], "PieceId", selected[0].Name)): "front"}
+        elif len(selected) == 2:
+            side_by_piece = {
+                str(getattr(selected[0], "PieceId", selected[0].Name)): "front",
+                str(getattr(selected[1], "PieceId", selected[1].Name)): "back",
+            }
+        else:
+            raise ValueError("ambiguous target-relative fitting: provide explicit side assignments for more than two pieces")
+    normalized_sides = {str(key): str(value) for key, value in side_by_piece.items()}
+    if set(normalized_sides.values()) - {"front", "back"}:
+        raise ValueError("target-relative fitting supports front/back side assignments only")
+    piece_ids = {str(getattr(piece, "PieceId", piece.Name)) for piece in selected}
+    if set(normalized_sides) != piece_ids:
+        raise ValueError("side assignment must cover every selected pattern piece")
+    clearance = float(clearance if clearance is not None else getattr(scene, "TargetClearance", 20.0))
+    max_translation = float(max_translation if max_translation is not None else getattr(scene, "PlacementTranslationLimit", 1000.0))
+    max_rotation = float(max_rotation if max_rotation is not None else getattr(scene, "PlacementRotationLimit", 90.0))
+    if clearance < 0 or max_translation <= 0 or max_rotation <= 0:
+        raise ValueError("target-relative fitting bounds must be positive")
+    surface = _target_world_surface(target)
+    anchor_x, shoulder_z, _lower_z, _target_width = _target_semantic_anchor(target, surface)
+    centers = {}
+    spans_z = {}
+    for piece in selected:
+        pts = _piece_world_points(piece)
+        centers[str(piece.PieceId)] = (
+            sum(p[0] for p in pts) / len(pts),
+            sum(p[1] for p in pts) / len(pts),
+            sum(p[2] for p in pts) / len(pts),
+        )
+        spans_z[str(piece.PieceId)] = max(p[2] for p in pts) - min(p[2] for p in pts)
+    group_cx = sum(v[0] for v in centers.values()) / len(centers)
+    group_cz = sum(v[2] for v in centers.values()) / len(centers)
+    garment_height = max(spans_z.values()) if spans_z else 1.0
+    group_target_cz = shoulder_z - 0.5 * garment_height
+    front_surface_y = _surface_y_envelope(surface, anchor_x, group_target_cz, "front")
+    back_surface_y = _surface_y_envelope(surface, anchor_x, group_target_cz, "back")
+    desired_y = {"front": front_surface_y - clearance, "back": back_surface_y + clearance}
+    common_dx = anchor_x - group_cx
+    common_dz = group_target_cz - group_cz
+    homes = {}
+    for value in getattr(scene, "HomePlacements", ()) or ():
+        placement = PiecePlacement.from_string(value)
+        homes[placement.piece_id] = placement
+    updated = {}
+    for piece in selected:
+        pid = str(piece.PieceId)
+        center = centers[pid]
+        dx = common_dx
+        dy = desired_y[normalized_sides[pid]] - center[1]
+        dz = common_dz
+        distance = (dx * dx + dy * dy + dz * dz) ** 0.5
+        if distance > max_translation:
+            raise ValueError("target-relative translation exceeds configured bound for %s" % pid)
+        current_rotation = float(getattr(getattr(piece, "Placement", None), "Rotation", App.Rotation()).Angle)
+        home_rotation = float(homes[pid].rotation_z) if pid in homes else current_rotation
+        rotation_delta = abs(current_rotation - home_rotation)
+        while rotation_delta > 180.0:
+            rotation_delta -= 360.0
+        rotation_delta = abs(rotation_delta)
+        if rotation_delta > max_rotation:
+            raise ValueError("target-relative rotation exceeds configured bound for %s" % pid)
+        placement = piece.Placement
+        base = placement.Base
+        piece.Placement = App.Placement(
+            App.Vector(float(base.x) + dx, float(base.y) + dy, float(base.z) + dz),
+            placement.Rotation,
+        )
+        updated[pid] = PiecePlacement(
+            pid,
+            (float(piece.Placement.Base.x), float(piece.Placement.Base.y), float(piece.Placement.Base.z)),
+            float(piece.Placement.Rotation.Angle),
+        )
+    for pid, placement in updated.items():
+        existing = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)}
+        existing[pid] = placement
+        scene.PiecePlacements = [existing[k].to_string() for k in sorted(existing)]
+    scene.FitStatus = "Target-relative fit"
+    doc.recompute()
+    report = target_relative_clearance_report(selected, target, normalized_sides, clearance)
+    return report
+
+
+
 def reset_arrangement():
     """Restore every assigned piece to its saved pre-arrangement placement."""
     import FreeCAD as App
