@@ -88,6 +88,8 @@ jobs:
                 tests/test_simulation_quality.py \
                 tests/test_simulation_quality_runtime.py \
                 tests/test_avatar_fitting.py \
+                tests/test_target_placement.py \
+                tests/test_drape_target_placement_contract.py \
                 tests/test_avatar_shoulder_pose.py \
                 tests/test_avatar_hierarchical_pose.py \
                 tests/test_humanoid_mesh.py \
@@ -407,6 +409,10 @@ jobs:
           grep -q 'scenario-pass' docs/images/generated/gui-progress.log
           grep -q 'realtime-preview=passed backend=tissu' docs/images/generated/gui-progress.log
           grep -q 'drape-metrics=' docs/images/generated/gui-progress.log
+          grep -q 'home-reset=passed exact-axis-angle=true' docs/images/generated/gui-progress.log
+          grep -q 'zero-gravity-step=passed steps=1' docs/images/generated/gui-progress.log
+          test -s docs/images/generated/cloth-simulation-arranged.png
+          test -s docs/images/generated/cloth-simulation-zero-gravity-step.png
           test -s docs/images/generated/cloth-simulation-draped.png
           test -s docs/images/generated/cloth-simulation-draped-front.png
           test -s docs/images/generated/cloth-simulation-draped-rear.png
@@ -441,6 +447,8 @@ jobs:
         with:
           name: tunic-visual-audit
           path: |
+            docs/images/generated/cloth-simulation-arranged.png
+            docs/images/generated/cloth-simulation-zero-gravity-step.png
             docs/images/generated/cloth-simulation-draped*.png
             docs/images/generated/drape-visual-metrics.json
             docs/images/generated/gui-progress.log
