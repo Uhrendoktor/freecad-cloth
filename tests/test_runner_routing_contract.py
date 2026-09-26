@@ -19,8 +19,20 @@ def test_one_canonical_workflow():
     assert [path.name for path in workflows] == ["canonical-execution.yml"]
 
 
-def test_pull_requests_are_hosted_only():
+def test_pull_request_broker_dispatches_hosted_validation():
     source = WORKFLOW.read_text(encoding="utf-8")
+    assert "pull_request_target:" in source
+    broker = _job_block(source, "pull_request_broker")
+    assert "runs-on: ubuntu-latest" in broker
+    assert "actions: write" in broker
+    assert "contents: read" in broker
+    assert "gh workflow run canonical-execution.yml" in broker
+    assert "--ref main" in broker
+    assert "-f runner_mode=hosted" in broker
+    assert "-f pull_request_number=" in broker
+    assert "actions/checkout" not in broker
+    assert "self-hosted" not in broker
+
     for job in (
         "python",
         "gui-sewing-creation",
@@ -29,12 +41,14 @@ def test_pull_requests_are_hosted_only():
         "gui-tunic-visual",
         "gui-turntables",
         "gui-visual-examples",
-        "publish-readme-turntables",
-        "benchmark",
     ):
         block = _job_block(source, job)
-        assert "github.event_name == 'pull_request'" in block
-        assert "ubuntu-latest" in block
+        assert "github.event_name != 'pull_request_target'" in block
+        assert "fromJSON('[\"ubuntu-latest\"]')" in block
+
+    sketcher = _job_block(source, "sketcher-startup-diagnostic")
+    assert "github.event_name == 'workflow_dispatch'" in sketcher
+    assert "inputs.pull_request_number != ''" in sketcher
 
 
 def test_trusted_jobs_default_to_local_runner():
@@ -45,8 +59,14 @@ def test_trusted_jobs_default_to_local_runner():
         assert "inputs.runner_mode == 'hosted'" in block
 
 
-def test_watchdog_is_hosted_and_failover_is_bounded():
+def test_pr_validation_checks_out_only_the_requested_merge_ref():
     source = WORKFLOW.read_text(encoding="utf-8")
+    python = _job_block(source, "python")
+    assert "inputs.pull_request_number != ''" in python
+    assert "refs/pull/{0}/merge" in python
+    assert "persist-credentials: false" in python
+    assert "inputs.runner_mode == 'hosted'" in python
+
     watchdog = _job_block(source, "runner_watchdog")
     assert "runs-on: ubuntu-latest" in watchdog
     assert "grace_seconds=45" in watchdog
@@ -56,6 +76,8 @@ def test_watchdog_is_hosted_and_failover_is_bounded():
     assert "cancel" in watchdog
     assert "/actions/runners" not in watchdog
     assert "CLOTH_RUNNER_DISCOVERY_TOKEN" not in watchdog
+    assert "/actions/runners" not in source
+    assert "CLOTH_RUNNER_DISCOVERY_TOKEN" not in source
 
 
 def test_only_heartbeat_is_static_self_hosted():
