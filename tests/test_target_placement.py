@@ -119,3 +119,55 @@ def test_group_fit_rejects_positive_clearance_without_target_proximity():
     assert "did not reduce target proximity error" in body
     assert "stopped %.3f mm from target alignment" in body
     assert "Clearance is proven against the exact PatternMesh" in body or "exact PatternMesh" in body
+
+
+def test_indexed_projection_matches_bruteforce_on_subdivided_surface():
+    from math import isclose
+    from freecad_cloth.avatar.TargetPlacement import (
+        _closest_point_on_triangle,
+        _oriented_outward_normal,
+    )
+
+    rows = 12
+    vertices = []
+    for y in range(rows + 1):
+        for x in range(rows + 1):
+            vertices.append((float(x * 10.0), float(y * 10.0), 0.0))
+    triangles = []
+    width = rows + 1
+    for y in range(rows):
+        for x in range(rows):
+            a = y * width + x
+            b = a + 1
+            c0 = a + width
+            d = c0 + 1
+            triangles.extend(((a, b, d), (a, d, c0)))
+    surface = CollisionSurface(tuple(vertices), tuple(triangles))
+
+    def brute(point):
+        center = surface.center
+        best = None
+        for index, triangle in enumerate(surface.triangles):
+            a, b, c = (surface.vertices[int(i)] for i in triangle)
+            normal = _oriented_outward_normal(a, b, c, center)
+            closest = _closest_point_on_triangle(point, a, b, c)
+            distance = sum(
+                (float(point[i]) - float(closest[i])) ** 2 for i in range(3)
+            ) ** 0.5
+            if best is None or distance < best.distance - 1e-12:
+                best = type("Result", (), {
+                    "point": closest,
+                    "normal": normal,
+                    "distance": distance,
+                })()
+        return best
+
+    for point in ((5.1, 7.3, 14.0), (61.4, 93.2, 8.0), (117.2, 21.7, 19.0)):
+        indexed = nearest_target_projection(point, surface)
+        expected = brute(point)
+        assert isclose(indexed.distance, expected.distance, rel_tol=0.0, abs_tol=1e-9)
+        assert all(
+            isclose(indexed.point[i], expected.point[i], rel_tol=0.0, abs_tol=1e-9)
+            for i in range(3)
+        )
+        assert indexed.normal == expected.normal
