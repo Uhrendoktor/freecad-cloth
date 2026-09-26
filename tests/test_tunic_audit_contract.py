@@ -40,8 +40,8 @@ def test_canonical_tunic_uses_validated_authored_mapping():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "required_indices = (1, 2, 6, 7)" in audit
     assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in audit
-    assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in audit
-    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' in audit
+    assert 'front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"' in audit
+    assert 'front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"' in audit
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in audit
     assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' not in audit
 
@@ -64,6 +64,7 @@ def test_canonical_tunic_source_rewrite_compiles():
         % (result.stdout, result.stderr)
     )
     assert "tunic-audit-source-syntax=passed" in result.stdout
+    audit_source = audit_path.read_text(encoding="utf-8")
     assert 'VisualTunicFront", "back", 0.78, 0.18' in audit_source
     assert 'VisualTunicBack", "front", 0.76, 0.12' in audit_source
 
