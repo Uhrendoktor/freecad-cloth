@@ -110,6 +110,7 @@ def create_fitting_scene():
     obj.addProperty("App::PropertyStringList", "HomePlacements", "Fitting").HomePlacements = []
     obj.addProperty("App::PropertyStringList", "ArrangementPoints", "Arrangement").ArrangementPoints = []
     obj.addProperty("App::PropertyStringList", "BoundingVolumes", "Arrangement").BoundingVolumes = []
+    obj.addProperty("App::PropertyStringList", "GarmentAnchors", "Arrangement").GarmentAnchors = []
     obj.addProperty("App::PropertyStringList", "ArrangementPointObjects", "Arrangement").ArrangementPointObjects = []
     obj.addProperty("App::PropertyStringList", "BoundingVolumeObjects", "Arrangement").BoundingVolumeObjects = []
     obj.addProperty("App::PropertyBool", "SymmetryEnabled", "Arrangement").SymmetryEnabled = True
@@ -170,7 +171,13 @@ def add_selected_pattern_pieces():
     for piece in pieces:
         placement = piece.Placement
         base = placement.Base
-        value = PiecePlacement(str(piece.PieceId), (float(base.x), float(base.y), float(base.z)), float(placement.Rotation.Angle))
+        axis = placement.Rotation.Axis
+        value = PiecePlacement(
+            str(piece.PieceId),
+            (float(base.x), float(base.y), float(base.z)),
+            float(placement.Rotation.Angle),
+            (float(axis.x), float(axis.y), float(axis.z)),
+        )
         by_id[value.piece_id] = value
         home_by_id.setdefault(value.piece_id, value)
     scene.PatternPieces = sorted(set(list(scene.PatternPieces) + pieces), key=lambda o: str(o.PieceId))
@@ -192,7 +199,7 @@ def position_piece(piece, x, y, z=0.0, rotation_z=0.0):
     placement = App.Placement(App.Vector(float(x), float(y), float(z)), App.Rotation(App.Vector(0, 0, 1), float(rotation_z)))
     piece.Placement = placement
     entries = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)}
-    entries[str(piece.PieceId)] = PiecePlacement(str(piece.PieceId), (float(x), float(y), float(z)), float(rotation_z))
+    entries[str(piece.PieceId)] = PiecePlacement(str(piece.PieceId), (float(x), float(y), float(z)), float(rotation_z), (0.0, 0.0, 1.0))
     scene.PiecePlacements = [entries[k].to_string() for k in sorted(entries)]
     doc.recompute()
     return piece
@@ -238,6 +245,81 @@ def set_arrangement_point(name, x=None, y=None, offset=None, wrap_direction=None
     _sync_visuals(scene)
     doc.recompute()
     return point
+
+
+def set_garment_anchors(anchors):
+    """Persist deterministic garment-local anchors on the existing fitting scene."""
+    import FreeCAD as App
+    from freecad_cloth.avatar.AvatarFitting import GarmentAnchor
+    doc = App.ActiveDocument or App.newDocument("ClothSewing")
+    scene = _scene(doc) or create_fitting_scene()
+    parsed = []
+    for anchor in anchors or ():
+        item = anchor if isinstance(anchor, GarmentAnchor) else GarmentAnchor.from_string(anchor)
+        item.validate()
+        parsed.append(item)
+    scene.GarmentAnchors = [item.to_string() for item in sorted(parsed, key=lambda a: (a.piece_id, a.name))]
+    doc.recompute()
+    return scene
+
+
+def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translation=600.0, max_rotation=45.0):
+    """Place one piece rigidly against the persistent DrapeTarget."""
+    import FreeCAD as App
+    from freecad_cloth.avatar.AvatarFitting import GarmentAnchor, PiecePlacement
+    from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
+    from freecad_cloth.avatar.TargetAwarePlacement import (
+        assert_minimum_surface_clearance, require_ready_target_status,
+        solve_rigid_z, target_surface_anchor, wrap_normal,
+    )
+    if getattr(piece, "PatternType", "") != "PatternPiece":
+        raise ValueError("piece must be a Cloth PatternPiece object")
+    require_ready_target_status(target_status(target))
+    source_object = getattr(target, "SourceObject", None)
+    if source_object is None:
+        raise ValueError("drape target source is required")
+    surface = collision_surface(source_object, float(getattr(target, "CollisionDeflection", 1.0)), float(getattr(target, "CollisionThickness", 0.0)))
+    piece_id = str(piece.PieceId)
+    selected = tuple(item if isinstance(item, GarmentAnchor) else GarmentAnchor.from_string(item) for item in anchors or ())
+    selected = tuple(sorted((item for item in selected if str(item.piece_id) == piece_id), key=lambda item: item.name))
+    if not selected:
+        raise ValueError("target-aware placement requires at least one garment anchor")
+    source_points, target_points = [], []
+    for anchor in selected:
+        anchor.validate()
+        source = piece.Placement.multVec(App.Vector(*anchor.position))
+        hit = target_surface_anchor(surface, (source.x, source.y, source.z), wrap_normal(anchor.wrap_direction))
+        desired = tuple(hit.point[i] + hit.normal[i] * (float(surface.thickness) + float(clearance)) for i in range(3))
+        source_points.append((float(source.x), float(source.y), float(source.z)))
+        target_points.append(desired)
+    delta = solve_rigid_z(source_points, target_points, max_translation, max_rotation)
+    delta_rotation = App.Rotation(App.Vector(0, 0, 1), float(delta.rotation_z))
+    current = piece.Placement
+    new_base = delta_rotation.multVec(current.Base) + App.Vector(*delta.translation)
+    piece.Placement = App.Placement(new_base, delta_rotation.multiply(current.Rotation))
+    sketch = getattr(piece, "Sketch", None)
+    if sketch is not None:
+        sketch.Placement = piece.Placement
+    placed_points = []
+    for anchor in selected:
+        point = piece.Placement.multVec(App.Vector(*anchor.position))
+        placed_points.append((float(point.x), float(point.y), float(point.z)))
+    anchor_clearance = assert_minimum_surface_clearance(surface, placed_points, float(clearance))
+    doc = piece.Document
+    scene = _scene(doc)
+    if scene is not None:
+        entries = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)}
+        axis = piece.Placement.Rotation.Axis
+        entries[piece_id] = PiecePlacement(
+            piece_id,
+            (float(piece.Placement.Base.x), float(piece.Placement.Base.y), float(piece.Placement.Base.z)),
+            float(piece.Placement.Rotation.Angle),
+            (float(axis.x), float(axis.y), float(axis.z)),
+        )
+        scene.PiecePlacements = [entries[k].to_string() for k in sorted(entries)]
+        scene.FitStatus = "Target-aware placement applied"
+    doc.recompute()
+    return {"translation": tuple(float(v) for v in delta.translation), "rotation_z": float(delta.rotation_z), "anchor_residual": float(delta.residual_max), "anchor_clearance": float(anchor_clearance)}
 
 
 def delete_arrangement_point(name):
@@ -343,7 +425,7 @@ def reset_arrangement():
         if piece is None:
             continue
         x, y, z = placement.position
-        piece.Placement = App.Placement(App.Vector(x, y, z), App.Rotation(App.Vector(0, 0, 1), placement.rotation_z))
+        piece.Placement = App.Placement(App.Vector(x, y, z), App.Rotation(App.Vector(*placement.rotation_axis), placement.rotation_z))
         current[pid] = placement
     scene.PiecePlacements = [current[k].to_string() for k in sorted(current)]
     scene.FitStatus = "Arrangement reset"
