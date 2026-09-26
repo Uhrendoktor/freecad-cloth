@@ -382,18 +382,6 @@ def simulation():
     positions = tuple(scene.Proxy.backend.positions())
     step_zero_clearance = assert_minimum_surface_clearance(surface, positions, clearance)
     log("step-0-target-clearance=%.6f required=%.6f" % (step_zero_clearance, clearance))
-        targets = (
-            (0.14 * panel_width, 0.97 * garment_height),
-            (0.86 * panel_width, 0.97 * garment_height),
-        )
-        available = list(particle_indices)
-        result = []
-        for local_x, local_y in targets:
-            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
-            index = min(available, key=lambda i: (positions[i][0] - target_point.x) ** 2 + (positions[i][1] - target_point.y) ** 2 + (positions[i][2] - target_point.z) ** 2)
-            result.append(index)
-            available.remove(index)
-        return tuple(result)
     proxy = scene.Proxy
     if str(getattr(scene, "PinPolicy", "")) != "none" or getattr(scene, "PinSelection", ()):
         raise RuntimeError("canonical tunic must remain deliberately pinless")
