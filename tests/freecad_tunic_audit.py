@@ -113,34 +113,49 @@ placement_probe = '''    surface = collision_surface(
         float(getattr(target, "CollisionThickness", 0.0)),
     )
     placement_insets = (0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0)
-    selected_placement_inset = None
-    initial_clearance = None
-    for candidate in placement_insets:
-        placement_inset = float(candidate)
-        front.Placement = target_relative_piece_placement("front")
-        back.Placement = target_relative_piece_placement("back")
-        front.Sketch.Placement = front.Placement
-        back.Sketch.Placement = back.Placement
-        doc.recompute()
-        probe_proxy = scene.Proxy
-        probe_backend = getattr(probe_proxy, "backend", None)
-        if probe_backend is None:
-            raise RuntimeError("canonical tunic placement probe did not build a simulation backend")
-        try:
-            from freecad_cloth.common.MeshValidation import nearest_target_clearance
-            probe_clearance = nearest_target_clearance(tuple(probe_backend.positions()), tuple(surface.vertices))
-        except (ImportError, ValueError):
-            probe_clearance = None
-        log("tunic-placement-inset-mm=%.1f clearance-mm=%s" % (placement_inset, "%.2f" % float(probe_clearance) if probe_clearance is not None else "None"))
-        if probe_clearance is not None and float(probe_clearance) >= float(clearance):
-            selected_placement_inset = placement_inset
-            initial_clearance = float(probe_clearance)
-            log("tunic-placement-selected-inset-mm=%.1f clearance-mm=%.2f" % (selected_placement_inset, initial_clearance))
-            break
-    if selected_placement_inset is None:
+    proxy_probe = scene.Proxy
+    backend_probe = getattr(proxy_probe, "backend", None)
+    if backend_probe is None:
+        raise RuntimeError("canonical tunic placement probe did not build a simulation backend")
+    panel_probe = list(getattr(scene, "DrapePanels", ()))
+    if len(panel_probe) != 2:
+        raise RuntimeError("canonical tunic placement probe expected two panels")
+    front_indices = tuple(proxy_probe.panel_indices.get(panel_probe[0].Name, ()))
+    back_indices = tuple(proxy_probe.panel_indices.get(panel_probe[1].Name, ()))
+    if not front_indices or not back_indices:
+        raise RuntimeError("canonical tunic placement probe has no panel particle indices")
+    base_positions = tuple(backend_probe.positions())
+    best_inset = None
+    best_clearance = None
+    try:
+        from freecad_cloth.common.MeshValidation import nearest_target_clearance
+        for candidate in placement_insets:
+            candidate_positions = list(base_positions)
+            for index in front_indices:
+                x, y, z = candidate_positions[int(index)]
+                candidate_positions[int(index)] = (x, y + float(candidate), z)
+            for index in back_indices:
+                x, y, z = candidate_positions[int(index)]
+                candidate_positions[int(index)] = (x, y - float(candidate), z)
+            probe_clearance = nearest_target_clearance(tuple(candidate_positions), tuple(surface.vertices))
+            log("tunic-placement-inset-mm=%.1f clearance-mm=%.2f" % (float(candidate), float(probe_clearance)))
+            if float(probe_clearance) >= float(clearance):
+                best_inset = float(candidate)
+                best_clearance = float(probe_clearance)
+    except (ImportError, ValueError):
+        best_inset = None
+    if best_inset is None:
         raise RuntimeError("canonical tunic placement probe found no candidate meeting configured separation")
-
+    placement_inset = best_inset
+    initial_clearance = best_clearance
+    front.Placement = target_relative_piece_placement("front")
+    back.Placement = target_relative_piece_placement("back")
+    front.Sketch.Placement = front.Placement
+    back.Sketch.Placement = back.Placement
+    doc.recompute()
+    log("tunic-placement-selected-inset-mm=%.1f clearance-mm=%.2f" % (placement_inset, initial_clearance))
 '''
+
 
 source = source.replace(surface_anchor, placement_probe, 1)
 
