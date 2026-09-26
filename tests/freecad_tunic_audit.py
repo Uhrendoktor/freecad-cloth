@@ -17,42 +17,27 @@ source = source_path.read_text(encoding="utf-8")
 os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
 os.environ["CLOTH_TISSU_AUTHORED_CONTAINMENT"] = "1"
 
-replacements = {
-    'clearance = max(20.0, 0.08 * body_depth)': '    clearance = max(8.0, 0.025 * body_depth);',
-    'y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '        y = min(target_ys) - clearance',
-    'y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '        y = max(target_ys) + clearance',
-    'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)': '    front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)',
-    '    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):\n'
-        '        seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
-        '        add_seam(doc, seam)\n'
-        '        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)\n'
-        '        seam_records.append((seam_obj, front, back))':
-        '    front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())\n'
-        '    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())\n'
-        '    required_indices = (1, 2, 6, 7)\n'
-        '    if len(front_edge_ids) < 8 or len(back_edge_ids) < 8 or any(not front_edge_ids[index] or not back_edge_ids[index] for index in required_indices): raise RuntimeError("canonical tunic fixture is missing authored semantic edge IDs")\n'
-        '    seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"),(front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"),(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"))\n'
-        '    for edge_a_id, edge_b_id, seam_id in seam_specs:\n'
-        '        seam = Seam(str(front.PieceId), edge_a_id, str(back.PieceId), edge_b_id, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
-        '        add_seam(doc, seam)\n'
-        '        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)\n'
-        '        if str(getattr(seam_obj, "EdgeAId", "")) != edge_a_id or str(getattr(seam_obj, "EdgeBId", "")) != edge_b_id: raise RuntimeError("canonical tunic seam %s did not retain authored semantic edge IDs" % seam_id)\n'
-        '        seam_records.append((seam_obj, front, back))',
-    'clearance = max(20.0, 0.08 * body_depth)': '    clearance = max(8.0, 0.025 * body_depth);',
-    '        y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance':
-        '            y = min(target_ys) - clearance',
-    '        y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance':
-        '            y = max(target_ys) + clearance',
-    '    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)':
-        'front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)',
-    'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
-    'scene.SolverIterations = 8;': 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-32 iterations-1 substeps-env");',
-    'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
-}
-for old, new in replacements.items():
-    if old not in source:
-        raise RuntimeError(f"audit replacement did not match source: {old}")
-    source = source.replace(old, new, 1)
+_replacement_specs = (
+    (
+        r"(?m)^(\\s*)clearance = max\\(20\\.0, 0\\.08 \\* body_depth\\)(?:;)?$",
+        r"\\1clearance = max(8.0, 0.025 * body_depth);",
+        "clearance",
+    ),
+    (
+        r"(?m)^(\\s*)y = \\(shoulder_left\\.y \\+ shoulder_right\\.y\\) / 2\\.0 - clearance$",
+        r"\\1y = min(target_ys) - clearance",
+        "front placement",
+    ),
+    (
+        r"(?m)^(\\s*)y = \\(shoulder_left\\.y \\+ shoulder_right\\.y\\) / 2\\.0 \\+ clearance$",
+        r"\\1y = max(target_ys) + clearance",
+        "back placement",
+    ),
+)
+for pattern, replacement, name in _replacement_specs:
+    source, count = re.subn(pattern, replacement, source, count=1)
+    if count != 1:
+        raise RuntimeError("audit replacement did not match exactly once: %s (count=%d)" % (name, count))
 
 
 preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
