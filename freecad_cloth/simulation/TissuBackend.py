@@ -14,12 +14,20 @@ from freecad_cloth.simulation.ClothSolver import ClothSystem
 _MM = 1000.0
 _TISSU_SUBSTEPS_DEFAULT = 1
 _TISSU_COLLISION_TRIANGLES_DEFAULT = 0
+_TISSU_COLLISION_SCALE_DEFAULT = 1.0
 
 
 def _tissu_substeps():
     value = int(os.environ.get("CLOTH_TISSU_SUBSTEPS", str(_TISSU_SUBSTEPS_DEFAULT)))
     if value < 1:
         raise ValueError("CLOTH_TISSU_SUBSTEPS must be >= 1")
+    return value
+
+
+def _tissu_collision_scale():
+    value = float(os.environ.get("CLOTH_TISSU_COLLISION_SCALE", str(_TISSU_COLLISION_SCALE_DEFAULT)))
+    if not 0.0 < value <= 1.0:
+        raise ValueError("CLOTH_TISSU_COLLISION_SCALE must be in (0, 1]")
     return value
 
 
@@ -105,6 +113,19 @@ class TissuBackend(ClothSimulationBackend):
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
         self._source_collision_surface = collision_surface
         collision_limit = _tissu_collision_triangle_limit()
+        collision_scale = _tissu_collision_scale()
+        if collision_surface is not None and collision_mode == "mesh" and collision_scale != 1.0:
+            center = collision_surface.center
+            collision_surface = CollisionSurface(
+                tuple(
+                    tuple(center[i] + collision_scale * (float(v[i]) - center[i]) for i in range(3))
+                    for v in collision_surface.vertices
+                ),
+                collision_surface.triangles,
+                collision_surface.region,
+                collision_surface.thickness,
+            )
+            collision_surface.validate()
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
             collision_surface = coarsen_collision_surface(collision_surface, collision_limit)
             print(
