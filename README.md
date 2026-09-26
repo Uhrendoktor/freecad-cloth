@@ -26,6 +26,8 @@ Start with [Installation](docs/INSTALLATION.md), then run the [Blanket over Cube
 
 The canonical FreeCAD/Xvfb workflow publishes validated GUI states to a stable `docs/screenshots` branch. The basic example proves real cloth motion; the advanced tunic example is published from the authoritative tunic visual audit.
 
+The five media links below are pinned to the validated publication commit `f276d1f5f51eb4d3d9ade58aa28c8fffd3fbc7d5`; update them together only when a newer publication is verified.
+
 ### Pattern design
 
 The Pattern workbench is documented in [Examples](docs/EXAMPLES.md) and covered by the native-Sketcher and production-export acceptance jobs.
@@ -36,21 +38,21 @@ The Sewing workbench is documented in [Examples](docs/EXAMPLES.md) and covered b
 
 ### Basic example — blanket over cube
 
-![Blanket over cube motion](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-blanket-motion.gif)
+![Blanket over cube motion](https://github.com/Uhrendoktor/freecad-cloth/raw/f276d1f5f51eb4d3d9ade58aa28c8fffd3fbc7d5/docs/images/generated/cloth-blanket-motion.gif)
 
 ### Advanced example — tunic
 
-![Advanced tunic validation](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-front.png)
+![Advanced tunic validation](https://github.com/Uhrendoktor/freecad-cloth/raw/f276d1f5f51eb4d3d9ade58aa28c8fffd3fbc7d5/docs/images/generated/cloth-simulation-draped-front.png)
 
 ### Simulation — arranged and draped 360° turntables
 
-![Arranged cloth turntable](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged-turntable.gif)
+![Arranged cloth turntable](https://github.com/Uhrendoktor/freecad-cloth/raw/f276d1f5f51eb4d3d9ade58aa28c8fffd3fbc7d5/docs/images/generated/cloth-simulation-arranged-turntable.gif)
 
-![Draped cloth turntable](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-turntable.gif)
+![Draped cloth turntable](https://github.com/Uhrendoktor/freecad-cloth/raw/f276d1f5f51eb4d3d9ade58aa28c8fffd3fbc7d5/docs/images/generated/cloth-simulation-draped-turntable.gif)
 
 ### Avatar — 360° turntable
 
-![Cloth Avatar 360° turntable](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-turntable.gif)
+![Cloth Avatar 360° turntable](https://github.com/Uhrendoktor/freecad-cloth/raw/f276d1f5f51eb4d3d9ade58aa28c8fffd3fbc7d5/docs/images/generated/cloth-avatar-turntable.gif)
 
 ## Module architecture
 
