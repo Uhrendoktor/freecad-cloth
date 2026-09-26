@@ -105,3 +105,10 @@ if __name__ == "__main__":
     test_canonical_concurrency_cancels_stale_pr_runs()
     test_canonical_readme_turntable_launches_from_neutral_cwd()
     test_readme_turntable_scripts_import_freecad_gui_before_repository_path_injection()
+
+def test_broker_exposes_hosted_validation_run_as_pr_status():
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    broker = workflow.split("  pull_request_broker:", 1)[1].split("  local_runner_readiness:", 1)[0]
+    assert "statuses: write" in broker
+    assert 'context="canonical/hosted-validation"' in broker
+    assert "actions/runs/$hosted_run_id" in broker
