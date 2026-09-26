@@ -43,6 +43,16 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertEqual(PiecePlacement.from_string(encoded).rotation_axis, (1.0, 0.0, 0.0))
         self.assertEqual(PiecePlacement.from_string("piece|1,2,3|90").rotation_axis, (0.0, 0.0, 1.0))
 
+    def test_fitting_target_handoff_and_reset_axis_contract(self):
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[1]
+        commands = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+        fitting = (root / "freecad_cloth" / "avatar" / "AvatarFitting.py").read_text(encoding="utf-8")
+        assert 'DrapeTarget", "Fitting' in commands
+        assert "simulation.DrapeTarget = target" in commands
+        assert "rotation_axis" in fitting
+        assert "if len(parts) not in (3, 4)" in fitting
+
     def test_scene_metadata_is_deterministic(self):
         scene = FittingScene(BodyMeasurements({"hip": 960, "waist": 760}), "Avatar Collision Proxy", (PiecePlacement("piece-b", (10, 20, 30), 45), PiecePlacement("piece-a")))
         payload = scene.to_json()
