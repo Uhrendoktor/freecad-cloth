@@ -157,3 +157,10 @@ class DrapeVisualSanityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+def test_drape_visual_acceptance_contract_is_fail_closed():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "from freecad_cloth.common.DrapeVisualSanity import assert_drape_diagnostics" in source
+    assert "assert_drape_diagnostics(json.load(handle).get(\"panels\", ()))" in source
+    assert source.index("assert_drape_diagnostics(json.load(handle).get") < source.index("task_dock.show(); task_dock.raise_(); events(); close_task()")
+
