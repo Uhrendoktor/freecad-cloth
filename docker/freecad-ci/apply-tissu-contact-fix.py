@@ -49,8 +49,8 @@ endif()
     )
     replace_once(
         core_path,
-        """target_link_libraries(TissuCore PUBLIC 
-    Alembic::Alembic 
+        """target_link_libraries(TissuCore PUBLIC
+    Alembic::Alembic
     Imath::Imath
 )
 
