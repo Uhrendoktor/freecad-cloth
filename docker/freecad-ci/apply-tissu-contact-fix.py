@@ -65,7 +65,7 @@ endif()
         "headless core include-directory whitespace",
     )
 
-    const bindings_path = ROOT / "python/src/bindings_headless.cpp"
+    bindings_path = ROOT / "python/src/bindings_headless.cpp"
     replace_once(
         bindings_path,
         '#include "io/AlembicExporter.hpp"\n',
