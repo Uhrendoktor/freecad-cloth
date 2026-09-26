@@ -54,24 +54,40 @@ class PiecePlacement:
     piece_id: str
     position: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     rotation_z: float = 0.0
+    rotation_axis: Tuple[float, float, float] = (0.0, 0.0, 1.0)
 
     def validate(self) -> None:
         if not self.piece_id.strip():
             raise ValueError("piece id must not be empty")
         if len(self.position) != 3:
             raise ValueError("position must contain three coordinates")
+        if len(self.rotation_axis) != 3:
+            raise ValueError("rotation axis must contain three coordinates")
 
     def to_string(self) -> str:
         self.validate()
-        return "%s|%.12g,%.12g,%.12g|%.12g" % (
+        base = "%s|%.12g,%.12g,%.12g|%.12g" % (
             self.piece_id, self.position[0], self.position[1], self.position[2], self.rotation_z
         )
+        axis = tuple(round(float(v), 12) for v in self.rotation_axis)
+        if axis == (0.0, 0.0, 1.0):
+            return base
+        return base + "|%.12g,%.12g,%.12g" % axis
 
     @classmethod
     def from_string(cls, value: str) -> "PiecePlacement":
-        piece_id, position, rotation = str(value).split("|")
+        parts = str(value).split("|")
+        if len(parts) not in (3, 4):
+            raise ValueError("piece placement must contain position, rotation, and optional axis")
+        piece_id, position, rotation = parts[:3]
         coords = tuple(float(v) for v in position.split(","))
-        result = cls(piece_id, coords, float(rotation))
+        axis = (0.0, 0.0, 1.0)
+        if len(parts) == 4:
+            axis_values = tuple(float(v) for v in parts[3].split(","))
+            if len(axis_values) != 3:
+                raise ValueError("rotation axis must contain three coordinates")
+            axis = axis_values
+        result = cls(piece_id, coords, float(rotation), axis)
         result.validate()
         return result
 
