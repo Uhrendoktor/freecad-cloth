@@ -347,7 +347,7 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
         for anchor in selected:
             point = piece.Placement.multVec(App.Vector(*anchor.position))
             placed_points.append((float(point.x), float(point.y), float(point.z)))
-        anchor_clearance = assert_minimum_surface_clearance(surface, placed_points, float(clearance))
+        anchor_clearance = minimum_surface_clearance(surface, placed_points)
         piece_points = _piece_world_surface_points(piece, deflection=max(0.25, float(clearance) / 2.0))
         piece_clearance, worst_hit = minimum_surface_clearance_detail(surface, piece_points)
         vertex_clearance = minimum_target_vertex_clearance(surface, piece_points)
@@ -375,6 +375,10 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
             vertex_clearance = minimum_target_vertex_clearance(surface, piece_points)
             correction_count += 1
         piece_clearance = assert_minimum_surface_clearance(surface, piece_points, float(clearance))
+        anchor_clearance = assert_minimum_surface_clearance(surface, tuple(
+            tuple(float(value) for value in piece.Placement.multVec(App.Vector(*anchor.position)))
+            for anchor in selected
+        ), float(clearance))
         if vertex_clearance < float(clearance) - 1e-6:
             raise TargetPlacementError(
                 "target-aware vertex clearance %.6f mm is below the required %.6f mm"
