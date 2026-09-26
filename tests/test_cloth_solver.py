@@ -62,6 +62,30 @@ def test_mesh_collision_corner_projects_against_both_local_faces():
     assert particle.position() == (11.0, 11.0, 0.0)
 
 
+def test_tissu_collision_thickness_env_is_fail_closed():
+    import os
+    from freecad_cloth.simulation.TissuBackend import _tissu_collision_thickness_mm
+
+    original = os.environ.pop("CLOTH_TISSU_COLLISION_THICKNESS_MM", None)
+    try:
+        assert _tissu_collision_thickness_mm() == 2.0
+        os.environ["CLOTH_TISSU_COLLISION_THICKNESS_MM"] = "8"
+        assert _tissu_collision_thickness_mm() == 8.0
+        for raw in ("0", "-1", "invalid"):
+            os.environ["CLOTH_TISSU_COLLISION_THICKNESS_MM"] = raw
+            try:
+                _tissu_collision_thickness_mm()
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("invalid collision thickness was accepted: %s" % raw)
+    finally:
+        if original is None:
+            os.environ.pop("CLOTH_TISSU_COLLISION_THICKNESS_MM", None)
+        else:
+            os.environ["CLOTH_TISSU_COLLISION_THICKNESS_MM"] = original
+
+
 def test_tissu_collision_surface_abi_preserves_solver_surface_identity():
     from pathlib import Path
 
