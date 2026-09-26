@@ -18,6 +18,8 @@ For local FreeCAD development, use a FreeCAD build whose embedded Python runtime
 
 FreeCAD/Sketcher owns editable geometry and document persistence; Cloth owns garment semantics; the solver owns physics. Simulation meshes and collision data are derived and rebuildable. A native human mannequin and generic FreeCAD Shape/PartDesign/Body/Mesh are interchangeable providers of the same target-neutral `DrapeTarget` contract.
 
+The Simulation task panel also carries the current simulation context into **Arrange / Fit**. Its **Context** group shows the persistent `DrapeTarget` status and exposes target recovery; **Arrange / Fit…**, **Snap pieces to target**, and **Reset arrangement** are visible fitting controls. The target-aware production placement action is `ClothFitting_SnapPiecesToTarget`: when that placement integration is present, it performs bounded rigid translation against the persistent `DrapeTarget`, validates clearance for the full selected pieces, and relies on **Reset arrangement** for rollback. It is placement, not conformal cloth deformation.
+
 ## Installation and examples
 
 Start with [Installation](docs/INSTALLATION.md), then run the [Blanket over Cube](docs/EXAMPLES.md) example before the full tunic acceptance path. The [Release gates](docs/RELEASE_GATES.md) define what “complete” means for this repository and explicitly separate implemented behavior from the commercial-feature roadmap.
