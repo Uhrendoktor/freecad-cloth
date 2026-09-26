@@ -1,16 +1,19 @@
 """Small, FreeCAD-independent helpers for Sewing workbench views."""
 from colorsys import hsv_to_rgb
-
-
-_SEAM_GOLDEN_ANGLE = 0.618033988749895
+import hashlib
 
 
 def seam_color_map(seam_ids):
-    """Return deterministic, visually distinct colors keyed by seam id."""
-    ids = sorted({str(seam_id) for seam_id in seam_ids if str(seam_id).strip()})
+    """Return the canonical deterministic RGB for each semantic SeamId.
+
+    Presentation color is derived only from SeamId, never from document order,
+    selection, visible subset, or another presentation object.
+    """
+    ids = sorted({str(seam_id).strip() for seam_id in seam_ids if str(seam_id).strip()})
     result = {}
-    for index, seam_id in enumerate(ids):
-        hue = (index * _SEAM_GOLDEN_ANGLE) % 1.0
+    for seam_id in ids:
+        digest = hashlib.sha256(seam_id.encode("utf-8")).digest()
+        hue = (int.from_bytes(digest[:8], "big") % 1000000) / 1000000.0
         rgb = hsv_to_rgb(hue, 0.78, 0.92)
         result[seam_id] = tuple(round(channel, 6) for channel in rgb)
     return result
@@ -29,6 +32,17 @@ def apply_seam_colors(objects):
         if view is not None and color is not None:
             view.LineColor = color
     return colors
+
+
+def refresh_seam_colors(document):
+    """Refresh all SeamId-keyed presentation colors in a document.
+
+    Semantic seam identity stays authoritative on the canonical seam object;
+    derived presentation objects may retain/link SeamId but do not own a color map.
+    """
+    if document is None:
+        return {}
+    return apply_seam_colors(getattr(document, "Objects", ()))
 
 
 def pattern_pieces_for_2d(objects):
