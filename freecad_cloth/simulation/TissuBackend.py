@@ -7,7 +7,7 @@ from copy import deepcopy
 from typing import Iterable, Sequence, Tuple
 import os
 
-from freecad_cloth.avatar.AvatarCollision import CollisionSurface
+from freecad_cloth.avatar.AvatarCollision import CollisionSurface, coarsen_collision_surface
 from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 
@@ -119,7 +119,12 @@ class TissuBackend(ClothSimulationBackend):
                     friction=0.5,
                 )
             return
-        vtx, idx = _to_tissu_mesh(self._collision_surface)
+        # Keep the persistent DrapeTarget authoritative while deriving a bounded
+        # solver-facing surface. This matches the existing XPBD collision path and
+        # avoids pushing the full render tessellation into Tissu on every build.
+        solver_surface = coarsen_collision_surface(self._collision_surface, 512)
+        self._solver_collision_triangle_count = len(solver_surface.triangles)
+        vtx, idx = _to_tissu_mesh(solver_surface)
         self._sim.add_mesh_from_arrays("drape-target", vtx, idx, friction=0.5)
 
     def _build(self, Simulation):
