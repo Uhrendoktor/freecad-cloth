@@ -1,3 +1,4 @@
+import os
 from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
 
 
@@ -60,6 +61,82 @@ def test_mesh_collision_corner_projects_against_both_local_faces():
     system._collide_surface(surface)
 
     assert particle.position() == (11.0, 11.0, 0.0)
+
+
+def test_tissu_signed_collision_guard_math_and_env_gate():
+    from freecad_cloth.simulation.TissuBackend import _signed_collision_guard_correction, _tissu_signed_collision_guard
+    import numpy as np
+
+    original = os.environ.pop("CLOTH_TISSU_SIGNED_COLLISION_GUARD", None)
+    try:
+        assert _tissu_signed_collision_guard() is False
+        os.environ["CLOTH_TISSU_SIGNED_COLLISION_GUARD"] = "1"
+        assert _tissu_signed_collision_guard() is True
+        os.environ["CLOTH_TISSU_SIGNED_COLLISION_GUARD"] = "false"
+        assert _tissu_signed_collision_guard() is False
+
+        position = np.asarray((0.02, 0.0, -0.01), dtype=np.float64)
+        old_position = np.asarray((0.01, 0.0, 0.0), dtype=np.float64)
+        closest = np.asarray((0.02, 0.0, 0.0), dtype=np.float64)
+        normal = np.asarray((0.0, 0.0, 1.0), dtype=np.float64)
+        correction = _signed_collision_guard_correction(position, old_position, closest, normal, 0.002)
+        assert correction is not None
+        corrected, corrected_old, penetration = correction
+        assert tuple(corrected) == (0.02, 0.0, 0.002)
+        assert tuple(corrected - corrected_old) == (0.01, 0.0, 0.0)
+        assert abs(penetration - 0.01) <= 1e-12
+        outside = np.asarray((0.02, 0.0, 0.01), dtype=np.float64)
+        assert _signed_collision_guard_correction(outside, old_position, closest, normal, 0.002) is None
+    finally:
+        if original is None:
+            os.environ.pop("CLOTH_TISSU_SIGNED_COLLISION_GUARD", None)
+        else:
+            os.environ["CLOTH_TISSU_SIGNED_COLLISION_GUARD"] = original
+
+
+def test_tissu_signed_collision_bvh_preserves_authored_outward_winding():
+    from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
+    from freecad_cloth.simulation.TissuBackend import _build_signed_collision_bvh, _nearest_signed_collision, _to_tissu_position, _signed_collision_guard_correction
+    import numpy as np
+
+    vertices = (
+        (-10, -10, -10), (10, -10, -10), (10, 10, -10), (-10, 10, -10),
+        (-10, -10, 10), (10, -10, 10), (10, 10, 10), (-10, 10, 10),
+    )
+    outward = (
+        (0, 2, 1), (0, 3, 2),
+        (4, 5, 6), (4, 6, 7),
+        (0, 1, 5), (0, 5, 4),
+        (3, 6, 2), (3, 7, 6),
+        (0, 4, 7), (0, 7, 3),
+        (1, 2, 6), (1, 6, 5),
+    )
+    surface = surface_from_triangles(vertices, outward, thickness=1.0)
+    bvh = _build_signed_collision_bvh(surface)
+    point = np.asarray(_to_tissu_position((0.0, 0.0, 0.0)), dtype=np.float64)
+    nearest = _nearest_signed_collision(bvh, point)
+    assert nearest is not None
+    closest, normal, distance = nearest
+    assert distance > 0.0
+    assert float(np.dot(point - closest, normal)) < 0.0
+    correction = _signed_collision_guard_correction(
+        point,
+        point.copy(),
+        closest,
+        normal,
+        0.002,
+    )
+    assert correction is not None
+
+
+def test_tissu_signed_guard_uses_source_surface_without_changing_solver_surface():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    assert "_build_signed_collision_bvh(self._source_collision_surface or self._collision_surface)" in source
+    assert "self._collision_surface = collision_surface" in source
+    assert "return self._collision_surface" in source
 
 
 def test_tissu_collision_surface_abi_preserves_solver_surface_identity():
