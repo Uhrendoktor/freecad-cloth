@@ -582,7 +582,8 @@ def main():
                 bbox_overlap_ratio,
                 grid_coverage_ratio,
             )
-        )        log(
+        )
+        log(
             "stage=simulation-pass steps=%d simulated_time_s=%.3f elapsed_ms=%.1f"
             % (steps, float(scene.SimulatedTime), 1000.0 * (time.monotonic() - simulation_started))
         )
