@@ -184,4 +184,3 @@ def test_quality_proxy_keeps_provenance_explicit_after_backend_handoff():
     replacement.seam_stitch_pairs = {}
     proxy._base_or_restore = lambda: replacement
     assert proxy.seam_stitch_pairs == {"seam-2": ((2, 3), (4, 5))}
-
