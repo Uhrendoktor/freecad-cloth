@@ -3,7 +3,7 @@ name: Canonical execution
 on:
   push:
     branches: [main]
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
@@ -18,13 +18,18 @@ on:
         required: false
         type: string
         default: ""
+      pull_request_number:
+        description: "PR number for the broker-dispatched hosted validation run."
+        required: false
+        type: string
+        default: ""
   schedule:
     - cron: '*/5 * * * *'
     - cron: '0 3 * * *'
 
 concurrency:
   # Keep only the newest PR run for each PR; older pushes are obsolete.
-  group: ${{ github.event_name == 'pull_request' && format('canonical-{0}-pr-{1}', github.workflow, github.event.pull_request.number) || format('canonical-{0}-{1}-{2}', github.workflow, github.event_name, github.ref) }}
+  group: ${{ github.event_name == 'workflow_dispatch' && inputs.pull_request_number != '' && format('canonical-{0}-pr-{1}', github.workflow, inputs.pull_request_number) || github.event_name == 'pull_request_target' && format('canonical-broker-{0}-pr-{1}', github.workflow, github.event.pull_request.number) || format('canonical-{0}-{1}-{2}', github.workflow, github.event_name, github.ref) }}
   cancel-in-progress: true
 
 env:
@@ -32,7 +37,7 @@ env:
   QT_X11_NO_MITSHM: 1
   QT_QPA_PLATFORM: xcb
   LIBGL_ALWAYS_SOFTWARE: 1
-  CLOTH_CI_RUNNER_MODE: ${{ inputs.runner_mode || (github.event_name == 'pull_request' && 'hosted' || 'local') }}
+  CLOTH_CI_RUNNER_MODE: ${{ inputs.runner_mode || (github.event_name == 'pull_request_target' && 'hosted' || 'local') }}
   XDG_RUNTIME_DIR: /tmp/runtime-cloth
 
 permissions:
@@ -58,7 +63,7 @@ jobs:
           protected="$RUNNER_TEMP/protected-runs"
           : > "$protected"
           mapfile -t prs < <(gh pr list --repo "$REPO" --state open --limit 100 --json number --jq '.[].number')
-          mapfile -t runs < <(gh api --paginate "repos/$REPO/actions/runs?event=pull_request&per_page=100" --jq '.workflow_runs[] | select(.name == "Canonical execution") | [.id, .status, .created_at, ([.pull_requests[]?.number] | join(","))] | @tsv')
+          mapfile -t runs < <(gh api --paginate "repos/$REPO/actions/runs?event=pull_request_target&per_page=100" --jq '.workflow_runs[] | select(.name == "Canonical execution") | [.id, .status, .created_at, ([.pull_requests[]?.number] | join(","))] | @tsv')
           for pr in "${prs[@]}"; do
             candidates=()
             for row in "${runs[@]}"; do
@@ -98,6 +103,30 @@ jobs:
             echo "Canceling remaining active canonical run $run_id (event=$event)"
             gh api --method POST "repos/$REPO/actions/runs/$run_id/cancel" >/dev/null
           done
+  pull_request_broker:
+    name: Dispatch hosted PR validation from canonical base
+    if: ${{ github.event_name == 'pull_request_target' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Dispatch hosted validation from main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          gh workflow run canonical-execution.yml \
+            --repo "$REPO" \
+            --ref main \
+            -f runner_mode=hosted \
+            -f pull_request_number="$PR_NUMBER" \
+            -f fallback_source_run="$GITHUB_RUN_ID"
+          echo "pr-router=hosted-dispatch pr=$PR_NUMBER source_run=$GITHUB_RUN_ID workflow_ref=main"
+
   runner_watchdog:
     name: Local runner watchdog with hosted fallback
     if: ${{ github.event_name != 'pull_request' && inputs.runner_mode != 'hosted' }}
@@ -157,11 +186,15 @@ jobs:
         run: docker info >/dev/null
 
   python:
+    if: ${{ github.event_name != 'pull_request_target' }}
     name: Python and FreeCAD non-GUI tests
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.pull_request_number != '' && format('refs/pull/{0}/merge', inputs.pull_request_number) || github.sha }}
+          persist-credentials: false
       - name: Report canonical runner mode
         run: echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE fallback_source_run=${{ inputs.fallback_source_run || 'none' }}"
       - uses: docker/login-action@v3
@@ -237,11 +270,14 @@ jobs:
 
   sketcher-startup-diagnostic:
     name: FreeCAD Sketcher startup diagnostic
-    if: github.event_name == 'pull_request'
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.pull_request_number != '' }}
+    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.pull_request_number != '' && format('refs/pull/{0}/merge', inputs.pull_request_number) || github.sha }}
+          persist-credentials: false
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -338,11 +374,15 @@ jobs:
           if-no-files-found: warn
           compression-level: 1
   gui-sewing-creation:
+    if: ${{ github.event_name != 'pull_request_target' }}
     name: Sewing staged creation smoke
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.pull_request_number != '' && format('refs/pull/{0}/merge', inputs.pull_request_number) || github.sha }}
+          persist-credentials: false
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -423,11 +463,15 @@ jobs:
           compression-level: 1
 
   gui-sketcher-acceptance:
+    if: ${{ github.event_name != 'pull_request_target' }}
     name: Native Sketcher seam presentation acceptance
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.pull_request_number != '' && format('refs/pull/{0}/merge', inputs.pull_request_number) || github.sha }}
+          persist-credentials: false
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -498,11 +542,15 @@ jobs:
           if-no-files-found: error
           compression-level: 1
   gui-pattern-export:
+    if: ${{ github.event_name != 'pull_request_target' }}
     name: Pattern production export smoke
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.pull_request_number != '' && format('refs/pull/{0}/merge', inputs.pull_request_number) || github.sha }}
+          persist-credentials: false
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -562,11 +610,15 @@ jobs:
           compression-level: 1
 
   gui-tunic-visual:
+    if: ${{ github.event_name != 'pull_request_target' }}
     name: Full tunic visual and simulation audit
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.pull_request_number != '' && format('refs/pull/{0}/merge', inputs.pull_request_number) || github.sha }}
+          persist-credentials: false
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -682,11 +734,15 @@ jobs:
           compression-level: 1
 
   gui-turntables:
+    if: ${{ github.event_name != 'pull_request_target' }}
     name: README simulation turntable
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.pull_request_number != '' && format('refs/pull/{0}/merge', inputs.pull_request_number) || github.sha }}
+          persist-credentials: false
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -825,11 +881,15 @@ jobs:
 
 
   gui-visual-examples:
+    if: ${{ github.event_name != 'pull_request_target' }}
     name: Basic blanket visual example
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.pull_request_number != '' && format('refs/pull/{0}/merge', inputs.pull_request_number) || github.sha }}
+          persist-credentials: false
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -933,7 +993,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 10
     steps:
       - name: Download turntables
@@ -988,7 +1048,7 @@ jobs:
   maintenance-cleanup:
     name: Repository retention cleanup
     if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * *' }}
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     permissions:
       actions: write
       contents: write
@@ -1033,10 +1093,13 @@ jobs:
   benchmark:
     name: Measured FreeCAD workbench benchmark
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.pull_request_number != '' && format('refs/pull/{0}/merge', inputs.pull_request_number) || github.sha }}
+          persist-credentials: false
       - name: Pull published FreeCAD image
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
