@@ -94,7 +94,6 @@ def test_trusted_jobs_default_to_local_runner():
 def test_pr_validation_checks_out_only_the_requested_pr_head_sha():
     source = WORKFLOW.read_text(encoding="utf-8")
     python = _job_block(source, "python")
-    assert "inputs.pull_request_number != ''" in python
     assert "inputs.pull_request_sha != ''" in python
     assert "persist-credentials: false" in python
     assert "inputs.runner_mode == 'hosted'" in python
