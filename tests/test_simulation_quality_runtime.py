@@ -42,3 +42,29 @@ def test_material_defaults_match_persisted_contract():
 @pytest.mark.parametrize("distance", [0.0, -2.0])
 def test_discretization_clamps_invalid_spacing(distance):
     assert quality_discretization(4, 100.0, distance) >= 4
+
+
+def test_tissu_step_uses_backend_solver_collision_surface_without_replacing_authority():
+    from freecad_cloth.simulation.SimulationQualityRuntimeV2 import _solver_collision_surface
+
+    authoritative = object()
+    solver_surface = object()
+    base = SimpleNamespace(
+        collision_surface=authoritative,
+        backend=SimpleNamespace(name="tissu", _collision_surface=solver_surface),
+    )
+
+    assert _solver_collision_surface(base) is solver_surface
+    assert base.collision_surface is authoritative
+
+
+def test_non_tissu_step_uses_authoritative_collision_surface():
+    from freecad_cloth.simulation.SimulationQualityRuntimeV2 import _solver_collision_surface
+
+    authoritative = object()
+    base = SimpleNamespace(
+        collision_surface=authoritative,
+        backend=SimpleNamespace(name="cloth"),
+    )
+
+    assert _solver_collision_surface(base) is authoritative
