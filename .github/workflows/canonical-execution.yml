@@ -228,13 +228,15 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Pull FreeCAD image
-        run: docker pull "$FREECAD_IMAGE"
+      - name: Build patched FreeCAD image
+        run: |
+          set -euo pipefail
+          docker build --pull --progress=plain -t "$FREECAD_TUNIC_IMAGE" -f docker/freecad-ci/Dockerfile .
       - name: Stage workspace in Docker volume
         run: |
           set -euo pipefail
           volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
-          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_IMAGE" -lc 'true')"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_TUNIC_IMAGE" -lc 'true')"
           echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
           echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
           docker cp "$PWD/." "$carrier:/workspace/"
@@ -248,7 +250,7 @@ jobs:
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e CLOTH_SEWING_SMOKE_LOG=/workspace/artifacts/sewing-creation-smoke.log \
-            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_TUNIC_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
@@ -462,6 +464,8 @@ jobs:
     needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 20
+    env:
+      FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix
     steps:
       - name: Log selected execution mode
         run: |
