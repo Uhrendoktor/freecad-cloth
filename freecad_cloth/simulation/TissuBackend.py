@@ -134,7 +134,7 @@ class TissuBackend(ClothSimulationBackend):
                 raise RuntimeError("authored containment requires the full source surface alongside a reduced solver surface")
             try:
                 self._authored_containment_index = build_authored_surface_index(
-                    self._source_collision_surface.vertices,
+                    self._authored_containment_vertices(),
                     self._source_collision_surface.triangles,
                 )
             except ValueError as exc:
@@ -154,6 +154,9 @@ class TissuBackend(ClothSimulationBackend):
     @property
     def time(self):
         return self._time
+
+    def _authored_containment_vertices(self):
+        return tuple(_to_tissu_position(vertex) for vertex in self._source_collision_surface.vertices)
 
     def _add_collision(self):
         import numpy as np
