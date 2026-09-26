@@ -25,6 +25,7 @@ def ensure_quality_properties(scene):
         ("FabricRoughness", "App::PropertyFloat", "Fabric", None, 0.65),
         ("FabricTransparency", "App::PropertyInteger", "Fabric", None, 0),
         ("AvatarSkinOffset", "App::PropertyFloat", "Collision", None, 0.0),
+        ("PinMode", "App::PropertyEnumeration", "Selection", ["Automatic", "Explicit", "None"], "Automatic"),
     )
     for name, type_name, group, values, default in specs:
         if not hasattr(scene, name):
@@ -47,6 +48,9 @@ def _validate_properties(scene):
     scene.FabricTransparency = min(100, max(0, int(scene.FabricTransparency)))
     scene.FabricColor = normalize_color_rgb(getattr(scene, "FabricColor", (0.72, 0.34, 0.46)))
     scene.AvatarSkinOffset = max(0.0, float(scene.AvatarSkinOffset))
+    scene.PinMode = str(getattr(scene, "PinMode", "Automatic")).strip() or "Automatic"
+    if scene.PinMode not in {"Automatic", "Explicit", "None"}:
+        raise ValueError("unsupported PinMode: %s" % scene.PinMode)
 
 
 def apply_quality_preset(scene, name=None):
