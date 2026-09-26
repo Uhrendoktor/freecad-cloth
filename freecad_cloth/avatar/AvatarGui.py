@@ -120,9 +120,9 @@ class AvatarTaskPanel:
         self.arrangement_points.setToolTip("Persistent local fitting points used as a foundation for garment placement.")
         self.arrangement_points.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
         arrangement_layout.addWidget(self.arrangement_points)
-        self.snap_target_button = QtWidgets.QPushButton("Snap selected piece to Drape Target")
+        self.snap_target_button = QtWidgets.QPushButton("Snap selected piece(s) to Drape Target")
         self.snap_target_button.setToolTip(
-            "Select exactly one PatternPiece. Its current side of the DrapeTarget determines the wrap direction; placement is bounded and persisted."
+            "Select one or more PatternPieces. Their current side of the DrapeTarget determines the wrap direction; placement is bounded and persisted."
         )
         arrangement_layout.addWidget(self.snap_target_button)
         content_layout.addWidget(arrangement)
