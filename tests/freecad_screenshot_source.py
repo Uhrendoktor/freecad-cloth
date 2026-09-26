@@ -513,6 +513,9 @@ def simulation():
         getattr(view, method_name)(); view.fitAll(); events(); save("cloth-simulation-draped-%s.png" % direction, "Simulation Workbench draped %s" % direction, "same sewn tunic after %d real steps; six-side audit from native Sketcher pattern sources" % int(scene.Steps))
         if direction == "front":
             save("cloth-simulation-draped.png", "Simulation Workbench draped front", "legacy front screenshot alias; native Sketcher tunic source")
+    with open(METRICS, "r", encoding="utf-8") as handle:
+        from freecad_cloth.common.DrapeVisualSanity import assert_drape_diagnostics
+        assert_drape_diagnostics(json.load(handle).get("panels", ()))
     task_dock.show(); task_dock.raise_(); events(); close_task(); App.closeDocument(doc.Name)
 
 
