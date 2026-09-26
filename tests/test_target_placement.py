@@ -56,12 +56,16 @@ def test_group_fit_contract_preserves_authored_spacing_and_uses_one_shared_trans
     start = source.index("def snap_pattern_pieces_to_target(")
     end = source.index("\ndef position_piece", start)
     body = source[start:end]
-    assert "shared = tuple(" in body
+    assert "total_translation = App.Vector(0.0, 0.0, 0.0)" in body
+    assert "for _iteration in range(16)" in body
     assert "piece.Placement = App.Placement(" in body
     assert "scene.HomePlacements" in body
     assert "scene.PiecePlacements = list(persisted_before)" in body
     assert "piece.Placement = original" in body
     assert body.count("minimum_signed_clearance(") >= 2
+    assert "PatternSimulationAdapter" in source
+    assert "PatternMesh" in source
+    assert "shared rigid" in body.lower()
 
 
 def test_target_surface_is_transformed_to_world_coordinates():
