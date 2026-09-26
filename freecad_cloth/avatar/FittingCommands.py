@@ -340,10 +340,16 @@ def _world_shape(obj):
         vertices, triangles = topology
         for triangle in triangles:
             try:
-                points = [App.Vector(*vertices[int(i)]) for i in triangle]
+                points = []
+                for index in triangle:
+                    vertex = vertices[int(index)]
+                    x = float(vertex.x) if hasattr(vertex, "x") else float(vertex[0])
+                    y = float(vertex.y) if hasattr(vertex, "y") else float(vertex[1])
+                    z = float(vertex.z) if hasattr(vertex, "z") else float(vertex[2])
+                    points.append(App.Vector(x, y, z))
                 points.append(points[0])
                 faces.append(Part.Face(Part.makePolygon(points)))
-            except (IndexError, TypeError, ValueError, RuntimeError):
+            except (IndexError, TypeError, ValueError, RuntimeError, AttributeError):
                 continue
         if not faces:
             raise ValueError("object mesh has no usable triangular faces")
@@ -415,6 +421,9 @@ def snap_piece_to_drape_target(piece, target=None, clearance=8.0, max_translatio
         if nearest and len(nearest) >= 2:
             target_point, piece_point = nearest[0], nearest[1]
             direction = piece_point.sub(target_point)
+            outward = _shape_center(piece_shape).sub(_shape_center(target_shape))
+            if direction.dot(outward) < 0.0:
+                direction = direction.multiply(-1.0)
         else:
             direction = _shape_center(piece_shape).sub(_shape_center(target_shape))
         if direction.Length <= 1e-9:
