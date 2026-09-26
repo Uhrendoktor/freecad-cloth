@@ -346,7 +346,15 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
             for piece in selected:
                 samples = sample_cache[piece]
                 center = average_point(samples)
-                projection = nearest_target_projection(center, surface)
+                preferred_direction = tuple(
+                    float(center[index]) - float(surface.center[index])
+                    for index in range(3)
+                )
+                projection = nearest_target_projection(
+                    center,
+                    surface,
+                    preferred_normal=preferred_direction,
+                )
                 target_point = tuple(
                     float(projection.point[index]) + float(projection.normal[index]) * required
                     for index in range(3)
@@ -415,7 +423,15 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
                         float(center[index]) + float(step[index])
                         for index in range(3)
                     )
-                    test_projection = nearest_target_projection(test_center, surface)
+                    preferred_direction = tuple(
+                        float(test_center[index]) - float(surface.center[index])
+                        for index in range(3)
+                    )
+                    test_projection = nearest_target_projection(
+                        test_center,
+                        surface,
+                        preferred_normal=preferred_direction,
+                    )
                     target_point = tuple(
                         float(test_projection.point[index])
                         + float(test_projection.normal[index]) * required
