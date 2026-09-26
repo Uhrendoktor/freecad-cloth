@@ -55,6 +55,7 @@ class DrapeTargetAuthorityTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    test_fitting_simulation_target_propagation_and_staleness()
     unittest.main()
 
 
