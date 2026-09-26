@@ -174,6 +174,29 @@ class AvatarFittingTests(unittest.TestCase):
         points = arrangement_points_from_landmarks(["waist|0,0,900", "waist|0,0,905", "neck|0,0,1150"])
         self.assertEqual(points, ["neck|0,0,1150", "waist|0,0,905"])
 
+    def test_target_snap_is_bounded_and_outward_normal_aware(self):
+        from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
+        from freecad_cloth.avatar.FittingCommands import _snap_translation
+        surface = surface_from_triangles(
+            ((0.0, 0.0, 0.0), (100.0, 0.0, 0.0), (0.0, 100.0, 0.0)),
+            ((0, 1, 2),),
+        )
+        delta = _snap_translation(surface, (20.0, 20.0, 50.0), 2.0, 100.0)
+        self.assertAlmostEqual(delta[2], -48.0)
+        with self.assertRaises(ValueError):
+            _snap_translation(surface, (20.0, 20.0, 500.0), 2.0, 100.0)
+
+    def test_target_snap_command_contract_is_fail_closed(self):
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+        self.assertIn('"DrapeTarget", "Fitting"', source)
+        self.assertIn("ClothFitting_SnapPiecesToTarget", source)
+        self.assertIn('raise ValueError("select exactly one DrapeTarget and one or more PatternPiece objects")', source)
+        self.assertIn('if status["state"] != "ready":', source)
+        self.assertIn("scene.DrapeTarget", source)
+        self.assertIn("piece.Placement = original[str(piece.PieceId)]", source)
+        self.assertIn("simulation.DrapeTarget = scene.DrapeTarget", source)
+
     def test_freecad_mannequin_rebuild_invalidates_target_until_refreshed(self):
         try:
             import FreeCAD as App
