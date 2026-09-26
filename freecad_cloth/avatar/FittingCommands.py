@@ -252,33 +252,36 @@ def set_arrangement_point(name, x=None, y=None, offset=None, wrap_direction=None
     return point
 
 
-def _piece_world_surface_points(piece, deflection=1.0):
-    """Sample the complete PatternPiece surface in world coordinates.
+def _piece_world_surface_points(piece, spacing=32.0):
+    """Sample the complete solver-neutral PatternIR tessellation in world space.
 
-    Target-aware placement must not prove clearance from anchors alone. A
-    tessellated face surface is the conservative geometry contract used before
-    simulation. If FreeCAD cannot provide a surface sample, fail closed.
+    Target-aware correction must use the same authoritative pattern geometry and
+    PatternPiece.Placement semantics as the simulation mesh, never a presentation
+    Shape whose placement can differ from the PatternIR geometry.
     """
-    shape = getattr(piece, "Shape", None)
-    if shape is None or getattr(shape, "isNull", lambda: True)():
-        raise ValueError("pattern piece has no usable shape for clearance validation")
-    try:
-        local_points, _triangles = shape.tessellate(max(0.25, float(deflection)), 0.4)
-    except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-        raise ValueError("pattern piece surface tessellation is unavailable") from exc
-    if not local_points:
-        raise ValueError("pattern piece surface tessellation produced no points")
+    import FreeCAD as App
+    from freecad_cloth.common.PatternSimulationAdapter import geometry_from_piece_ir, resolve_piece_ir
+    from freecad_cloth.pattern.PatternMesh import refine_linear_boundary, triangulate
+
     placement = getattr(piece, "Placement", None)
     if placement is None:
         raise ValueError("pattern piece has no persistent placement")
+    sample_spacing = max(0.25, float(spacing))
+    piece_ir = resolve_piece_ir(piece)
+    pattern = geometry_from_piece_ir(piece_ir)
+    mesh = triangulate(
+        refine_linear_boundary(pattern, sample_spacing),
+        max_area=0.45 * sample_spacing * sample_spacing,
+    )
+    if not mesh.vertices:
+        raise ValueError("pattern piece surface tessellation produced no points")
     points = []
-    for local in local_points:
-        world = placement.multVec(local)
+    for local_x, local_y in mesh.vertices:
+        world = placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
         points.append((float(world.x), float(world.y), float(world.z)))
     if not points:
         raise ValueError("pattern piece produced no world-space clearance samples")
     return tuple(points)
-
 
 def set_garment_anchors(anchors):
     """Persist deterministic garment-local anchors on the existing fitting scene."""
@@ -302,7 +305,7 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
     from freecad_cloth.avatar.AvatarFitting import GarmentAnchor, PiecePlacement
     from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
     from freecad_cloth.avatar.TargetAwarePlacement import (
-        TargetPlacementError, assert_minimum_surface_clearance, minimum_surface_clearance, require_ready_target_status,
+        TargetPlacementError, assert_minimum_surface_clearance, minimum_surface_clearance_sample, require_ready_target_status,
         solve_rigid_z, target_surface_anchor, wrap_normal,
     )
     if getattr(piece, "PatternType", "") != "PatternPiece":
@@ -326,7 +329,6 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
         if not selected:
             raise ValueError("target-aware placement requires at least one garment anchor")
         source_points, target_points = [], []
-        anchor_hits = []
         for anchor in selected:
             anchor.validate()
             source = piece.Placement.multVec(App.Vector(*anchor.position))
@@ -334,7 +336,6 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
             desired = tuple(hit.point[i] + hit.normal[i] * (float(surface.thickness) + float(clearance)) for i in range(3))
             source_points.append((float(source.x), float(source.y), float(source.z)))
             target_points.append(desired)
-            anchor_hits.append(hit)
         delta = solve_rigid_z(source_points, target_points, max_translation, max_rotation)
         delta_rotation = App.Rotation(App.Vector(0, 0, 1), float(delta.rotation_z))
         current = piece.Placement
@@ -346,31 +347,57 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
         for anchor in selected:
             point = piece.Placement.multVec(App.Vector(*anchor.position))
             placed_points.append((float(point.x), float(point.y), float(point.z)))
-        anchor_clearance = minimum_surface_clearance(surface, placed_points)
-        piece_points = _piece_world_surface_points(piece, deflection=max(0.25, float(clearance) / 2.0))
-        piece_clearance = minimum_surface_clearance(surface, piece_points)
-        if piece_clearance < float(clearance) - 1e-6:
-            normal_sum = tuple(
-                sum(float(hit.normal[i]) for hit in anchor_hits)
+
+        # Use the complete PatternIR tessellation at the canonical quality-mesh
+        # resolution. Every correction step is driven by the actual worst sample.
+        sample_spacing = min(32.0, max(8.0, 4.0 * float(clearance)))
+        piece_points = _piece_world_surface_points(piece, spacing=sample_spacing)
+        correction_translation = (0.0, 0.0, 0.0)
+        correction_iterations = 0
+        clearance_sample = minimum_surface_clearance_sample(surface, piece_points)
+        while clearance_sample.clearance < float(clearance) - 1e-6:
+            if correction_iterations >= 64:
+                raise TargetPlacementError("target-aware full-surface clearance correction did not converge")
+            deficit = float(clearance) - float(clearance_sample.clearance)
+            total_translation = tuple(
+                float(delta.translation[i]) + float(correction_translation[i])
                 for i in range(3)
             )
-            outward_length = max(1e-12, sum(value * value for value in normal_sum) ** 0.5)
-            correction = float(clearance) - float(piece_clearance)
-            correction_vec = App.Vector(
-                normal_sum[0] / outward_length * correction,
-                normal_sum[1] / outward_length * correction,
-                normal_sum[2] / outward_length * correction,
-            )
-            corrected_base = piece.Placement.Base + correction_vec
-            if (corrected_base - original_placement.Base).Length > float(max_translation):
+            remaining_translation = float(max_translation) - App.Vector(*total_translation).Length
+            if remaining_translation <= 1e-9:
                 raise TargetPlacementError("target-aware clearance correction exceeds the configured translation bound")
+            step = min(deficit + 1e-6, remaining_translation)
+            correction_vector = App.Vector(
+                float(clearance_sample.normal[0]) * step,
+                float(clearance_sample.normal[1]) * step,
+                float(clearance_sample.normal[2]) * step,
+            )
+            next_correction = tuple(
+                float(correction_translation[i]) + float(correction_vector[i])
+                for i in range(3)
+            )
+            next_total_translation = tuple(
+                float(delta.translation[i]) + float(next_correction[i])
+                for i in range(3)
+            )
+            if App.Vector(*next_total_translation).Length > float(max_translation) + 1e-6:
+                raise TargetPlacementError("target-aware clearance correction exceeds the configured translation bound")
+            corrected_base = piece.Placement.Base + correction_vector
             piece.Placement = App.Placement(corrected_base, piece.Placement.Rotation)
             if sketch is not None:
                 sketch.Placement = piece.Placement
-            piece_points = _piece_world_surface_points(piece, deflection=max(0.25, float(clearance) / 2.0))
-            piece_clearance = minimum_surface_clearance(surface, piece_points)
+            correction_translation = next_correction
+            correction_iterations += 1
+            piece_points = _piece_world_surface_points(piece, spacing=sample_spacing)
+            clearance_sample = minimum_surface_clearance_sample(surface, piece_points)
+
+        placed_points = []
+        for anchor in selected:
+            point = piece.Placement.multVec(App.Vector(*anchor.position))
+            placed_points.append((float(point.x), float(point.y), float(point.z)))
         anchor_clearance = assert_minimum_surface_clearance(surface, placed_points, float(clearance))
         piece_clearance = assert_minimum_surface_clearance(surface, piece_points, float(clearance))
+
         if scene is not None:
             entries = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)}
             axis = piece.Placement.Rotation.Axis
@@ -384,11 +411,13 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
             scene.FitStatus = "Target-aware placement applied"
         doc.recompute()
         return {
-            "translation": tuple(float(v) for v in delta.translation),
+            "translation": tuple(float(delta.translation[i]) + float(correction_translation[i]) for i in range(3)),
             "rotation_z": float(delta.rotation_z),
             "anchor_residual": float(delta.residual_max),
             "anchor_clearance": float(anchor_clearance),
             "piece_clearance": float(piece_clearance),
+            "correction_iterations": int(correction_iterations),
+            "correction_normal": tuple(float(v) for v in clearance_sample.normal),
         }
     except Exception:
         piece.Placement = original_placement
