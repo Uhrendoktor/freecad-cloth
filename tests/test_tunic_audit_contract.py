@@ -28,8 +28,9 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     assert 'scene.PinMode = "None"' in source
     assert 'scene.PinSelection = []' in source
     assert 'if solver_pins:' in source
-    assert 'nearest_target_clearance' in source
-    assert 'step0-target-vertex-clearance-mm=' in source
+    assert 'ClothFitting_SnapPiecesToTarget' in source
+    assert 'Gui.runCommand("ClothFitting_SnapPiecesToTarget", 0)' in source
+    assert 'step0-target-signed-clearance-mm=' in source
     assert 'authored_shoulder_pins' not in source
     assert 'scene.PinSelection = [str(i) for i in front_pins]' not in source
     assert 'target_surface = collision_surface(' in source
