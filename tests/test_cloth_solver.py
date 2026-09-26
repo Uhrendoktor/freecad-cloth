@@ -62,6 +62,21 @@ def test_mesh_collision_corner_projects_against_both_local_faces():
     assert particle.position() == (11.0, 11.0, 0.0)
 
 
+def test_tissu_collision_surface_abi_preserves_solver_surface_identity():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    backend_source = (root / "freecad_cloth" / "simulation" / "ClothBackend.py").read_text(encoding="utf-8")
+    tissu_source = (root / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    objects_source = (root / "freecad_cloth" / "simulation" / "SimulationObjects.py").read_text(encoding="utf-8")
+
+    assert "def solver_collision_surface(self):" in backend_source
+    assert "def solver_collision_surface(self):" in tissu_source
+    assert "return self._collision_surface" in tissu_source
+    assert "self.backend.solver_collision_surface" in objects_source
+    assert "else collision_surface" in objects_source
+
+
 def test_mesh_collision_edge_projection_is_idempotent():
     surface = _cube_collision_surface()
     particle = Particle(10.5, 0.0, 10.5)
