@@ -299,6 +299,34 @@ class AvatarFittingTests(unittest.TestCase):
             if doc.Name in App.listDocuments():
                 App.closeDocument(doc.Name)
 
+    def test_target_placement_rejects_stale_target(self):
+        try:
+            import FreeCAD as App
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
+        from freecad_cloth.avatar.AvatarCommands import create_avatar, rebuild_avatar
+        from freecad_cloth.avatar.FittingCommands import create_fitting_scene, snap_pattern_pieces_to_target
+        doc = App.newDocument("TargetFitStale")
+        try:
+            avatar = create_avatar()
+            piece, _sketch = self._make_target_fit_piece(doc, "PatternPiece", 120.0)
+            scene = create_fitting_scene()
+            scene.AvatarProxy = avatar
+            scene.DrapeTarget = doc.getObject("DrapeTarget")
+            scene.PatternPieces = [piece]
+            base = piece.Placement.Base
+            home = "PatternPiece|%.12g,%.12g,%.12g|%.12g" % (base.x, base.y, base.z, piece.Placement.Rotation.Angle)
+            scene.PiecePlacements = [home]
+            scene.HomePlacements = [home]
+            doc.recompute()
+            avatar.Chest = float(avatar.Chest) + 40.0
+            rebuild_avatar()
+            with self.assertRaisesRegex(ValueError, "stale"):
+                snap_pattern_pieces_to_target([piece], clearance=5.0)
+        finally:
+            if doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
+
     def test_target_placement_rejects_missing_target(self):
         try:
             import FreeCAD as App
