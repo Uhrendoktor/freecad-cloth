@@ -385,6 +385,10 @@ def simulation():
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
     rot = App.Rotation(App.Vector(1,0,0), 90.0)
+    seed_z = 850.0
+    def make_piece(name, y, neckline_ratio, neckline_drop):
+        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = App.Placement(App.Vector(-hem_width / 2.0, y, seed_z), rot); piece.Sketch.Placement = piece.Placement; return piece, outline
+    # Preserve the authored front/back assembly geometry, then apply one common outside-target offset.
     def target_relative_piece_placement(side):
         if side == "front":
             y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
@@ -393,9 +397,107 @@ def simulation():
         else:
             raise ValueError("tunic target-relative side must be front or back")
         return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
+
+    seed_offset = App.Vector(420.0, 260.0, 280.0)
     def make_piece(name, side, neckline_ratio, neckline_drop):
-        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(side); piece.Sketch.Placement = piece.Placement; return piece, outline
+        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name
+        base = target_relative_piece_placement(side)
+        piece.Placement = App.Placement(base.Base + seed_offset, base.Rotation)
+        piece.Sketch.Placement = piece.Placement
+        return piece, outline
+
     front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
+
+    # Execute the production fitting command against the persistent DrapeTarget.
+    from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+    from freecad_cloth.avatar.FittingCommands import create_fitting_scene, _world_target_surface, _piece_world_samples
+    from freecad_cloth.avatar.TargetPlacement import minimum_signed_clearance
+    fitting = create_fitting_scene()
+    fitting.AvatarProxy = scene.AvatarProxy
+    fitting.DrapeTarget = target
+    fitting.PatternPieces = [front, back]
+    homes = []
+    for piece in (front, back):
+        base = piece.Placement.Base
+        axis = piece.Placement.Rotation.Axis
+        placement = PiecePlacement(
+            str(piece.PieceId),
+            (float(base.x), float(base.y), float(base.z)),
+            float(piece.Placement.Rotation.Angle),
+            (float(axis.x), float(axis.y), float(axis.z)),
+        )
+        homes.append(placement.to_string())
+    fitting.PiecePlacements = list(homes)
+    fitting.HomePlacements = list(homes)
+    fitting.FitStatus = "Ready"
+    doc.recompute()
+    front_home = front.Placement.Base
+    back_home = back.Placement.Base
+    authored_spacing = (
+        float(back_home.x - front_home.x),
+        float(back_home.y - front_home.y),
+        float(back_home.z - front_home.z),
+    )
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(front)
+    Gui.Selection.addSelection(back)
+    Gui.runCommand("ClothFitting_SnapPiecesToTarget")
+    doc.recompute()
+    front_after = front.Placement.Base
+    back_after = back.Placement.Base
+    after_spacing = (
+        float(back_after.x - front_after.x),
+        float(back_after.y - front_after.y),
+        float(back_after.z - front_after.z),
+    )
+    if any(abs(after_spacing[i] - authored_spacing[i]) > 1e-6 for i in range(3)):
+        raise RuntimeError("target-aware group snap changed authored inter-piece spacing")
+    if tuple(fitting.HomePlacements) != tuple(homes):
+        raise RuntimeError("target-aware snap mutated HomePlacements")
+    target_world = _world_target_surface(target)
+    step0_clearance = min(
+        minimum_signed_clearance(_piece_world_samples(piece), target_world).minimum_signed_clearance
+        for piece in (front, back)
+    )
+    if step0_clearance < float(clearance) - 1e-6:
+        raise RuntimeError("target-aware tunic step-0 clearance %.3f mm < %.3f mm" % (step0_clearance, float(clearance)))
+    log("target-placement=passed step0-clearance-mm=%.3f authored-spacing-preserved=true" % float(step0_clearance))
+
+    # Exercise the public recovery path, including linked Sketch placement.
+    reset_front = front.Placement
+    reset_back = back.Placement
+    reset_front_sketch = front.Sketch.Placement
+    reset_back_sketch = back.Sketch.Placement
+    Gui.runCommand("ClothFitting_ResetArrangement")
+    doc.recompute()
+    for actual, expected, label in (
+        (front.Placement, front_home, "front"),
+        (back.Placement, back_home, "back"),
+        (front.Sketch.Placement, reset_front_sketch, "front-sketch"),
+        (back.Sketch.Placement, reset_back_sketch, "back-sketch"),
+    ):
+        if any(abs(getattr(actual.Base, axis) - getattr(expected.Base, axis)) > 1e-6 for axis in ("x", "y", "z")):
+            raise RuntimeError("Reset Arrangement did not restore %s HomePlacement" % label)
+        actual_axis = actual.Rotation.Axis
+        expected_axis = expected.Rotation.Axis
+        if (
+            abs(float(actual.Rotation.Angle) - float(expected.Rotation.Angle)) > 1e-6
+            or any(abs(float(getattr(actual_axis, axis)) - float(getattr(expected_axis, axis))) > 1e-6 for axis in ("x", "y", "z"))
+        ):
+            raise RuntimeError("Reset Arrangement did not restore %s rotation exactly" % label)
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(front)
+    Gui.Selection.addSelection(back)
+    Gui.runCommand("ClothFitting_SnapPiecesToTarget")
+    doc.recompute()
+    step0_clearance = min(
+        minimum_signed_clearance(_piece_world_samples(piece), target_world).minimum_signed_clearance
+        for piece in (front, back)
+    )
+    if step0_clearance < float(clearance) - 1e-6:
+        raise RuntimeError("target-aware re-snap after reset produced %.3f mm < %.3f mm clearance" % (step0_clearance, float(clearance)))
+    log("arrangement-reset=passed linked-sketch-home=true")
+
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
     for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
@@ -458,7 +560,16 @@ def simulation():
     if int(getattr(avatar, "MeshVertexCount", 0)) <= 100 or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100:
         raise RuntimeError("visual fixture does not contain a real humanoid mesh")
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
-    simulation_panel = SimulationQualityTaskPanel(scene); task_dock = show_task(simulation_panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset")); view = Gui.activeDocument().activeView(); view.setCameraType("Orthographic"); view.viewFront(); view.fitAll(); events(); task_dock.hide(); events(); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical sewn tunic generated from native Sketcher pattern sources on production mannequin"); task_dock.show(); task_dock.raise_(); events()
+    simulation_panel = SimulationQualityTaskPanel(scene); task_dock = show_task(simulation_panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Pin mode", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset")); view = Gui.activeDocument().activeView(); view.setCameraType("Orthographic"); view.viewFront(); view.fitAll(); events(); task_dock.hide(); events(); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical sewn tunic generated from native Sketcher pattern sources on production mannequin; target-aware public fitting"); task_dock.show(); task_dock.raise_(); events()
+    simulation_panel.step(1); doc.recompute(); events()
+    if not bool(scene.FiniteState):
+        raise RuntimeError("canonical tunic did not reach a finite state after the first solver step")
+    first_positions = tuple(scene.Proxy.backend.positions())
+    first_clearance = minimum_signed_clearance(first_positions, target_world).minimum_signed_clearance
+    if first_clearance < -1e-6:
+        raise RuntimeError("canonical tunic penetrated the DrapeTarget after the first solver step: %.6f mm" % first_clearance)
+    log("first-step-target-clearance=%.6f required=0.000000" % first_clearance)
+    simulation_panel.reset(); doc.recompute(); events()
     for batch in (15,15,15,15,15,15):
         simulation_panel.step(batch); doc.recompute(); events()
     if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
