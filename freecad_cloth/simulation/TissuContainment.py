@@ -230,11 +230,7 @@ class AuthoredSurfaceIndex:
             raise RuntimeError("authored containment nearest-surface query returned no triangle")
         return best_triangle, np.asarray(best_point, dtype=np.float64), best_distance
 
-    def contains(self, point, boundary_epsilon=_BOUNDARY_EPSILON):
-        point = np.asarray(point, dtype=np.float64)
-        triangle_index, closest, distance_sq = self._nearest_triangle(point)
-        if distance_sq <= float(boundary_epsilon) ** 2:
-            return False
+    def _parity_contains(self, point):
         stack = [0]
         intersections = 0
         while stack:
@@ -252,6 +248,13 @@ class AuthoredSurfaceIndex:
             stack.append(node.right)
         return (intersections % 2) == 1
 
+    def contains(self, point, boundary_epsilon=_BOUNDARY_EPSILON):
+        point = np.asarray(point, dtype=np.float64)
+        _triangle_index, _closest, distance_sq = self._nearest_triangle(point)
+        if distance_sq <= float(boundary_epsilon) ** 2:
+            return False
+        return self._parity_contains(point)
+
     def nearest(self, point):
         triangle_index, closest, distance_sq = self._nearest_triangle(point)
         return (
@@ -261,12 +264,15 @@ class AuthoredSurfaceIndex:
         )
 
     def correction(self, point, thickness, boundary_epsilon=_BOUNDARY_EPSILON):
-        if not self.contains(point, boundary_epsilon=boundary_epsilon):
+        point = np.asarray(point, dtype=np.float64)
+        triangle_index, closest, distance_sq = self._nearest_triangle(point)
+        if distance_sq <= float(boundary_epsilon) ** 2 or not self._parity_contains(point):
             return None
-        closest, normal, distance = self.nearest(point)
+        normal = self.normals[triangle_index]
+        distance = math.sqrt(max(distance_sq, 0.0))
         target = closest + normal * float(thickness)
         penetration = float(distance) + float(thickness)
-        if float(np.dot(np.asarray(point) - closest, normal)) > 1.0e-7:
+        if float(np.dot(point - closest, normal)) > 1.0e-7:
             raise RuntimeError("authored containment normal points toward the inside")
         return target, penetration
 
