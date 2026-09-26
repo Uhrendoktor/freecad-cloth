@@ -119,11 +119,12 @@ def test_authored_containment_is_explicitly_opt_in_and_resets_old_position():
 
     particle = Particle()
     sim = SimpleNamespace(solver=SimpleNamespace(get_particles=lambda: [particle]))
-    corrected = _apply_authored_containment_correction(
+    corrected, max_correction_mm = _apply_authored_containment_correction(
         sim,
         __import__("freecad_cloth.simulation.TissuContainment", fromlist=["AuthoredSurfaceContainment"]).AuthoredSurfaceContainment(_cube_surface()),
     )
     assert corrected == 1
+    assert max_correction_mm == 3.0
     assert particle.position == (0.012, 0.005, 0.005)
     assert particle.old_position == particle.position
 
