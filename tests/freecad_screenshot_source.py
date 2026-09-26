@@ -362,6 +362,14 @@ def simulation():
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
+    from freecad_cloth.avatar.FittingCommands import add_selected_pattern_pieces, create_fitting_scene, snap_pattern_pieces_to_target
+    fitting_scene = create_fitting_scene()
+    fitting_scene.AvatarProxy = scene.AvatarProxy
+    Gui.Selection.clearSelection(); Gui.Selection.addSelection(front); Gui.Selection.addSelection(back)
+    add_selected_pattern_pieces()
+    snap_pattern_pieces_to_target((front, back), clearance=clearance)
+    doc.recompute()
+    log("fit-snap target-relative=passed clearance=%.2f" % float(clearance))
     def authored_shoulder_pins(piece, particle_indices, positions):
         targets = (
             (0.14 * panel_width, 0.97 * garment_height),
