@@ -10,7 +10,7 @@ import os
 from freecad_cloth.avatar.AvatarCollision import CollisionSurface, coarsen_collision_surface
 from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
-from freecad_cloth.simulation.AuthoredSurfaceContainment import AuthoredSurfaceContainment
+from freecad_cloth.simulation.TissuContainment import build_authored_surface_index
 
 _MM = 1000.0
 _TISSU_SUBSTEPS_DEFAULT = 1
@@ -123,15 +123,24 @@ class TissuBackend(ClothSimulationBackend):
             )
         self._collision_surface = collision_surface
         self._collision_mode = collision_mode
-        self._containment_guard = None
-        if (
+        self._authored_containment_enabled = (
             collision_mode == "mesh"
             and _tissu_authored_containment_enabled()
             and self._source_collision_surface is not None
-        ):
-            self._containment_guard = AuthoredSurfaceContainment(self._source_collision_surface)
-        self._containment_corrections = 0
-        self._containment_max_exit_mm = 0.0
+        )
+        self._authored_containment_index = None
+        if self._authored_containment_enabled:
+            if len(self._source_collision_surface.triangles) <= len(self._collision_surface.triangles):
+                raise RuntimeError("authored containment requires the full source surface alongside a reduced solver surface")
+            try:
+                self._authored_containment_index = build_authored_surface_index(
+                    self._source_collision_surface.vertices,
+                    self._source_collision_surface.triangles,
+                )
+            except ValueError as exc:
+                raise RuntimeError("authored containment rejected collision topology") from exc
+        self._authored_containment_corrections = 0
+        self._authored_containment_max_penetration = 0.0
         self._time = 0.0
         self._iterations = 8
         self._substeps = _tissu_substeps()
@@ -179,29 +188,32 @@ class TissuBackend(ClothSimulationBackend):
         self._add_collision()
 
     def _apply_authored_containment(self):
-        guard = self._containment_guard
-        if guard is None:
+        index = self._authored_containment_index
+        if index is None:
             return 0
         import numpy as np
         particles = self._sim.solver.get_particles()
         corrected_count = 0
-        max_exit_mm = 0.0
-        for index, position in enumerate(self.positions()):
-            correction = guard.correct(position)
+        max_penetration_mm = 0.0
+        for particle_index, position in enumerate(self.positions()):
+            correction = index.correction(position, 2.0)
             if correction is None:
                 continue
-            corrected, exit_mm, _normal = correction
+            corrected, penetration_mm = correction
             target = np.asarray(_to_tissu_position(corrected), dtype=np.float64)
-            particles[index].set_position(target)
-            particles[index].set_old_position(target)
+            particles[particle_index].set_position(target)
+            particles[particle_index].set_old_position(target)
             corrected_count += 1
-            max_exit_mm = max(max_exit_mm, float(exit_mm))
-        self._containment_corrections += corrected_count
-        self._containment_max_exit_mm = max(self._containment_max_exit_mm, max_exit_mm)
+            max_penetration_mm = max(max_penetration_mm, float(penetration_mm))
+        self._authored_containment_corrections += corrected_count
+        self._authored_containment_max_penetration = max(
+            self._authored_containment_max_penetration,
+            max_penetration_mm / _MM,
+        )
         if corrected_count:
             print(
-                "cloth-tissu-authored-containment corrected=%d exit_mm=%.3f time=%.4f"
-                % (corrected_count, max_exit_mm, self._time),
+                "cloth-tissu-authored-containment corrected=%d penetration_mm=%.3f time=%.4f"
+                % (corrected_count, max_penetration_mm, self._time),
                 flush=True,
             )
         return corrected_count
