@@ -9,6 +9,31 @@ def _qt():
         from PySide2 import QtWidgets, QtGui
     return App, Gui, QtWidgets, QtGui
 
+
+
+_TARGET_BLOCKED_STATES = frozenset({"stale", "unbuilt", "unassigned", "invalid", "missing", "disabled"})
+
+
+def target_is_blocked(target_info):
+    """Return whether target lifecycle state must block Step/Run."""
+    return str((target_info or {}).get("state", "missing")) in _TARGET_BLOCKED_STATES
+
+
+def fitting_status(fitting_scene):
+    """Summarize persisted Arrange/Fit document facts without inferring validity."""
+    if fitting_scene is None:
+        return {"state": "missing", "message": "No Arrange & Fit scene is present.", "pieces": 0, "placements": 0, "points": 0, "can_reset": False}
+    pieces = len(tuple(getattr(fitting_scene, "PatternPieces", ()) or ()))
+    placements = len(tuple(getattr(fitting_scene, "PiecePlacements", ()) or ()))
+    points = len(tuple(getattr(fitting_scene, "ArrangementPoints", ()) or ()))
+    home = len(tuple(getattr(fitting_scene, "HomePlacements", ()) or ()))
+    status = str(getattr(fitting_scene, "FitStatus", "Unassigned"))
+    return {
+        "state": "present",
+        "message": "Arrange/Fit: %s | %d garment piece(s) | %d/%d saved placement(s) | %d arrangement point(s)" % (status, pieces, placements, pieces, points),
+        "pieces": pieces, "placements": placements, "points": points, "can_reset": bool(home),
+    }
+
 class SimulationQualityTaskPanel:
     QUALITY_NAMES = ("Fast", "Balanced", "Final")
     SNAPSHOT_PROPERTIES = (
@@ -30,6 +55,22 @@ class SimulationQualityTaskPanel:
             ensure_quality_properties(self.scene)
         self.form = QtWidgets.QWidget(); self.form.setObjectName("ClothSimulationQualityTaskPanel")
         root = QtWidgets.QVBoxLayout(self.form)
+        context = QtWidgets.QGroupBox("Context"); cform = QtWidgets.QFormLayout(context)
+        self.target_context = QtWidgets.QLabel(); self.target_context.setWordWrap(True)
+        self.placement_status = QtWidgets.QLabel(); self.placement_status.setWordWrap(True)
+        self.arrange_button = QtWidgets.QPushButton("Create Arrange & Fit scene")
+        self.reset_arrangement_button = QtWidgets.QPushButton("Reset arrangement")
+        self.refresh_target_button = QtWidgets.QPushButton("Refresh target")
+        self.arrange_button.setObjectName("ClothSimulationArrangeButton")
+        self.reset_arrangement_button.setObjectName("ClothSimulationResetArrangementButton")
+        self.refresh_target_button.setObjectName("ClothSimulationRefreshTargetButton")
+        self.arrange_button.setToolTip("Create the existing Arrange & Fit scene, add selected garment pieces, or apply the selected arrangement point.")
+        self.reset_arrangement_button.setToolTip("Restore the saved Arrange & Fit home placements.")
+        self.refresh_target_button.setToolTip("Recover the current DrapeTarget using its existing validation and refresh paths.")
+        cform.addRow("Target", self.target_context); cform.addRow("Placement", self.placement_status)
+        cform.addRow("", self.arrange_button); cform.addRow("", self.reset_arrangement_button); cform.addRow("", self.refresh_target_button)
+        root.addWidget(context)
+
         quality = QtWidgets.QGroupBox("Simulation quality"); qform = QtWidgets.QFormLayout(quality)
         self.quality = QtWidgets.QComboBox(); self.quality.addItems(self.QUALITY_NAMES)
         self.pin_mode = QtWidgets.QComboBox(); self.pin_mode.addItems(PIN_MODE_NAMES)
@@ -53,6 +94,9 @@ class SimulationQualityTaskPanel:
         buttons = QtWidgets.QHBoxLayout(); self.step_button = QtWidgets.QPushButton("Step"); self.run_button = QtWidgets.QPushButton("Run 30"); self.reset_button = QtWidgets.QPushButton("Reset")
         buttons.addWidget(self.step_button); buttons.addWidget(self.run_button); buttons.addWidget(self.reset_button); root.addLayout(buttons)
         self.status = QtWidgets.QLabel(); self.status.setWordWrap(True); root.addWidget(self.status); root.addStretch(1)
+        self.arrange_button.clicked.connect(self._arrange_clicked)
+        self.reset_arrangement_button.clicked.connect(self._reset_arrangement)
+        self.refresh_target_button.clicked.connect(self._refresh_target)
         self.quality.currentTextChanged.connect(self._preset_changed)
         self.pin_mode.currentTextChanged.connect(self._parameters_changed)
         self.fabric_color.clicked.connect(self._choose_fabric_color)
@@ -67,6 +111,70 @@ class SimulationQualityTaskPanel:
     @staticmethod
     def _spin(low, high, value):
         _, _, QtWidgets, _ = _qt(); widget = QtWidgets.QSpinBox(); widget.setRange(low, high); widget.setValue(value); return widget
+
+    def _find_fitting_scene(self):
+        doc = self.App.ActiveDocument
+        if doc is None:
+            return None
+        return next((obj for obj in doc.Objects if getattr(obj, "FittingType", "") == "FittingScene"), None)
+
+    def _selected_arrangement_inputs(self):
+        selection = tuple(self.Gui.Selection.getSelection())
+        piece = next((obj for obj in selection if getattr(obj, "PatternType", "") == "PatternPiece"), None)
+        point = next((obj for obj in selection if getattr(obj, "FittingType", "") == "ArrangementPoint"), None)
+        return piece, point
+
+    def _arrange_clicked(self):
+        try:
+            from freecad_cloth.avatar.FittingCommands import add_selected_pattern_pieces, apply_arrangement_point, create_fitting_scene
+            fitting = self._find_fitting_scene()
+            if fitting is None:
+                create_fitting_scene()
+                self._refresh("Arrange & Fit scene created. Select garment pieces and use the action again to add them.")
+                return
+            if not getattr(fitting, "PatternPieces", ()):
+                add_selected_pattern_pieces()
+                self._refresh("Selected garment pieces added to Arrange & Fit.")
+                return
+            piece, point = self._selected_arrangement_inputs()
+            if piece is None or point is None:
+                raise ValueError("select a PatternPiece and an ArrangementPoint before applying arrangement")
+            apply_arrangement_point(piece, point.PointName)
+            self._refresh("Selected arrangement applied.")
+        except Exception as exc:
+            self._refresh("Arrange/Fit action blocked — %s" % exc)
+
+    def _reset_arrangement(self):
+        try:
+            from freecad_cloth.avatar.FittingCommands import reset_arrangement
+            reset_arrangement()
+            self._refresh("Arrange/Fit arrangement reset.")
+        except Exception as exc:
+            self._refresh("Arrange/Fit reset blocked — %s" % exc)
+
+    def _refresh_target(self):
+        if self.scene is None:
+            return
+        target = getattr(self.scene, "DrapeTarget", None)
+        try:
+            from freecad_cloth.simulation.DrapeTarget import refresh_drape_target, target_status
+            info = target_status(target)
+            if info["state"] == "disabled":
+                from freecad_cloth.simulation.DrapeCommands import set_drape_target_enabled
+                set_drape_target_enabled(True)
+            elif info["state"] in {"invalid", "unassigned"}:
+                if target is None:
+                    raise ValueError(info["message"])
+                from freecad_cloth.simulation.DrapeCommands import edit_drape_target
+                edit_drape_target()
+            else:
+                if getattr(target, "SourceObject", None) is None:
+                    raise ValueError(info["message"])
+                refresh_drape_target(target)
+            self.scene.Document.recompute()
+            self._refresh("Drape target refreshed.")
+        except Exception as exc:
+            self._refresh("Drape target recovery blocked — %s" % exc)
 
     def _ensure_scene(self):
         if self.scene is None:
@@ -165,13 +273,39 @@ class SimulationQualityTaskPanel:
     def _refresh(self, message=None):
         if self.scene is None:
             self.step_button.setEnabled(False); self.run_button.setEnabled(False); self.reset_button.setEnabled(False)
+            self.arrange_button.setEnabled(False); self.reset_arrangement_button.setEnabled(False); self.refresh_target_button.setEnabled(False)
+            self.target_context.setText("No simulation scene is selected.")
+            self.placement_status.setText("Arrange/Fit is available after a simulation scene exists.")
             self.status.setText(message or "Create or select a Cloth Simulation object."); return
         from freecad_cloth.simulation.DrapeTarget import target_status
         target_info = target_status(getattr(self.scene, "DrapeTarget", None))
-        blocked = target_info["state"] in {"stale", "unbuilt", "unassigned", "invalid", "missing", "disabled"}
+        blocked = target_is_blocked(target_info)
         self.step_button.setEnabled(not blocked)
         self.run_button.setEnabled(not blocked)
         self.reset_button.setEnabled(True)
+        self.target_context.setText(str(target_info["message"]))
+        fitting = self._find_fitting_scene()
+        fit_info = fitting_status(fitting)
+        self.placement_status.setText(fit_info["message"])
+        self.arrange_button.setEnabled(True)
+        self.reset_arrangement_button.setEnabled(bool(fit_info["can_reset"]))
+        if fit_info["state"] == "missing":
+            self.arrange_button.setText("Create Arrange & Fit scene")
+        elif fit_info["pieces"] == 0:
+            self.arrange_button.setText("Add selected garment pieces")
+        else:
+            self.arrange_button.setText("Apply selected arrangement")
+        target = getattr(self.scene, "DrapeTarget", None)
+        target_source = getattr(target, "SourceObject", None)
+        if target_info["state"] == "disabled":
+            self.refresh_target_button.setText("Enable target")
+            self.refresh_target_button.setEnabled(target is not None)
+        elif target_info["state"] in {"invalid", "unassigned"}:
+            self.refresh_target_button.setText("Edit target")
+            self.refresh_target_button.setEnabled(target is not None)
+        else:
+            self.refresh_target_button.setText("Refresh target")
+            self.refresh_target_button.setEnabled(bool(target_source) and target_info["state"] != "ready")
         if blocked:
             text = "Simulation blocked — %s" % target_info["message"]
         elif message:
