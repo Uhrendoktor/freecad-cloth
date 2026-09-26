@@ -356,13 +356,19 @@ def simulation():
     pre_status = target_status(target)
     if str(pre_status.get("state", "")) != "ready":
         raise RuntimeError("canonical tunic DrapeTarget is not current before placement: %s" % pre_status.get("message", pre_status))
-    target_surface = collision_surface(
-        target_source,
-        float(getattr(target, "CollisionDeflection", 1.0)),
-        float(getattr(target, "CollisionThickness", 0.0)),
+    from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
+    target_shape = _world_shape(target_source)
+    target_vertices, target_triangles = target_shape.tessellate(
+        float(getattr(target, "CollisionDeflection", 1.0))
+    )
+    target_surface = surface_from_triangles(
+        tuple((float(point.x), float(point.y), float(point.z)) for point in target_vertices),
+        tuple(tuple(int(index) for index in triangle) for triangle in target_triangles),
+        region="drapetarget",
+        thickness=float(getattr(target, "CollisionThickness", 0.0)),
     )
     if not target_surface.vertices or not target_surface.triangles:
-        raise RuntimeError("canonical tunic DrapeTarget has no authoritative collision triangles")
+        raise RuntimeError("canonical tunic DrapeTarget has no authoritative transformed collision triangles")
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
     def arrangement_world(name):
         raw = next((value for value in getattr(avatar, "ArrangementPoints", ()) if str(value).split("|", 1)[0] == name), None)
