@@ -56,7 +56,7 @@ def test_blanket_motion_gif_has_usable_frame_delay_contract():
 def test_canonical_workflow_fails_closed_on_turntable_quality():
     source = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
     turntables = source.split("  gui-turntables:", 1)[1].split("  gui-visual-examples:", 1)[0]
-    assert "CLOTH_TISSU_SUBSTEPS: 1" in turntables
+    assert "CLOTH_TISSU_SUBSTEPS: 10" in turntables
     assert "CLOTH_TISSU_COLLISION_MODE: mesh" in turntables
     assert "blanket-motion-diagnostic" in source
     assert "blanket-turntable-pass" in source
