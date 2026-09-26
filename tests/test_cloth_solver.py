@@ -47,7 +47,7 @@ def _cube_collision_surface(thickness=1.0):
         (0, 4, 5), (0, 5, 1),
         (3, 2, 6), (3, 6, 7),
         (0, 3, 7), (0, 7, 4),
-        (1, 5, 6), (1, 6, 2),
+        (1, 2, 6), (1, 6, 5),
     )
     return surface_from_triangles(vertices, triangles, thickness=thickness)
 
