@@ -47,7 +47,30 @@ replacements = {
     'clearance = max(20.0, 0.08 * body_depth);': 'clearance = max(8.0, 0.025 * body_depth);',
     'front_y = box.YMin - clearance; back_y = box.YMax + clearance;': 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
-        'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)',
+        'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08);\n'
+        '    from freecad_cloth.avatar.TargetAwarePlacement import AnchorQuery, solve_anchor_translation\n'
+        '    from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status\n'
+        '    target_state = target_status(target)\n'
+        '    if target_state["state"] != "ready": raise RuntimeError("target-aware tunic placement requires a ready DrapeTarget: %s" % target_state["message"])\n'
+        '    target_surface = collision_surface(target.SourceObject, float(target.CollisionDeflection), float(target.CollisionThickness))\n'
+        '    landmark_map = {}\n'
+        '    for record in avatar.Landmarks:\n'
+        '        name, coords = str(record).split("|", 1); landmark_map[name] = tuple(float(value) for value in coords.split(","))\n'
+        '    anchor_points = ((0.14, "shoulder_left"), (0.86, "shoulder_right"))\n'
+        '    def target_place(piece, wrap_direction):\n'
+        '        current = piece.Placement\n'
+        '        queries = []\n'
+        '        for ratio, landmark_name in anchor_points:\n'
+        '            local = (ratio * float(panel_width), 0.97 * float(garment_height), 0.0)\n'
+        '            world = current.multVec(App.Vector(*local))\n'
+        '            queries.append(AnchorQuery(landmark_name + ":" + wrap_direction, (float(world.x), float(world.y), float(world.z)), landmark_map[landmark_name], wrap_direction))\n'
+        '        result = solve_anchor_translation(target_surface, queries, clearance=6.0, max_translation=180.0)\n'
+        '        piece.Placement = App.Placement(current.Base + App.Vector(*result.translation), current.Rotation)\n'
+        '        piece.Sketch.Placement = piece.Placement\n'
+        '        return result\n'
+        '    front_fit = target_place(front, "front")\n'
+        '    back_fit = target_place(back, "back")\n'
+        '    log("target-aware-placement=passed front-clearance=%.2f back-clearance=%.2f translation-front=(%.2f,%.2f,%.2f) translation-back=(%.2f,%.2f,%.2f)" % (front_fit.minimum_anchor_clearance, back_fit.minimum_anchor_clearance, front_fit.translation[0], front_fit.translation[1], front_fit.translation[2], back_fit.translation[0], back_fit.translation[1], back_fit.translation[2]))',
     '    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):\n'
         '        seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
         '        add_seam(doc, seam)\n'
@@ -75,6 +98,43 @@ for old, new in replacements.items():
     source = source.replace(old, new, 1)
 
 
+
+pin_pattern = re.compile(
+    r'    def authored_shoulder_pins\\(piece, particle_indices, positions\\):.*?'
+    r'    log\\("pin-map authored front=%s back-global=%s back-pinned=false" % \\(front_pins, back_pins\\)\\); doc\\.recompute\\(\\)',
+    re.S,
+)
+source, pin_count = pin_pattern.subn(
+    '    scene.PinPolicy = "none"; scene.PinSelection = []; doc.recompute()\\n'
+    '    log("pin-policy=none explicit-pins=0")',
+    source,
+    count=1,
+)
+if pin_count != 1:
+    raise RuntimeError("canonical tunic pin block did not collapse to explicit pinless policy")
+
+
+step0_probe = '''    from freecad_cloth.avatar.TargetAwarePlacement import surface_clearance
+    from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
+    step0_status = target_status(scene.DrapeTarget)
+    if step0_status["state"] != "ready":
+        raise RuntimeError("step-0 collision validation requires ready DrapeTarget: %s" % step0_status["message"])
+    step0_surface = collision_surface(
+        scene.DrapeTarget.SourceObject,
+        float(scene.DrapeTarget.CollisionDeflection),
+        float(scene.DrapeTarget.CollisionThickness),
+    )
+    step0_base = scene.Proxy._base_or_restore()
+    if getattr(getattr(step0_base, "backend", None), "system", None) is not None and getattr(step0_base.backend.system, "pins", {}):
+        raise RuntimeError("tunic placement must enter simulation with zero global pins")
+    step0_positions = tuple(step0_base.backend.positions())
+    step0 = surface_clearance(step0_positions, step0_surface)
+    if step0.minimum < 4.0:
+        raise RuntimeError("target-aware tunic step-0 penetration: min signed clearance %.2f mm" % step0.minimum)
+    log("step0-clearance=passed min-signed-clearance-mm=%.2f point-index=%d triangle-index=%d" % (step0.minimum, step0.point_index, step0.triangle_index))
+'''
+if "step0_clearance" not in source:
+    source = source.replace("    from freecad_cloth.simulation import RealtimePreview\n", step0_probe + "    from freecad_cloth.simulation import RealtimePreview\n", 1)
 preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
     if "ClothRealtimePreview" not in Gui.listCommands():
         raise RuntimeError("Realtime Cloth Preview GUI command is not registered")
