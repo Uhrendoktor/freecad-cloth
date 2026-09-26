@@ -1,0 +1,120 @@
+diff --git a/core/include/physics/MeshCollider.hpp b/core/include/physics/MeshCollider.hpp
+--- a/core/include/physics/MeshCollider.hpp
++++ b/core/include/physics/MeshCollider.hpp
+@@ -34,6 +34,7 @@ private:
+     std::vector<Eigen::Vector3d> m_localVertices;
+     std::vector<Eigen::Vector3d> m_worldVertices;
+     std::vector<Triangle> m_triangles;
++    double m_surfaceOrientation = 0.0;
+     BVH m_bvh;
+ };
+ 
+diff --git a/core/src/physics/MeshCollider.cpp b/core/src/physics/MeshCollider.cpp
+--- a/core/src/physics/MeshCollider.cpp
++++ b/core/src/physics/MeshCollider.cpp
+@@ -7,6 +7,22 @@
+ 
+ namespace Tissu {
+ 
++namespace {
++
++double surfaceOrientationSign(
++    const std::vector<Eigen::Vector3d>& vertices,
++    const std::vector<Triangle>& triangles) {
++    double signedVolume6 = 0.0;
++    for (const auto& tri : triangles) {
++        const auto& a = vertices[tri.a];
++        const auto& b = vertices[tri.b];
++        const auto& c = vertices[tri.c];
++        signedVolume6 += a.dot(b.cross(c));
++    }
++    if (signedVolume6 > 0.0)
++        return 1.0;
++    if (signedVolume6 < 0.0)
++        return -1.0;
++    return 0.0;
++}
++
++} // namespace
++
+ MeshCollider::MeshCollider(const std::string& meshPath, double friction)
+     : m_meshPath(meshPath) {
+     m_friction = friction;
+@@ -21,6 +37,7 @@ MeshCollider::MeshCollider(const std::string& meshPath, double friction)
+     for (size_t i = 0; i + 2 < indices.size(); i += 3)
+         m_triangles.emplace_back(indices[i], indices[i + 1], indices[i + 2]);
+ 
++    m_surfaceOrientation = surfaceOrientationSign(m_worldVertices, m_triangles);
+     m_bvh.build(m_worldVertices, m_triangles);
+ }
+ 
+@@ -35,6 +52,7 @@ MeshCollider::MeshCollider(const std::vector<Eigen::Vector3d>& vertices,
+         m_triangles.emplace_back(tri[0], tri[1], tri[2]);
+     }
+ 
++    m_surfaceOrientation = surfaceOrientationSign(m_worldVertices, m_triangles);
+     m_bvh.build(m_worldVertices, m_triangles);
+ }
+ 
+@@ -63,10 +81,19 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
+         double distance = toParticle.norm();
+ 
+         if (distance <= thickness) {
+-            Eigen::Vector3d normal = (distance > 1e-6)
+-                                         ? toParticle.normalized()
+-                                         : ((b - a).cross(c - a)).normalized();
++            const Eigen::Vector3d faceNormal =
++                ((b - a).cross(c - a)).normalized();
++            Eigen::Vector3d normal = (distance > 1e-6)
++                                         ? toParticle.normalized()
++                                         : faceNormal;
++            if (m_surfaceOrientation != 0.0) {
++                const Eigen::Vector3d outwardNormal =
++                    faceNormal * m_surfaceOrientation;
++                if (distance <= 1e-6 ||
++                    normal.dot(outwardNormal) < 0.0)
++                    normal = outwardNormal;
++            }
+ 
+             Eigen::Vector3d newPosition = cp + normal * thickness;
+             particle.setPosition(newPosition);
+ 
+diff --git a/tests/physics/test_mesh_collider.cpp b/tests/physics/test_mesh_collider.cpp
+--- a/tests/physics/test_mesh_collider.cpp
++++ b/tests/physics/test_mesh_collider.cpp
+@@ -6,6 +6,22 @@
+ 
+ using namespace Tissu;
+ 
++static bool pointInsideTetrahedron(const Eigen::Vector3d& point) {
++    const Eigen::Vector3d v0(0.0, 0.0, 0.0);
++    const Eigen::Vector3d v1(2.0, 0.0, 0.0);
++    const Eigen::Vector3d v2(1.0, 0.0, 2.0);
++    const Eigen::Vector3d v3(1.0, 2.0, 1.0);
++
++    Eigen::Matrix3d basis;
++    basis.col(0) = v1 - v0;
++    basis.col(1) = v2 - v0;
++    basis.col(2) = v3 - v0;
++    const Eigen::Vector3d barycentric =
++        basis.fullPivLu().solve(point - v0);
++    const double w0 = 1.0 - barycentric.sum();
++
++    return w0 >= -1e-9 && barycentric.x() >= -1e-9 &&
++           barycentric.y() >= -1e-9 && barycentric.z() >= -1e-9;
++}
++
+ static MeshCollider makeTetrahedron(double friction = 0.0) {
+     std::vector<Eigen::Vector3d> vertices = {
+         {0.0, 0.0, 0.0},
+@@ -29,8 +45,11 @@ TEST(MeshCollider, ParticleInsideMeshMovesOutside) {
+     std::vector<Particle> particles;
+     particles.emplace_back(initialPos);
+ 
++    EXPECT_TRUE(pointInsideTetrahedron(initialPos));
+     mesh.resolve(particles, 0.016, 1.0);
+ 
++    EXPECT_FALSE(pointInsideTetrahedron(particles[0].getPosition()));
+     double distanceMoved = (particles[0].getPosition() - initialPos).norm();
+     EXPECT_GT(distanceMoved, 0.0);
+ }
