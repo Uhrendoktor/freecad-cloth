@@ -250,36 +250,37 @@ def _world_target_surface(target):
 
 
 def _piece_world_samples(piece, deflection=1.0):
+    """Sample the exact PatternMesh geometry consumed by simulation."""
     import FreeCAD as App
-    shape = getattr(piece, "Shape", None)
+    from freecad_cloth.common.PatternSimulationAdapter import geometry_from_piece_ir, resolve_piece_ir
+    from freecad_cloth.pattern.PatternMesh import triangulate
+
     placement = getattr(piece, "Placement", None)
-    if shape is not None and not getattr(shape, "isNull", lambda: True)():
-        tessellate = getattr(shape, "tessellate", None)
-        if callable(tessellate):
-            points, _triangles = tessellate(float(deflection))
-            if points:
-                result = []
-                for point in points:
-                    value = placement.multVec(point) if placement is not None else point
-                    result.append((float(value.x), float(value.y), float(value.z)))
-                return tuple(result)
-        vertices = getattr(shape, "Vertexes", ())
-        if vertices:
-            return tuple(
-                tuple(float(v) for v in (placement.multVec(vertex.Point) if placement is not None else vertex.Point))
-                for vertex in vertices
+    if placement is None:
+        raise ValueError("pattern piece has no persistent placement")
+    piece_ir = resolve_piece_ir(piece)
+    mesh = triangulate(geometry_from_piece_ir(piece_ir))
+    if not mesh.vertices:
+        raise ValueError("PatternMesh sampling produced no points")
+    return tuple(
+        tuple(
+            float(value)
+            for value in placement.multVec(
+                App.Vector(float(local_x), float(local_y), 0.0)
             )
-    raise ValueError("pattern piece %s has no usable geometry samples" % getattr(piece, "Name", "<unnamed>"))
+        )
+        for local_x, local_y in mesh.vertices
+    )
 
 
-def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=600.0, sample_deflection=1.0):
+def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=600.0, sample_deflection=1.0):
     """Apply one shared rigid translation to all selected pieces.
 
-    A shared transform is deliberate: it preserves every authored pairwise
-    displacement/rotation relationship instead of independently moving panels.
+    A shared transform preserves every authored pairwise displacement and rotation.
+    Clearance is proven against the exact PatternMesh consumed by Simulation.
     """
     import FreeCAD as App
-    from freecad_cloth.avatar.TargetPlacement import average_point, minimum_signed_clearance, nearest_target_projection
+    from freecad_cloth.avatar.TargetPlacement import minimum_signed_clearance
     doc = App.ActiveDocument
     if doc is None:
         raise ValueError("open a document before arranging garment pieces")
@@ -288,11 +289,9 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=6
         raise ValueError("create a fitting scene first")
     _ensure_fitting_properties(scene)
     target = _fitting_target(scene)
-    required = (
-        max(float(clearance), 0.0)
-        if clearance is not None
-        else max(2.0, float(getattr(target, "CollisionThickness", 0.0)))
-    )
+    required = float(clearance)
+    if required < 0.0:
+        raise ValueError("clearance must be non-negative")
     selected = tuple(
         sorted(
             (piece for piece in (pieces or scene.PatternPieces) if getattr(piece, "PatternType", "") == "PatternPiece"),
@@ -307,7 +306,7 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=6
     home_before = tuple(scene.HomePlacements)
     persisted_before = tuple(scene.PiecePlacements)
     status_before = str(getattr(scene, "FitStatus", ""))
-    drape_target_before = getattr(scene, "DrapeTarget", None)
+    target_before = getattr(scene, "DrapeTarget", None)
     piece_before = {piece: piece.Placement for piece in selected}
     sketch_before = {
         piece: getattr(getattr(piece, "Sketch", None), "Placement", None)
@@ -315,51 +314,64 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=6
     }
     try:
         surface = _world_target_surface(target)
-        current_reports = [
+        total_translation = App.Vector(0.0, 0.0, 0.0)
+        last_violation = None
+        for _iteration in range(16):
+            reports = [
+                minimum_signed_clearance(_piece_world_samples(piece, sample_deflection), surface)
+                for piece in selected
+            ]
+            violations = [
+                (report, max(0.0, required - report.minimum_signed_clearance))
+                for report in reports
+                if report.minimum_signed_clearance < required - 1e-6
+            ]
+            if not violations:
+                break
+            weighted = App.Vector(0.0, 0.0, 0.0)
+            weight_total = 0.0
+            for report, violation in violations:
+                normal = report.projection.normal
+                weight = max(float(violation), 1e-6)
+                weighted += App.Vector(
+                    float(normal[0]) * weight,
+                    float(normal[1]) * weight,
+                    float(normal[2]) * weight,
+                )
+                weight_total += weight
+            if weight_total <= 0.0:
+                raise ValueError("target-aware group correction has no usable target normal")
+            step = weighted * (1.0 / weight_total) * max(v for _r, v in violations)
+            proposed = total_translation + step
+            travel = proposed.Length
+            if travel > float(max_translation) + 1e-9:
+                raise ValueError(
+                    "target-aware group translation exceeds %.3f mm" % float(max_translation)
+                )
+            if step.Length <= 1e-6 or proposed.Length <= total_translation.Length + 1e-9:
+                last_violation = max(v for _r, v in violations)
+                break
+            for piece in selected:
+                placement = piece.Placement
+                base = placement.Base
+                new_base = base + step
+                piece.Placement = App.Placement(new_base, placement.Rotation)
+                sketch = getattr(piece, "Sketch", None)
+                if sketch is not None:
+                    sketch.Placement = piece.Placement
+            total_translation = proposed
+            doc.recompute()
+            last_violation = max(v for _r, v in violations)
+        final_reports = [
             minimum_signed_clearance(_piece_world_samples(piece, sample_deflection), surface)
             for piece in selected
         ]
-        if all(report.minimum_signed_clearance + 1e-6 >= required for report in current_reports):
-            shared = (0.0, 0.0, 0.0)
-            centers = []
-            desired = []
-        else:
-            centers = []
-            desired = []
-            for piece in selected:
-                samples = _piece_world_samples(piece, sample_deflection)
-                center = average_point(samples)
-                projection = nearest_target_projection(center, surface)
-                centers.append(center)
-                desired.append(tuple(projection.point[i] + projection.normal[i] * required for i in range(3)))
-            shared = tuple(
-            sum(desired[j][i] - centers[j][i] for j in range(len(selected))) / len(selected)
-            for i in range(3)
-        )
-        travel = (sum(value * value for value in shared)) ** 0.5
-        if travel > float(max_translation) + 1e-9:
-            raise ValueError("target-aware group translation exceeds %.3f mm" % float(max_translation))
-        for piece in selected:
-            placement = piece.Placement
-            base = placement.Base
-            piece.Placement = App.Placement(
-                App.Vector(float(base.x) + shared[0], float(base.y) + shared[1], float(base.z) + shared[2]),
-                placement.Rotation,
+        if any(report.minimum_signed_clearance < required - 1e-6 for report in final_reports):
+            worst = min(final_reports, key=lambda report: report.minimum_signed_clearance)
+            raise ValueError(
+                "target-aware group placement left %.3f mm signed clearance; required %.3f mm"
+                % (worst.minimum_signed_clearance, required)
             )
-            sketch = getattr(piece, "Sketch", None)
-            if sketch is not None:
-                sketch.Placement = piece.Placement
-        doc.recompute()
-        surface = _world_target_surface(target)
-        reports = []
-        for piece in selected:
-            report = minimum_signed_clearance(_piece_world_samples(piece, sample_deflection), surface)
-            if report.minimum_signed_clearance + 1e-6 < required:
-                raise ValueError(
-                    "target-aware group placement for %s left %.3f mm signed clearance; required %.3f mm"
-                    % (piece.Label, report.minimum_signed_clearance, required)
-                )
-            reports.append((str(piece.PieceId), float(report.minimum_signed_clearance)))
         from freecad_cloth.avatar.AvatarFitting import PiecePlacement
         placements = {
             item.piece_id: item
@@ -367,11 +379,10 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=6
         }
         for piece in selected:
             placement = piece.Placement
-            base = placement.Base
             axis = placement.Rotation.Axis
             placements[str(piece.PieceId)] = PiecePlacement(
                 str(piece.PieceId),
-                (float(base.x), float(base.y), float(base.z)),
+                (float(placement.Base.x), float(placement.Base.y), float(placement.Base.z)),
                 float(placement.Rotation.Angle),
                 (float(axis.x), float(axis.y), float(axis.z)),
             )
@@ -382,9 +393,13 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=6
         doc.recompute()
         return {
             "target": str(getattr(target, "Name", "DrapeTarget")),
-            "clearance_mm": float(required),
-            "translation_mm": float(travel),
-            "pieces": tuple(reports),
+            "clearance_mm": required,
+            "translation_mm": float(total_translation.Length),
+            "pieces": tuple(
+                (str(piece.PieceId), float(report.minimum_signed_clearance))
+                for piece, report in zip(selected, final_reports)
+            ),
+            "iterations": 16 if last_violation else 0,
         }
     except BaseException:
         for piece, original in piece_before.items():
@@ -397,10 +412,9 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=6
         scene.FitStatus = status_before
         if tuple(scene.HomePlacements) != home_before:
             scene.HomePlacements = list(home_before)
-        scene.DrapeTarget = drape_target_before
+        scene.DrapeTarget = target_before
         doc.recompute()
         raise
-
 
 def position_piece(piece, x, y, z=0.0, rotation_z=0.0):
     from freecad_cloth.avatar.AvatarFitting import PiecePlacement
