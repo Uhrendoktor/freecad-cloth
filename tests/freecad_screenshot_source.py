@@ -365,7 +365,8 @@ def simulation():
     )
     if not target_surface.vertices or not target_surface.triangles:
         raise RuntimeError("canonical tunic DrapeTarget has no authoritative collision triangles")
-    from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
+    from freecad_cloth.avatar.AvatarFitting import ArrangementPoint, GarmentAnchor, PiecePlacement
+    from freecad_cloth.avatar.FittingCommands import create_fitting_scene, set_garment_anchors, snap_pieces_to_target
     def arrangement_world(name):
         raw = next((value for value in getattr(avatar, "ArrangementPoints", ()) if str(value).split("|", 1)[0] == name), None)
         if raw is None:
