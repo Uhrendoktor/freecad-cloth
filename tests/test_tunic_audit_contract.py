@@ -121,3 +121,13 @@ def test_tissu_api_1675_probe():
         check=True,
     )
     assert "TISSU_API_PROBE " in result.stdout
+
+if __name__ == "__main__":
+    import subprocess
+    import sys
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "tests" / "research_tissu_api_1675.py")],
+        cwd=ROOT,
+        check=True,
+    )
