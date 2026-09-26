@@ -4,6 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+# Canonical tunic runtime budget remains unchanged for this experiment.
 # The canonical native-Sketcher outline uses edges 3/5 as the shoulder seams.
 # Keep front/back semantic edge IDs independent; never fall back to one piece's IDs.
 
