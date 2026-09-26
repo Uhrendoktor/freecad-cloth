@@ -306,6 +306,49 @@ def test_native_mn_network_save_reload_curve_edit_invalidates_and_repairs():
 
 
 
+
+def test_snap_target_command_executes_through_freecad_gui():
+    if App is None or Part is None:
+        return
+    try:
+        import FreeCADGui as Gui
+    except ImportError:
+        return
+    from freecad_cloth.avatar.FittingCommands import create_fitting_scene
+    from freecad_cloth.simulation.DrapeTarget import create_drape_target
+
+    doc = App.newDocument("TargetSnapGuiAcceptance")
+    try:
+        source = doc.addObject("Part::Feature", "TargetSource")
+        source.Shape = Part.makeBox(20.0, 20.0, 20.0)
+        piece = doc.addObject("Part::Feature", "PatternPiece")
+        piece.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
+        piece.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = "gui-piece"
+        piece.Shape = Part.makeBox(10.0, 10.0, 1.0)
+        piece.Placement = App.Placement(App.Vector(0.0, 0.0, 40.0), App.Rotation())
+        target = create_drape_target(doc, source, "FreeCAD Geometry", 0.5, 0.0)
+        scene = create_fitting_scene()
+        scene.PatternPieces = [piece]
+        scene.PiecePlacements = ["gui-piece|0,0,40|0"]
+        scene.HomePlacements = ["gui-piece|0,0,40|0"]
+        scene.DrapeTarget = target
+        doc.recompute()
+
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(piece)
+        Gui.Selection.addSelection(target)
+        self_command = "ClothFitting_SnapPiecesToTarget"
+        assert self_command in Gui.listCommands()
+        Gui.runCommand(self_command)
+        doc.recompute()
+        assert str(scene.FitStatus) == "Snapped to target"
+        assert float(piece.Placement.Base.z) < 40.0
+    finally:
+        Gui.Selection.clearSelection()
+        if doc.Name in App.listDocuments():
+            App.closeDocument(doc.Name)
+
+
 def test_simulation_pin_mode_save_reload_and_signature_round_trip():
     if App is None or Part is None:
         return
