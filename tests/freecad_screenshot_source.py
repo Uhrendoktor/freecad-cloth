@@ -391,12 +391,35 @@ def simulation():
     fitting.HomePlacements = list(home_values)
     fitting.FitStatus = "Ready"
     doc.recompute()
+    activate("ClothSewingWorkbench", "Cloth Sewing", ["ClothFitting_SnapPiecesToTarget"])
     if "ClothFitting_SnapPiecesToTarget" not in Gui.listCommands():
         raise RuntimeError("public Snap Pieces to Target command is not registered")
+    before_relative = tuple(
+        (
+            str(a.PieceId), str(b.PieceId),
+            round(float(b.Placement.Base.x - a.Placement.Base.x), 6),
+            round(float(b.Placement.Base.y - a.Placement.Base.y), 6),
+            round(float(b.Placement.Base.z - a.Placement.Base.z), 6),
+        )
+        for a, b in ((front, back),)
+    )
+    Gui.Selection.clearSelection(); Gui.Selection.addSelection(front); Gui.Selection.addSelection(back); Gui.Selection.addSelection(target); events()
+    Gui.Selection.clearSelection(); Gui.Selection.addSelection(front); Gui.Selection.addSelection(back); Gui.Selection.addSelection(target); events()
     Gui.runCommand("ClothFitting_SnapPiecesToTarget", 0)
     events(); doc.recompute()
     if str(fitting.FitStatus) != "Target snapped":
         raise RuntimeError("public Snap Pieces to Target command did not persist the snapped state")
+    after_relative = tuple(
+        (
+            str(a.PieceId), str(b.PieceId),
+            round(float(b.Placement.Base.x - a.Placement.Base.x), 6),
+            round(float(b.Placement.Base.y - a.Placement.Base.y), 6),
+            round(float(b.Placement.Base.z - a.Placement.Base.z), 6),
+        )
+        for a, b in ((front, back),)
+    )
+    if after_relative != before_relative:
+        raise RuntimeError("target snap changed the relative transform of the tunic panels")
     target_surface = _world_target_surface(target)
     step0_clearance = {
         str(piece.PieceId): minimum_signed_clearance(
