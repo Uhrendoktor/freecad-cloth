@@ -26,7 +26,7 @@ For an existing installation, remove the previous `freecad-cloth` directory befo
 
 Start with the **Blanket over Cube** example in [EXAMPLES.md](EXAMPLES.md). It is deliberately smaller than the tunic and is the recommended smoke test for a new installation.
 
-Then read the concise [User guide](USER_GUIDE.md) and run the tunic workflow documented in [WORKBENCH_GUIDE.md](WORKBENCH_GUIDE.md).
+Then follow the canonical [User guide](USER_GUIDE.md), which continues from the blanket smoke test through pattern, sewing, arrange/fit, simulation, recovery, and the tunic. Use the [Workbench guide](WORKBENCH_GUIDE.md) for detailed command and property behavior.
 
 ## Developer setup
 
