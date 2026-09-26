@@ -2,13 +2,15 @@
 
 This directory is intentionally small. Read the documents in this order:
 
-1. **[USER_GUIDE.md](USER_GUIDE.md)** — first-run human workflow, recovery, and visual inspection.
-2. **WORKBENCH_GUIDE.md** — detailed workflow and UI behavior.
-3. **ARCHITECTURE.md** — authoritative data, dependency and invalidation contracts.
-4. **PROJECT_STRUCTURE.md** — canonical package/module tree and FreeCAD bootstrap layout.
-5. **[ROADMAP.md](../ROADMAP.md)** — prototype → MVP → production scope and release gates.
-6. **RESEARCH.md** — condensed CLO/garment-workflow research and FreeCAD mapping.
-7. **DEVELOPMENT.md** — testing, CI, screenshots, agent handoff and contribution rules.
+1. **[INSTALLATION.md](INSTALLATION.md)** — prerequisites, direct FreeCAD installation, and the first-run smoke test.
+2. **[EXAMPLES.md](EXAMPLES.md)** — the Basic Blanket over Cube smoke path and the Advanced tunic/mannequin garment path.
+3. **[USER_GUIDE.md](USER_GUIDE.md)** — first-run human workflow, fitting/arrangement, recovery, and visual inspection.
+4. **[WORKBENCH_GUIDE.md](WORKBENCH_GUIDE.md)** — detailed workflow and UI behavior.
+5. **ARCHITECTURE.md** — authoritative data, dependency and invalidation contracts.
+6. **PROJECT_STRUCTURE.md** — canonical package/module tree and FreeCAD bootstrap layout.
+7. **[ROADMAP.md](../ROADMAP.md)** — prototype → MVP → production scope and release gates.
+8. **RESEARCH.md** — condensed CLO/garment-workflow research and FreeCAD mapping.
+9. **DEVELOPMENT.md** — testing, CI, screenshots, agent handoff and contribution rules.
 
 ## Source of truth
 
