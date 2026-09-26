@@ -46,6 +46,21 @@ class AvatarFittingTests(unittest.TestCase):
         placement = PiecePlacement("front", (1.5, -2.0, 3.25), 90.0)
         self.assertEqual(PiecePlacement.from_string(placement.to_string()), placement)
 
+    def test_piece_placement_round_trip_preserves_non_z_rotation_axis(self):
+        placement = PiecePlacement("front", (1.5, -2.0, 3.25), 90.0, (1.0, 0.0, 0.0))
+        self.assertEqual(PiecePlacement.from_string(placement.to_string()), placement)
+        self.assertEqual(len(placement.to_string().split("|")), 4)
+
+    def test_target_aware_fitting_contract_is_persistent_and_reversible(self):
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+        self.assertIn("def snap_pattern_pieces_to_target", source)
+        self.assertIn('scene.TargetPlacementSignature', source)
+        self.assertIn("target_status(target)", source)
+        self.assertIn("scene.HomePlacements", source)
+        self.assertIn("rotation_axis", source)
+        self.assertIn('scene.FitStatus = "Target arranged"', source)
+
     def test_arrangement_point_round_trip_and_mirror(self):
         point = ArrangementPoint("shoulder-left", 120, 80, 15, "left", 10, "shoulders")
         self.assertEqual(ArrangementPoint.from_string(point.to_string()), point)

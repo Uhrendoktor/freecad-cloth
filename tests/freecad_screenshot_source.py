@@ -369,8 +369,78 @@ def simulation():
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
+
+    from freecad_cloth.avatar.FittingCommands import (
+        add_selected_pattern_pieces,
+        create_fitting_scene,
+        reset_arrangement,
+        snap_pattern_pieces_to_target,
+    )
+    from freecad_cloth.avatar.TargetAwarePlacement import minimum_signed_clearance, tunic_anchor_profile
+    from freecad_cloth.simulation.DrapeTarget import collision_surface
+
+    fitting = create_fitting_scene()
+    fitting.DrapeTarget = target
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(front)
+    Gui.Selection.addSelection(back)
+    add_selected_pattern_pieces()
+
+    target_profiles = {
+        str(front.PieceId): tunic_anchor_profile(panel_width, garment_height, "front"),
+        str(back.PieceId): tunic_anchor_profile(panel_width, garment_height, "back"),
+    }
+    snap_pattern_pieces_to_target(
+        (front, back),
+        target,
+        clearance=clearance,
+        max_translation=350.0,
+        max_rotation_degrees=15.0,
+        anchor_profiles=target_profiles,
+    )
+
+    def placement_snapshot(piece):
+        base = piece.Placement.Base
+        axis = piece.Placement.Rotation.Axis
+        return (
+            float(base.x), float(base.y), float(base.z),
+            float(piece.Placement.Rotation.Angle),
+            float(axis.x), float(axis.y), float(axis.z),
+        )
+
+    arranged_snapshot = {str(piece.PieceId): placement_snapshot(piece) for piece in (front, back)}
+    reset_arrangement()
+    home_snapshot = {str(piece.PieceId): placement_snapshot(piece) for piece in (front, back)}
+    for piece in (front, back):
+        pid = str(piece.PieceId)
+        if home_snapshot[pid] == arranged_snapshot[pid]:
+            raise RuntimeError("HomePlacement/reset did not restore the saved home transform")
+    snap_pattern_pieces_to_target(
+        (front, back),
+        target,
+        clearance=clearance,
+        max_translation=350.0,
+        max_rotation_degrees=15.0,
+        anchor_profiles=target_profiles,
+    )
+    for piece in (front, back):
+        if placement_snapshot(piece) != arranged_snapshot[str(piece.PieceId)]:
+            raise RuntimeError("target-aware placement is not deterministic after reset/reapply")
+    log("target-arrangement=passed target=%s fitting=%s clearance=%.2f" % (target.Name, fitting.Name, float(clearance)))
+    log("home-reset=passed exact-axis-angle=true")
+
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.PinMode = "None"; scene.PinSelection = []; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
     proxy = scene.Proxy
+    step0_surface = collision_surface(
+        target.SourceObject,
+        float(target.CollisionDeflection),
+        float(target.CollisionThickness),
+    )
+    step0_positions = tuple(proxy.backend.positions())
+    step0_clearance = minimum_signed_clearance(step0_positions, step0_surface, sample_limit=512)
+    log("step-0-target-clearance-mm=%.3f" % float(step0_clearance if step0_clearance is not None else -1e9))
+    if step0_clearance is None or float(step0_clearance) < float(clearance) - 1e-6:
+        raise RuntimeError("canonical tunic failed step-0 target clearance: %.3f mm" % float(step0_clearance or -1e9))
     backend = getattr(proxy, "backend", None)
     if backend is None:
         raise RuntimeError("canonical tunic did not build a simulation backend")

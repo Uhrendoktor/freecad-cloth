@@ -17,15 +17,26 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
-def test_canonical_tunic_uses_target_relative_placement_and_no_pins():
+def test_canonical_tunic_uses_target_aware_placement_and_no_global_pins():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    assert 'def target_relative_piece_placement(target_box, side):' in source
-    assert 'y = target_box.YMin - clearance if side == "front" else target_box.YMax + clearance' in source
+    assert "snap_pattern_pieces_to_target(" in source
+    assert 'fitting.DrapeTarget = target' in source
+    assert 'tunic_anchor_profile(panel_width, garment_height, "front")' in source
+    assert 'tunic_anchor_profile(panel_width, garment_height, "back")' in source
     assert 'scene.PinMode = "None"' in source
     assert 'scene.PinSelection = []' in source
-    assert 'if solver_pins:' in source
+    assert "minimum_signed_clearance(" in source
     assert 'authored_shoulder_pins' not in source
     assert 'scene.PinSelection = [str(i) for i in front_pins]' not in source
+
+
+def test_target_placement_module_is_solver_neutral_and_bounded():
+    source = (ROOT / "freecad_cloth" / "avatar" / "TargetAwarePlacement.py").read_text(encoding="utf-8")
+    assert "ClothSystem" not in source
+    assert "PinSelection" not in source
+    assert "max_translation" in source
+    assert "max_rotation_degrees" in source
+    assert "ambiguous target surface" in source
 
 
 def test_canonical_tunic_uses_validated_authored_mapping():
