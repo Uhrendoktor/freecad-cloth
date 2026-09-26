@@ -135,3 +135,25 @@ if __name__ == "__main__":
     test_apply_seam_colors_marks_each_seam_pair()
     test_show_2d_does_not_select_seams_over_their_colors()
     print("sewing Show 2D tests passed")
+
+
+def test_seam_colors_remain_identity_stable_when_other_seams_are_added():
+    base = seam_color_map(["seam-a", "seam-b"])
+    expanded = seam_color_map(["seam-x", "seam-a", "seam-b"])
+    reduced = seam_color_map(["seam-b"])
+    assert expanded["seam-a"] == base["seam-a"]
+    assert expanded["seam-b"] == base["seam-b"]
+    assert reduced["seam-b"] == base["seam-b"]
+
+
+def test_apply_seam_colors_uses_linked_seam_identity_for_sewing_operations():
+    source = SimpleNamespace(SeamId="seam-a", ViewObject=SimpleNamespace(LineColor=None))
+    operation = SimpleNamespace(
+        SeamId="",
+        SewingType="SewingOperation",
+        Seam=SimpleNamespace(SeamId="seam-a"),
+        ViewObject=SimpleNamespace(LineColor=None),
+    )
+    colors = apply_seam_colors([source, operation])
+    assert source.ViewObject.LineColor == colors["seam-a"]
+    assert operation.ViewObject.LineColor == colors["seam-a"]
