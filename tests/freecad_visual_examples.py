@@ -93,7 +93,9 @@ def render_motion(view, scene, out_dir, checkpoint_steps=(15, 30, 60, 120), fram
     checkpoint_steps = tuple(int(step) for step in checkpoint_steps)
     checkpoint_names = {step: "checkpoint-%03d.png" % step for step in checkpoint_steps}
     motion_indices = {step: index for index, step in enumerate(motion_steps)}
-    targets = tuple(sorted(set(step for step in motion_steps if step >= int(start_step)).union(
+    targets = tuple(sorted({int(start_step)}.union(
+        step for step in motion_steps if step >= int(start_step)
+    ).union(
         step for step in checkpoint_steps if step >= int(start_step)
     )))
     if targets[0] != int(start_step) or targets[-1] != final_steps:
