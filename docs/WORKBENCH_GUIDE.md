@@ -24,15 +24,17 @@ The former `PatternDrafting` polygon editor is compatibility-only. Its parser an
 
 Select compatible pattern edges/ranges and explicitly create a seam or M:N/free sewing relationship. Review direction, reversal, correspondence and length diagnostics before committing. Use the task panel for staged operations and the Property Editor for persistent state.
 
-If a Sketch edit invalidates a semantic edge reference, the seam remains invalid until explicitly repaired/recreated. Never rely on generated mesh edge order. Seam objects are assigned deterministic colors. In the sewing task panel, **Focus seam in 3D** fits the assembled world-space seam; **Edit side A/B in Sketcher** opens the authoritative native Sketcher source and selects the semantic edge used by the seam.
+If a Sketch edit invalidates a semantic edge reference, the seam remains invalid until explicitly repaired/recreated. Never rely on generated mesh edge order. Seam objects and their sewing-operation presentations use deterministic colors keyed by semantic seam ID. In the sewing task panel, **Focus seam in 3D** fits the assembled world-space seam; **Edit side A/B in Sketcher** opens the authoritative native Sketcher source and selects the semantic edge used by the seam.
 
 ### 3. Arrange and fit
 
-Create/select a `DrapeTarget`: either the native human mannequin or an ordinary FreeCAD Shape/PartDesign/Body/Mesh. Arrange pieces using persistent placements/arrangement metadata. Reset and superimpose are deterministic fitting operations, not solver state.
+Create/select a `DrapeTarget`: either the native human mannequin or an ordinary FreeCAD Shape/PartDesign/Body/Mesh. Arrange pieces using persistent placements/arrangement metadata. **Snap Pattern Pieces To Target** provides a deterministic front/back placement around the assigned target and preserves the saved home placement so **Reset Arrangement** can undo it. This operation changes garment placement only; it does not add solver pins.
+
+Use manual arrangement points when a pattern needs a specific landmark or wrap direction. Use a pin only when the simulation itself must keep selected particles fixed. The basic blanket example intentionally uses pins; the production tunic path does not.
 
 ### 4. Simulate
 
-Generate a preview/final mesh, choose material and quality, confirm target validity, then Run. Step is for controlled/debug advancement; Reset recovers simulation state. Pins/stitches and collision settings are persistent inputs. Fabric presentation properties include color, specular response, roughness and transparency and are persisted with the simulation/material state.
+Generate a preview/final mesh, choose material and quality, confirm target validity, then Run. Step is for controlled/debug advancement; Reset recovers simulation state. Pins are optional; stitches and collision settings remain persistent inputs. Fabric presentation properties include color, specular response, roughness and transparency and are persisted with the simulation/material state.
 
 ### 5. Iterate
 
