@@ -852,7 +852,16 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
+              set +e
               timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth /workspace/tests/freecad_visual_examples.py
+              status=$?
+              echo "blanket-visual-command-exit=$status"
+              if test -f /workspace/docs/images/generated/blanket-example/blanket-visual.log; then
+                cat /workspace/docs/images/generated/blanket-example/blanket-visual.log
+              else
+                echo "blanket-visual-log=missing"
+              fi
+              exit "$status"
             '
           test -s docs/images/generated/blanket-example/blanket-visual.log
           grep -q 'blanket-visual-acceptance=passed' docs/images/generated/blanket-example/blanket-visual.log
