@@ -150,11 +150,11 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", 1)
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
+artifact = Path(os.environ.get("TUNIC_AUDIT_COMPILE_ARTIFACT", str(ROOT / "tunic-transformed-source.py")))
+artifact.parent.mkdir(parents=True, exist_ok=True)
+artifact.write_text(source, encoding="utf-8")
 compiled_source = compile(source, str(source_path), "exec")
 if os.environ.get("TUNIC_AUDIT_COMPILE_ONLY") == "1":
-    artifact = Path(os.environ.get("TUNIC_AUDIT_COMPILE_ARTIFACT", str(ROOT / "artifacts" / "tunic-transformed-source.py")))
-    artifact.parent.mkdir(parents=True, exist_ok=True)
-    artifact.write_text(source, encoding="utf-8")
     print("tunic-audit-source-compile=passed", flush=True)
     raise SystemExit(0)
 exec(compiled_source, globals(), globals())
