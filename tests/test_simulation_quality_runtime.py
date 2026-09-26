@@ -42,3 +42,41 @@ def test_material_defaults_match_persisted_contract():
 @pytest.mark.parametrize("distance", [0.0, -2.0])
 def test_discretization_clamps_invalid_spacing(distance):
     assert quality_discretization(4, 100.0, distance) >= 4
+
+
+def test_tissu_step_uses_backend_owned_collision_surface_without_changing_authority():
+    from freecad_cloth.simulation.SimulationObjects import _collision_surface_for_step
+
+    authoritative = object()
+    solver_surface = object()
+    proxy = SimpleNamespace(
+        collision_surface=authoritative,
+        backend=SimpleNamespace(name="tissu", solver_collision_surface=solver_surface),
+    )
+
+    assert _collision_surface_for_step(proxy) is solver_surface
+    assert proxy.collision_surface is authoritative
+
+
+def test_non_tissu_step_uses_authoritative_collision_surface():
+    from freecad_cloth.simulation.SimulationObjects import _collision_surface_for_step
+
+    authoritative = object()
+    proxy = SimpleNamespace(
+        collision_surface=authoritative,
+        backend=SimpleNamespace(name="xpbd-cpu", solver_collision_surface=object()),
+    )
+
+    assert _collision_surface_for_step(proxy) is authoritative
+
+
+def test_both_simulation_step_paths_use_the_collision_surface_handoff_helper():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    simulation_source = (root / "freecad_cloth" / "simulation" / "SimulationObjects.py").read_text(encoding="utf-8")
+    quality_source = (root / "freecad_cloth" / "simulation" / "SimulationQualityRuntimeV2.py").read_text(encoding="utf-8")
+
+    assert "_collision_surface_for_step(self)" in simulation_source
+    assert "_collision_surface_for_step(base)" in quality_source
+    assert "self.collision_surface = collision_surface" in simulation_source

@@ -73,8 +73,8 @@ def test_tissu_collision_surface_abi_preserves_solver_surface_identity():
     assert "def solver_collision_surface(self):" in backend_source
     assert "def solver_collision_surface(self):" in tissu_source
     assert "return self._collision_surface" in tissu_source
-    assert "self.backend.solver_collision_surface" in objects_source
-    assert "else collision_surface" in objects_source
+    assert "self.collision_surface = collision_surface" in objects_source
+    assert "_collision_surface_for_step(self)" in objects_source
 
 
 def test_mesh_collision_edge_projection_is_idempotent():

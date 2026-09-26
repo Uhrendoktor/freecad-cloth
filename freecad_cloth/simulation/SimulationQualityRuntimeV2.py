@@ -3,7 +3,7 @@ from math import ceil
 import weakref
 
 from freecad_cloth.simulation.SimulationQuality import FabricMaterial, QUALITY_PRESETS, normalize_color_rgb, preset
-from freecad_cloth.simulation.SimulationObjects import PIN_MODE_NAMES, resolve_pin_indices
+from freecad_cloth.simulation.SimulationObjects import PIN_MODE_NAMES, resolve_pin_indices, _collision_surface_for_step
 
 QUALITY_NAMES = tuple(QUALITY_PRESETS)
 _RUNTIME_BASES = weakref.WeakKeyDictionary()
@@ -178,7 +178,7 @@ class QualitySimulationProxy:
                         dt, int(obj.SolverIterations),
                         (float(obj.GravityX), float(obj.GravityY), float(obj.GravityZ)),
                         sphere,
-                        base.collision_surface,
+                        _collision_surface_for_step(base),
                     )
                     system = getattr(base.backend, "system", None)
                     for particle in getattr(system, "particles", ()):
