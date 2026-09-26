@@ -12,6 +12,23 @@ from freecad_cloth.avatar.HumanoidMesh import MeshData, MAKEHUMAN_BASE_SHA256, M
 
 
 class AvatarFittingTests(unittest.TestCase):
+    def test_target_snap_source_contract_is_transactional(self):
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+        start = source.index("def snap_piece_to_drape_target(")
+        end = source.index("\ndef reset_arrangement", start)
+        body = source[start:end]
+        self.assertIn('"placement": item.Placement', body)
+        self.assertIn('"sketch_placement"', body)
+        self.assertIn('previous_piece_placements', body)
+        self.assertIn('previous_status', body)
+        self.assertIn('except Exception:', body)
+        self.assertIn('scene.PiecePlacements = previous_piece_placements', body)
+        self.assertIn('scene.FitStatus = previous_status', body)
+        self.assertIn('target_status(target)', body)
+        self.assertIn('max_translation', body)
+
+
     def test_fitting_proxy_is_validation_only_during_recompute(self):
         root = Path(__file__).resolve().parents[1]
         source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
