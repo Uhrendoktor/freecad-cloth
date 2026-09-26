@@ -115,3 +115,12 @@ def test_tunic_start_clearance_fixture_uses_validated_orientation_and_target_ext
     assert 'VisualTunicBack", "front", 0.76, 0.12' in audit
     assert 'min(target_ys) - clearance' in audit
     assert 'max(target_ys) + clearance' in audit
+
+
+def test_tunic_authored_semantic_mapping_uses_1_3_5_7():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "required_indices = (1, 3, 5, 7)" in audit
+    assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in audit
+    assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' in audit
+    assert 'front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"' in audit
+    assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in audit
