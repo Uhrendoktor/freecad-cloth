@@ -370,24 +370,15 @@ def simulation():
     snap_pattern_pieces_to_target((front, back), clearance=clearance)
     doc.recompute()
     log("fit-snap target-relative=passed clearance=%.2f" % float(clearance))
-    def authored_shoulder_pins(piece, particle_indices, positions):
-        targets = (
-            (0.14 * panel_width, 0.97 * garment_height),
-            (0.86 * panel_width, 0.97 * garment_height),
-        )
-        available = list(particle_indices)
-        result = []
-        for local_x, local_y in targets:
-            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
-            index = min(available, key=lambda i: (positions[i][0] - target_point.x) ** 2 + (positions[i][1] - target_point.y) ** 2 + (positions[i][2] - target_point.z) ** 2)
-            result.append(index)
-            available.remove(index)
-        return tuple(result)
-    proxy = scene.Proxy
-    positions = tuple(proxy.backend.positions())
-    if list(getattr(scene, "PinSelection", ())) :
-        raise RuntimeError("canonical visual tunic must start without global pins")
-    log("pin-map none (collision + sewn seams only)"); doc.recompute()
+    scene.PinMode = "None"
+    scene.PinSelection = []
+    doc.recompute()
+    proxy = scene.Proxy._base_or_restore()
+    solver_system = getattr(getattr(proxy, "backend", None), "system", None)
+    active_pins = tuple(getattr(solver_system, "pins", ()) or ())
+    if active_pins:
+        raise RuntimeError("canonical visual tunic must start without solver pins: %s" % (active_pins,))
+    log("pin-map none (collision + sewn seams only)")
     for source in (doc.getObject("VisualTunicFront"), doc.getObject("VisualTunicBack")):
         if source is not None: source.ViewObject.Visibility = False
         sketch = getattr(source, "Sketch", None) if source is not None else None
