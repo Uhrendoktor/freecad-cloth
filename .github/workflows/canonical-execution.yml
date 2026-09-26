@@ -406,6 +406,7 @@ jobs:
           test -s docs/images/generated/gui-progress.log
           grep -q 'scenario-pass' docs/images/generated/gui-progress.log
           grep -q 'realtime-preview=passed backend=tissu' docs/images/generated/gui-progress.log
+          grep -q 'seam-colors=passed count=4 unique=true' docs/images/generated/gui-progress.log
           grep -q 'drape-metrics=' docs/images/generated/gui-progress.log
           test -s docs/images/generated/cloth-simulation-draped.png
           test -s docs/images/generated/cloth-simulation-draped-front.png
