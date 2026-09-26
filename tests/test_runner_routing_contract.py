@@ -106,5 +106,9 @@ def test_broker_dispatches_immutable_pr_head_sha_and_checkout_avoids_ephemeral_m
 
 def test_stale_run_cleanup_tolerates_only_completed_run_409():
     source = WORKFLOW.read_text(encoding="utf-8")
-    assert "HTTP 409" in source
+    expected = 'grep -Fq "Cannot cancel a workflow run that is completed. (HTTP 409)" <<< "$cancel_output"'
+    assert source.count(expected) == 2
+    assert 'grep -q "HTTP 409" <<< "$cancel_output"' not in source
     assert 'exit "$cancel_status"' in source
+    assert 'event=pull_request_target' in _job_block(source, "cancel-stale-pr-runs")
+    assert 'if [ "$event" = "workflow_dispatch" ]; then' in _job_block(source, "cancel-stale-pr-runs")
