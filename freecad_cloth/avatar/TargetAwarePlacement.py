@@ -244,6 +244,34 @@ def minimum_surface_clearance(surface, points):
     return float(minimum)
 
 
+def clearance_correction_vector(surface, points, required_clearance):
+    """Return one deterministic bounded translation that raises the worst clearance."""
+    required = float(required_clearance)
+    if required < 0.0:
+        raise TargetPlacementError("required clearance must be non-negative")
+    vertices, triangles = _validated_surface(surface)
+    positions = tuple(tuple(float(v) for v in point) for point in points)
+    if not positions:
+        raise TargetPlacementError("clearance correction requires at least one garment point")
+    candidates = []
+    for point_index, point in enumerate(positions):
+        _require_finite(point, "garment point")
+        for triangle_index, tri in enumerate(triangles):
+            a, b, c = vertices[tri[0]], vertices[tri[1]], vertices[tri[2]]
+            normal = _unit(_cross(_sub(b, a), _sub(c, a)), "target surface normal")
+            closest = _closest_point_on_triangle(point, a, b, c)
+            signed = _dot(_sub(point, closest), normal)
+            gap = required - float(signed)
+            if gap > 1e-9:
+                candidates.append((float(gap), int(point_index), int(triangle_index), normal))
+    if not candidates:
+        return (0.0, 0.0, 0.0)
+    gap, _point_index, _triangle_index, normal = max(
+        candidates, key=lambda item: (round(item[0], 12), -item[1], -item[2])
+    )
+    return _scale(normal, gap)
+
+
 def assert_minimum_surface_clearance(surface, points, required_clearance):
     required = float(required_clearance)
     if required < 0.0:
