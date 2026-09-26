@@ -590,10 +590,52 @@ def run_acceptance():
 
         _select_objects(scene)
         quality_panel = _open_quality_panel()
-        if not hasattr(quality_panel, "arrange_fit_button") or not hasattr(quality_panel, "snap_to_target_button"):
-            raise RuntimeError("Simulation quality task panel did not expose the Arrange / Fit / target-snap bridge")
-        if not quality_panel.snap_to_target_button.isEnabled():
-            raise RuntimeError("Simulation panel did not expose enabled target-aware placement for a ready target")
+        if not hasattr(quality_panel, "arrange_fit_button") or not hasattr(quality_panel, "refresh_target_button"):
+            raise RuntimeError("Simulation quality task panel did not expose the Arrange / Fit / target-recovery bridge")
+        if not hasattr(quality_panel, "reset_arrangement_button"):
+            raise RuntimeError("Simulation quality task panel did not expose Reset arrangement")
+        if quality_panel.reset_arrangement_button.isEnabled():
+            raise RuntimeError("Reset arrangement should be disabled before fitting handoff")
+
+        quality_panel.arrange_fit_button.click()
+        _wait_task_close()
+        _events()
+        fitting = doc.getObject("FittingScene")
+        if fitting is None or len(tuple(getattr(fitting, "PatternPieces", ()) or ())) != 4:
+            raise RuntimeError("Arrange / Fit handoff did not create/use the existing four-piece fitting scene")
+        if scene.DrapeTarget != target:
+            raise RuntimeError("Arrange / Fit handoff changed the simulation's persistent DrapeTarget")
+
+        _activate("ClothSimulationWorkbench", ["ClothSimulation_Edit"])
+        _select_objects(scene)
+        quality_panel = _open_quality_panel()
+        if not quality_panel.reset_arrangement_button.isEnabled():
+            raise RuntimeError("Reset arrangement did not become available for persisted fitting state")
+        piece = fitting.PatternPieces[0]
+        original_base = piece.Placement.Base
+        piece.Placement = App.Placement(
+            App.Vector(original_base.x + 10.0, original_base.y, original_base.z),
+            piece.Placement.Rotation,
+        )
+        doc.recompute()
+        if tuple(fitting.PiecePlacements) == tuple(fitting.HomePlacements):
+            raise RuntimeError("Arrange / Fit mutation did not change persisted placement state")
+        quality_panel.reset_arrangement_button.click()
+        _events()
+        if tuple(fitting.PiecePlacements) != tuple(fitting.HomePlacements):
+            raise RuntimeError("Reset arrangement did not restore persisted HomePlacements")
+
+        target.SourceSignature = "stale-for-ui-contract"
+        doc.recompute()
+        quality_panel._refresh()
+        if not quality_panel.refresh_target_button.isEnabled():
+            raise RuntimeError("Simulation panel did not expose DrapeTarget refresh recovery for stale state")
+        quality_panel.refresh_target_button.click()
+        _events()
+        doc.recompute()
+        from freecad_cloth.simulation.DrapeTarget import target_status
+        if target_status(target)["state"] != "ready":
+            raise RuntimeError("DrapeTarget refresh did not restore the authoritative target state")
         quality_panel.quality.setCurrentText("Fast")
         if not quality_panel.accept():
             raise RuntimeError("public Simulation quality task panel rejected the selected preset")
