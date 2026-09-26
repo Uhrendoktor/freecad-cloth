@@ -1,19 +1,33 @@
 """Small, FreeCAD-independent helpers for Sewing workbench views."""
 from colorsys import hsv_to_rgb
+from hashlib import sha512
 
 
-_SEAM_GOLDEN_ANGLE = 0.618033988749895
+_SEAM_COLOR_SATURATION = 0.78
+_SEAM_COLOR_VALUE = 0.92
+_SEAM_COLOR_HASH_SCALE = float(1 << 64)
+
+
+def _seam_color_for_id(seam_id):
+    """Return one stable presentation color derived only from canonical seam identity."""
+    identity = str(seam_id).strip()
+    if not identity:
+        raise ValueError("seam identity must not be empty")
+    digest = sha512(identity.encode("utf-8")).digest()
+    hue = int.from_bytes(digest[:8], "big") / _SEAM_COLOR_HASH_SCALE
+    rgb = hsv_to_rgb(hue, _SEAM_COLOR_SATURATION, _SEAM_COLOR_VALUE)
+    return tuple(round(channel, 6) for channel in rgb)
 
 
 def seam_color_map(seam_ids):
-    """Return deterministic, visually distinct colors keyed by seam id."""
-    ids = sorted({str(seam_id) for seam_id in seam_ids if str(seam_id).strip()})
-    result = {}
-    for index, seam_id in enumerate(ids):
-        hue = (index * _SEAM_GOLDEN_ANGLE) % 1.0
-        rgb = hsv_to_rgb(hue, 0.78, 0.92)
-        result[seam_id] = tuple(round(channel, 6) for channel in rgb)
-    return result
+    """Return deterministic seam colors keyed only by canonical seam id.
+
+    Color assignment deliberately does not depend on the set, document order,
+    generated mesh topology, or seam creation order. Adding/removing another
+    seam therefore cannot recolor an existing seam identity.
+    """
+    ids = sorted({str(seam_id).strip() for seam_id in seam_ids if str(seam_id).strip()})
+    return {seam_id: _seam_color_for_id(seam_id) for seam_id in ids}
 
 
 def apply_seam_colors(objects):
