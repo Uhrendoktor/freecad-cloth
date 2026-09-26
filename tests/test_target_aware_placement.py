@@ -61,3 +61,16 @@ def test_stale_or_missing_targets_fail_closed():
         require_ready_target_status({"state": "missing", "message": "target missing"})
     with pytest.raises(TargetPlacementError):
         require_ready_target_status(None)
+
+
+def test_grouped_target_snap_contract_preserves_home_axis_and_whole_piece_validation():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    fitting = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    model = (root / "freecad_cloth" / "avatar" / "AvatarFitting.py").read_text(encoding="utf-8")
+    assert "def snap_pattern_pieces_to_target(" in fitting
+    assert "_piece_world_samples(piece" in fitting
+    assert "pairwise_error" in fitting
+    assert "rotation_axis" in model
+    assert "ClothFitting_SnapToDrapeTarget" in fitting
+    assert "scene.DrapeTarget" in fitting
