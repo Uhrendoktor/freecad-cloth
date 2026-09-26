@@ -34,6 +34,15 @@ class AvatarFittingTests(unittest.TestCase):
         with self.assertRaises(ValueError): BodyMeasurements({"waist": 0}).validate()
         with self.assertRaises(ValueError): BodyMeasurements({"waist": 10}, "inch").validate()
 
+    def test_piece_placement_persists_non_z_rotation_axis_backward_compatibly(self):
+        from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+
+        placement = PiecePlacement("piece", (1, 2, 3), 90.0, (1.0, 0.0, 0.0))
+        encoded = placement.to_string()
+        self.assertIn("|1,2,3|90|1,0,0", encoded)
+        self.assertEqual(PiecePlacement.from_string(encoded).rotation_axis, (1.0, 0.0, 0.0))
+        self.assertEqual(PiecePlacement.from_string("piece|1,2,3|90").rotation_axis, (0.0, 0.0, 1.0))
+
     def test_scene_metadata_is_deterministic(self):
         scene = FittingScene(BodyMeasurements({"hip": 960, "waist": 760}), "Avatar Collision Proxy", (PiecePlacement("piece-b", (10, 20, 30), 45), PiecePlacement("piece-a")))
         payload = scene.to_json()
