@@ -88,7 +88,17 @@ jobs:
               case "$status" in
                 queued|in_progress|pending|requested|waiting)
                   echo "Canceling stale PR run $run_id (status=$status) for PR #$pr"
-                  gh api --method POST "repos/$REPO/actions/runs/$run_id/cancel" >/dev/null
+                  if cancel_output="$(gh api --method POST "repos/$REPO/actions/runs/$run_id/cancel" 2>&1)"; then
+                    :
+                  else
+                    cancel_status=$?
+                    if grep -q "HTTP 409" <<< "$cancel_output"; then
+                      echo "Stale PR run $run_id completed before cancellation; continuing"
+                    else
+                      echo "$cancel_output" >&2
+                      exit "$cancel_status"
+                    fi
+                  fi
                   ;;
               esac
             done
@@ -106,7 +116,17 @@ jobs:
               continue
             fi
             echo "Canceling remaining active canonical run $run_id (event=$event)"
-            gh api --method POST "repos/$REPO/actions/runs/$run_id/cancel" >/dev/null
+            if cancel_output="$(gh api --method POST "repos/$REPO/actions/runs/$run_id/cancel" 2>&1)"; then
+              :
+            else
+              cancel_status=$?
+              if grep -q "HTTP 409" <<< "$cancel_output"; then
+                echo "Canonical run $run_id completed before cancellation; continuing"
+              else
+                echo "$cancel_output" >&2
+                exit "$cancel_status"
+              fi
+            fi
           done
   pull_request_broker:
     name: Dispatch hosted PR validation from canonical base
