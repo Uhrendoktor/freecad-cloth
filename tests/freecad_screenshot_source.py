@@ -412,7 +412,15 @@ def simulation():
         raise RuntimeError("visual fixture does not contain a real humanoid mesh")
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
     simulation_panel = SimulationQualityTaskPanel(scene); task_dock = show_task(simulation_panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset")); view = Gui.activeDocument().activeView(); view.setCameraType("Orthographic"); view.viewFront(); view.fitAll(); events(); task_dock.hide(); events(); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical sewn tunic generated from native Sketcher pattern sources on production mannequin"); task_dock.show(); task_dock.raise_(); events()
-    for batch in (15,15,15,15,15,15):
+    simulation_panel.step(1); doc.recompute(); events()
+    if not bool(scene.FiniteState) or any(panel.Mesh.CountFacets <= 10 for panel in scene.DrapePanels):
+        raise RuntimeError("tunic step-1 state is invalid or the drape panel mesh is empty")
+    save("cloth-simulation-step1.png", "Simulation Workbench tunic step 1", "first solver step after target-aware placement; finite state and non-empty panel evidence")
+    log("step1=passed finite=%s panel-facets=%s" % (
+        bool(scene.FiniteState),
+        tuple(int(panel.Mesh.CountFacets) for panel in scene.DrapePanels),
+    ))
+    for batch in (14,15,15,15,15,15):
         simulation_panel.step(batch); doc.recompute(); events()
     if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
         raise RuntimeError("simulation did not reach a finite 90-step state")
