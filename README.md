@@ -20,7 +20,9 @@ FreeCAD/Sketcher owns editable geometry and document persistence; Cloth owns gar
 
 ## Installation and examples
 
-Start with [Installation](docs/INSTALLATION.md), then run the [Blanket over Cube](docs/EXAMPLES.md) example before the full tunic acceptance path. The [Release gates](docs/RELEASE_GATES.md) define what “complete” means for this repository and explicitly separate implemented behavior from the commercial-feature roadmap.
+Start with [Installation](docs/INSTALLATION.md), then follow the [User guide](docs/USER_GUIDE.md) and [Workbench guide](docs/WORKBENCH_GUIDE.md) for the human workflow and current command IDs. Use the [Blanket over Cube](docs/EXAMPLES.md) example as the first smoke test, then use the tunic path as the validated advanced acceptance scenario. The [Release gates](docs/RELEASE_GATES.md) define what “complete” means for this repository and explicitly separate implemented behavior from the commercial-feature roadmap.
+
+The user-facing fitting documentation deliberately describes persistent arrangement/placement and DrapeTarget validation; it does not treat automatic body-target snapping as a general supported workflow without its own acceptance evidence.
 
 ## Screenshots and simulation media
 
