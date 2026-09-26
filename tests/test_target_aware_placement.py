@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
@@ -124,12 +126,15 @@ def test_fitting_action_is_registered_and_transactional():
     assert "PiecePlacement.from_string" in fitting
 
 def test_fitting_action_checks_the_complete_piece_surface_not_only_anchors():
-    from pathlib import Path
     root = Path(__file__).resolve().parents[1]
     fitting = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
     assert "def _piece_world_surface_points" in fitting
     assert "resolve_piece_ir(piece)" in fitting
     assert "geometry_from_piece_ir(piece_ir)" in fitting
+    assert "mesh = triangulate(geometry_from_piece_ir(piece_ir))" in fitting
+    assert "refine_linear_boundary(" not in fitting[fitting.index("def _piece_local_surface_points"):fitting.index("def set_garment_anchors")]
+    assert "max_area=" not in fitting[fitting.index("def _piece_local_surface_points"):fitting.index("def set_garment_anchors")]
+    assert "shape.tessellate" not in fitting
     assert "piece_clearance = assert_minimum_surface_clearance" in fitting
 
 def test_target_snap_contract_is_atomic_and_matches_simulation_panel_adapter():
