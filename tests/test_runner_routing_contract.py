@@ -19,6 +19,7 @@ def test_one_canonical_workflow():
 
 def test_pull_requests_are_hosted_only():
     source = WORKFLOW.read_text(encoding='utf-8')
+    assert 'runner_router:' in source
     router = _job_block(source, 'runner_router')
     assert 'runs-on: ubuntu-latest' in router
     assert 'pull-request-hosted-only' in router
