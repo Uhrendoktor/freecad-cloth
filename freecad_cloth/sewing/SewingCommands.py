@@ -303,8 +303,8 @@ def focus_selected_seam_3d():
     if doc is None:
         raise ValueError("open a document before focusing a seam")
     seam = _selected_seam(doc)
-    from freecad_cloth.sewing.SewingView import apply_seam_colors
-    apply_seam_colors(doc.Objects)
+    from freecad_cloth.sewing.SewingView import refresh_seam_colors
+    refresh_seam_colors(doc)
     if getattr(seam, "Shape", None) is None or seam.Shape.isNull():
         raise ValueError("selected seam has no presentation geometry")
     previous = []
@@ -373,7 +373,7 @@ def show_sewing_2d():
     import FreeCADGui as Gui
     if not Gui.activeDocument():
         return
-    from freecad_cloth.sewing.SewingView import apply_seam_colors
+    from freecad_cloth.sewing.SewingView import refresh_seam_colors
     document = Gui.activeDocument().Document
     apply_seam_colors(document.Objects)
     Gui.Selection.clearSelection()
