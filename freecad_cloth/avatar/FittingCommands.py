@@ -313,7 +313,14 @@ def _persistent_anchors(scene):
 def _plan_piece_target_placement(piece, target, anchors, clearance, max_translation, max_rotation):
     import FreeCAD as App
     from freecad_cloth.avatar.AvatarFitting import PiecePlacement
-    from freecad_cloth.avatar.TargetAwarePlacement import assert_minimum_surface_clearance, solve_rigid_z, target_surface_anchor, wrap_normal
+    from freecad_cloth.avatar.TargetAwarePlacement import (
+        assert_minimum_surface_clearance,
+        clearance_correction_vector,
+        minimum_surface_clearance,
+        solve_rigid_z,
+        target_surface_anchor,
+        wrap_normal,
+    )
     from freecad_cloth.simulation.DrapeTarget import collision_surface
 
     surface = collision_surface(
@@ -344,11 +351,33 @@ def _plan_piece_target_placement(piece, target, anchors, clearance, max_translat
     delta_rotation = App.Rotation(App.Vector(0, 0, 1), float(delta.rotation_z))
     new_base = delta_rotation.multVec(current.Base) + App.Vector(*delta.translation)
     new_placement = App.Placement(new_base, delta_rotation.multiply(current.Rotation))
-    placed_points = []
-    for anchor in anchors:
-        point = new_placement.multVec(App.Vector(*anchor.position))
-        placed_points.append((float(point.x), float(point.y), float(point.z)))
-    anchor_clearance = assert_minimum_surface_clearance(surface, placed_points, float(clearance))
+    total_translation = tuple(float(value) for value in delta.translation)
+    for _ in range(4):
+        placed_points = []
+        for anchor in anchors:
+            point = new_placement.multVec(App.Vector(*anchor.position))
+            placed_points.append((float(point.x), float(point.y), float(point.z)))
+        anchor_clearance = minimum_surface_clearance(surface, placed_points)
+        if anchor_clearance >= float(clearance) - 1e-6:
+            break
+        correction = clearance_correction_vector(surface, placed_points, float(clearance))
+        correction_length = sqrt(sum(float(value) * float(value) for value in correction))
+        if correction_length <= 1e-9:
+            break
+        candidate_translation = tuple(total_translation[index] + float(correction[index]) for index in range(3))
+        if sqrt(sum(float(value) * float(value) for value in candidate_translation)) > float(max_translation) + 1e-9:
+            raise ValueError("target-aware clearance correction exceeds the configured translation bound")
+        new_base = new_base + App.Vector(*correction)
+        total_translation = candidate_translation
+        new_placement = App.Placement(new_base, delta_rotation.multiply(current.Rotation))
+    anchor_clearance = assert_minimum_surface_clearance(surface, tuple(
+        tuple(float(value) for value in (
+            new_placement.multVec(App.Vector(*anchor.position)).x,
+            new_placement.multVec(App.Vector(*anchor.position)).y,
+            new_placement.multVec(App.Vector(*anchor.position)).z,
+        ))
+        for anchor in anchors
+    ), float(clearance))
     return {
         "piece": piece,
         "placement": new_placement,
