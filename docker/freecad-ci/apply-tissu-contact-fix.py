@@ -433,6 +433,31 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     test_cpp = test_cpp.replace(old, new, 1)
     test.write_text(test_cpp, encoding="utf-8")
 
+    solver = ROOT / "core/src/physics/Solver.cpp"
+    solver_cpp = solver.read_text(encoding="utf-8")
+    old_solver = """    for (int i = 0; i < m_iterations; i++) {
+        solveConstraints(dt);
+    }
+
+    const auto& colliders = world.getColliders();
+    for (auto& collider : colliders)
+        collider->resolve(m_particles, dt, world.getThickness());
+
+    solveSelfCollisions(dt, world.getThickness());
+"""
+    new_solver = """    const auto& colliders = world.getColliders();
+    for (int i = 0; i < m_iterations; i++) {
+        for (auto& collider : colliders)
+            collider->resolve(m_particles, dt, world.getThickness());
+        solveConstraints(dt);
+    }
+
+    solveSelfCollisions(dt, world.getThickness());
+"""
+    if solver_cpp.count(old_solver) != 1:
+        raise RuntimeError("Solver.cpp collider-order source anchor mismatch")
+    solver.write_text(solver_cpp.replace(old_solver, new_solver, 1), encoding="utf-8")
+
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
     changed = run("git", "diff", "--name-only")
@@ -440,6 +465,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
         "tests/physics/test_mesh_collider.cpp",
+        "core/src/physics/Solver.cpp",
     }
     if set(changed.splitlines()) != expected:
         raise RuntimeError(f"unexpected patched files: {changed!r}")
@@ -447,7 +473,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     script_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     print(f"Tissu source commit: {EXPECTED_COMMIT}")
     print(f"Tissu contact fix script sha256: {script_sha}")
-    print("Tissu contact fix: applied and self-checked")
+    print("Tissu contact fix + solver-order experiment: applied and self-checked")
     return 0
 
 
