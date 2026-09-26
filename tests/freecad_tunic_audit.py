@@ -39,6 +39,16 @@ replacements = {
     '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance',
     '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
+    '        record["connected_components"] = int(mesh_result.components)\n'
+        '        record["failure_classification"] = summarize_classification(classification)\n'
+        '        record["diagnostics"] = diagnostics\n'
+        '        records.append(record)': 
+        '        record["connected_components"] = int(mesh_result.components)\n'
+        '        record["failure_classification"] = summarize_classification(classification)\n'
+        '        record["diagnostics"] = diagnostics\n'
+        '        if classification.state in {"detached-candidate", "edge-on-candidate"} or "collapsed-candidate" in diagnostics:\n'
+        '            raise RuntimeError("canonical tunic visual geometry is not structurally plausible: %s state=%s diagnostics=%s" % (record["panel"], classification.state, tuple(diagnostics)))\n'
+        '        records.append(record)',
 }
 for old, new in replacements.items():
     if old not in source:
