@@ -33,8 +33,8 @@ replacements = {
         '        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)\n'
         '        if str(getattr(seam_obj, "EdgeAId", "")) != edge_a_id or str(getattr(seam_obj, "EdgeBId", "")) != edge_b_id: raise RuntimeError("canonical tunic seam %s did not retain authored semantic edge IDs" % seam_id)\n'
         '        seam_records.append((seam_obj, front, back))',
-    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - (clearance + 8.0)',
-    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + (clearance + 8.0)',
+    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - (clearance + placement_extra)',
+    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + (clearance + placement_extra)',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
     'scene.SolverIterations = 8;': 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-32 iterations-1 substeps-env");',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
@@ -92,6 +92,56 @@ timed_anchor = '''    from time import perf_counter
         log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
 '''
+
+source = source.replace(
+    '    def target_relative_piece_placement(side):',
+    '    placement_extra = 0.0\n    def target_relative_piece_placement(side):',
+    1,
+)
+
+surface_anchor = """    surface = collision_surface(
+        target_source,
+        float(getattr(target, "CollisionDeflection", 1.0)),
+        float(getattr(target, "CollisionThickness", 0.0)),
+    )
+"""
+if surface_anchor not in source:
+    raise RuntimeError("surface collision anchor missing")
+placement_probe = """    surface = collision_surface(
+        target_source,
+        float(getattr(target, "CollisionDeflection", 1.0)),
+        float(getattr(target, "CollisionThickness", 0.0)),
+    )
+    placement_candidates = (0.0, 4.0, 8.0, 12.0, 16.0, 24.0, 32.0, 48.0, 64.0, 96.0, 128.0)
+    selected_placement_extra = None
+    initial_clearance = None
+    for candidate in placement_candidates:
+        placement_extra = float(candidate)
+        front.Placement = target_relative_piece_placement("front")
+        back.Placement = target_relative_piece_placement("back")
+        front.Sketch.Placement = front.Placement
+        back.Sketch.Placement = back.Placement
+        doc.recompute()
+        probe_proxy = scene.Proxy
+        probe_backend = getattr(probe_proxy, "backend", None)
+        if probe_backend is None:
+            raise RuntimeError("canonical tunic placement probe did not build a simulation backend")
+        try:
+            from freecad_cloth.common.MeshValidation import nearest_target_clearance
+            probe_clearance = nearest_target_clearance(tuple(probe_backend.positions()), tuple(surface.vertices))
+        except (ImportError, ValueError):
+            probe_clearance = None
+        log("tunic-placement-probe-extra-mm=%.1f clearance-mm=%s" % (placement_extra, "%.2f" % float(probe_clearance) if probe_clearance is not None else "None"))
+        if probe_clearance is not None and float(probe_clearance) >= float(clearance):
+            selected_placement_extra = placement_extra
+            initial_clearance = float(probe_clearance)
+            log("tunic-placement-selected-extra-mm=%.1f clearance-mm=%.2f" % (selected_placement_extra, initial_clearance))
+            break
+    if selected_placement_extra is None:
+        raise RuntimeError("canonical tunic placement probe found no candidate meeting configured separation")
+"""
+source = source.replace(surface_anchor, placement_probe, 1)
+
 source = source.replace(
     anchor + '\n        simulation_panel.step(batch); doc.recompute(); events()\n',
     preview_probe + '\n' + timed_anchor,
