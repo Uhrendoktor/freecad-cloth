@@ -397,7 +397,7 @@ def simulation():
     back, back_outline = make_piece("VisualTunicBack", 0.64, 0.07)
 
     from freecad_cloth.avatar.AvatarFitting import GarmentAnchor, PiecePlacement
-    from freecad_cloth.avatar.FittingCommands import create_fitting_scene, target_aware_place_piece, target_surface_world
+    from freecad_cloth.avatar.FittingCommands import create_fitting_scene, target_surface_world
     from freecad_cloth.avatar.TargetAwarePlacement import assert_minimum_surface_clearance
     fitting = create_fitting_scene()
     fitting.AvatarProxy = scene.AvatarProxy
@@ -430,10 +430,16 @@ def simulation():
         raise RuntimeError("production target-aware fitting command is unavailable")
     Gui.runCommand("ClothFitting_TargetAwareArrange", 0)
     events()
+    if str(fitting.FitStatus) != "Target-aware placement applied":
+        raise RuntimeError("public target-aware arrangement did not complete for the front panel")
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(back)
     Gui.runCommand("ClothFitting_TargetAwareArrange", 0)
     events()
+    if str(fitting.FitStatus) != "Target-aware placement applied":
+        raise RuntimeError("public target-aware arrangement did not complete for the back panel")
+    if tuple(fitting.PiecePlacements) == tuple(fitting.HomePlacements):
+        raise RuntimeError("target-aware arrangement did not change either panel placement")
     log("target-aware-placement=public-command anchors=%d" % len(anchors))
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
