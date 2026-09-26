@@ -135,6 +135,9 @@ def test_authored_containment_is_explicitly_opt_in_and_resets_old_position():
         def get_position(self):
             return self.position
 
+        def get_old_position(self):
+            return self.old_position
+
         def set_position(self, value):
             self.position = tuple(float(component) for component in value)
 
