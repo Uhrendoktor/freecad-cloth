@@ -27,6 +27,8 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     assert 'status = target_status(target)' in source
     assert 'scene.PinMode = "None"' in source
     assert 'scene.PinSelection = []' in source
+    assert 'from freecad_cloth.avatar.FittingCommands import create_fitting_scene, snap_piece_to_drape_target' in source
+    assert 'snap_piece_to_drape_target(piece, target' in source
     assert 'if solver_pins:' in source
     assert 'nearest_target_clearance' in source
     assert 'step0-target-vertex-clearance-mm=' in source
