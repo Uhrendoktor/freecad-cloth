@@ -487,5 +487,6 @@ except BaseException as error:
         app = QtWidgets.QApplication.instance()
         if app is not None:
             app.quit()
-    finally:
-        raise
+    except BaseException:
+        pass
+    os._exit(1)
