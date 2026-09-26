@@ -569,6 +569,15 @@ def run_acceptance():
             raise RuntimeError("public fitting avatar assignment did not persist the canonical avatar")
         print("drape-target=passed type=Mannequin", flush=True)
 
+        home_snapshot = tuple(fitting.HomePlacements)
+        _select_objects(*tuple(fitting.PatternPieces), target)
+        Gui.runCommand("ClothFitting_SnapPiecesToTarget", 0)
+        _events()
+        doc.recompute()
+        if not str(fitting.FitStatus).startswith("Target snapped"):
+            raise RuntimeError("public target-aware fitting command did not persist snapped state")
+        if tuple(fitting.HomePlacements) != home_snapshot:
+            raise RuntimeError("public target-aware fitting command changed HomePlacements")
         _select_objects(fitting)
         Gui.runCommand("ClothFitting_CreateSimulation", 0)
         _events()
@@ -578,6 +587,8 @@ def run_acceptance():
         doc.recompute()
         if len(scene.ClothPieces) != 4:
             raise RuntimeError("fitting-created simulation did not inherit four pattern pieces")
+        if scene.DrapeTarget != target:
+            raise RuntimeError("fitting-created simulation did not inherit the authoritative DrapeTarget")
         _activate(
             "ClothSimulationWorkbench",
             ["ClothDrape_CreateMannequinTarget"],
