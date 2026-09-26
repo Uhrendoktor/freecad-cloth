@@ -509,7 +509,8 @@ def create_simulation_from_fitting():
     if scene.AvatarProxy is not None:
         simulation.AvatarProxy = scene.AvatarProxy
     if getattr(scene, "DrapeTarget", None) is not None:
-        simulation.DrapeTarget = scene.DrapeTarget
+        from freecad_cloth.simulation.DrapeTarget import resolve_authoritative_target
+        simulation.DrapeTarget = resolve_authoritative_target(doc, scene.DrapeTarget)
     doc.recompute()
     return simulation
 
