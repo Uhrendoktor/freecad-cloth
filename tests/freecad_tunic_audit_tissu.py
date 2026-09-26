@@ -26,11 +26,15 @@ for old, new in replacements.items():
         raise RuntimeError(f"audit replacement did not match source: {old}")
     source = source.replace(old, new, 1)
 
-    scene.PinMode = "None"
+pin_pattern = re.compile(r'    def authored_shoulder_pins\(piece, positions\):.*?    for source in \(doc\.getObject', re.S)
+pin_replacement = '''    scene.PinMode = "None"
     scene.PinSelection = []
     log("pinning-mode=none solver-pins=0"); doc.recompute()
 
-    for source in (doc.getObject
+    for source in (doc.getObject'''
+source, pin_count = pin_pattern.subn(pin_replacement, source, count=1)
+if pin_count != 1:
+    raise RuntimeError("no-pin audit patch did not match canonical fixture source")
 
 # Backend selection is owned by the production runtime. The audit must not rewrite
 # an obsolete backend assignment or duplicate solver construction.
