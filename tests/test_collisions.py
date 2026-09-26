@@ -32,6 +32,24 @@ if __name__ == "__main__":
 
 
 
+def _cube_surface(thickness=1.0):
+    from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
+
+    vertices = (
+        (-10, -10, -10), (10, -10, -10), (10, 10, -10), (-10, 10, -10),
+        (-10, -10, 10), (10, -10, 10), (10, 10, 10), (-10, 10, 10),
+    )
+    triangles = (
+        (0, 1, 2), (0, 2, 3),
+        (4, 6, 5), (4, 7, 6),
+        (0, 4, 5), (0, 5, 1),
+        (3, 2, 6), (3, 6, 7),
+        (0, 3, 7), (0, 7, 4),
+        (1, 5, 6), (1, 6, 2),
+    )
+    return surface_from_triangles(vertices, triangles, region="test-cube", thickness=thickness)
+
+
 def test_tissu_authored_contact_response_preserves_motion_direction():
     from types import SimpleNamespace
 
