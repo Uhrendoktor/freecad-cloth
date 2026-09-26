@@ -105,3 +105,13 @@ if __name__ == "__main__":
     test_canonical_concurrency_cancels_stale_pr_runs()
     test_canonical_readme_turntable_launches_from_neutral_cwd()
     test_readme_turntable_scripts_import_freecad_gui_before_repository_path_injection()
+
+def test_blanket_visual_source_uses_single_pass_budget_and_proximity_gate():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "tests" / "freecad_visual_examples.py").read_text(encoding="utf-8")
+    assert 'os.environ.setdefault("CLOTH_SIMULATION_BACKEND", "xpbd-cpu")' in source
+    assert "scene.TimeStep = 1.0 / 120.0" in source
+    assert "scene.SolverIterations = 4" in source
+    assert "scene.SolverSubsteps = 1" in source
+    assert "if target_clearance > 35.0:" in source
+    assert "drape-target-clearance-mm=" in source
