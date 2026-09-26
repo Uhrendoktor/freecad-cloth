@@ -1,5 +1,6 @@
 name: Canonical execution
 
+# Supervisor realtime/runner fallback verification for issue #1347.
 on:
   push:
     branches: [main]
