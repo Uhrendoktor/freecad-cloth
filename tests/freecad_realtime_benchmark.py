@@ -93,10 +93,23 @@ def main():
         except Exception:
             pass
         try:
-            App.exit()
-            trace("stage=app-exit-returned elapsed_ms=%.3f" % (1000.0 * (time.perf_counter() - run_started)))
+            window = Gui.getMainWindow()
+            if window is not None:
+                window.close()
+            trace("stage=main-window-closed elapsed_ms=%.3f" % (1000.0 * (time.perf_counter() - run_started)))
         except Exception as exc:
-            trace("stage=app-exit-exception type=%s elapsed_ms=%.3f" % (type(exc).__name__, 1000.0 * (time.perf_counter() - run_started)))
+            trace("stage=main-window-close-exception type=%s elapsed_ms=%.3f" % (type(exc).__name__, 1000.0 * (time.perf_counter() - run_started)))
+        try:
+            try:
+                from PySide6 import QtWidgets
+            except ImportError:
+                from PySide import QtWidgets
+            app = QtWidgets.QApplication.instance()
+            if app is not None:
+                app.quit()
+            trace("stage=application-quit-requested elapsed_ms=%.3f" % (1000.0 * (time.perf_counter() - run_started)))
+        except Exception as exc:
+            trace("stage=application-quit-exception type=%s elapsed_ms=%.3f" % (type(exc).__name__, 1000.0 * (time.perf_counter() - run_started)))
 
 
 main()
