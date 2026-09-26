@@ -17,6 +17,7 @@ os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
 
 replacements = {
     'clearance = max(20.0, 0.08 * body_depth)': 'clearance = max(8.0, 0.025 * body_depth);',
+    'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)': 'front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)',
     '    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):\n'
         '        seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
         '        add_seam(doc, seam)\n'
@@ -26,7 +27,7 @@ replacements = {
         '    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())\n'
         '    required_indices = (1, 2, 6, 7)\n'
         '    if len(front_edge_ids) < 8 or len(back_edge_ids) < 8 or any(not front_edge_ids[index] or not back_edge_ids[index] for index in required_indices): raise RuntimeError("canonical tunic fixture is missing authored semantic edge IDs")\n'
-        '    seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"),(front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"),(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"))\n'
+        '    seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"),(front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"),(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"))\n'
         '    for edge_a_id, edge_b_id, seam_id in seam_specs:\n'
         '        seam = Seam(str(front.PieceId), edge_a_id, str(back.PieceId), edge_b_id, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
         '        add_seam(doc, seam)\n'
@@ -34,7 +35,9 @@ replacements = {
         '        if str(getattr(seam_obj, "EdgeAId", "")) != edge_a_id or str(getattr(seam_obj, "EdgeBId", "")) != edge_b_id: raise RuntimeError("canonical tunic seam %s did not retain authored semantic edge IDs" % seam_id)\n'
         '        seam_records.append((seam_obj, front, back))',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
-    'scene.SolverIterations = 8;': 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-32 iterations-1 substeps-env");',
+    'scene.SolverIterations = 8;': 'scene.ParticleDistance = 32.0; scene.SolverIterations = 2; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-32 iterations-2 substeps-env");',
+    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance',
+    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
 }
 for old, new in replacements.items():
@@ -72,7 +75,9 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
     log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
 '''
-anchor = '    for batch in (15,15,15,15,15,15):'
+anchor = '''    for batch in (15,15,15,15,15,15):
+        simulation_panel.step(batch); doc.recompute(); events()
+'''
 if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
 timed_anchor = '''    from time import perf_counter
@@ -118,8 +123,33 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
 """
 
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", 1)
+def _compile_generated_source(source_text):
+    try:
+        return compile(source_text, str(source_path), "exec")
+    except SyntaxError as error:
+        lines = source_text.splitlines()
+        line_number = int(getattr(error, "lineno", 1) or 1)
+        start = max(1, line_number - 2)
+        end = min(len(lines), line_number + 2)
+        context = "\n".join(
+            "%4d | %s" % (number, lines[number - 1])
+            for number in range(start, end + 1)
+        )
+        raise RuntimeError(
+            "generated tunic audit source failed syntax validation: %s at line %d\n%s"
+            % (error.msg, line_number, context)
+        ) from error
+
+
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
-exec(compile(source, str(source_path), "exec"), globals(), globals())
+compiled_source = _compile_generated_source(source)
+if "--syntax-check" in sys.argv:
+    print(
+        "tunic-audit-source-syntax=passed lines=%d" % len(source.splitlines()),
+        flush=True,
+    )
+    raise SystemExit(0)
+exec(compiled_source, globals(), globals())
 print("tunic-audit-process-exit=success", flush=True)
 os._exit(0)
