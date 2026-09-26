@@ -24,9 +24,9 @@ For an existing installation, remove the previous `freecad-cloth` directory befo
 
 ## First run
 
-Start with the **Blanket over Cube** example in [EXAMPLES.md](EXAMPLES.md). It is deliberately smaller than the tunic and is the recommended smoke test for a new installation.
+Start with the **Blanket over Cube** example in [EXAMPLES.md](EXAMPLES.md). It is deliberately smaller than the tunic and is the recommended smoke test for a new installation. Keep this first run separate from the tunic: the blanket isolates cloth, collision, gravity and explicit pinning without depending on the mannequin fitting path.
 
-Then read the concise [User guide](USER_GUIDE.md) and run the tunic workflow documented in [WORKBENCH_GUIDE.md](WORKBENCH_GUIDE.md).
+Then read the concise [User guide](USER_GUIDE.md) and run the tunic workflow documented in [WORKBENCH_GUIDE.md](WORKBENCH_GUIDE.md). The tunic is the advanced path: it uses the Simulation → Arrange / Fit handoff and `PinMode=None` with zero solver pins.
 
 ## Developer setup
 
