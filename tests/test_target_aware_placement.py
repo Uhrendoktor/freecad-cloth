@@ -5,7 +5,7 @@ from freecad_cloth.avatar.TargetAwarePlacement import (
     TargetPlacementError,
     apply_rigid_delta,
     assert_minimum_surface_clearance,
-    minimum_surface_clearance_hit,
+    minimum_surface_clearance_detail, minimum_target_vertex_clearance,
     require_ready_target_status,
     solve_rigid_z,
     target_surface_anchor,
@@ -48,20 +48,51 @@ def test_rigid_solution_fails_closed_on_transform_bound():
         solve_rigid_z(((0, 0, 0),), ((1000, 0, 0),), max_translation=100, max_rotation=45)
 
 
-def test_minimum_clearance_reports_deepest_outward_normal():
-    surface = _box_surface()
-    clearance, point, normal = minimum_surface_clearance_hit(surface, ((0, 0, 9), (0, 0, 12)))
-    assert clearance == pytest.approx(-1.0)
-    assert point[2] == pytest.approx(10.0)
-    assert normal == (0.0, 0.0, 1.0)
-
-
 def test_step_zero_clearance_is_enforced_against_authoritative_surface():
     surface = _box_surface()
     assert assert_minimum_surface_clearance(surface, ((0, 0, 18),), 8.0) == pytest.approx(8.0)
     with pytest.raises(TargetPlacementError):
         assert_minimum_surface_clearance(surface, ((0, 0, 11),), 8.0)
 
+
+def test_minimum_surface_clearance_detail_returns_worst_hit_normal():
+    surface = _box_surface()
+    clearance, hit = minimum_surface_clearance_detail(surface, ((0, 0, 11), (0, 0, 8)))
+    assert clearance == pytest.approx(-2.0)
+    assert hit.normal == (0.0, 0.0, 1.0)
+
+
+def test_target_clearance_correction_runs_before_anchor_assertion():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    fitting = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    initial = fitting.index("anchor_clearance = minimum_surface_clearance(surface, placed_points)")
+    correction = fitting.index("while (", initial)
+    final_assert = fitting.index("anchor_clearance = assert_minimum_surface_clearance", correction)
+    assert initial < correction < final_assert
+
+
+def test_target_clearance_correction_is_bounded_and_uses_worst_sample_normal():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    fitting = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    assert "minimum_surface_clearance_detail" in fitting
+    assert "while (" in fitting
+    assert "vertex_deficit = float(clearance) - float(vertex_clearance)" in fitting
+    assert "worst_hit.normal[0]" in fitting
+
+def test_minimum_target_vertex_clearance_matches_existing_acceptance_metric():
+    surface = _box_surface()
+    assert minimum_target_vertex_clearance(surface, ((0, 0, 12),)) == pytest.approx(2.0)
+
+
+def test_target_snap_preserves_vertex_clearance_gate():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    fitting = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    assert "minimum_target_vertex_clearance" in fitting
+    assert "vertex_deficit = float(clearance) - float(vertex_clearance)" in fitting
+    assert 'target-aware vertex clearance' in fitting
 
 def test_stale_or_missing_targets_fail_closed():
     with pytest.raises(TargetPlacementError):
@@ -82,16 +113,14 @@ def test_fitting_action_is_registered_and_transactional():
     assert "scene.DrapeTarget" in fitting
     assert "PiecePlacement.from_string" in fitting
 
-def test_fitting_action_checks_the_complete_piece_surface_not_only_anchors():  # canonical solver geometry contract; fresh-head validation
+def test_fitting_action_checks_the_complete_piece_surface_not_only_anchors():
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]
     fitting = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
     assert "def _piece_world_surface_points" in fitting
-    assert "geometry_from_piece_ir" in fitting
-    assert "resolve_piece_ir" in fitting
-    assert "triangulate(geometry_from_piece_ir(piece_ir))" in fitting
+    assert "resolve_piece_ir(piece)" in fitting
+    assert "geometry_from_piece_ir(piece_ir)" in fitting
     assert "piece_clearance = assert_minimum_surface_clearance" in fitting
-    assert "shape.tessellate" not in fitting
 
 def test_target_snap_contract_is_atomic_and_matches_simulation_panel_adapter():
     from pathlib import Path
@@ -103,3 +132,32 @@ def test_target_snap_contract_is_atomic_and_matches_simulation_panel_adapter():
     assert "snap_pattern_pieces_to_target(pattern_pieces=None" in fitting
     assert 'snap_pattern_pieces_to_target(tuple(getattr(fitting, "PatternPieces", ()) or ()))' in gui
 
+
+def test_target_clearance_spatial_index_matches_box_geometry():
+    surface = _box_surface()
+    from freecad_cloth.avatar.TargetAwarePlacement import SurfaceSpatialIndex
+    index = SurfaceSpatialIndex(surface)
+    hit = index.nearest_triangles((0, 0, 25), expected_normal=(0, 0, 1), limit=2)[0]
+    assert hit.point[2] == pytest.approx(10.0)
+    assert hit.normal == (0.0, 0.0, 1.0)
+    assert index.nearest_vertex_distance((0, 0, 25)) == pytest.approx((25.0**2 + 0.0**2 + 15.0**2) ** 0.5)
+
+
+def test_fitting_reuses_one_target_surface_index_for_clearance_queries():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    fitting = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    assert "target_index = _build_target_surface_index(surface)" in fitting
+    assert "index=target_index" in fitting
+    assert "anchor_clearance = minimum_surface_clearance(surface, placed_points, index=target_index)" in fitting
+
+
+def test_fitting_reuses_one_local_sample_mesh_across_corrections():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    fitting = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    local = fitting.index("local_piece_points = _piece_local_surface_points")
+    loop = fitting.index("while (", local)
+    assert local < loop
+    assert fitting.index("_world_points_from_local(piece, local_piece_points)", loop) > loop
+    assert fitting.count("_piece_local_surface_points(piece, deflection=max(0.25, float(clearance) / 2.0))") == 1
