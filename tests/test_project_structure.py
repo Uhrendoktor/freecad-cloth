@@ -67,3 +67,12 @@ def test_workbench_benchmark_merge_script_is_checked_in():
     source = script.read_text(encoding="utf-8")
     assert 'names = ["Pattern", "Sewing", "Simulation"]' in source
     assert "benchmark.json" in source
+
+
+def test_turntable_frame_counts_validate_after_restore():
+    root = Path(__file__).resolve().parents[1]
+    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    block = workflow.split("  gui-turntables:", 1)[1].split("  gui-visual-examples:", 1)[0]
+    restore = block.index("name: Restore workspace from Docker volume")
+    validate = block.index("name: Validate turntable frame counts on restored workspace")
+    assert restore < validate
