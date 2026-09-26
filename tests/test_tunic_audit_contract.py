@@ -102,7 +102,7 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
     assert "ParticleDistance = 32.0" in source
-    assert "SolverIterations = 2" in source
+    assert "SolverIterations = 1" in source
     assert "SolverSubsteps = 1" in source
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
@@ -158,8 +158,9 @@ def test_canonical_tunic_fixture_matches_validated_orientation():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert 'front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)' in audit
     assert "ParticleDistance = 32.0" in audit
-    assert "SolverIterations = 2" in audit
+    assert "SolverIterations = 1" in audit
     assert "SolverSubsteps = 1" in audit
+    assert "StitchSamples = 16" in audit
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert "scene.TimeStep = 1.0 / 120.0;" in source
 
