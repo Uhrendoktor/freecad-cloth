@@ -143,3 +143,11 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance'," in audit
     assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance'," in audit
     assert "'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))'," in audit
+
+
+def test_canonical_tunic_drape_visual_diagnostics_are_fail_closed():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "from freecad_cloth.common.DrapeVisualSanity import assert_drape_diagnostics" in source
+    assert 'assert_drape_diagnostics(json.load(handle).get("panels", ()))' in source
+    assert source.index("assert_drape_diagnostics(json.load(handle).get") < source.index("task_dock.show(); task_dock.raise_(); events(); close_task()")
+    assert "scenario-pass" in source
