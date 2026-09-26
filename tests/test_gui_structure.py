@@ -33,7 +33,7 @@ assert "from freecad_cloth.sewing.SewingView import refresh_seam_colors" in gui_
 assert "refresh_seam_colors(getattr(active, \"Document\", None))" in gui_base
 assert "super().Activated()" in (ROOT / "freecad_cloth" / "simulation" / "workbench.py").read_text()
 assert "from freecad_cloth.sewing.SewingView import refresh_seam_colors" in pattern_gui
-assert "refresh_seam_colors(getattr(active, "Document", None))" in pattern_gui
+assert 'refresh_seam_colors(getattr(active, "Document", None))' in pattern_gui
 assert "def _update_seam_visuals" in (ROOT / "freecad_cloth" / "simulation" / "SimulationObjects.py").read_text()
 assert "SimulationSeamId" in (ROOT / "freecad_cloth" / "simulation" / "SimulationObjects.py").read_text()
 assert "def __init__(self):" in gui_base
