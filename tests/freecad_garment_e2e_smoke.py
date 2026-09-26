@@ -570,6 +570,23 @@ def run_acceptance():
         print("drape-target=passed type=Mannequin", flush=True)
 
         _select_objects(fitting)
+        Gui.runCommand("ClothFitting_SnapPiecesToTarget", 0)
+        _events()
+        doc.recompute()
+        if str(fitting.FitStatus) != "Target snapped":
+            raise RuntimeError("target-aware fitting command did not persist the snapped state")
+        from freecad_cloth.avatar.FittingCommands import _piece_world_samples, _world_target_surface
+        from freecad_cloth.avatar.TargetPlacement import minimum_signed_clearance
+        target_surface = _world_target_surface(target)
+        clearances = {
+            str(piece.PieceId): minimum_signed_clearance(_piece_world_samples(piece), target_surface).minimum_signed_clearance
+            for piece in fitting.PatternPieces
+        }
+        required_clearance = max(2.0, float(getattr(target, "CollisionThickness", 0.0)))
+        if any(value + 1e-6 < required_clearance for value in clearances.values()):
+            raise RuntimeError("target-aware fitting did not prove step-0 clearance: %r" % clearances)
+        home_snapshot = tuple(fitting.HomePlacements)
+        print("target-placement=passed pieces=%d min-clearance-mm=%.3f" % (len(clearances), min(clearances.values())), flush=True)
         Gui.runCommand("ClothFitting_CreateSimulation", 0)
         _events()
         scene = doc.getObject("ClothSimulation")
@@ -578,6 +595,10 @@ def run_acceptance():
         doc.recompute()
         if len(scene.ClothPieces) != 4:
             raise RuntimeError("fitting-created simulation did not inherit four pattern pieces")
+        if getattr(scene, "DrapeTarget", None) != target:
+            raise RuntimeError("fitting-created simulation did not inherit the authoritative DrapeTarget")
+        if tuple(fitting.HomePlacements) != home_snapshot:
+            raise RuntimeError("target-aware fitting changed HomePlacements")
         _activate(
             "ClothSimulationWorkbench",
             ["ClothDrape_CreateMannequinTarget"],
