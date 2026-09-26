@@ -140,6 +140,7 @@ def _build_signed_collision_bvh(surface, leaf_size=8):
         return None
 
     normals /= lengths[:, None]
+    centroids = triangle_points.mean(axis=1)
     bounds_min = triangle_points.min(axis=1)
     bounds_max = triangle_points.max(axis=1)
     triangle_ids = np.arange(len(triangle_points), dtype=np.int32)
