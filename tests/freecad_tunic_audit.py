@@ -50,6 +50,9 @@ def _tunic_audit_phase(label):
     log("tunic-audit-phase=%s elapsed_ms=%.1f" % (label, 1000.0 * (_tunic_audit_perf_counter() - _TUNIC_AUDIT_ORIGIN)))
 '''
 source = source.replace("def run_canonical_acceptance():", timing_instrumentation + "\ndef run_canonical_acceptance():", 1)
+source = source.replace('    for path, name, marker in ((', '    for path, name, marker in ((', 1)
+source = source.replace('        ("tests/freecad_simulation_quality_acceptance.py", "freecad_simulation_quality_acceptance", "simulation-quality-acceptance")):\n', '        ("tests/freecad_simulation_quality_acceptance.py", "freecad_simulation_quality_acceptance", "simulation-quality-acceptance")):\n        _tunic_audit_phase("canonical-case-start=%s" % name)\n', 1)
+source = source.replace('        log(marker + "=passed")', '        log(marker + "=passed")\n        _tunic_audit_phase("canonical-case-end=%s" % name)', 1)
 source = source.replace("def pattern_and_sewing():", "def pattern_and_sewing():\n    _tunic_audit_phase(\"pattern-and-sewing-enter\")", 1)
 source = source.replace('    doc = App.newDocument("ClothVisualPattern")', '    doc = App.newDocument("ClothVisualPattern"); _tunic_audit_phase("pattern-document-created")', 1)
 source = source.replace('    doc.recompute(); front = _adopt_sketch(front_sketch, "Front Tunic", 10.0, 0.0); back = _adopt_sketch(back_sketch, "Back Tunic", 10.0, 0.0)', '    doc.recompute(); _tunic_audit_phase("pattern-sketches-recomputed"); front = _adopt_sketch(front_sketch, "Front Tunic", 10.0, 0.0); back = _adopt_sketch(back_sketch, "Back Tunic", 10.0, 0.0); _tunic_audit_phase("pattern-pieces-adopted")', 1)
