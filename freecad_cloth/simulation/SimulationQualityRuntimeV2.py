@@ -70,6 +70,15 @@ def quality_discretization(point_count, perimeter, particle_distance):
     return max(int(point_count), int(ceil(float(perimeter) / max(0.25, float(particle_distance)))))
 
 
+def _solver_collision_surface(base):
+    """Return the backend-owned solver surface without replacing authoritative state."""
+    authoritative = getattr(base, "collision_surface", None)
+    backend = getattr(base, "backend", None)
+    if getattr(backend, "name", "") == "tissu":
+        return getattr(backend, "_collision_surface", authoritative)
+    return authoritative
+
+
 def _material(scene):
     return FabricMaterial(
         density_g_m2=float(scene.FabricDensity),
@@ -178,7 +187,7 @@ class QualitySimulationProxy:
                         dt, int(obj.SolverIterations),
                         (float(obj.GravityX), float(obj.GravityY), float(obj.GravityZ)),
                         sphere,
-                        base.collision_surface,
+                        _solver_collision_surface(base),
                     )
                     system = getattr(base.backend, "system", None)
                     for particle in getattr(system, "particles", ()):
