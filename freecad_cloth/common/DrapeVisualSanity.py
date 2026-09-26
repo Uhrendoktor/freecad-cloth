@@ -142,6 +142,35 @@ def inspect_drape(
     )
 
 
+_FATAL_DUTY_STATES = frozenset({"detached-candidate"})
+_FATAL_DUTY_DIAGNOSTICS = frozenset(
+    {"lateral-detached-candidate", "collapsed-candidate", "below-hem-candidate"}
+)
+
+
+def assert_drape_diagnostics(records: Sequence[dict]) -> None:
+    """Fail closed when existing rendered-drape diagnostics contradict acceptance."""
+    failures = []
+    for record in records:
+        classification = record.get("failure_classification", {})
+        state = str(classification.get("state", ""))
+        diagnostics = {str(item) for item in record.get("diagnostics", ())}
+        fatal = state in _FATAL_DUTY_STATES or bool(diagnostics & _FATAL_DUTY_DIAGNOSTICS)
+        if fatal:
+            failures.append(
+                "%s: classification=%s diagnostics=%s"
+                % (
+                    str(record.get("panel", "<unknown>")),
+                    state or "none",
+                    ",".join(sorted(diagnostics)),
+                )
+            )
+    if failures:
+        raise RuntimeError(
+            "drape visual acceptance failed closed: " + "; ".join(failures)
+        )
+
+
 def summarize(metrics: DrapeVisualMetrics) -> dict:
     return {
         "state": metrics.state,
