@@ -252,32 +252,40 @@ def set_arrangement_point(name, x=None, y=None, offset=None, wrap_direction=None
     return point
 
 
-def _piece_world_surface_points(piece, deflection=1.0):
-    """Sample the authoritative PatternMesh surface in world coordinates.
-
-    Target-aware placement must not prove clearance from anchors alone. Use the
-    same deterministic PatternIR/PatternMesh geometry that the simulation
-    backend consumes, then apply the live PatternPiece Placement.
-    """
+def _piece_local_surface_points(piece, deflection=1.0):
+    """Sample PatternIR once; rigid correction reuses the exact same local samples."""
     from freecad_cloth.common.PatternSimulationAdapter import geometry_from_piece_ir, resolve_piece_ir
-    from freecad_cloth.pattern.PatternMesh import triangulate
+    from freecad_cloth.pattern.PatternMesh import refine_linear_boundary, triangulate
+
+    piece_ir = resolve_piece_ir(piece)
+    pattern = geometry_from_piece_ir(piece_ir)
+    spacing = max(0.25, float(deflection))
+    mesh = triangulate(
+        refine_linear_boundary(pattern, spacing),
+        max_area=0.45 * spacing * spacing,
+    )
+    if not mesh.vertices:
+        raise ValueError("pattern piece mesh produced no clearance samples")
+    return tuple((float(x), float(y), 0.0) for x, y in mesh.vertices)
+
+
+def _world_points_from_local(piece, local_points):
+    import FreeCAD as App
 
     placement = getattr(piece, "Placement", None)
     if placement is None:
         raise ValueError("pattern piece has no persistent placement")
-    try:
-        piece_ir = resolve_piece_ir(piece)
-        mesh = triangulate(geometry_from_piece_ir(piece_ir))
-    except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-        raise ValueError("pattern piece PatternMesh sampling is unavailable") from exc
-    if not mesh.vertices:
-        raise ValueError("pattern piece PatternMesh sampling produced no points")
     points = []
-    for local_x, local_y in mesh.vertices:
-        local = type(placement.Base)(float(local_x), float(local_y), 0.0)
-        world = placement.multVec(local)
+    for x, y, z in local_points:
+        world = placement.multVec(App.Vector(float(x), float(y), float(z)))
         points.append((float(world.x), float(world.y), float(world.z)))
+    if not points:
+        raise ValueError("pattern piece produced no world-space clearance samples")
     return tuple(points)
+
+
+def _piece_world_surface_points(piece, deflection=1.0):
+    return _world_points_from_local(piece, _piece_local_surface_points(piece, deflection))
 
 
 def set_garment_anchors(anchors):
@@ -296,13 +304,20 @@ def set_garment_anchors(anchors):
     return scene
 
 
+def _build_target_surface_index(surface):
+    from freecad_cloth.avatar.TargetAwarePlacement import SurfaceSpatialIndex
+    return SurfaceSpatialIndex(surface)
+
+
 def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translation=600.0, max_rotation=45.0):
     """Place one piece rigidly against the persistent DrapeTarget transactionally."""
     import FreeCAD as App
     from freecad_cloth.avatar.AvatarFitting import GarmentAnchor, PiecePlacement
     from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
     from freecad_cloth.avatar.TargetAwarePlacement import (
-        TargetPlacementError, assert_minimum_surface_clearance, minimum_surface_clearance_hit, require_ready_target_status,
+        TargetPlacementError, assert_minimum_surface_clearance, minimum_surface_clearance,
+        minimum_surface_clearance_detail, minimum_target_vertex_clearance,
+        require_ready_target_status,
         solve_rigid_z, target_surface_anchor, wrap_normal,
     )
     if getattr(piece, "PatternType", "") != "PatternPiece":
@@ -320,19 +335,22 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
         if source_object is None:
             raise ValueError("drape target source is required")
         surface = collision_surface(source_object, float(getattr(target, "CollisionDeflection", 1.0)), float(getattr(target, "CollisionThickness", 0.0)))
+        target_index = _build_target_surface_index(surface)
         piece_id = str(piece.PieceId)
         selected = tuple(item if isinstance(item, GarmentAnchor) else GarmentAnchor.from_string(item) for item in anchors or ())
         selected = tuple(sorted((item for item in selected if str(item.piece_id) == piece_id), key=lambda item: item.name))
         if not selected:
             raise ValueError("target-aware placement requires at least one garment anchor")
         source_points, target_points = [], []
+        anchor_hits = []
         for anchor in selected:
             anchor.validate()
             source = piece.Placement.multVec(App.Vector(*anchor.position))
-            hit = target_surface_anchor(surface, (source.x, source.y, source.z), wrap_normal(anchor.wrap_direction))
+            hit = target_surface_anchor(surface, (source.x, source.y, source.z), wrap_normal(anchor.wrap_direction), index=target_index)
             desired = tuple(hit.point[i] + hit.normal[i] * (float(surface.thickness) + float(clearance)) for i in range(3))
             source_points.append((float(source.x), float(source.y), float(source.z)))
             target_points.append(desired)
+            anchor_hits.append(hit)
         delta = solve_rigid_z(source_points, target_points, max_translation, max_rotation)
         delta_rotation = App.Rotation(App.Vector(0, 0, 1), float(delta.rotation_z))
         current = piece.Placement
@@ -344,18 +362,23 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
         for anchor in selected:
             point = piece.Placement.multVec(App.Vector(*anchor.position))
             placed_points.append((float(point.x), float(point.y), float(point.z)))
-        anchor_clearance = minimum_surface_clearance_hit(surface, placed_points)[0]
-        piece_points = _piece_world_surface_points(piece, deflection=max(0.25, float(clearance) / 2.0))
-        piece_clearance, _, _ = minimum_surface_clearance_hit(surface, piece_points)
-        for _ in range(8):
-            if piece_clearance >= float(clearance) - 1e-6:
-                break
-            piece_clearance, _, correction_normal = minimum_surface_clearance_hit(surface, piece_points)
-            correction = float(clearance) - float(piece_clearance)
+        anchor_clearance = minimum_surface_clearance(surface, placed_points, index=target_index)
+        local_piece_points = _piece_local_surface_points(piece, deflection=max(0.25, float(clearance) / 2.0))
+        piece_points = _world_points_from_local(piece, local_piece_points)
+        piece_clearance, worst_hit = minimum_surface_clearance_detail(surface, piece_points, index=target_index)
+        vertex_clearance = minimum_target_vertex_clearance(surface, piece_points, index=target_index)
+        correction_count = 0
+        while (
+            (piece_clearance < float(clearance) - 1e-6 or vertex_clearance < float(clearance) - 1e-6)
+            and correction_count < 8
+        ):
+            surface_deficit = float(clearance) - float(piece_clearance)
+            vertex_deficit = float(clearance) - float(vertex_clearance)
+            correction = max(surface_deficit, vertex_deficit)
             correction_vec = App.Vector(
-                float(correction_normal[0]) * correction,
-                float(correction_normal[1]) * correction,
-                float(correction_normal[2]) * correction,
+                float(worst_hit.normal[0]) * correction,
+                float(worst_hit.normal[1]) * correction,
+                float(worst_hit.normal[2]) * correction,
             )
             corrected_base = piece.Placement.Base + correction_vec
             if (corrected_base - original_placement.Base).Length > float(max_translation):
@@ -363,16 +386,20 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
             piece.Placement = App.Placement(corrected_base, piece.Placement.Rotation)
             if sketch is not None:
                 sketch.Placement = piece.Placement
-            piece_points = _piece_world_surface_points(piece, deflection=max(0.25, float(clearance) / 2.0))
-            piece_clearance, _, _ = minimum_surface_clearance_hit(surface, piece_points)
-        if piece_clearance < float(clearance) - 1e-6:
-            raise TargetPlacementError("target-aware clearance correction did not converge within 8 bounded iterations")
-        placed_points = []
-        for anchor in selected:
-            point = piece.Placement.multVec(App.Vector(*anchor.position))
-            placed_points.append((float(point.x), float(point.y), float(point.z)))
-        anchor_clearance = assert_minimum_surface_clearance(surface, placed_points, float(clearance))
-        piece_clearance = assert_minimum_surface_clearance(surface, piece_points, float(clearance))
+            piece_points = _world_points_from_local(piece, local_piece_points)
+            piece_clearance, worst_hit = minimum_surface_clearance_detail(surface, piece_points, index=target_index)
+            vertex_clearance = minimum_target_vertex_clearance(surface, piece_points, index=target_index)
+            correction_count += 1
+        piece_clearance = assert_minimum_surface_clearance(surface, piece_points, float(clearance), index=target_index)
+        anchor_clearance = assert_minimum_surface_clearance(surface, tuple(
+            tuple(float(value) for value in piece.Placement.multVec(App.Vector(*anchor.position)))
+            for anchor in selected
+        ), float(clearance), index=target_index)
+        if vertex_clearance < float(clearance) - 1e-6:
+            raise TargetPlacementError(
+                "target-aware vertex clearance %.6f mm is below the required %.6f mm"
+                % (float(vertex_clearance), float(clearance))
+            )
         if scene is not None:
             entries = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)}
             axis = piece.Placement.Rotation.Axis
