@@ -251,7 +251,7 @@ def main():
         sketch, outline = make_rectangle_sketch(doc, "BlanketSketch", blanket_width, blanket_height)
         piece = adopt_sketch(doc, sketch)
         placement = App.Placement(
-            App.Vector(-blanket_width / 2.0, -blanket_height / 2.0, 150.0),
+            App.Vector(-blanket_width / 2.0, -blanket_height / 2.0, 90.0),
             App.Rotation(),
         )
         piece.Placement = placement
@@ -293,15 +293,17 @@ def main():
         )
         if len(top_edge) < 2:
             raise RuntimeError("blanket top edge has fewer than two boundary vertices")
+        target_y = top_y
+        target_x = 0.375 * blanket_width
         top = (
-            min(top_edge, key=lambda index: float(mesh_positions[index][0])),
-            max(top_edge, key=lambda index: float(mesh_positions[index][0])),
+            min(top_edge, key=lambda index: abs(float(mesh_positions[index][0]) + target_x)),
+            min(top_edge, key=lambda index: abs(float(mesh_positions[index][0]) - target_x)),
         )
         pin_span = abs(float(mesh_positions[top[1]][0]) - float(mesh_positions[top[0]][0]))
         if pin_span < 0.75 * blanket_width:
-            raise RuntimeError("blanket pins are not opposite top-edge corners: span=%.3f" % pin_span)
+            raise RuntimeError("blanket pins are not opposite inset top-edge anchors: span=%.3f" % pin_span)
         scene.PinSelection = [str(int(index)) for index in top]
-        log("blanket-pins=passed opposite-corners span=%.3f indices=%s" % (pin_span, top))
+        log("blanket-pins=passed opposite-inset-top-edge span=%.3f indices=%s start_z=90.0" % (pin_span, top))
 
         collision_started = time.perf_counter()
         set_avatar_collision_source(scene, cube, thickness=2.0, deflection=1.0)
