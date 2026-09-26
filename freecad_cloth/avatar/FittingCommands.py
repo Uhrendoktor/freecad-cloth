@@ -389,7 +389,9 @@ def _resolve_single_drape_target(doc, target=None):
         return scene_target
     candidates = tuple(
         obj for obj in getattr(doc, "Objects", ())
-        if obj is not None and (str(getattr(obj, "TargetType", "")) in ("Mannequin", "FreeCAD Geometry"))
+        if obj is not None
+        and (str(getattr(obj, "GarmentRole", "")) == "DrapeTarget" or str(getattr(obj, "Name", "")).startswith("DrapeTarget"))
+        and str(getattr(obj, "TargetType", "")) in ("Mannequin", "FreeCAD Geometry")
     )
     if len(candidates) != 1:
         raise ValueError("exactly one DrapeTarget is required")
