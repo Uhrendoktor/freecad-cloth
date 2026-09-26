@@ -89,6 +89,7 @@ def record(message):
 
 
 def seam_color_snapshot(seams):
+    from math import isclose
     from freecad_cloth.sewing.SewingView import seam_color_map
     ids = tuple(str(getattr(seam, "SeamId", "")) for seam in seams)
     expected = seam_color_map(ids)
@@ -96,7 +97,10 @@ def seam_color_snapshot(seams):
         str(getattr(seam, "SeamId", "")): tuple(seam.ViewObject.LineColor[:3])
         for seam in seams
     }
-    assert actual == expected, "native seam colors do not match persistent SeamId mapping: actual=%r expected=%r" % (actual, expected)
+    for seam_id, expected_rgb in expected.items():
+        actual_rgb = actual.get(seam_id)
+        assert actual_rgb is not None, "native seam colors are missing persistent SeamId %s" % seam_id
+        assert all(isclose(float(actual_rgb[index]), float(expected_rgb[index]), rel_tol=0.0, abs_tol=1e-6) for index in range(3)), "native seam color for %s differs beyond FreeCAD float tolerance: actual=%r expected=%r" % (seam_id, actual_rgb, expected_rgb)
     assert len(set(actual.values())) == len(actual), "native seam colors are not unique per persistent SeamId"
     return actual
 
