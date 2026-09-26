@@ -1,7 +1,5 @@
 import math
 
-import pytest
-
 from freecad_cloth.avatar.TargetPlacement import (
     plan_target_relative_placement,
     rotation_angle_between,
@@ -24,8 +22,8 @@ def test_target_relative_placement_is_deterministic_and_outside_requested_side()
     first = plan_target_relative_placement(**kwargs)
     second = plan_target_relative_placement(**kwargs)
     assert first == second
-    assert first.rotation_axis[0] == pytest.approx(1.0)
-    assert first.rotation_angle == pytest.approx(90.0)
+    assert abs(first.rotation_axis[0] - 1.0) < 1e-9
+    assert abs(first.rotation_angle - 90.0) < 1e-9
 
     # The local pattern is rigidly rotated so its complete planar span lies on
     # the front target side at exactly the configured clearance.
@@ -37,12 +35,12 @@ def test_target_relative_placement_is_deterministic_and_outside_requested_side()
         local_center[2] * math.cos(angle) + local_center[1] * math.sin(angle),
     )
     world_center = tuple(first.position[i] + rotated_center[i] for i in range(3))
-    assert world_center[1] == pytest.approx(-60.0 - 0.0)
+    assert abs(world_center[1] + 60.0) < 1e-9
     assert target_bounds(((-50, -60, 0), (50, -60, 300))) == (-50.0, 50.0, -60.0, -60.0, 0.0, 300.0)
 
 
 def test_target_relative_placement_rejects_translation_beyond_bound():
-    with pytest.raises(ValueError, match="translation"):
+    try:
         plan_target_relative_placement(
             home_position=(10000.0, 10000.0, 10000.0),
             home_rotation_axis=(0.0, 0.0, 1.0),
@@ -54,10 +52,14 @@ def test_target_relative_placement_rejects_translation_beyond_bound():
             max_translation=10.0,
             max_rotation=180.0,
         )
+    except ValueError as exc:
+        assert "translation" in str(exc)
+    else:
+        raise AssertionError("expected translation bound rejection")
 
 
 def test_target_relative_placement_rejects_rotation_beyond_bound():
-    with pytest.raises(ValueError, match="rotation"):
+    try:
         plan_target_relative_placement(
             home_position=(0.0, 0.0, 0.0),
             home_rotation_axis=(0.0, 0.0, 1.0),
@@ -69,7 +71,23 @@ def test_target_relative_placement_rejects_rotation_beyond_bound():
             max_translation=1000.0,
             max_rotation=45.0,
         )
+    except ValueError as exc:
+        assert "rotation" in str(exc)
+    else:
+        raise AssertionError("expected rotation bound rejection")
 
 
 def test_rotation_distance_is_shortest_equivalent_angle():
-    assert rotation_angle_between((0.0, 0.0, 1.0), 10.0, (0.0, 0.0, 1.0), 350.0) == pytest.approx(20.0, abs=1e-6)
+    assert abs(rotation_angle_between((0.0, 0.0, 1.0), 10.0, (0.0, 0.0, 1.0), 350.0) - 20.0) < 1e-6
+
+
+if __name__ == "__main__":
+    tests = (
+        test_target_relative_placement_is_deterministic_and_outside_requested_side,
+        test_target_relative_placement_rejects_translation_beyond_bound,
+        test_target_relative_placement_rejects_rotation_beyond_bound,
+        test_rotation_distance_is_shortest_equivalent_angle,
+    )
+    for test in tests:
+        test()
+    print("test_target_placement: passed")
