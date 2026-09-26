@@ -17,11 +17,12 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
-def test_canonical_tunic_pins_only_one_side_of_sewn_shoulders():
+def test_canonical_tunic_uses_avatar_arrangement_without_particle_pins():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    assert "scene.PinSelection = [str(i) for i in front_pins]" in source
-    assert "scene.PinSelection = [str(i) for i in front_pins + back_pins]" not in source
-    assert "the back panel must follow through the" in source
+    assert "arrange_two_panel_garment(front, back, avatar" in source
+    assert "scene.PinSelection = []" in source
+    assert "authored_shoulder_pins" not in source
+    assert "front_pins + back_pins" not in source
 
 
 def test_canonical_tunic_uses_validated_authored_mapping():
@@ -32,6 +33,13 @@ def test_canonical_tunic_uses_validated_authored_mapping():
     assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' in audit
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in audit
     assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' not in audit
+
+
+def test_avatar_arrangement_contract_is_source_backed():
+    arrangement = (ROOT / "freecad_cloth" / "avatar" / "AvatarArrangement.py").read_text(encoding="utf-8")
+    assert "torso_arrangement_frame" in arrangement
+    assert "arrange_two_panel_garment" in arrangement
+    assert "surface_padding" in arrangement
 
 
 def test_canonical_tunic_source_rewrite_compiles():
