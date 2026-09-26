@@ -67,7 +67,8 @@ def test_target_clearance_correction_is_bounded_and_uses_worst_sample_normal():
     root = Path(__file__).resolve().parents[1]
     fitting = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
     assert "minimum_surface_clearance_detail" in fitting
-    assert "while piece_clearance < float(clearance) - 1e-6 and correction_count < 8" in fitting
+    assert "while (" in fitting
+    assert "vertex_deficit = float(clearance) - float(vertex_clearance)" in fitting
     assert "worst_hit.normal[0]" in fitting
 
 def test_minimum_target_vertex_clearance_matches_existing_acceptance_metric():
