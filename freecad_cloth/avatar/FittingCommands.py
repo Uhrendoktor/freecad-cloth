@@ -338,6 +338,7 @@ def _world_shape(obj):
 
 
 def _shape_center(shape):
+    import FreeCAD as App
     box = shape.BoundBox
     return App.Vector(
         (float(box.XMin) + float(box.XMax)) / 2.0,
