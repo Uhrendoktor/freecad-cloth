@@ -15,7 +15,8 @@ class SimulationQualityTaskPanel:
         "QualityPreset", "ParticleDistance", "SolverIterations", "SolverSubsteps",
         "FabricDensity", "FabricThickness", "FabricStretch", "FabricShear",
         "FabricBend", "FabricFriction", "FabricColor", "FabricSpecular",
-        "FabricRoughness", "FabricTransparency", "AvatarSkinOffset", "CollisionRadius", "Steps",
+        "FabricRoughness", "FabricTransparency", "AvatarSkinOffset", "CollisionRadius",
+        "AutomaticPins", "PinSelection", "Steps",
     )
 
     def __init__(self, scene=None):
@@ -45,6 +46,12 @@ class SimulationQualityTaskPanel:
         collision = QtWidgets.QGroupBox("Collision"); cform = QtWidgets.QFormLayout(collision)
         self.skin_offset = self._double(0.0, 100.0, 0.0, 2); self.collision_radius = self._double(0.0, 10000.0, 38.0, 2)
         cform.addRow("Avatar skin offset (mm)", self.skin_offset); cform.addRow("Fallback sphere radius (mm)", self.collision_radius); root.addWidget(collision)
+        sewing = QtWidgets.QGroupBox("Sewing & pinning"); pform = QtWidgets.QFormLayout(sewing)
+        self.automatic_pins = QtWidgets.QCheckBox("Use automatic/default pins")
+        self.automatic_pins.setChecked(bool(getattr(scene, "AutomaticPins", True)))
+        self.pins = QtWidgets.QLineEdit(",".join(str(v) for v in getattr(scene, "PinSelection", []) or []))
+        self.pins.setToolTip("Particle indices separated by commas; explicit pins override automatic pins")
+        pform.addRow("Pin policy", self.automatic_pins); pform.addRow("Pinned vertices", self.pins); root.addWidget(sewing)
         solver = QtWidgets.QGroupBox("Run"); sform = QtWidgets.QFormLayout(solver)
         self.steps = self._spin(0, 1000000, 0); sform.addRow("Simulation steps", self.steps); root.addWidget(solver)
         buttons = QtWidgets.QHBoxLayout(); self.step_button = QtWidgets.QPushButton("Step"); self.run_button = QtWidgets.QPushButton("Run 30"); self.reset_button = QtWidgets.QPushButton("Reset")
@@ -53,6 +60,7 @@ class SimulationQualityTaskPanel:
         self.quality.currentTextChanged.connect(self._preset_changed)
         self.fabric_color.clicked.connect(self._choose_fabric_color)
         for widget in (self.particle_distance, self.iterations, self.substeps, self.density, self.thickness, self.stretch, self.shear, self.bend, self.friction, self.specular, self.roughness, self.transparency, self.skin_offset, self.collision_radius): widget.valueChanged.connect(self._parameters_changed)
+        self.automatic_pins.stateChanged.connect(self._pin_policy_changed); self.pins.editingFinished.connect(self._pin_policy_changed)
         self.step_button.clicked.connect(lambda: self.step(1)); self.run_button.clicked.connect(lambda: self.step(30)); self.reset_button.clicked.connect(self.reset)
         self._load()
 
@@ -104,14 +112,17 @@ class SimulationQualityTaskPanel:
     def _load_widgets_only(self):
         if self.scene is None:
             return
-        widgets = [self.quality, self.particle_distance, self.iterations, self.substeps, self.density, self.thickness, self.stretch, self.shear, self.bend, self.friction, self.specular, self.roughness, self.transparency, self.skin_offset, self.collision_radius, self.steps]
+        widgets = [self.quality, self.particle_distance, self.iterations, self.substeps, self.density, self.thickness, self.stretch, self.shear, self.bend, self.friction, self.specular, self.roughness, self.transparency, self.skin_offset, self.collision_radius, self.automatic_pins, self.pins, self.steps]
         for widget in widgets: widget.blockSignals(True)
         try:
             self.quality.setCurrentText(str(self.scene.QualityPreset)); self.particle_distance.setValue(float(self.scene.ParticleDistance)); self.iterations.setValue(int(self.scene.SolverIterations)); self.substeps.setValue(int(self.scene.SolverSubsteps))
             self.density.setValue(float(self.scene.FabricDensity)); self.thickness.setValue(float(self.scene.FabricThickness)); self.stretch.setValue(float(self.scene.FabricStretch)); self.shear.setValue(float(self.scene.FabricShear)); self.bend.setValue(float(self.scene.FabricBend)); self.friction.setValue(float(self.scene.FabricFriction))
             self.specular.setValue(float(self.scene.FabricSpecular)); self.roughness.setValue(float(self.scene.FabricRoughness)); self.transparency.setValue(int(self.scene.FabricTransparency))
             self._set_color_button(tuple(float(value) for value in self.scene.FabricColor))
-            self.skin_offset.setValue(float(self.scene.AvatarSkinOffset)); self.collision_radius.setValue(float(getattr(self.scene, "CollisionRadius", 38.0))); self.steps.setValue(int(getattr(self.scene, "Steps", 0)))
+            self.skin_offset.setValue(float(self.scene.AvatarSkinOffset)); self.collision_radius.setValue(float(getattr(self.scene, "CollisionRadius", 38.0)))
+            self.automatic_pins.setChecked(bool(getattr(self.scene, "AutomaticPins", True)))
+            self.pins.setText(",".join(str(value) for value in getattr(self.scene, "PinSelection", []) or []))
+            self.steps.setValue(int(getattr(self.scene, "Steps", 0)))
         finally:
             for widget in widgets: widget.blockSignals(False)
 
@@ -140,6 +151,13 @@ class SimulationQualityTaskPanel:
         if color is not None:
             self.scene.FabricColor = (color.redF(), color.greenF(), color.blueF())
         self.scene.AvatarSkinOffset = self.skin_offset.value(); self.scene.CollisionRadius = self.collision_radius.value(); self.scene.Document.recompute(); self._refresh("Changes are applied live. Cancel restores the panel-open state.")
+
+    def _pin_policy_changed(self):
+        if self.scene is None: return
+        from freecad_cloth.simulation.SimulationObjects import _parse_int_list
+        self.scene.AutomaticPins = bool(self.automatic_pins.isChecked())
+        self.scene.PinSelection = [str(value) for value in _parse_int_list(self.pins.text().replace(";", ",").split(","))]
+        self.scene.Document.recompute(); self._refresh("Pin policy applied live. Cancel restores the panel-open state.")
 
     def step(self, count):
         scene = self._ensure_scene()
