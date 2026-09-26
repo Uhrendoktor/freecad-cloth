@@ -205,6 +205,37 @@ jobs:
           docker cp "$PWD/." "$CID:/workspace/"
           docker start -a "$CID"
 
+      - name: Run Tissu enclosed-mesh response probe
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e PYTHONPATH=/workspace -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              FREECAD_CMD="$(command -v freecadcmd || true)"
+              if [ -z "$FREECAD_CMD" ]; then
+                FREECAD_CMD="$(find /opt/freecad -type f -name freecadcmd -print -quit)"
+              fi
+              test -n "$FREECAD_CMD" && test -x "$FREECAD_CMD"
+              "$FREECAD_CMD" -P /workspace /workspace/tests/freecad_tissu_mesh_response_probe.py
+            ')"
+          cleanup() {
+            set +e
+            docker cp "$CID:/workspace/artifacts/tissu-mesh-response.json" artifacts/tissu-mesh-response.json 2>/dev/null || true
+            docker rm -f "$CID" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          docker cp "$PWD/." "$CID:/workspace/"
+          docker start -a "$CID"
+          test -s artifacts/tissu-mesh-response.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path("artifacts/tissu-mesh-response.json").read_text())
+          assert data["mesh_pushes_outward"] or data["sphere_pushes_outward"], data
+          print(json.dumps(data, sort_keys=True))
+          PY
+
   gui-sewing-creation:
     name: Sewing staged creation smoke
     needs: [local_runner_readiness]
