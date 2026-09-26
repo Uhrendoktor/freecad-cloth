@@ -25,6 +25,7 @@ def ensure_quality_properties(scene):
         ("FabricRoughness", "App::PropertyFloat", "Fabric", None, 0.65),
         ("FabricTransparency", "App::PropertyInteger", "Fabric", None, 0),
         ("AvatarSkinOffset", "App::PropertyFloat", "Collision", None, 0.0),
+        ("AutoPinning", "App::PropertyBool", "Selection", None, True),
     )
     for name, type_name, group, values, default in specs:
         if not hasattr(scene, name):
@@ -226,8 +227,12 @@ class QualitySimulationProxy:
         constraints = list(left.constraints) + [type(c)(c.a + offset, c.b + offset, c.rest, c.compliance) for c in right.constraints]
         system = ClothSystem(particles, constraints)
         system.add_stitches(_parse_pair_list(getattr(obj, "SeamSelection", ()), len(particles)) or tuple((j * nx + nx - 1, offset + j * nx) for j in range(ny)))
-        pins = _parse_int_list(getattr(obj, "PinSelection", ()), len(particles)) or (0, nx - 1, offset, offset + nx - 1)
-        system.pin(pins)
+        if bool(getattr(obj, "AutoPinning", True)):
+            pins = _parse_int_list(getattr(obj, "PinSelection", ()), len(particles)) or (0, nx - 1, offset, offset + nx - 1)
+        else:
+            pins = _parse_int_list(getattr(obj, "PinSelection", ()), len(particles))
+        if pins:
+            system.pin(pins)
         base.backend = default_backend_registry().create("xpbd-cpu", system)
         tris = []
         for j in range(ny - 1):
