@@ -17,11 +17,19 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
-def test_canonical_tunic_pins_only_one_side_of_sewn_shoulders():
-    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    assert "scene.PinSelection = [str(i) for i in front_pins]" in source
-    assert "scene.PinSelection = [str(i) for i in front_pins + back_pins]" not in source
-    assert "the back panel must follow through the" in source
+def test_canonical_tunic_uses_explicit_pinless_policy():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'scene.PinPolicy = "none"; scene.PinSelection = []' in audit
+    assert "pin-policy=none explicit-pins=0" in audit
+    assert "zero global pins" in audit
+
+
+def test_canonical_tunic_uses_target_aware_step0_clearance():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "TargetAwarePlacement" in audit
+    assert "target-aware-placement=passed" in audit
+    assert "step0-clearance=passed" in audit
+    assert "min-signed-clearance-mm" in audit
 
 
 def test_canonical_tunic_uses_validated_authored_mapping():
