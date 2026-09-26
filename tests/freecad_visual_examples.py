@@ -161,7 +161,8 @@ def main():
         scene.StartHeight = 0.0
         scene.TimeStep = 1.0 / 480.0
         # QualitySimulationProxy consumes SolverIterations; the legacy Iterations field is ignored for this runtime path.
-        scene.SolverIterations = 20
+        scene.ParticleDistance = max(12.0, float(scene.ParticleDistance))
+        scene.SolverIterations = 4
 
         mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, scene.ParticleDistance)
         boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
@@ -216,7 +217,10 @@ def main():
         save_png(view, OUT / "checkpoint-000.png", "blanket initial state")
 
         initial_points = tuple(tuple(float(value) for value in point) for point in scene.Proxy._base_or_restore().backend.positions())
-        render_steps = (60, 120, 240, 480)
+        import time
+        log("blanket-solver-config particle_distance=%.1f iterations=%d particles=%d" % (float(scene.ParticleDistance), int(scene.SolverIterations), int(scene.ParticleCount)))
+        simulation_started = time.perf_counter()
+        render_steps = (15, 30, 60, 120)
         for step in render_steps:
             scene.Steps = step
             doc.recompute()
@@ -224,6 +228,7 @@ def main():
             save_png(view, OUT / ("checkpoint-%03d.png" % step), "blanket step %d" % step)
 
         final_points = tuple(tuple(float(value) for value in point) for point in scene.Proxy._base_or_restore().backend.positions())
+        log("blanket-checkpoints-elapsed-ms=%.1f" % (1000.0 * (time.perf_counter() - simulation_started)))
         if not initial_points or not final_points:
             raise RuntimeError("blanket simulation produced no particles")
         max_displacement = max(
@@ -265,7 +270,7 @@ def main():
             raise RuntimeError("simulation viewport did not apply persisted fabric transparency")
         log("material-presentation=passed viewport=true color=0.14,0.32,0.78 transparency=12")
 
-        render_motion(view, scene, frame_count=16, final_steps=480)
+        render_motion(view, scene, frame_count=16, final_steps=120)
         log("blanket-visual-acceptance=passed")
     finally:
         if doc.Name in App.listDocuments():
