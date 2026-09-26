@@ -56,6 +56,20 @@ def _parse_int_list(values, particle_count=None):
     return tuple(dict.fromkeys(result))
 
 
+def _resolve_pin_indices(obj, particle_count, automatic_pins=()):
+    """Resolve persistent pinning policy while retaining legacy default behavior."""
+    mode = str(getattr(obj, "PinMode", "Automatic")).strip() or "Automatic"
+    if mode not in {"Automatic", "Explicit", "None"}:
+        raise ValueError("unsupported PinMode: %s" % mode)
+    explicit = _parse_int_list(getattr(obj, "PinSelection", ()), particle_count)
+    if mode == "None":
+        return ()
+    if mode == "Explicit":
+        return explicit
+    automatic = tuple(int(index) for index in automatic_pins if 0 <= int(index) < int(particle_count))
+    return tuple(dict.fromkeys(explicit or automatic))
+
+
 def _placement_signature(piece):
     placement = getattr(piece, "Placement", None)
     if placement is None:
@@ -107,11 +121,13 @@ def _simulation_source_signature(obj, pieces):
             float(getattr(avatar, "CollisionDeflection", 0.0)) if avatar is not None else 0.0,
             float(getattr(avatar, "CollisionThickness", 0.0)) if avatar is not None else 0.0,
         )
+    pin_mode = str(getattr(obj, "PinMode", "Automatic")).strip() or "Automatic"
     pin_signature = _parse_int_list(getattr(obj, "PinSelection", ()))
     return (
         pattern_signature,
         target_signature,
         int(getattr(obj, "StitchSamples", 8)),
+        pin_mode,
         pin_signature,
     )
 
@@ -459,11 +475,12 @@ class SimulationProxy:
             int(getattr(obj, "StitchSamples", 8)),
         )
         system.add_stitches(seam_pairs)
-        # Pins are opt-in solver state. Pattern scenes must not silently anchor
-        # garment boundaries when the user leaves PinSelection empty.
-        # Garment stability comes from placement, sewing, gravity and collision.
-        explicit_pins = _parse_int_list(getattr(obj, "PinSelection", ()), len(particles))
-        pins = explicit_pins
+        automatic_pins = ()
+        if pieces:
+            first = panel_data[str(pieces[0].PieceId)]
+            boundary = list(dict.fromkeys(i for edge in first["boundary_edges"] for i in edge))
+            automatic_pins = tuple(boundary[:2] + boundary[-2:])
+        pins = _resolve_pin_indices(obj, len(particles), automatic_pins)
         if pins:
             system.pin(pins)
         collision_surface = _collision_for_scene(obj)
