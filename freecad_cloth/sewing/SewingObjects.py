@@ -279,6 +279,8 @@ class SewingOperationProxy:
 
         obj.StitchCount = max(2, int(obj.Stitches))
         obj.Status = correspondence_status_label(correspondence)
+        if hasattr(obj, "SeamId"):
+            obj.SeamId = str(getattr(seam, "SeamId", "") or "")
         if hasattr(obj, "ReversedB"):
             obj.ReversedB = bool(getattr(seam, "ReversedB", False))
         if hasattr(obj, "Alignment"):
@@ -298,6 +300,7 @@ def add_sewing_operation(doc, seam, piece_a, piece_b, name="SewingOperation"):
     obj.Label = name
     obj.addProperty("App::PropertyString", "SewingType", "Sewing").SewingType = "SewingOperation"
     obj.addProperty("App::PropertyLink", "Seam", "Sewing").Seam = seam
+    obj.addProperty("App::PropertyString", "SeamId", "Sewing").SeamId = str(getattr(seam, "SeamId", "") or "")
     obj.addProperty("App::PropertyLink", "PieceA", "Sewing").PieceA = piece_a
     obj.addProperty("App::PropertyLink", "PieceB", "Sewing").PieceB = piece_b
     obj.addProperty("App::PropertyString", "StitchGroup", "Sewing").StitchGroup = str(getattr(seam, "StitchGroup", "") or getattr(seam, "SeamId", "") or getattr(seam, "Name", ""))
@@ -331,4 +334,6 @@ def add_sewing_operation(doc, seam, piece_a, piece_b, name="SewingOperation"):
     obj.Proxy.execute(obj)
     from freecad_cloth.common.GarmentDocument import link_garment_object
     link_garment_object(obj, "SewingOperation", doc)
+    from freecad_cloth.sewing.SewingView import apply_seam_colors
+    apply_seam_colors(doc.Objects)
     return obj
