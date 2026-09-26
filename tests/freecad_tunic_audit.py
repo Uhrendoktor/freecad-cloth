@@ -15,32 +15,12 @@ source = source_path.read_text(encoding="utf-8")
 # The screenshot wrapper's historical string replacement targets text that is no
 # longer present in freecad_screenshot_source.py, so patch the executable adapter.
 from freecad_cloth.simulation import TissuBackend as _tissu_backend
-from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 
-def _tight_tissu_collision_envelope(surface):
-    if surface is None or not surface.vertices:
-        return ()
-    xs = [float(v[0]) for v in surface.vertices]
-    ys = [float(v[1]) for v in surface.vertices]
-    zs = [float(v[2]) for v in surface.vertices]
-    min_x, max_x = min(xs), max(xs)
-    min_y, max_y = min(ys), max(ys)
-    min_z, max_z = min(zs), max(zs)
-    height = max(1.0, max_z - min_z)
-    width = max(1.0, max_x - min_x)
-    depth = max(1.0, max_y - min_y)
-    center_x = 0.5 * (min_x + max_x)
-    center_y = 0.5 * (min_y + max_y)
-    radius = max(90.0, min(170.0, 0.16 * width, 0.48 * depth))
-    bottom = min_z + 0.38 * height
-    top = min_z + 0.76 * height
-    samples = (0.0, 0.25, 0.50, 0.75, 1.0)
-    return tuple(
-        ((center_x, center_y, bottom + (top - bottom) * t), radius)
-        for t in samples
-    )
+# The tunic acceptance must use the authoritative DrapeTarget mesh rather than
+# the optional torso-envelope approximation, so arrangement/collision behavior
+# is judged against the actual avatar surface.
+os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
 
-_tissu_backend._collision_envelope = _tight_tissu_collision_envelope
 
 replacements = {
     'chest = 980.0; hip = 1020.0; ease = 55.0;': 'chest = 860.0; hip = 880.0; ease = 10.0;',
