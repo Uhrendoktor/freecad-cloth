@@ -40,6 +40,10 @@ replacements = {
         '        seam_records.append((seam_obj, front, back))',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
     'scene.PinMode = "None"; scene.PinSelection = [];': 'scene.PinMode = "Automatic"; scene.PinSelection = [];',
+    '    if list(getattr(scene, "PinSelection", ())) != []:\n        raise RuntimeError("canonical tunic PinMode=None retained explicit PinSelection values")': '    if list(getattr(scene, "PinSelection", ())) != []:\n        raise RuntimeError("canonical tunic PinMode=Automatic retained explicit PinSelection values")',
+    '    if str(getattr(scene, "PinMode", "")) != "None":\n        raise RuntimeError("canonical tunic must use PinMode=None")': '    if str(getattr(scene, "PinMode", "")) != "Automatic":\n        raise RuntimeError("canonical tunic must use PinMode=Automatic")',
+    '    if not solver_pins:\n        raise RuntimeError("canonical tunic PinMode=None still has solver pins: %s" % (solver_pins,))': '    if not solver_pins:\n        raise RuntimeError("canonical tunic PinMode=Automatic resolved no solver pins")',
+    '    log("pin-mode=None solver-pins=0")': '    log("pin-mode=automatic solver-pins=%d" % len(solver_pins))',
     'scene.SolverIterations = 8;': 'scene.ParticleDistance = 32.0; scene.SolverIterations = 2; scene.SolverSubsteps = 8; log("tunic-solver=particle-distance-32 iterations-2 substeps-8");',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
 }
