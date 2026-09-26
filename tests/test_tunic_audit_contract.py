@@ -115,7 +115,7 @@ def test_canonical_tunic_runs_target_snap_before_solver_setup():
     pin = source.index('scene.PinMode = "None"')
     assert snap < pin
     assert "minimum_signed_clearance" in source
-    assert "target_surface = collision_surface(" in source
+    assert "target_surface = surface_from_triangles(" in source
     assert "_world_shape(piece).Vertexes" in source
     assert "ClothFitting_ResetArrangement" in source
     assert "solver_pins" in source
