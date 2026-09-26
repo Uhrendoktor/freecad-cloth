@@ -26,17 +26,17 @@ replacements = {
         '    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())\n'
         '    required_indices = (1, 2, 6, 7)\n'
         '    if len(front_edge_ids) < 8 or len(back_edge_ids) < 8 or any(not front_edge_ids[index] or not back_edge_ids[index] for index in required_indices): raise RuntimeError("canonical tunic fixture is missing authored semantic edge IDs")\n'
-        '    seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"),(front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"),(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"))\n'
+        '    seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"),(front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"),(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"))\n'
         '    for edge_a_id, edge_b_id, seam_id in seam_specs:\n'
         '        seam = Seam(str(front.PieceId), edge_a_id, str(back.PieceId), edge_b_id, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
         '        add_seam(doc, seam)\n'
         '        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)\n'
         '        if str(getattr(seam_obj, "EdgeAId", "")) != edge_a_id or str(getattr(seam_obj, "EdgeBId", "")) != edge_b_id: raise RuntimeError("canonical tunic seam %s did not retain authored semantic edge IDs" % seam_id)\n'
         '        seam_records.append((seam_obj, front, back))',
-    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance + placement_inset',
-    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance - placement_inset',
+    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance',
+    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
-    'scene.SolverIterations = 8;': 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 60.0; log("tunic-solver=particle-distance-32 iterations-1 substeps-1 timestep-60hz");',
+    'scene.SolverIterations = 8;': 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; log("tunic-solver=particle-distance-32 iterations-1 substeps-1 timestep-120hz");',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
 }
 for old, new in replacements.items():
@@ -92,88 +92,6 @@ timed_anchor = '''    from time import perf_counter
         log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
 '''
-
-source = source.replace(
-    '    def target_relative_piece_placement(side):',
-    '    placement_inset = 0.0\n    def target_relative_piece_placement(side):',
-    1,
-)
-
-surface_anchor = '''    surface = collision_surface(
-        target_source,
-        float(getattr(target, "CollisionDeflection", 1.0)),
-        float(getattr(target, "CollisionThickness", 0.0)),
-    )
-'''
-if surface_anchor not in source:
-    raise RuntimeError("surface collision anchor missing")
-placement_probe = '''    surface = collision_surface(
-        target_source,
-        float(getattr(target, "CollisionDeflection", 1.0)),
-        float(getattr(target, "CollisionThickness", 0.0)),
-    )
-    placement_insets = (0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0)
-    proxy_probe = scene.Proxy
-    backend_probe = getattr(proxy_probe, "backend", None)
-    if backend_probe is None:
-        raise RuntimeError("canonical tunic placement probe did not build a simulation backend")
-    panel_probe = list(getattr(scene, "DrapePanels", ()))
-    if len(panel_probe) != 2:
-        raise RuntimeError("canonical tunic placement probe expected two panels")
-    front_indices = tuple(proxy_probe.panel_indices.get(panel_probe[0].Name, ()))
-    back_indices = tuple(proxy_probe.panel_indices.get(panel_probe[1].Name, ()))
-    if not front_indices or not back_indices:
-        raise RuntimeError("canonical tunic placement probe has no panel particle indices")
-    base_positions = tuple(backend_probe.positions())
-    best_inset = None
-    best_clearance = None
-    try:
-        from freecad_cloth.common.MeshValidation import nearest_target_clearance
-        for candidate in placement_insets:
-            candidate_positions = list(base_positions)
-            for index in front_indices:
-                x, y, z = candidate_positions[int(index)]
-                candidate_positions[int(index)] = (x, y + float(candidate), z)
-            for index in back_indices:
-                x, y, z = candidate_positions[int(index)]
-                candidate_positions[int(index)] = (x, y - float(candidate), z)
-            probe_clearance = nearest_target_clearance(tuple(candidate_positions), tuple(surface.vertices))
-            log("tunic-placement-inset-mm=%.1f clearance-mm=%.2f" % (float(candidate), float(probe_clearance)))
-            if float(probe_clearance) >= float(clearance):
-                best_inset = float(candidate)
-                best_clearance = float(probe_clearance)
-    except (ImportError, ValueError):
-        best_inset = None
-    if best_inset is None:
-        raise RuntimeError("canonical tunic placement probe found no candidate meeting configured separation")
-    placement_inset = best_inset
-    initial_clearance = best_clearance
-    front.Placement = target_relative_piece_placement("front")
-    back.Placement = target_relative_piece_placement("back")
-    front.Sketch.Placement = front.Placement
-    back.Sketch.Placement = back.Placement
-    doc.recompute()
-    log("tunic-placement-selected-inset-mm=%.1f clearance-mm=%.2f" % (placement_inset, initial_clearance))
-'''
-
-
-source = source.replace(surface_anchor, placement_probe, 1)
-
-post_probe_old = '''    initial_clearance = None
-    try:
-        from freecad_cloth.common.MeshValidation import nearest_target_clearance
-        initial_clearance = nearest_target_clearance(tuple(backend.positions()), tuple(surface.vertices))
-    except (ImportError, ValueError):
-        initial_clearance = None
-'''
-post_probe_new = '''    proxy = scene.Proxy
-    backend = getattr(proxy, "backend", None)
-    if backend is None:
-        raise RuntimeError("canonical tunic placement probe lost its simulation backend")
-'''
-if post_probe_old not in source:
-    raise RuntimeError("post-probe stale clearance block missing")
-source = source.replace(post_probe_old, post_probe_new, 1)
 
 source = source.replace(
     anchor + '\n        simulation_panel.step(batch); doc.recompute(); events()\n',
