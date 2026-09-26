@@ -108,7 +108,7 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
     assert 'CLOTH_TISSU_AUTHORED_CONTAINMENT: 1' in workflow
     assert 'tunic-simulation-start' in source
-    assert 'CLOTH_TISSU_AUTHORED_CONTAINMENT" = "1"' in (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'CLOTH_TISSU_AUTHORED_CONTAINMENT"] = "1"' in (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
 
 
 def test_authored_containment_experiment_uses_validated_fixture_and_bounded_gate():
