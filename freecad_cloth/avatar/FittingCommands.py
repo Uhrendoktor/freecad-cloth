@@ -92,13 +92,42 @@ def _migrate_visual_output_references(scene):
         scene.addProperty("App::PropertyStringList", name, "Arrangement")
         setattr(scene, name, names)
 
+def _ensure_fitting_properties(scene):
+    """Migrate persisted fitting scenes to the current property contract."""
+    if scene is None:
+        return None
+    properties = set(getattr(scene, "PropertiesList", ()) or ())
+    if "DrapeTarget" not in properties:
+        scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")
+    if "PiecePlacements" not in properties:
+        scene.addProperty("App::PropertyStringList", "PiecePlacements", "Fitting")
+        scene.PiecePlacements = []
+        properties.add("PiecePlacements")
+    if "HomePlacements" not in properties:
+        scene.addProperty("App::PropertyStringList", "HomePlacements", "Fitting")
+        scene.HomePlacements = list(scene.PiecePlacements)
+        properties.add("HomePlacements")
+    if "FitStatus" not in properties:
+        scene.addProperty("App::PropertyString", "FitStatus", "Fitting")
+        scene.FitStatus = "Unassigned"
+        properties.add("FitStatus")
+    if getattr(scene, "DrapeTarget", None) is None:
+        target = scene.Document.getObject("DrapeTarget")
+        if target is not None:
+            scene.DrapeTarget = target
+    return scene
+
+
 def create_fitting_scene():
     import FreeCAD as App
     from freecad_cloth.avatar.AvatarFitting import BodyMeasurements, FittingScene
 
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
-    if _scene(doc) is not None:
-        return _scene(doc)
+    existing = _scene(doc)
+    if existing is not None:
+        _ensure_fitting_properties(existing)
+        doc.recompute()
+        return existing
     obj = doc.addObject("App::FeaturePython", "FittingScene")
     obj.Label = "Avatar Fitting Scene"
     obj.addProperty("App::PropertyString", "FittingType", "Fitting").FittingType = "FittingScene"
@@ -142,6 +171,7 @@ def assign_avatar_source(source=None):
 
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
     scene = _scene(doc) or create_fitting_scene()
+    _ensure_fitting_properties(scene)
     if source is None:
         source = next((o for o in Gui.Selection.getSelection() if hasattr(o, "Shape") or hasattr(o, "Mesh")), None)
     if source is None:
@@ -164,6 +194,7 @@ def add_selected_pattern_pieces():
 
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
     scene = _scene(doc) or create_fitting_scene()
+    _ensure_fitting_properties(scene)
     pieces = [o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"]
     if not pieces:
         raise ValueError("select one or more pattern pieces before adding them to the fitting scene")
@@ -351,6 +382,8 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=7
             if report.minimum_signed_clearance + 1e-6 < required_clearance:
                 raise ValueError("target-aware placement for %s did not prove the requested step-0 clearance" % piece.Label)
             results.append({"piece_id": str(piece.PieceId), "translation_mm": float(total_travel), "minimum_signed_clearance_mm": float(report.minimum_signed_clearance), "triangle_index": int(report.projection.triangle_index)})
+        _ensure_fitting_properties(scene)
+        scene.DrapeTarget = target
         placements = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)}
         for piece in selected:
             final = piece.Placement; base = final.Base; axis = final.Rotation.Axis
