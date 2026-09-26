@@ -31,6 +31,7 @@ assert '"Icon": self.Icon' in gui_base
 assert "def Activated(self):" in gui_base
 assert "from freecad_cloth.sewing.SewingView import refresh_seam_colors" in gui_base
 assert "refresh_seam_colors(getattr(active, \"Document\", None))" in gui_base
+assert "super().Activated()" in (ROOT / "freecad_cloth" / "simulation" / "workbench.py").read_text()
 assert "def __init__(self):" in gui_base
 assert "self.commands = []" in gui_base
 assert "if self.commands:" in gui_base
