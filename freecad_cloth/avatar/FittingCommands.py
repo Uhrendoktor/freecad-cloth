@@ -593,8 +593,13 @@ def create_simulation_from_fitting():
     if scene.AvatarProxy is not None:
         simulation.AvatarProxy = scene.AvatarProxy
     target = getattr(scene, "DrapeTarget", None)
-    if target is not None:
-        simulation.DrapeTarget = target
+    if target is None:
+        raise ValueError("assign a current DrapeTarget before creating simulation")
+    from freecad_cloth.simulation.DrapeTarget import target_status
+    status = target_status(target)
+    if status["state"] != "ready":
+        raise ValueError(status["message"])
+    simulation.DrapeTarget = target
     doc.recompute()
     return simulation
 
