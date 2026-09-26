@@ -15,6 +15,11 @@ def test_pytissu_patch_contract_is_pinned_and_reproducible():
     assert commit in patch
     assert commit in script
     assert "git apply --check" in script
+    assert len(patch) > 20000
+    assert "-#pragma once" in patch
+    assert "+#pragma once" in patch
+    assert "-#include \"physics/Particle.hpp\"" in patch
+    assert "+#include \"physics/Particle.hpp\"" in patch
     assert "ctest --test-dir build --output-on-failure" in script
     assert "pytissu-provenance.txt" in script
     assert "pytissu-runtime" in workflow
