@@ -514,12 +514,21 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 12); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
+              mkdir -p /workspace/artifacts/freecad-realtime
+              echo "pre-benchmark-start=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> /workspace/artifacts/freecad-realtime/launcher.log
+              set +e
+              timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_realtime_benchmark.py > /workspace/artifacts/freecad-realtime/freecad-pre.log 2>&1
+              realtime_pre_status=$?
+              set -e
+              if [ -f /workspace/artifacts/freecad-realtime/metrics.json ]; then cp /workspace/artifacts/freecad-realtime/metrics.json /workspace/artifacts/freecad-realtime/metrics-pre.json; fi
+              if [ -f /workspace/artifacts/freecad-realtime/benchmark-trace.log ]; then cp /workspace/artifacts/freecad-realtime/benchmark-trace.log /workspace/artifacts/freecad-realtime/benchmark-trace-pre.log; fi
+              echo "pre-benchmark-exit=$realtime_pre_status timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> /workspace/artifacts/freecad-realtime/launcher.log
               set +e
               timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py
               tunic_status=$?
               set -e
               mkdir -p /workspace/artifacts/freecad-realtime
-              echo "realtime-wrapper-start=$(date -u +%Y-%m-%dT%H:%M:%SZ)" > /workspace/artifacts/freecad-realtime/launcher.log
+              echo "realtime-wrapper-start=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> /workspace/artifacts/freecad-realtime/launcher.log
               ps -eo pid,ppid,stat,etime,cmd | grep -E "(/opt/freecad/AppRun|FreeCAD)" | grep -v grep >> /workspace/artifacts/freecad-realtime/processes-before.log || true
               python3 -m py_compile /workspace/tests/freecad_realtime_benchmark.py >> /workspace/artifacts/freecad-realtime/launcher.log 2>&1
               set +e
@@ -528,6 +537,9 @@ jobs:
               set -e
               echo "realtime-wrapper-exit=$realtime_status tunic-wrapper-exit=$tunic_status timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> /workspace/artifacts/freecad-realtime/launcher.log
               ps -eo pid,ppid,stat,etime,cmd | grep -E "(/opt/freecad/AppRun|FreeCAD)" | grep -v grep >> /workspace/artifacts/freecad-realtime/processes-after.log || true
+              if [ "$realtime_pre_status" -ne 0 ]; then
+                exit "$realtime_pre_status"
+              fi
               if [ "$tunic_status" -ne 0 ]; then
                 exit "$tunic_status"
               fi
