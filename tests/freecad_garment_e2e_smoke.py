@@ -529,15 +529,13 @@ def run_acceptance():
             raise RuntimeError("public Sewing operation task panel did not persist controls")
         print("sewing-operation=passed", flush=True)
 
-        from freecad_cloth.sewing.SewingView import seam_color_map
+        canonical_seams = [seam_11] + list(network.Seams)
+        initial_colors = _assert_seam_colors(doc, canonical_seams, "post-sewing recompute")
         operation_color = tuple(float(value) for value in operation.ViewObject.LineColor[:3])
-        expected_operation_color = seam_color_map([str(operation.SeamId)])[str(operation.SeamId)]
+        expected_operation_color = initial_colors[str(operation.SeamId)]
         if operation_color != expected_operation_color:
             raise RuntimeError("SewingOperation did not render its canonical SeamId color")
         print("seam-color-operation=passed seam-id=%s" % operation.SeamId, flush=True)
-
-        canonical_seams = [seam_11] + list(network.Seams)
-        initial_colors = _assert_seam_colors(doc, canonical_seams, "post-sewing recompute")
         _activate("ClothPatternWorkbench", ["ClothPattern_Show2D"])
         Gui.runCommand("ClothPattern_Show2D", 0)
         _events()
