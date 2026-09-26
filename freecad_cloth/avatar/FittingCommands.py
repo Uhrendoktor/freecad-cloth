@@ -105,6 +105,7 @@ def create_fitting_scene():
     obj.addProperty("App::PropertyString", "MeasurementData", "Measurements").MeasurementData = BodyMeasurements().to_json()
     obj.addProperty("App::PropertyString", "MeasurementUnit", "Measurements").MeasurementUnit = "mm"
     obj.addProperty("App::PropertyLink", "AvatarProxy", "Fitting")
+    obj.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")
     obj.addProperty("App::PropertyLinkListGlobal", "PatternPieces", "Fitting")
     obj.addProperty("App::PropertyStringList", "PiecePlacements", "Fitting").PiecePlacements = []
     obj.addProperty("App::PropertyStringList", "HomePlacements", "Fitting").HomePlacements = []
@@ -148,6 +149,9 @@ def assign_avatar_source(source=None):
     avatar = create_avatar_collision(doc) if doc.getObject("AvatarCollision") is None else doc.getObject("AvatarCollision")
     avatar = set_avatar_collision_source(scene, source)
     scene.AvatarProxy = avatar
+    existing_target = doc.getObject("DrapeTarget")
+    if existing_target is not None:
+        scene.DrapeTarget = existing_target
     scene.FitStatus = "Avatar assigned"
     doc.recompute()
     return scene
@@ -325,6 +329,196 @@ def apply_arrangement_point(piece, point, mirror=None):
     return position_piece(piece, point.x, point.y, point.offset, rotations[point.wrap_direction])
 
 
+def _cross(a, b):
+    return (
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    )
+
+
+def _norm(vector):
+    import math
+    length = math.sqrt(sum(float(value) * float(value) for value in vector))
+    if length <= 1e-12:
+        return None
+    return tuple(float(value) / length for value in vector)
+
+
+def _closest_point_on_triangle(point, a, b, c):
+    ab = tuple(b[i] - a[i] for i in range(3))
+    ac = tuple(c[i] - a[i] for i in range(3))
+    ap = tuple(point[i] - a[i] for i in range(3))
+    d1 = sum(ab[i] * ap[i] for i in range(3))
+    d2 = sum(ac[i] * ap[i] for i in range(3))
+    if d1 <= 0.0 and d2 <= 0.0:
+        return a
+    bp = tuple(point[i] - b[i] for i in range(3))
+    d3 = sum(ab[i] * bp[i] for i in range(3))
+    d4 = sum(ac[i] * bp[i] for i in range(3))
+    if d3 >= 0.0 and d4 <= d3:
+        return b
+    vc = d1 * d4 - d3 * d2
+    if vc <= 0.0 and d1 >= 0.0 and d3 <= 0.0:
+        denominator = d1 - d3
+        t = d1 / denominator if abs(denominator) > 1e-12 else 0.0
+        return tuple(a[i] + t * ab[i] for i in range(3))
+    cp = tuple(point[i] - c[i] for i in range(3))
+    d5 = sum(ab[i] * cp[i] for i in range(3))
+    d6 = sum(ac[i] * cp[i] for i in range(3))
+    if d6 >= 0.0 and d5 <= d6:
+        return c
+    vb = d5 * d2 - d1 * d6
+    if vb <= 0.0 and d2 >= 0.0 and d6 <= 0.0:
+        denominator = d2 - d6
+        t = d2 / denominator if abs(denominator) > 1e-12 else 0.0
+        return tuple(a[i] + t * ac[i] for i in range(3))
+    va = d3 * d6 - d5 * d4
+    if va <= 0.0 and (d4 - d3) >= 0.0 and (d5 - d6) >= 0.0:
+        edge = tuple(c[i] - b[i] for i in range(3))
+        denominator = sum(value * value for value in edge)
+        t = (d4 - d3) / denominator if denominator > 1e-12 else 0.0
+        return tuple(b[i] + t * edge[i] for i in range(3))
+    denominator = va + vb + vc
+    if abs(denominator) <= 1e-12:
+        return a
+    inv = 1.0 / denominator
+    v = vb * inv
+    w = vc * inv
+    return tuple(a[i] + ab[i] * v + ac[i] * w for i in range(3))
+
+
+def _surface_anchor(surface, point):
+    center = surface.center
+    best = None
+    for triangle_index, (ia, ib, ic) in enumerate(surface.triangles):
+        a, b, c = surface.vertices[ia], surface.vertices[ib], surface.vertices[ic]
+        normal = _norm(_cross(
+            tuple(b[i] - a[i] for i in range(3)),
+            tuple(c[i] - a[i] for i in range(3)),
+        ))
+        if normal is None:
+            continue
+        closest = _closest_point_on_triangle(point, a, b, c)
+        distance_squared = sum((point[i] - closest[i]) ** 2 for i in range(3))
+        centroid = tuple((a[i] + b[i] + c[i]) / 3.0 for i in range(3))
+        outward = tuple(centroid[i] - center[i] for i in range(3))
+        if sum(normal[i] * outward[i] for i in range(3)) < 0.0:
+            normal = tuple(-value for value in normal)
+        candidate = (distance_squared, closest, normal, triangle_index)
+        if best is None or candidate[0] < best[0]:
+            best = candidate
+            continue
+        if abs(candidate[0] - best[0]) <= max(1e-6, best[0] * 1e-9):
+            dot = sum(candidate[2][i] * best[2][i] for i in range(3))
+            if dot < 0.5:
+                raise ValueError("target projection is ambiguous across opposing surface normals")
+    if best is None:
+        raise ValueError("drape target collision surface contains no usable triangle normals")
+    return best[1], best[2]
+
+
+def _world_vertices(piece):
+    import FreeCAD as App
+    placement = getattr(piece, "Placement", None)
+    shape = getattr(piece, "Shape", None)
+    vertices = getattr(shape, "Vertexes", ()) if shape is not None else ()
+    if not vertices:
+        raise ValueError("pattern piece %s has no geometry vertices" % getattr(piece, "Label", getattr(piece, "Name", "<unnamed>")))
+    result = []
+    for vertex in vertices:
+        point = vertex.Point
+        world = placement.multVec(point) if placement is not None else point
+        result.append((float(world.x), float(world.y), float(world.z)))
+    return tuple(result)
+
+
+def snap_pieces_to_target(pieces=None, target=None, clearance=2.0, max_translation=400.0):
+    """Rigidly translate selected PatternPieces to a current DrapeTarget."""
+    import FreeCAD as App
+    from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+    from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
+
+    doc = App.ActiveDocument
+    if doc is None:
+        raise ValueError("open a document before snapping pattern pieces to a target")
+    scene = _scene(doc)
+    if scene is None:
+        raise ValueError("create a fitting scene first")
+    selected = tuple(sorted(
+        [piece for piece in (pieces or ()) if getattr(piece, "PatternType", "") == "PatternPiece"],
+        key=lambda item: str(getattr(item, "PieceId", getattr(item, "Name", ""))),
+    ))
+    if not selected:
+        raise ValueError("select one or more PatternPiece objects before snapping to a target")
+    if any(piece not in scene.PatternPieces for piece in selected):
+        raise ValueError("all selected pattern pieces must belong to the fitting scene")
+    status = target_status(target)
+    if status["state"] != "ready":
+        raise ValueError("cannot snap to target: %s" % status["message"])
+    scene.DrapeTarget = target
+    source = getattr(target, "SourceObject", None)
+    if source is None:
+        raise ValueError("cannot snap to target without its source object")
+    surface = collision_surface(
+        source,
+        float(getattr(target, "CollisionDeflection", 1.0)),
+        float(getattr(target, "CollisionThickness", 0.0)),
+    )
+    original = {str(piece.PieceId): piece.Placement for piece in selected}
+    persisted_before = tuple(scene.PiecePlacements)
+    vertices_by_piece = {str(piece.PieceId): _world_vertices(piece) for piece in selected}
+    all_vertices = tuple(point for vertices in vertices_by_piece.values() for point in vertices)
+    anchor = tuple(sum(point[i] for point in all_vertices) / len(all_vertices) for i in range(3))
+    point, normal = _surface_anchor(surface, anchor)
+    desired = tuple(point[i] + normal[i] * float(clearance) for i in range(3))
+    delta = tuple(desired[i] - anchor[i] for i in range(3))
+    import math
+    if float(clearance) < 0.0 or float(max_translation) <= 0.0:
+        raise ValueError("target snap clearance and translation bound must be positive")
+    magnitude = math.sqrt(sum(value * value for value in delta))
+    if magnitude > float(max_translation) + 1e-9:
+        raise ValueError("target snap exceeds the configured translation bound")
+
+    try:
+        for piece in selected:
+            placement = piece.Placement
+            base = placement.Base
+            piece.Placement = App.Placement(
+                App.Vector(float(base.x) + delta[0], float(base.y) + delta[1], float(base.z) + delta[2]),
+                placement.Rotation,
+            )
+        doc.recompute()
+        for piece in selected:
+            for vertex in _world_vertices(piece):
+                surface_point, surface_normal = _surface_anchor(surface, vertex)
+                signed = sum((vertex[i] - surface_point[i]) * surface_normal[i] for i in range(3))
+                if signed < float(clearance) - 1e-6:
+                    raise ValueError("target snap would leave piece %s inside the target surface" % getattr(piece, "Label", piece.Name))
+    except BaseException:
+        for piece in selected:
+            piece.Placement = original[str(piece.PieceId)]
+        scene.PiecePlacements = list(persisted_before)
+        doc.recompute()
+        raise
+
+    current = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)}
+    for piece in selected:
+        placement = piece.Placement
+        base = placement.Base
+        current[str(piece.PieceId)] = PiecePlacement(
+            str(piece.PieceId),
+            (float(base.x), float(base.y), float(base.z)),
+            float(placement.Rotation.Angle),
+        )
+    scene.PiecePlacements = [current[key].to_string() for key in sorted(current)]
+    scene.FitStatus = "Snapped to target"
+    doc.recompute()
+    return scene
+
+
+
+
 def reset_arrangement():
     """Restore every assigned piece to its saved pre-arrangement placement."""
     import FreeCAD as App
@@ -364,6 +558,8 @@ def create_simulation_from_fitting():
     simulation.ClothPieces = list(scene.PatternPieces)
     if scene.AvatarProxy is not None:
         simulation.AvatarProxy = scene.AvatarProxy
+    if getattr(scene, "DrapeTarget", None) is not None:
+        simulation.DrapeTarget = scene.DrapeTarget
     doc.recompute()
     return simulation
 
@@ -394,6 +590,7 @@ COMMANDS = [
     "ClothFitting_DeleteBoundingVolume",
     "ClothFitting_SetSymmetry",
     "ClothFitting_ApplyArrangementPoint",
+    "ClothFitting_SnapPiecesToTarget",
     "ClothFitting_ResetArrangement",
     "ClothFitting_CreateSimulation",
 ]
@@ -409,9 +606,23 @@ _COMMAND_HANDLERS = {
     "ClothFitting_DeleteBoundingVolume": lambda: delete_bounding_volume("Volume1"),
     "ClothFitting_SetSymmetry": lambda: set_symmetry_enabled(True),
     "ClothFitting_ApplyArrangementPoint": lambda: _apply_selected_arrangement(),
+    "ClothFitting_SnapPiecesToTarget": lambda: _snap_selected_to_target(),
     "ClothFitting_ResetArrangement": reset_arrangement,
     "ClothFitting_CreateSimulation": create_simulation_from_fitting,
 }
+
+
+def _snap_selected_to_target():
+    import FreeCADGui as Gui
+    active = Gui.activeDocument()
+    if active is None:
+        raise ValueError("open a document before snapping pattern pieces to a target")
+    selection = tuple(Gui.Selection.getSelection())
+    pieces = tuple(obj for obj in selection if getattr(obj, "PatternType", "") == "PatternPiece")
+    targets = tuple(obj for obj in selection if hasattr(obj, "TargetType") and hasattr(obj, "SourceObject"))
+    if len(targets) != 1:
+        raise ValueError("select exactly one DrapeTarget and one or more PatternPiece objects")
+    return snap_pieces_to_target(pieces, targets[0])
 
 
 def _apply_selected_arrangement():
