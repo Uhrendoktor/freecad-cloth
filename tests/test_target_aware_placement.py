@@ -96,6 +96,8 @@ def test_fitting_action_checks_the_complete_piece_surface_not_only_anchors():
     assert "clearance_sample.normal" in fitting
     assert "while clearance_sample.clearance < float(clearance) - 1e-6" in fitting
     assert "correction_iterations >= 64" in fitting
+    assert 'next_total_translation' in fitting
+    assert 'max_translation' in fitting
     assert "normal_sum" not in fitting
     assert "piece_clearance = assert_minimum_surface_clearance" in fitting
 
