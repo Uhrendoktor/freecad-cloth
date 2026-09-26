@@ -54,24 +54,43 @@ class PiecePlacement:
     piece_id: str
     position: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     rotation_z: float = 0.0
+    rotation_axis: Tuple[float, float, float] = (0.0, 0.0, 1.0)
 
     def validate(self) -> None:
         if not self.piece_id.strip():
             raise ValueError("piece id must not be empty")
         if len(self.position) != 3:
             raise ValueError("position must contain three coordinates")
+        if len(self.rotation_axis) != 3:
+            raise ValueError("rotation axis must contain three coordinates")
+        if sum(float(v) * float(v) for v in self.rotation_axis) <= 1e-12:
+            raise ValueError("rotation axis must be non-zero")
 
     def to_string(self) -> str:
         self.validate()
-        return "%s|%.12g,%.12g,%.12g|%.12g" % (
-            self.piece_id, self.position[0], self.position[1], self.position[2], self.rotation_z
+        axis = tuple(float(v) for v in self.rotation_axis)
+        if abs(axis[0]) <= 1e-12 and abs(axis[1]) <= 1e-12 and abs(abs(axis[2]) - 1.0) <= 1e-12:
+            return "%s|%.12g,%.12g,%.12g|%.12g" % (
+                self.piece_id, self.position[0], self.position[1], self.position[2], self.rotation_z
+            )
+        return "%s|%.12g,%.12g,%.12g|%.12g,%.12g,%.12g|%.12g" % (
+            self.piece_id, self.position[0], self.position[1], self.position[2],
+            axis[0], axis[1], axis[2], self.rotation_z
         )
 
     @classmethod
     def from_string(cls, value: str) -> "PiecePlacement":
-        piece_id, position, rotation = str(value).split("|")
+        fields = str(value).split("|")
+        if len(fields) == 3:
+            piece_id, position, rotation = fields
+            axis = (0.0, 0.0, 1.0)
+        elif len(fields) == 4:
+            piece_id, position, axis_value, rotation = fields
+            axis = tuple(float(v) for v in axis_value.split(","))
+        else:
+            raise ValueError("piece placement must contain position and rotation fields")
         coords = tuple(float(v) for v in position.split(","))
-        result = cls(piece_id, coords, float(rotation))
+        result = cls(piece_id, coords, float(rotation), axis)
         result.validate()
         return result
 
@@ -172,9 +191,19 @@ class FittingScene:
     arrangement_points: Tuple[ArrangementPoint, ...] = ()
     bounding_volumes: Tuple[BoundingVolume, ...] = ()
     symmetry_enabled: bool = True
+    arrangement_target_signature: str = ""
+    target_placement_clearance: float = 8.0
+    target_placement_max_translation: float = 1200.0
+    target_placement_max_rotation: float = 180.0
 
     def validate(self) -> None:
         self.measurements.validate()
+        if float(self.target_placement_clearance) <= 0.0:
+            raise ValueError("target placement clearance must be positive")
+        if float(self.target_placement_max_translation) <= 0.0:
+            raise ValueError("target placement maximum translation must be positive")
+        if float(self.target_placement_max_rotation) <= 0.0:
+            raise ValueError("target placement maximum rotation must be positive")
         if self.avatar_name and not self.avatar_name.strip():
             raise ValueError("avatar name must not be whitespace")
         seen = set()
@@ -213,6 +242,10 @@ class FittingScene:
             "arrangement_points": [item.to_string() for item in sorted(self.arrangement_points, key=lambda p: p.name)],
             "bounding_volumes": [item.to_string() for item in sorted(self.bounding_volumes, key=lambda v: v.name)],
             "symmetry_enabled": bool(self.symmetry_enabled),
+            "arrangement_target_signature": str(self.arrangement_target_signature),
+            "target_placement_clearance": float(self.target_placement_clearance),
+            "target_placement_max_translation": float(self.target_placement_max_translation),
+            "target_placement_max_rotation": float(self.target_placement_max_rotation),
         }, sort_keys=True, separators=(",", ":"))
 
     @classmethod
@@ -225,6 +258,10 @@ class FittingScene:
             tuple(ArrangementPoint.from_string(v) for v in data.get("arrangement_points", ())),
             tuple(BoundingVolume.from_string(v) for v in data.get("bounding_volumes", ())),
             bool(data.get("symmetry_enabled", True)),
+            str(data.get("arrangement_target_signature", "")),
+            float(data.get("target_placement_clearance", 8.0)),
+            float(data.get("target_placement_max_translation", 1200.0)),
+            float(data.get("target_placement_max_rotation", 180.0)),
         )
         result.validate()
         return result
