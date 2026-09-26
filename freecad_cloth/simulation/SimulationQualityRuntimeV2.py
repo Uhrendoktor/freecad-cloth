@@ -215,7 +215,7 @@ class QualitySimulationProxy:
     def _build_demo(self, obj, signature):
         from freecad_cloth.simulation.ClothBackend import default_backend_registry
         from freecad_cloth.simulation.ClothSolver import ClothSystem
-        from freecad_cloth.simulation.SimulationObjects import _parse_pair_list, _parse_int_list, _write_grid_mesh
+        from freecad_cloth.simulation.SimulationObjects import _parse_pair_list, _write_grid_mesh
         base = self._base_or_restore()
         spacing = max(0.25, float(obj.ParticleDistance))
         width, height = 100.0, 60.0
