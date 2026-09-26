@@ -1,6 +1,5 @@
-import ast
-
 """FreeCAD-facing body measurement, avatar fitting, and arrangement commands."""
+import ast
 
 
 def _scene(doc):
