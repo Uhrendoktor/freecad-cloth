@@ -202,10 +202,7 @@ def _apply_authored_containment_correction(
                 float(value) for value in _to_tissu_position(target)
             )
             displacement_tissu = _vector_sub(saved_current[index], saved_old[index])
-            if _closest_normal is None:
-                normal_for_velocity = (0.0, 0.0, 1.0)
-            else:
-                normal_for_velocity = _closest_normal
+            normal_for_velocity = _closest_normal
             displacement_tissu = _remove_inward_motion(
                 displacement_tissu,
                 normal_for_velocity,
