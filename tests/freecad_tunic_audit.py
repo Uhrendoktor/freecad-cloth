@@ -33,8 +33,8 @@ replacements = {
         '        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)\n'
         '        if str(getattr(seam_obj, "EdgeAId", "")) != edge_a_id or str(getattr(seam_obj, "EdgeBId", "")) != edge_b_id: raise RuntimeError("canonical tunic seam %s did not retain authored semantic edge IDs" % seam_id)\n'
         '        seam_records.append((seam_obj, front, back))',
-    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - (clearance + placement_extra)',
-    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + (clearance + placement_extra)',
+    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance + placement_inset',
+    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance - placement_inset',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
     'scene.SolverIterations = 8;': 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-32 iterations-1 substeps-env");',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
@@ -95,7 +95,7 @@ timed_anchor = '''    from time import perf_counter
 
 source = source.replace(
     '    def target_relative_piece_placement(side):',
-    '    placement_extra = 0.0\n    def target_relative_piece_placement(side):',
+    '    placement_inset = 0.0\n    def target_relative_piece_placement(side):',
     1,
 )
 
@@ -112,11 +112,11 @@ placement_probe = """    surface = collision_surface(
         float(getattr(target, "CollisionDeflection", 1.0)),
         float(getattr(target, "CollisionThickness", 0.0)),
     )
-    placement_candidates = (0.0, 4.0, 8.0, 12.0, 16.0, 24.0, 32.0, 48.0, 64.0, 80.0, 88.0, 92.0, 96.0) + tuple(float(value) for value in range(97, 129))
-    selected_placement_extra = None
+    placement_insets = (0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0)
+    selected_placement_inset = None
     initial_clearance = None
-    for candidate in placement_candidates:
-        placement_extra = float(candidate)
+    for candidate in placement_insets:
+        placement_inset = float(candidate)
         front.Placement = target_relative_piece_placement("front")
         back.Placement = target_relative_piece_placement("back")
         front.Sketch.Placement = front.Placement
@@ -131,15 +131,15 @@ placement_probe = """    surface = collision_surface(
             probe_clearance = nearest_target_clearance(tuple(probe_backend.positions()), tuple(surface.vertices))
         except (ImportError, ValueError):
             probe_clearance = None
-        log("tunic-placement-probe-extra-mm=%.1f clearance-mm=%s" % (placement_extra, "%.2f" % float(probe_clearance) if probe_clearance is not None else "None"))
+        log("tunic-placement-inset-mm=%.1f clearance-mm=%s" % (placement_inset, "%.2f" % float(probe_clearance) if probe_clearance is not None else "None"))
         if probe_clearance is not None and float(probe_clearance) >= float(clearance):
-            selected_placement_extra = placement_extra
+            selected_placement_inset = placement_inset
             initial_clearance = float(probe_clearance)
-            log("tunic-placement-selected-extra-mm=%.1f clearance-mm=%.2f" % (selected_placement_extra, initial_clearance))
+            log("tunic-placement-selected-inset-mm=%.1f clearance-mm=%.2f" % (selected_placement_inset, initial_clearance))
             break
-    if selected_placement_extra is None:
+    if selected_placement_inset is None:
         raise RuntimeError("canonical tunic placement probe found no candidate meeting configured separation")
-"""
+
 source = source.replace(surface_anchor, placement_probe, 1)
 
 post_probe_old = """    initial_clearance = None
