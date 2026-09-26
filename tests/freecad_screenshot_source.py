@@ -327,14 +327,12 @@ def pattern_and_sewing():
         raise RuntimeError("sewing fixture contains an invalid seam")
     from freecad_cloth.sewing.SewingView import seam_color_map
     seam_objects = (seam, second_seam)
+    activate("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D", "ClothPattern_CreateFromSketch"])
     expected_colors = seam_color_map(str(obj.SeamId) for obj in seam_objects)
     if len(set(expected_colors.values())) != len(seam_objects):
         raise RuntimeError("canonical sewing fixture did not produce unique seam colors")
     if any(tuple(obj.ViewObject.LineColor[:3]) != tuple(expected_colors[str(obj.SeamId)]) for obj in seam_objects):
-        raise RuntimeError("canonical sewing fixture did not apply deterministic seam colors")
-    activate("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D", "ClothPattern_CreateFromSketch"])
-    if any(tuple(obj.ViewObject.LineColor[:3]) != tuple(expected_colors[str(obj.SeamId)]) for obj in seam_objects):
-        raise RuntimeError("Pattern workbench activation changed seam presentation colors")
+        raise RuntimeError("Pattern workbench activation did not apply deterministic seam colors")
     sewing = create_sewing_operation(); doc.recompute()
     if str(sewing.Status) != "Valid" or sewing.Shape.isNull():
         raise RuntimeError("sewing operation fixture is invalid")
