@@ -465,26 +465,6 @@ def simulation():
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; scene.PinMode = "None"; scene.PinSelection = []
     doc.recompute()
     proxy = scene.Proxy._base_or_restore()
-    seam_visuals = {
-        str(getattr(obj, "SimulationSeamId", "")).strip(): obj
-        for obj in doc.Objects
-        if str(getattr(obj, "SimulationSeamId", "")).strip()
-    }
-    for seam_obj, _a, _b in seam_records:
-        seam_id = str(seam_obj.SeamId)
-        visual = seam_visuals.get(seam_id)
-        if visual is None:
-            raise RuntimeError("Simulation seam %s has no native semantic overlay" % seam_id)
-        if not bool(getattr(visual.ViewObject, "Visibility", False)):
-            raise RuntimeError("Simulation seam %s overlay is not visible" % seam_id)
-        if tuple(visual.ViewObject.LineColor[:3]) != tuple(expected_colors[seam_id]):
-            raise RuntimeError("Simulation seam %s overlay has the wrong semantic color" % seam_id)
-    if len({
-        tuple(obj.ViewObject.LineColor[:3])
-        for obj in seam_visuals.values()
-        if bool(getattr(obj.ViewObject, "Visibility", False))
-    }) < len(seam_records):
-        raise RuntimeError("Simulation seam overlays are not uniquely colored")
 
     solver_system = getattr(getattr(proxy, "backend", None), "system", None)
     active_pins = tuple(getattr(solver_system, "pins", ()) or ())
@@ -511,8 +491,29 @@ def simulation():
         raise RuntimeError("Simulation semantic seam colors are not unique")
 
     simulation_panel = SimulationQualityTaskPanel(scene); task_dock = show_task(simulation_panel, "Simulation Workbench arranged", ("Target", "Placement", "Snap assigned pieces to target", "Pinning mode", "Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset")); view = Gui.activeDocument().activeView(); view.setCameraType("Orthographic"); view.viewFront(); view.fitAll(); events(); task_dock.hide(); events(); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical sewn tunic generated from native Sketcher pattern sources on production mannequin"); task_dock.show(); task_dock.raise_(); events()
-    for batch in (15,15,15,15,15,15):
+    for batch_index, batch in enumerate((15,15,15,15,15,15)):
         simulation_panel.step(batch); doc.recompute(); events()
+        if batch_index == 0:
+            seam_visuals = {
+                str(getattr(obj, "SimulationSeamId", "")).strip(): obj
+                for obj in doc.Objects
+                if str(getattr(obj, "SimulationSeamId", "")).strip()
+            }
+            for seam_obj, _a, _b in seam_records:
+                seam_id = str(seam_obj.SeamId)
+                visual = seam_visuals.get(seam_id)
+                if visual is None:
+                    raise RuntimeError("Simulation seam %s has no native semantic overlay" % seam_id)
+                if not bool(getattr(visual.ViewObject, "Visibility", False)):
+                    raise RuntimeError("Simulation seam %s overlay is not visible" % seam_id)
+                if tuple(visual.ViewObject.LineColor[:3]) != tuple(expected_colors[seam_id]):
+                    raise RuntimeError("Simulation seam %s overlay has the wrong semantic color" % seam_id)
+            if len({
+                tuple(obj.ViewObject.LineColor[:3])
+                for obj in seam_visuals.values()
+                if bool(getattr(obj.ViewObject, "Visibility", False))
+            }) < len(seam_records):
+                raise RuntimeError("Simulation seam overlays are not uniquely colored")
     if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
         raise RuntimeError("simulation did not reach a finite 90-step state")
     if any(panel.Mesh.CountFacets <= 10 for panel in scene.DrapePanels):
