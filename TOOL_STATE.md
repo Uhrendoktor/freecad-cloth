@@ -26,7 +26,6 @@ release:
   benchmark: passed
   publisher: passed
   docs_assets_published: true
-  publication_provenance: structural_and_rendered_verified; exact_git_blob_equivalence_unverified
   final_issue_1017: closed_completed
   continuation_issue_1098: closed_completed
   open_prs: 0
