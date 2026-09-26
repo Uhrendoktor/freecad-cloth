@@ -165,9 +165,9 @@ def test_world_target_surface_applies_source_placement():
         xs = [point[0] for point in surface.vertices]
         ys = [point[1] for point in surface.vertices]
         zs = [point[2] for point in surface.vertices]
-        assert min(xs) >= pytest.approx(100.0)
-        assert min(ys) >= pytest.approx(40.0)
-        assert min(zs) >= pytest.approx(30.0)
+        assert min(xs) >= 100.0 - 1e-6
+        assert min(ys) >= 40.0 - 1e-6
+        assert min(zs) >= 30.0 - 1e-6
     finally:
         if doc.Name in App.listDocuments():
             App.closeDocument(doc.Name)
