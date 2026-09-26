@@ -24,7 +24,13 @@ Do not replace, duplicate, or casually refactor it. In particular, preserve the 
 
 ### Canonical runner routing
 
-Pull-request events run on GitHub-hosted infrastructure only; untrusted public-PR code is never routed to self-hosted runners. Trusted events may use an idle `self-hosted/linux/x64/docker` runner only when the optional `CLOTH_RUNNER_DISCOVERY_TOKEN` can list repository runners. Missing or invalid credentials, API failures, or no idle matching runner fail closed to `ubuntu-latest`.
+Public pull-request activity enters through the trusted `pull_request_target` workflow definition only to dispatch the canonical workflow from `main` in explicit hosted mode. The broker never checks out or executes PR code and contains no self-hosted runner selection.
+
+The dispatched PR validation run checks out `refs/pull/<number>/merge` on GitHub-hosted runners with `persist-credentials: false`. Untrusted PR code therefore cannot modify the workflow that selects its runner, and the PR validation path has no self-hosted fallback.
+
+Trusted `push`, schedule, and manual `workflow_dispatch` runs remain local-first on the existing `self-hosted/linux/x64/docker` runner. A hosted watchdog waits up to 45 seconds for the local readiness sentinel; if local execution does not start, it dispatches the same canonical workflow in explicit `runner_mode=hosted` and cancels the stalled local attempt.
+
+The design intentionally does not enumerate repository self-hosted runners and does not require a privileged runner-discovery credential.
 
 The canonical FreeCAD test image is Python 3.12-based; a CI run that starts FreeCAD under Python <3.12 is unsupported.
 
