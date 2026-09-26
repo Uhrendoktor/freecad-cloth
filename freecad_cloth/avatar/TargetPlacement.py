@@ -65,7 +65,7 @@ def _axis_angle_from_quaternion(q):
     if norm <= 1e-12:
         raise ValueError("rotation quaternion is degenerate")
     w, x, y, z = (value / norm for value in q)
-    w = max(-1.0, min(1.0, w))
+    w = abs(max(-1.0, min(1.0, w)))
     angle = 2.0 * acos(w)
     s = sqrt(max(0.0, 1.0 - w * w))
     if s <= 1e-9:
