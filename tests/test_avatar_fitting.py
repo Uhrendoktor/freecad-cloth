@@ -55,6 +55,21 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertEqual(mirrored.wrap_direction, "right")
         self.assertEqual(mirrored.rotation_z, -10.0)
 
+    def test_arrangement_point_accepts_legacy_landmark_record(self):
+        legacy = "shoulder_left|-210,0,1050"
+        point = ArrangementPoint.from_string(legacy)
+        self.assertEqual(point.name, "shoulder_left")
+        self.assertEqual(point.position(), (-210.0, 0.0, 1050.0))
+        self.assertEqual(point.wrap_direction, "front")
+        self.assertEqual(point.rotation_z, 0.0)
+        self.assertEqual(point.symmetry_group, "")
+        canonical = point.to_string()
+        self.assertEqual(
+            canonical,
+            "shoulder_left|-210,0,1050|front|0|",
+        )
+        self.assertEqual(ArrangementPoint.from_string(canonical), point)
+
     def test_invalid_arrangement_point_and_volume_are_rejected(self):
         with self.assertRaises(ValueError): ArrangementPoint("", wrap_direction="front").validate()
         with self.assertRaises(ValueError): ArrangementPoint("p", wrap_direction="inside").validate()
