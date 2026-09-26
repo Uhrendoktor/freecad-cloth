@@ -78,6 +78,50 @@ jobs:
             echo "Canceling remaining active canonical run $run_id (event=$event)"
             gh api --method POST "repos/$REPO/actions/runs/$run_id/cancel" >/dev/null
           done
+  runner_router:
+    name: Select local runner or GitHub-hosted fallback
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      runs_on: ${{ steps.select.outputs.runs_on }}
+      mode: ${{ steps.select.outputs.mode }}
+      runner_name: ${{ steps.select.outputs.runner_name }}
+    steps:
+      - id: select
+        name: Prefer an idle local Docker runner, otherwise use GitHub-hosted
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          required='["self-hosted","linux","x64","docker"]'
+          for attempt in 1 2 3 4 5 6; do
+            runners="$(gh api --paginate "repos/$REPO/actions/runners?per_page=100" 2>/dev/null || true)"
+            if test -n "$runners"; then
+              local="$(printf '%s' "$runners" | jq -c '
+                [.runners[]
+                  | select(.status == "online" and .busy == false)
+                  | select((["self-hosted","linux","x64","docker"] - [.labels[].name]) | length == 0)
+                ][0] // empty
+              ')"
+              if test -n "$local"; then
+                runner_name="$(printf '%s' "$local" | jq -r '.name')"
+                runner_id="$(printf '%s' "$local" | jq -r '.id')"
+                echo "runner-router=local mode=local name=$runner_name id=$runner_id"
+                echo "runs_on=$required" >> "$GITHUB_OUTPUT"
+                echo "mode=local" >> "$GITHUB_OUTPUT"
+                echo "runner_name=$runner_name" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            fi
+            echo "runner-router=probe attempt=$attempt mode=github-hosted reason=no-idle-matching-local-runner"
+            sleep 2
+          done
+          echo 'runner-router=github-hosted mode=fallback reason=local-runner-unreachable-or-busy'
+          echo 'runs_on=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
+          echo 'mode=github-hosted' >> "$GITHUB_OUTPUT"
+          echo 'runner_name=ubuntu-latest' >> "$GITHUB_OUTPUT"
+
   runner_heartbeat:
     name: Local Docker runner heartbeat
     if: ${{ github.event_name == 'schedule' }}
@@ -89,7 +133,8 @@ jobs:
 
   python:
     name: Python and FreeCAD non-GUI tests
-    runs-on: [self-hosted, linux, x64, docker]
+    needs: runner_router
+    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
@@ -167,7 +212,8 @@ jobs:
   sketcher-startup-diagnostic:
     name: FreeCAD Sketcher startup diagnostic
     if: github.event_name == 'pull_request'
-    runs-on: [self-hosted, linux, x64, docker]
+    needs: runner_router
+    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
@@ -268,7 +314,8 @@ jobs:
           compression-level: 1
   gui-sewing-creation:
     name: Sewing staged creation smoke
-    runs-on: [self-hosted, linux, x64, docker]
+    needs: runner_router
+    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
@@ -353,7 +400,8 @@ jobs:
 
   gui-sketcher-acceptance:
     name: Native Sketcher seam presentation acceptance
-    runs-on: [self-hosted, linux, x64, docker]
+    needs: runner_router
+    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
@@ -428,7 +476,8 @@ jobs:
           compression-level: 1
   gui-pattern-export:
     name: Pattern production export smoke
-    runs-on: [self-hosted, linux, x64, docker]
+    needs: runner_router
+    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
@@ -492,7 +541,8 @@ jobs:
 
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
-    runs-on: [self-hosted, linux, x64, docker]
+    needs: runner_router
+    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
@@ -537,7 +587,7 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 12); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py
+              timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py
               timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_realtime_benchmark.py
             '
       - name: Restore workspace from Docker volume
@@ -612,7 +662,8 @@ jobs:
 
   gui-turntables:
     name: README simulation turntable
-    runs-on: [self-hosted, linux, x64, docker]
+    needs: runner_router
+    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
@@ -657,7 +708,7 @@ jobs:
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
               timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_avatar_screenshot.py
-              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_simulation_turntable.py
+              timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_simulation_turntable.py
             '
           test "$(find docs/images/generated/cloth-avatar-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
           test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
@@ -755,7 +806,8 @@ jobs:
 
   gui-visual-examples:
     name: Basic blanket visual example
-    runs-on: [self-hosted, linux, x64, docker]
+    needs: runner_router
+    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
@@ -852,12 +904,13 @@ jobs:
           compression-level: 1
   publish-readme-turntables:
     name: Publish README turntables and example motion
-    needs: [gui-tunic-visual, gui-turntables, gui-visual-examples]
+    needs: [runner_router, gui-tunic-visual, gui-turntables, gui-visual-examples]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: write
       packages: read
-    runs-on: [self-hosted, linux, x64, docker]
+    needs: runner_router
+    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 10
     steps:
       - name: Download turntables
@@ -912,7 +965,8 @@ jobs:
   maintenance-cleanup:
     name: Repository retention cleanup
     if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * *' }}
-    runs-on: [self-hosted, linux, x64, docker]
+    needs: runner_router
+    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     permissions:
       actions: write
       contents: write
@@ -957,7 +1011,8 @@ jobs:
   benchmark:
     name: Measured FreeCAD workbench benchmark
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
-    runs-on: [self-hosted, linux, x64, docker]
+    needs: runner_router
+    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v5
