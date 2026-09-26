@@ -44,6 +44,16 @@ def test_shared_contract_is_freecad_independent():
     assert not target.is_human()
 
 
+def test_target_placement_command_contract_has_solver_module_and_icon():
+    root = Path(__file__).resolve().parents[1]
+    module = root / "freecad_cloth" / "avatar" / "TargetAwarePlacement.py"
+    icon = root / "resources" / "icons" / "ClothFitting_SnapPiecesToTarget.svg"
+    commands = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    assert module.is_file()
+    assert icon.is_file()
+    assert '"ClothFitting_SnapPiecesToTarget"' in commands
+
+
 def test_human_documentation_contract():
     root = Path(__file__).resolve().parents[1]
     user_guide = root / "docs" / "USER_GUIDE.md"
