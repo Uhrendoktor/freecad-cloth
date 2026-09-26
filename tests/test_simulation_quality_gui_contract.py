@@ -10,7 +10,9 @@ def test_quality_panel_captures_panel_open_state():
     assert '"QualityPreset"' in GUI
     assert '"FabricDensity"' in GUI
     assert '"AvatarSkinOffset"' in GUI
+    assert '"AutoPinning"' in GUI
     assert '"Steps"' in GUI
+    assert 'Start constraints' in GUI
     assert "def _capture_snapshot(self):" in GUI
     assert "self._snapshot = {name: getattr(self.scene, name)" in GUI
 
