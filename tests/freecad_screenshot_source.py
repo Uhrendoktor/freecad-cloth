@@ -365,6 +365,22 @@ def simulation():
     )
     if not target_surface.vertices or not target_surface.triangles:
         raise RuntimeError("canonical tunic DrapeTarget has no authoritative collision triangles")
+    from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
+
+    def arrangement_world(name):
+        raw = next((value for value in getattr(avatar, "ArrangementPoints", ()) if str(value).split("|", 1)[0] == name), None)
+        if raw is None:
+            raise RuntimeError("canonical tunic is missing avatar arrangement point %s" % name)
+        point = ArrangementPoint.from_string(raw)
+        return avatar.Placement.multVec(App.Vector(*point.position()))
+
+    shoulder_left = arrangement_world("shoulder_left")
+    shoulder_right = arrangement_world("shoulder_right")
+    hip_point = arrangement_world("hip")
+    x_mid = (shoulder_left.x + shoulder_right.x) / 2.0
+    shoulder_z = (shoulder_left.z + shoulder_right.z) / 2.0
+    hem_z = hip_point.z
+    shoulder_width = abs(shoulder_right.x - shoulder_left.x)
     panel_width = max(420.0, shoulder_width + 100.0)
     hem_width = max(450.0, panel_width + 80.0)
     garment_height = max(560.0, shoulder_z - hem_z)
