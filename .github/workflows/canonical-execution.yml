@@ -716,7 +716,6 @@ jobs:
             -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" \
             -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
-            -e CLOTH_SIMULATION_BACKEND=xpbd-cpu \
             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
@@ -1009,6 +1008,7 @@ jobs:
             -e FREECAD_USER_TEMP=/tmp/freecad-user-temp \
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
+            -e CLOTH_SIMULATION_BACKEND=xpbd-cpu \
             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
