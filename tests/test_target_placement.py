@@ -29,6 +29,19 @@ def test_signed_clearance_rejects_points_inside_target():
     assert isclose(minimum_signed_clearance(((0.0, 0.0, -4.0),), surface).minimum_signed_clearance, -4.0)
 
 
+def test_nearest_projection_resolves_distinct_tied_faces_by_query_side():
+    surface = CollisionSurface(
+        vertices=(
+            (-10.0, -10.0, 0.0), (10.0, -10.0, 0.0), (10.0, 10.0, 0.0), (-10.0, 10.0, 0.0),
+            (-10.0, -10.0, 2.0), (-10.0, 10.0, 2.0), (10.0, 10.0, 2.0), (10.0, -10.0, 2.0),
+        ),
+        triangles=((0, 1, 2), (0, 2, 3), (4, 5, 6), (4, 6, 7)),
+    )
+    projection = nearest_target_projection((0.0, 0.0, 1.0), surface)
+    assert projection.point[2] == 0.0
+    assert projection.normal == (0.0, 0.0, 1.0)
+
+
 def test_nearest_projection_fails_closed_on_opposing_ambiguous_normals():
     surface = CollisionSurface(
         vertices=(
