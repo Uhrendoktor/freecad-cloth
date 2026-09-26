@@ -62,6 +62,36 @@ def test_mesh_collision_corner_projects_against_both_local_faces():
     assert particle.position() == (11.0, 11.0, 0.0)
 
 
+def test_tissu_collider_friction_env_is_fail_closed_and_mesh_only():
+    import os
+    from freecad_cloth.simulation.TissuBackend import _tissu_collider_friction
+
+    original = os.environ.pop("CLOTH_TISSU_COLLIDER_FRICTION", None)
+    try:
+        assert _tissu_collider_friction() == 0.5
+        os.environ["CLOTH_TISSU_COLLIDER_FRICTION"] = "0.85"
+        assert _tissu_collider_friction() == 0.85
+        os.environ["CLOTH_TISSU_COLLIDER_FRICTION"] = "-0.1"
+        try:
+            _tissu_collider_friction()
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("negative collider friction was accepted")
+        os.environ["CLOTH_TISSU_COLLIDER_FRICTION"] = "not-a-number"
+        try:
+            _tissu_collider_friction()
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("non-numeric collider friction was accepted")
+    finally:
+        if original is None:
+            os.environ.pop("CLOTH_TISSU_COLLIDER_FRICTION", None)
+        else:
+            os.environ["CLOTH_TISSU_COLLIDER_FRICTION"] = original
+
+
 def test_tissu_collision_surface_abi_preserves_solver_surface_identity():
     from pathlib import Path
 
