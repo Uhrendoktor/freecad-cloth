@@ -28,8 +28,8 @@ class RigidDelta:
 
 _WRAP_NORMALS = {
     # Canonical FreeCAD human mannequin: front is -Y and back is +Y.
-    "front": (0.0, -1.0, 0.0),
-    "back": (0.0, 1.0, 0.0),
+    "front": (0.0, 1.0, 0.0),
+    "back": (0.0, -1.0, 0.0),
     "left": (-1.0, 0.0, 0.0),
     "right": (1.0, 0.0, 0.0),
 }
@@ -129,6 +129,15 @@ def _closest_point_on_triangle(point, a, b, c):
     return _add(a, _add(_scale(ab, vb / denominator), _scale(ac, vc / denominator)))
 
 
+def _surface_normal(surface, a, b, c):
+    normal = _unit(_cross(_sub(b, a), _sub(c, a)), "target surface normal")
+    triangle_center = tuple((a[i] + b[i] + c[i]) / 3.0 for i in range(3))
+    center = tuple(float(v) for v in surface.center)
+    if _dot(normal, _sub(triangle_center, center)) < 0.0:
+        normal = _scale(normal, -1.0)
+    return normal
+
+
 def _candidate_hits(surface, point, expected_normal):
     vertices, triangles = _validated_surface(surface)
     point = tuple(float(v) for v in point)
@@ -137,7 +146,7 @@ def _candidate_hits(surface, point, expected_normal):
     hits = []
     for index, tri in enumerate(triangles):
         a, b, c = (vertices[tri[0]], vertices[tri[1]], vertices[tri[2]])
-        normal = _unit(_cross(_sub(b, a), _sub(c, a)), "target surface normal")
+        normal = _surface_normal(surface, a, b, c)
         if _dot(normal, expected) < 0.20:
             continue
         closest = _closest_point_on_triangle(point, a, b, c)
@@ -232,7 +241,7 @@ def minimum_surface_clearance(surface, points):
         nearest = None
         for index, tri in enumerate(triangles):
             a, b, c = (vertices[tri[0]], vertices[tri[1]], vertices[tri[2]])
-            normal = _unit(_cross(_sub(b, a), _sub(c, a)), "target surface normal")
+            normal = _surface_normal(surface, a, b, c)
             closest = _closest_point_on_triangle(point, a, b, c)
             signed = _dot(_sub(point, closest), normal)
             candidate = (abs(signed), index, signed)
