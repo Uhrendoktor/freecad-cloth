@@ -659,9 +659,6 @@ jobs:
               timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_avatar_screenshot.py
               timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_simulation_turntable.py
             '
-          test "$(find docs/images/generated/cloth-avatar-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
-          test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
-          test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
       - name: Restore workspace from Docker volume
         if: ${{ always() }}
         run: |
@@ -672,6 +669,13 @@ jobs:
           docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
           docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
           docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Validate turntable frame counts on restored workspace
+        run: |
+          set -euo pipefail
+          test "$(find docs/images/generated/cloth-avatar-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
+          test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
+          test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
 
       - name: Validate blanket motion and camera evidence
         run: |
