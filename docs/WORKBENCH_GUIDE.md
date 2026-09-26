@@ -32,7 +32,14 @@ Create/select a `DrapeTarget`: either the native human mannequin or an ordinary 
 
 ### 4. Simulate
 
-Generate a preview/final mesh, choose material and quality, confirm target validity, then Run. Step is for controlled/debug advancement; Reset recovers simulation state. Pins/stitches and collision settings are persistent inputs. Fabric presentation properties include color, specular response, roughness and transparency and are persisted with the simulation/material state.
+Generate a preview/final mesh, choose material and quality, confirm target validity, then Run. Step is for controlled/debug advancement; Reset recovers simulation state.
+
+**Arrangement and pins are separate concepts:** arrangement points and piece placements define the avatar-relative start state. Solver pins are constraints applied after that arrangement. The persistent **AutoPinning** switch makes the distinction explicit:
+- enabled (the backward-compatible default): an empty explicit pin list uses the simulation's default boundary-corner pins;
+- disabled with an empty pin list: the sewn pattern starts genuinely unpinned;
+- an explicit pin list always wins over the automatic default.
+
+Collision is resolved from the authoritative DrapeTarget. When the target is a mannequin or supported FreeCAD geometry, inspect the target status before compensating for collision problems with placement or pin changes. Fabric presentation properties include color, specular response, roughness and transparency and are persisted with the simulation/material state.
 
 ### 5. Iterate
 
