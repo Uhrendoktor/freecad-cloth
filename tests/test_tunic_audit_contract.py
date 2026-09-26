@@ -107,3 +107,16 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
     assert 'tunic-simulation-start' in source
+
+
+def test_research_issue_1670_closed_mesh_probe():
+    import subprocess
+    result = subprocess.run(
+        ["python3", str(ROOT / "tools" / "research_closed_mesh_containment_1670.py")],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "CONTAINMENT_SYNTHETIC name=cube status=passed" in result.stdout
+    assert "CONTAINMENT_SYNTHETIC name=concave-L status=passed" in result.stdout
+    assert "CONTAINMENT_BENCH " in result.stdout
