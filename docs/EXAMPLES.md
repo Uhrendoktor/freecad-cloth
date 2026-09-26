@@ -2,10 +2,12 @@
 
 The project uses a complexity ladder so a new user can validate the installation before opening a full garment.
 
-| Example | Complexity | What it demonstrates | Visual validation |
-|---|---|---|---|
-| Blanket over Cube | Basic | one native Sketcher pattern, one FreeCAD collision target, pins, gravity and drape | five checkpoints + motion GIF |
-| Tunic | Advanced | multiple native pattern pieces, semantic seams, mannequin collision, material/quality controls, diagnostics and production export | six views + diagnostic map + arranged/draped turntables + motion GIF |
+| Example | Complexity | First-run purpose | What it demonstrates | Visual validation |
+|---|---|---|---|---|
+| Blanket over Cube | Basic | installation smoke test | one native Sketcher pattern, one FreeCAD collision target, manual pins, gravity and drape | five checkpoints + motion GIF |
+| Tunic | Advanced | mannequin garment path | multiple native pattern pieces, semantic seams, explicit fitting/arrangement, mannequin collision, material/quality controls, diagnostics and production export | six views + diagnostic map + arranged/draped turntables + motion GIF |
+
+The two examples validate different boundaries. A passing **Blanket over Cube** run proves that the installation can mesh, pin, collide and simulate simple cloth. It does **not** prove that mannequin fitting or garment arrangement is configured correctly.
 
 ## 1. Blanket over Cube
 
@@ -24,7 +26,9 @@ This fixture intentionally avoids the human avatar so users can isolate cloth, c
 
 ## 2. Tunic
 
-The tunic is the full garment acceptance scenario. It uses two pattern pieces, semantic sewing, a production MakeHuman mannequin, persisted quality/material settings, diagnostics, save/reload and invalidation.
+The tunic is the full garment acceptance scenario, not the installation smoke test. It uses multiple pattern pieces, semantic sewing, a production MakeHuman mannequin, persisted quality/material settings, diagnostics, save/reload and invalidation.
+
+On current main, the mannequin path includes an explicit fitting/arrangement stage before simulation. The fitting layer stores piece placements and arrangement metadata; it is not documented here as an automatic target-relative, pin-free placement feature. After arranging, create or refresh the mannequin **Drape Target** in **Cloth Simulation** and then run the simulation.
 
 Use the generated artifacts only as evidence: the tunic is not a substitute for the simpler blanket when debugging a local installation.
 
