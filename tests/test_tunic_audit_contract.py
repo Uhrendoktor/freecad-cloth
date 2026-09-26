@@ -120,3 +120,10 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
 def test_tunic_right_shoulder_experiment_uses_semantic_edge_3_pair():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' in audit
+
+
+def test_tunic_left_shoulder_experiment_uses_semantic_edge_5_pair():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "required_indices = (1, 3, 5, 7)" in audit
+    assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' in audit
+    assert 'front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"' in audit
