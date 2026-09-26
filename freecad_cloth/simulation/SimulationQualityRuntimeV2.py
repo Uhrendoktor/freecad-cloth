@@ -25,6 +25,7 @@ def ensure_quality_properties(scene):
         ("FabricRoughness", "App::PropertyFloat", "Fabric", None, 0.65),
         ("FabricTransparency", "App::PropertyInteger", "Fabric", None, 0),
         ("AvatarSkinOffset", "App::PropertyFloat", "Collision", None, 0.0),
+        ("AutomaticPins", "App::PropertyBool", "Selection", None, True),
     )
     for name, type_name, group, values, default in specs:
         if not hasattr(scene, name):
