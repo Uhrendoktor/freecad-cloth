@@ -107,3 +107,12 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
     assert 'tunic-simulation-start' in source
+
+
+def test_tunic_collision_friction_diagnostic_contract():
+    backend = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    assert "CLOTH_TISSU_COLLISION_FRICTION" in backend
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "scene.ParticleDistance = 32.0; scene.SolverIterations = 2;" in audit
+    assert "scene.FabricFriction = 0.85;" in audit
+    assert 'VisualTunicFront", "back", 0.78, 0.18' in audit
