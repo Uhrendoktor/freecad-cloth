@@ -46,10 +46,14 @@ def test_shared_contract_is_freecad_independent():
 
 def test_human_documentation_contract():
     root = Path(__file__).resolve().parents[1]
+    getting_started = root / "docs" / "GETTING_STARTED.md"
     user_guide = root / "docs" / "USER_GUIDE.md"
     docs_readme = root / "docs" / "README.md"
+    assert getting_started.is_file()
     assert user_guide.is_file()
-    assert "USER_GUIDE.md" in docs_readme.read_text(encoding="utf-8")
+    readme = docs_readme.read_text(encoding="utf-8")
+    assert "GETTING_STARTED.md" in readme
+    assert "USER_GUIDE.md" in readme
 def test_canonical_workflow_pr_validation_contract():
     root = Path(__file__).resolve().parents[1]
     workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
