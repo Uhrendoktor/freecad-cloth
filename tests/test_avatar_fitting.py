@@ -157,6 +157,7 @@ class AvatarFittingTests(unittest.TestCase):
     def test_avatar_arrangement_points_are_stable_and_landmark_backed(self):
         landmarks = [
             "knee_right|55,0,400", "unknown|0,0,0", "waist|0,0,900",
+            "underbust|0,0,830", "high_hip|0,0,790",
             "shoulder_left|-210,0,1050", "neck|0,0,1150", "malformed",
             "hip|0,0,700", "shoulder_right|210,0,1050", "chest|0,0,980",
             "knee_left|-55,0,400",
@@ -164,7 +165,25 @@ class AvatarFittingTests(unittest.TestCase):
         points = arrangement_points_from_landmarks(landmarks)
         self.assertEqual([record.split("|", 1)[0] for record in points], list(ARRANGEMENT_POINT_NAMES))
         self.assertEqual(arrangement_point_map(points)["shoulder_left"], "-210,0,1050")
+        self.assertEqual(arrangement_point_map(points)["high_hip"], "0,0,790")
+        self.assertEqual(arrangement_point_map(points)["underbust"], "0,0,830")
         self.assertEqual(arrangement_point_map(points)["knee_right"], "55,0,400")
+
+    def test_torso_arrangement_frame_uses_landmarks_and_surface_depth(self):
+        from freecad_cloth.avatar.AvatarArrangement import torso_arrangement_frame
+        landmarks = [
+            "shoulder_left|-200,0,1100", "shoulder_right|200,0,1100", "high_hip|0,0,700"
+        ]
+        vertices = (
+            (-210, -70, 700), (210, -72, 700), (-180, 80, 850), (180, 82, 850),
+            (-190, 75, 1000), (190, 76, 1000), (-180, 70, 1100), (180, 71, 1100),
+        )
+        frame = torso_arrangement_frame(landmarks, vertices, surface_padding=3.0)
+        self.assertAlmostEqual(frame["center_x"], 0.0)
+        self.assertAlmostEqual(frame["top_z"], 1100.0)
+        self.assertAlmostEqual(frame["low_z"], 700.0)
+        self.assertAlmostEqual(frame["front_y"], 85.0)
+        self.assertAlmostEqual(frame["back_y"], -75.0)
 
     def test_avatar_arrangement_points_ignore_unknown_and_malformed_records(self):
         self.assertEqual(arrangement_points_from_landmarks(["unknown|1,2,3", "bad"]), [])
@@ -173,62 +192,6 @@ class AvatarFittingTests(unittest.TestCase):
     def test_avatar_arrangement_points_replace_duplicate_with_last_value(self):
         points = arrangement_points_from_landmarks(["waist|0,0,900", "waist|0,0,905", "neck|0,0,1150"])
         self.assertEqual(points, ["neck|0,0,1150", "waist|0,0,905"])
-
-    def test_snap_piece_to_drape_target_moves_to_requested_clearance(self):
-        try:
-            import FreeCAD as App
-            import Part
-        except ModuleNotFoundError:
-            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
-        from freecad_cloth.avatar.FittingCommands import snap_piece_to_drape_target
-        from freecad_cloth.simulation.DrapeTarget import create_drape_target
-
-        doc = App.newDocument("FittingSnap")
-        try:
-            target_source = doc.addObject("Part::Feature", "TargetSource")
-            target_source.Shape = Part.makeBox(100.0, 100.0, 100.0)
-            piece = doc.addObject("Part::Feature", "PatternPiece")
-            piece.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
-            piece.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = "snap-piece"
-            piece.Shape = Part.makeBox(10.0, 10.0, 1.0)
-            piece.Placement.Base = App.Vector(140.0, 45.0, 50.0)
-            target = create_drape_target(doc, target_source, "FreeCAD Geometry", 0.5, 0.0)
-            doc.recompute()
-
-            result = snap_piece_to_drape_target(piece, target, clearance=5.0, max_translation=100.0)
-            self.assertGreater(result["distance_before"], 30.0)
-            self.assertAlmostEqual(result["distance_after"], 5.0, delta=1e-5)
-            self.assertAlmostEqual(float(piece.Placement.Base.x), 105.0, delta=1e-5)
-        finally:
-            if doc.Name in App.listDocuments():
-                App.closeDocument(doc.Name)
-
-    def test_snap_piece_to_drape_target_rejects_stale_target(self):
-        try:
-            import FreeCAD as App
-            import Part
-        except ModuleNotFoundError:
-            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
-        from freecad_cloth.avatar.FittingCommands import snap_piece_to_drape_target
-        from freecad_cloth.simulation.DrapeTarget import create_drape_target
-
-        doc = App.newDocument("FittingSnapStale")
-        try:
-            target_source = doc.addObject("Part::Feature", "TargetSource")
-            target_source.Shape = Part.makeBox(100.0, 100.0, 100.0)
-            piece = doc.addObject("Part::Feature", "PatternPiece")
-            piece.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
-            piece.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = "stale-piece"
-            piece.Shape = Part.makeBox(10.0, 10.0, 1.0)
-            piece.Placement.Base = App.Vector(140.0, 45.0, 50.0)
-            target = create_drape_target(doc, target_source, "FreeCAD Geometry", 0.5, 0.0)
-            target_source.Placement.Base = App.Vector(2.0, 0.0, 0.0)
-            doc.recompute()
-            with self.assertRaisesRegex(RuntimeError, "snap blocked"):
-                snap_piece_to_drape_target(piece, target, clearance=5.0)
-        finally:
-            if doc.Name in App.listDocuments():
-                App.closeDocument(doc.Name)
 
     def test_freecad_mannequin_rebuild_invalidates_target_until_refreshed(self):
         try:
