@@ -50,12 +50,12 @@ def _collision_aabb_planes(surface):
     maxs = tuple(max(point[axis] for point in positions) for axis in range(3))
     center = tuple(0.5 * (mins[axis] + maxs[axis]) for axis in range(3))
     return (
-        ("drape-box-min-x", (mins[0], center[1], center[2]), (1.0, 0.0, 0.0)),
-        ("drape-box-max-x", (maxs[0], center[1], center[2]), (-1.0, 0.0, 0.0)),
-        ("drape-box-min-y", (center[0], mins[1], center[2]), (0.0, 1.0, 0.0)),
-        ("drape-box-max-y", (center[0], maxs[1], center[2]), (0.0, -1.0, 0.0)),
-        ("drape-box-min-z", (center[0], center[1], mins[2]), (0.0, 0.0, 1.0)),
-        ("drape-box-max-z", (center[0], center[1], maxs[2]), (0.0, 0.0, -1.0)),
+        ("drape-box-min-x", (mins[0], center[1], center[2]), (-1.0, 0.0, 0.0)),
+        ("drape-box-max-x", (maxs[0], center[1], center[2]), (1.0, 0.0, 0.0)),
+        ("drape-box-min-y", (center[0], mins[1], center[2]), (0.0, -1.0, 0.0)),
+        ("drape-box-max-y", (center[0], maxs[1], center[2]), (0.0, 1.0, 0.0)),
+        ("drape-box-min-z", (center[0], center[1], mins[2]), (0.0, 0.0, -1.0)),
+        ("drape-box-max-z", (center[0], center[1], maxs[2]), (0.0, 0.0, 1.0)),
     )
 
 
