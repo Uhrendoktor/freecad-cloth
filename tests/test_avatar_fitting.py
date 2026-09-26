@@ -148,6 +148,40 @@ class AvatarFittingTests(unittest.TestCase):
         wider = base.with_measurements(chest=base.measurement("chest") + 100)
         self.assertNotEqual(AvatarService(base).surface(), AvatarService(wider).surface())
 
+    def test_target_aware_placement_moves_anchors_to_the_requested_surface_side(self):
+        from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
+        from freecad_cloth.avatar.TargetAwarePlacement import AnchorQuery, solve_anchor_translation, surface_clearance
+
+        surface = surface_from_triangles(
+            ((-50.0, -10.0, 0.0), (50.0, -10.0, 0.0), (0.0, 40.0, 0.0),
+             (-50.0, -10.0, 100.0), (50.0, -10.0, 100.0), (0.0, 40.0, 100.0)),
+            ((0, 1, 2), (3, 5, 4)),
+        )
+        anchors = (
+            AnchorQuery("left", (0.0, -30.0, 25.0), (-20.0, 0.0, 25.0), "front"),
+            AnchorQuery("right", (10.0, -30.0, 25.0), (20.0, 0.0, 25.0), "front"),
+        )
+        result = solve_anchor_translation(surface, anchors, clearance=5.0, max_translation=50.0)
+        self.assertGreaterEqual(result.minimum_anchor_clearance, 5.0 - 1e-6)
+        moved = tuple(
+            tuple(anchors[i].current_point[j] + result.translation[j] for j in range(3))
+            for i in range(len(anchors))
+        )
+        self.assertGreaterEqual(surface_clearance(moved, surface).minimum, 5.0 - 1e-6)
+        self.assertGreater(result.translation[1], 0.0)
+
+    def test_target_aware_placement_rejects_unbounded_translation(self):
+        from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
+        from freecad_cloth.avatar.TargetAwarePlacement import AnchorQuery, solve_anchor_translation
+
+        surface = surface_from_triangles(
+            ((-10.0, 0.0, 0.0), (10.0, 0.0, 0.0), (0.0, 10.0, 0.0)),
+            ((0, 1, 2),),
+        )
+        anchor = AnchorQuery("x", (0.0, -100.0, 0.0), (0.0, 0.0, 0.0), "front")
+        with self.assertRaisesRegex(ValueError, "maximum"):
+            solve_anchor_translation(surface, (anchor,), clearance=5.0, max_translation=10.0)
+
     def test_invalid_avatar_service_parameter_type_is_rejected(self):
         with self.assertRaises(TypeError): AvatarService(object())
 
