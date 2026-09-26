@@ -195,6 +195,16 @@ class AvatarFittingTests(unittest.TestCase):
         piece.addProperty("App::PropertyLink", "Sketch", "Cloth").Sketch = sketch
         return piece, sketch
 
+    def test_garment_anchor_round_trip_and_unique_validation(self):
+        from freecad_cloth.avatar.AvatarFitting import GarmentAnchor, FittingScene
+        anchor = GarmentAnchor("front", "shoulder-left", (12.0, 80.0, 0.0), "front")
+        self.assertEqual(GarmentAnchor.from_string(anchor.to_string()), anchor)
+        scene = FittingScene(garment_anchors=(anchor,))
+        scene.validate()
+        duplicate = FittingScene(garment_anchors=(anchor, anchor))
+        with self.assertRaises(ValueError):
+            duplicate.validate()
+
     def _make_target_fit_scene(self, doc, pieces):
         from freecad_cloth.avatar.AvatarFitting import PiecePlacement
         from freecad_cloth.avatar.FittingCommands import create_fitting_scene
