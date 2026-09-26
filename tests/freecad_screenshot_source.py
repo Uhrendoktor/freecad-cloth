@@ -403,23 +403,68 @@ def simulation():
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
-    from freecad_cloth.avatar.AvatarFitting import GarmentAnchor
-    from freecad_cloth.avatar.FittingCommands import target_aware_place_piece
-    front_anchors = (
-        GarmentAnchor(str(front.PieceId), "shoulder_left", (0.14 * panel_width, 0.97 * garment_height, 0.0), "front"),
-        GarmentAnchor(str(front.PieceId), "shoulder_right", (0.86 * panel_width, 0.97 * garment_height, 0.0), "front"),
-    )
-    back_anchors = (
-        GarmentAnchor(str(back.PieceId), "shoulder_left", (0.14 * panel_width, 0.97 * garment_height, 0.0), "back"),
-        GarmentAnchor(str(back.PieceId), "shoulder_right", (0.86 * panel_width, 0.97 * garment_height, 0.0), "back"),
-    )
-    placement_results = (
-        target_aware_place_piece(front, target, front_anchors, clearance=clearance),
-        target_aware_place_piece(back, target, back_anchors, clearance=clearance),
-    )
-    if any(float(result["anchor_clearance"]) < float(clearance) for result in placement_results):
-        raise RuntimeError("target-aware tunic placement did not prove the configured clearance")
-    log("tunic-placement=target-aware rigid-anchors results=%s" % (placement_results,))
+    fitting = create_fitting_scene()
+    fitting.AvatarProxy = scene.AvatarProxy
+    fitting.DrapeTarget = target
+    fitting.PatternPieces = [front, back]
+    home_values = []
+    for piece in (front, back):
+        axis = piece.Placement.Rotation.Axis
+        home_values.append(PiecePlacement(
+            str(piece.PieceId),
+            (float(piece.Placement.Base.x), float(piece.Placement.Base.y), float(piece.Placement.Base.z)),
+            float(piece.Placement.Rotation.Angle),
+            (float(axis.x), float(axis.y), float(axis.z)),
+        ).to_string())
+    fitting.HomePlacements = list(home_values)
+    fitting.PiecePlacements = list(home_values)
+    fitting.FitStatus = "Ready"
+    refresh_drape_target(target)
+    doc.recompute()
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(front)
+    Gui.Selection.addSelection(back)
+    Gui.runCommand("ClothFitting_SnapToDrapeTarget")
+    doc.recompute()
+    if str(getattr(fitting, "FitStatus", "")) != "Target snapped":
+        raise RuntimeError("public target-aware snap command did not persist Target snapped state")
+    if len(tuple(getattr(fitting, "GarmentAnchors", ()) or ())) != 4:
+        raise RuntimeError("public target-aware snap command did not persist two anchors per tunic panel")
+    snap_piece_data = {
+        str(piece.PieceId): PiecePlacement.from_string(value)
+        for value in fitting.PiecePlacements
+    }
+    if any(str(piece.PieceId) not in snap_piece_data for piece in (front, back)):
+        raise RuntimeError("public target-aware snap command did not persist both piece placements")
+
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(front)
+    Gui.Selection.addSelection(back)
+    Gui.runCommand("ClothFitting_ResetArrangement")
+    doc.recompute()
+    for piece in (front, back):
+        home = PiecePlacement.from_string(
+            next(value for value in fitting.HomePlacements if value.split("|", 1)[0] == str(piece.PieceId))
+        )
+        expected = App.Placement(
+            App.Vector(*home.position),
+            App.Rotation(App.Vector(*home.rotation_axis), home.rotation_z),
+        )
+        if piece.Placement != expected:
+            raise RuntimeError("Reset Arrangement did not restore exact HomePlacement for %s" % piece.PieceId)
+        sketch = getattr(piece, "Sketch", None)
+        if sketch is not None and sketch.Placement != piece.Placement:
+            raise RuntimeError("Reset Arrangement did not restore linked Sketch placement for %s" % piece.PieceId)
+    log("target-aware-reset=exact-home-placement")
+
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(front)
+    Gui.Selection.addSelection(back)
+    Gui.runCommand("ClothFitting_SnapToDrapeTarget")
+    doc.recompute()
+    if str(getattr(fitting, "FitStatus", "")) != "Target snapped":
+        raise RuntimeError("target-aware snap did not reapply after reset")
+    log("tunic-placement=public-grouped-target-snap persisted=%s" % sorted(snap_piece_data))
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.PinMode = "None"; scene.PinSelection = []; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
     status = target_status(target)
     if str(status.get("state", "")) != "ready":
@@ -476,6 +521,19 @@ def simulation():
         raise RuntimeError("visual fixture does not contain a real humanoid mesh")
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
     simulation_panel = SimulationQualityTaskPanel(scene); task_dock = show_task(simulation_panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset")); view = Gui.activeDocument().activeView(); view.setCameraType("Orthographic"); view.viewFront(); view.fitAll(); events(); task_dock.hide(); events(); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical sewn tunic generated from native Sketcher pattern sources on production mannequin"); task_dock.show(); task_dock.raise_(); events()
+    first_step_before = tuple(scene.Proxy.backend.positions())
+    simulation_panel.step(1); doc.recompute(); events()
+    first_step_clearance = None
+    try:
+        from freecad_cloth.common.MeshValidation import nearest_target_clearance
+        first_step_clearance = nearest_target_clearance(tuple(scene.Proxy.backend.positions()), tuple(target_surface.vertices))
+    except (ImportError, ValueError):
+        first_step_clearance = None
+    if first_step_clearance is None:
+        raise RuntimeError("first solver step did not produce a measurable target clearance")
+    log("first-step-target-clearance=%.2f required-mm=0.0" % float(first_step_clearance))
+    simulation_panel.reset(); doc.recompute(); events()
+
     for batch in (15,15,15,15,15,15):
         simulation_panel.step(batch); doc.recompute(); events()
     if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
