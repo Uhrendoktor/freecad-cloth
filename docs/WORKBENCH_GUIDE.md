@@ -30,6 +30,10 @@ If a Sketch edit invalidates a semantic edge reference, the seam remains invalid
 
 Create/select a `DrapeTarget`: either the native human mannequin or an ordinary FreeCAD Shape/PartDesign/Body/Mesh. Arrange pieces using persistent placements/arrangement metadata. Reset and superimpose are deterministic fitting operations, not solver state.
 
+When the target status is **Ready**, use **Snap pieces to target** to place the selected pattern pieces as one rigid group. The operation preserves authored relative spacing and piece rotations, persists the resulting placements, and keeps the saved **HomePlacements** available for **Reset arrangement**. It is an arrangement/fitting operation only; it does not pin cloth vertices or claim successful physical draping.
+
+The snap action rejects a missing or stale target and fails closed when the requested clearance or target-proximity invariant cannot be proven. On failure, the piece placements are rolled back so the previous arrangement remains recoverable. Fix the target or source pattern, recompute the document, then retry. A successful snap is still a pre-simulation placement state; run the solver separately and inspect its diagnostics.
+
 ### 4. Simulate
 
 Generate a preview/final mesh, choose material and quality, confirm target validity, then Run. Step is for controlled/debug advancement; Reset recovers simulation state. Pinning is persistent and explicit: **Automatic** preserves the legacy behavior (use `PinSelection` when present, otherwise the existing automatic boundary pins), **Explicit** uses only `PinSelection`, and **None** runs with zero solver pins. Changing the pinning mode or selection participates in the deterministic rebuild signature. Pins/stitches and collision settings are persistent inputs. Fabric presentation properties include color, specular response, roughness and transparency and are persisted with the simulation/material state.
