@@ -58,6 +58,12 @@ endif()
         "",
         "headless core Alembic/Imath link",
     )
+    replace_once(
+        core_path,
+        "target_include_directories(TissuCore PUBLIC \n",
+        "target_include_directories(TissuCore PUBLIC\n",
+        "headless core include-directory whitespace",
+    )
 
 def main() -> int:
     if run("git", "rev-parse", "HEAD") != EXPECTED_COMMIT:
@@ -123,14 +129,17 @@ MeshOrientation inferMeshOrientation(
     double signedVolume = 0.0;
     for (const auto& tri : triangles) {
         const int ids[3] = {tri.a, tri.b, tri.c};
+        for (const int vertexIndex : ids) {
+            if (vertexIndex < 0 ||
+                vertexIndex >= static_cast<int>(vertices.size())) {
+                return {};
+            }
+        }
+
         signedVolume +=
-            ids[0] < static_cast<int>(vertices.size()) &&
-                    ids[1] < static_cast<int>(vertices.size()) &&
-                    ids[2] < static_cast<int>(vertices.size())
-                ? vertices[ids[0]].dot(
-                      vertices[ids[1]].cross(vertices[ids[2]])) /
-                      6.0
-                : 0.0;
+            vertices[ids[0]].dot(
+                vertices[ids[1]].cross(vertices[ids[2]])) /
+            6.0;
 
         for (int edgeIndex = 0; edgeIndex < 3; ++edgeIndex) {
             const int from = ids[edgeIndex];
@@ -329,6 +338,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     changed = run("git", "diff", "--name-only")
     changed_paths = tuple(sorted(path.strip() for path in changed.splitlines() if path.strip()))
     expected_paths = (
+        "core/CMakeLists.txt",
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
         "tests/physics/test_mesh_collider.cpp",
