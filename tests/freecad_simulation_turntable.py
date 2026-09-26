@@ -453,7 +453,7 @@ def main():
         started = time.perf_counter()
         scene, cube, blanket, panel, initial_positions = build_simulation_state(doc)
         log_timing("build-scene", started)
-        view = Gui.ActiveDocument.activeView()
+        view = Gui.activeDocument().activeView()
         arranged_objects = [cube, panel]
         render_turntable(view, arranged_objects, os.path.join(OUT, "cloth-simulation-arranged-turntable-frames"))
 
