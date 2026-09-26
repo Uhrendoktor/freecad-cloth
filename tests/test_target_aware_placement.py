@@ -25,6 +25,16 @@ def _box_surface():
     return surface_from_triangles(vertices, triangles)
 
 
+def test_anchor_clearance_is_part_of_target_aware_correction_contract():
+    source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    loop_start = source.index("correction_count = 0")
+    loop_end = source.index("correction_count += 1", loop_start)
+    loop = source[loop_start:loop_end]
+    assert "anchor_clearance < float(clearance) - 1e-6" in loop
+    assert "anchor_deficit = float(clearance) - float(anchor_clearance)" in loop
+    assert "worst_anchor_normal" in loop
+
+
 def test_target_surface_anchor_is_deterministic_and_outward():
     surface = _box_surface()
     first = target_surface_anchor(surface, (0, 0, 25), (0, 0, 1))
