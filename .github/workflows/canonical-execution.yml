@@ -93,7 +93,7 @@ jobs:
                     :
                   else
                     cancel_status=$?
-                    if grep -q "HTTP 409" <<< "$cancel_output"; then
+                    if grep -Fq "Cannot cancel a workflow run that is completed. (HTTP 409)" <<< "$cancel_output"; then
                       echo "Stale PR run $run_id completed before cancellation; continuing"
                     else
                       echo "$cancel_output" >&2
@@ -121,7 +121,7 @@ jobs:
               :
             else
               cancel_status=$?
-              if grep -q "HTTP 409" <<< "$cancel_output"; then
+              if grep -Fq "Cannot cancel a workflow run that is completed. (HTTP 409)" <<< "$cancel_output"; then
                 echo "Canonical run $run_id completed before cancellation; continuing"
               else
                 echo "$cancel_output" >&2
