@@ -307,7 +307,7 @@ def _piece_world_samples(piece, deflection=1.0):
 
 
 def snap_pattern_pieces_to_target(pieces=None, target=None, clearance=None, max_translation=750.0, sample_deflection=1.0):
-    """Place selected garment pieces with one shared rigid delta outside the persistent DrapeTarget."""
+    """Place selected garment pieces directly outside the persistent DrapeTarget."""
     import FreeCAD as App
     from freecad_cloth.avatar.AvatarFitting import PiecePlacement
     from freecad_cloth.avatar.TargetPlacement import average_point, minimum_signed_clearance, nearest_target_projection
@@ -344,82 +344,51 @@ def snap_pattern_pieces_to_target(pieces=None, target=None, clearance=None, max_
     persisted_before = tuple(scene.PiecePlacements)
     fit_status_before = str(getattr(scene, "FitStatus", ""))
     try:
-        world_samples = {piece: _piece_world_samples(piece, sample_deflection) for piece in selected}
-        current_reports = {
-            piece: minimum_signed_clearance(samples, surface)
-            for piece, samples in world_samples.items()
-        }
-        if all(
-            report.minimum_signed_clearance + 1e-6 >= required_clearance
-            for report in current_reports.values()
-        ):
-            # A fully target-clear garment is already correctly arranged. Keep its
-            # authored placement unchanged; idempotent Arrange/Fit is a hard invariant.
-            delta = (0.0, 0.0, 0.0)
-            travel = 0.0
-        else:
-            all_samples = tuple(point for samples in world_samples.values() for point in samples)
-            group_center = average_point(all_samples)
-            projection = nearest_target_projection(group_center, surface)
-            desired = tuple(
-                projection.point[i] + projection.normal[i] * required_clearance
-                for i in range(3)
-            )
-            delta = tuple(desired[i] - group_center[i] for i in range(3))
+        results = []
+        for piece in selected:
+            samples = _piece_world_samples(piece, sample_deflection)
+            center = average_point(samples)
+            projection = nearest_target_projection(center, surface)
+            desired = tuple(projection.point[i] + projection.normal[i] * required_clearance for i in range(3))
+            delta = tuple(desired[i] - center[i] for i in range(3))
             travel = (sum(value * value for value in delta)) ** 0.5
             if travel > guard + 1e-9:
-                raise ValueError(
-                    "target-aware placement exceeds the translation guard: %.3f > %.3f mm"
-                    % (travel, guard)
-                )
-
-            for piece in selected:
-                placement = piece.Placement
-                base = placement.Base
-                updated = App.Placement(
-                    App.Vector(
-                        float(base.x) + delta[0],
-                        float(base.y) + delta[1],
-                        float(base.z) + delta[2],
-                    ),
-                    placement.Rotation,
-                )
-                piece.Placement = updated
-                sketch = getattr(piece, "Sketch", None)
-                if sketch is not None:
-                    sketch.Placement = updated
+                raise ValueError("target-aware placement for %s exceeds the translation guard: %.3f > %.3f mm" % (getattr(piece, "Label", getattr(piece, "Name", "<unnamed>")), travel, guard))
+            placement = piece.Placement
+            base = placement.Base
+            updated = App.Placement(App.Vector(float(base.x) + delta[0], float(base.y) + delta[1], float(base.z) + delta[2]), placement.Rotation)
+            piece.Placement = updated
+            sketch = getattr(piece, "Sketch", None)
+            if sketch is not None:
+                sketch.Placement = updated
             doc.recompute()
 
-        reports = {}
-        for _attempt in range(3):
-            reports = {piece: minimum_signed_clearance(_piece_world_samples(piece, sample_deflection), surface) for piece in selected}
-            deficit_report = min(reports.values(), key=lambda report: report.minimum_signed_clearance)
-            deficit = required_clearance - deficit_report.minimum_signed_clearance
-            if deficit <= 1e-6:
-                break
-            if travel + deficit > guard + 1e-9:
-                raise ValueError("target-aware placement cannot satisfy %.3f mm clearance within the translation guard" % required_clearance)
-            correction = tuple(deficit_report.projection.normal[i] * deficit for i in range(3))
-            for piece in selected:
+            report = minimum_signed_clearance(_piece_world_samples(piece, sample_deflection), surface)
+            total_travel = travel
+            for _attempt in range(3):
+                deficit = required_clearance - report.minimum_signed_clearance
+                if deficit <= 1e-6:
+                    break
+                if total_travel + deficit > guard + 1e-9:
+                    raise ValueError("target-aware placement for %s cannot satisfy %.3f mm clearance within the translation guard" % (getattr(piece, "Label", getattr(piece, "Name", "<unnamed>")), required_clearance))
+                correction = tuple(report.projection.normal[i] * deficit for i in range(3))
                 current = piece.Placement; current_base = current.Base
-                updated = App.Placement(App.Vector(float(current_base.x) + correction[0], float(current_base.y) + correction[1], float(current_base.z) + correction[2]), current.Rotation)
-                piece.Placement = updated
+                corrected = App.Placement(App.Vector(float(current_base.x) + correction[0], float(current_base.y) + correction[1], float(current_base.z) + correction[2]), current.Rotation)
+                piece.Placement = corrected
                 sketch = getattr(piece, "Sketch", None)
                 if sketch is not None:
-                    sketch.Placement = updated
-            travel += deficit
-            doc.recompute()
-
-        reports = {piece: minimum_signed_clearance(_piece_world_samples(piece, sample_deflection), surface) for piece in selected}
-        for piece, report in reports.items():
+                    sketch.Placement = corrected
+                total_travel += deficit
+                doc.recompute()
+                report = minimum_signed_clearance(_piece_world_samples(piece, sample_deflection), surface)
             if report.minimum_signed_clearance + 1e-6 < required_clearance:
                 raise ValueError("target-aware placement for %s did not prove the requested step-0 clearance" % getattr(piece, "Label", getattr(piece, "Name", "<unnamed>")))
-        results = tuple({
-            "piece_id": str(piece.PieceId),
-            "translation_mm": float(travel),
-            "minimum_signed_clearance_mm": float(reports[piece].minimum_signed_clearance),
-            "triangle_index": int(reports[piece].projection.triangle_index),
-        } for piece in selected)
+            results.append({
+                "piece_id": str(piece.PieceId),
+                "translation_mm": float(total_travel),
+                "minimum_signed_clearance_mm": float(report.minimum_signed_clearance),
+                "triangle_index": int(report.projection.triangle_index),
+            })
 
         _ensure_fitting_properties(scene)
         scene.DrapeTarget = target
@@ -432,8 +401,8 @@ def snap_pattern_pieces_to_target(pieces=None, target=None, clearance=None, max_
             raise RuntimeError("target-aware placement mutated HomePlacements")
         scene.FitStatus = "Target snapped"
         doc.recompute()
-        return {"target": str(getattr(target, "Name", "DrapeTarget")), "clearance_mm": required_clearance, "pieces": results}
-    except Exception:
+        return {"target": str(getattr(target, "Name", "DrapeTarget")), "clearance_mm": required_clearance, "pieces": tuple(results)}
+    except BaseException:
         for piece, original in placement_before.items():
             piece.Placement = original
         for piece, original in sketch_before.items():
