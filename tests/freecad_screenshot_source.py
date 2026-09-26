@@ -416,12 +416,13 @@ def simulation():
         raise RuntimeError("visual tunic no-pin contract unexpectedly activated solver pins: %s" % (active_pins,))
     if not str(fitting.FitStatus).startswith("Target arrangement ready"):
         raise RuntimeError("target-aware tunic arrangement did not reach the target-ready state")
+    positions = tuple(proxy.backend.positions())
     clearance_proofs = []
     for panel in scene.DrapePanels:
         indices = tuple(proxy.panel_indices.get(panel.Name, ()))
         if not indices:
             raise RuntimeError("missing particle index map for panel %s" % panel.Name)
-        ys = [float(solver_system.particles[index].x * 0.0 + proxy.backend.positions()[index][1]) for index in indices]
+        ys = [float(positions[index][1]) for index in indices]
         label = str(panel.Label)
         if "Front" in label:
             actual = target_y_min - max(ys)
