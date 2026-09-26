@@ -62,6 +62,37 @@ def test_mesh_collision_corner_projects_against_both_local_faces():
     assert particle.position() == (11.0, 11.0, 0.0)
 
 
+def test_tissu_dense_envelope_sample_gate_is_fail_closed():
+    import os
+    from freecad_cloth.simulation.TissuBackend import _tissu_collision_envelope_samples, _tissu_collision_supplement_envelope
+
+    original_samples = os.environ.pop("CLOTH_TISSU_COLLISION_ENVELOPE_SAMPLES", None)
+    original_supplement = os.environ.pop("CLOTH_TISSU_COLLISION_SUPPLEMENT_ENVELOPE", None)
+    try:
+        assert _tissu_collision_envelope_samples() == 5
+        assert _tissu_collision_supplement_envelope() is False
+        os.environ["CLOTH_TISSU_COLLISION_ENVELOPE_SAMPLES"] = "17"
+        assert _tissu_collision_envelope_samples() == 17
+        os.environ["CLOTH_TISSU_COLLISION_ENVELOPE_SAMPLES"] = "16"
+        try:
+            _tissu_collision_envelope_samples()
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("even envelope sample count was accepted")
+        os.environ["CLOTH_TISSU_COLLISION_SUPPLEMENT_ENVELOPE"] = "1"
+        assert _tissu_collision_supplement_envelope() is True
+    finally:
+        if original_samples is None:
+            os.environ.pop("CLOTH_TISSU_COLLISION_ENVELOPE_SAMPLES", None)
+        else:
+            os.environ["CLOTH_TISSU_COLLISION_ENVELOPE_SAMPLES"] = original_samples
+        if original_supplement is None:
+            os.environ.pop("CLOTH_TISSU_COLLISION_SUPPLEMENT_ENVELOPE", None)
+        else:
+            os.environ["CLOTH_TISSU_COLLISION_SUPPLEMENT_ENVELOPE"] = original_supplement
+
+
 def test_tissu_collision_surface_abi_preserves_solver_surface_identity():
     from pathlib import Path
 
