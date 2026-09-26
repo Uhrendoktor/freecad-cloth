@@ -88,6 +88,23 @@ def record(message):
     print(message, flush=True)
 
 
+def seam_color_snapshot(seams):
+    from math import isclose
+    from freecad_cloth.sewing.SewingView import seam_color_map
+    ids = tuple(str(getattr(seam, "SeamId", "")) for seam in seams)
+    expected = seam_color_map(ids)
+    actual = {
+        str(getattr(seam, "SeamId", "")): tuple(round(float(value), 6) for value in seam.ViewObject.LineColor[:3])
+        for seam in seams
+    }
+    for seam_id, expected_rgb in expected.items():
+        actual_rgb = actual.get(seam_id)
+        assert actual_rgb is not None, "native seam color missing persistent SeamId %s" % seam_id
+        assert all(isclose(float(actual_rgb[index]), float(expected_rgb[index]), rel_tol=0.0, abs_tol=1e-6) for index in range(3)), "native seam color for %s differs: actual=%r expected=%r" % (seam_id, actual_rgb, expected_rgb)
+    assert len(set(actual.values())) == len(actual), "native seam colors are not unique per persistent SeamId"
+    return actual
+
+
 def wait_for_task_close():
     try:
         from PySide import QtCore, QtWidgets
@@ -314,6 +331,26 @@ try:
     doc.recompute()
     assert all(bool(seam.ReversedB) for seam in curved_network.Seams)
     record("curved-mn-reversal=passed segments=3")
+    baseline_seam_colors = seam_color_snapshot(curved_network.Seams)
+    record("seam-colors-pair-identity=passed unique=%d" % len(baseline_seam_colors))
+    doc.recompute()
+    assert seam_color_snapshot(curved_network.Seams) == baseline_seam_colors
+    record("seam-colors-recompute=passed identity-stable=true")
+    for workbench_name, label in (("ClothPatternWorkbench", "pattern"), ("ClothSewingWorkbench", "sewing"), ("ClothSimulationWorkbench", "simulation")):
+        Gui.activateWorkbench(workbench_name)
+        process_events()
+        refreshed_network = next(obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork" and str(getattr(obj, "RelationshipId", "")) == str(curved_network.RelationshipId))
+        assert seam_color_snapshot(refreshed_network.Seams) == baseline_seam_colors
+        record("seam-colors-workbench-%s=passed" % label)
+    Gui.activateWorkbench("ClothPatternWorkbench")
+    process_events()
+    Gui.runCommand("ClothPattern_Show2D", 0)
+    process_events()
+    pattern_network = next(obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork" and str(getattr(obj, "RelationshipId", "")) == str(curved_network.RelationshipId))
+    assert seam_color_snapshot(pattern_network.Seams) == baseline_seam_colors
+    record("seam-colors-pattern-2d=passed")
+    Gui.activateWorkbench("ClothSewingWorkbench")
+    process_events()
     endpoint_snapshot = tuple(sorted(
         (
             str(seam.SeamId),
@@ -357,6 +394,12 @@ try:
     process_events()
 
     visual_seam = curved_network.Seams[0]
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(visual_seam)
+    Gui.runCommand("ClothSewing_FocusSeam3D", 0)
+    process_events()
+    assert seam_color_snapshot(curved_network.Seams) == baseline_seam_colors
+    record("seam-colors-3d-focus=passed")
     assert not visual_seam.Shape.isNull()
     assert len(visual_seam.Shape.Edges) >= 10
     record("seam-visual-3d=passed edges=%d" % len(visual_seam.Shape.Edges))
@@ -364,6 +407,8 @@ try:
     Gui.Selection.addSelection(visual_seam)
     Gui.runCommand("ClothSewing_Show2D", 0)
     process_events()
+    assert seam_color_snapshot(curved_network.Seams) == baseline_seam_colors
+    record("seam-colors-sewing-2d=passed")
     record("seam-visual-2d=passed top-view=true")
 
     curved_save = LOG_PATH.parent / "curved-mn-roundtrip.FCStd"
@@ -373,7 +418,6 @@ try:
     process_events()
     doc = App.openDocument(str(curved_save))
     process_events()
-    doc.recompute()
     reloaded_piece_a = next(
         obj for obj in doc.Objects
         if str(getattr(obj, "PatternType", "")) == "PatternPiece"
@@ -390,6 +434,12 @@ try:
     piece_b = reloaded_piece_b
     record("post-reload-selection-objects=refreshed")
     reloaded_network = next(obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork" and str(getattr(obj, "RelationshipId", "")) == relationship_id)
+    restored_colors = seam_color_snapshot(reloaded_network.Seams)
+    assert restored_colors == baseline_seam_colors
+    record("seam-colors-save-reload-restore=passed before-recompute=true")
+    doc.recompute()
+    assert seam_color_snapshot(reloaded_network.Seams) == baseline_seam_colors
+    record("seam-colors-save-reload-recompute=passed")
     reloaded_pairs = tuple(sorted(
         (
             str(seam.SeamId),
