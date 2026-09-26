@@ -5,7 +5,7 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.sewing.SewingCommands import show_sewing_2d
-from freecad_cloth.sewing.SewingView import apply_seam_colors, pattern_pieces_for_2d, seam_color_map, seam_visual_markers
+from freecad_cloth.sewing.SewingView import apply_seam_colors, pattern_pieces_for_2d, refresh_seam_colors, seam_color_map, seam_visual_markers
 
 
 def test_2d_focus_includes_only_authoritative_pattern_pieces_in_document_order():
@@ -43,6 +43,24 @@ def test_apply_seam_colors_marks_each_seam_pair():
     assert first.ViewObject.LineColor == colors["seam-a"]
     assert second.ViewObject.LineColor == colors["seam-b"]
     assert first.ViewObject.LineColor != second.ViewObject.LineColor
+
+
+def test_refresh_seam_colors_covers_all_document_seams_deterministically():
+    seams = [
+        SimpleNamespace(SeamId="seam-c", ViewObject=SimpleNamespace(LineColor=None)),
+        SimpleNamespace(SeamId="seam-a", ViewObject=SimpleNamespace(LineColor=None)),
+        SimpleNamespace(SeamId="seam-b", ViewObject=SimpleNamespace(LineColor=None)),
+    ]
+    unrelated = SimpleNamespace(Name="SewingOperation")
+    document = SimpleNamespace(Objects=[seams[0], unrelated, seams[1], seams[2]])
+
+    colors = refresh_seam_colors(document)
+
+    assert tuple(colors) == ("seam-a", "seam-b", "seam-c")
+    assert len(set(colors.values())) == 3
+    assert [seam.ViewObject.LineColor for seam in seams] == [
+        colors["seam-c"], colors["seam-a"], colors["seam-b"]
+    ]
 
 
 def test_show_2d_does_not_select_seams_over_their_colors():
@@ -126,5 +144,6 @@ if __name__ == "__main__":
     test_2d_focus_ignores_unrelated_objects_without_freecad_runtime()
     test_seam_colors_are_distinct_and_stable_by_seam_id()
     test_apply_seam_colors_marks_each_seam_pair()
+    test_refresh_seam_colors_covers_all_document_seams_deterministically()
     test_show_2d_does_not_select_seams_over_their_colors()
     print("sewing Show 2D tests passed")
