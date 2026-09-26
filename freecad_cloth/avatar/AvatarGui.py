@@ -114,12 +114,23 @@ class AvatarTaskPanel:
         display_layout.addRow(self.show_measurements)
         content_layout.addWidget(display)
 
-        arrangement = QtWidgets.QGroupBox("Arrangement points")
+        arrangement = QtWidgets.QGroupBox("Arrangement & target placement")
         arrangement_layout = QtWidgets.QVBoxLayout(arrangement)
         self.arrangement_points = QtWidgets.QListWidget()
         self.arrangement_points.setToolTip("Persistent local fitting points used as a foundation for garment placement.")
         self.arrangement_points.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
         arrangement_layout.addWidget(self.arrangement_points)
+        placement_help = QtWidgets.QLabel(
+            "Select one or more PatternPiece objects in the 3D view, then Snap to Drape Target. "
+            "The fitting scene must reference exactly one ready DrapeTarget. Reset Arrangement restores saved Home Placements."
+        )
+        placement_help.setWordWrap(True)
+        placement_help.setObjectName("ClothAvatarPlacementHelp")
+        arrangement_layout.addWidget(placement_help)
+        self.snap_button = QtWidgets.QPushButton("Snap to Drape Target")
+        self.snap_button.setToolTip("Rigidly translate selected garment pieces to bounded outward clearance from the current DrapeTarget.")
+        self.snap_button.setObjectName("ClothAvatarSnapToDrapeTarget")
+        arrangement_layout.addWidget(self.snap_button)
         content_layout.addWidget(arrangement)
 
         self.landmarks = QtWidgets.QLabel()
@@ -157,6 +168,7 @@ class AvatarTaskPanel:
         self.apply_button.clicked.connect(self._apply)
         self.rebuild_button.clicked.connect(self._apply)
         self.fit_button.clicked.connect(self._fit_view)
+        self.snap_button.clicked.connect(self._snap_selected_to_target)
 
     def _find_avatar(self):
         doc = self.App.ActiveDocument
@@ -334,6 +346,44 @@ class AvatarTaskPanel:
     def _fit_view(self):
         if self.Gui.activeDocument():
             self.Gui.activeDocument().activeView().fitAll()
+
+
+    def _snap_selected_to_target(self):
+        if self.avatar is None:
+            self._refresh_status("Create a Cloth Human Mannequin first.")
+            return
+        active = self.Gui.activeDocument()
+        if active is None:
+            self._refresh_status("Open a document before snapping garment pieces.")
+            return
+        pieces = tuple(
+            obj for obj in self.Gui.Selection.getSelection()
+            if getattr(obj, "PatternType", "") == "PatternPiece"
+        )
+        if not pieces:
+            self._refresh_status("Select one or more PatternPieces, then Snap to Drape Target.")
+            return
+        scene = next(
+            (obj for obj in active.Document.Objects if getattr(obj, "FittingType", "") == "FittingScene"),
+            None,
+        )
+        target = getattr(scene, "DrapeTarget", None) if scene is not None else None
+        if target is None:
+            self._refresh_status("Create or assign a ready DrapeTarget before snapping garment pieces.")
+            return
+        try:
+            from freecad_cloth.avatar.FittingCommands import snap_pieces_to_drape_target
+            results = snap_pieces_to_drape_target(pieces, target)
+        except (RuntimeError, TypeError, ValueError) as exc:
+            self._refresh_status("Garment placement blocked: %s" % exc)
+            return
+        moved = sum(float(result["translation"]) for result in results)
+        minimum = min(float(result["distance_after"]) for result in results)
+        self._refresh_status(
+            "Target-aware placement applied: %d piece(s), minimum clearance %.1f mm, total translation %.1f mm."
+            % (len(results), minimum, moved)
+        )
+        self._fit_view()
 
     def accept(self):
         return self._apply()
