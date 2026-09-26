@@ -342,3 +342,23 @@ class AvatarFittingTests(unittest.TestCase):
 
 
 if __name__ == "__main__": unittest.main()
+
+
+def test_target_side_classification_and_step_zero_clearance():
+    from freecad_cloth.avatar.FittingCommands import _classify_target_side, _step0_target_clearance
+
+    front = (-10.0, 10.0, -120.0, -20.0, 0.0, 100.0)
+    back = (-10.0, 10.0, 20.0, 120.0, 0.0, 100.0)
+    ambiguous = (-10.0, 10.0, -10.0, 10.0, 0.0, 100.0)
+
+    assert _classify_target_side(front, -10.0, 10.0) == "front"
+    assert _classify_target_side(back, -10.0, 10.0) == "back"
+    assert _step0_target_clearance(front, "front", -10.0, 10.0) == 10.0
+    assert _step0_target_clearance(back, "back", -10.0, 10.0) == 10.0
+
+    try:
+        _classify_target_side(ambiguous, -10.0, 10.0)
+    except ValueError as exc:
+        assert "ambiguous" in str(exc)
+    else:
+        raise AssertionError("overlapping target placement must fail closed")
