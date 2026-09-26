@@ -67,3 +67,19 @@ def test_workbench_benchmark_merge_script_is_checked_in():
     source = script.read_text(encoding="utf-8")
     assert 'names = ["Pattern", "Sewing", "Simulation"]' in source
     assert "benchmark.json" in source
+
+
+def test_canonical_workflow_trusted_local_watchdog_contract():
+    root = Path(__file__).resolve().parents[1]
+    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    assert "runner_watchdog:" in workflow
+    assert "runner-watchdog=local-started" in workflow
+    assert "runner-watchdog=fallback" in workflow
+    assert "actions: write" in workflow
+    assert "runner_mode:" in workflow
+    assert "options: [local, hosted]" in workflow
+    assert 'github.event_name == ' + "'pull_request'" in workflow
+    assert "fromJSON('["ubuntu-latest"]')" in workflow
+    assert "fromJSON('["self-hosted","linux","x64","docker"]')" in workflow
+    assert 'if [ "$event" = "workflow_dispatch" ]; then' in workflow
+    assert "Preserving active workflow_dispatch run" in workflow
