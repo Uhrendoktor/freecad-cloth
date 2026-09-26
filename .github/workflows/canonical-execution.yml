@@ -3,7 +3,7 @@ run-name: Canonical execution
 
 on:
   push:
-    branches: [main]
+    branches: [main, research/1617-freecad-mesh-point-parity-current-main-20260926]
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
