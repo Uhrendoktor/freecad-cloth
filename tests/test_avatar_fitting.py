@@ -269,7 +269,7 @@ class AvatarFittingTests(unittest.TestCase):
             near.Placement.Base = App.Vector(140.0, 45.0, 50.0)
             far = doc.addObject("Part::Feature", "PatternPieceFar")
             far.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
-            far.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = "far"
+            far.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = "zzfar"
             far.Shape = Part.makeBox(10.0, 10.0, 1.0)
             far.Placement.Base = App.Vector(500.0, 45.0, 50.0)
             original_near = near.Placement
