@@ -233,18 +233,15 @@ class AvatarFittingTests(unittest.TestCase):
             piece.Shape = sketch.Shape.copy()
             piece.Placement = App.Placement(
                 App.Vector(-22.0, -4.0, -4.0),
-                App.Rotation(App.Vector(1, 1, 1), 17.0),
+                App.Rotation(App.Vector(0, 0, 1), 17.0),
             )
             sketch.Placement = piece.Placement
             scene.PatternPieces = [piece]
             base = piece.Placement.Base
             rot = piece.Placement.Rotation
-            axis = rot.Axis
             placement = PiecePlacement(
                 piece.PieceId,
                 (float(base.x), float(base.y), float(base.z)),
-                float(rot.Angle),
-                (float(axis.x), float(axis.y), float(axis.z)),
                 float(rot.Angle),
             )
             scene.PiecePlacements = [placement.to_string()]
