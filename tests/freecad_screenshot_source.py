@@ -6,6 +6,8 @@ import os
 import sys
 import traceback
 
+from freecad_cloth.common.DrapeVisualSanity import assert_drape_diagnostics
+
 import FreeCAD as App
 import FreeCADGui as Gui
 try:
@@ -220,7 +222,6 @@ def _seam_coherence(panels, seam_records, proxy=None):
 
 def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=None, seam_records=(), proxy=None):
     from freecad_cloth.common.DrapeFailureClassifier import classify_drape, summarize_classification
-    from freecad_cloth.common.DrapeVisualSanity import assert_drape_diagnostics
     from freecad_cloth.common.DrapeVisualSanity import inspect_drape, summarize
     from freecad_cloth.common.MeshValidation import validate_mesh
     avatar_vertices = _mesh_points(getattr(avatar, "Mesh", None)); box = avatar.Mesh.BoundBox
