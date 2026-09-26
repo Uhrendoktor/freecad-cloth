@@ -250,26 +250,40 @@ def _world_target_surface(target):
 
 
 def _piece_world_samples(piece, deflection=1.0):
+    """Sample the same deterministic PatternMesh vertices consumed by the solver.
+
+    Deflection remains accepted for the existing placement call signature,
+    but the authoritative preflight mesh deliberately uses the solver's exact
+    base-mesh ABI rather than Shape tessellation.
+    """
     import FreeCAD as App
-    shape = getattr(piece, "Shape", None)
+    from freecad_cloth.common.PatternSimulationAdapter import geometry_from_piece_ir, resolve_piece_ir
+    from freecad_cloth.pattern.PatternMesh import triangulate
+
     placement = getattr(piece, "Placement", None)
-    if shape is not None and not getattr(shape, "isNull", lambda: True)():
-        tessellate = getattr(shape, "tessellate", None)
-        if callable(tessellate):
-            points, _triangles = tessellate(float(deflection))
-            if points:
-                result = []
-                for point in points:
-                    value = placement.multVec(point) if placement is not None else point
-                    result.append((float(value.x), float(value.y), float(value.z)))
-                return tuple(result)
-        vertices = getattr(shape, "Vertexes", ())
-        if vertices:
-            return tuple(
-                tuple(float(v) for v in (placement.multVec(vertex.Point) if placement is not None else vertex.Point))
-                for vertex in vertices
-            )
-    raise ValueError("pattern piece %s has no usable geometry samples" % getattr(piece, "Name", "<unnamed>"))
+    if placement is None:
+        raise ValueError(
+            "pattern piece %s has no persistent placement"
+            % getattr(piece, "Name", "<unnamed>")
+        )
+    piece_ir = resolve_piece_ir(piece)
+    mesh = triangulate(geometry_from_piece_ir(piece_ir))
+    if not mesh.vertices:
+        raise ValueError(
+            "pattern piece %s PatternMesh produced no clearance samples"
+            % getattr(piece, "Name", "<unnamed>")
+        )
+
+    result = []
+    for x, y in mesh.vertices:
+        value = placement.multVec(App.Vector(float(x), float(y), 0.0))
+        result.append((float(value.x), float(value.y), float(value.z)))
+    if not result:
+        raise ValueError(
+            "pattern piece %s produced no world-space clearance samples"
+            % getattr(piece, "Name", "<unnamed>")
+        )
+    return tuple(result)
 
 
 def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=600.0, sample_deflection=1.0):
