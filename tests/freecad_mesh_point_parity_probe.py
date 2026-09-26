@@ -3,6 +3,7 @@ import time
 
 import FreeCAD as App
 import MeshPart
+import Part
 
 from freecad_cloth.avatar.AvatarCollision import surface_from_freecad
 from freecad_cloth.simulation.SimulationObjects import create_humanoid_avatar
@@ -41,10 +42,8 @@ def _mesh_parity(surface):
 
 doc = App.newDocument("MeshParityProbe")
 cube = doc.addObject("Mesh::Feature", "Probe")
-cube.Shape = None
 cube.Mesh = MeshPart.meshFromShape(
-    Shape=App.ActiveDocument.addObject("Part::Feature", "CubeSource").Shape if False else
-    __import__("Part").makeBox(10.0, 12.0, 14.0),
+    Shape=Part.makeBox(10.0, 12.0, 14.0),
     LinearDeflection=0.5,
     AngularDeflection=0.5,
 )
