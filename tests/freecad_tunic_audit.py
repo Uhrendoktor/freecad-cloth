@@ -72,9 +72,10 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
     log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
 '''
-anchor = '    for batch in (15,15,15,15,15,15):'
+anchor = '''    for batch in (15,15,15,15,15,15):
+        simulation_panel.step(batch); doc.recompute(); events()'''
 if anchor not in source:
-    raise RuntimeError("simulation batch anchor missing")
+    raise RuntimeError("simulation batch anchor/body block missing")
 timed_anchor = '''    from time import perf_counter
     simulation_started = perf_counter()
     for batch in (15,15,15,15,15,15):
@@ -111,8 +112,30 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
 """
 
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", 1)
+def _compile_transformed_source(source_text, source_name):
+    try:
+        return compile(source_text, str(source_name), "exec")
+    except SyntaxError as exc:
+        lines = source_text.splitlines()
+        line_number = int(exc.lineno or 0)
+        start = max(1, line_number - 3)
+        stop = min(len(lines), line_number + 3)
+        context = "\n".join("%04d: %s" % (index, lines[index - 1]) for index in range(start, stop + 1))
+        print(
+            "TUNIC TRANSFORM SYNTAX REGRESSION: %s:%d:%d: %s" % (
+                source_name,
+                line_number,
+                int(exc.offset or 0),
+                exc.msg,
+            ),
+            flush=True,
+        )
+        print("transformed-source-context:\n" + context, flush=True)
+        os._exit(2)
+
+
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
-exec(compile(source, str(source_path), "exec"), globals(), globals())
+exec(_compile_transformed_source(source, source_path), globals(), globals())
 print("tunic-audit-process-exit=success", flush=True)
 os._exit(0)
