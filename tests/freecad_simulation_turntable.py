@@ -139,7 +139,7 @@ def warmup_render(view, state, path):
     deadline = time.monotonic() + CAPTURE_WARMUP_SECONDS
     attempt = 0
     started = time.monotonic()
-    pending_path = path + ".warmup"
+    pending_path = path + ".warmup.png"
     log(
         "render-warmup-start state=%s budget_s=%.2f"
         % (state, CAPTURE_WARMUP_SECONDS)
@@ -205,7 +205,7 @@ def save_png(view, path, state, previous_hash=None):
     stable_hash = None
     stable_samples = 0
     previous_label = "none" if previous_hash is None else previous_hash[:12]
-    pending_path = path + ".pending"
+    pending_path = path + ".pending.png"
     started = time.monotonic()
     log(
         "capture-start state=%s budget_s=%.2f stable_samples=%d previous_hash=%s"
