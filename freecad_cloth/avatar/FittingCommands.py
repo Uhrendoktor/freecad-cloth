@@ -417,7 +417,7 @@ def _snap_one_piece_to_target(piece, target, clearance, max_translation, max_ite
         nearest = piece_shape.distToShape(target_shape)
         points = nearest[1] if len(nearest) > 1 else ()
         if points and len(points) >= 2:
-            target_point, piece_point = points[0], points[1]
+            piece_point, target_point = points[0], points[1]
             direction = piece_point.sub(target_point)
         else:
             direction = _shape_center(piece_shape).sub(_shape_center(target_shape))
