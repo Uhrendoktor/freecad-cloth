@@ -250,30 +250,24 @@ def _piece_world_samples(piece, deflection=1.0):
     placement = getattr(piece, "Placement", None)
     if shape is not None and not getattr(shape, "isNull", lambda: True)():
         tessellate = getattr(shape, "tessellate", None)
+        def world_point(point):
+            value = placement.multVec(point) if placement is not None else point
+            return (float(value.x), float(value.y), float(value.z))
         if callable(tessellate):
             points, _triangles = tessellate(float(deflection))
             if points:
-                return tuple(
-                    tuple(float(value) for value in (
-                        placement.multVec(point) if placement is not None else point
-                    )) for point in points for value in ((),)
-                )
+                return tuple(world_point(point) for point in points)
         vertices = getattr(shape, "Vertexes", ())
         if vertices:
-            return tuple(
-                tuple(float(value) for value in (
-                    placement.multVec(vertex.Point) if placement is not None else vertex.Point
-                )) for vertex in vertices
-            )
+            return tuple(world_point(vertex.Point) for vertex in vertices)
     mesh = getattr(piece, "Mesh", None)
     topology = getattr(mesh, "Topology", None) if mesh is not None else None
     if topology is not None:
         points, _triangles = topology
-        return tuple(
-            tuple(float(value) for value in (
-                placement.multVec(App.Vector(point.x, point.y, point.z)) if placement is not None else point
-            )) for point in points
-        )
+        def world_mesh_point(point):
+            value = placement.multVec(App.Vector(point.x, point.y, point.z)) if placement is not None else point
+            return (float(value.x), float(value.y), float(value.z))
+        return tuple(world_mesh_point(point) for point in points)
     raise ValueError("pattern piece %s has no usable geometry samples" % getattr(piece, "Name", "<unnamed>"))
 
 
