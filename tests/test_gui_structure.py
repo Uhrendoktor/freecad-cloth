@@ -55,6 +55,10 @@ assert '"Pose"' in avatar_gui
 assert '"Display"' in avatar_gui
 assert "Apply & Rebuild" in avatar_gui
 assert "Snap selected piece to Drape Target" in avatar_gui
+assert '"Actions"' in sewing_gui
+assert '"Orientation"' in sewing_gui
+assert '"Refresh Drape Target"' in sim_gui
+assert '"Advanced sewing state"' in sim_gui
 assert "Select exactly one PatternPiece before snapping to a DrapeTarget" in fitting_commands
 assert "ClothFitting_SnapToDrapeTarget" in fitting_commands
 assert "Snap to Drape Target" in avatar_gui
