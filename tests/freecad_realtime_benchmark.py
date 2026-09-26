@@ -28,7 +28,6 @@ def trace(message):
     with TRACE.open("a", encoding="utf-8") as handle:
         handle.write(message + "\n")
         handle.flush()
-        os.fsync(handle.fileno())
 
 
 def main():
