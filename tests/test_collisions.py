@@ -25,7 +25,7 @@ def test_collision_and_structural_constraints_can_coexist():
     assert sqrt(x * x + y * y + z * z) >= 4.9
 
 
-def _cube_surface(thickness=2.0):
+def _cube_surface(thickness=2.0, reverse=False):
     from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
 
     vertices = (
@@ -37,26 +37,26 @@ def _cube_surface(thickness=2.0):
         (0, 1, 5), (0, 5, 4), (1, 2, 6), (1, 6, 5),
         (2, 3, 7), (2, 7, 6), (3, 0, 4), (3, 4, 7),
     )
+    if reverse:
+        triangles = tuple((a, c, b) for a, b, c in triangles)
     return surface_from_triangles(vertices, triangles, region="cube", thickness=thickness)
 
 
 def test_authored_containment_closed_mesh_orientation_and_correction():
     from freecad_cloth.simulation.TissuContainment import AuthoredSurfaceContainment
 
-    containment = AuthoredSurfaceContainment(_cube_surface(thickness=2.0))
-    assert containment.contains((5.0, 5.0, 5.0))
-    assert not containment.contains((15.0, 5.0, 5.0))
-
-    first = containment.nearest_surface_point((9.0, 5.0, 5.0))
-    second = containment.nearest_surface_point((9.0, 5.0, 5.0))
-    assert first == second
-    closest, normal, distance_sq, triangle_index = first
-    assert closest == (10.0, 5.0, 5.0)
-    assert normal == (1.0, 0.0, 0.0)
-    assert distance_sq == 1.0
-    assert triangle_index in {6, 7}
-    assert containment.correct((9.0, 5.0, 5.0)) == (12.0, 5.0, 5.0)
-    assert not containment.contains((12.0, 5.0, 5.0))
+    for reverse in (False, True):
+        containment = AuthoredSurfaceContainment(_cube_surface(thickness=2.0, reverse=reverse))
+        assert containment.contains((5.0, 5.0, 5.0))
+        assert not containment.contains((15.0, 5.0, 5.0))
+        first = containment.nearest_surface_point((9.0, 5.0, 5.0))
+        closest, normal, distance_sq, triangle_index = first
+        assert closest == (10.0, 5.0, 5.0)
+        assert normal == (1.0, 0.0, 0.0)
+        assert distance_sq == 1.0
+        assert triangle_index in {6, 7}
+        assert containment.correct((9.0, 5.0, 5.0)) == (12.0, 5.0, 5.0)
+        assert not containment.contains((12.0, 5.0, 5.0))
 
 
 def test_authored_containment_rejects_open_and_caches_authority():
