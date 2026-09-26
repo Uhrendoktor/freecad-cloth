@@ -340,7 +340,7 @@ def style_mesh(obj, label):
 def simulation():
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
     from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
-    from freecad_cloth.avatar.FittingCommands import add_selected_pattern_pieces, arrange_pieces_against_target, create_fitting_scene
+    from freecad_cloth.avatar.FittingCommands import add_selected_pattern_pieces, arrange_pieces_against_target, create_fitting_scene, reset_arrangement, _piece_placement_record
     from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternObjects import add_seam
     doc = App.newDocument("ClothSimulationVisualRegression"); scene = create_quality_simulation_scene(doc); avatar = getattr(scene.AvatarProxy, "SourceObject", None); target = scene.DrapeTarget
@@ -373,12 +373,17 @@ def simulation():
     fitting.DrapeTarget = target
     Gui.Selection.clearSelection(); Gui.Selection.addSelection(front); Gui.Selection.addSelection(back)
     add_selected_pattern_pieces()
-    arrange_pieces_against_target(
-        fitting,
-        target,
-        (front, back),
-        {str(front.PieceId): "front", str(back.PieceId): "back"},
-    )
+    side_map = {str(front.PieceId): "front", str(back.PieceId): "back"}
+    arrange_pieces_against_target(fitting, target, (front, back), side_map)
+    home_records = {str(piece.PieceId): value for piece, value in zip((front, back), fitting.HomePlacements)}
+    reset_arrangement()
+    for piece in (front, back):
+        expected = __import__("freecad_cloth.avatar.AvatarFitting", fromlist=["PiecePlacement"]).PiecePlacement.from_string(home_records[str(piece.PieceId)])
+        actual = _piece_placement_record(piece)
+        if actual != expected:
+            raise RuntimeError("HomePlacement reset changed exact placement for %s" % piece.PieceId)
+    log("home-reset=passed exact-axis-angle=true")
+    arrange_pieces_against_target(fitting, target, (front, back), side_map)
     if list(getattr(scene, "PinSelection", ())):
         raise RuntimeError("canonical target-aware tunic arrangement must not require global PinSelection")
     scene.ClothPieces = [front, back]
