@@ -1,15 +1,6 @@
 import math
-import sys
-import time
-from pathlib import Path
 
 import FreeCAD as App
-import MeshPart
-import Part
-
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 from freecad_cloth.avatar.AvatarCollision import surface_from_freecad
 from freecad_cloth.simulation.SimulationObjects import create_humanoid_avatar
@@ -39,66 +30,38 @@ def _signed_surface_volume(vertices, triangles):
     return volume6 / 6.0
 
 
-def _mesh_parity(surface):
-    signed_volume = _signed_surface_volume(surface.vertices, surface.triangles)
+doc = App.newDocument("MeshParityProbe")
+try:
+    print("avatar-parity=build-start", flush=True)
+    avatar = create_humanoid_avatar(doc)
+    print("avatar-parity=build-pass", flush=True)
+    surface = surface_from_freecad(avatar, 1.0, 2.0)
+    print(
+        "avatar-parity=surface-pass vertices=%d triangles=%d"
+        % (len(surface.vertices), len(surface.triangles)),
+        flush=True,
+    )
+    source_volume = _signed_surface_volume(surface.vertices, surface.triangles)
     transformed_vertices, transformed_triangles = _to_tissu_mesh(surface)
-    transformed_volume = _signed_surface_volume(transformed_vertices, transformed_triangles)
-    return signed_volume, transformed_volume
-
-
-def main():
-    doc = App.newDocument("MeshParityProbe")
+    tissu_volume = _signed_surface_volume(transformed_vertices, transformed_triangles)
+    print(
+        "avatar-parity source_signed_volume=%.6f tissu_signed_volume=%.6f"
+        % (source_volume, tissu_volume),
+        flush=True,
+    )
+    if not (math.isfinite(source_volume) and math.isfinite(tissu_volume)):
+        raise RuntimeError("avatar signed-volume parity is non-finite")
+    if source_volume == 0.0 or tissu_volume == 0.0:
+        raise RuntimeError("avatar signed-volume parity is degenerate")
+    if (source_volume > 0.0) != (tissu_volume > 0.0):
+        raise RuntimeError("FreeCAD->Tissu transform flips closed-mesh signed orientation")
+    print("avatar-parity=passed same-signed-orientation", flush=True)
+finally:
     try:
-        cube = doc.addObject("Mesh::Feature", "Probe")
-        cube.Mesh = MeshPart.meshFromShape(
-            Shape=Part.makeBox(10.0, 12.0, 14.0),
-            LinearDeflection=0.5,
-            AngularDeflection=0.5,
-        )
-        doc.recompute()
-
-        for name, p in (
-            ("inside", App.Vector(5, 6, 7)),
-            ("outside", App.Vector(15, 6, 7)),
-            ("boundary", App.Vector(0, 6, 7)),
-        ):
-            hits = cube.Mesh.foraminate(
-                ((p.x, p.y, p.z), (1.0, 0.0, 0.0)),
-                math.pi,
-            )
-            print(name, type(hits).__name__, len(hits), hits[:3])
-
-        print("cube_solid", bool(cube.Mesh.isSolid()))
-        start = time.perf_counter()
-        count = 0
-        for _ in range(1000):
-            hits = cube.Mesh.foraminate(
-                ((5.0, 6.0, 7.0), (1.0, 0.0, 0.0)),
-                math.pi,
-            )
-            count += len(hits)
-        elapsed = time.perf_counter() - start
-        print("benchmark_calls=1000 hits=%d elapsed_ms=%.3f" % (count, elapsed * 1000.0))
-
-        avatar = create_humanoid_avatar(doc)
-        surface = surface_from_freecad(avatar, 1.0, 2.0)
-        source_volume, tissu_volume = _mesh_parity(surface)
-        print(
-            "avatar_mesh_parity vertices=%d triangles=%d source_signed_volume=%.6f tissu_signed_volume=%.6f"
-            % (len(surface.vertices), len(surface.triangles), source_volume, tissu_volume)
-        )
-        if not (math.isfinite(source_volume) and math.isfinite(tissu_volume)):
-            raise RuntimeError("avatar signed-volume parity is non-finite")
-        if source_volume == 0.0 or tissu_volume == 0.0:
-            raise RuntimeError("avatar signed-volume parity is degenerate")
-        if (source_volume > 0.0) != (tissu_volume > 0.0):
-            raise RuntimeError("FreeCAD->Tissu transform flips closed-mesh signed orientation")
-    finally:
-        try:
-            App.closeDocument(doc.Name)
-        finally:
-            App.exit()
-
-
-if __name__ == "__main__":
-    main()
+        App.closeDocument(doc.Name)
+    except Exception:
+        pass
+    try:
+        App.exit()
+    except Exception:
+        pass
