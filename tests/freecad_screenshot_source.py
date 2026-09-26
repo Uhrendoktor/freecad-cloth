@@ -366,17 +366,17 @@ def simulation():
     if not target_surface.vertices or not target_surface.triangles:
         raise RuntimeError("canonical tunic DrapeTarget has no authoritative collision triangles")
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
-
     def arrangement_world(name):
         raw = next((value for value in getattr(avatar, "ArrangementPoints", ()) if str(value).split("|", 1)[0] == name), None)
         if raw is None:
             raise RuntimeError("canonical tunic is missing avatar arrangement point %s" % name)
         point = ArrangementPoint.from_string(raw)
         return avatar.Placement.multVec(App.Vector(*point.position()))
-
     shoulder_left = arrangement_world("shoulder_left")
     shoulder_right = arrangement_world("shoulder_right")
     hip_point = arrangement_world("hip")
+    target_ys = [float(vertex[1]) for vertex in target_surface.vertices]
+    y_span = max(target_ys) - min(target_ys)
     x_mid = (shoulder_left.x + shoulder_right.x) / 2.0
     shoulder_z = (shoulder_left.z + shoulder_right.z) / 2.0
     hem_z = hip_point.z
@@ -384,11 +384,20 @@ def simulation():
     panel_width = max(420.0, shoulder_width + 100.0)
     hem_width = max(450.0, panel_width + 80.0)
     garment_height = max(560.0, shoulder_z - hem_z)
-    clearance = 8.0
+    body_depth = max(120.0, min(260.0, y_span))
+    clearance = max(20.0, 0.08 * body_depth)
     rot = App.Rotation(App.Vector(1,0,0), 90.0)
-    def make_piece(name, neckline_ratio, neckline_drop):
-        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, 0.0, hem_z), rot); piece.Sketch.Placement = piece.Placement; return piece, outline
-    front, front_outline = make_piece("VisualTunicFront", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", 0.64, 0.07)
+    def target_relative_piece_placement(side):
+        if side == "front":
+            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
+        elif side == "back":
+            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
+        else:
+            raise ValueError("tunic target-relative side must be front or back")
+        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
+    def make_piece(name, side, neckline_ratio, neckline_drop):
+        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(side); piece.Sketch.Placement = piece.Placement; return piece, outline
+    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
     fitting_scene = FittingCommands.create_fitting_scene()
     fitting_scene.DrapeTarget = target
     Gui.Selection.clearSelection()
@@ -405,7 +414,7 @@ def simulation():
     FittingCommands.set_garment_anchors(front_anchors + back_anchors)
     Gui.Selection.clearSelection()
     refresh_drape_target(target); doc.recompute()
-    placement_results = FittingCommands.snap_pieces_to_target(clearance=clearance)
+    placement_results = FittingCommands.snap_pieces_to_target(clearance=8.0)
     log("target-aware-placement results=%s" % (placement_results,))
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
