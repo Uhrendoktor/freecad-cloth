@@ -110,5 +110,5 @@ def test_blanket_fixture_starts_close_enough_to_target_for_drape():
     root = Path(__file__).resolve().parents[1]
     source = (root / "tests" / "freecad_visual_examples.py").read_text(encoding="utf-8")
     turntable = (root / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
-    assert "placement_z=90.0" in source or "90.0)" in source
-    assert "90.0)" in turntable
+    assert "placement_z=90.0" in source
+    assert "placement_z=90.0" in turntable
