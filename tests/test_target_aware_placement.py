@@ -89,5 +89,5 @@ def test_target_snap_contract_is_atomic_and_matches_simulation_panel_adapter():
     assert "snap_pieces_to_target" in fitting
     assert "except Exception:" in fitting
     assert "snap_pattern_pieces_to_target(pattern_pieces=None" in fitting
-    assert "snap_pattern_pieces_to_target(tuple(getattr(fitting, "PatternPieces", ()) or ()))" in gui
+    assert 'snap_pattern_pieces_to_target(tuple(getattr(fitting, "PatternPieces", ()) or ()))' in gui
 
