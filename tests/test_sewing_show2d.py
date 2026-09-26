@@ -44,6 +44,7 @@ def test_seam_color_surface_contract_carries_identity_to_sewing_operations():
     assert '"SeamId", "Sewing"' in source
     assert 'obj.SeamId = str(getattr(seam, "SeamId", "") or "")' in source
     assert "refresh_seam_colors(getattr(obj, \"Document\", None))" in source
+    assert "def onDocumentRestored(self, obj):" in source
     assert "SimulationSeamId" not in source
 
 
