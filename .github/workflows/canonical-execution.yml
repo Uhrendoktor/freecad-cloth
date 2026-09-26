@@ -228,7 +228,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf artifacts/pytissu-runtime
-          tools/build_pytissu_runtime.sh artifacts/pytissu-runtime
+          bash tools/build_pytissu_runtime.sh artifacts/pytissu-runtime
           test -n "$(find artifacts/pytissu-runtime -maxdepth 1 -name '*.whl' -print -quit)"
           test -s artifacts/pytissu-runtime/pytissu-provenance.txt
           cat artifacts/pytissu-runtime/pytissu-provenance.txt
