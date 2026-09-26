@@ -26,7 +26,7 @@ Machine-readable supervisor/release record. Durable guidance lives in docs/DEVEL
 - Tunic visual/simulation audit: passed; evidence covers sewing, arrangement, mannequin drape target, diagnostics, persistence, determinism, and SVG/DXF export.
 - Basic blanket visual: passed with 16 motion frames at 640x480, 100 ms/frame, finite movement, connected mesh, plausible drape, and material presentation.
 - README turntables: all three are 73 frames at 640x480 with uniform 80 ms frame timing; rendered representative frames were inspected from exact canonical artifacts.
-- Publication verification matched the generated turntable GIF bytes to the `docs/screenshots` Git blobs for the final publication audit.
+- Publication verification matched the authoritative merged-main run #3987 artifact bytes to the `docs/screenshots` Git blobs at commit `75226f321b303618bfff58782a1c4b93a6b56e15`; all five README assets match exactly.
 - README references the five stable generated assets: cloth-blanket-motion.gif, cloth-avatar-turntable.gif, cloth-simulation-arranged-turntable.gif, cloth-simulation-draped-turntable.gif, cloth-simulation-draped-front.png.
 - Canonical workflow remains fail-closed; no thresholds or validation topology were weakened.
 
