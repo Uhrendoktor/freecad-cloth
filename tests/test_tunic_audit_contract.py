@@ -19,8 +19,8 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
 
 def test_canonical_tunic_does_not_use_global_pins():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    assert "scene.PinSelection" not in source
-    assert "PinSelection" not in source
+    assert 'scene.PinMode = "None"' in source
+    assert 'scene.PinSelection = []' in source
 
 
 
