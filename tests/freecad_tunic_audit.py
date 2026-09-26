@@ -45,7 +45,6 @@ _tissu_backend._collision_envelope = _tight_tissu_collision_envelope
 replacements = {
     'chest = 980.0; hip = 1020.0; ease = 55.0;': 'chest = 860.0; hip = 880.0; ease = 10.0;',
     'clearance = max(20.0, 0.08 * body_depth);': 'clearance = max(8.0, 0.025 * body_depth);',
-    'front_y = box.YMin - clearance; back_y = box.YMax + clearance;': 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
         'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)',
     '    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):\n'
@@ -66,13 +65,47 @@ replacements = {
         '        seam_records.append((seam_obj, front, back))',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
     'scene.SolverIterations = 8;': 'scene.SolverIterations = 64; log("tunic-solver-ab=iterations-64");',
-    'front_y = box.YMin - clearance; back_y = box.YMax + clearance;': 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
 }
 for old, new in replacements.items():
     if old not in source:
         raise RuntimeError(f"audit replacement did not match source: {old}")
     source = source.replace(old, new, 1)
+
+source = source.replace(
+'''    def target_relative_piece_placement(target_box, side):
+        if side not in ("front", "back"):
+            raise ValueError("tunic target-relative side must be front or back")
+        y = target_box.YMin - clearance if side == "front" else target_box.YMax + clearance
+        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
+    def make_piece(name, side, neckline_ratio, neckline_drop):
+        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(box, side); piece.Sketch.Placement = piece.Placement; return piece, outline
+    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
+''',
+'''    from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
+    from freecad_cloth.avatar.AvatarFitting import GarmentAnchor
+    from freecad_cloth.avatar.FittingCommands import target_aware_place_piece
+    def make_piece(name, side, neckline_ratio, neckline_drop):
+        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name
+        piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, -2.0 * body_depth if side == "front" else 2.0 * body_depth, hem_z), rot)
+        piece.Sketch.Placement = piece.Placement
+        return piece, outline
+    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
+    front_anchors = (
+        GarmentAnchor(str(front.PieceId), "shoulder_left", (0.14 * panel_width, 0.97 * garment_height, 0.0), "front"),
+        GarmentAnchor(str(front.PieceId), "shoulder_right", (0.86 * panel_width, 0.97 * garment_height, 0.0), "front"),
+    )
+    back_anchors = (
+        GarmentAnchor(str(back.PieceId), "shoulder_left", (0.14 * panel_width, 0.97 * garment_height, 0.0), "back"),
+        GarmentAnchor(str(back.PieceId), "shoulder_right", (0.86 * panel_width, 0.97 * garment_height, 0.0), "back"),
+    )
+    front_placement = target_aware_place_piece(front, target, front_anchors, clearance=clearance)
+    back_placement = target_aware_place_piece(back, target, back_anchors, clearance=clearance)
+    if float(front_placement["anchor_clearance"]) < float(clearance) or float(back_placement["anchor_clearance"]) < float(clearance):
+        raise RuntimeError("target-aware tunic placement did not meet anchor clearance")
+    log("target-aware-placement front=%s back=%s" % (front_placement, back_placement))
+''',
+1)
 
 
 preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
