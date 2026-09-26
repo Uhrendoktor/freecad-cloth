@@ -1,4 +1,5 @@
 """FreeCAD-facing body measurement, avatar fitting, and arrangement commands."""
+import ast
 
 
 def _scene(doc):
@@ -8,6 +9,75 @@ def _scene(doc):
 def _safe_name(value):
     return "".join(ch if ch.isalnum() else "_" for ch in str(value)) or "Item"
 
+
+
+def _ensure_target_placement_properties(scene):
+    if "DrapeTarget" not in getattr(scene, "PropertiesList", ()):
+        scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")
+    for type_name, name, group, default in (
+        ("App::PropertyString", "ArrangementTargetSignature", "Arrangement", ""),
+        ("App::PropertyLength", "TargetPlacementClearance", "Arrangement", 8.0),
+        ("App::PropertyLength", "TargetPlacementMaxTranslation", "Arrangement", 1200.0),
+        ("App::PropertyAngle", "TargetPlacementMaxRotation", "Arrangement", 180.0),
+    ):
+        if name not in getattr(scene, "PropertiesList", ()):
+            scene.addProperty(type_name, name, group)
+            setattr(scene, name, default)
+
+
+def _piece_placement_record(piece):
+    from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+    placement = getattr(piece, "Placement", None)
+    if placement is None:
+        return PiecePlacement(str(piece.PieceId))
+    base = placement.Base
+    axis = placement.Rotation.Axis
+    return PiecePlacement(
+        str(piece.PieceId),
+        (float(base.x), float(base.y), float(base.z)),
+        float(placement.Rotation.Angle),
+        (float(axis.x), float(axis.y), float(axis.z)),
+    )
+
+
+def _apply_piece_placement(piece, placement):
+    import FreeCAD as App
+    freecad_placement = App.Placement(
+        App.Vector(*placement.position),
+        App.Rotation(App.Vector(*placement.rotation_axis), float(placement.rotation_z)),
+    )
+    piece.Placement = freecad_placement
+    sketch = getattr(piece, "Sketch", None)
+    if sketch is not None:
+        sketch.Placement = freecad_placement
+
+
+def _piece_local_points(piece):
+    sketch = getattr(piece, "Sketch", None)
+    if sketch is not None and str(getattr(piece, "GeometryAuthority", "")) == "Sketcher":
+        points = []
+        for geometry in tuple(getattr(sketch, "Geometry", ()) or ()):
+            for attribute in ("StartPoint", "EndPoint"):
+                point = getattr(geometry, attribute, None)
+                if point is not None:
+                    points.append((float(point.x), float(point.y)))
+        if points:
+            return tuple(points)
+    for attribute in ("DraftingBoundary", "SewingOutline"):
+        raw = getattr(piece, attribute, "")
+        if raw:
+            try:
+                points = tuple((float(p[0]), float(p[1])) for p in ast.literal_eval(str(raw)))
+            except (ValueError, SyntaxError, TypeError, IndexError):
+                points = ()
+            if points:
+                return points
+    raise ValueError("pattern piece %s has no deterministic local geometry" % getattr(piece, "PieceId", ""))
+
+
+def _piece_local_bounds(piece):
+    from freecad_cloth.avatar.TargetPlacement import piece_local_bounds
+    return piece_local_bounds(_piece_local_points(piece))
 
 def _sync_visuals(scene):
     """Synchronize visible FreeCAD point/volume adapters from canonical strings."""
@@ -97,14 +167,17 @@ def create_fitting_scene():
     from freecad_cloth.avatar.AvatarFitting import BodyMeasurements, FittingScene
 
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
-    if _scene(doc) is not None:
-        return _scene(doc)
+    existing = _scene(doc)
+    if existing is not None:
+        _ensure_target_placement_properties(existing)
+        return existing
     obj = doc.addObject("App::FeaturePython", "FittingScene")
     obj.Label = "Avatar Fitting Scene"
     obj.addProperty("App::PropertyString", "FittingType", "Fitting").FittingType = "FittingScene"
     obj.addProperty("App::PropertyString", "MeasurementData", "Measurements").MeasurementData = BodyMeasurements().to_json()
     obj.addProperty("App::PropertyString", "MeasurementUnit", "Measurements").MeasurementUnit = "mm"
     obj.addProperty("App::PropertyLink", "AvatarProxy", "Fitting")
+    obj.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")
     obj.addProperty("App::PropertyLinkListGlobal", "PatternPieces", "Fitting")
     obj.addProperty("App::PropertyStringList", "PiecePlacements", "Fitting").PiecePlacements = []
     obj.addProperty("App::PropertyStringList", "HomePlacements", "Fitting").HomePlacements = []
@@ -113,6 +186,10 @@ def create_fitting_scene():
     obj.addProperty("App::PropertyStringList", "ArrangementPointObjects", "Arrangement").ArrangementPointObjects = []
     obj.addProperty("App::PropertyStringList", "BoundingVolumeObjects", "Arrangement").BoundingVolumeObjects = []
     obj.addProperty("App::PropertyBool", "SymmetryEnabled", "Arrangement").SymmetryEnabled = True
+    obj.addProperty("App::PropertyString", "ArrangementTargetSignature", "Arrangement").ArrangementTargetSignature = ""
+    obj.addProperty("App::PropertyLength", "TargetPlacementClearance", "Arrangement").TargetPlacementClearance = 8.0
+    obj.addProperty("App::PropertyLength", "TargetPlacementMaxTranslation", "Arrangement").TargetPlacementMaxTranslation = 1200.0
+    obj.addProperty("App::PropertyAngle", "TargetPlacementMaxRotation", "Arrangement").TargetPlacementMaxRotation = 180.0
     obj.addProperty("App::PropertyString", "FitStatus", "Fitting").FitStatus = "Unassigned"
     obj.Proxy = _FittingProxy()
     FittingScene().validate()
@@ -168,9 +245,7 @@ def add_selected_pattern_pieces():
     by_id = {p.piece_id: p for p in existing}
     home_by_id = {p.piece_id: p for p in homes}
     for piece in pieces:
-        placement = piece.Placement
-        base = placement.Base
-        value = PiecePlacement(str(piece.PieceId), (float(base.x), float(base.y), float(base.z)), float(placement.Rotation.Angle))
+        value = _piece_placement_record(piece)
         by_id[value.piece_id] = value
         home_by_id.setdefault(value.piece_id, value)
     scene.PatternPieces = sorted(set(list(scene.PatternPieces) + pieces), key=lambda o: str(o.PieceId))
@@ -325,6 +400,74 @@ def apply_arrangement_point(piece, point, mirror=None):
     return position_piece(piece, point.x, point.y, point.offset, rotations[point.wrap_direction])
 
 
+
+def arrange_pieces_against_target(scene=None, target=None, pieces=None, side_by_piece=None):
+    """Arrange fitting pieces outside the authoritative DrapeTarget using rigid transforms only."""
+    import FreeCAD as App
+    from freecad_cloth.avatar.AvatarFitting import ArrangementPoint, BodyMeasurements, BoundingVolume, FittingScene, PiecePlacement
+    from freecad_cloth.avatar.TargetPlacement import plan_target_relative_placement
+    from freecad_cloth.simulation.DrapeTarget import authoritative_collision_bounds, resolve_authoritative_target, source_signature
+
+    doc = App.ActiveDocument
+    if doc is None:
+        raise ValueError("open a document before arranging garments")
+    scene = scene or _scene(doc)
+    if scene is None:
+        raise ValueError("create a fitting scene first")
+    _ensure_target_placement_properties(scene)
+    target = resolve_authoritative_target(doc, target)
+    pieces = tuple(pieces or scene.PatternPieces or ())
+    if not pieces:
+        raise ValueError("assign at least one pattern piece before target arrangement")
+    mapping = dict(side_by_piece or {})
+    if not mapping:
+        raise ValueError("target arrangement requires explicit wrap/side semantics per piece")
+    bounds = authoritative_collision_bounds(target)
+    homes = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.HomePlacements)}
+    current = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)}
+    for piece in pieces:
+        if getattr(piece, "PatternType", "") != "PatternPiece":
+            raise ValueError("target arrangement accepts only PatternPiece objects")
+        piece_id = str(getattr(piece, "PieceId", ""))
+        home = homes.get(piece_id)
+        if home is None:
+            raise ValueError("piece %s has no saved HomePlacement" % piece_id)
+        side = str(mapping.get(piece_id, mapping.get(str(getattr(piece, "Label", "")), ""))).strip().lower()
+        if not side:
+            raise ValueError("piece %s has no wrap/side semantic" % piece_id)
+        plan = plan_target_relative_placement(
+            home.position, home.rotation_axis, home.rotation_z,
+            _piece_local_bounds(piece), bounds, side,
+            float(scene.TargetPlacementClearance),
+            float(scene.TargetPlacementMaxTranslation),
+            float(scene.TargetPlacementMaxRotation),
+        )
+        placement = PiecePlacement(piece_id, plan.position, plan.rotation_angle, plan.rotation_axis)
+        _apply_piece_placement(piece, placement)
+        current[piece_id] = placement
+    scene.DrapeTarget = target
+    scene.ArrangementTargetSignature = repr(source_signature(
+        target.SourceObject,
+        float(getattr(target, "CollisionDeflection", 1.0)),
+        float(getattr(target, "CollisionThickness", 0.0)),
+    ))
+    scene.PiecePlacements = [current[k].to_string() for k in sorted(current)]
+    FittingScene(
+        BodyMeasurements.from_json(scene.MeasurementData),
+        getattr(scene.AvatarProxy, "Label", "") if scene.AvatarProxy else "",
+        tuple(current[k] for k in sorted(current)),
+        tuple(ArrangementPoint.from_string(v) for v in scene.ArrangementPoints),
+        tuple(BoundingVolume.from_string(v) for v in scene.BoundingVolumes),
+        bool(scene.SymmetryEnabled),
+        str(scene.ArrangementTargetSignature),
+        float(scene.TargetPlacementClearance),
+        float(scene.TargetPlacementMaxTranslation),
+        float(scene.TargetPlacementMaxRotation),
+    ).validate()
+    scene.FitStatus = "Target arranged"
+    doc.recompute()
+    return scene
+
 def reset_arrangement():
     """Restore every assigned piece to its saved pre-arrangement placement."""
     import FreeCAD as App
@@ -343,7 +486,7 @@ def reset_arrangement():
         if piece is None:
             continue
         x, y, z = placement.position
-        piece.Placement = App.Placement(App.Vector(x, y, z), App.Rotation(App.Vector(0, 0, 1), placement.rotation_z))
+        _apply_piece_placement(piece, placement)
         current[pid] = placement
     scene.PiecePlacements = [current[k].to_string() for k in sorted(current)]
     scene.FitStatus = "Arrangement reset"
