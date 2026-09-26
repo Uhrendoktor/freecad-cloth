@@ -17,15 +17,14 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
-def test_canonical_tunic_uses_target_relative_placement_and_no_pins():
+def test_canonical_tunic_uses_authoritative_target_aware_arrangement_and_no_pins():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    assert 'def target_relative_piece_placement(target_box, side):' in source
-    assert 'y = target_box.YMin - clearance if side == "front" else target_box.YMax + clearance' in source
+    assert 'arrange_garment_on_avatar(scene, (front, back), clearance=clearance)' in source
+    assert 'assert_minimum_surface_clearance(surface, tuple(backend.positions()), clearance)' in source
     assert 'scene.PinMode = "None"' in source
-    assert 'scene.PinSelection = []' in source
     assert 'if solver_pins:' in source
+    assert 'target_relative_piece_placement' not in source
     assert 'authored_shoulder_pins' not in source
-    assert 'scene.PinSelection = [str(i) for i in front_pins]' not in source
 
 
 def test_canonical_tunic_uses_validated_authored_mapping():
