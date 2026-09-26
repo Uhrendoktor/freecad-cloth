@@ -28,6 +28,7 @@ def apply_seam_colors(objects):
         color = colors.get(str(getattr(obj, "SeamId", "")))
         if view is not None and color is not None:
             view.LineColor = color
+            view.Visibility = True
     return colors
 
 
