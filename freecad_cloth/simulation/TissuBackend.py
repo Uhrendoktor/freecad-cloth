@@ -37,20 +37,27 @@ def _tissu_authored_containment_enabled():
 
 def _apply_authored_containment_correction(sim, containment):
     import numpy as np
+    from math import sqrt
 
     corrected = 0
-    for particle in sim.solver.get_particles():
+    max_correction_mm = 0.0
+    particles = sim.solver.get_particles()
+    for particle in particles:
         if float(particle.get_inverse_mass()) <= 0.0:
             continue
         position_mm = _from_tissu_position(particle.get_position())
         corrected_mm = containment.correct(position_mm)
         if corrected_mm is None:
             continue
+        displacement_mm = sqrt(
+            sum((float(corrected_mm[index]) - float(position_mm[index])) ** 2 for index in range(3))
+        )
         corrected_position = np.asarray(_to_tissu_position(corrected_mm), dtype=np.float64)
         particle.set_position(corrected_position)
         particle.set_old_position(corrected_position)
         corrected += 1
-    return corrected
+        max_correction_mm = max(max_correction_mm, displacement_mm)
+    return corrected, max_correction_mm
 
 
 def _to_tissu_position(position):
@@ -128,6 +135,8 @@ class TissuBackend(ClothSimulationBackend):
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
         self._source_collision_surface = collision_surface
         self._authored_containment = None
+        self._authored_containment_corrections = 0
+        self._authored_containment_max_correction_mm = 0.0
         if (
             _tissu_authored_containment_enabled()
             and collision_mode == "mesh"
@@ -206,7 +215,26 @@ class TissuBackend(ClothSimulationBackend):
         self._sim.gravity = float(gz) / _MM
         self._sim.step(float(dt))
         if self._authored_containment is not None:
-            _apply_authored_containment_correction(self._sim, self._authored_containment)
+            corrected, max_correction_mm = _apply_authored_containment_correction(
+                self._sim,
+                self._authored_containment,
+            )
+            self._authored_containment_corrections += corrected
+            self._authored_containment_max_correction_mm = max(
+                self._authored_containment_max_correction_mm,
+                max_correction_mm,
+            )
+            if corrected:
+                print(
+                    "cloth-tissu-authored-containment corrected=%d cumulative=%d max_correction_mm=%.3f time=%.4f"
+                    % (
+                        corrected,
+                        self._authored_containment_corrections,
+                        self._authored_containment_max_correction_mm,
+                        self._time,
+                    ),
+                    flush=True,
+                )
         self._iterations = int(iterations)
         self._time += float(dt)
 
