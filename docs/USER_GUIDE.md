@@ -10,9 +10,9 @@ For a first validation, follow the **Blanket over Cube** example in [Examples](E
 
 1. Create or open a native Sketcher pattern in **Cloth Pattern** and turn it into a PatternPiece. Keep Sketcher as the geometry authority.
 2. Use **Cloth Sewing** to select matching semantic edges and create seams. Editing an upstream Sketcher edge can invalidate a downstream seam rather than silently retargeting it.
-3. In **Cloth Simulation**, select or rebuild a DrapeTarget. A target can be a mannequin collision surface or supported generic FreeCAD geometry.
-4. Set simulation quality and fabric presentation. Physical material parameters affect the solver; color, roughness, specular response and transparency affect viewport rendering.
-5. Choose pins and run the simulation. Stale or non-finite states are fail-closed.
+3. In **Cloth Sewing → Fitting & Avatar**, create a fitting scene and add the PatternPieces. Assign the current DrapeTarget, define the garment-local anchors and their wrap direction, then run **Target-aware Arrange** on a selected PatternPiece. The action fails closed for a missing/stale/ambiguous target or bounded-transform violation and rolls back the PatternPiece, linked Sketch and persisted fitting state on failure.
+4. In **Cloth Simulation**, verify the same DrapeTarget is attached to the simulation. The target is authoritative for collision; stale or invalid target state blocks use rather than silently falling back to an avatar proxy.
+5. Set simulation quality, fabric presentation and pinning mode. **Automatic** preserves legacy behavior, **Explicit** uses only `PinSelection`, and **None** creates a genuinely pinless solver scene. Stale or non-finite states are fail-closed.
 6. Inspect the result and diagnostics before export or saving a final document.
 
 ## Seams and visual inspection
