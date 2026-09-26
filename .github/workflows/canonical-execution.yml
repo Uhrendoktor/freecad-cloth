@@ -686,7 +686,8 @@ jobs:
       - name: Render avatar and blanket turntable frames
         env:
           CLOTH_SIMULATION_BACKEND: tissu
-          CLOTH_TISSU_SUBSTEPS: 10
+          # Realtime production budget: one Tissu internal substep per 1/60 s frame.
+          CLOTH_TISSU_SUBSTEPS: 1
           CLOTH_TISSU_COLLISION_MODE: mesh
         run: |
           set -euo pipefail
@@ -863,13 +864,31 @@ jobs:
               fi
               exit "$status"
             '
-          test -s docs/images/generated/blanket-example/blanket-visual.log
-          grep -q 'blanket-visual-acceptance=passed' docs/images/generated/blanket-example/blanket-visual.log
-          grep -q 'mesh=passed' docs/images/generated/blanket-example/blanket-visual.log
-          grep -q 'movement=passed' docs/images/generated/blanket-example/blanket-visual.log
-          grep -q 'material-presentation=passed viewport=true' docs/images/generated/blanket-example/blanket-visual.log
-          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'checkpoint-*.png' | wc -l)" -eq 5
-          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'motion-*.png' | wc -l)" -eq 16
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path("docs/images/generated/blanket-example")
+          log_path = root / "blanket-visual.log"
+          log = log_path.read_text(encoding="utf-8")
+          checkpoints = sorted(root.glob("checkpoint-*.png"))
+          motions = sorted(root.glob("motion-*.png"))
+          markers = (
+              "blanket-visual-acceptance=passed",
+              "mesh=passed",
+              "movement=passed",
+              "material-presentation=passed viewport=true",
+          )
+          print("blanket-validation log_bytes=%d checkpoints=%d motions=%d" % (
+              log_path.stat().st_size, len(checkpoints), len(motions)
+          ))
+          missing = [marker for marker in markers if marker not in log]
+          if missing:
+              raise SystemExit("blanket validation missing log markers: %r" % missing)
+          if len(checkpoints) != 5:
+              raise SystemExit("blanket validation expected 5 checkpoints, got %d" % len(checkpoints))
+          if len(motions) != 16:
+              raise SystemExit("blanket validation expected 16 motion frames, got %d" % len(motions))
+          print("blanket-validation=passed")
+          PY
       - name: Restore workspace from Docker volume
         if: ${{ always() }}
         run: |
