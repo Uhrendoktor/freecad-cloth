@@ -161,7 +161,7 @@ def assign_avatar_source(source=None):
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
     scene = _scene(doc) or create_fitting_scene()
     _ensure_fitting_properties(scene)
-    if source is None
+    if source is None:
         source = next((o for o in Gui.Selection.getSelection() if hasattr(o, "Shape") or hasattr(o, "Mesh")), None)
     if source is None:
         raise ValueError("select a FreeCAD body or mesh to use as the avatar source")
@@ -194,7 +194,13 @@ def add_selected_pattern_pieces():
     for piece in pieces:
         placement = piece.Placement
         base = placement.Base
-        value = PiecePlacement(str(piece.PieceId), (float(base.x), float(base.y), float(base.z)), float(placement.Rotation.Angle))
+        axis = placement.Rotation.Axis
+        value = PiecePlacement(
+            str(piece.PieceId),
+            (float(base.x), float(base.y), float(base.z)),
+            float(placement.Rotation.Angle),
+            (float(axis.x), float(axis.y), float(axis.z)),
+        )
         by_id[value.piece_id] = value
         home_by_id.setdefault(value.piece_id, value)
     scene.PatternPieces = sorted(set(list(scene.PatternPieces) + pieces), key=lambda o: str(o.PieceId))
