@@ -501,6 +501,8 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
     home_placements_before = tuple(getattr(scene, "HomePlacements", ()) or ())
     fitting_status_before = str(getattr(scene, "FitStatus", ""))
     garment_anchors_before = tuple(getattr(scene, "GarmentAnchors", ()) or ())
+    pattern_pieces_before = tuple(getattr(scene, "PatternPieces", ()) or ())
+    avatar_proxy_before = getattr(scene, "AvatarProxy", None)
     try:
         result = _target_aware_place_piece_impl(
             piece, target, anchors,
@@ -535,6 +537,8 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
         scene.PiecePlacements = list(piece_placements_before)
         scene.HomePlacements = list(home_placements_before)
         scene.FitStatus = fitting_status_before
+        scene.PatternPieces = list(pattern_pieces_before)
+        scene.AvatarProxy = avatar_proxy_before
         if "GarmentAnchors" in getattr(scene, "PropertiesList", ()):
             scene.GarmentAnchors = list(garment_anchors_before)
         try:
