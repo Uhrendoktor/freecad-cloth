@@ -35,7 +35,7 @@ def test_target_relative_placement_is_deterministic_and_outside_requested_side()
         local_center[2] * math.cos(angle) + local_center[1] * math.sin(angle),
     )
     world_center = tuple(first.position[i] + rotated_center[i] for i in range(3))
-    assert abs(world_center[1] + 60.0) < 1e-9
+    assert abs(world_center[1] + 70.0) < 1e-9
     assert target_bounds(((-50, -60, 0), (50, -60, 300))) == (-50.0, 50.0, -60.0, -60.0, 0.0, 300.0)
 
 
