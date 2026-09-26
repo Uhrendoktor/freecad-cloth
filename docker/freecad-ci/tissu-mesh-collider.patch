@@ -1,7 +1,7 @@
 diff --git a/core/include/physics/MeshCollider.hpp b/core/include/physics/MeshCollider.hpp
 --- a/core/include/physics/MeshCollider.hpp
 +++ b/core/include/physics/MeshCollider.hpp
-@@ -34,6 +34,7 @@ private:
+@@ -37,6 +37,7 @@
      std::vector<Eigen::Vector3d> m_localVertices;
      std::vector<Eigen::Vector3d> m_worldVertices;
      std::vector<Triangle> m_triangles;
@@ -12,7 +12,7 @@ diff --git a/core/include/physics/MeshCollider.hpp b/core/include/physics/MeshCo
 diff --git a/core/src/physics/MeshCollider.cpp b/core/src/physics/MeshCollider.cpp
 --- a/core/src/physics/MeshCollider.cpp
 +++ b/core/src/physics/MeshCollider.cpp
-@@ -7,6 +7,22 @@
+@@ -6,6 +6,27 @@
  
  namespace Tissu {
  
@@ -40,7 +40,7 @@ diff --git a/core/src/physics/MeshCollider.cpp b/core/src/physics/MeshCollider.c
  MeshCollider::MeshCollider(const std::string& meshPath, double friction)
      : m_meshPath(meshPath) {
      m_friction = friction;
-@@ -21,6 +37,7 @@ MeshCollider::MeshCollider(const std::string& meshPath, double friction)
+@@ -23,6 +44,7 @@
      for (size_t i = 0; i + 2 < indices.size(); i += 3)
          m_triangles.emplace_back(indices[i], indices[i + 1], indices[i + 2]);
  
@@ -48,7 +48,7 @@ diff --git a/core/src/physics/MeshCollider.cpp b/core/src/physics/MeshCollider.c
      m_bvh.build(m_worldVertices, m_triangles);
  }
  
-@@ -35,6 +52,7 @@ MeshCollider::MeshCollider(const std::vector<Eigen::Vector3d>& vertices,
+@@ -37,6 +59,7 @@
          m_triangles.emplace_back(tri[0], tri[1], tri[2]);
      }
  
@@ -56,17 +56,14 @@ diff --git a/core/src/physics/MeshCollider.cpp b/core/src/physics/MeshCollider.c
      m_bvh.build(m_worldVertices, m_triangles);
  }
  
-@@ -63,10 +81,19 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
+@@ -72,9 +95,18 @@
          double distance = toParticle.norm();
  
          if (distance <= thickness) {
--            Eigen::Vector3d normal = (distance > 1e-6)
--                                         ? toParticle.normalized()
--                                         : ((b - a).cross(c - a)).normalized();
 +            const Eigen::Vector3d faceNormal =
 +                ((b - a).cross(c - a)).normalized();
-+            Eigen::Vector3d normal = (distance > 1e-6)
-+                                         ? toParticle.normalized()
+             Eigen::Vector3d normal = (distance > 1e-6)
+                                          ? toParticle.normalized()
 +                                         : faceNormal;
 +            if (m_surfaceOrientation != 0.0) {
 +                const Eigen::Vector3d outwardNormal =
@@ -75,14 +72,14 @@ diff --git a/core/src/physics/MeshCollider.cpp b/core/src/physics/MeshCollider.c
 +                    normal.dot(outwardNormal) < 0.0)
 +                    normal = outwardNormal;
 +            }
+-                                         : ((b - a).cross(c - a)).normalized();
  
              Eigen::Vector3d newPosition = cp + normal * thickness;
              particle.setPosition(newPosition);
- 
 diff --git a/tests/physics/test_mesh_collider.cpp b/tests/physics/test_mesh_collider.cpp
 --- a/tests/physics/test_mesh_collider.cpp
 +++ b/tests/physics/test_mesh_collider.cpp
-@@ -6,6 +6,22 @@
+@@ -7,6 +7,24 @@
  
  using namespace Tissu;
  
@@ -107,7 +104,7 @@ diff --git a/tests/physics/test_mesh_collider.cpp b/tests/physics/test_mesh_coll
  static MeshCollider makeTetrahedron(double friction = 0.0) {
      std::vector<Eigen::Vector3d> vertices = {
          {0.0, 0.0, 0.0},
-@@ -29,8 +45,11 @@ TEST(MeshCollider, ParticleInsideMeshMovesOutside) {
+@@ -30,8 +48,10 @@
      std::vector<Particle> particles;
      particles.emplace_back(initialPos);
  
