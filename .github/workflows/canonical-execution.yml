@@ -2,7 +2,7 @@ name: Canonical execution
 
 on:
   push:
-    branches: [main, 'agent/1347-safe-pull-request-current-main-20260926']
+    branches: [main]
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
