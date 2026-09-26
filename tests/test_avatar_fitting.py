@@ -25,7 +25,7 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertNotIn("Document.recompute()", source[sync_start:sync_end])
         self.assertIn("scene.Document.addObject", source[sync_start:sync_end])
 
-    def test_target_aware_clearance_assertion_runs_after_correction_path(self):
+    def test_target_aware_clearance_assertion_runs_after_correction_path(self):  # regression: correction must run first
         root = Path(__file__).resolve().parents[1]
         source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
         tree = ast.parse(source)
