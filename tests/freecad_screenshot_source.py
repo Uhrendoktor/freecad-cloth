@@ -372,9 +372,6 @@ def simulation():
     doc.recompute()
     log("pin-map canonical=none (avatar arrangement + sewn collision hold)")
     proxy = scene.Proxy
-    scene.PinSelection = []
-    doc.recompute()
-    log("pin-map canonical=none (avatar arrangement + sewn collision hold)")
     for source in (doc.getObject("VisualTunicFront"), doc.getObject("VisualTunicBack")):
         if source is not None: source.ViewObject.Visibility = False
         sketch = getattr(source, "Sketch", None) if source is not None else None
@@ -430,7 +427,7 @@ def simulation():
     write_drape_metrics(
         panels,
         avatar,
-        x_mid,
+        arrangement["frame"]["center_x"],
         shoulder_z=shoulder_z,
         hem_z=hem_z,
         seam_records=seam_records,
