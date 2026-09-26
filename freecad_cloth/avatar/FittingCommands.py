@@ -375,12 +375,14 @@ def _shape_center(shape):
 
 
 def snap_piece_to_drape_target(piece, target=None, clearance=8.0, max_translation=240.0, max_iterations=32):
-    """Place one pattern piece at a bounded clearance from the authoritative target.
+    """Move one pattern piece to a bounded clearance from the authoritative DrapeTarget.
 
-    This is a rigid, reversible arrangement operation. It never creates solver
-    pins and refuses to use a missing/stale DrapeTarget.
+    The operation is rigid, translation-only, reversible on failure, and never
+    introduces solver pins. The piece rotation and the fitted-scene home state
+    are preserved.
     """
     import FreeCAD as App
+
     if getattr(piece, "PatternType", "") != "PatternPiece":
         raise ValueError("piece must be a Cloth PatternPiece object")
     clearance = float(clearance)
@@ -409,66 +411,81 @@ def snap_piece_to_drape_target(piece, target=None, clearance=8.0, max_translatio
     source = getattr(target, "SourceObject", None)
     if source is None:
         raise ValueError("drape target has no source object")
-    piece_shape = _world_shape(piece)
-    target_shape = _world_shape(source)
 
     original_placement = App.Placement(piece.Placement.Base, piece.Placement.Rotation)
     original_piece_values = list(getattr(scene, "PiecePlacements", ()) or ()) if scene is not None else None
     original_status = str(getattr(scene, "FitStatus", "")) if scene is not None else ""
+
+    piece_shape = _world_shape(piece)
+    target_shape = _world_shape(source)
     before_distance = None
     moved = 0.0
     try:
-        for _ in range(max_iterations):
-        distance, nearest, _details = piece_shape.distToShape(target_shape)
-        distance = float(distance)
-        if before_distance is None:
-            before_distance = distance
-        if distance + 1e-6 >= clearance:
-            break
+        for iteration in range(max_iterations):
+            distance, nearest, _details = piece_shape.distToShape(target_shape)
+            distance = float(distance)
+            if before_distance is None:
+                before_distance = distance
+            if distance + 1e-6 >= clearance:
+                break
 
-        if nearest and len(nearest) >= 2:
-            target_point, piece_point = nearest[0], nearest[1]
-            direction = piece_point.sub(target_point)
-            outward = _shape_center(piece_shape).sub(_shape_center(target_shape))
-            if direction.dot(outward) < 0.0:
-                direction = direction.multiply(-1.0)
+            if nearest and len(nearest) >= 2:
+                target_point, piece_point = nearest[0], nearest[1]
+                direction = piece_point.sub(target_point)
+                outward = _shape_center(piece_shape).sub(_shape_center(target_shape))
+                if direction.dot(outward) < 0.0:
+                    direction = direction.multiply(-1.0)
+            else:
+                direction = _shape_center(piece_shape).sub(_shape_center(target_shape))
+
+            if direction.Length <= 1e-9:
+                raise RuntimeError("snap blocked: target and garment have no stable outward direction")
+            direction.normalize()
+
+            remaining = max_translation - moved
+            step = max(clearance - distance, 2.0)
+            if step > remaining + 1e-9:
+                raise RuntimeError("snap blocked: required translation exceeds %.3f mm" % max_translation)
+
+            delta = direction.multiply(step)
+            piece.Placement = App.Placement(piece.Placement.Base + delta, piece.Placement.Rotation)
+            piece_shape = _world_shape(piece)
+            moved += step
         else:
-            direction = _shape_center(piece_shape).sub(_shape_center(target_shape))
-        if direction.Length <= 1e-9:
-            raise RuntimeError("snap blocked: target and garment have no stable outward direction")
-        direction.normalize()
+            iteration = max_iterations - 1
 
-        step = max(clearance - distance, 2.0)
-        remaining = max_translation - moved
-        if step > remaining + 1e-9:
-            raise RuntimeError("snap blocked: required translation exceeds %.3f mm" % max_translation)
-        delta = direction.multiply(step)
-        base = piece.Placement.Base + delta
-        piece.Placement = App.Placement(base, piece.Placement.Rotation)
-        piece_shape = _world_shape(piece)
-        moved += step
+        final_distance = float(piece_shape.distToShape(target_shape)[0])
+        if final_distance + 1e-6 < clearance:
+            raise RuntimeError(
+                "snap failed: final clearance %.6f mm is below %.6f mm" %
+                (final_distance, clearance)
+            )
 
-    final_distance = float(piece_shape.distToShape(target_shape)[0])
-    if final_distance + 1e-6 < clearance:
-        raise RuntimeError(
-            "snap failed: final clearance %.6f mm is below %.6f mm" %
-            (final_distance, clearance)
-        )
-
-    piece_id = str(getattr(piece, "PieceId", "")).strip()
-    if scene is not None and piece_id:
-        from freecad_cloth.avatar.AvatarFitting import PiecePlacement
-        placements = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)}
-        base = piece.Placement.Base
-        placements[piece_id] = PiecePlacement(
-            piece_id,
-            (float(base.x), float(base.y), float(base.z)),
-            float(piece.Placement.Rotation.Angle),
-        )
-        scene.PiecePlacements = [placements[k].to_string() for k in sorted(placements)]
-        scene.FitStatus = "Target snapped"
+        piece_id = str(getattr(piece, "PieceId", "")).strip()
+        if scene is not None and piece_id:
+            from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+            placements = {
+                p.piece_id: p
+                for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)
+            }
+            base = piece.Placement.Base
+            placements[piece_id] = PiecePlacement(
+                piece_id,
+                (float(base.x), float(base.y), float(base.z)),
+                float(piece.Placement.Rotation.Angle),
+            )
+            scene.PiecePlacements = [placements[key].to_string() for key in sorted(placements)]
+            scene.FitStatus = "Target snapped"
 
         doc.recompute()
+        return {
+            "piece_id": piece_id,
+            "distance_before": float(before_distance if before_distance is not None else final_distance),
+            "distance_after": final_distance,
+            "translation": moved,
+            "clearance": clearance,
+            "iterations": iteration + 1,
+        }
     except Exception:
         piece.Placement = original_placement
         if scene is not None and original_piece_values is not None:
@@ -476,14 +493,6 @@ def snap_piece_to_drape_target(piece, target=None, clearance=8.0, max_translatio
             scene.FitStatus = original_status
         doc.recompute()
         raise
-    return {
-        "piece_id": piece_id,
-        "distance_before": float(before_distance if before_distance is not None else final_distance),
-        "distance_after": final_distance,
-        "translation": moved,
-        "clearance": clearance,
-        "iterations": max_iterations if final_distance + 1e-6 < clearance else (_ + 1),
-    }
 
 
 def reset_arrangement():
