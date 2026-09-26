@@ -38,7 +38,7 @@ replacements = {
         '        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)\n'
         '        if str(getattr(seam_obj, "EdgeAId", "")) != edge_a_id or str(getattr(seam_obj, "EdgeBId", "")) != edge_b_id: raise RuntimeError("canonical tunic seam %s did not retain authored semantic edge IDs" % seam_id)\n'
         '        seam_records.append((seam_obj, front, back))',
-    '    clearance = max(20.0, 0.08 * body_depth)': '    clearance = max(8.0, 0.025 * body_depth);',
+    'clearance = max(20.0, 0.08 * body_depth)': '    clearance = max(8.0, 0.025 * body_depth);',
     '        y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance':
         '            y = min(target_ys) - clearance',
     '        y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance':
