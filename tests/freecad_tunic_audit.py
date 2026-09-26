@@ -151,8 +151,30 @@ if "--syntax-check" in sys.argv:
     )
     raise SystemExit(0)
 
+telemetry_dir = Path(os.environ.get("CLOTH_SCREENSHOT_DIR", str(ROOT / "docs" / "images" / "generated")))
+telemetry_dir.mkdir(parents=True, exist_ok=True)
+wrapper_start = telemetry_dir / "tunic-audit-wrapper.log"
+wrapper_start.write_text(
+    "stage=before-exec\n"
+    "generated-source-lines=%d\n" % len(source.splitlines()),
+    encoding="utf-8",
+)
+
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
-exec(compiled_source, globals(), globals())
+try:
+    exec(compiled_source, globals(), globals())
+except BaseException as error:
+    import traceback
+
+    detail = (
+        "stage=exec-exception\n"
+        "exception-type=%s\n"
+        "exception=%s\n"
+        "%s"
+    ) % (type(error).__name__, str(error), traceback.format_exc())
+    (telemetry_dir / "tunic-audit-wrapper.log").write_text(detail, encoding="utf-8")
+    print(detail, flush=True)
+    raise
 print("tunic-audit-process-exit=success", flush=True)
 os._exit(0)
