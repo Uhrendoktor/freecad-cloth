@@ -120,6 +120,15 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", 1)
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
-exec(compile(source, str(source_path), "exec"), globals(), globals())
+try:
+    compiled_source = compile(source, str(source_path), "exec")
+except SyntaxError as error:
+    generated_lines = source.splitlines()
+    error_line = int(getattr(error, "lineno", 1) or 1)
+    print("tunic-generated-source-syntax-error=%s" % error, flush=True)
+    for index in range(max(1, error_line - 5), min(len(generated_lines), error_line + 5) + 1):
+        print("tunic-generated-source[%d]=%r" % (index, generated_lines[index - 1]), flush=True)
+    os._exit(1)
+exec(compiled_source, globals(), globals())
 print("tunic-audit-process-exit=success", flush=True)
 os._exit(0)
