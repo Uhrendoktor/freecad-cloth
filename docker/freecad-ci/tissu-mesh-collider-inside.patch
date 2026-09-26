@@ -1,5 +1,4 @@
 diff --git a/core/src/physics/MeshCollider.cpp b/core/src/physics/MeshCollider.cpp
-
 --- a/core/src/physics/MeshCollider.cpp
 +++ b/core/src/physics/MeshCollider.cpp
 @@ -49,10 +49,22 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
@@ -26,7 +25,6 @@ diff --git a/core/src/physics/MeshCollider.cpp b/core/src/physics/MeshCollider.c
              Eigen::Vector3d newPosition = cp + normal * thickness;
              particle.setPosition(newPosition);
 diff --git a/tests/physics/test_mesh_collider.cpp b/tests/physics/test_mesh_collider.cpp
-
 --- a/tests/physics/test_mesh_collider.cpp
 +++ b/tests/physics/test_mesh_collider.cpp
 @@ -6,6 +6,31 @@
