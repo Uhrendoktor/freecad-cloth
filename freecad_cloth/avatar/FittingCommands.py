@@ -465,7 +465,7 @@ def apply_arrangement_point(piece, point, mirror=None):
 
 
 def snap_pieces_to_target(clearance=8.0, max_translation=600.0, max_rotation=45.0):
-    """Apply authored target-aware garment anchors to every fitting-scene piece."""
+    """Apply authored target-aware garment anchors atomically across all fitted pieces."""
     import FreeCAD as App
     doc = App.ActiveDocument
     if doc is None:
@@ -475,34 +475,66 @@ def snap_pieces_to_target(clearance=8.0, max_translation=600.0, max_rotation=45.
         raise ValueError("create a fitting scene with pattern pieces first")
     if not getattr(scene, "DrapeTarget", None):
         raise ValueError("assign an authoritative DrapeTarget before target-aware placement")
-    from freecad_cloth.avatar.AvatarFitting import GarmentAnchor
+    from freecad_cloth.avatar.AvatarFitting import GarmentAnchor, PiecePlacement
     anchors = tuple(GarmentAnchor.from_string(value) for value in getattr(scene, "GarmentAnchors", ()) or ())
     if not anchors:
         raise ValueError("target-aware placement requires authored GarmentAnchors in the fitting scene")
-    results = []
+    candidates = []
+    snapshots = {}
     for piece in sorted(scene.PatternPieces, key=lambda item: str(getattr(item, "PieceId", ""))):
         piece_anchors = tuple(anchor for anchor in anchors if str(anchor.piece_id) == str(piece.PieceId))
         if not piece_anchors:
             continue
-        results.append(
-            target_aware_place_piece(
-                piece,
-                scene.DrapeTarget,
-                piece_anchors,
-                clearance=float(clearance),
-                max_translation=float(max_translation),
-                max_rotation=float(max_rotation),
-            )
+        sketch = getattr(piece, "Sketch", None)
+        snapshots[str(piece.PieceId)] = (
+            piece,
+            piece.Placement,
+            getattr(sketch, "Placement", None) if sketch is not None else None,
         )
-    if not results:
+        candidates.append((piece, piece_anchors))
+    if not candidates:
         raise ValueError("no fitted pattern piece has an authored garment anchor")
-    scene.FitStatus = "Target-aware placement applied"
-    doc.recompute()
-    return tuple(results)
+    previous_piece_placements = list(getattr(scene, "PiecePlacements", ()) or ())
+    previous_fit_status = str(getattr(scene, "FitStatus", ""))
+    try:
+        results = []
+        for piece, piece_anchors in candidates:
+            results.append(
+                target_aware_place_piece(
+                    piece,
+                    scene.DrapeTarget,
+                    piece_anchors,
+                    clearance=float(clearance),
+                    max_translation=float(max_translation),
+                    max_rotation=float(max_rotation),
+                )
+            )
+        scene.FitStatus = "Target-aware placement applied"
+        doc.recompute()
+        return tuple(results)
+    except Exception:
+        for _piece_id, (piece, placement, sketch_placement) in snapshots.items():
+            piece.Placement = placement
+            sketch = getattr(piece, "Sketch", None)
+            if sketch is not None and sketch_placement is not None:
+                sketch.Placement = sketch_placement
+        scene.PiecePlacements = previous_piece_placements
+        scene.FitStatus = previous_fit_status
+        doc.recompute()
+        raise
 
 
-def snap_pattern_pieces_to_target(clearance=8.0, max_translation=600.0, max_rotation=45.0):
-    """Compatibility alias used by the Simulation Quality task panel."""
+def snap_pattern_pieces_to_target(pattern_pieces=None, clearance=8.0, max_translation=600.0, max_rotation=45.0):
+    """Compatibility adapter for the Simulation Quality panel.
+
+    The UI passes the PatternPiece tuple returned by the fitting handoff. The
+    fitting scene remains authoritative, while this adapter preserves the
+    established UI call signature and accepts a numeric first positional
+    argument for older callers that treated the alias as the canonical helper.
+    """
+    if pattern_pieces is not None and isinstance(pattern_pieces, (int, float)):
+        clearance = float(pattern_pieces)
+        pattern_pieces = None
     return snap_pieces_to_target(clearance, max_translation, max_rotation)
 
 
