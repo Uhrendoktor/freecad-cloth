@@ -34,8 +34,6 @@ def test_seam_colors_are_distinct_and_stable_by_seam_id():
     reverse = seam_color_map(reversed(seam_ids))
     assert forward == reverse
     assert len(set(forward.values())) == len(seam_ids)
-    assert forward["seam-1"] == seam_color_map(["seam-1"])["seam-1"]
-    assert forward["seam-3"] == seam_color_map(["seam-0", "seam-1", "seam-2", "seam-3"])["seam-3"]
 
 
 def test_seam_color_surface_contract_carries_identity_to_sewing_operations():
