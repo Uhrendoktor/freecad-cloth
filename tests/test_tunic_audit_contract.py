@@ -143,3 +143,26 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance'," in audit
     assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance'," in audit
     assert "'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))'," in audit
+
+def test_tunic_visual_diagnostics_are_authoritative_after_persistence():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    metrics_write = source.index('json.dump(payload, handle, indent=2, sort_keys=True)')
+    metrics_return = source.index("return payload", metrics_write)
+    gate = source.index('visual-diagnostics-fail-closed=')
+    assert metrics_write < metrics_return < gate
+    assert 'payload = write_drape_metrics(' in source
+    assert 'if diagnostics or state != "structurally-plausible":' in source
+    assert '"detached-candidate"' in source
+    assert '"collapsed-candidate"' in source
+    assert '"below-hem-candidate"' in source
+    assert '"lateral-detached-candidate"' in source
+    assert 'raise RuntimeError(' in source[gate - 80:gate + 260]
+
+
+def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    metrics_write = source.index('json.dump(payload, handle, indent=2, sort_keys=True)')
+    gate = source.index('visual-diagnostics-fail-closed=')
+    assert metrics_write < gate
+    assert "docs/images/generated" in source
+    assert "drape-metrics=" in source
