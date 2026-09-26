@@ -1,30 +1,75 @@
 # User guide
 
-## Start with the basic example
+This is the canonical human-facing path after installation:
 
-After installation, open the **Cloth Pattern**, **Cloth Sewing**, and **Cloth Simulation** workbenches from the FreeCAD workbench selector.
+**Installation → Blanket over Cube → Pattern → Sewing → Arrange/Fit → Simulate → Recovery → Tunic**
 
-For a first validation, follow the **Blanket over Cube** example in [Examples](EXAMPLES.md). Pin two blanket corners, run the simulation, and verify that the cloth moves toward and around the cube.
+Use the linked examples first, then use the workbench guide when you need detailed command or property behavior.
 
-## Typical garment workflow
+## 1. Installation
 
-1. Create or open a native Sketcher pattern in **Cloth Pattern** and turn it into a PatternPiece. Keep Sketcher as the geometry authority.
-2. Use **Cloth Sewing** to select matching semantic edges and create seams. Editing an upstream Sketcher edge can invalidate a downstream seam rather than silently retargeting it.
-3. In **Cloth Sewing**, create/select the fitting scene and add the garment pieces. Select exactly one persistent **DrapeTarget** and the pieces, then use **Snap pieces to target** to place them with bounded rigid translation and conservative outward collision-surface clearance. The operation preserves rotation/relative spacing, records the resulting PiecePlacements, and **Reset Arrangement** restores HomePlacements.
-4. In **Cloth Simulation**, verify the same DrapeTarget is attached to the simulation. The target is authoritative; missing, stale, unbuilt or invalid targets block simulation rather than falling back to the avatar proxy.
-5. Set simulation quality, fabric presentation, and pinning mode. **Automatic** preserves legacy boundary-pin behavior, **Explicit** uses only `PinSelection`, and **None** creates a genuinely pinless solver scene.
-6. Run the simulation. Inspect the target status, finite-state indicator, seam presentation and diagnostics before export or saving a final document.
+Complete [Installation](INSTALLATION.md) first. Restart FreeCAD after copying the workbench into the user `Mod` directory, then select **Cloth Pattern**, **Cloth Sewing**, or **Cloth Simulation** from the workbench selector.
 
-## Seams and visual inspection
+## 2. Blanket over Cube
 
-Seams use deterministic colors in the 2D sewing view and retain their placed/world-space 3D presentation. Use the seam-focus command to fit a selected seam in 3D, and the Sketcher-side seam command to edit the authoritative source edge.
+Run the [Blanket over Cube](EXAMPLES.md#1-blanket-over-cube) example before building a garment. Pin two blanket corners, run the simulation, and verify that the cloth moves toward and around the cube.
 
-## Fabric presentation
+![Blanket over cube motion](https://github.com/Uhrendoktor/freecad-cloth/raw/f276d1f5f51eb4d3d9ade58aa28c8fffd3fbc7d5/docs/images/generated/cloth-blanket-motion.gif)
 
-Presentation properties are persisted on the native Fabric Material object and are separate from the physical solver parameters.
+This example deliberately isolates cloth, collision and pinning. If it does not behave as described, use the recovery steps below before moving to the tunic.
 
-## Persistence and recovery
+## 3. Pattern
 
-After pattern, seam-source or drape-target changes, rebuild or repair dependent derived state before simulation/export. Cloth intentionally reports stale dependencies instead of silently using outdated derived geometry.
+In **Cloth Pattern**, create or open a native Sketcher pattern and turn it into a PatternPiece. Keep Sketcher as the editable geometry authority. Add seam allowance, notches, grainline and internal-mark metadata as needed, then recompute and validate before sewing.
 
-For debugging, compare local results with the FreeCAD/Triangle/Tissu versions recorded by the canonical workflow and attach the relevant CI artifact/log rather than editing generated evidence manually.
+For the detailed authoring sequence and export behavior, see [Workbench guide — Pattern](WORKBENCH_GUIDE.md#1-pattern). The normal authoring path is Sketcher-backed; the former polygon drafting editor is compatibility-only.
+
+## 4. Sewing
+
+In **Cloth Sewing**, select compatible semantic pattern edges and explicitly create the seam or M:N/free sewing relationship. Review direction, correspondence and length diagnostics before committing.
+
+If a Sketcher edit invalidates a seam reference, leave the seam invalid until it is explicitly repaired or recreated. Do not rely on generated mesh edge order.
+
+See [Workbench guide — Sewing](WORKBENCH_GUIDE.md#2-sewing) for staged Preview/Commit/Cancel behavior and seam inspection.
+
+## 5. Arrange / Fit
+
+In **Cloth Simulation**, create or select a `DrapeTarget`: either the native human mannequin or supported generic FreeCAD Shape/PartDesign/Body/Mesh geometry. Arrange the pattern pieces using their persistent placements/arrangement metadata.
+
+Use the [arranged cloth turntable](https://github.com/Uhrendoktor/freecad-cloth/raw/f276d1f5f51eb4d3d9ade58aa28c8fffd3fbc7d5/docs/images/generated/cloth-simulation-arranged-turntable.gif) as the visual reference for this pre-simulation state.
+
+The arrange/reset operations prepare fitting state; they are not solver state.
+
+## 6. Simulate
+
+Generate the preview/final mesh, choose material and quality, confirm the target is valid, then **Run**. Use **Step** for controlled/debug advancement and **Reset** to recover simulation state.
+
+Inspect the result and diagnostics before export or saving a final document. The draped turntable and tunic render below are stable examples of the published output.
+
+![Draped cloth turntable](https://github.com/Uhrendoktor/freecad-cloth/raw/f276d1f5f51eb4d3d9ade58aa28c8fffd3fbc7d5/docs/images/generated/cloth-simulation-draped-turntable.gif)
+
+## 7. Recovery
+
+After a pattern, seam or target edit:
+
+1. Recompute the document.
+2. Inspect the stale or invalid reason shown by Cloth.
+3. Refresh or rebuild the affected derived state.
+4. Re-run the simulation only after the target/scene reports valid state.
+
+Typical recovery cases are documented in [Workbench guide — Troubleshooting](WORKBENCH_GUIDE.md#troubleshooting):
+
+- **Workbench missing:** verify the workbench is installed as a FreeCAD `Mod` package, then restart FreeCAD.
+- **Command disabled:** check the active document and selection; incomplete inputs are intentionally rejected.
+- **Seam invalid after editing:** recompute and validate, then repair the semantic reference explicitly.
+- **Simulation stale:** inspect target/scene status, refresh the target or regenerate the derived mesh, then run again.
+
+## 8. Tunic
+
+After the basic path is working, use the [Tunic](EXAMPLES.md#2-tunic) scenario for the full garment acceptance path: multiple native pattern pieces, semantic sewing, mannequin collision, material/quality controls, diagnostics, save/reload and invalidation.
+
+![Tunic validation](https://github.com/Uhrendoktor/freecad-cloth/raw/f276d1f5f51eb4d3d9ade58aa28c8fffd3fbc7d5/docs/images/generated/cloth-simulation-draped-front.png)
+
+The tunic is an acceptance scenario, not a substitute for the blanket smoke test when diagnosing a local installation.
+
+For the detailed garment object hierarchy and end-to-end workbench sequence, continue with the [Workbench guide](WORKBENCH_GUIDE.md).
