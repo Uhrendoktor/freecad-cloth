@@ -214,8 +214,6 @@ def main():
         view.viewAxonometric()
         view.fitAll()
         events()
-        save_png(view, OUT / "checkpoint-000.png", "blanket initial state")
-
         initial_points = tuple(tuple(float(value) for value in point) for point in scene.Proxy._base_or_restore().backend.positions())
         import time
         log("blanket-solver-config particle_distance=%.1f iterations=%d particles=%d" % (float(scene.ParticleDistance), int(scene.SolverIterations), int(scene.ParticleCount)))
