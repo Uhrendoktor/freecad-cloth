@@ -95,6 +95,8 @@ def _vector_scale(vector, factor):
 
 
 def _remove_inward_motion(displacement_tissu, outward_normal_mm):
+    if outward_normal_mm is None:
+        return displacement_tissu
     normal_tissu = _to_tissu_vector(outward_normal_mm)
     normal_length = _vector_length(normal_tissu)
     if normal_length <= 1.0e-12:
@@ -107,7 +109,6 @@ def _remove_inward_motion(displacement_tissu, outward_normal_mm):
         displacement_tissu,
         _vector_scale(normal_tissu, normal_component),
     )
-
 
 def _apply_authored_containment_correction(
     sim,
@@ -194,8 +195,7 @@ def _apply_authored_containment_correction(
                 target = _vector_add(positions_mm[index], chosen)
                 _closest_normal = None
             else:
-                target, _closest_normal = correction
-                target = _vector_add(positions_mm[index], _vector_sub(target, positions_mm[index]))
+                _original_target, _closest_normal = correction
                 target = _vector_add(positions_mm[index], chosen)
 
             new_position_tissu = tuple(
