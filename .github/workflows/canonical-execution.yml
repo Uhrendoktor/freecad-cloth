@@ -99,9 +99,9 @@ jobs:
             runners="$(gh api --paginate "repos/$REPO/actions/runners?per_page=100" 2>/dev/null || true)"
             if test -n "$runners"; then
               local="$(printf '%s' "$runners" | jq -c '
-                [.runners[]
+                [(.runners // [])[]
                   | select(.status == "online" and .busy == false)
-                  | select((["self-hosted","linux","x64","docker"] - [.labels[].name]) | length == 0)
+                  | select((["self-hosted","linux","x64","docker"] - [(.labels // [])[].name]) | length == 0)
                 ][0] // empty
               ')"
               if test -n "$local"; then
