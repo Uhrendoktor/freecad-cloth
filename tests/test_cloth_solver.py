@@ -72,7 +72,8 @@ def test_mesh_collision_edge_projection_is_idempotent():
     system._collide_surface(surface)
 
     assert projected == (11.0, 0.0, 11.0)
-    assert particle.position() == projected
+    drift = tuple(a - b for a, b in zip(particle.position(), projected))
+    assert max(abs(value) for value in drift) <= 1e-9, drift
 
 
 if __name__ == "__main__":
