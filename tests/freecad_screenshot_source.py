@@ -387,9 +387,9 @@ def simulation():
     rot = App.Rotation(App.Vector(1,0,0), 90.0)
     def target_relative_piece_placement(side):
         if side == "front":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
-        elif side == "back":
             y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
+        elif side == "back":
+            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
         else:
             raise ValueError("tunic target-relative side must be front or back")
         return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
@@ -403,6 +403,23 @@ def simulation():
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
+    from freecad_cloth.avatar.AvatarFitting import GarmentAnchor
+    from freecad_cloth.avatar.FittingCommands import target_aware_place_piece
+    front_anchors = (
+        GarmentAnchor(str(front.PieceId), "shoulder_left", (0.14 * panel_width, 0.97 * garment_height, 0.0), "front"),
+        GarmentAnchor(str(front.PieceId), "shoulder_right", (0.86 * panel_width, 0.97 * garment_height, 0.0), "front"),
+    )
+    back_anchors = (
+        GarmentAnchor(str(back.PieceId), "shoulder_left", (0.14 * panel_width, 0.97 * garment_height, 0.0), "back"),
+        GarmentAnchor(str(back.PieceId), "shoulder_right", (0.86 * panel_width, 0.97 * garment_height, 0.0), "back"),
+    )
+    placement_results = (
+        target_aware_place_piece(front, target, front_anchors, clearance=clearance),
+        target_aware_place_piece(back, target, back_anchors, clearance=clearance),
+    )
+    if any(float(result["anchor_clearance"]) < float(clearance) for result in placement_results):
+        raise RuntimeError("target-aware tunic placement did not prove the configured clearance")
+    log("tunic-placement=target-aware rigid-anchors results=%s" % (placement_results,))
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.PinMode = "None"; scene.PinSelection = []; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
     status = target_status(target)
     if str(status.get("state", "")) != "ready":
