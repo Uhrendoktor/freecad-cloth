@@ -114,6 +114,10 @@ def create_fitting_scene():
     obj.addProperty("App::PropertyStringList", "BoundingVolumeObjects", "Arrangement").BoundingVolumeObjects = []
     obj.addProperty("App::PropertyBool", "SymmetryEnabled", "Arrangement").SymmetryEnabled = True
     obj.addProperty("App::PropertyString", "FitStatus", "Fitting").FitStatus = "Unassigned"
+    obj.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")
+    obj.addProperty("App::PropertyFloat", "TargetPlacementClearance", "Arrangement").TargetPlacementClearance = 5.0
+    obj.addProperty("App::PropertyFloat", "TargetPlacementMaxTranslation", "Arrangement").TargetPlacementMaxTranslation = 250.0
+    obj.addProperty("App::PropertyAngle", "TargetPlacementMaxRotation", "Arrangement").TargetPlacementMaxRotation = 0.0
     obj.Proxy = _FittingProxy()
     FittingScene().validate()
     doc.recompute()
@@ -148,6 +152,10 @@ def assign_avatar_source(source=None):
     avatar = create_avatar_collision(doc) if doc.getObject("AvatarCollision") is None else doc.getObject("AvatarCollision")
     avatar = set_avatar_collision_source(scene, source)
     scene.AvatarProxy = avatar
+    target = doc.getObject("DrapeTarget")
+    if target is None:
+        raise RuntimeError("avatar assignment did not create a DrapeTarget")
+    scene.DrapeTarget = target
     scene.FitStatus = "Avatar assigned"
     doc.recompute()
     return scene
@@ -325,6 +333,88 @@ def apply_arrangement_point(piece, point, mirror=None):
     return position_piece(piece, point.x, point.y, point.offset, rotations[point.wrap_direction])
 
 
+def snap_piece_to_target(piece, target=None, clearance=None, max_translation=None, max_rotation=None):
+    """Place one pattern piece outside the persistent target surface without solver pins."""
+    import FreeCAD as App
+    from freecad_cloth.avatar.AvatarCollision import surface_from_freecad
+    from freecad_cloth.avatar.TargetPlacement import rigid_translation_for_clearance, minimum_signed_clearance
+    doc = App.ActiveDocument
+    scene = _scene(doc) if doc else None
+    if scene is None:
+        raise ValueError("create a fitting scene first")
+    if getattr(piece, "PatternType", "") != "PatternPiece":
+        raise ValueError("piece must be a Cloth PatternPiece object")
+    target = target or getattr(scene, "DrapeTarget", None) or (doc.getObject("DrapeTarget") if doc else None)
+    if target is None:
+        raise ValueError("select or assign a DrapeTarget before target-relative placement")
+    from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
+    status = target_status(target)
+    if status["state"] != "ready":
+        raise RuntimeError("target-relative placement blocked — %s" % status["message"])
+    source = getattr(target, "SourceObject", None)
+    if source is None:
+        raise ValueError("DrapeTarget has no source object")
+    clearance = float(getattr(scene, "TargetPlacementClearance", 5.0) if clearance is None else clearance)
+    max_translation = float(getattr(scene, "TargetPlacementMaxTranslation", 250.0) if max_translation is None else max_translation)
+    max_rotation = float(getattr(scene, "TargetPlacementMaxRotation", 0.0) if max_rotation is None else max_rotation)
+    if max_rotation < 0.0:
+        raise ValueError("target placement rotation bound must not be negative")
+    if abs(max_rotation) > 1e-12:
+        raise ValueError("rotation-aware placement is not enabled by this bounded contract")
+    shape = getattr(piece, "Shape", None)
+    vertices = getattr(shape, "Vertexes", ()) if shape is not None else ()
+    points = tuple((float(v.Point.x), float(v.Point.y), float(v.Point.z)) for v in vertices if hasattr(v, "Point"))
+    if not points:
+        raise ValueError("pattern piece has no world-space geometry points")
+    surface = collision_surface(source, float(getattr(target, "CollisionDeflection", 1.0)), float(getattr(target, "CollisionThickness", 0.0)))
+    delta = rigid_translation_for_clearance(points, surface, clearance, max_translation)
+    old_placement = piece.Placement
+    current_base = old_placement.Base
+    new_base = App.Vector(current_base.x + delta[0], current_base.y + delta[1], current_base.z + delta[2])
+    piece.Placement = App.Placement(new_base, old_placement.Rotation)
+    doc.recompute()
+    new_shape = getattr(piece, "Shape", None)
+    new_points = tuple((float(v.Point.x), float(v.Point.y), float(v.Point.z)) for v in getattr(new_shape, "Vertexes", ()) if hasattr(v, "Point"))
+    if not new_points or minimum_signed_clearance(new_points, surface, delta) < clearance - 1e-4:
+        piece.Placement = old_placement
+        doc.recompute()
+        raise RuntimeError("target-relative placement failed its post-transform clearance gate")
+    from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+    entries = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)}
+    base = piece.Placement.Base
+    entries[str(piece.PieceId)] = PiecePlacement(str(piece.PieceId), (float(base.x), float(base.y), float(base.z)), float(piece.Placement.Rotation.Angle))
+    scene.PiecePlacements = [entries[k].to_string() for k in sorted(entries)]
+    scene.FitStatus = "Target-relative placement applied"
+    return delta
+
+
+def snap_selected_pieces_to_target():
+    """Apply target-relative placement atomically to all selected PatternPieces."""
+    import FreeCAD as App
+    import FreeCADGui as Gui
+    doc = App.ActiveDocument
+    scene = _scene(doc) if doc else None
+    if scene is None:
+        raise ValueError("create a fitting scene first")
+    pieces = [o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"]
+    if not pieces:
+        raise ValueError("select one or more pattern pieces before target-relative placement")
+    originals = {str(piece.PieceId): piece.Placement for piece in pieces}
+    placements_before = list(scene.PiecePlacements)
+    try:
+        deltas = {str(piece.PieceId): snap_piece_to_target(piece) for piece in pieces}
+    except Exception:
+        for piece in pieces:
+            original = originals[str(piece.PieceId)]
+            piece.Placement = original
+        scene.PiecePlacements = placements_before
+        scene.FitStatus = "Target-relative placement rejected"
+        doc.recompute()
+        raise
+    doc.recompute()
+    return deltas
+
+
 def reset_arrangement():
     """Restore every assigned piece to its saved pre-arrangement placement."""
     import FreeCAD as App
@@ -395,6 +485,7 @@ COMMANDS = [
     "ClothFitting_SetSymmetry",
     "ClothFitting_ApplyArrangementPoint",
     "ClothFitting_ResetArrangement",
+    "ClothFitting_SnapSelectedToTarget",
     "ClothFitting_CreateSimulation",
 ]
 _COMMAND_HANDLERS = {
@@ -410,6 +501,7 @@ _COMMAND_HANDLERS = {
     "ClothFitting_SetSymmetry": lambda: set_symmetry_enabled(True),
     "ClothFitting_ApplyArrangementPoint": lambda: _apply_selected_arrangement(),
     "ClothFitting_ResetArrangement": reset_arrangement,
+    "ClothFitting_SnapSelectedToTarget": snap_selected_pieces_to_target,
     "ClothFitting_CreateSimulation": create_simulation_from_fitting,
 }
 
