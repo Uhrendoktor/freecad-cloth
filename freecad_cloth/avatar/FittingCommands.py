@@ -198,6 +198,135 @@ def position_piece(piece, x, y, z=0.0, rotation_z=0.0):
     return piece
 
 
+def _source_world_bounds(source, App):
+    """Return an object's axis-aligned world bounds without changing its placement."""
+    bound_box = getattr(getattr(source, "Mesh", None), "BoundBox", None)
+    if bound_box is None:
+        bound_box = getattr(getattr(source, "Shape", None), "BoundBox", None)
+    if bound_box is None:
+        raise ValueError("fitting target has no mesh or shape bounds")
+    points = [
+        App.Vector(x, y, z)
+        for x in (bound_box.XMin, bound_box.XMax)
+        for y in (bound_box.YMin, bound_box.YMax)
+        for z in (bound_box.ZMin, bound_box.ZMax)
+    ]
+    placement = getattr(source, "Placement", None)
+    if placement is not None:
+        points = [placement.multVec(point) for point in points]
+    return (
+        min(point.x for point in points), max(point.x for point in points),
+        min(point.y for point in points), max(point.y for point in points),
+        min(point.z for point in points), max(point.z for point in points),
+    )
+
+
+def _source_landmarks(source, App):
+    """Return named world-space fitting landmarks when the target publishes them."""
+    records = getattr(source, "ArrangementPoints", None) or getattr(source, "Landmarks", None) or ()
+    result = {}
+    placement = getattr(source, "Placement", None)
+    for record in records:
+        try:
+            name, coords = str(record).split("|", 1)
+            values = tuple(float(value) for value in coords.split(","))
+            if len(values) != 3:
+                continue
+            point = App.Vector(*values)
+            if placement is not None:
+                point = placement.multVec(point)
+            result[name] = point
+        except (TypeError, ValueError):
+            continue
+    return result
+
+
+def _capture_piece_placement(piece, App):
+    """Serialize the actual FreeCAD placement, including non-Z orientations."""
+    from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+    placement = piece.Placement
+    base = placement.Base
+    rotation = placement.Rotation
+    axis = rotation.Axis
+    angle = float(rotation.Angle)
+    axis_tuple = (float(axis.x), float(axis.y), float(axis.z))
+    if abs(angle) < 1e-9 or (
+        abs(axis_tuple[0]) < 1e-9 and abs(axis_tuple[1]) < 1e-9 and abs(abs(axis_tuple[2]) - 1.0) < 1e-9
+    ):
+        return PiecePlacement(str(piece.PieceId), (float(base.x), float(base.y), float(base.z)), angle)
+    return PiecePlacement(
+        str(piece.PieceId),
+        (float(base.x), float(base.y), float(base.z)),
+        0.0,
+        axis_tuple,
+        angle,
+    )
+
+
+def auto_arrange_garment(clearance=None):
+    """Place the fitted garment around its DrapeTarget before simulation.
+
+    The operation uses only the target envelope and stable target landmarks. It
+    preserves each pattern piece's authored 3D orientation, updates the fitting
+    scene placement ledger, and never creates solver pins.
+    """
+    import FreeCAD as App
+    doc = App.ActiveDocument
+    if doc is None:
+        raise ValueError("open a document before auto-arranging a garment")
+    scene = _scene(doc)
+    if scene is None:
+        raise ValueError("create a fitting scene first")
+    pieces = [piece for piece in getattr(scene, "PatternPieces", ()) if getattr(piece, "PatternType", "") == "PatternPiece"]
+    if not pieces:
+        raise ValueError("add at least one pattern piece before auto-arranging")
+    avatar = getattr(scene, "AvatarProxy", None)
+    source = getattr(avatar, "SourceObject", None) or avatar
+    if source is None:
+        raise ValueError("assign a fitting target before auto-arranging")
+    from freecad_cloth.avatar.AutoArrangement import arrange_piece_centers, target_envelope
+
+    bounds = _source_world_bounds(source, App)
+    landmarks = _source_landmarks(source, App)
+    shoulder_points = [landmarks[name] for name in ("shoulder_left", "shoulder_right") if name in landmarks]
+    shoulder_z = sum(point.z for point in shoulder_points) / len(shoulder_points) if shoulder_points else None
+    hip_z = landmarks["hip"].z if "hip" in landmarks else None
+    target = target_envelope(bounds, shoulder_z=shoulder_z, hip_z=hip_z)
+    if clearance is None:
+        drape_target = getattr(scene, "DrapeTarget", None)
+        clearance = max(6.0, float(getattr(drape_target, "CollisionThickness", 2.0)) + 4.0)
+    clearance = float(clearance)
+    records = []
+    centers = {}
+    for piece in pieces:
+        shape_box = getattr(getattr(piece, "Shape", None), "BoundBox", None)
+        if shape_box is None:
+            raise ValueError("pattern piece %s has no geometry bounds" % piece.Label)
+        local_center = App.Vector(
+            (shape_box.XMin + shape_box.XMax) * 0.5,
+            (shape_box.YMin + shape_box.YMax) * 0.5,
+            (shape_box.ZMin + shape_box.ZMax) * 0.5,
+        )
+        current_center = piece.Placement.multVec(local_center)
+        label = str(getattr(piece, "Label", getattr(piece, "Name", "")))
+        records.append((label, (float(current_center.x), float(current_center.y), float(current_center.z))))
+        centers[str(piece.PieceId)] = local_center
+    desired_by_label = arrange_piece_centers(records, target, clearance=clearance)
+    ledgers = {}
+    for piece in pieces:
+        label = str(getattr(piece, "Label", getattr(piece, "Name", "")))
+        desired = App.Vector(*desired_by_label[label])
+        rotation = piece.Placement.Rotation
+        world_local_center = rotation.multVec(centers[str(piece.PieceId)])
+        new_base = desired - world_local_center
+        piece.Placement = App.Placement(new_base, rotation)
+        ledgers[str(piece.PieceId)] = _capture_piece_placement(piece, App)
+    scene.PiecePlacements = [ledgers[key].to_string() for key in sorted(ledgers)]
+    scene.FitStatus = "Auto-arranged around target"
+    doc.recompute()
+    return scene
+
+
 def create_arrangement_point(name, x, y, offset=0.0, wrap_direction="front", rotation_z=0.0, symmetry_group="", mirror=False):
     import FreeCAD as App
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
@@ -394,6 +523,7 @@ COMMANDS = [
     "ClothFitting_DeleteBoundingVolume",
     "ClothFitting_SetSymmetry",
     "ClothFitting_ApplyArrangementPoint",
+    "ClothFitting_AutoArrange",
     "ClothFitting_ResetArrangement",
     "ClothFitting_CreateSimulation",
 ]
@@ -409,6 +539,7 @@ _COMMAND_HANDLERS = {
     "ClothFitting_DeleteBoundingVolume": lambda: delete_bounding_volume("Volume1"),
     "ClothFitting_SetSymmetry": lambda: set_symmetry_enabled(True),
     "ClothFitting_ApplyArrangementPoint": lambda: _apply_selected_arrangement(),
+    "ClothFitting_AutoArrange": auto_arrange_garment,
     "ClothFitting_ResetArrangement": reset_arrangement,
     "ClothFitting_CreateSimulation": create_simulation_from_fitting,
 }
