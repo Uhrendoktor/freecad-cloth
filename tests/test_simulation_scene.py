@@ -296,3 +296,36 @@ def test_pattern_scene_truncates_stale_demo_panels_before_mesh_write():
     assert obj.DrapePanels == [panel_a]
     assert list(proxy.panel_triangles) == ["DrapePanelA"]
     assert writes == [("DrapePanelA", ((0, 1, 2),))]
+
+
+def test_pin_mode_resolves_without_implicit_constraints():
+    from types import SimpleNamespace
+    from freecad_cloth.simulation.SimulationObjects import _resolve_pin_indices
+
+    scene = SimpleNamespace(PinMode="None", PinSelection=["0", "1"])
+    assert _resolve_pin_indices(scene, 4, (0, 3)) == ()
+
+    scene.PinMode = "Explicit"
+    assert _resolve_pin_indices(scene, 4, (0, 3)) == (0, 1)
+
+    scene.PinMode = "Automatic"
+    assert _resolve_pin_indices(scene, 4, (0, 3)) == (0, 3)
+
+
+def test_pin_mode_is_part_of_rebuild_signature():
+    from types import SimpleNamespace
+    from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
+
+    source = SimpleNamespace(
+        Name="Body",
+        Shape=SimpleNamespace(isNull=lambda: False, hashCode=lambda: 123),
+        Placement=SimpleNamespace(
+            Base=SimpleNamespace(x=0.0, y=0.0, z=0.0),
+            Rotation=SimpleNamespace(Angle=0.0, Axis=SimpleNamespace(x=0.0, y=0.0, z=1.0)),
+        ),
+    )
+    target = SimpleNamespace(SourceObject=source, CollisionDeflection=1.0, CollisionThickness=0.0)
+    base = dict(DrapeTarget=target, PinSelection=[], StitchSamples=8, Document=SimpleNamespace(Objects=[]))
+    scene_a = SimpleNamespace(PinMode="Automatic", **base)
+    scene_b = SimpleNamespace(PinMode="None", **base)
+    assert _simulation_source_signature(scene_a, []) != _simulation_source_signature(scene_b, [])
