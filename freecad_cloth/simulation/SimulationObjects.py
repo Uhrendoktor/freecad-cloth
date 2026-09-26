@@ -56,6 +56,26 @@ def _parse_int_list(values, particle_count=None):
     return tuple(dict.fromkeys(result))
 
 
+_PIN_POLICIES = ("automatic", "explicit", "none")
+
+
+def _pin_policy(obj):
+    policy = str(getattr(obj, "PinPolicy", "automatic")).strip().lower()
+    if policy not in _PIN_POLICIES:
+        raise ValueError("unsupported pin policy: %s" % policy)
+    return policy
+
+
+def _resolve_pins(obj, default_pins, particle_count):
+    policy = _pin_policy(obj)
+    explicit = _parse_int_list(getattr(obj, "PinSelection", ()), particle_count)
+    if policy == "none":
+        return ()
+    if policy == "explicit":
+        return explicit
+    return explicit or tuple(int(i) for i in default_pins)
+
+
 def _placement_signature(piece):
     placement = getattr(piece, "Placement", None)
     if placement is None:
@@ -107,11 +127,13 @@ def _simulation_source_signature(obj, pieces):
             float(getattr(avatar, "CollisionDeflection", 0.0)) if avatar is not None else 0.0,
             float(getattr(avatar, "CollisionThickness", 0.0)) if avatar is not None else 0.0,
         )
-    pin_signature = _parse_int_list(getattr(obj, "PinSelection", ()))
+    pin_policy = _pin_policy(obj)
+    pin_signature = _parse_int_list(getattr(obj, "PinSelection", ())) if pin_policy != "none" else ()
     return (
         pattern_signature,
         target_signature,
         int(getattr(obj, "StitchSamples", 8)),
+        pin_policy,
         pin_signature,
     )
 
@@ -459,17 +481,15 @@ class SimulationProxy:
             int(getattr(obj, "StitchSamples", 8)),
         )
         system.add_stitches(seam_pairs)
-        explicit_pins = _parse_int_list(getattr(obj, "PinSelection", ()), len(particles))
-        if explicit_pins:
-            pins = explicit_pins
-            system.pin(pins)
-        elif pieces:
+        if pieces:
             first = panel_data[str(pieces[0].PieceId)]
             boundary = list(dict.fromkeys(i for edge in first["boundary_edges"] for i in edge))
-            pins = tuple(boundary[:2] + boundary[-2:])
-            system.pin(pins)
+            default_pins = tuple(boundary[:2] + boundary[-2:])
         else:
-            pins = ()
+            default_pins = ()
+        pins = _resolve_pins(obj, default_pins, len(particles))
+        if pins:
+            system.pin(pins)
         collision_surface = _collision_for_scene(obj)
         registry = default_backend_registry()
         backend_name = preferred_backend_name(registry)
@@ -515,8 +535,9 @@ class SimulationProxy:
         constraints = list(left.constraints) + [type(c)(c.a + offset, c.b + offset, c.rest, c.compliance) for c in right.constraints]
         system = ClothSystem(particles, constraints)
         system.add_stitches(_parse_pair_list(getattr(obj, "SeamSelection", ()), len(particles)) or tuple((j * nx + nx - 1, offset + j * nx) for j in range(ny)))
-        pins = _parse_int_list(getattr(obj, "PinSelection", ()), len(particles)) or (0, nx - 1, offset, offset + nx - 1)
-        system.pin(pins)
+        pins = _resolve_pins(obj, (0, nx - 1, offset, offset + nx - 1), len(particles))
+        if pins:
+            system.pin(pins)
         self.backend = default_backend_registry().create("xpbd-cpu", system)
         tris = []
         for j in range(ny - 1):
@@ -641,6 +662,8 @@ def create_simulation_scene(doc):
     scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Selection")
     scene.addProperty("App::PropertyLinkGlobal", "AvatarProxy", "Compatibility")
     scene.addProperty("App::PropertyStringList", "PinSelection", "Selection").PinSelection = []
+    scene.addProperty("App::PropertyEnumeration", "PinPolicy", "Selection").PinPolicy = list(_PIN_POLICIES)
+    scene.PinPolicy = "automatic"
     scene.addProperty("App::PropertyStringList", "SeamSelection", "Selection").SeamSelection = []
     scene.addProperty("App::PropertyFloat", "SimulatedTime", "State").SimulatedTime = 0.0
     scene.addProperty("App::PropertyInteger", "ParticleCount", "State").ParticleCount = 0
