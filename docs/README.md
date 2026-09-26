@@ -1,6 +1,6 @@
 # FreeCAD Cloth documentation
 
-This is the repository's human-facing, wiki-ready documentation hub. GitHub Wiki is enabled for the repository, but the available repository tooling cannot publish or edit the wiki namespace, so the canonical user documentation remains versioned under `docs/`.
+This is the repository's human-facing, wiki-ready documentation hub. Versioned `docs/` content is the canonical source of truth; its navigation is intentionally structured so the same pages can be mirrored into GitHub Wiki without creating a second documentation hierarchy.
 
 For a new user, use this path:
 
