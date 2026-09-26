@@ -384,7 +384,10 @@ class AuthoredSurfaceContainment:
             return None
         closest, normal, _distance_sq, _triangle_index = self.nearest_surface_point(point)
         thickness = max(0.0, float(self.surface.thickness))
-        return _add(closest, _scale(normal, thickness))
+        corrected = _add(closest, _scale(normal, thickness))
+        if self.contains(corrected):
+            return None
+        return corrected
 
 
 def get_authored_surface_containment(surface: CollisionSurface):
