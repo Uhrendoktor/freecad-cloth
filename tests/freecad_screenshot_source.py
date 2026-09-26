@@ -354,22 +354,46 @@ def simulation():
     box = target_source.Mesh.BoundBox; x_mid = (box.XMin + box.XMax) / 2.0; y_span = box.YMax - box.YMin; z_span = box.ZMax - box.ZMin
     chest = 980.0; hip = 1020.0; ease = 55.0; panel_width = max(420.0, 0.50 * chest + ease); hem_width = max(450.0, 0.50 * hip + ease)
     shoulder_z = box.ZMin + 0.76 * z_span; hem_z = box.ZMin + 0.40 * z_span; garment_height = max(560.0, shoulder_z - hem_z); body_depth = max(120.0, min(260.0, y_span)); clearance = max(20.0, 0.08 * body_depth); rot = App.Rotation(App.Vector(1,0,0), 90.0)
-    def target_relative_piece_placement(target_box, side):
-        if side not in ("front", "back"):
-            raise ValueError("tunic target-relative side must be front or back")
-        y = target_box.YMin - clearance if side == "front" else target_box.YMax + clearance
-        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
-    def make_piece(name, side, neckline_ratio, neckline_drop):
-        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(box, side); piece.Sketch.Placement = piece.Placement; return piece, outline
-    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
-    # Same-side side seams and authored shoulder seams; the neckline remains open.
-    seam_records = []
-    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
-        seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")
-        add_seam(doc, seam)
-        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
-        seam_records.append((seam_obj, front, back))
-    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.PinMode = "None"; scene.PinSelection = []; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
+    def make_piece(name, y, neckline_ratio, neckline_drop):
+        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot); piece.Sketch.Placement = piece.Placement; return piece, outline
+    front, front_outline = make_piece("VisualTunicFront", box.YMin - clearance, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", box.YMax + clearance, 0.64, 0.07)
+
+    # Arrange/fit is now the placement authority. Preserve the seed as HomePlacement
+    # and snap each panel from its known side to the same persistent DrapeTarget.
+    from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+    from freecad_cloth.avatar.FittingCommands import create_fitting_scene, snap_pieces_to_target
+    fitting = create_fitting_scene()
+    fitting.AvatarProxy = scene.AvatarProxy
+    fitting.DrapeTarget = target
+    fitting.PatternPieces = [front, back]
+    home_values = [
+        PiecePlacement(
+            str(piece.PieceId),
+            (float(piece.Placement.Base.x), float(piece.Placement.Base.y), float(piece.Placement.Base.z)),
+            float(piece.Placement.Rotation.Angle),
+        ).to_string()
+        for piece in (front, back)
+    ]
+    fitting.HomePlacements = list(home_values)
+    fitting.PiecePlacements = list(home_values)
+    fitting.FitStatus = "Ready"
+    doc.recompute()
+    home_snapshot = tuple(fitting.HomePlacements)
+
+    front_result = snap_pieces_to_target([front], target, clearance=clearance, max_translation=400.0)
+    back_result = snap_pieces_to_target([back], target, clearance=clearance, max_translation=400.0)
+    snap_results = {"front": front_result["pieces"][0], "back": back_result["pieces"][0]}
+    if any(float(result["minimum_signed_clearance"]) + 1e-6 < clearance for result in snap_results.values()):
+        raise RuntimeError("target-aware tunic placement did not establish step-0 target-surface clearance: %s" % snap_results)
+    if tuple(fitting.HomePlacements) != home_snapshot:
+        raise RuntimeError("target-aware tunic placement mutated HomePlacements")
+    log("tunic-arrangement=target-aware step0-clearance-mm=%.3f front-translation-mm=%.3f back-translation-mm=%.3f" % (
+        min(float(result["minimum_signed_clearance"]) for result in snap_results.values()),
+        float(snap_results["front"]["translation"]),
+        float(snap_results["back"]["translation"]),
+    ))
+
+    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.PinMode = "None"; scene.PinSelection = []; scene.ClothPieces = [front, back]; scene.DrapeTarget = target; refresh_drape_target(target); doc.recompute()
     proxy = scene.Proxy
     backend = getattr(proxy, "backend", None)
     if backend is None:
