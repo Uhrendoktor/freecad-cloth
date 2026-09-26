@@ -354,14 +354,22 @@ def simulation():
     def make_piece(name, y, neckline_ratio, neckline_drop):
         sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot); piece.Sketch.Placement = piece.Placement; return piece, outline
     front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)
-    from freecad_cloth.avatar.FittingCommands import snap_piece_to_drape_target
-    snap_results = tuple(
-        snap_piece_to_drape_target(piece, target, clearance=max(8.0, 0.03 * body_depth))
-        for piece in (front, back)
+    from freecad_cloth.avatar.AvatarFitting import GarmentAnchor
+    from freecad_cloth.avatar.FittingCommands import target_aware_place_piece
+    placement_clearance = max(8.0, 0.03 * body_depth)
+    front_anchors = (
+        GarmentAnchor(str(front.PieceId), "shoulder_left", (0.14 * panel_width, 0.97 * garment_height, 0.0), "front"),
+        GarmentAnchor(str(front.PieceId), "shoulder_right", (0.86 * panel_width, 0.97 * garment_height, 0.0), "front"),
     )
-    if any(float(result["distance_after"]) + 1e-6 < float(result["clearance"]) for result in snap_results):
-        raise RuntimeError("target-aware tunic placement did not reach the requested collision clearance")
-    log("tunic-placement=target-aware rigid-snap results=%s" % (snap_results,))
+    back_anchors = (
+        GarmentAnchor(str(back.PieceId), "shoulder_left", (0.14 * panel_width, 0.97 * garment_height, 0.0), "back"),
+        GarmentAnchor(str(back.PieceId), "shoulder_right", (0.86 * panel_width, 0.97 * garment_height, 0.0), "back"),
+    )
+    snap_results = (
+        target_aware_place_piece(front, target, front_anchors, clearance=placement_clearance),
+        target_aware_place_piece(back, target, back_anchors, clearance=placement_clearance),
+    )
+    log("tunic-placement=target-aware rigid-anchor results=%s" % (snap_results,))
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
     for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
@@ -370,40 +378,24 @@ def simulation():
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
-    def authored_shoulder_pins(piece, particle_indices, positions):
-        targets = (
-            (0.14 * panel_width, 0.97 * garment_height),
-            (0.86 * panel_width, 0.97 * garment_height),
-        )
-        available = list(particle_indices)
-        result = []
-        for local_x, local_y in targets:
-            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
-            index = min(available, key=lambda i: (positions[i][0] - target_point.x) ** 2 + (positions[i][1] - target_point.y) ** 2 + (positions[i][2] - target_point.z) ** 2)
-            result.append(index)
-            available.remove(index)
-        return tuple(result)
+    scene.PinMode = "None"
+    scene.PinSelection = []
+    doc.recompute()
     proxy = scene.Proxy
+    solver_system = getattr(getattr(proxy, "backend", None), "system", None)
+    active_pins = tuple(getattr(solver_system, "pins", ()) or ())
+    if active_pins:
+        raise RuntimeError("canonical tunic must remain explicitly pinless: %s" % (active_pins,))
+    log("pinning-mode=none solver-pins=%d" % len(active_pins))
+    from freecad_cloth.avatar.TargetAwarePlacement import assert_minimum_surface_clearance
+    surface = getattr(proxy, "collision_surface", None)
+    if surface is None:
+        raise RuntimeError("canonical tunic has no authoritative collision surface")
     positions = tuple(proxy.backend.positions())
-    pin_panels = list(scene.DrapePanels)
-    panel_indices = proxy.panel_indices
-    front_indices = tuple(panel_indices[pin_panels[0].Name])
-    back_indices = tuple(panel_indices[pin_panels[1].Name])
-    front_pins = authored_shoulder_pins(front, front_indices, positions)
-    back_pins = authored_shoulder_pins(back, back_indices, positions)
-    # The two panels begin on opposite sides of the avatar. Pinning both sewn
-    # shoulder endpoints would freeze each endpoint at its separated start
-    # position, making the zero-rest stitch constraint unsatisfiable. Anchor
-    # only the front shoulder endpoints; the back panel must follow through the
-    # authored shoulder stitches.
-    scene.PinSelection = [str(i) for i in front_pins]
-    if any(
-        int(a) in front_pins and int(b) in front_pins
-        for seam_pairs in getattr(proxy, "seam_stitch_pairs", {}).values()
-        for a, b in seam_pairs
-    ):
-        raise RuntimeError("visual tunic pin contract pins both endpoints of a sewn pair")
-    log("pin-map authored front=%s back-global=%s back-pinned=false" % (front_pins, back_pins)); doc.recompute()
+    step_zero_clearance = assert_minimum_surface_clearance(
+        surface, positions, placement_clearance
+    )
+    log("step-0-target-clearance=%.6f required=%.6f" % (step_zero_clearance, placement_clearance))
     for source in (doc.getObject("VisualTunicFront"), doc.getObject("VisualTunicBack")):
         if source is not None: source.ViewObject.Visibility = False
         sketch = getattr(source, "Sketch", None) if source is not None else None
@@ -417,7 +409,7 @@ def simulation():
     if int(getattr(avatar, "MeshVertexCount", 0)) <= 100 or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100:
         raise RuntimeError("visual fixture does not contain a real humanoid mesh")
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
-    simulation_panel = SimulationQualityTaskPanel(scene); task_dock = show_task(simulation_panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset")); view = Gui.activeDocument().activeView(); view.setCameraType("Orthographic"); view.viewFront(); view.fitAll(); events(); task_dock.hide(); events(); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical sewn tunic generated from native Sketcher pattern sources on production mannequin"); task_dock.show(); task_dock.raise_(); events()
+    simulation_panel = SimulationQualityTaskPanel(scene); task_dock = show_task(simulation_panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Pinning mode", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset")); view = Gui.activeDocument().activeView(); view.setCameraType("Orthographic"); view.viewFront(); view.fitAll(); events(); task_dock.hide(); events(); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical sewn tunic generated from native Sketcher pattern sources on production mannequin"); task_dock.show(); task_dock.raise_(); events()
     for batch in (15,15,15,15,15,15):
         simulation_panel.step(batch); doc.recompute(); events()
     if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
