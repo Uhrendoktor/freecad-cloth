@@ -573,6 +573,15 @@ jobs:
           grep -q 'determinism-signature=passed' artifacts/garment-e2e.log
           grep -q 'pattern-export=passed formats=SVG,DXF' artifacts/garment-e2e.log
           grep -q 'canonical garment end-to-end acceptance passed' artifacts/garment-e2e.log
+      - name: Upload realtime benchmark diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: tunic-realtime-diagnostics
+          path: artifacts/freecad-realtime
+          if-no-files-found: warn
+          compression-level: 1
+
       - name: Upload tunic visual audit
         if: always()
         uses: actions/upload-artifact@v6
