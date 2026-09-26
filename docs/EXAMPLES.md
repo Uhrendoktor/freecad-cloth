@@ -5,7 +5,7 @@ The project uses a complexity ladder so a new user can validate the installation
 | Example | Complexity | What it demonstrates | Visual validation |
 |---|---|---|---|
 | Blanket over Cube | Basic | one native Sketcher pattern, one FreeCAD collision target, pins, gravity and drape | five checkpoints + motion GIF |
-| Tunic | Advanced | multiple native pattern pieces, semantic seams, mannequin collision, material/quality controls, diagnostics and production export | six views + diagnostic map + arranged/draped turntables + motion GIF |
+| Tunic | Advanced | multiple native pattern pieces, semantic seams, deterministic target placement, mannequin collision, material/quality controls, diagnostics and production export | six views + diagnostic map + arranged/draped turntables + motion GIF |
 
 ## 1. Blanket over Cube
 
@@ -24,7 +24,9 @@ This fixture intentionally avoids the human avatar so users can isolate cloth, c
 
 ## 2. Tunic
 
-The tunic is the full garment acceptance scenario. It uses two pattern pieces, semantic sewing, a production MakeHuman mannequin, persisted quality/material settings, diagnostics, save/reload and invalidation.
+The tunic is the full garment acceptance scenario. It uses two pattern pieces, semantic sewing, a production MakeHuman mannequin, deterministic target-relative placement, persisted quality/material settings, diagnostics, save/reload and invalidation.
+
+The garment begins without global solver pins. Sewing constraints, target collision and the authored placement are the physical inputs. This separation makes pinning an explicit user choice instead of an implicit fixture dependency.
 
 Use the generated artifacts only as evidence: the tunic is not a substitute for the simpler blanket when debugging a local installation.
 
