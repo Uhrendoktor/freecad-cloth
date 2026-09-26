@@ -30,6 +30,35 @@ class SimulationQualityTaskPanel:
             ensure_quality_properties(self.scene)
         self.form = QtWidgets.QWidget(); self.form.setObjectName("ClothSimulationQualityTaskPanel")
         root = QtWidgets.QVBoxLayout(self.form)
+
+        context = QtWidgets.QGroupBox("Context"); cform = QtWidgets.QFormLayout(context)
+        self.target_context = QtWidgets.QLabel(); self.target_context.setWordWrap(True)
+        self.refresh_target_button = QtWidgets.QPushButton("Refresh target")
+        self.refresh_target_button.setObjectName("ClothSimulationRefreshTargetButton")
+        self.refresh_target_button.setToolTip("Refresh the persistent DrapeTarget after a source change.")
+        cform.addRow("Target", self.target_context)
+        cform.addRow("", self.refresh_target_button)
+        root.addWidget(context)
+
+        fitting = QtWidgets.QGroupBox("Arrange / Fit")
+        flayout = QtWidgets.QVBoxLayout(fitting)
+        self.fitting_status = QtWidgets.QLabel("No simulation scene selected.")
+        self.fitting_status.setWordWrap(True)
+        self.fitting_status.setObjectName("ClothSimulationFittingStatus")
+        self.arrange_fit_button = QtWidgets.QPushButton("Arrange / Fit…")
+        self.arrange_fit_button.setObjectName("ClothSimulationArrangeFitButton")
+        self.arrange_fit_button.setToolTip("Open the existing fitting stage with the current simulation garment pieces.")
+        self.reset_arrangement_button = QtWidgets.QPushButton("Reset arrangement")
+        self.reset_arrangement_button.setObjectName("ClothSimulationResetArrangementButton")
+        self.reset_arrangement_button.setToolTip("Restore the fitting stage to its saved pre-arrangement placements.")
+        self.reset_arrangement_button.setEnabled(False)
+        flayout.addWidget(self.fitting_status)
+        fit_buttons = QtWidgets.QHBoxLayout()
+        fit_buttons.addWidget(self.arrange_fit_button)
+        fit_buttons.addWidget(self.reset_arrangement_button)
+        flayout.addLayout(fit_buttons)
+        root.addWidget(fitting)
+
         quality = QtWidgets.QGroupBox("Simulation quality"); qform = QtWidgets.QFormLayout(quality)
         self.quality = QtWidgets.QComboBox(); self.quality.addItems(self.QUALITY_NAMES)
         self.pin_mode = QtWidgets.QComboBox(); self.pin_mode.addItems(PIN_MODE_NAMES)
@@ -55,6 +84,9 @@ class SimulationQualityTaskPanel:
         self.status = QtWidgets.QLabel(); self.status.setWordWrap(True); root.addWidget(self.status); root.addStretch(1)
         self.quality.currentTextChanged.connect(self._preset_changed)
         self.pin_mode.currentTextChanged.connect(self._parameters_changed)
+        self.arrange_fit_button.clicked.connect(self.open_arrange_fit)
+        self.reset_arrangement_button.clicked.connect(self.reset_arrangement)
+        self.refresh_target_button.clicked.connect(self._refresh_target)
         self.fabric_color.clicked.connect(self._choose_fabric_color)
         for widget in (self.particle_distance, self.iterations, self.substeps, self.density, self.thickness, self.stretch, self.shear, self.bend, self.friction, self.specular, self.roughness, self.transparency, self.skin_offset, self.collision_radius): widget.valueChanged.connect(self._parameters_changed)
         self.step_button.clicked.connect(lambda: self.step(1)); self.run_button.clicked.connect(lambda: self.step(30)); self.reset_button.clicked.connect(self.reset)
@@ -67,6 +99,58 @@ class SimulationQualityTaskPanel:
     @staticmethod
     def _spin(low, high, value):
         _, _, QtWidgets, _ = _qt(); widget = QtWidgets.QSpinBox(); widget.setRange(low, high); widget.setValue(value); return widget
+
+    def _refresh_fitting_stage(self):
+        from freecad_cloth.simulation.FittingHandoff import fitting_stage_status
+        message, can_reset = fitting_stage_status(self.scene)
+        self.fitting_status.setText(message)
+        self.reset_arrangement_button.setEnabled(bool(can_reset))
+
+    def open_arrange_fit(self):
+        if self.scene is None:
+            self.status.setText("Create or select a Cloth Simulation object before opening Arrange / Fit.")
+            return
+        try:
+            from freecad_cloth.simulation.FittingHandoff import open_arrange_fit_from_simulation
+            open_arrange_fit_from_simulation(self.scene)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            self.status.setText("Arrange / Fit unavailable — %s" % exc)
+
+    def reset_arrangement(self):
+        try:
+            from freecad_cloth.simulation.FittingHandoff import reset_arrangement_from_simulation
+            reset_arrangement_from_simulation()
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            self.status.setText("Arrangement reset unavailable — %s" % exc)
+            return
+        self._refresh()
+
+    def _refresh_target(self):
+        if self.scene is None:
+            return
+        target = getattr(self.scene, "DrapeTarget", None)
+        try:
+            from freecad_cloth.simulation.DrapeTarget import refresh_drape_target, target_status
+            info = target_status(target)
+            if info["state"] == "disabled":
+                from freecad_cloth.simulation.DrapeCommands import set_drape_target_enabled
+                set_drape_target_enabled(True)
+                self._refresh("Drape target enabled.")
+                return
+            if info["state"] in {"invalid", "unassigned"}:
+                if target is None:
+                    raise ValueError(info["message"])
+                from freecad_cloth.simulation.DrapeCommands import edit_drape_target
+                edit_drape_target()
+                self._refresh("Drape target editor opened.")
+                return
+            if getattr(target, "SourceObject", None) is None:
+                raise ValueError(info["message"])
+            refresh_drape_target(target)
+            self.scene.Document.recompute()
+            self._refresh("Drape target refreshed.")
+        except Exception as exc:
+            self._refresh("Drape target recovery blocked — %s" % exc)
 
     def _ensure_scene(self):
         if self.scene is None:
@@ -121,8 +205,8 @@ class SimulationQualityTaskPanel:
 
     def _load(self):
         if self.scene is None:
-            self.step_button.setEnabled(False); self.run_button.setEnabled(False); self.reset_button.setEnabled(False)
-            self.status.setText("Create or select a Cloth Simulation object."); return
+            self._refresh("Create or select a Cloth Simulation object.")
+            return
         from freecad_cloth.simulation.SimulationQualityRuntimeV2 import ensure_quality_properties
         ensure_quality_properties(self.scene)
         self._load_widgets_only()
@@ -163,15 +247,33 @@ class SimulationQualityTaskPanel:
         self.steps.setValue(0); self._refresh("Simulation reset; quality and fabric values retained.")
 
     def _refresh(self, message=None):
+        self._refresh_fitting_stage()
         if self.scene is None:
             self.step_button.setEnabled(False); self.run_button.setEnabled(False); self.reset_button.setEnabled(False)
-            self.status.setText(message or "Create or select a Cloth Simulation object."); return
+            self.arrange_fit_button.setEnabled(False)
+            self.refresh_target_button.setEnabled(False)
+            self.target_context.setText("No simulation scene is selected.")
+            self.status.setText(message or "Create or select a Cloth Simulation object.")
+            return
         from freecad_cloth.simulation.DrapeTarget import target_status
         target_info = target_status(getattr(self.scene, "DrapeTarget", None))
         blocked = target_info["state"] in {"stale", "unbuilt", "unassigned", "invalid", "missing", "disabled"}
         self.step_button.setEnabled(not blocked)
         self.run_button.setEnabled(not blocked)
         self.reset_button.setEnabled(True)
+        self.arrange_fit_button.setEnabled(True)
+        self.target_context.setText(str(target_info["message"]))
+        target = getattr(self.scene, "DrapeTarget", None)
+        source = getattr(target, "SourceObject", None)
+        if target_info["state"] == "disabled":
+            self.refresh_target_button.setText("Enable target")
+            self.refresh_target_button.setEnabled(target is not None)
+        elif target_info["state"] in {"invalid", "unassigned"}:
+            self.refresh_target_button.setText("Edit target")
+            self.refresh_target_button.setEnabled(target is not None)
+        else:
+            self.refresh_target_button.setText("Refresh target")
+            self.refresh_target_button.setEnabled(bool(source) and target_info["state"] != "ready")
         if blocked:
             text = "Simulation blocked — %s" % target_info["message"]
         elif message:
