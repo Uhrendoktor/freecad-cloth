@@ -104,6 +104,7 @@ def test_tissu_signed_collision_guard_math_and_env_gate():
 def test_tissu_signed_collision_bvh_preserves_authored_outward_winding():
     import numpy as np
 
+    from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
     from freecad_cloth.simulation.TissuBackend import (
         _build_signed_collision_bvh,
         _nearest_signed_collision,
@@ -111,7 +112,13 @@ def test_tissu_signed_collision_bvh_preserves_authored_outward_winding():
         _to_tissu_position,
     )
 
-    surface = _cube_collision_surface(thickness=1.0)
+    base = _cube_collision_surface(thickness=1.0)
+    outward = tuple(tuple(reversed(triangle)) for triangle in base.triangles)
+    surface = surface_from_triangles(
+        base.vertices,
+        outward,
+        thickness=base.thickness,
+    )
     bvh = _build_signed_collision_bvh(surface)
     assert bvh is not None
 
