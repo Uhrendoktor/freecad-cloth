@@ -51,6 +51,7 @@ class SimulationQualityTaskPanel:
         buttons.addWidget(self.step_button); buttons.addWidget(self.run_button); buttons.addWidget(self.reset_button); root.addLayout(buttons)
         self.status = QtWidgets.QLabel(); self.status.setWordWrap(True); root.addWidget(self.status); root.addStretch(1)
         self.quality.currentTextChanged.connect(self._preset_changed)
+        self.pin_mode.currentTextChanged.connect(self._parameters_changed)
         self.fabric_color.clicked.connect(self._choose_fabric_color)
         for widget in (self.particle_distance, self.iterations, self.substeps, self.density, self.thickness, self.stretch, self.shear, self.bend, self.friction, self.specular, self.roughness, self.transparency, self.skin_offset, self.collision_radius): widget.valueChanged.connect(self._parameters_changed)
         self.step_button.clicked.connect(lambda: self.step(1)); self.run_button.clicked.connect(lambda: self.step(30)); self.reset_button.clicked.connect(self.reset)
@@ -104,10 +105,10 @@ class SimulationQualityTaskPanel:
     def _load_widgets_only(self):
         if self.scene is None:
             return
-        widgets = [self.quality, self.particle_distance, self.iterations, self.substeps, self.density, self.thickness, self.stretch, self.shear, self.bend, self.friction, self.specular, self.roughness, self.transparency, self.skin_offset, self.collision_radius, self.steps]
+        widgets = [self.quality, self.pin_mode, self.particle_distance, self.iterations, self.substeps, self.density, self.thickness, self.stretch, self.shear, self.bend, self.friction, self.specular, self.roughness, self.transparency, self.skin_offset, self.collision_radius, self.steps]
         for widget in widgets: widget.blockSignals(True)
         try:
-            self.quality.setCurrentText(str(self.scene.QualityPreset)); self.particle_distance.setValue(float(self.scene.ParticleDistance)); self.iterations.setValue(int(self.scene.SolverIterations)); self.substeps.setValue(int(self.scene.SolverSubsteps))
+            self.quality.setCurrentText(str(self.scene.QualityPreset)); self.pin_mode.setCurrentText(str(getattr(self.scene, "PinMode", "Automatic"))); self.particle_distance.setValue(float(self.scene.ParticleDistance)); self.iterations.setValue(int(self.scene.SolverIterations)); self.substeps.setValue(int(self.scene.SolverSubsteps))
             self.density.setValue(float(self.scene.FabricDensity)); self.thickness.setValue(float(self.scene.FabricThickness)); self.stretch.setValue(float(self.scene.FabricStretch)); self.shear.setValue(float(self.scene.FabricShear)); self.bend.setValue(float(self.scene.FabricBend)); self.friction.setValue(float(self.scene.FabricFriction))
             self.specular.setValue(float(self.scene.FabricSpecular)); self.roughness.setValue(float(self.scene.FabricRoughness)); self.transparency.setValue(int(self.scene.FabricTransparency))
             self._set_color_button(tuple(float(value) for value in self.scene.FabricColor))
@@ -139,7 +140,7 @@ class SimulationQualityTaskPanel:
         self.scene.ParticleDistance = self.particle_distance.value(); self.scene.SolverIterations = self.iterations.value(); self.scene.SolverSubsteps = self.substeps.value(); self.scene.FabricDensity = self.density.value(); self.scene.FabricThickness = self.thickness.value(); self.scene.FabricStretch = self.stretch.value(); self.scene.FabricShear = self.shear.value(); self.scene.FabricBend = self.bend.value(); self.scene.FabricFriction = self.friction.value(); self.scene.FabricSpecular = self.specular.value(); self.scene.FabricRoughness = self.roughness.value(); self.scene.FabricTransparency = self.transparency.value()
         if color is not None:
             self.scene.FabricColor = (color.redF(), color.greenF(), color.blueF())
-        self.scene.AvatarSkinOffset = self.skin_offset.value(); self.scene.CollisionRadius = self.collision_radius.value(); self.scene.Document.recompute(); self._refresh("Changes are applied live. Cancel restores the panel-open state.")
+        self.scene.AvatarSkinOffset = self.skin_offset.value(); self.scene.CollisionRadius = self.collision_radius.value(); self.scene.PinMode = self.pin_mode.currentText(); self.scene.Document.recompute(); self._refresh("Changes are applied live. Cancel restores the panel-open state.")
 
     def step(self, count):
         scene = self._ensure_scene()
@@ -180,6 +181,7 @@ class SimulationQualityTaskPanel:
                 str(getattr(self.scene, "QualityPreset", "Balanced")),
                 target_info["state"],
             )
+        text = text + " | pinning: %s" % str(getattr(self.scene, "PinMode", "Automatic"))
         self.status.setText(text)
 
     def accept(self):
