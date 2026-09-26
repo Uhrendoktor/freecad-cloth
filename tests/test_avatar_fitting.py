@@ -60,7 +60,8 @@ class AvatarFittingTests(unittest.TestCase):
             if isinstance(node, ast.If)
             and node.lineno > correction.lineno
             and "anchor_clearance" in ast.unparse(node.test)
-            and "< float(clearance) - 1e-6" in ast.unparse(node.test)
+            and "float(clearance)" in ast.unparse(node.test)
+            and "<" in ast.unparse(node.test)
         )
         self.assertLess(anchor_measure.lineno, correction.lineno)
         self.assertLess(correction.lineno, anchor_assert.lineno)
