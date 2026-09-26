@@ -55,26 +55,29 @@ source = source.replace(anchor, preview_probe + '\n' + anchor, 1)
 
 # Validate seam closure against the actual Tissu particle positions. FreeCAD Mesh::Feature
 # point ordering is a serialization detail and is not guaranteed to match particle indices.
-seam_check = '''    backend_state = scene.Proxy._base_or_restore()
+seam_check = """    backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
     if not simulated_positions:
         raise RuntimeError("Tissu backend returned no simulated particle positions")
-    back_offset = len(front_positions)
+    stitch_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
+    if not stitch_pairs_by_seam:
+        raise RuntimeError("authoritative seam check has no exact solver stitch provenance")
     seam_gaps = []
-    for edge_a, edge_b in ((1, 1), (2, 6), (6, 2), (7, 7)):
-        front_a0 = front_boundary[edge_a]; front_a1 = front_boundary[(edge_a + 1) % len(front_boundary)]
-        back_a0 = back_boundary[edge_b] + back_offset; back_a1 = back_boundary[(edge_b + 1) % len(back_boundary)] + back_offset
-        for ia, ib in ((front_a0, back_a0), (front_a1, back_a1)):
-            a = simulated_positions[ia]; b = simulated_positions[ib]
-            seam_gaps.append(((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2) ** 0.5)
+    for seam, piece_a, piece_b in seam_records:
+        edge_a_id = str(getattr(seam, "EdgeAId", ""))
+        edge_b_id = str(getattr(seam, "EdgeBId", ""))
+        if not edge_a_id.startswith(str(piece_a.PieceId) + ":edge:") or not edge_b_id.startswith(str(piece_b.PieceId) + ":edge:"):
+            raise RuntimeError("authoritative tunic seam lost semantic edge identity")
+        pairs = tuple(stitch_pairs_by_seam.get(str(seam.SeamId), ()))
+        if not pairs:
+            raise RuntimeError("authoritative seam check cannot resolve exact solver pairs for %s" % seam.SeamId)
+        for ga, gb in pairs:
+            a = simulated_positions[int(ga)]; b = simulated_positions[int(gb)]
+            seam_gaps.append(((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2)**0.5)
     seam_gap = max(seam_gaps) if seam_gaps else 0.0
     if seam_gap > 35.0:
         raise RuntimeError("simulated tunic seams did not converge: max endpoint gap %.1f mm" % seam_gap)
     log("tunic-seam-max-gap-mm=%.2f" % seam_gap)
-'''
-anchor = '    write_drape_metrics(panels, avatar, x_mid, shoulder_z=shoulder_z, hem_z=hem_z); bounds = []'
-if anchor not in source:
-    raise RuntimeError("drape metrics anchor missing")
-source = source.replace(anchor, seam_check + anchor, 1)
+"""
 
 exec(compile(source, str(source_path), "exec"), globals(), globals())
