@@ -12,9 +12,10 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN set -euxo pipefail \
     && apt-get update -qq \
-    && apt-get install -y --no-install-recommends xvfb openbox x11-utils build-essential cmake git libomp-dev \
+    && apt-get install -y --no-install-recommends xvfb openbox x11-utils build-essential git libomp-dev \
     && rm -rf /var/lib/apt/lists/* \
-    && mamba create -y -n freecad -c conda-forge python=3.12 pip freecad=1.1.0 \
+    && mamba create -y -n freecad -c conda-forge python=3.12 pip freecad=1.1.0 cmake=3.29.6 \
+    && export PATH=/opt/conda/envs/freecad/bin:$PATH \
     && TISSU_SRC=/tmp/tissu-src \
     && git clone --quiet https://github.com/evanrock520-ciencias/Tissu.git "$TISSU_SRC" \
     && git -C "$TISSU_SRC" checkout --detach "$TISSU_COMMIT" \
