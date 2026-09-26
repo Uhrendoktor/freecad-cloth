@@ -72,7 +72,9 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
     log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
 '''
-anchor = '    for batch in (15,15,15,15,15,15):'
+anchor = '''    for batch in (15,15,15,15,15,15):
+        simulation_panel.step(batch); doc.recompute(); events()
+'''
 if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
 timed_anchor = '''    from time import perf_counter
@@ -90,7 +92,7 @@ timed_anchor = '''    from time import perf_counter
         log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
 '''
-source = source.replace(anchor, preview_probe + '\n' + timed_anchor + '\n', 1)
+source = source.replace(anchor, preview_probe + '\n' + timed_anchor, 1)
 
 seam_check = """    backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
@@ -120,22 +122,6 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", 1)
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
-debug_path = ROOT / "docs" / "images" / "generated" / "gui-progress.log"
-debug_path.parent.mkdir(parents=True, exist_ok=True)
-generated_lines = source.splitlines()
-debug_path.write_text(
-    "generated-tunic-source-begin\\n" + "\\n".join("%d %s" % (index, line) for index, line in enumerate(generated_lines, 1)) + "\\ngenerated-tunic-source-end\\n",
-    encoding="utf-8",
-)
-try:
-    compiled_source = compile(source, str(source_path), "exec")
-except SyntaxError as error:
-    error_line = int(getattr(error, "lineno", 1) or 1)
-    debug_path.write_text(
-        debug_path.read_text(encoding="utf-8") + "generated-tunic-source-syntax-error=%s\\n" % error,
-        encoding="utf-8",
-    )
-    os._exit(1)
-exec(compiled_source, globals(), globals())
+exec(compile(source, str(source_path), "exec"), globals(), globals())
 print("tunic-audit-process-exit=success", flush=True)
 os._exit(0)
