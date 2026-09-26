@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
+from freecad_cloth.simulation.TissuBackend import _to_tissu_position
 from freecad_cloth.simulation.TissuContainment import build_authored_surface_index
 
 
@@ -61,3 +62,19 @@ def test_tissu_backend_uses_full_authored_surface_for_containment():
     assert "CLOTH_TISSU_AUTHORED_CONTAINMENT" in source
     assert "particle.set_position" in source
     assert "particle.set_old_position" in source
+
+
+def test_tissu_coordinate_space_matches_authored_containment_index():
+    surface = _cube_surface()
+    solver_vertices = tuple(_to_tissu_position(vertex) for vertex in surface.vertices)
+    index = build_authored_surface_index(solver_vertices, surface.triangles)
+    corrected, penetration = index.correction((0.009, 0.0, 0.0), 0.002)
+    assert np.allclose(corrected, (0.012, 0.0, 0.0))
+    assert penetration == pytest.approx(0.011, abs=1e-12)
+
+
+def test_tissu_backend_does_not_double_transform_containment_correction():
+    source = Path(__file__).resolve().parents[1] / "freecad_cloth" / "simulation" / "TissuBackend.py"
+    text = source.read_text(encoding="utf-8")
+    assert "target = np.asarray(corrected, dtype=np.float64)" in text
+    assert "target = np.asarray(_to_tissu_position(corrected)" not in text
