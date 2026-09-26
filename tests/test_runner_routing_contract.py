@@ -26,12 +26,11 @@ def test_pull_requests_are_hosted_only():
     assert 'CLOTH_RUNNER_DISCOVERY_TOKEN' in router
     assert 'runs_on=' + '["ubuntu-latest"]' in router
 
-def test_only_heartbeat_is_static_self_hosted():
+def test_only_router_can_emit_self_hosted_labels():
     source = WORKFLOW.read_text(encoding='utf-8')
     static = 'runs-on: [self-hosted, linux, x64, docker]'
-    assert source.count(static) == 1
-    heartbeat = _job_block(source, 'runner_heartbeat')
-    assert static in heartbeat
+    assert static not in source
+    assert 'required=["self-hosted","linux","x64","docker"]' in source
 
 def test_normal_jobs_depend_on_router():
     source = WORKFLOW.read_text(encoding='utf-8')
@@ -41,3 +40,29 @@ def test_normal_jobs_depend_on_router():
         block = _job_block(source, job)
         assert 'needs: runner_router' in block or 'needs: [runner_router,' in block
         assert 'fromJSON(needs.runner_router.outputs.runs_on)' in block
+
+def test_fail_closed_diagnostics_are_credential_safe():
+    source = WORKFLOW.read_text(encoding='utf-8')
+    router = _job_block(source, 'runner_router')
+    for reason in (
+        'pull-request-hosted-only',
+        'runner-discovery-token-not-configured',
+        'invalid-runner-api-response',
+        'runner-api-error',
+        'local-runner-unreachable-or-busy',
+    ):
+        assert reason in router
+    assert 'sed -n' not in router
+    assert 'echo "$GH_TOKEN"' not in router
+
+def test_runner_scope_and_absent_configuration_are_documented():
+    docs = (ROOT / 'docs' / 'DEVELOPMENT.md').read_text(encoding='utf-8')
+    assert 'CLOTH_RUNNER_DISCOVERY_TOKEN' in docs
+    assert 'Administration: read' in docs
+    assert 'absent configuration intentionally selects hosted execution' in docs
+
+def test_publish_and_heartbeat_have_single_needs_key():
+    source = WORKFLOW.read_text(encoding='utf-8')
+    for job in ('publish-readme-turntables', 'runner_heartbeat'):
+        block = _job_block(source, job)
+        assert block.count('\n    needs:') == 1
