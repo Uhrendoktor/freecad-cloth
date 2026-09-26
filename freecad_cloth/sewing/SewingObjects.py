@@ -279,6 +279,14 @@ class SewingOperationProxy:
 
         obj.StitchCount = max(2, int(obj.Stitches))
         obj.Status = correspondence_status_label(correspondence)
+        if hasattr(obj, "SeamId"):
+            obj.SeamId = str(getattr(seam, "SeamId", "") or "")
+        seam_id = str(getattr(obj, "SeamId", "") or "")
+        if seam_id:
+            from freecad_cloth.sewing.SewingView import seam_color_map
+            color = seam_color_map([seam_id]).get(seam_id)
+            if color is not None:
+                obj.ViewObject.LineColor = color
         if hasattr(obj, "ReversedB"):
             obj.ReversedB = bool(getattr(seam, "ReversedB", False))
         if hasattr(obj, "Alignment"):
