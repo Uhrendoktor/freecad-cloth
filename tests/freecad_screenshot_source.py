@@ -394,7 +394,11 @@ def simulation():
     activate("ClothSewingWorkbench", "Cloth Sewing", ["ClothFitting_SnapPiecesToTarget"])
     if "ClothFitting_SnapPiecesToTarget" not in Gui.listCommands():
         raise RuntimeError("public Snap Pieces to Target command is not registered")
-    Gui.Selection.clearSelection(); Gui.Selection.addSelection(front); Gui.Selection.addSelection(back); Gui.Selection.addSelection(target); events()
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(front)
+    Gui.Selection.addSelection(back)
+    Gui.Selection.addSelection(target)
+    events()
     Gui.runCommand("ClothFitting_SnapPiecesToTarget", 0)
     events(); doc.recompute()
     if str(fitting.FitStatus) != "Target snapped":
