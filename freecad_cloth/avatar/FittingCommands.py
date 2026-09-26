@@ -666,7 +666,7 @@ def reset_arrangement():
         if piece is None:
             continue
         x, y, z = placement.position
-        restored = App.Placement(App.Vector(x, y, z), App.Rotation(App.Vector(0, 0, 1), placement.rotation_z))
+        restored = App.Placement(App.Vector(x, y, z), App.Rotation(App.Vector(*placement.rotation_axis), placement.rotation_z))
         piece.Placement = restored
         sketch = getattr(piece, "Sketch", None)
         if sketch is not None:
@@ -702,14 +702,15 @@ class _FittingProxy:
     Type = "ClothFittingScene"
 
     def execute(self, obj):
-        from freecad_cloth.avatar.AvatarFitting import BodyMeasurements, FittingScene, PiecePlacement, ArrangementPoint, BoundingVolume
+        from freecad_cloth.avatar.AvatarFitting import BodyMeasurements, FittingScene, PiecePlacement, ArrangementPoint, BoundingVolume, GarmentAnchor
         _migrate_visual_output_references(obj)
         measurements = BodyMeasurements.from_json(obj.MeasurementData)
         avatar_name = getattr(obj.AvatarProxy, "Label", "") if obj.AvatarProxy else ""
         placements = tuple(PiecePlacement.from_string(v) for v in obj.PiecePlacements)
         points = tuple(ArrangementPoint.from_string(v) for v in obj.ArrangementPoints)
         volumes = tuple(BoundingVolume.from_string(v) for v in obj.BoundingVolumes)
-        FittingScene(measurements, avatar_name, placements, points, volumes, bool(obj.SymmetryEnabled)).validate()
+        anchors = tuple(GarmentAnchor.from_string(v) for v in getattr(obj, "GarmentAnchors", ()) or ())
+        FittingScene(measurements, avatar_name, placements, points, volumes, bool(obj.SymmetryEnabled), anchors).validate()
 
 
 COMMANDS = [
