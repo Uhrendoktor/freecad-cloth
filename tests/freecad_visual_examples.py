@@ -14,9 +14,9 @@ import FreeCADGui as Gui
 from pivy import coin
 
 try:
-    from PySide import QtWidgets
+    from PySide import QtWidgets, QtGui
 except ImportError:
-    from PySide2 import QtWidgets
+    from PySide2 import QtWidgets, QtGui
 
 
 # A generic FreeCAD cube requires Tissu's mesh collision path; torso-envelope is for avatar-style targets.
@@ -42,11 +42,31 @@ def events():
 
 def save_png(view, path, state):
     view.saveImage(str(path), 640, 480, "White")
-    if not path.is_file() or path.stat().st_size < 5000:
+    if not path.is_file():
         raise RuntimeError("failed screenshot: %s" % state)
+
+    image = QtGui.QImage(str(path))
+    if image.isNull() or image.width() != 640 or image.height() != 480:
+        raise RuntimeError("invalid screenshot geometry: %s" % state)
+
+    # Reject empty/corrupt captures by checking that the rendered frame contains
+    # more than the uniform background. File size is not a reliable proxy for
+    # image validity because sparse FreeCAD views can encode very small PNGs.
+    sampled_pixels = {
+        int(image.pixel(x, y))
+        for x in range(0, image.width(), 40)
+        for y in range(0, image.height(), 40)
+    }
+    if len(sampled_pixels) < 8:
+        raise RuntimeError("empty screenshot content: %s" % state)
+
     header = path.read_bytes()[:24]
     if header[:8] != b"\x89PNG\r\n\x1a\n":
         raise RuntimeError("invalid PNG capture: %s" % state)
+    width = int.from_bytes(header[16:20], "big")
+    height = int.from_bytes(header[20:24], "big")
+    if (width, height) != (640, 480):
+        raise RuntimeError("invalid PNG dimensions: %s" % state)
 
 
 def make_rectangle_sketch(doc, name, width, height):
