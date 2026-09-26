@@ -724,6 +724,11 @@ def run_acceptance():
             network_ids = tuple(network_sketch.SemanticEdgeIds)
             network_dim = network_sketch.addConstraint(Sketcher.Constraint("DistanceY", 2, 2, 50.0))
             network_sketch.renameConstraint(network_dim, "UpstreamNetworkEndpointY")
+            # The network is deliberately invalid during this section; keep the
+            # simulation disconnected until the stale-network assertions and
+            # explicit seam repairs are complete.
+            network_cloth_pieces = tuple(scene.ClothPieces)
+            scene.ClothPieces = []
             network_sketch.setDatum(network_dim, App.Units.Quantity("60 mm"))
             reloaded.recompute()
             if tuple(network_sketch.SemanticEdgeIds) != network_ids:
@@ -773,6 +778,8 @@ def run_acceptance():
             network = reloaded.getObject(network_name)
             if str(network.Status) != "Valid":
                 raise RuntimeError("explicit seam repair did not recover M:N validity")
+            scene.ClothPieces = list(network_cloth_pieces)
+            reloaded.recompute()
 
             _select_objects(target)
             Gui.runCommand("ClothDrape_RefreshTarget", 0)
