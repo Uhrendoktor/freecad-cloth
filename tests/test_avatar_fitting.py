@@ -197,6 +197,22 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertIn("piece.Placement = original[str(piece.PieceId)]", source)
         self.assertIn("simulation.DrapeTarget = scene.DrapeTarget", source)
 
+    def test_target_snap_contract_covers_world_space_linked_sketch_and_reset_axis(self):
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+        self.assertIn("def _world_collision_surface(target):", source)
+        self.assertIn("source.Placement", source)
+        self.assertIn("sketch.Placement = updated", source)
+        self.assertIn("sketch.Placement = saved", source)
+        self.assertIn("scene.DrapeTarget = target_before", source)
+        self.assertIn("App.Vector(*placement.rotation_axis)", source)
+
+    def test_target_snap_public_command_has_native_icon(self):
+        root = Path(__file__).resolve().parents[1]
+        icon = root / "resources" / "icons" / "ClothFitting_SnapPiecesToTarget.svg"
+        self.assertTrue(icon.is_file())
+        self.assertGreater(icon.stat().st_size, 50)
+
     def test_freecad_mannequin_rebuild_invalidates_target_until_refreshed(self):
         try:
             import FreeCAD as App
