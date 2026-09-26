@@ -1,0 +1,1 @@
+Validation-only marker. No production runtime or workflow semantics.
