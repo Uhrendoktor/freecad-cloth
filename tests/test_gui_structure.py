@@ -177,6 +177,19 @@ def test_pattern_authoring_command_surface_is_sketcher_backed():
     assert "Edit native Sketch" in pattern_gui
     assert "Compatibility-only editor for legacy PatternDrafting state" in pattern_gui
 
+def test_simulation_quality_panel_exposes_arrange_fit_recovery_bridge():
+    sim_quality_gui = (ROOT / "freecad_cloth" / "simulation" / "SimulationQualityGui.py").read_text()
+    handoff = (ROOT / "freecad_cloth" / "simulation" / "FittingHandoff.py").read_text()
+    assert 'QtWidgets.QGroupBox("Arrange / fit")' in sim_quality_gui
+    assert 'QPushButton("Arrange / Fit…")' in sim_quality_gui
+    assert 'QPushButton("Reset arrangement")' in sim_quality_gui
+    assert "fitting_stage_status" in sim_quality_gui
+    assert "open_arrange_fit_from_simulation" in sim_quality_gui
+    assert "reset_arrangement_from_simulation" in sim_quality_gui
+    assert "add_selected_pattern_pieces" in handoff
+    assert 'Gui.activateWorkbench("Cloth Sewing")' in handoff
+
+
 def test_pattern_drafting_remains_compatibility_only():
     drafting_source = (ROOT / "freecad_cloth" / "pattern" / "PatternDrafting.py").read_text()
     assert "Compatibility-only helpers for legacy pattern-drafting documents" in drafting_source
