@@ -467,6 +467,10 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Validate generated tunic audit source
+        run: |
+          set -euo pipefail
+          python3 tests/freecad_tunic_audit.py --syntax-check
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -488,7 +492,7 @@ jobs:
           CLOTH_SIMULATION_BACKEND: tissu
           CLOTH_TISSU_SUBSTEPS: 1
           CLOTH_TISSU_COLLISION_MODE: mesh
-          CLOTH_TISSU_COLLISION_TRIANGLES: 2048
+          CLOTH_TISSU_COLLISION_TRIANGLES: 0
         run: |
           set -euo pipefail
           rm -rf docs/images/generated
