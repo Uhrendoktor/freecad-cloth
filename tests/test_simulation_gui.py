@@ -32,3 +32,31 @@ if __name__ == "__main__":
         if name.startswith("test_"):
             fn()
     print("simulation GUI tests passed")
+
+
+def test_task_panels_expose_reversible_arrange_fit_bridge():
+    from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
+    from freecad_cloth.simulation.FittingHandoff import (
+        fitting_stage_status,
+        open_arrange_fit_from_simulation,
+        reset_arrangement_from_simulation,
+    )
+
+    assert callable(SimulationQualityTaskPanel.open_arrange_fit)
+    assert callable(SimulationQualityTaskPanel.reset_arrangement)
+    assert callable(fitting_stage_status)
+    assert callable(open_arrange_fit_from_simulation)
+    assert callable(reset_arrangement_from_simulation)
+
+
+def test_arrange_fit_bridge_uses_existing_fitting_stage_contract():
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "freecad_cloth"
+        / "simulation"
+        / "FittingHandoff.py"
+    ).read_text(encoding="utf-8")
+    assert "does not introduce placement heuristics" in source
+    assert "add_selected_pattern_pieces" in source
+    assert "assign_avatar_source" in source
+    assert 'Gui.activateWorkbench("Cloth Sewing")' in source
