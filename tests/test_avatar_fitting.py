@@ -57,6 +57,9 @@ class AvatarFittingTests(unittest.TestCase):
         ][0]
         self.assertLess(anchor_measure.lineno, correction.lineno)
         self.assertLess(correction.lineno, anchor_assert.lineno)
+        anchor_remeasure = source.index("placed_points = []", correction.col_offset + correction.lineno)
+        assert_position_code = source.index("anchor_clearance = assert_minimum_surface_clearance", correction.col_offset + correction.lineno)
+        self.assertLess(anchor_remeasure, assert_position_code)
 
     def test_measurements_are_valid_and_canonical(self):
         measurements = BodyMeasurements({"waist": 760, "height": 1700, "chest": 900})
