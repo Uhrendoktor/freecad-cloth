@@ -45,7 +45,7 @@ def test_discretization_clamps_invalid_spacing(distance):
 
 
 def test_tissu_step_uses_backend_solver_collision_surface_without_replacing_authority():
-    from freecad_cloth.simulation.SimulationQualityRuntimeV2 import _solver_collision_surface
+    from freecad_cloth.simulation.SimulationObjects import _solver_collision_surface
 
     authoritative = object()
     solver_surface = object()
