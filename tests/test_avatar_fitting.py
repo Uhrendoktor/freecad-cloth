@@ -12,6 +12,21 @@ from freecad_cloth.avatar.HumanoidMesh import MeshData, MAKEHUMAN_BASE_SHA256, M
 
 
 class AvatarFittingTests(unittest.TestCase):
+
+    def test_target_snap_is_transactional_and_command_has_icon(self):
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+        icon = root / "resources" / "icons" / "ClothFitting_SnapPiecesToTarget.svg"
+        self.assertTrue(icon.is_file())
+        self.assertIn("ClothFitting_SnapPiecesToTarget", source)
+        self.assertIn("_snap_selected_to_target", source)
+        self.assertIn("target_before", source)
+        self.assertIn("fit_status_before", source)
+        self.assertIn("scene.DrapeTarget = target_before", source)
+        self.assertIn("original_sketch", source)
+        self.assertIn("if status["state"] != "ready":", source)
+        self.assertIn("max_translation", source)
+
     def test_fitting_proxy_is_validation_only_during_recompute(self):
         root = Path(__file__).resolve().parents[1]
         source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
@@ -44,6 +59,10 @@ class AvatarFittingTests(unittest.TestCase):
 
     def test_piece_placement_round_trip(self):
         placement = PiecePlacement("front", (1.5, -2.0, 3.25), 90.0)
+        self.assertEqual(PiecePlacement.from_string(placement.to_string()), placement)
+
+    def test_piece_placement_round_trip_preserves_non_z_rotation_axis(self):
+        placement = PiecePlacement("tilted", (1.5, -2.0, 3.25), 90.0, (1.0, 0.0, 0.0))
         self.assertEqual(PiecePlacement.from_string(placement.to_string()), placement)
 
     def test_arrangement_point_round_trip_and_mirror(self):
