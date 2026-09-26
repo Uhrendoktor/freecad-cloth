@@ -191,6 +191,3 @@ def register_gui_command():
             return {"MenuText": "Realtime Cloth Preview", "ToolTip": "Play/pause a coarse cloth simulation in the FreeCAD viewport", "Pixmap": ""}
     if "ClothRealtimePreview" not in Gui.listCommands():
         Gui.addCommand("ClothRealtimePreview", _Command())
-
-
-register_gui_command()
