@@ -24,7 +24,11 @@ Do not replace, duplicate, or casually refactor it. In particular, preserve the 
 
 ### Canonical runner routing
 
-Pull-request events run on GitHub-hosted infrastructure only; untrusted public-PR code is never routed to self-hosted runners. Trusted events may use an idle `self-hosted/linux/x64/docker` runner only when the optional `CLOTH_RUNNER_DISCOVERY_TOKEN` can list repository runners. Missing or invalid credentials, API failures, or no idle matching runner fail closed to `ubuntu-latest`.
+Pull-request events run on GitHub-hosted infrastructure only; untrusted public-PR code is never routed to self-hosted runners.
+
+For trusted events (`push` on `main`, scheduled runs, and `workflow_dispatch`), `runner_router` may select an idle `self-hosted/linux/x64/docker` runner only when the optional `CLOTH_RUNNER_DISCOVERY_TOKEN` is configured and can list repository self-hosted runners. The token must be narrowly scoped to runner discovery (for example, a fine-grained token with **Administration: read** for this repository). The default `GITHUB_TOKEN` is intentionally not used for runner discovery.
+
+The router is fail-closed to `ubuntu-latest` when the secret is absent, invalid, unauthorized, the API fails or returns an invalid runner list, no matching idle runner exists, or the bounded probe window is exhausted. The secret value is never printed. Therefore, absent configuration intentionally selects hosted execution and never creates a self-hosted dependency.
 
 The canonical FreeCAD test image is Python 3.12-based; a CI run that starts FreeCAD under Python <3.12 is unsupported.
 
