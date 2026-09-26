@@ -184,6 +184,23 @@ def apply_rigid_delta(points, delta):
     )
 
 
+def minimum_target_vertex_clearance(surface, points):
+    vertices = tuple(getattr(surface, "vertices", ()) or ())
+    if not vertices:
+        raise TargetPlacementError("target surface has no vertices")
+    minimum = None
+    for point in points:
+        for vertex in vertices:
+            distance = sum(
+                (float(point[i]) - float(vertex[i])) ** 2
+                for i in range(3)
+            ) ** 0.5
+            minimum = distance if minimum is None else min(minimum, distance)
+    if minimum is None:
+        raise TargetPlacementError("vertex clearance cannot be measured without garment points")
+    return float(minimum)
+
+
 def minimum_surface_clearance_detail(surface, points):
     minimum = None
     minimum_hit = None
