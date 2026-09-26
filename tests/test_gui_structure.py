@@ -28,6 +28,9 @@ assert "def GetResources(self):" in gui_base
 assert '"MenuText": self.MenuText' in gui_base
 assert '"ToolTip": self.ToolTip' in gui_base
 assert '"Icon": self.Icon' in gui_base
+assert "def Activated(self):" in gui_base
+assert "from freecad_cloth.sewing.SewingView import refresh_seam_colors" in gui_base
+assert "refresh_seam_colors(getattr(active, \"Document\", None))" in gui_base
 assert "def __init__(self):" in gui_base
 assert "self.commands = []" in gui_base
 assert "if self.commands:" in gui_base
