@@ -241,16 +241,25 @@ def position_piece(piece, x, y, z=0.0, rotation_z=0.0):
 
 
 def _fitting_target(scene):
-    """Return the persistent DrapeTarget owned by the fitting workflow."""
-    target = getattr(scene, "DrapeTarget", None)
-    if target is None:
-        target = getattr(scene.Document, "getObject", lambda _name: None)("DrapeTarget")
-    if target is None:
-        raise ValueError("create or select a DrapeTarget before arranging garment pieces")
+    """Return the single persistent, current DrapeTarget for the fitting workflow."""
     from freecad_cloth.simulation.DrapeTarget import target_status
+    candidates = tuple(
+        obj for obj in scene.Document.Objects
+        if hasattr(obj, "TargetType") and hasattr(obj, "SourceObject") and hasattr(obj, "Enabled")
+    )
+    if not candidates:
+        raise ValueError("create or select a DrapeTarget before arranging garment pieces")
+    ready = tuple(obj for obj in candidates if target_status(obj)["state"] == "ready")
+    if len(candidates) != 1:
+        raise ValueError("exactly one DrapeTarget is required for garment fitting")
+    target = getattr(scene, "DrapeTarget", None) or candidates[0]
+    if target not in candidates:
+        raise ValueError("fitting scene DrapeTarget is not a document target")
     status = target_status(target)
     if status["state"] != "ready":
         raise ValueError(status["message"])
+    if len(ready) != 1:
+        raise ValueError("exactly one ready DrapeTarget is required for garment fitting")
     return target
 
 
