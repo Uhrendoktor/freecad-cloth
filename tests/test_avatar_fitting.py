@@ -46,6 +46,11 @@ class AvatarFittingTests(unittest.TestCase):
         placement = PiecePlacement("front", (1.5, -2.0, 3.25), 90.0)
         self.assertEqual(PiecePlacement.from_string(placement.to_string()), placement)
 
+    def test_piece_placement_round_trip_preserves_non_z_rotation_axis(self):
+        placement = PiecePlacement("tilted", (1.5, -2.0, 3.25), 37.0, (1.0, 0.0, 0.0))
+        restored = PiecePlacement.from_string(placement.to_string())
+        self.assertEqual(restored, placement)
+
     def test_arrangement_point_round_trip_and_mirror(self):
         point = ArrangementPoint("shoulder-left", 120, 80, 15, "left", 10, "shoulders")
         self.assertEqual(ArrangementPoint.from_string(point.to_string()), point)
