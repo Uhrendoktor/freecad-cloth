@@ -546,4 +546,4 @@ finally:
     except BaseException:
         pass
 if exit_code:
-    os._exit(exit_code)
+    os._exit(1)
