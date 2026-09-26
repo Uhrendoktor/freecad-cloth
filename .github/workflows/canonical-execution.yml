@@ -111,7 +111,7 @@ jobs:
     name: Selected runner readiness
     # Every production/test job depends on this short gate. The watchdog observes
     # only this job, so the workflow never enumerates repository runners.
-    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]')) }}
     timeout-minutes: 2
     steps:
       - name: Record selected execution mode
@@ -141,7 +141,7 @@ jobs:
 
   local_runner_watchdog:
     name: Hosted watchdog for local runner
-    if: ${{ github.event_name != 'pull_request' && env.EXECUTION_MODE == 'local' }}
+    if: ${{ github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.execution_mode != 'hosted') }}
     runs-on: ubuntu-latest
     permissions:
       actions: write
@@ -223,7 +223,7 @@ jobs:
     name: Local Docker runner heartbeat
     needs: [local_runner_readiness]
     if: ${{ github.event_name == 'schedule' }}
-    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]')) }}
     timeout-minutes: 2
     steps:
       - name: Log selected execution mode
@@ -236,7 +236,7 @@ jobs:
   python:
     name: Python and FreeCAD non-GUI tests
     needs: [local_runner_readiness]
-    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]')) }}
     timeout-minutes: 20
     steps:
       - name: Log selected execution mode
@@ -319,7 +319,7 @@ jobs:
     name: FreeCAD Sketcher startup diagnostic
     needs: [local_runner_readiness]
     if: github.event_name == 'pull_request'
-    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]')) }}
     timeout-minutes: 5
     steps:
       - name: Log selected execution mode
@@ -425,7 +425,7 @@ jobs:
   gui-sewing-creation:
     name: Sewing staged creation smoke
     needs: [local_runner_readiness]
-    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]')) }}
     timeout-minutes: 10
     steps:
       - name: Log selected execution mode
@@ -515,7 +515,7 @@ jobs:
   gui-sketcher-acceptance:
     name: Native Sketcher seam presentation acceptance
     needs: [local_runner_readiness]
-    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]')) }}
     timeout-minutes: 10
     steps:
       - name: Log selected execution mode
@@ -595,7 +595,7 @@ jobs:
   gui-pattern-export:
     name: Pattern production export smoke
     needs: [local_runner_readiness]
-    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]')) }}
     timeout-minutes: 10
     steps:
       - name: Log selected execution mode
@@ -664,7 +664,7 @@ jobs:
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
     needs: [local_runner_readiness]
-    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]')) }}
     timeout-minutes: 20
     steps:
       - name: Log selected execution mode
@@ -789,7 +789,7 @@ jobs:
   gui-turntables:
     name: README simulation turntable
     needs: [local_runner_readiness]
-    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]')) }}
     timeout-minutes: 25
     steps:
       - name: Log selected execution mode
@@ -937,7 +937,7 @@ jobs:
   gui-visual-examples:
     name: Basic blanket visual example
     needs: [local_runner_readiness]
-    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]')) }}
     timeout-minutes: 15
     steps:
       - name: Log selected execution mode
@@ -1043,7 +1043,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]')) }}
     timeout-minutes: 10
     steps:
       - name: Log selected execution mode
@@ -1103,7 +1103,7 @@ jobs:
     name: Repository retention cleanup
     needs: [local_runner_readiness]
     if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * *' }}
-    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]')) }}
     permissions:
       actions: write
       contents: write
@@ -1153,7 +1153,7 @@ jobs:
     name: Measured FreeCAD workbench benchmark
     needs: [local_runner_readiness]
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
-    runs-on: ${{ env.EXECUTION_MODE == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]') }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "docker"]')) }}
     timeout-minutes: 12
     steps:
       - name: Log selected execution mode
