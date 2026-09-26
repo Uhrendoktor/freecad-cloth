@@ -168,7 +168,7 @@ def _apply_authored_containment_correction(
             new_position_tissu = tuple(
                 float(value) for value in _to_tissu_position(new_position_mm)
             )
-            new_old_tissu = _vector_add(old_positions_tissu[index], delta_tissu)
+            new_old_tissu = new_position_tissu
             particles[index].set_position(new_position_tissu)
             particles[index].set_old_position(new_old_tissu)
 
@@ -223,7 +223,7 @@ def _apply_authored_containment_correction(
             float(value) for value in _to_tissu_position(target)
         )
         delta_tissu = _to_tissu_vector(delta)
-        new_old_tissu = _vector_add(old_positions_tissu[index], delta_tissu)
+        new_old_tissu = new_position_tissu
         if containment.contains(target):
             continue
         particle = particles[index]
