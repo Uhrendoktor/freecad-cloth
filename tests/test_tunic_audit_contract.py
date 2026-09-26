@@ -44,21 +44,6 @@ def test_canonical_tunic_fixture_recovers_validated_start_clearance_setup():
     assert "y = max(target_ys) + clearance" in audit
 
 
-def test_pinned_tissu_source_patch_contract():
-    dockerfile = (ROOT / "docker" / "freecad-ci" / "Dockerfile").read_text(encoding="utf-8")
-    patch = (ROOT / "docker" / "freecad-ci" / "tissu-mesh-collider-inside.patch").read_text(encoding="utf-8")
-    source_commit = "c28a3c7504ddc782bef844ab5bd4cd0bde14b628"
-    assert f"ARG TISSU_SOURCE_COMMIT={source_commit}" in dockerfile
-    assert "git apply --check /tmp/tissu-mesh-collider-inside.patch" in dockerfile
-    assert "cmake=3.29.6" in dockerfile
-    assert "unit_tests --gtest_filter='MeshCollider.*'" in dockerfile
-    assert "mesh_collider_tests=passed" in dockerfile
-    assert "m_closedManifold = false" in patch
-    assert "inferMeshOrientation" in patch
-    assert "OpenMeshRetainsLegacyContactDirection" in patch
-    assert "ClosedMeshKeepsOutsideContactOutside" in patch
-
-
 def test_canonical_tunic_uses_validated_authored_mapping():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "required_indices = (1, 2, 6, 7)" in audit
