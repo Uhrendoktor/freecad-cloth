@@ -39,6 +39,7 @@ replacements = {
         '        if str(getattr(seam_obj, "EdgeAId", "")) != edge_a_id or str(getattr(seam_obj, "EdgeBId", "")) != edge_b_id: raise RuntimeError("canonical tunic seam %s did not retain authored semantic edge IDs" % seam_id)\n'
         '        seam_records.append((seam_obj, front, back))',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
+    'scene.PinMode = "None"; scene.PinSelection = [];': 'scene.PinMode = "Automatic"; scene.PinSelection = [];',
     'scene.SolverIterations = 8;': 'scene.ParticleDistance = 32.0; scene.SolverIterations = 2; scene.SolverSubsteps = 8; log("tunic-solver=particle-distance-32 iterations-2 substeps-8");',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
 }
