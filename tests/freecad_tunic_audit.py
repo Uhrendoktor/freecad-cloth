@@ -120,14 +120,21 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", 1)
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
+debug_path = ROOT / "docs" / "images" / "generated" / "gui-progress.log"
+debug_path.parent.mkdir(parents=True, exist_ok=True)
+generated_lines = source.splitlines()
+debug_path.write_text(
+    "generated-tunic-source-begin\\n" + "\\n".join("%d %s" % (index, line) for index, line in enumerate(generated_lines, 1)) + "\\ngenerated-tunic-source-end\\n",
+    encoding="utf-8",
+)
 try:
     compiled_source = compile(source, str(source_path), "exec")
 except SyntaxError as error:
-    generated_lines = source.splitlines()
     error_line = int(getattr(error, "lineno", 1) or 1)
-    print("tunic-generated-source-syntax-error=%s" % error, flush=True)
-    for index in range(max(1, error_line - 5), min(len(generated_lines), error_line + 5) + 1):
-        print("tunic-generated-source[%d]=%r" % (index, generated_lines[index - 1]), flush=True)
+    debug_path.write_text(
+        debug_path.read_text(encoding="utf-8") + "generated-tunic-source-syntax-error=%s\\n" % error,
+        encoding="utf-8",
+    )
     os._exit(1)
 exec(compiled_source, globals(), globals())
 print("tunic-audit-process-exit=success", flush=True)
