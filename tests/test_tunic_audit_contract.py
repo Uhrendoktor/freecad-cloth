@@ -132,6 +132,10 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "docker build --pull --progress=plain" in tunic
     assert 'docker run --rm --init' in tunic
     assert '"$FREECAD_TUNIC_IMAGE" bash -lc' in tunic
+    assert 'TISSU_FIX_SHA256=' in dockerfile
+    assert 'tissu-cpp-regression-result=passed' in dockerfile
+    assert 'docker run --rm "$FREECAD_TUNIC_IMAGE" cat /opt/tissu-provenance.txt' in workflow
+    assert 'artifacts/tissu-provenance.txt' in workflow
 
 
     
