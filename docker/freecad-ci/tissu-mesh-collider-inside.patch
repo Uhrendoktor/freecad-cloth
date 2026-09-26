@@ -199,7 +199,7 @@ diff --git a/tests/physics/test_mesh_collider.cpp b/tests/physics/test_mesh_coll
      std::vector<Particle> particles;
      particles.emplace_back(initialPos);
  
-@@ -34,8 +66,38 @@
+@@ -34,9 +66,39 @@
  
      double distanceMoved = (particles[0].getPosition() - initialPos).norm();
      EXPECT_GT(distanceMoved, 0.0);
