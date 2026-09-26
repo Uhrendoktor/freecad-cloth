@@ -343,6 +343,8 @@ def simulation():
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
     from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
     from freecad_cloth.simulation.DrapeTarget import collision_surface, refresh_drape_target, target_status
+    from freecad_cloth.avatar.AvatarFitting import ArrangementPoint, GarmentAnchor, PiecePlacement
+    from freecad_cloth.avatar.FittingCommands import create_fitting_scene, target_surface_world
     from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternObjects import add_seam
     doc = App.newDocument("ClothSimulationVisualRegression"); scene = create_quality_simulation_scene(doc); avatar = getattr(scene.AvatarProxy, "SourceObject", None); target = scene.DrapeTarget
@@ -373,7 +375,8 @@ def simulation():
     shoulder_left = arrangement_world("shoulder_left")
     shoulder_right = arrangement_world("shoulder_right")
     hip_point = arrangement_world("hip")
-    target_ys = [float(vertex[1]) for vertex in target_surface.vertices]
+    world_target = target_surface_world(target)
+    target_ys = [float(vertex[1]) for vertex in world_target.vertices]
     y_span = max(target_ys) - min(target_ys)
     x_mid = (shoulder_left.x + shoulder_right.x) / 2.0
     shoulder_z = (shoulder_left.z + shoulder_right.z) / 2.0
@@ -387,15 +390,89 @@ def simulation():
     rot = App.Rotation(App.Vector(1,0,0), 90.0)
     def target_relative_piece_placement(side):
         if side == "front":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
+            y = min(target_ys) - clearance
         elif side == "back":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
+            y = max(target_ys) + clearance
         else:
             raise ValueError("tunic target-relative side must be front or back")
         return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
     def make_piece(name, side, neckline_ratio, neckline_drop):
         sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(side); piece.Sketch.Placement = piece.Placement; return piece, outline
     front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
+
+    fitting = create_fitting_scene()
+    fitting.AvatarProxy = scene.AvatarProxy
+    fitting.DrapeTarget = target
+    fitting.PatternPieces = [front, back]
+    homes = []
+    for piece in (front, back):
+        axis = piece.Placement.Rotation.Axis
+        homes.append(PiecePlacement(
+            str(piece.PieceId),
+            (float(piece.Placement.Base.x), float(piece.Placement.Base.y), float(piece.Placement.Base.z)),
+            float(piece.Placement.Rotation.Angle),
+            (float(axis.x), float(axis.y), float(axis.z)),
+        ).to_string())
+    fitting.HomePlacements = list(homes)
+    fitting.PiecePlacements = list(homes)
+    anchors = (
+        GarmentAnchor(str(front.PieceId), "shoulder_left", (0.14 * panel_width, 0.97 * garment_height, 0.0), "front"),
+        GarmentAnchor(str(front.PieceId), "shoulder_right", (0.86 * panel_width, 0.97 * garment_height, 0.0), "front"),
+        GarmentAnchor(str(back.PieceId), "shoulder_left", (0.14 * panel_width, 0.97 * garment_height, 0.0), "back"),
+        GarmentAnchor(str(back.PieceId), "shoulder_right", (0.86 * panel_width, 0.97 * garment_height, 0.0), "back"),
+    )
+    fitting.GarmentAnchors = [anchor.to_string() for anchor in anchors]
+    fitting.FitStatus = "Ready"
+    refresh_drape_target(target)
+    doc.recompute()
+
+    def anchor_world_points():
+        points = {}
+        for anchor in anchors:
+            piece = front if str(anchor.piece_id) == str(front.PieceId) else back
+            point = piece.Placement.multVec(App.Vector(*anchor.position))
+            points["%s:%s" % (anchor.piece_id, anchor.name)] = (float(point.x), float(point.y), float(point.z))
+        return points
+
+    def pairwise_distances(points):
+        names = sorted(points)
+        result = {}
+        for index, name_a in enumerate(names):
+            for name_b in names[index + 1:]:
+                result[(name_a, name_b)] = sum(
+                    (points[name_a][i] - points[name_b][i]) ** 2 for i in range(3)
+                ) ** 0.5
+        return result
+
+    before_pairwise = pairwise_distances(anchor_world_points())
+    perturb = App.Vector(24.0, 0.0, 0.0)
+    for piece in (front, back):
+        base = piece.Placement.Base
+        piece.Placement = App.Placement(base + perturb, piece.Placement.Rotation)
+        piece.Sketch.Placement = piece.Placement
+    doc.recompute()
+    perturbed_placements = tuple(piece.Placement for piece in (front, back))
+    import FreeCADGui as Gui
+    activate("ClothSewingWorkbench", "Cloth Sewing", [])
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(front)
+    Gui.Selection.addSelection(back)
+    Gui.runCommand("ClothFitting_SnapPiecesToTarget", 0)
+    events()
+    after_pairwise = pairwise_distances(anchor_world_points())
+    pairwise_error = max(
+        (abs(after_pairwise[key] - before_pairwise[key]) for key in before_pairwise),
+        default=0.0,
+    )
+    if pairwise_error > 1e-5:
+        raise RuntimeError("public target snap changed authored pairwise spacing by %.9f mm" % pairwise_error)
+    if fitting.DrapeTarget is not target:
+        raise RuntimeError("public target snap did not preserve the authoritative DrapeTarget link")
+    if str(getattr(fitting, "FitStatus", "")) != "Target snapped":
+        raise RuntimeError("public target snap did not persist FitStatus=Target snapped")
+    if all(piece.Placement == perturbed for piece, perturbed in zip((front, back), perturbed_placements)):
+        raise RuntimeError("public target snap did not produce a placement change")
+    log("public-target-snap=passed pairwise-error-mm=%.9f fit-status=%s" % (pairwise_error, fitting.FitStatus))
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
     for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
