@@ -187,3 +187,10 @@ def test_indexed_projection_matches_bruteforce_on_subdivided_surface():
             for i in range(3)
         )
         assert indexed.normal == expected.normal
+
+
+def test_surface_index_is_reused_for_same_surface():
+    from freecad_cloth.avatar.TargetPlacement import _surface_index
+
+    surface = _top_surface()
+    assert _surface_index(surface) is _surface_index(surface)
