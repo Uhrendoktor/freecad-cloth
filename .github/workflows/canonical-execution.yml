@@ -127,6 +127,36 @@ jobs:
             -f fallback_source_run="$GITHUB_RUN_ID"
           echo "pr-router=hosted-dispatch pr=$PR_NUMBER source_run=$GITHUB_RUN_ID workflow_ref=main"
 
+  local_runner_readiness:
+    name: Selected runner readiness
+    if: ${{ github.event_name != 'pull_request_target' }}
+    # This is the sole local-start sentinel. Every substantive trusted workload
+    # depends on it, so the watchdog cannot dispatch a fallback after workload starts.
+    runs-on: ${{ inputs.runner_mode == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 2
+    steps:
+      - name: Record selected execution mode
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          {
+            echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+            echo "event=$GITHUB_EVENT_NAME"
+            echo "run-id=$GITHUB_RUN_ID"
+            echo "runner=$RUNNER_NAME"
+            echo "runner-os=$RUNNER_OS"
+            echo "fallback-source-run=${{ inputs.fallback_source_run || 'none' }}"
+          } | tee artifacts/runner-mode.txt
+      - name: Verify Docker capability on the selected runner
+        run: timeout --signal=TERM --kill-after=5s 20s docker info >/dev/null
+      - name: Upload selected execution mode evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: runner-mode
+          path: artifacts/runner-mode.txt
+          if-no-files-found: error
+          compression-level: 1
   runner_watchdog:
     name: Local runner watchdog with hosted fallback
     if: ${{ github.event_name != 'pull_request_target' && github.event_name != 'pull_request' && inputs.runner_mode != 'hosted' }}
@@ -148,14 +178,19 @@ jobs:
           echo "runner-watchdog=local-preferred grace_seconds=$grace_seconds source_run=$GITHUB_RUN_ID"
           while [ "$SECONDS" -lt "$deadline" ]; do
             jobs="$(gh api --paginate "repos/$REPO/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100")"
-            state="$(printf '%s' "$jobs" | jq -r '[.jobs[] | select(.name == "Python and FreeCAD non-GUI tests")][0].status // "missing"')"
-            case "$state" in
-              in_progress|completed)
-                echo "runner-watchdog=local-started sentinel_status=$state"
+            state="$(printf '%s' "$jobs" | jq -r '[.jobs[] | select(.name == "Selected runner readiness")][0].status // "missing"')"
+            conclusion="$(printf '%s' "$jobs" | jq -r '[.jobs[] | select(.name == "Selected runner readiness")][0].conclusion // ""')"
+            case "$state/$conclusion" in
+              in_progress/*|completed/success)
+                echo "runner-watchdog=local-started sentinel_status=$state sentinel_conclusion=$conclusion"
                 exit 0
                 ;;
+              completed/*)
+                echo "runner-watchdog=local-start-failed sentinel_status=$state sentinel_conclusion=$conclusion"
+                break
+                ;;
             esac
-            echo "runner-watchdog=waiting sentinel_status=$state seconds_remaining=$((deadline - SECONDS))"
+            echo "runner-watchdog=waiting sentinel_status=$state sentinel_conclusion=${conclusion:-none} seconds_remaining=$((deadline - SECONDS))"
             sleep "$interval_seconds"
           done
 
@@ -178,19 +213,29 @@ jobs:
 
   runner_heartbeat:
     name: Local Docker runner heartbeat
+    needs: [local_runner_readiness]
     if: ${{ github.event_name == 'schedule' }}
     runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 2
     steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
       - name: Verify local Docker runner is usable
         run: docker info >/dev/null
 
   python:
     if: ${{ github.event_name != 'pull_request_target' }}
     name: Python and FreeCAD non-GUI tests
+    needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 20
     steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.pull_request_number != '' && format('refs/pull/{0}/merge', inputs.pull_request_number) || github.sha }}
@@ -270,10 +315,15 @@ jobs:
 
   sketcher-startup-diagnostic:
     name: FreeCAD Sketcher startup diagnostic
+    needs: [local_runner_readiness]
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.pull_request_number != '' }}
     runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 5
     steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.pull_request_number != '' && format('refs/pull/{0}/merge', inputs.pull_request_number) || github.sha }}
@@ -376,9 +426,14 @@ jobs:
   gui-sewing-creation:
     if: ${{ github.event_name != 'pull_request_target' }}
     name: Sewing staged creation smoke
+    needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 10
     steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.pull_request_number != '' && format('refs/pull/{0}/merge', inputs.pull_request_number) || github.sha }}
@@ -465,9 +520,14 @@ jobs:
   gui-sketcher-acceptance:
     if: ${{ github.event_name != 'pull_request_target' }}
     name: Native Sketcher seam presentation acceptance
+    needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 10
     steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.pull_request_number != '' && format('refs/pull/{0}/merge', inputs.pull_request_number) || github.sha }}
@@ -544,9 +604,14 @@ jobs:
   gui-pattern-export:
     if: ${{ github.event_name != 'pull_request_target' }}
     name: Pattern production export smoke
+    needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 10
     steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.pull_request_number != '' && format('refs/pull/{0}/merge', inputs.pull_request_number) || github.sha }}
@@ -612,9 +677,14 @@ jobs:
   gui-tunic-visual:
     if: ${{ github.event_name != 'pull_request_target' }}
     name: Full tunic visual and simulation audit
+    needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 20
     steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.pull_request_number != '' && format('refs/pull/{0}/merge', inputs.pull_request_number) || github.sha }}
@@ -736,9 +806,14 @@ jobs:
   gui-turntables:
     if: ${{ github.event_name != 'pull_request_target' }}
     name: README simulation turntable
+    needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 25
     steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.pull_request_number != '' && format('refs/pull/{0}/merge', inputs.pull_request_number) || github.sha }}
@@ -883,9 +958,14 @@ jobs:
   gui-visual-examples:
     if: ${{ github.event_name != 'pull_request_target' }}
     name: Basic blanket visual example
+    needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 15
     steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.pull_request_number != '' && format('refs/pull/{0}/merge', inputs.pull_request_number) || github.sha }}
@@ -988,7 +1068,7 @@ jobs:
           compression-level: 1
   publish-readme-turntables:
     name: Publish README turntables and example motion
-    needs: [gui-tunic-visual, gui-turntables, gui-visual-examples]
+    needs: [local_runner_readiness, gui-tunic-visual, gui-turntables, gui-visual-examples]
     if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '') }}
     permissions:
       contents: write
@@ -996,6 +1076,10 @@ jobs:
     runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 10
     steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
       - name: Download turntables
         uses: actions/download-artifact@v6
         with:
@@ -1047,6 +1131,7 @@ jobs:
           git push origin "HEAD:$branch"
   maintenance-cleanup:
     name: Repository retention cleanup
+    needs: [local_runner_readiness]
     if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * *' }}
     runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     permissions:
@@ -1054,6 +1139,10 @@ jobs:
       contents: write
     timeout-minutes: 10
     steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
       - name: Remove stale agent branches and old completed workflow runs
         env:
           GH_TOKEN: ${{ github.token }}
@@ -1092,10 +1181,15 @@ jobs:
             done
   benchmark:
     name: Measured FreeCAD workbench benchmark
+    needs: [local_runner_readiness]
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
     runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 12
     steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.pull_request_number != '' && format('refs/pull/{0}/merge', inputs.pull_request_number) || github.sha }}
