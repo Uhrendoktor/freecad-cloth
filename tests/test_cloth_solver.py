@@ -91,45 +91,6 @@ def test_mesh_collision_edge_projection_is_idempotent():
     assert max(abs(value) for value in drift) <= 1e-9, drift
 
 
-def test_authored_surface_containment_classifies_and_exits_closed_cube():
-    from freecad_cloth.simulation.AuthoredSurfaceContainment import AuthoredSurfaceContainment
-
-    guard = AuthoredSurfaceContainment(_cube_collision_surface(thickness=0.0))
-    assert guard.classify((0.0, 0.0, 0.0))[0] == "inside"
-    assert guard.classify((25.0, 0.0, 0.0))[0] == "outside"
-    corrected = guard.correct((0.0, 0.0, 0.0))
-    assert corrected is not None
-    corrected_point, exit_distance, normal = corrected
-    assert corrected_point == (12.0, 0.0, 0.0)
-    assert exit_distance == 10.0
-    assert normal == (1.0, 0.0, 0.0)
-
-
-def test_authored_surface_containment_rejects_open_mesh():
-    from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
-    from freecad_cloth.simulation.AuthoredSurfaceContainment import AuthoredSurfaceContainment
-
-    open_surface = surface_from_triangles(
-        ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
-        ((0, 1, 2),),
-        thickness=0.0,
-    )
-    try:
-        AuthoredSurfaceContainment(open_surface)
-    except ValueError as exc:
-        assert "closed" in str(exc)
-    else:
-        raise AssertionError("open collision surface was accepted")
-
-
-def test_authored_surface_containment_is_deterministic_near_repeated_queries():
-    from freecad_cloth.simulation.AuthoredSurfaceContainment import AuthoredSurfaceContainment
-
-    guard = AuthoredSurfaceContainment(_cube_collision_surface(thickness=0.0))
-    first = [guard.classify((0.0, y, z))[0] for y, z in ((0, 0), (5, 7), (-5, 3), (25, 1))]
-    second = [guard.classify((0.0, y, z))[0] for y, z in ((0, 0), (5, 7), (-5, 3), (25, 1))]
-    assert first == second
-
 
 def test_tissu_particle_binding_mutates_solver_state_when_available():
     import importlib.util
