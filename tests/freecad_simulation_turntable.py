@@ -427,17 +427,41 @@ def build_simulation_state(doc):
     proxy = scene.Proxy._base_or_restore()
     positions = tuple(proxy.backend.positions())
     panel_indices = tuple(proxy.panel_indices[panel.Name])
-    half = 0.5 * BLANKET_SIZE
-    mesh_positions, _, _ = quality_piece_mesh(blanket, 0.0, BLANKET_PARTICLE_DISTANCE)
-    pin_targets = (
-        App.Vector(-half, 0.0, 150.0),
-        App.Vector(half, 0.0, 150.0),
+    mesh_positions, _, boundary = quality_piece_mesh(blanket, 0.0, BLANKET_PARTICLE_DISTANCE)
+    left_edge = min(
+        boundary,
+        key=lambda chain: sum(float(mesh_positions[index][0]) for index in chain) / len(chain),
     )
-    quality_indices = _nearest_pin_indices(tuple(range(len(mesh_positions))), mesh_positions, pin_targets)
-    pins = tuple(int(panel_indices[index]) for index in quality_indices)
-    span = abs(float(mesh_positions[quality_indices[1]][0]) - float(mesh_positions[quality_indices[0]][0]))
-    if span < 0.75 * BLANKET_SIZE:
-        raise RuntimeError("blanket edge-midpoint pins are not opposite: span=%.3f" % span)
+    right_edge = max(
+        boundary,
+        key=lambda chain: sum(float(mesh_positions[index][0]) for index in chain) / len(chain),
+    )
+
+    def _edge_midpoint_pin(chain):
+        first = mesh_positions[chain[0]]
+        last = mesh_positions[chain[-1]]
+        target = (
+            0.5 * (float(first[0]) + float(last[0])),
+            0.5 * (float(first[1]) + float(last[1])),
+            0.5 * (float(first[2]) + float(last[2])),
+        )
+        quality_index = min(
+            chain,
+            key=lambda index: (
+                (float(mesh_positions[index][0]) - target[0]) ** 2
+                + (float(mesh_positions[index][1]) - target[1]) ** 2
+                + (float(mesh_positions[index][2]) - target[2]) ** 2
+            ),
+        )
+        return int(panel_indices[quality_index]), quality_index
+
+    left_pin, left_quality_index = _edge_midpoint_pin(left_edge)
+    right_pin, right_quality_index = _edge_midpoint_pin(right_edge)
+    pins = (left_pin, right_pin)
+    span = abs(
+        float(mesh_positions[right_quality_index][0])
+        - float(mesh_positions[left_quality_index][0])
+    )
     scene.PinSelection = [str(index) for index in pins]
     log("blanket-pins=passed mode=opposite-edge-midpoints span=%.3f indices=%s" % (span, pins))
     doc.recompute()
