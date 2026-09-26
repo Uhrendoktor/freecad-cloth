@@ -97,16 +97,13 @@ if __name__ == "__main__":
     print("drape quality and target tests passed")
 
 
-def test_canonical_tunic_fixture_has_swapped_panel_placement():
-    fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert "front_y = box.YMax + clearance" in fixture
-    assert "back_y = box.YMin - clearance" in fixture
+def test_canonical_tunic_fixture_is_target_aware_and_pinless():
+    fixture = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "arrange_garment_on_avatar(scene, (front, back), clearance=clearance)" in fixture
+    assert 'scene.PinMode = "None"' in fixture
+    assert "target_relative_piece_placement" not in fixture
 
 
-def test_canonical_tunic_fixture_uses_narrow_panel_ease():
-    fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert "chest = 860.0; hip = 880.0; ease = 10.0" in fixture
-
-def test_canonical_tunic_fixture_uses_experimental_clearance_profile():
-    fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert "clearance = max(8.0, 0.025 * body_depth);" in fixture
+def test_canonical_tunic_fixture_uses_explicit_clearance():
+    fixture = Path(__file__).with_name("freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "clearance = 8.0" in fixture
