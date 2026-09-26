@@ -90,6 +90,7 @@ def _apply_authored_containment_correction(
     sim,
     containment,
     stitch_components=(),
+    stitch_edges=(),
     pinned_indices=(),
 ):
     particles = sim.solver.get_particles()
@@ -103,10 +104,9 @@ def _apply_authored_containment_correction(
     max_correction_mm = 0.0
     corrected_indices = set()
 
-    self_stitches = tuple(self._current_stitches)
     component_edges = {
         tuple(sorted((int(left), int(right))))
-        for left, right in self_stitches
+        for left, right in stitch_edges
     }
 
     def apply_rigid_component(component):
@@ -317,6 +317,10 @@ class TissuBackend(ClothSimulationBackend):
         self._triangles = tuple(tuple(int(i) for i in tri) for tri in triangles)
         self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins))
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
+        self._stitch_components = _build_stitch_components(
+            self._stitches,
+            len(self._initial.particles),
+        )
         self._source_collision_surface = collision_surface
         self._authored_containment = None
         self._authored_containment_corrections = 0
@@ -402,6 +406,9 @@ class TissuBackend(ClothSimulationBackend):
             corrected, max_correction_mm = _apply_authored_containment_correction(
                 self._sim,
                 self._authored_containment,
+                stitch_components=self._stitch_components,
+                stitch_edges=self._stitches,
+                pinned_indices=self._pin_indices,
             )
             self._authored_containment_corrections += corrected
             self._authored_containment_max_correction_mm = max(
