@@ -7,6 +7,7 @@ LABEL org.opencontainers.image.description="Published FreeCAD 1.1.0 CI image wit
 LABEL org.opencontainers.image.tissu.source-commit="$TISSU_COMMIT"
 
 COPY tissu-mesh-collider.patch /tmp/tissu-mesh-collider.patch
+COPY patch_tissu_headless.py /tmp/patch_tissu_headless.py
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -20,44 +21,7 @@ RUN set -euxo pipefail \
     && git clone --quiet https://github.com/evanrock520-ciencias/Tissu.git "$TISSU_SRC" \
     && git -C "$TISSU_SRC" checkout --detach "$TISSU_COMMIT" \
     && test "$(git -C "$TISSU_SRC" rev-parse HEAD)" = "$TISSU_COMMIT" \
-    && /opt/conda/envs/freecad/bin/python - "$TISSU_SRC/core/CMakeLists.txt" <<'PY' \
-from pathlib import Path
-import sys
-
-path = Path(sys.argv[1])
-text = path.read_text(encoding="utf-8")
-
-source_block = """    src/io/SceneExporter.cpp
-    src/io/AlembicExporter.cpp
-    src/io/StateSerializer.cpp"""
-source_replacement = """    src/io/SceneExporter.cpp
-    src/io/StateSerializer.cpp"""
-dependency_block = """if(NOT TARGET Alembic::Alembic)
-    find_package(Alembic REQUIRED)
-endif()
-if(NOT TARGET Imath::Imath)
-    find_package(Imath REQUIRED)
-endif()
-
-"""
-link_block = """target_link_libraries(TissuCore PUBLIC 
-    Alembic::Alembic 
-    Imath::Imath
-)
-"""
-
-for label, old, new in (
-    ("Alembic source entry", source_block, source_replacement),
-    ("Alembic dependency discovery", dependency_block, ""),
-    ("Alembic link block", link_block, ""),
-):
-    count = text.count(old)
-    if count != 1:
-        raise SystemExit(f"headless Tissu patch expected exactly one {label}, found {count}")
-    text = text.replace(old, new, 1)
-
-path.write_text(text, encoding="utf-8")
-PY
+    && /opt/conda/envs/freecad/bin/python /tmp/patch_tissu_headless.py "$TISSU_SRC/core/CMakeLists.txt" \
     && git -C "$TISSU_SRC" apply --check /tmp/tissu-mesh-collider.patch \
     && git -C "$TISSU_SRC" apply /tmp/tissu-mesh-collider.patch \
     && git -C "$TISSU_SRC" diff --check \
@@ -80,10 +44,12 @@ PY
     && /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir triangle==20250106 \
     && /opt/conda/envs/freecad/bin/python -c "import importlib.metadata, tissu, triangle, pytest; assert importlib.metadata.version('pytissu') == '1.1.0'; assert importlib.metadata.version('triangle') == '20250106'; print('Tissu', tissu.__file__); print('pytissu', importlib.metadata.version('pytissu')); print('Triangle', triangle.__file__); print('triangle', importlib.metadata.version('triangle')); print('pytest', pytest.__version__)" \
     && TISSU_PATCH_SHA256="$(sha256sum /tmp/tissu-mesh-collider.patch | awk '{print $1}')" \
+    && TISSU_HEADLESS_PATCH_SHA256="$(sha256sum /tmp/patch_tissu_headless.py | awk '{print $1}')" \
     && { \
          echo "tissu-source-repository=https://github.com/evanrock520-ciencias/Tissu.git"; \
          echo "tissu-source-commit=$TISSU_COMMIT"; \
          echo "tissu-patch-sha256=$TISSU_PATCH_SHA256"; \
+         echo "tissu-headless-build-patch-sha256=$TISSU_HEADLESS_PATCH_SHA256"; \
          echo "tissu-build=cmake-headless-source"; \
          echo "tissu-headless-build-optimization=exclude-AlembicExporter"; \
          echo "tissu-base-image=ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3"; \
@@ -95,7 +61,7 @@ PY
          echo "tissu-triangle-version=$( /opt/conda/envs/freecad/bin/python -c "import importlib.metadata; print(importlib.metadata.version('triangle'))" )"; \
          echo "tissu-cmake-version=$( cmake --version | head -n1 )"; \
        } | tee /opt/tissu-provenance.txt \
-    && rm -rf "$TISSU_SRC" /tmp/tissu-mesh-collider.patch /opt/tissu-build \
+    && rm -rf "$TISSU_SRC" /tmp/tissu-mesh-collider.patch /tmp/patch_tissu_headless.py /opt/tissu-build \
     && mamba clean --all --yes
 
 ENV PATH=/opt/conda/envs/freecad/bin:/opt/conda/bin:$PATH
