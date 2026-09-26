@@ -19,6 +19,36 @@ class CollisionSurface:
         n = len(self.vertices)
         if n < 3 or not self.triangles:
             raise ValueError("collision surface needs vertices and triangles")
+    @property
+    def is_closed_manifold(self) -> bool:
+        """Return whether the triangle surface is a consistently oriented closed 2-manifold."""
+        if len(self.triangles) < 4:
+            return False
+        undirected = {}
+        directed = {}
+        for triangle in self.triangles:
+            if len(triangle) != 3:
+                return False
+            a, b, c = (int(index) for index in triangle)
+            if len({a, b, c}) != 3:
+                return False
+            for left, right in ((a, b), (b, c), (c, a)):
+                key = (min(left, right), max(left, right))
+                undirected[key] = undirected.get(key, 0) + 1
+                directed.setdefault(key, []).append((left, right))
+        for key, count in undirected.items():
+            if count != 2:
+                return False
+            edge_directions = directed.get(key, ())
+            if len(edge_directions) != 2:
+                return False
+            (a0, b0), (a1, b1) = edge_directions
+            if a0 == a1 and b0 == b1:
+                return False
+            if a0 != b1 or b0 != a1:
+                return False
+        return True
+
         if self.thickness < 0:
             raise ValueError("collision thickness must not be negative")
         for tri in self.triangles:
