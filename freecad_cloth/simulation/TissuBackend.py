@@ -197,17 +197,17 @@ class TissuBackend(ClothSimulationBackend):
         import numpy as np
         particles = self._sim.solver.get_particles()
         corrected_count = 0
-        max_penetration_mm = 0.0
+        max_penetration_m = 0.0
         for particle_index, position in enumerate(self.positions()):
-            correction = index.correction(position, 2.0)
+            correction = index.correction(position, 0.002)
             if correction is None:
                 continue
-            corrected, penetration_mm = correction
-            target = np.asarray(_to_tissu_position(corrected), dtype=np.float64)
+            corrected, penetration_m = correction
+            target = np.asarray(corrected, dtype=np.float64)
             particles[particle_index].set_position(target)
             particles[particle_index].set_old_position(target)
             corrected_count += 1
-            max_penetration_mm = max(max_penetration_mm, float(penetration_mm))
+            max_penetration_m = max(max_penetration_m, float(penetration_m))
         self._authored_containment_corrections += corrected_count
         self._authored_containment_max_penetration = max(
             self._authored_containment_max_penetration,
@@ -216,7 +216,7 @@ class TissuBackend(ClothSimulationBackend):
         if corrected_count:
             print(
                 "cloth-tissu-authored-containment corrected=%d penetration_mm=%.3f time=%.4f"
-                % (corrected_count, max_penetration_mm, self._time),
+                % (corrected_count, max_penetration_m * _MM, self._time),
                 flush=True,
             )
         return corrected_count
