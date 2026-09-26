@@ -97,7 +97,7 @@ class TissuBackend(ClothSimulationBackend):
         except ImportError as exc:
             raise RuntimeError("Tissu backend requires the optional 'pytissu' package") from exc
         collision_mode = str(os.environ.get("CLOTH_TISSU_COLLISION_MODE", collision_mode)).strip().lower()
-        if collision_mode not in {"mesh", "torso-envelope"}:
+        if collision_mode not in {"mesh", "torso-envelope", "mesh+torso-envelope"}:
             raise ValueError("unsupported Tissu collision mode")
         self._initial = deepcopy(system)
         self._triangles = tuple(tuple(int(i) for i in tri) for tri in triangles)
@@ -136,7 +136,7 @@ class TissuBackend(ClothSimulationBackend):
         import numpy as np
         if self._collision_surface is None:
             return
-        if self._collision_mode == "torso-envelope":
+        if self._collision_mode in {"torso-envelope", "mesh+torso-envelope"}:
             for index, (center, radius_mm) in enumerate(_collision_envelope(self._collision_surface)):
                 self._sim.add_sphere(
                     f"drape-torso-{index}",
@@ -144,7 +144,8 @@ class TissuBackend(ClothSimulationBackend):
                     float(radius_mm) / _MM,
                     friction=0.5,
                 )
-            return
+            if self._collision_mode == "torso-envelope":
+                return
         vtx, idx = _to_tissu_mesh(self._collision_surface)
         self._sim.add_mesh_from_arrays("drape-target", vtx, idx, friction=0.5)
 
