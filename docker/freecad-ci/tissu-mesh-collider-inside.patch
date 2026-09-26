@@ -1,0 +1,248 @@
+diff --git a/core/include/physics/MeshCollider.hpp b/core/include/physics/MeshCollider.hpp
+index 4e6a5a1..8ad4c70 100644
+--- a/core/include/physics/MeshCollider.hpp
++++ b/core/include/physics/MeshCollider.hpp
+@@ -30,6 +30,8 @@ private:
+     std::vector<Eigen::Vector3d> m_localVertices;
+     std::vector<Eigen::Vector3d> m_worldVertices;
+     std::vector<Triangle> m_triangles;
++    bool m_closedManifold = false;
++    double m_outwardNormalSign = 1.0;
+     BVH m_bvh;
+ };
+ 
+diff --git a/core/src/physics/MeshCollider.cpp b/core/src/physics/MeshCollider.cpp
+index a0b83a8..5c7b6f9 100644
+--- a/core/src/physics/MeshCollider.cpp
++++ b/core/src/physics/MeshCollider.cpp
+@@ -1,8 +1,43 @@
+ #include "physics/MeshCollider.hpp"
+ 
+ #include "io/OBJLoader.hpp"
+ #include "math/Geometry.hpp"
+ #include "physics/Particle.hpp"
+ 
++#include <algorithm>
++#include <cmath>
++#include <cstdint>
++#include <unordered_map>
++
+ namespace Tissu {
+ 
++namespace {
++
++struct MeshOrientation {
++    bool closedManifold = false;
++    double outwardNormalSign = 1.0;
++};
++
++std::uint64_t edgeKey(int a, int b) {
++    const auto low = static_cast<std::uint32_t>(std::min(a, b));
++    const auto high = static_cast<std::uint32_t>(std::max(a, b));
++    return (static_cast<std::uint64_t>(low) << 32) |
++           static_cast<std::uint64_t>(high);
++}
++
++MeshOrientation inferMeshOrientation(
++    const std::vector<Eigen::Vector3d>& vertices,
++    const std::vector<Triangle>& triangles) {
++    if (triangles.empty())
++        return {};
++
++    std::unordered_map<std::uint64_t, std::pair<int, int>> edges;
++    edges.reserve(triangles.size() * 3);
++
++    double signedVolume = 0.0;
++    for (const auto& tri : triangles) {
++        const int ids[3] = {tri.a, tri.b, tri.c};
++        for (const int vertexIndex : ids) {
++            if (vertexIndex < 0 ||
++                vertexIndex >= static_cast<int>(vertices.size())) {
++                return {};
++            }
++        }
++        signedVolume +=
++            vertices[ids[0]].dot(
++                vertices[ids[1]].cross(vertices[ids[2]])) /
++            6.0;
++
++        for (int edgeIndex = 0; edgeIndex < 3; ++edgeIndex) {
++            const int from = ids[edgeIndex];
++            const int to = ids[(edgeIndex + 1) % 3];
++            if (from < 0 || to < 0 ||
++                from >= static_cast<int>(vertices.size()) ||
++                to >= static_cast<int>(vertices.size())) {
++                return {};
++            }
++            const auto key = edgeKey(from, to);
++            auto& edge = edges[key];
++            ++edge.first;
++            edge.second +=
++                from == std::min(from, to) ? 1 : -1;
++        }
++    }
++
++    for (const auto& [key, edge] : edges) {
++        (void)key;
++        if (edge.first != 2 || edge.second != 0)
++            return {};
++    }
++    if (std::abs(signedVolume) <= 1.0e-12)
++        return {};
++
++    return {true, signedVolume > 0.0 ? 1.0 : -1.0};
++}
++
+ MeshCollider::MeshCollider(const std::string& meshPath, double friction)
+     : m_meshPath(meshPath) {
+     m_friction = friction;
+@@ -20,6 +55,10 @@ MeshCollider::MeshCollider(const std::string& meshPath, double friction)
+         m_triangles.emplace_back(indices[i], indices[i + 1], indices[i + 2]);
+ 
++    const MeshOrientation orientation =
++        inferMeshOrientation(m_worldVertices, m_triangles);
++    m_closedManifold = orientation.closedManifold;
++    m_outwardNormalSign = orientation.outwardNormalSign;
++
+     m_bvh.build(m_worldVertices, m_triangles);
+ }
+ 
+@@ -34,6 +73,10 @@ MeshCollider::MeshCollider(const std::vector<Eigen::Vector3d>& vertices,
+         m_triangles.emplace_back(tri[0], tri[1], tri[2]);
+     }
+ 
++    const MeshOrientation orientation =
++        inferMeshOrientation(m_worldVertices, m_triangles);
++    m_closedManifold = orientation.closedManifold;
++    m_outwardNormalSign = orientation.outwardNormalSign;
++
+     m_bvh.build(m_worldVertices, m_triangles);
+ }
+ 
+@@ -56,14 +99,31 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
+         Eigen::Vector3d toParticle = particle.getPosition() - cp;
+         double distance = toParticle.norm();
+ 
+         if (distance <= thickness) {
+-            Eigen::Vector3d normal = (distance > 1e-6)
+-                                         ? toParticle.normalized()
+-                                         : ((b - a).cross(c - a)).normalized();
++            Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
++            const double faceNormalLength = faceNormalRaw.norm();
++            if (faceNormalLength <= 1e-12)
++                continue;
++            Eigen::Vector3d faceNormal =
++                faceNormalRaw / faceNormalLength;
++
++            Eigen::Vector3d normal = faceNormal;
++            if (distance > 1e-6) {
++                normal = toParticle / distance;
++                if (m_closedManifold) {
++                    const Eigen::Vector3d outwardNormal =
++                        faceNormal * m_outwardNormalSign;
++                    // A particle on the interior side of a closed, consistently
++                    // oriented surface must be resolved along the outward
++                    // normal; outside contact preserves the existing vector.
++                    if (normal.dot(outwardNormal) < 0.0)
++                        normal = -normal;
++                }
++            } else if (m_closedManifold) {
++                normal *= m_outwardNormalSign;
++            }
+ 
+             Eigen::Vector3d newPosition = cp + normal * thickness;
+             particle.setPosition(newPosition);
+diff --git a/tests/physics/test_mesh_collider.cpp b/tests/physics/test_mesh_collider.cpp
+index 8bd3bc7..43d4c0f 100644
+--- a/tests/physics/test_mesh_collider.cpp
++++ b/tests/physics/test_mesh_collider.cpp
+@@ -1,5 +1,35 @@
+ #include <vector>
+ 
+ #include "Eigen/Dense"
+ #include "physics/MeshCollider.hpp"
+ #include "physics/Particle.hpp"
+ #include "gtest/gtest.h"
+ 
+ using namespace Tissu;
+ 
+ static MeshCollider makeTetrahedron(double friction = 0.0) {
+@@ -15,6 +45,27 @@ static MeshCollider makeTetrahedron(double friction = 0.0) {
+     return MeshCollider(vertices, triangles, friction);
+ }
+ 
++static bool tetrahedronContains(const Eigen::Vector3d& point) {
++    const std::vector<Eigen::Vector3d> vertices = {
++        {0.0, 0.0, 0.0},
++        {2.0, 0.0, 0.0},
++        {1.0, 0.0, 2.0},
++        {1.0, 2.0, 1.0},
++    };
++    const std::vector<std::array<int, 3>> triangles = {
++        {0, 2, 1},
++        {0, 1, 3},
++        {1, 2, 3},
++        {0, 3, 2},
++    };
++    const Eigen::Vector3d center =
++        (vertices[0] + vertices[1] + vertices[2] + vertices[3]) / 4.0;
++    constexpr double epsilon = 1e-9;
++
++    for (const auto& tri : triangles) {
++        const Eigen::Vector3d& a = vertices[tri[0]];
++        const Eigen::Vector3d& b = vertices[tri[1]];
++        const Eigen::Vector3d& c = vertices[tri[2]];
++        Eigen::Vector3d normal = (b - a).cross(c - a).normalized();
++        if ((center - a).dot(normal) > 0.0)
++            normal = -normal;
++        if ((point - a).dot(normal) > epsilon)
++            return false;
++    }
++    return true;
++}
++
+ TEST(MeshCollider, ParticleInsideMeshMovesOutside) {
+     MeshCollider mesh = makeTetrahedron(0.5);
+ 
+     Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
+     std::vector<Particle> particles;
+     particles.emplace_back(initialPos);
+ 
+     mesh.resolve(particles, 0.016, 1.0);
+ 
+     double distanceMoved = (particles[0].getPosition() - initialPos).norm();
+     EXPECT_GT(distanceMoved, 0.0);
++    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
++}
++
++TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
++    MeshCollider mesh = makeTetrahedron(0.0);
++    Eigen::Vector3d initialPos(1.0, -0.01, 0.75);
++    std::vector<Particle> particles;
++    particles.emplace_back(initialPos);
++
++    mesh.resolve(particles, 0.016, 0.1);
++
++    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
++}
++
++TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
++    const std::vector<Eigen::Vector3d> vertices = {
++        {0.0, 0.0, 0.0},
++        {2.0, 0.0, 0.0},
++        {0.0, 0.0, 2.0},
++    };
++    const std::vector<std::array<int, 3>> triangles = {{0, 1, 2}};
++    MeshCollider mesh(vertices, triangles, 0.0);
++
++    Eigen::Vector3d initialPos(0.5, 0.05, 0.5);
++    std::vector<Particle> particles;
++    particles.emplace_back(initialPos);
++
++    mesh.resolve(particles, 0.016, 0.1);
++
++    EXPECT_GT(particles[0].getPosition().y(), initialPos.y());
+ }
+ 
+ TEST(MeshCollider, ParticleOutsideMeshDoesNotChangePosition) {
+     MeshCollider mesh = makeTetrahedron(0.0);

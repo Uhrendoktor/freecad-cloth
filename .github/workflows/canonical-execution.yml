@@ -476,8 +476,12 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Pull FreeCAD image
-        run: docker pull "$FREECAD_IMAGE"
+      - name: Build patched FreeCAD image
+        run: |
+          set -euo pipefail
+          docker build --pull -t freecad-ci:tissu-patched docker/freecad-ci
+          echo "FREECAD_IMAGE=freecad-ci:tissu-patched" >> "$GITHUB_ENV"
+
       - name: Stage workspace in Docker volume
         run: |
           set -euo pipefail
@@ -514,6 +518,9 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 12); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
+              test -s /opt/tissu-provenance.txt
+              grep -q 'source_commit=c28a3c7504ddc782bef844ab5bd4cd0bde14b628' /opt/tissu-provenance.txt
+              grep -q 'mesh_collider_tests=passed' /opt/tissu-provenance.txt
               timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py
               timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_realtime_benchmark.py
             '
