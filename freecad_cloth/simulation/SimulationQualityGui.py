@@ -113,7 +113,7 @@ class SimulationQualityTaskPanel:
 
     def _arrange_clicked(self):
         try:
-            from freecad_cloth.avatar.FittingCommands import add_selected_pattern_pieces, create_fitting_scene, snap_pieces_to_target
+            from freecad_cloth.avatar.FittingCommands import add_selected_pattern_pieces, create_fitting_scene, snap_pattern_pieces_to_target
             fitting = self._find_fitting_scene()
             if fitting is None:
                 create_fitting_scene()
@@ -125,7 +125,7 @@ class SimulationQualityTaskPanel:
                 fitting = self._find_fitting_scene()
             if fitting is None or not getattr(fitting, "PatternPieces", ()):
                 raise ValueError("select one or more PatternPiece objects before arranging")
-            snap_pieces_to_target(tuple(getattr(fitting, "PatternPieces", ()) or ()), getattr(self.scene, "DrapeTarget", None))
+            snap_pattern_pieces_to_target(tuple(getattr(fitting, "PatternPieces", ()) or ()))
             self.scene.Document.recompute()
             self._refresh("Assigned garment pieces snapped to the current DrapeTarget.")
         except Exception as exc:
