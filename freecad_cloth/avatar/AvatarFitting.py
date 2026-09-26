@@ -54,24 +54,47 @@ class PiecePlacement:
     piece_id: str
     position: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     rotation_z: float = 0.0
+    rotation_axis: Tuple[float, float, float] = (0.0, 0.0, 1.0)
+    rotation_angle: float | None = None
 
     def validate(self) -> None:
         if not self.piece_id.strip():
             raise ValueError("piece id must not be empty")
         if len(self.position) != 3:
             raise ValueError("position must contain three coordinates")
+        if len(self.rotation_axis) != 3:
+            raise ValueError("rotation axis must contain three coordinates")
+        if all(abs(float(value)) < 1e-12 for value in self.rotation_axis):
+            raise ValueError("rotation axis must not be zero")
+        if self.rotation_angle is not None and not isinstance(self.rotation_angle, (int, float)):
+            raise ValueError("rotation angle must be numeric")
 
     def to_string(self) -> str:
         self.validate()
-        return "%s|%.12g,%.12g,%.12g|%.12g" % (
+        base = "%s|%.12g,%.12g,%.12g|%.12g" % (
             self.piece_id, self.position[0], self.position[1], self.position[2], self.rotation_z
+        )
+        if self.rotation_angle is None:
+            return base
+        axis = ",".join("%.12g" % float(value) for value in self.rotation_axis)
+        return "%s|%s|%.12g|%.12g" % (self.piece_id, ",".join("%.12g" % float(v) for v in self.position), self.rotation_z, self.rotation_angle) if False else "%s|%.12g,%.12g,%.12g|%.12g|%s|%.12g" % (
+            self.piece_id, self.position[0], self.position[1], self.position[2], self.rotation_z, axis, self.rotation_angle
         )
 
     @classmethod
     def from_string(cls, value: str) -> "PiecePlacement":
-        piece_id, position, rotation = str(value).split("|")
-        coords = tuple(float(v) for v in position.split(","))
-        result = cls(piece_id, coords, float(rotation))
+        parts = str(value).split("|")
+        if len(parts) == 3:
+            piece_id, position, rotation = parts
+            coords = tuple(float(v) for v in position.split(","))
+            result = cls(piece_id, coords, float(rotation))
+        elif len(parts) == 5:
+            piece_id, position, rotation, axis, angle = parts
+            coords = tuple(float(v) for v in position.split(","))
+            rotation_axis = tuple(float(v) for v in axis.split(","))
+            result = cls(piece_id, coords, float(rotation), rotation_axis, float(angle))
+        else:
+            raise ValueError("invalid piece placement record")
         result.validate()
         return result
 
