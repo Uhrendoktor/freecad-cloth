@@ -28,7 +28,9 @@ If a Sketch edit invalidates a semantic edge reference, the seam remains invalid
 
 ### 3. Arrange and fit
 
-Create/select a `DrapeTarget`: either the native human mannequin or an ordinary FreeCAD Shape/PartDesign/Body/Mesh. Arrange pieces using persistent placements/arrangement metadata. Reset and superimpose are deterministic fitting operations, not solver state.
+Create/select a `DrapeTarget`: either the native human mannequin or an ordinary FreeCAD Shape/PartDesign/Body/Mesh. Arrange pieces using persistent placements/arrangement metadata. When a human avatar is available, supported garment arrangements derive the front/back start planes from persisted shoulder/high-hip landmarks and the actual target-surface depth, with the avatar skin offset used as placement clearance. Reset and superimpose are deterministic fitting operations, not solver state. Arrangement does not add hidden particle pins.
+
+For a two-panel tunic, the expected sequence is **author pattern → create semantic seams → arrange on avatar → validate target → simulate**. The fitting placement is retained if the simulation is reset; changing the avatar or collision target can invalidate dependent derived state and requires an explicit refresh/rebuild.
 
 ### 4. Simulate
 
