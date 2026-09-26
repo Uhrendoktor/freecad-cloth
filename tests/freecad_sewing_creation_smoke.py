@@ -367,6 +367,7 @@ try:
     assert len(actual_colors) == len(visual_seams)
     assert len(set(actual_colors.values())) == len(visual_seams)
     for seam_id, color in expected_colors.items():
+        record("seam-color id=%s actual=%r expected=%r" % (seam_id, actual_colors.get(seam_id), color))
         assert actual_colors[seam_id] == color
     visual_seam = visual_seams[0]
     assert not visual_seam.Shape.isNull()
