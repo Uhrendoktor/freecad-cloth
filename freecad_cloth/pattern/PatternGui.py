@@ -257,4 +257,9 @@ def show_pattern_drafting_task(obj=None):
 
 def show_pattern_view():
     _App, Gui, _QtWidgets, _, _ = _gui_modules()
-    if Gui.activeDocument(): Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll()
+    active = Gui.activeDocument()
+    if active:
+        from freecad_cloth.sewing.SewingView import refresh_seam_colors
+        refresh_seam_colors(getattr(active, "Document", None))
+        active.activeView().viewTop()
+        active.activeView().fitAll()
