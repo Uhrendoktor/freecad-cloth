@@ -54,7 +54,7 @@ Do not pull a visible CLO feature forward merely because it exists in CLO. Stabi
 
 - P0 release-closeout is complete and validated on merged main; there is no pending release candidate.
 - Final timing repair PR #1195 is merged. The canonical PR validation passed, followed by merged-main validation of the complete graph and README publication.
-- The three README turntable GIFs are 73 frames at 640x480 with uniform 8cs frame timing; the canonical workflow asserts that timing fail-closed. Representative rendered frames were inspected, and the final publication audit matched generated GIF bytes to the `docs/screenshots` Git blobs.
+- The three README turntable GIFs are 73 frames at 640x480 with uniform 8cs frame timing; the canonical workflow asserts that timing fail-closed. Representative rendered frames were inspected, and the final publication audit matched the authoritative merged-main run #3987 artifact bytes to the `docs/screenshots` Git blobs. The same content-addressed check covers the published blanket motion GIF and draped front PNG.
 - The 16-frame blanket motion GIF remains validated at 10cs/frame and is published on `docs/screenshots`; its motion, mesh connectivity, drape plausibility, and material presentation were inspected.
 - The canonical FreeCAD/Xvfb workflow remains the sole workflow and fail-closed. No simulation geometry thresholds, frame-count contracts, validation assertions, or workflow topology were weakened to reach release state.
 - Repository retention/branch cleanup is implemented by the scheduled maintenance job. The connector does not expose branch deletion, so full remote branch purge is not claimed; this is an operational retention-policy limitation rather than a release-code blocker.
