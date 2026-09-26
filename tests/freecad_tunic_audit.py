@@ -48,7 +48,7 @@ replacements = {
     'front_y = box.YMin - clearance; back_y = box.YMax + clearance;': 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
         'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)',
-    '    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):\n'
+    '    for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):\n'
         '        seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
         '        add_seam(doc, seam)\n'
         '        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)\n'
