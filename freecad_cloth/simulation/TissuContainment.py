@@ -137,6 +137,7 @@ class AuthoredSurfaceIndex:
 
         self.vertices = np.ascontiguousarray(vertex_array)
         self.triangles = np.ascontiguousarray(triangle_array)
+        self._validate_closed_manifold()
         tri_vertices = self.vertices[self.triangles]
         self.triangle_min = np.min(tri_vertices, axis=1)
         self.triangle_max = np.max(tri_vertices, axis=1)
@@ -160,6 +161,16 @@ class AuthoredSurfaceIndex:
         self._order = []
         self._nodes = []
         self._build(np.arange(len(self.triangles), dtype=np.int32))
+
+    def _validate_closed_manifold(self):
+        edges = {}
+        for triangle_index, (a, b, c) in enumerate(self.triangles):
+            for left, right in ((int(a), int(b)), (int(b), int(c)), (int(c), int(a))):
+                key = (min(left, right), max(left, right))
+                orientation = 1 if left < right else -1
+                edges.setdefault(key, []).append((triangle_index, orientation))
+        if any(len(uses) != 2 or uses[0][1] == uses[1][1] for uses in edges.values()):
+            raise ValueError("authored containment surface must be closed and consistently wound")
 
     def _signed_volume6(self):
         tri_vertices = self.vertices[self.triangles]
