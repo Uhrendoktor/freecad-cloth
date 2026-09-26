@@ -320,6 +320,7 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=7
     home_before = tuple(scene.HomePlacements)
     placement_before = {piece: piece.Placement for piece in selected}
     persisted_before = tuple(scene.PiecePlacements)
+    fit_status_before = str(scene.FitStatus)
     results = []
 
     try:
@@ -409,6 +410,7 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=7
         for piece, original in placement_before.items():
             piece.Placement = original
         scene.PiecePlacements = list(persisted_before)
+        scene.FitStatus = fit_status_before
         if tuple(scene.HomePlacements) != home_before:
             scene.HomePlacements = list(home_before)
         doc.recompute()
