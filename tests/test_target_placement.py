@@ -39,6 +39,31 @@ def test_target_relative_placement_is_deterministic_and_outside_requested_side()
     assert target_bounds(((-50, -60, 0), (50, -60, 300))) == (-50.0, 50.0, -60.0, -60.0, 0.0, 300.0)
 
 
+
+def test_target_relative_placement_honors_explicit_anchor_position():
+    plan = plan_target_relative_placement(
+        home_position=(0.0, 0.0, 0.0),
+        home_rotation_axis=(0.0, 0.0, 1.0),
+        home_rotation_angle=0.0,
+        piece_bounds=(0.0, 100.0, 0.0, 200.0),
+        target_bounds=(-50.0, 50.0, -60.0, 260.0, 0.0, 300.0),
+        wrap_direction="front",
+        clearance=10.0,
+        max_translation=1000.0,
+        max_rotation=180.0,
+        anchor_position=(25.0, 0.0, 120.0),
+    )
+    local_center = (50.0, 100.0, 0.0)
+    angle = math.radians(plan.rotation_angle)
+    rotated_center = (
+        local_center[0],
+        local_center[1] * math.cos(angle),
+        local_center[1] * math.sin(angle),
+    )
+    world_center = tuple(plan.position[i] + rotated_center[i] for i in range(3))
+    assert abs(world_center[0] - 25.0) < 1e-9
+    assert abs(world_center[2] - 120.0) < 1e-9
+
 def test_target_relative_placement_rejects_translation_beyond_bound():
     try:
         plan_target_relative_placement(
@@ -84,6 +109,7 @@ def test_rotation_distance_is_shortest_equivalent_angle():
 if __name__ == "__main__":
     tests = (
         test_target_relative_placement_is_deterministic_and_outside_requested_side,
+        test_target_relative_placement_honors_explicit_anchor_position,
         test_target_relative_placement_rejects_translation_beyond_bound,
         test_target_relative_placement_rejects_rotation_beyond_bound,
         test_rotation_distance_is_shortest_equivalent_angle,
