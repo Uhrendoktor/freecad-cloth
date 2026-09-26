@@ -232,10 +232,14 @@ class SewingOperationProxy:
 
     def execute(self, obj):
         import Part
+        from freecad_cloth.sewing.SewingView import refresh_seam_colors
         seam = getattr(obj, "Seam", None)
         piece_a = getattr(obj, "PieceA", None)
         piece_b = getattr(obj, "PieceB", None)
+        if hasattr(obj, "SeamId"):
+            obj.SeamId = str(getattr(seam, "SeamId", "") or "")
         if seam is None or piece_a is None or piece_b is None:
+            refresh_seam_colors(getattr(obj, "Document", None))
             obj.Status = "Incomplete"
             obj.LengthA = obj.LengthB = obj.LengthDifference = 0.0
             obj.StitchCount = 0
@@ -244,6 +248,7 @@ class SewingOperationProxy:
             return
         seam_status = str(getattr(seam, "Status", "Valid"))
         if seam_status != "Valid":
+            refresh_seam_colors(getattr(obj, "Document", None))
             obj.Status = "Invalid seam: " + seam_status
             obj.LengthA = obj.LengthB = obj.LengthDifference = 0.0
             obj.StitchCount = 0
@@ -279,8 +284,6 @@ class SewingOperationProxy:
 
         obj.StitchCount = max(2, int(obj.Stitches))
         obj.Status = correspondence_status_label(correspondence)
-        if hasattr(obj, "SeamId"):
-            obj.SeamId = str(getattr(seam, "SeamId", "") or "")
         if hasattr(obj, "ReversedB"):
             obj.ReversedB = bool(getattr(seam, "ReversedB", False))
         if hasattr(obj, "Alignment"):
@@ -293,6 +296,7 @@ class SewingOperationProxy:
         for pa, pb in pairs:
             obj.StitchPoints.append(f"{pa.x:.6f},{pa.y:.6f},{pa.z:.6f}|{pb.x:.6f},{pb.y:.6f},{pb.z:.6f}")
         obj.Shape = Part.makeCompound([Part.makePolygon([p for p, _ in pairs]), Part.makePolygon([p for _, p in pairs])])
+        refresh_seam_colors(getattr(obj, "Document", None))
 
 
 def add_sewing_operation(doc, seam, piece_a, piece_b, name="SewingOperation"):
