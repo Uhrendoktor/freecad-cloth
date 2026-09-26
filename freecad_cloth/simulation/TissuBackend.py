@@ -7,18 +7,26 @@ from copy import deepcopy
 from typing import Iterable, Sequence, Tuple
 import os
 
-from freecad_cloth.avatar.AvatarCollision import CollisionSurface
+from freecad_cloth.avatar.AvatarCollision import CollisionSurface, coarsen_collision_surface
 from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 
 _MM = 1000.0
 _TISSU_SUBSTEPS_DEFAULT = 1
+_TISSU_COLLISION_TRIANGLES_DEFAULT = 0
 
 
 def _tissu_substeps():
     value = int(os.environ.get("CLOTH_TISSU_SUBSTEPS", str(_TISSU_SUBSTEPS_DEFAULT)))
     if value < 1:
         raise ValueError("CLOTH_TISSU_SUBSTEPS must be >= 1")
+    return value
+
+
+def _tissu_collision_triangle_limit():
+    value = int(os.environ.get("CLOTH_TISSU_COLLISION_TRIANGLES", str(_TISSU_COLLISION_TRIANGLES_DEFAULT)))
+    if value < 0:
+        raise ValueError("CLOTH_TISSU_COLLISION_TRIANGLES must be >= 0")
     return value
 
 
@@ -95,6 +103,19 @@ class TissuBackend(ClothSimulationBackend):
         self._triangles = tuple(tuple(int(i) for i in tri) for tri in triangles)
         self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins))
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
+        self._source_collision_surface = collision_surface
+        collision_limit = _tissu_collision_triangle_limit()
+        if collision_surface is not None and collision_mode == "mesh" and collision_limit:
+            collision_surface = coarsen_collision_surface(collision_surface, collision_limit)
+            print(
+                "cloth-tissu-collision source_triangles=%d solver_triangles=%d limit=%d"
+                % (
+                    len(self._source_collision_surface.triangles),
+                    len(collision_surface.triangles),
+                    collision_limit,
+                ),
+                flush=True,
+            )
         self._collision_surface = collision_surface
         self._collision_mode = collision_mode
         self._time = 0.0

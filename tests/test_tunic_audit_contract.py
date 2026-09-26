@@ -107,3 +107,14 @@ def test_simulation_proxy_serializes_only_rebuildable_metadata():
     assert proxy.source_signature is None
     assert proxy.last_steps == 0
     assert proxy.collision_surface is None
+
+
+def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
+    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    assert "ParticleDistance = 32.0" in source
+    assert "SolverIterations = 1" in source
+    assert "SolverSubsteps = 1" in source
+    assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
+    assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
+    assert 'tunic-simulation-start' in source
