@@ -572,6 +572,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+      - name: Validate generated tunic audit source
+        run: |
+          set -euo pipefail
+          python3 tests/freecad_tunic_audit.py --syntax-check
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -736,9 +740,7 @@ jobs:
               timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_avatar_screenshot.py
               timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_simulation_turntable.py
             '
-          test "$(find docs/images/generated/cloth-avatar-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
-          test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
-          test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
+
       - name: Restore workspace from Docker volume
         if: ${{ always() }}
         run: |
@@ -750,6 +752,18 @@ jobs:
           docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
           docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
 
+          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Validate README turntable frame evidence
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          for directory in \
+            cloth-avatar-turntable-frames \
+            cloth-simulation-arranged-turntable-frames \
+            cloth-simulation-draped-turntable-frames; do
+            test "$(find "docs/images/generated/$directory" -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
+          done
       - name: Validate blanket motion and camera evidence
         run: |
           set -euo pipefail
