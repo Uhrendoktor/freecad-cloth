@@ -30,6 +30,7 @@ os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "mesh")
 
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 BLANKET_SIZE = 200.0  # Validated 200 mm release fixture; keep pins/placement derived from this value.
+BLANKET_PARTICLE_DISTANCE = 16.0  # Bounded release resolution; contract requires >= 12 mm.
 # The README fixture uses the same pinned Tissu mesh-collision runtime as the
 # canonical turntable job and the validated 200 mm blanket visual example.
 os.environ["CLOTH_SIMULATION_BACKEND"] = "tissu"
@@ -190,7 +191,9 @@ def render_turntable(view, objects, frame_dir, frame_count=72):
 
 
 def _render_turntable_isolated(view, objects, frame_dir, frame_count=72):
+    stage_started = time.monotonic()
     frame_total = frame_count + 1
+    log("turntable-stage-start dir=%s frames=%d" % (frame_dir, frame_total))
     center = combined_center(objects)
     target = coin.SbVec3f(center.x, center.y, center.z)
     view.setCameraType("Orthographic")
@@ -218,6 +221,11 @@ def _render_turntable_isolated(view, objects, frame_dir, frame_count=72):
         save_png(view, frame_path, "turntable frame %03d" % frame)
         with open(frame_path, "rb") as handle:
             frame_hashes.append(hashlib.sha256(handle.read()).hexdigest())
+        if frame == 0 or (frame + 1) % 18 == 0 or frame == frame_total - 1:
+            log(
+                "turntable-progress dir=%s frame=%d/%d elapsed_ms=%.1f"
+                % (frame_dir, frame + 1, frame_total, 1000.0 * (time.monotonic() - stage_started))
+            )
     if len(frame_hashes) != frame_total or len(set(frame_hashes)) != frame_total:
         raise RuntimeError("turntable frames are not all distinct: %s" % frame_dir)
     camera.position = base_position
@@ -225,6 +233,10 @@ def _render_turntable_isolated(view, objects, frame_dir, frame_count=72):
     if hasattr(view, "redraw"):
         view.redraw()
     events()
+    log(
+        "turntable-stage-pass dir=%s frames=%d elapsed_ms=%.1f"
+        % (frame_dir, frame_total, 1000.0 * (time.monotonic() - stage_started))
+    )
     log("turntable-pass dir=%s frames=%d" % (frame_dir, frame_total))
 
 
@@ -270,7 +282,7 @@ def _style_mesh(obj):
 
 
 def _opposite_top_edge_pins(piece, positions, panel_indices):
-    mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, 20.0)
+    mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, BLANKET_PARTICLE_DISTANCE)
     boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
     if not boundary_vertices:
         raise RuntimeError("blanket quality mesh has no boundary vertices")
@@ -365,6 +377,11 @@ def validate_blanket_drape(panel, cube):
 
 
 def build_simulation_state(doc):
+    stage_started = time.monotonic()
+    log(
+        "stage=scene-build-start particle_distance=%.1f solver_iterations=4 solver_substeps=1"
+        % BLANKET_PARTICLE_DISTANCE
+    )
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
     from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, ensure_quality_properties
@@ -394,8 +411,9 @@ def build_simulation_state(doc):
     scene.GravityY = 0.0
     scene.GravityZ = -9810.0
     scene.TimeStep = 1.0 / 60.0
-    scene.ParticleDistance = max(12.0, float(scene.ParticleDistance))
+    scene.ParticleDistance = max(BLANKET_PARTICLE_DISTANCE, float(scene.ParticleDistance))
     scene.SolverIterations = 4
+    scene.SolverSubsteps = 1
     scene.FabricColor = (0.14, 0.32, 0.78)
     scene.FabricSpecular = 0.70
     scene.FabricRoughness = 0.20
@@ -423,11 +441,33 @@ def build_simulation_state(doc):
     panel.ViewObject.Visibility = True
     cube.ViewObject.Visibility = True
     doc.recompute()
-    return scene, cube, blanket, panel, tuple(scene.Proxy._base_or_restore().backend.positions())
+    positions = tuple(scene.Proxy._base_or_restore().backend.positions())
+    log(
+        "stage=scene-build-pass particles=%d particle_distance=%.1f solver_iterations=%d solver_substeps=%d elapsed_ms=%.1f"
+        % (
+            len(positions),
+            float(scene.ParticleDistance),
+            int(scene.SolverIterations),
+            int(scene.SolverSubsteps),
+            1000.0 * (time.monotonic() - stage_started),
+        )
+    )
+    return scene, cube, blanket, panel, positions
 
 
 def main():
+    total_started = time.monotonic()
+    with open(LOG, "w", encoding="utf-8"):
+        pass
     window = wait_for_gui_ready()
+    log(
+        "stage=fixture-start backend=tissu collision_mode=%s tissu_substeps=%s steps=%s"
+        % (
+            os.environ.get("CLOTH_TISSU_COLLISION_MODE", "mesh"),
+            os.environ.get("CLOTH_TISSU_SUBSTEPS", "1"),
+            os.environ.get("CLOTH_BLANKET_STEPS", "120"),
+        )
+    )
     init_gui = os.path.join(ROOT, "InitGui.py")
     if "ClothPatternWorkbench" not in Gui.listWorkbenches():
         exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
@@ -438,9 +478,25 @@ def main():
         scene, cube, blanket, panel, initial_positions = build_simulation_state(doc)
         view = Gui.activeDocument().activeView()
         arranged_objects = [cube, panel]
+        arranged_started = time.monotonic()
         render_turntable(view, arranged_objects, os.path.join(OUT, "cloth-simulation-arranged-turntable-frames"))
+        log(
+            "stage=arranged-render-pass frames=73 elapsed_ms=%.1f"
+            % (1000.0 * (time.monotonic() - arranged_started))
+        )
 
         steps = int(os.environ.get("CLOTH_BLANKET_STEPS", "120"))
+        simulation_started = time.monotonic()
+        log(
+            "stage=simulation-start steps=%d particle_distance=%.1f solver_iterations=%d solver_substeps=%d tissu_substeps=%s"
+            % (
+                steps,
+                float(scene.ParticleDistance),
+                int(scene.SolverIterations),
+                int(scene.SolverSubsteps),
+                os.environ.get("CLOTH_TISSU_SUBSTEPS", "1"),
+            )
+        )
         scene.Steps = steps
         doc.recompute()
         events()
@@ -458,18 +514,38 @@ def main():
         log("blanket-motion-diagnostic max_centroid_displacement_mm=%.2f final_centroid_z_mm=%.2f min_z_mm=%.2f cube_top_z_mm=%.2f" % (
             displacement, final_z, minimum_z, cube_top,
         ))
+        log(
+            "stage=simulation-pass steps=%d simulated_time_s=%.3f elapsed_ms=%.1f"
+            % (steps, float(scene.SimulatedTime), 1000.0 * (time.monotonic() - simulation_started))
+        )
         if displacement < 40.0:
             raise RuntimeError("blanket moved only %.2f mm; expected real draping motion" % displacement)
         if minimum_z > cube_top + 35.0:
             raise RuntimeError("blanket did not approach cube surface: min_z=%.2f cube_top=%.2f" % (minimum_z, cube_top))
 
+        validation_started = time.monotonic()
+        log("stage=validation-start")
         panel.ViewObject.Visibility = True
         cube.ViewObject.Visibility = True
         doc.recompute()
-        validate_blanket_drape(panel, cube)
+        shape, drape = validate_blanket_drape(panel, cube)
+        log(
+            "stage=validation-pass state=%s clearance_mm=%s elapsed_ms=%.1f"
+            % (
+                drape.state,
+                "none" if drape.target_vertex_clearance is None else "%.2f" % drape.target_vertex_clearance,
+                1000.0 * (time.monotonic() - validation_started),
+            )
+        )
 
+        draped_started = time.monotonic()
         render_turntable(view, [cube, panel], os.path.join(OUT, "cloth-simulation-draped-turntable-frames"))
+        log(
+            "stage=draped-render-pass frames=73 elapsed_ms=%.1f"
+            % (1000.0 * (time.monotonic() - draped_started))
+        )
         log("blanket-turntable-pass")
+        log("stage=total-pass elapsed_ms=%.1f" % (1000.0 * (time.monotonic() - total_started)))
     finally:
         if doc.Name in App.listDocuments():
             App.closeDocument(doc.Name)
