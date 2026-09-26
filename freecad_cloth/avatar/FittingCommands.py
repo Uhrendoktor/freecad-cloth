@@ -518,9 +518,8 @@ def snap_piece_to_drape_target(piece, target=None, clearance=8.0, max_translatio
                     for value in getattr(scene, "PiecePlacements", ()) or ()
                 )
             }
-            current = values.get(pid)
-            rotation_z = float(current.rotation_z) if current is not None else float(piece.Placement.Rotation.Angle)
             axis = piece.Placement.Rotation.Axis
+            rotation_z = float(piece.Placement.Rotation.Angle)
             values[pid] = PiecePlacement(
                 pid,
                 (float(piece.Placement.Base.x), float(piece.Placement.Base.y), float(piece.Placement.Base.z)),
