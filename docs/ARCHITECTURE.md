@@ -60,7 +60,7 @@ Selection is a GUI concern; the committed sewing graph is document authority. Cu
 
 ## Fitting and DrapeTarget
 
-A fitting scene stores garment placements, arrangement points/anchors, wrap/superimpose/reset metadata, body measurements where available and a persistent `DrapeTarget` reference.
+A fitting scene stores garment placements, persistent semantic `GarmentAnchor` records, arrangement points, wrap/superimpose/reset metadata, body measurements where available and a persistent `DrapeTarget` reference. `TargetAwarePlacement` consumes the authoritative collision surface to solve bounded rigid translation/rotation and verifies clearance before mutation.
 
 `DrapeTarget` is target-neutral and is implemented in `freecad_cloth.simulation.DrapeTarget`. Providers include the native human mannequin and ordinary FreeCAD Shape/PartDesign/Body/Mesh geometry. Both produce a solver-neutral `CollisionSurface`. Target edits invalidate derived collision state; stale targets must never be consumed by simulation.
 
