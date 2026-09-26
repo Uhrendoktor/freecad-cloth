@@ -203,7 +203,6 @@ jobs:
   runner_heartbeat:
     name: Local Docker runner heartbeat
     needs: runner_router
-    needs: [runner_router]
     if: ${{ github.event_name == 'schedule' }}
     runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 2
