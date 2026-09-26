@@ -119,19 +119,19 @@ def _ray_triangle_hit(origin, direction, a, b, c):
     inv_det = 1.0 / determinant
     tvec = _sub(origin, a)
     u = _dot(tvec, pvec) * inv_det
-    if u < -_BARYCENTRIC_EPSILON or u > 1.0 + _BARYCENTRIC_EPSILON:
+    if u < -1e-9 or u > 1.0 + 1e-9:
         return None
     qvec = _cross(tvec, edge1)
     v = _dot(direction, qvec) * inv_det
-    if v < -_BARYCENTRIC_EPSILON or u + v > 1.0 + _BARYCENTRIC_EPSILON:
+    if v < -1e-9 or u + v > 1.0 + 1e-9:
         return None
     distance = _dot(edge2, qvec) * inv_det
-    if distance <= _RAY_EPSILON:
+    if distance < -_RAY_EPSILON:
         return None
-    ambiguous = min(
-        abs(u), abs(v), abs(1.0 - u - v)
-    ) <= _BARYCENTRIC_EPSILON
-    return float(distance), ambiguous
+    w = 1.0 - u - v
+    ambiguous = distance <= _RAY_EPSILON or min(abs(u), abs(v), abs(w)) <= 1e-9
+    return distance, ambiguous
+
 
 def _closest_point_triangle(point, a, b, c):
     ab = _sub(b, a)
@@ -321,24 +321,68 @@ class AuthoredSurfaceContainment:
             stack.extend(children)
         return intersections % 2 == 1, ambiguous
 
-    def contains(self, point):
-        """Classify a point with deterministic multi-ray parity voting."""
+    def _ray_parity(self, origin, direction):
+        intersections = 0
+        ambiguous = False
+        boundary = False
+        stack = [self._root]
+        while stack:
+            node_id = stack.pop()
+            node = self._nodes[node_id]
+            if not _ray_aabb_hit(origin, direction, node.lower, node.upper):
+                continue
+            if node.triangles:
+                for triangle_index in node.triangles:
+                    triangle = self._triangles[triangle_index]
+                    if not _ray_aabb_hit(origin, direction, triangle.lower, triangle.upper):
+                        continue
+                    hit = _ray_triangle_hit(origin, direction, triangle.a, triangle.b, triangle.c)
+                    if hit is None:
+                        continue
+                    distance, triangle_ambiguous = hit
+                    if distance <= _RAY_EPSILON:
+                        boundary = True
+                        continue
+                    ambiguous = ambiguous or triangle_ambiguous
+                    intersections += 1
+                continue
+            children = [child for child in (node.left, node.right) if child is not None]
+            children.sort(reverse=True)
+            stack.extend(children)
+        return intersections % 2, ambiguous, boundary
+
+    def classify(self, point):
+        """Return INSIDE, OUTSIDE, or BOUNDARY; ambiguous rays fail closed."""
+        origin = tuple(float(point[index]) for index in range(3))
         parities = []
         for direction in _RAY_DIRECTIONS:
-            parity, ambiguous = self._ray_parity(point, direction)
-            if not ambiguous:
-                parities.append(parity)
-                if len(parities) >= 2 and parities[-1] == parities[-2]:
-                    return parities[-1]
+            unit_direction = _scale(direction, 1.0 / sqrt(_norm_sq(direction)))
+            offset_origin = _add(origin, _scale(unit_direction, 1e-8))
+            parity, ambiguous, boundary = self._ray_parity(offset_origin, unit_direction)
+            if boundary:
+                return "BOUNDARY"
+            if ambiguous:
+                continue
+            parities.append(parity)
+            if len(parities) == 2 and parities[0] == parities[1]:
+                return "INSIDE" if parities[0] else "OUTSIDE"
+        if not parities:
+            _closest, _normal, distance_sq, _triangle_index = self.nearest_surface_point(origin)
+            if sqrt(distance_sq) <= _BOUNDARY_TOLERANCE:
+                return "BOUNDARY"
+            return "AMBIGUOUS"
+        if all(value == 0 for value in parities):
+            return "OUTSIDE"
+        if all(value == 1 for value in parities):
+            return "INSIDE"
+        _closest, _normal, distance_sq, _triangle_index = self.nearest_surface_point(origin)
+        if sqrt(distance_sq) <= _BOUNDARY_TOLERANCE:
+            return "BOUNDARY"
+        return "AMBIGUOUS"
 
-        if parities and all(value == parities[0] for value in parities):
-            return parities[0]
-
-        # A disagreement is expected only at shared-edge/corner cases. Keep the
-        # correction fail-closed there: a false positive could move cloth through
-        # a nearby avatar surface, while an outside result leaves the solver's
-        # existing mesh collision response untouched.
-        return False
+    def contains(self, point):
+        """Compatibility boolean for unambiguous point-in-volume queries."""
+        return self.classify(point) == "INSIDE"
 
     def nearest_surface_point(self, point):
         """Return (point, outward_normal, squared_distance, triangle_index)."""
@@ -379,12 +423,23 @@ class AuthoredSurfaceContainment:
         return closest, normal, distance_sq, triangle_index
 
     def correct(self, point):
-        """Return a corrected point when inside, otherwise None."""
-        if not self.contains(point):
+        """Return a corrected point when unambiguously inside, otherwise None."""
+        if self.classify(point) != "INSIDE":
             return None
-        closest, normal, _distance_sq, _triangle_index = self.nearest_surface_point(point)
+        closest, authored_normal, distance_sq, _triangle_index = self.nearest_surface_point(point)
+        _ = distance_sq
+        from_surface = _sub(closest, point)
+        surface_distance = sqrt(_norm_sq(from_surface))
+        if surface_distance > _TRIANGLE_EPSILON:
+            outward_normal = _scale(from_surface, 1.0 / surface_distance)
+        else:
+            outward_normal = authored_normal
         thickness = max(0.0, float(self.surface.thickness))
-        return _add(closest, _scale(normal, thickness))
+        corrected = _add(closest, _scale(outward_normal, thickness))
+        if self.classify(corrected) != "OUTSIDE":
+            return None
+        return corrected
+
 
 
 def get_authored_surface_containment(surface: CollisionSurface):
