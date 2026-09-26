@@ -1,7 +1,7 @@
 """Research-only native FreeCAD MeshObject containment probe.
 
 This file intentionally touches only the research branch. It measures the native
-MeshObject.foraminate() path against the repository collision surface and does not
+MeshObject.foraminate() path against the repository collision surface (PR-1654 replay) and does not
 alter solver gates, timesteps, thresholds, or production code.
 """
 import json
