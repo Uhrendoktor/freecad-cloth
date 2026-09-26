@@ -208,7 +208,7 @@ jobs:
         run: |
           set -euo pipefail
           CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g \
-            -e QT_X11_NO_MITSHM=1 -e PYTHONPATH=/workspace -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e QT_X11_NO_MITSHM=1 -e PYTHONPATH=/workspace -e QT_QPA_PLATFORM=offscreen -e LIBGL_ALWAYS_SOFTWARE=1 \
             -w /workspace "$FREECAD_IMAGE" bash -lc \
               '/opt/freecad/AppRun /workspace/tests/freecad_mesh_point_parity_probe.py')"
           cleanup() {
