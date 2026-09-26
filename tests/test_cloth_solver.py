@@ -131,6 +131,29 @@ def test_authored_surface_containment_is_deterministic_near_repeated_queries():
     assert first == second
 
 
+def test_tissu_particle_binding_mutates_solver_state_when_available():
+    import importlib.util
+    if importlib.util.find_spec("tissu") is None:
+        return
+    import numpy as np
+    from tissu import Simulation
+
+    sim = Simulation(substeps=1, iterations=1, gravity=0.0, thickness=0.002)
+    sim.create_from_arrays(
+        "probe",
+        np.asarray([[0.0, 0.0, 0.0], [0.01, 0.0, 0.0], [0.0, 0.01, 0.0]], dtype=np.float64),
+        np.asarray([[0, 1, 2]], dtype=np.int32),
+    )
+    before = tuple(float(v) for v in sim.positions[0])
+    particle = sim.solver.get_particles()[0]
+    target = np.asarray([0.123, 0.0, 0.0], dtype=np.float64)
+    particle.set_position(target)
+    particle.set_old_position(target)
+    after = tuple(float(v) for v in sim.positions[0])
+    assert before != after, (before, after)
+    assert after[0] == 0.123, (before, after)
+
+
 if __name__ == "__main__":
     for name, test in sorted(globals().items()):
         if name.startswith("test_") and callable(test):
