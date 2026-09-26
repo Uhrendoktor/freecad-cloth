@@ -110,9 +110,9 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
 
 def test_canonical_tunic_fixture_uses_validated_target_relative_placement():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert '"            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance":' in source
-    assert '"            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance":' in source
-    assert '"            y = min(target_ys) - clearance"' in source
-    assert '"            y = max(target_ys) + clearance"' in source
+    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance':" in source
+    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance':" in source
+    assert "'            y = min(target_ys) - clearance'" in source
+    assert "'            y = max(target_ys) + clearance'" in source
     assert 'make_piece("VisualTunicFront", "back", 0.78, 0.18)' in source
     assert 'make_piece("VisualTunicBack", "front", 0.76, 0.12)' in source
