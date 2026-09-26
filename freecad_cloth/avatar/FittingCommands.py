@@ -411,6 +411,172 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None):
     return scene
 
 
+def _world_shape(obj):
+    """Return a copy of an object's geometry with its document placement applied."""
+    import FreeCAD as App
+    import Part
+
+    shape = getattr(obj, "Shape", None)
+    if shape is not None and not shape.isNull():
+        world = shape.copy()
+    else:
+        mesh = getattr(obj, "Mesh", None)
+        topology = getattr(mesh, "Topology", None) if mesh is not None else None
+        if topology is None:
+            raise ValueError("object has no usable Part Shape or Mesh topology")
+        vertices, triangles = topology
+        faces = []
+        for triangle in triangles:
+            try:
+                points = [App.Vector(*vertices[int(i)]) for i in triangle]
+                points.append(points[0])
+                faces.append(Part.Face(Part.makePolygon(points)))
+            except (IndexError, TypeError, ValueError, RuntimeError):
+                continue
+        if not faces:
+            raise ValueError("object mesh has no usable triangular faces")
+        world = Part.makeCompound(faces)
+
+    placement = getattr(obj, "Placement", None)
+    if placement is not None:
+        world.Placement = placement
+    return world
+
+
+def snap_pattern_pieces_to_target(
+    pieces=None,
+    clearance=8.0,
+    max_translation=240.0,
+    max_iterations=16,
+):
+    """Snap pattern pieces to the persistent DrapeTarget surface.
+
+    This is a reversible rigid fitting operation. It consumes the authoritative
+    DrapeTarget geometry, fails closed on missing/stale targets, preserves each
+    piece rotation, never creates solver pins, and bounds the correction.
+    """
+    import FreeCAD as App
+    from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+    from freecad_cloth.simulation.DrapeTarget import target_status
+
+    doc = App.ActiveDocument
+    if doc is None:
+        raise ValueError("open a document before snapping garment pieces to a target")
+    target = doc.getObject("DrapeTarget")
+    if target is None:
+        raise ValueError("a DrapeTarget is required before snapping pattern pieces")
+    status = target_status(target)
+    if status["state"] != "ready":
+        raise RuntimeError("snap blocked: %s" % status["message"])
+
+    source = getattr(target, "SourceObject", None)
+    if source is None:
+        raise ValueError("drape target has no source object")
+    target_shape = _world_shape(source)
+
+    clearance = float(clearance)
+    max_translation = float(max_translation)
+    max_iterations = int(max_iterations)
+    if clearance <= 0.0:
+        raise ValueError("clearance must be positive")
+    if max_translation <= 0.0 or max_iterations < 1:
+        raise ValueError("snap limits must be positive")
+
+    scene = _scene(doc)
+    if scene is None or not scene.PatternPieces:
+        raise ValueError("create a fitting scene with pattern pieces first")
+    selected = tuple(pieces or scene.PatternPieces)
+    selected = tuple(
+        sorted(
+            (piece for piece in selected if getattr(piece, "PatternType", "") == "PatternPiece"),
+            key=lambda item: str(getattr(item, "PieceId", getattr(item, "Name", ""))),
+        )
+    )
+    if not selected:
+        raise ValueError("no PatternPiece objects were supplied")
+
+    placements = {
+        p.piece_id: p
+        for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)
+    }
+    results = []
+    for piece in selected:
+        piece_shape = _world_shape(piece)
+        before_distance = None
+        moved = 0.0
+        for iteration in range(max_iterations):
+            distance, nearest, _details = piece_shape.distToShape(target_shape)
+            distance = float(distance)
+            if before_distance is None:
+                before_distance = distance
+            if abs(distance - clearance) <= 1e-6:
+                break
+
+            if nearest and len(nearest) >= 2:
+                target_point, piece_point = nearest[0], nearest[1]
+                direction = piece_point.sub(target_point)
+            else:
+                bound = piece_shape.BoundBox
+                target_bound = target_shape.BoundBox
+                direction = App.Vector(
+                    ((float(bound.XMin) + float(bound.XMax)) - (float(target_bound.XMin) + float(target_bound.XMax))) / 2.0,
+                    ((float(bound.YMin) + float(bound.YMax)) - (float(target_bound.YMin) + float(target_bound.YMax))) / 2.0,
+                    ((float(bound.ZMin) + float(bound.ZMax)) - (float(target_bound.ZMin) + float(target_bound.ZMax))) / 2.0,
+                )
+            if direction.Length <= 1e-9:
+                raise RuntimeError(
+                    "snap blocked: ambiguous target direction for piece %s"
+                    % getattr(piece, "Name", "<unnamed>")
+                )
+            direction.normalize()
+
+            step = clearance - distance
+            remaining = max_translation - moved
+            if abs(step) > remaining + 1e-9:
+                raise RuntimeError(
+                    "snap blocked: required translation exceeds %.3f mm for %s"
+                    % (max_translation, getattr(piece, "Name", "<unnamed>"))
+                )
+            piece.Placement = App.Placement(
+                piece.Placement.Base + direction.multiply(step),
+                piece.Placement.Rotation,
+            )
+            moved += abs(step)
+            piece_shape = _world_shape(piece)
+
+        final_distance = float(piece_shape.distToShape(target_shape)[0])
+        tolerance = max(0.5, clearance * 0.05)
+        if final_distance + 1e-6 < clearance or abs(final_distance - clearance) > tolerance:
+            raise RuntimeError(
+                "snap failed for %s: final clearance %.6f mm is not near %.6f mm"
+                % (getattr(piece, "Name", "<unnamed>"), final_distance, clearance)
+            )
+
+        piece_id = str(getattr(piece, "PieceId", "")).strip()
+        if piece_id:
+            base = piece.Placement.Base
+            placements[piece_id] = PiecePlacement(
+                piece_id,
+                (float(base.x), float(base.y), float(base.z)),
+                float(piece.Placement.Rotation.Angle),
+            )
+        results.append(
+            {
+                "piece_id": piece_id,
+                "distance_before": float(before_distance if before_distance is not None else final_distance),
+                "distance_after": final_distance,
+                "translation": moved,
+                "clearance": clearance,
+                "iterations": iteration + 1,
+            }
+        )
+
+    scene.PiecePlacements = [placements[k].to_string() for k in sorted(placements)]
+    scene.FitStatus = "Target snapped"
+    doc.recompute()
+    return tuple(results)
+
+
 def create_arrangement_point(name, x, y, offset=0.0, wrap_direction="front", rotation_z=0.0, symmetry_group="", mirror=False):
     import FreeCAD as App
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
