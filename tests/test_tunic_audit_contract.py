@@ -23,6 +23,7 @@ def test_canonical_tunic_auto_arranges_without_solver_pins():
     assert "scene.PinSelection = []" in source
     assert "scene.PinSelection = [str(i) for i in front_pins]" not in source
     assert "authored_shoulder_pins" not in source
+    assert "tunic-step0-clearance-mm=" in source
 
 
 def test_canonical_tunic_uses_validated_authored_mapping():
