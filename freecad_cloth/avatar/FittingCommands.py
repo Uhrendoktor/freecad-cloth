@@ -1,3 +1,5 @@
+import ast
+
 """FreeCAD-facing body measurement, avatar fitting, and arrangement commands."""
 
 
@@ -7,6 +9,77 @@ def _scene(doc):
 
 def _safe_name(value):
     return "".join(ch if ch.isalnum() else "_" for ch in str(value)) or "Item"
+
+
+
+def _ensure_target_placement_properties(scene):
+    if "DrapeTarget" not in getattr(scene, "PropertiesList", ()):
+        scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")
+    fields = (
+        ("App::PropertyString", "ArrangementTargetSignature", "Arrangement", ""),
+        ("App::PropertyLength", "TargetPlacementClearance", "Arrangement", 8.0),
+        ("App::PropertyLength", "TargetPlacementMaxTranslation", "Arrangement", 1200.0),
+        ("App::PropertyAngle", "TargetPlacementMaxRotation", "Arrangement", 180.0),
+    )
+    for type_name, name, group, default in fields:
+        if name not in getattr(scene, "PropertiesList", ()):
+            scene.addProperty(type_name, name, group)
+            setattr(scene, name, default)
+
+
+def _piece_placement_record(piece):
+    placement = getattr(piece, "Placement", None)
+    if placement is None:
+        from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+        return PiecePlacement(str(piece.PieceId))
+    from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+    axis = placement.Rotation.Axis
+    base = placement.Base
+    return PiecePlacement(
+        str(piece.PieceId),
+        (float(base.x), float(base.y), float(base.z)),
+        float(placement.Rotation.Angle),
+        (float(axis.x), float(axis.y), float(axis.z)),
+    )
+
+
+def _apply_piece_placement(piece, placement):
+    import FreeCAD as App
+    piece.Placement = App.Placement(
+        App.Vector(*placement.position),
+        App.Rotation(App.Vector(*placement.rotation_axis), float(placement.rotation_z)),
+    )
+    sketch = getattr(piece, "Sketch", None)
+    if sketch is not None:
+        sketch.Placement = piece.Placement
+
+
+def _piece_local_points(piece):
+    sketch = getattr(piece, "Sketch", None)
+    if sketch is not None and str(getattr(piece, "GeometryAuthority", "")) == "Sketcher":
+        points = []
+        for geometry in tuple(getattr(sketch, "Geometry", ()) or ()):
+            for attribute in ("StartPoint", "EndPoint"):
+                point = getattr(geometry, attribute, None)
+                if point is not None:
+                    points.append((float(point.x), float(point.y)))
+        if points:
+            return tuple(points)
+    for attribute in ("DraftingBoundary", "SewingOutline"):
+        raw = getattr(piece, attribute, "")
+        if raw:
+            try:
+                points = tuple((float(p[0]), float(p[1])) for p in ast.literal_eval(str(raw)))
+            except (ValueError, SyntaxError, TypeError, IndexError):
+                points = ()
+            if points:
+                return points
+    raise ValueError("pattern piece %s has no deterministic local geometry" % getattr(piece, "PieceId", ""))
+
+
+def _piece_local_bounds(piece):
+    from freecad_cloth.avatar.TargetPlacement import piece_local_bounds
+    return piece_local_bounds(_piece_local_points(piece))
 
 
 def _sync_visuals(scene):
