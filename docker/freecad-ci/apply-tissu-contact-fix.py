@@ -324,8 +324,19 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     test_cpp = test_cpp.replace(old, new, 1)
     test.write_text(test_cpp, encoding="utf-8")
 
-    if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
-        raise RuntimeError("patched Tissu tree failed git diff --check")
+    diff_check = subprocess.run(
+        ["git", "diff", "--check"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if diff_check.returncode != 0:
+        raise RuntimeError(
+            "patched Tissu tree failed git diff --check\\n"
+            + diff_check.stdout
+            + diff_check.stderr
+        )
     changed = run("git", "diff", "--name-only")
     changed_paths = tuple(sorted(path.strip() for path in changed.splitlines() if path.strip()))
     expected_paths = (
