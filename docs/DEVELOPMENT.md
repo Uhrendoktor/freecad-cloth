@@ -20,23 +20,19 @@ Workbench ownership is explicit: `pattern`, `sewing`, `avatar`, and `simulation`
 
 There is exactly one workflow: `.github/workflows/canonical-execution.yml`.
 
-### Canonical runner modes
+### Runner routing
 
-The canonical workflow has one validation graph with a trusted PR broker and explicit runner modes. Public PR activity enters through `pull_request_target` only to dispatch the canonical workflow from `main` in `runner_mode=hosted`; the broker does not check out or execute PR code. The dispatched validation run checks out the PR merge ref on GitHub-hosted runners with persisted credentials disabled, so untrusted PR code never reaches the self-hosted Docker runner. Trusted `push`/`schedule` runs default to the existing self-hosted Docker runner so the FreeCAD GUI path uses the validated local environment. A hosted watchdog waits up to 45 seconds for the Python validation job to start; if local execution does not begin, it dispatches the same workflow with `runner_mode=hosted`, records the source run, and cancels the stalled local attempt.
+Pull requests use GitHub-hosted runners directly. They never enter the self-hosted runner path.
 
-For manual recovery or diagnosis, `workflow_dispatch` accepts `runner_mode=hosted` to force the GitHub-hosted path. Automatic fallback dispatches are protected from the push-time stale-run sweep, while normal workflow concurrency still collapses duplicate manual dispatches on the same ref. The selected mode is emitted in the Python job log as `ci-runner-mode=...`.
+Trusted `push`, scheduled, and manual runs are local-first: the canonical workflow starts one `local_runner_readiness` sentinel on the existing `self-hosted/linux/x64/docker` runner. Every substantive job depends on that sentinel, so the fallback cannot race with work that has already started.
 
-The watchdog intentionally does not enumerate repository self-hosted runners and does not require a long-lived privileged credential. Its falsifier is duplicate substantive execution caused by a startup race; any such event should be treated as a CI defect and investigated before changing the grace period or validation thresholds.
+A small hosted `runner_watchdog` waits up to 45 seconds for the local sentinel. When the local runner does not start, it dispatches the same canonical workflow in explicit `runner_mode=hosted` mode and cancels the stalled source run. Manual `workflow_dispatch` with `runner_mode=hosted` still forces the hosted path.
 
-Do not replace, duplicate, or casually refactor it. In particular, preserve the existing Docker/Xvfb path that launches real FreeCAD and captures the validated GUI states and avatar audit artifacts. GUI diagnostics remain available as `cloth-gui-diagnostics`.
+There is no `pull_request_target` broker, privileged runner discovery token, second workflow, periodic five-minute validation schedule, or duplicate runner heartbeat. The single daily schedule remains for repository maintenance and runner/fallback coverage.
 
-### Canonical runner routing
+The canonical FreeCAD image is Python 3.12-based. PR checkouts use the immutable PR head SHA with persisted checkout credentials disabled.
 
-Pull-request validation is brokered from the trusted default branch and always uses GitHub-hosted runners. Trusted push, schedule, and manual runs prefer the existing Docker self-hosted runner; a hosted watchdog waits a bounded startup grace period for the Python sentinel and dispatches the same canonical workflow in explicit hosted mode if the local run does not start. The watchdog uses only the standard Actions token and does not enumerate self-hosted runners or require a long-lived runner credential.
-
-The canonical FreeCAD test image is Python 3.12-based; a CI run that starts FreeCAD under Python <3.12 is unsupported.
-
-Any UI or workflow-facing change must use the canonical workflow as its acceptance path. Never weaken screenshot assertions to make CI green.
+Do not replace, duplicate, or casually refactor this routing. Preserve the existing Docker/Xvfb path that launches real FreeCAD and captures the validated GUI states and artifacts. Any UI, workflow, runner, or simulation-facing change must use the canonical workflow as its acceptance path. Never weaken screenshot, geometry, simulation, or artifact assertions to make CI green.
 
 ## Required verification
 
