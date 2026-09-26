@@ -405,6 +405,7 @@ def simulation():
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.PinMode = "None"; scene.PinSelection = []; refresh_drape_target(target); doc.recompute()
     fitting = create_fitting_scene()
     fitting.AvatarProxy = scene.AvatarProxy
+    fitting.ArrangementPoints = list(getattr(avatar, "ArrangementPoints", ()))
     fitting.DrapeTarget = target
     fitting.TargetPlacementClearance = clearance
     Gui.Selection.clearSelection(); Gui.Selection.addSelection(front); Gui.Selection.addSelection(back)
