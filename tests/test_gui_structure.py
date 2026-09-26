@@ -192,7 +192,12 @@ def test_simulation_quality_panel_exposes_bounded_arrange_fit_bridge():
     assert "open_arrange_fit_from_simulation" in quality_gui
     assert "reset_arrangement_from_simulation" in quality_gui
     assert "snap_to_target" in quality_gui
+    assert 'self.Gui.runCommand("ClothFitting_SnapPiecesToTarget", 0)' in quality_gui
+    assert "snap_pattern_pieces_to_target" not in quality_gui
+    assert "ClothFitting_SnapPiecesToTarget" in quality_gui
     assert "ClothPieces" in handoff
+    assert 'fitting.DrapeTarget = target' in handoff
+    assert handoff.count('fitting.DrapeTarget = target') >= 2
     assert 'Gui.activateWorkbench("ClothSewingWorkbench")' in handoff
     assert "assign_avatar_source" not in handoff
 
