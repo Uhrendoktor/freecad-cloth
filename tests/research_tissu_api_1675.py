@@ -68,6 +68,23 @@ def main():
                     })
 
     info["mutation_candidates"] = mutable_candidates
+    import numpy as np
+    sim_positions = np.asarray(sim.positions)
+    cloth_positions = np.asarray(cloth.positions)
+    solver_particles = solver.get_particles()
+    info["shares_sim_cloth_positions"] = bool(np.shares_memory(sim_positions, cloth_positions))
+    info["solver_particles_type"] = safe_type(solver_particles)
+    info["solver_particles_public"] = public_names(solver_particles)
+    before = np.array(sim_positions, copy=True)
+    sim.positions[0] = sim.positions[0] + np.asarray([0.001, 0.0, 0.0], dtype=float)
+    info["direct_position_write_visible"] = bool(np.linalg.norm(np.asarray(sim.positions[0]) - before[0]) > 0.0005)
+    info["direct_position_delta_m"] = float(np.linalg.norm(np.asarray(sim.positions[0]) - before[0]))
+    sim.step(1.0 / 60.0)
+    after_step = np.asarray(sim.positions)
+    info["post_step_finite"] = bool(np.isfinite(after_step).all())
+    info["post_step_max_displacement_m"] = float(np.max(np.linalg.norm(after_step - before, axis=1)))
+    info["post_step_kinetic_energy"] = float(sim.kinetic_energy)
+
     print("TISSU_API_PROBE " + json.dumps(info, sort_keys=True, default=str))
 
 if __name__ == "__main__":
