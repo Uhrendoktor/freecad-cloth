@@ -410,7 +410,8 @@ def simulation():
     Gui.Selection.clearSelection(); Gui.Selection.addSelection(front); Gui.Selection.addSelection(back)
     add_selected_pattern_pieces()
     side_map = {str(front.PieceId): "front", str(back.PieceId): "back"}
-    arrange_pieces_against_target(fitting, target, (front, back), side_map)
+    fitting_anchor = (x_mid, (shoulder_left.y + shoulder_right.y) / 2.0, hem_z)
+    arrange_pieces_against_target(fitting, target, (front, back), side_map, anchor_position=fitting_anchor)
     home_records = {str(piece.PieceId): str(value) for piece, value in zip((front, back), fitting.HomePlacements)}
     reset_arrangement()
     for piece in (front, back):
@@ -419,7 +420,7 @@ def simulation():
         if actual != expected:
             raise RuntimeError("HomePlacement reset changed exact placement for %s" % piece.PieceId)
     log("home-reset=passed exact-axis-angle=true")
-    arrange_pieces_against_target(fitting, target, (front, back), side_map)
+    arrange_pieces_against_target(fitting, target, (front, back), side_map, anchor_position=fitting_anchor)
     scene.ClothPieces = [front, back]
     doc.recompute()
     status = target_status(target)
