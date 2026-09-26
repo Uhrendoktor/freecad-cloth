@@ -403,6 +403,47 @@ def simulation():
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
+    from freecad_cloth.avatar.FittingCommands import add_selected_pattern_pieces, create_fitting_scene, reset_arrangement
+    from freecad_cloth.avatar.TargetAwarePlacement import minimum_signed_clearance
+    fitting = create_fitting_scene()
+    fitting.DrapeTarget = target
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(front)
+    Gui.Selection.addSelection(back)
+    add_selected_pattern_pieces()
+    home_before_snap = {str(piece.PieceId): piece.Placement for piece in (front, back)}
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(front)
+    Gui.Selection.addSelection(back)
+    Gui.Selection.addSelection(target)
+    if "ClothFitting_SnapPiecesToTarget" not in Gui.listCommands():
+        raise RuntimeError("target-aware fitting command is not registered")
+    Gui.runCommand("ClothFitting_SnapPiecesToTarget")
+    doc.recompute()
+    if str(getattr(fitting, "FitStatus", "")) != "Target arranged":
+        raise RuntimeError("target-aware fitting command did not persist target-arranged state")
+    if not str(getattr(fitting, "TargetPlacementSignature", "")):
+        raise RuntimeError("target-aware fitting command did not persist a placement signature")
+    arranged_home = {str(piece.PieceId): piece.Placement for piece in (front, back)}
+    reset_arrangement()
+    for piece in (front, back):
+        if piece.Placement != home_before_snap[str(piece.PieceId)]:
+            raise RuntimeError("Reset Arrangement did not restore the exact saved home placement")
+    log("home-reset=passed exact-transform=true")
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(front)
+    Gui.Selection.addSelection(back)
+    Gui.Selection.addSelection(target)
+    Gui.runCommand("ClothFitting_SnapPiecesToTarget")
+    doc.recompute()
+    if all(piece.Placement == home_before_snap[str(piece.PieceId)] for piece in (front, back)):
+        raise RuntimeError("target-aware fitting command did not change the saved home transforms")
+    if all(piece.Placement == arranged_home[str(piece.PieceId)] for piece in (front, back)):
+        log("target-arrangement=deterministic=true")
+    else:
+        log("target-arrangement=repeatable=false")
+        raise RuntimeError("repeating target-aware fitting produced a different placement")
+    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.PinMode = "None"; scene.PinSelection = []; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.PinMode = "None"; scene.PinSelection = []; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
     status = target_status(target)
     if str(status.get("state", "")) != "ready":
