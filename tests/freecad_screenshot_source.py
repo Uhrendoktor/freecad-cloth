@@ -425,8 +425,8 @@ def simulation():
     simulation_panel.reset(); scene.GravityZ = -9810.0; doc.recompute(); events()
     for batch in (15,15,15,15,15,15):
         simulation_panel.step(batch); doc.recompute(); events()
-    if int(scene.Steps) != 91 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
-        raise RuntimeError("simulation did not reach a finite 91-step state after zero-gravity verification")
+    if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
+        raise RuntimeError("simulation did not reach a finite 90-step state after zero-gravity verification")
     if any(panel.Mesh.CountFacets <= 10 for panel in scene.DrapePanels):
         raise RuntimeError("draped tunic panel mesh is empty")
     from freecad_cloth.common.ClothDiagnosticsGui import DiagnosticsTaskPanel, create_diagnostic_map
