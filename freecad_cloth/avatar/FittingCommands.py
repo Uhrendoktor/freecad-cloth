@@ -404,6 +404,8 @@ def _snap_one_piece_to_target(piece, target, clearance, max_translation, max_ite
     if getattr(piece, "PatternType", "") != "PatternPiece":
         raise ValueError("piece must be a Cloth PatternPiece object")
     original = piece.Placement
+    sketch = getattr(piece, "Sketch", None)
+    original_sketch = getattr(sketch, "Placement", None) if sketch is not None else None
     piece_shape = _world_shape(piece)
     target_source = getattr(target, "SourceObject", None)
     if target_source is None:
@@ -422,7 +424,7 @@ def _snap_one_piece_to_target(piece, target, clearance, max_translation, max_ite
         if distance <= 1e-9:
             direction = piece_center.sub(target_center)
         elif points and len(points) >= 2:
-            target_point, piece_point = points[0], points[1]
+            piece_point, target_point = points[0], points[1]
             direction = piece_point.sub(target_point)
         else:
             direction = piece_center.sub(target_center)
@@ -437,6 +439,8 @@ def _snap_one_piece_to_target(piece, target, clearance, max_translation, max_ite
             piece.Placement.Base + direction.multiply(step),
             piece.Placement.Rotation,
         )
+        if sketch is not None:
+            sketch.Placement = piece.Placement
         piece_shape = _world_shape(piece)
         moved += step
     final_distance = float(piece_shape.distToShape(target_shape)[0])
@@ -486,7 +490,14 @@ def snap_pieces_to_drape_target(pieces, target=None, clearance=8.0, max_translat
     status = target_status(target)
     if status["state"] != "ready":
         raise RuntimeError("snap blocked: %s" % status["message"])
-    original = {piece.Name: piece.Placement for piece in ordered}
+    original = {
+        piece.Name: {
+            "placement": piece.Placement,
+            "sketch": getattr(piece, "Sketch", None),
+            "sketch_placement": getattr(getattr(piece, "Sketch", None), "Placement", None),
+        }
+        for piece in ordered
+    }
     try:
         results = []
         for piece in ordered:
@@ -511,7 +522,11 @@ def snap_pieces_to_drape_target(pieces, target=None, clearance=8.0, max_translat
         return tuple(results)
     except BaseException:
         for piece in ordered:
-            piece.Placement = original[piece.Name]
+            snapshot = original[piece.Name]
+            piece.Placement = snapshot["placement"]
+            sketch = snapshot["sketch"]
+            if sketch is not None and snapshot["sketch_placement"] is not None:
+                sketch.Placement = snapshot["sketch_placement"]
         doc.recompute()
         raise
 
