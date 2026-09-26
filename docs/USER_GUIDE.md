@@ -14,7 +14,7 @@ For a first validation, follow the **Blanket over Cube** example in [Examples](E
 4. In **Cloth Simulation**, select or rebuild a DrapeTarget. A target can be a mannequin collision surface or supported generic FreeCAD geometry.
 5. Set simulation quality and fabric presentation. Physical material parameters affect the solver; color, roughness, specular response and transparency affect viewport rendering.
 6. Choose an explicit pin policy and run the simulation. **None** deliberately creates no implicit solver pins; stale or non-finite states are fail-closed.
-6. Inspect the result and diagnostics before export or saving a final document.
+7. Inspect the result and diagnostics before export or saving a final document.
 
 ## Seams and visual inspection
 
