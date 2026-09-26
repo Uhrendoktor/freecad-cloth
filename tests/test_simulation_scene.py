@@ -73,6 +73,21 @@ def test_pattern_piece_scenes_respect_persistent_pin_mode():
     assert "boundary[:2] + boundary[-2:]" in body
 
 
+def test_pattern_scene_pin_mode_defaults_to_explicit_without_automatic_boundary_pins():
+    from pathlib import Path
+    source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "simulation" / "SimulationObjects.py").read_text(encoding="utf-8")
+    assert 'getattr(obj, "PinMode", "Explicit")' in source
+    assert '["None", "Explicit", "Automatic"]' in source
+    assert 'scene.PinMode = "Explicit"' in source
+
+
+def test_zero_pin_mode_is_represented_explicitly_in_simulation_ui():
+    from pathlib import Path
+    source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "simulation" / "SimulationGui.py").read_text(encoding="utf-8")
+    assert 'self.pin_mode.addItems(("None", "Explicit", "Automatic"))' in source
+    assert 'self.scene.PinMode = str(self.pin_mode.currentText())' in source
+
+
 def test_pin_selection_is_part_of_rebuild_signature():
     from types import SimpleNamespace
     from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
