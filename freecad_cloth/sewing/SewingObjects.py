@@ -293,6 +293,8 @@ class SewingOperationProxy:
         for pa, pb in pairs:
             obj.StitchPoints.append(f"{pa.x:.6f},{pa.y:.6f},{pa.z:.6f}|{pb.x:.6f},{pb.y:.6f},{pb.z:.6f}")
         obj.Shape = Part.makeCompound([Part.makePolygon([p for p, _ in pairs]), Part.makePolygon([p for _, p in pairs])])
+        from freecad_cloth.sewing.SewingView import refresh_seam_colors
+        refresh_seam_colors(getattr(obj, "Document", None))
 
 
 def add_sewing_operation(doc, seam, piece_a, piece_b, name="SewingOperation"):
@@ -334,6 +336,6 @@ def add_sewing_operation(doc, seam, piece_a, piece_b, name="SewingOperation"):
     obj.Proxy.execute(obj)
     from freecad_cloth.common.GarmentDocument import link_garment_object
     link_garment_object(obj, "SewingOperation", doc)
-    from freecad_cloth.sewing.SewingView import apply_seam_colors
-    apply_seam_colors(doc.Objects)
+    from freecad_cloth.sewing.SewingView import refresh_seam_colors
+    refresh_seam_colors(doc)
     return obj
