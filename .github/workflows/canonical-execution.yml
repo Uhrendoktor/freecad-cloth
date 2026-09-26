@@ -224,6 +224,8 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate runtime builder shell syntax
+        run: bash -n tools/build_pytissu_runtime.sh
       - name: Build and test patched Tissu wheel
         run: |
           set -euo pipefail
