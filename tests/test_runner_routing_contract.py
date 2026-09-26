@@ -63,6 +63,7 @@ def test_runner_scope_and_absent_configuration_are_documented():
 
 def test_publish_and_heartbeat_have_single_needs_key():
     source = WORKFLOW.read_text(encoding='utf-8')
-    for job in ('publish-readme-turntables', 'runner_heartbeat'):
-        block = _job_block(source, job)
-        assert block.count('\n    needs:') == 1
+    publish = _job_block(source, 'publish-readme-turntables')
+    heartbeat = _job_block(source, 'runner_heartbeat')
+    assert 'needs: [runner_router, gui-tunic-visual, gui-turntables, gui-visual-examples]' in publish
+    assert 'needs: runner_router' in heartbeat
