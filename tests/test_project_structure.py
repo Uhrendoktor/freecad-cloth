@@ -82,8 +82,12 @@ def test_canonical_workflow_trusted_local_watchdog_contract():
     assert "github.event_name == 'pull_request_target'" in workflow
     assert "fromJSON(" in workflow and "ubuntu-latest" in workflow
     assert "fromJSON(" in workflow and "self-hosted" in workflow and "docker" in workflow
-    assert "Never route pull_request code onto a self-hosted runner." in workflow
-    assert "pull_request_target" not in workflow
+    broker = workflow.split("  pull_request_broker:", 1)[1].split("  local_runner_readiness:", 1)[0]
+    assert "runs-on: ubuntu-latest" in broker
+    assert "gh workflow run canonical-execution.yml" in broker
+    assert "actions/checkout" not in broker
+    assert "self-hosted" not in broker
+    assert "persist-credentials: false" in workflow
     assert 'if [ "$event" = "workflow_dispatch" ]; then' in workflow
     assert "Preserving active workflow_dispatch run" in workflow
 
