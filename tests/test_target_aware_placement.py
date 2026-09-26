@@ -9,6 +9,8 @@ from freecad_cloth.avatar.TargetAwarePlacement import (
     solve_rigid_z,
     target_surface_anchor,
     minimum_surface_clearance_sample,
+    converge_surface_clearance,
+    MinimumClearanceSample,
 )
 
 
@@ -55,6 +57,29 @@ def test_minimum_surface_clearance_sample_reports_actual_worst_point():
     assert sample.target_point == pytest.approx((0.0, 0.0, 10.0))
     assert sample.normal == pytest.approx((0.0, 0.0, 1.0))
     assert sample.clearance == pytest.approx(1.0)
+
+
+def test_surface_clearance_convergence_uses_each_new_worst_normal():
+    samples = (
+        MinimumClearanceSample((0, 0, 0), (0, 0, 0), (1, 0, 0), 1.0, 0),
+        MinimumClearanceSample((0, 0, 0), (0, 0, 0), (0, 1, 0), 4.0, 1),
+        MinimumClearanceSample((0, 0, 0), (0, 0, 0), (0, 0, 1), 8.0, 2),
+    )
+    seen = []
+    def sample_at_translation(translation):
+        seen.append(tuple(translation))
+        return samples[min(len(seen) - 1, len(samples) - 1)]
+
+    result = converge_surface_clearance(
+        sample_at_translation,
+        8.0,
+        max_translation=20.0,
+    )
+    assert result.iterations == 2
+    assert result.translation == pytest.approx((7.0, 4.0, 0.0))
+    assert seen[0] == pytest.approx((0.0, 0.0, 0.0))
+    assert seen[1] == pytest.approx((7.000001, 0.0, 0.0))
+    assert seen[2] == pytest.approx((7.000001, 4.000001, 0.0))
 
 
 def test_step_zero_clearance_is_enforced_against_authoritative_surface():
