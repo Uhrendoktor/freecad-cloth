@@ -341,6 +341,7 @@ def simulation():
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
     from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
     from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
+    from freecad_cloth.avatar.AvatarFitting import GarmentAnchor
     from freecad_cloth.avatar.TargetPlacement import minimum_signed_clearance
     from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternObjects import add_seam
@@ -354,12 +355,12 @@ def simulation():
     shoulder_z = box.ZMin + 0.76 * z_span; hem_z = box.ZMin + 0.40 * z_span; garment_height = max(560.0, shoulder_z - hem_z)
     rot = App.Rotation(App.Vector(1,0,0), 90.0)
     seed_z = 850.0
-    def make_piece(name, y, neckline_ratio, neckline_drop):
-        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = App.Placement(App.Vector(-hem_width / 2.0, y, seed_z), rot); piece.Sketch.Placement = piece.Placement; return piece, outline
-    # Seed the garment in a target-independent workspace. The fitting operation
-    # below is the only placement authority for the mannequin-relative start state.
-    front, front_outline = make_piece("VisualTunicFront", -650.0, 0.64, 0.10)
-    back, back_outline = make_piece("VisualTunicBack", 650.0, 0.64, 0.07)
+    def make_piece(name, neckline_ratio, neckline_drop):
+        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = App.Placement(App.Vector(-hem_width / 2.0, 0.0, seed_z), rot); piece.Sketch.Placement = piece.Placement; return piece, outline
+    # Seed both panels in a neutral fitting workspace; target-aware fitting owns
+    # the mannequin-relative start state.
+    front, front_outline = make_piece("VisualTunicFront", 0.64, 0.10)
+    back, back_outline = make_piece("VisualTunicBack", 0.64, 0.07)
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
     for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
@@ -390,10 +391,23 @@ def simulation():
         home_values.append(placement.to_string())
     fitting.PiecePlacements = list(home_values)
     fitting.HomePlacements = list(home_values)
+    fitting.GarmentAnchors = [
+        GarmentAnchor(str(front.PieceId), "shoulder_left", (0.14 * panel_width, 0.97 * garment_height, 0.0), "front").to_string(),
+        GarmentAnchor(str(front.PieceId), "shoulder_right", (0.86 * panel_width, 0.97 * garment_height, 0.0), "front").to_string(),
+        GarmentAnchor(str(back.PieceId), "shoulder_left", (0.14 * panel_width, 0.97 * garment_height, 0.0), "back").to_string(),
+        GarmentAnchor(str(back.PieceId), "shoulder_right", (0.86 * panel_width, 0.97 * garment_height, 0.0), "back").to_string(),
+    ]
     fitting.FitStatus = "Ready"
     doc.recompute()
     home_snapshot = tuple(fitting.HomePlacements)
-    placement_result = snap_pattern_pieces_to_target((front, back), clearance=20.0, max_translation=750.0)
+    Gui.Selection.clearSelection()
+    for item in (front, back, target):
+        Gui.Selection.addSelection(item)
+    if not hasattr(Gui, "runCommand"):
+        raise RuntimeError("FreeCAD GUI command API is unavailable")
+    Gui.runCommand("ClothFitting_SnapPiecesToTarget", 0)
+    events()
+    placement_result = {"command": "ClothFitting_SnapPiecesToTarget", "anchors": len(fitting.GarmentAnchors)}
     target_surface = _world_target_surface(target)
     step0_clearance = {
         str(piece.PieceId): minimum_signed_clearance(
