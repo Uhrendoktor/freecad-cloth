@@ -81,7 +81,6 @@ def run_acceptance():
         from freecad_cloth.simulation.SimulationQuality import preset
         from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
         from freecad_cloth.simulation.DrapeTarget import target_status
-        from freecad_cloth.avatar.FittingCommands import add_selected_pattern_pieces, create_arrangement_point, create_fitting_scene
 
         ensure_quality_properties(scene)
         apply_quality_preset(scene, "Fast")
@@ -95,25 +94,31 @@ def run_acceptance():
         if fast["particles"] <= 0:
             raise RuntimeError("Fast preset did not build a real simulation discretization")
 
-        Gui.Selection.clearSelection()
-        Gui.Selection.addSelection(front)
-        Gui.Selection.addSelection(back)
-        create_fitting_scene()
-        add_selected_pattern_pieces()
-        create_arrangement_point("QualityFront", 0.0, 0.0, 5.0, "front")
-        doc.recompute()
 
         panel = SimulationQualityTaskPanel(scene)
         Gui.Control.showDialog(panel)
         _events()
-        if "Arrange/Fit: Pieces assigned" not in panel.placement_status.text():
-            raise RuntimeError("simulation task panel did not expose persisted Arrange/Fit status")
-        if "2 garment piece(s)" not in panel.placement_status.text() or "2/2 saved placement(s)" not in panel.placement_status.text():
-            raise RuntimeError("simulation task panel did not expose garment placement counts")
-        if panel.arrange_button.text() != "Apply selected arrangement":
-            raise RuntimeError("simulation task panel did not expose the existing arrangement action")
+        if not panel.fitting_status.text().startswith("Not arranged yet"):
+            raise RuntimeError("simulation task panel did not expose the pre-arrangement fitting state")
+        if panel.reset_arrangement_button.isEnabled():
+            raise RuntimeError("simulation task panel exposed arrangement reset before a fitting handoff")
+        panel.arrange_fit_button.click()
+        _events()
+        fitting_bridge = doc.getObject("FittingScene")
+        if fitting_bridge is None or len(fitting_bridge.PatternPieces) != len(scene.ClothPieces):
+            raise RuntimeError("Arrange / Fit bridge did not hand simulation pieces to the fitting scene")
+        if len(fitting_bridge.HomePlacements) != len(scene.ClothPieces):
+            raise RuntimeError("Arrange / Fit bridge did not capture reversible home placements")
+        _activate("ClothSimulationWorkbench", ["ClothSimulation_Edit", "ClothDrape_RefreshTarget"])
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(scene)
+        panel = SimulationQualityTaskPanel(scene)
+        Gui.Control.showDialog(panel)
+        _events()
+        if "2 pieces assigned" not in panel.fitting_status.text() or "2/2 saved placement(s)" not in panel.fitting_status.text():
+            raise RuntimeError("simulation task panel did not expose persisted fitting state after handoff")
         if not panel.reset_arrangement_button.isEnabled():
-            raise RuntimeError("simulation task panel did not expose arrangement recovery")
+            raise RuntimeError("simulation task panel did not expose arrangement recovery after handoff")
         if panel.refresh_target_button.isEnabled():
             raise RuntimeError("current target should not advertise refresh as necessary")
         panel.quality.setCurrentText("Final")
