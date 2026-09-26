@@ -79,8 +79,7 @@ def test_canonical_gui_jobs_use_deterministic_startup_boundaries():
 
 def test_canonical_concurrency_cancels_stale_pr_runs():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
-    assert "canonical-${{ github.workflow }}-pr-" in workflow
-    assert "github.event.pull_request.number" in workflow
+    assert "format('canonical-{0}-pr-{1}', github.workflow, github.event.pull_request.number)" in workflow
     assert "cancel-in-progress: true" in workflow
 
 def test_canonical_readme_turntable_launches_from_neutral_cwd():
