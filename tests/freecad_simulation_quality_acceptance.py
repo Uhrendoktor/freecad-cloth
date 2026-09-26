@@ -81,6 +81,7 @@ def run_acceptance():
         from freecad_cloth.simulation.SimulationQuality import preset
         from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
         from freecad_cloth.simulation.DrapeTarget import target_status
+        from freecad_cloth.avatar.FittingCommands import add_selected_pattern_pieces, create_arrangement_point, create_fitting_scene
 
         ensure_quality_properties(scene)
         apply_quality_preset(scene, "Fast")
@@ -94,9 +95,27 @@ def run_acceptance():
         if fast["particles"] <= 0:
             raise RuntimeError("Fast preset did not build a real simulation discretization")
 
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(front)
+        Gui.Selection.addSelection(back)
+        create_fitting_scene()
+        add_selected_pattern_pieces()
+        create_arrangement_point("QualityFront", 0.0, 0.0, 5.0, "front")
+        doc.recompute()
+
         panel = SimulationQualityTaskPanel(scene)
         Gui.Control.showDialog(panel)
         _events()
+        if "Arrange/Fit: Pieces assigned" not in panel.placement_status.text():
+            raise RuntimeError("simulation task panel did not expose persisted Arrange/Fit status")
+        if "2 garment piece(s)" not in panel.placement_status.text() or "2/2 saved placement(s)" not in panel.placement_status.text():
+            raise RuntimeError("simulation task panel did not expose garment placement counts")
+        if panel.arrange_button.text() != "Apply selected arrangement":
+            raise RuntimeError("simulation task panel did not expose the existing arrangement action")
+        if not panel.reset_arrangement_button.isEnabled():
+            raise RuntimeError("simulation task panel did not expose arrangement recovery")
+        if panel.refresh_target_button.isEnabled():
+            raise RuntimeError("current target should not advertise refresh as necessary")
         panel.quality.setCurrentText("Final")
         _events()
         doc.recompute()
@@ -160,9 +179,22 @@ def run_acceptance():
                 raise RuntimeError("stale-target status did not block Step/Run while preserving Reset")
             if "Simulation blocked" not in panel.status.text():
                 raise RuntimeError("stale-target status did not expose a user-facing blocked reason")
+            if not panel.refresh_target_button.isEnabled():
+                raise RuntimeError("stale-target state did not expose the existing refresh recovery action")
+            if "Drape target changed" not in panel.target_context.text():
+                raise RuntimeError("stale-target state did not expose the target reason before Run/Step")
+            panel.refresh_target_button.click()
+            _events()
+            status = target_status(target)
+            if status["state"] != "ready":
+                raise RuntimeError("task-panel Refresh target did not restore a ready target")
+            if not panel.step_button.isEnabled() or not panel.run_button.isEnabled():
+                raise RuntimeError("task-panel target refresh did not re-enable simulation actions")
+            if panel.refresh_target_button.isEnabled():
+                raise RuntimeError("ready target still advertised refresh as necessary")
             _close_task()
 
-            Gui.Selection.clearSelection()
+            Gui.Selection.clearSelection();
             Gui.Selection.addSelection(scene)
             Gui.runCommand("ClothSimulation_Reset", 0)
             Gui.runCommand("ClothDrape_RefreshTarget", 0)
