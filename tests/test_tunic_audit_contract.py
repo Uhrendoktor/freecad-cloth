@@ -4,8 +4,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-# The canonical native-Sketcher outline uses edges 3/5 as the shoulder seams.
-# Keep front/back semantic edge IDs independent; never fall back to one piece's IDs.
+# The A/B path binds the right shoulder to semantic edge 3/3; keep front/back IDs independent.
+# The left shoulder remains on the existing 6/2 correspondence for this bounded experiment.
 
 def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
