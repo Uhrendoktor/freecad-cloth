@@ -242,6 +242,10 @@ class SeamProxy:
 
     def execute(self, obj):
         import Part
+        document = getattr(obj, "Document", None)
+        if document is not None:
+            from freecad_cloth.sewing.SewingView import apply_seam_colors
+            apply_seam_colors(getattr(document, "Objects", ()))
         piece_a = getattr(obj, "PatternA", None)
         piece_b = getattr(obj, "PatternB", None)
         if piece_a is None or piece_b is None:
@@ -272,6 +276,14 @@ class SeamProxy:
         if getattr(piece_b, "Placement", None) is not None: pb0, pb1 = piece_b.Placement.multVec(pb0), piece_b.Placement.multVec(pb1)
         from freecad_cloth.sewing.SewingView import build_seam_visual_shape
         obj.Shape = build_seam_visual_shape(piece_a, piece_b, obj, sample_count=5, world_space=True)
+
+    def onDocumentRestored(self, obj):
+        """Reapply canonical seam colors after FreeCAD restores a document proxy."""
+        document = getattr(obj, "Document", None) if obj is not None else None
+        if document is None:
+            return
+        from freecad_cloth.sewing.SewingView import apply_seam_colors
+        apply_seam_colors(getattr(document, "Objects", ()))
 
 
 def add_seam(doc, seam: Seam):
