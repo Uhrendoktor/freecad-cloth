@@ -107,3 +107,11 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
     assert 'tunic-simulation-start' in source
+
+
+def test_canonical_tunic_syntax_gate_runs_before_gui_audit():
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    tunic_job = workflow.index("  gui-tunic-visual:")
+    syntax_gate = workflow.index("python3 tests/freecad_tunic_audit.py --syntax-check", tunic_job)
+    gui_audit = workflow.index("timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py", tunic_job)
+    assert syntax_gate < gui_audit
