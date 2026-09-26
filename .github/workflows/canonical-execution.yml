@@ -63,7 +63,7 @@ jobs:
           protected="$RUNNER_TEMP/protected-runs"
           : > "$protected"
           mapfile -t prs < <(gh pr list --repo "$REPO" --state open --limit 100 --json number --jq '.[].number')
-          mapfile -t runs < <(gh api --paginate "repos/$REPO/actions/runs?event=pull_request_target&per_page=100" --jq '.workflow_runs[] | select(.name == "Canonical execution") | [.id, .status, .created_at, ([.pull_requests[]?.number] | join(","))] | @tsv')
+          mapfile -t runs < <(gh api --paginate "repos/$REPO/actions/runs?event=pull_request&per_page=100" --jq '.workflow_runs[] | select(.name == "Canonical execution") | [.id, .status, .created_at, ([.pull_requests[]?.number] | join(","))] | @tsv')
           for pr in "${prs[@]}"; do
             candidates=()
             for row in "${runs[@]}"; do
@@ -179,7 +179,7 @@ jobs:
     name: Local Docker runner heartbeat
     needs: runner_router
     if: ${{ github.event_name == 'schedule' }}
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 2
     steps:
       - name: Log selected execution mode
@@ -281,7 +281,8 @@ jobs:
     name: FreeCAD Sketcher startup diagnostic
     needs: runner_router
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.pull_request_number != '' }}
-    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    needs: runner_router
+    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 5
     steps:
       - name: Log selected execution mode
@@ -390,7 +391,8 @@ jobs:
   gui-sewing-creation:
     name: Sewing staged creation smoke
     needs: runner_router
-    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    needs: runner_router
+    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 10
     steps:
       - name: Log selected execution mode
@@ -483,7 +485,8 @@ jobs:
   gui-sketcher-acceptance:
     name: Native Sketcher seam presentation acceptance
     needs: runner_router
-    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    needs: runner_router
+    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 10
     steps:
       - name: Log selected execution mode
@@ -566,7 +569,8 @@ jobs:
   gui-pattern-export:
     name: Pattern production export smoke
     needs: runner_router
-    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    needs: runner_router
+    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 10
     steps:
       - name: Log selected execution mode
@@ -638,7 +642,8 @@ jobs:
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
     needs: runner_router
-    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    needs: runner_router
+    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 20
     steps:
       - name: Log selected execution mode
@@ -766,7 +771,8 @@ jobs:
   gui-turntables:
     name: README simulation turntable
     needs: runner_router
-    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    needs: runner_router
+    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 25
     steps:
       - name: Log selected execution mode
@@ -932,7 +938,8 @@ jobs:
   gui-visual-examples:
     name: Basic blanket visual example
     needs: runner_router
-    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    needs: runner_router
+    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 15
     steps:
       - name: Log selected execution mode
@@ -1042,12 +1049,13 @@ jobs:
           compression-level: 1
   publish-readme-turntables:
     name: Publish README turntables and example motion
-    needs: [local_runner_readiness, gui-tunic-visual, gui-turntables, gui-visual-examples]
+    needs: [runner_router, gui-tunic-visual, gui-turntables, gui-visual-examples]
     if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '' && inputs.pull_request_number != '') }}
     permissions:
       contents: write
       packages: read
-    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    needs: runner_router
+    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 10
     steps:
       - name: Log selected execution mode
@@ -1107,7 +1115,8 @@ jobs:
     name: Repository retention cleanup
     needs: runner_router
     if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * *' }}
-    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    needs: runner_router
+    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     permissions:
       actions: write
       contents: write
@@ -1157,7 +1166,8 @@ jobs:
     name: Measured FreeCAD workbench benchmark
     needs: runner_router
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
-    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    needs: runner_router
+    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 12
     steps:
       - name: Log selected execution mode
