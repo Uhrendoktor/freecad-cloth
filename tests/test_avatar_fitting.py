@@ -70,6 +70,13 @@ class AvatarFittingTests(unittest.TestCase):
         )
         self.assertEqual(ArrangementPoint.from_string(canonical), point)
 
+    def test_arrangement_point_serialization_contract_preserves_canonical_fields(self):
+        canonical = "shoulder_left|-210,0,1050|back|15|shoulders"
+        point = ArrangementPoint.from_string(canonical)
+        self.assertEqual(point.to_string(), canonical)
+        legacy = ArrangementPoint.from_string("shoulder_left|-210,0,1050")
+        self.assertEqual(legacy.to_string(), "shoulder_left|-210,0,1050|front|0|")
+
     def test_invalid_arrangement_point_and_volume_are_rejected(self):
         with self.assertRaises(ValueError): ArrangementPoint("", wrap_direction="front").validate()
         with self.assertRaises(ValueError): ArrangementPoint("p", wrap_direction="inside").validate()
@@ -178,6 +185,23 @@ class AvatarFittingTests(unittest.TestCase):
         ]
         points = arrangement_points_from_landmarks(landmarks)
         self.assertEqual([record.split("|", 1)[0] for record in points], list(ARRANGEMENT_POINT_NAMES))
+        self.assertTrue(all(len(record.split("|")) == 5 for record in points))
+        self.assertEqual(
+            points,
+            [
+                "neck|0,0,1150|front|0|",
+                "chest|0,0,980|front|0|",
+                "waist|0,0,900|front|0|",
+                "hip|0,0,700|front|0|",
+                "shoulder_left|-210,0,1050|front|0|",
+                "shoulder_right|210,0,1050|front|0|",
+                "knee_left|-55,0,400|front|0|",
+                "knee_right|55,0,400|front|0|",
+            ],
+        )
+        for record in points:
+            point = ArrangementPoint.from_string(record)
+            self.assertEqual(point.to_string(), record)
         self.assertEqual(arrangement_point_map(points)["shoulder_left"], "-210,0,1050")
         self.assertEqual(arrangement_point_map(points)["knee_right"], "55,0,400")
 
@@ -187,7 +211,13 @@ class AvatarFittingTests(unittest.TestCase):
 
     def test_avatar_arrangement_points_replace_duplicate_with_last_value(self):
         points = arrangement_points_from_landmarks(["waist|0,0,900", "waist|0,0,905", "neck|0,0,1150"])
-        self.assertEqual(points, ["neck|0,0,1150", "waist|0,0,905"])
+        self.assertEqual(
+            points,
+            [
+                "neck|0,0,1150|front|0|",
+                "waist|0,0,905|front|0|",
+            ],
+        )
 
     def test_freecad_mannequin_rebuild_invalidates_target_until_refreshed(self):
         try:
