@@ -413,7 +413,7 @@ def simulation():
     side_map = {str(front.PieceId): "front", str(back.PieceId): "back"}
     fitting_anchor = (x_mid, (shoulder_left.y + shoulder_right.y) / 2.0, hem_z)
     arrange_pieces_against_target(fitting, target, (front, back), side_map, anchor_position=fitting_anchor)
-    home_records = {str(piece.PieceId): str(value) for piece, value in zip((front, back), fitting.HomePlacements)}
+    home_records = {PiecePlacement.from_string(value).piece_id: str(value) for value in fitting.HomePlacements}
     reset_arrangement()
     for piece in (front, back):
         expected = PiecePlacement.from_string(home_records[str(piece.PieceId)])
