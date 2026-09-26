@@ -131,7 +131,19 @@ class SimulationQualityTaskPanel:
             self.status.setText("Arrange / Fit unavailable — %s" % exc)
 
     def snap_to_target(self):
-        if self.scene is None:\n            self.status.setText("Create or select a Cloth Simulation object before snapping pieces to target.")\n            return\n        try:\n            from freecad_cloth.simulation.FittingHandoff import open_arrange_fit_from_simulation\n            from freecad_cloth.avatar.FittingCommands import snap_pattern_pieces_to_target\n            fitting = open_arrange_fit_from_simulation(self.scene)\n            snap_pattern_pieces_to_target(tuple(getattr(fitting, "PatternPieces", ()) or ()))\n            self._refresh("Garment pieces arranged on the persistent DrapeTarget.")\n        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:\n            self.status.setText("Target-aware arrangement unavailable — %s" % exc)\n\n    def reset_arrangement(self):\n        try:
+        if self.scene is None:
+            self.status.setText("Create or select a Cloth Simulation object before snapping pieces to target.")
+            return
+        try:
+            from freecad_cloth.simulation.FittingHandoff import open_arrange_fit_from_simulation
+            from freecad_cloth.avatar.FittingCommands import snap_pattern_pieces_to_target
+            fitting = open_arrange_fit_from_simulation(self.scene)
+            snap_pattern_pieces_to_target(tuple(getattr(fitting, "PatternPieces", ()) or ()))
+            self._refresh("Garment pieces arranged on the persistent DrapeTarget.")
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            self.status.setText("Target-aware arrangement unavailable — %s" % exc)
+
+    def reset_arrangement(self):\n        try:
             from freecad_cloth.simulation.FittingHandoff import reset_arrangement_from_simulation
             reset_arrangement_from_simulation()
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
