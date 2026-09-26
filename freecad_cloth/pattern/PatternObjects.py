@@ -247,6 +247,8 @@ class SeamProxy:
         if piece_a is None or piece_b is None:
             obj.Status = "Missing reference"
             obj.Shape = Part.Shape()
+            from freecad_cloth.sewing.SewingView import refresh_seam_colors
+            refresh_seam_colors(getattr(obj, "Document", None))
             return
         try:
             a = _resolve_document_edge(piece_a, str(obj.EdgeAId), str(obj.EdgeASignature))
@@ -254,10 +256,14 @@ class SeamProxy:
         except MissingEdgeReference:
             obj.Status = "Missing reference"
             obj.Shape = Part.Shape()
+            from freecad_cloth.sewing.SewingView import refresh_seam_colors
+            refresh_seam_colors(getattr(obj, "Document", None))
             return
         except ChangedEdgeReference:
             obj.Status = "Changed reference"
             obj.Shape = Part.Shape()
+            from freecad_cloth.sewing.SewingView import refresh_seam_colors
+            refresh_seam_colors(getattr(obj, "Document", None))
             return
         obj.Status = "Valid"
         import FreeCAD as App
