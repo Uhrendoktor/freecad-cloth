@@ -340,7 +340,9 @@ def style_mesh(obj, label):
 def simulation():
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
     from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
-    from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
+    from freecad_cloth.simulation.DrapeTarget import collision_surface, refresh_drape_target
+    from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+    from freecad_cloth.avatar.FittingCommands import create_fitting_scene, snap_pattern_pieces_to_target
     from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternObjects import add_seam
     doc = App.newDocument("ClothSimulationVisualRegression"); scene = create_quality_simulation_scene(doc); avatar = getattr(scene.AvatarProxy, "SourceObject", None); target = scene.DrapeTarget
@@ -350,7 +352,7 @@ def simulation():
         raise RuntimeError("visual fixture did not create DrapeTarget")
     box = avatar.Mesh.BoundBox; x_mid = (box.XMin + box.XMax) / 2.0; y_span = box.YMax - box.YMin; z_span = box.ZMax - box.ZMin
     chest = 980.0; hip = 1020.0; ease = 55.0; panel_width = max(420.0, 0.50 * chest + ease); hem_width = max(450.0, 0.50 * hip + ease)
-    shoulder_z = box.ZMin + 0.76 * z_span; hem_z = box.ZMin + 0.40 * z_span; garment_height = max(560.0, shoulder_z - hem_z); body_depth = max(120.0, min(260.0, y_span)); clearance = max(20.0, 0.08 * body_depth); front_y = box.YMin - clearance; back_y = box.YMax + clearance; rot = App.Rotation(App.Vector(1,0,0), 90.0)
+    shoulder_z = box.ZMin + 0.76 * z_span; hem_z = box.ZMin + 0.40 * z_span; garment_height = max(560.0, shoulder_z - hem_z); body_depth = max(120.0, min(260.0, y_span)); setup_clearance = max(20.0, 0.08 * body_depth); front_y = box.YMin - setup_clearance; back_y = box.YMax + setup_clearance; rot = App.Rotation(App.Vector(1,0,0), 90.0)
     def make_piece(name, y, neckline_ratio, neckline_drop):
         sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot); piece.Sketch.Placement = piece.Placement; return piece, outline
     front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)
@@ -376,23 +378,59 @@ def simulation():
         "tunic-arrangement=target-aware step0-clearance=true results=%s"
         % json.dumps(snap_results, sort_keys=True)
     )
-    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
-    def authored_shoulder_pins(piece, particle_indices, positions):
-        targets = (
-            (0.14 * panel_width, 0.97 * garment_height),
-            (0.86 * panel_width, 0.97 * garment_height),
-        )
-        available = list(particle_indices)
-        result = []
-        for local_x, local_y in targets:
-            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
-            index = min(available, key=lambda i: (positions[i][0] - target_point.x) ** 2 + (positions[i][1] - target_point.y) ** 2 + (positions[i][2] - target_point.z) ** 2)
-            result.append(index)
-            available.remove(index)
-        return tuple(result)
+    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; refresh_drape_target(target)
+    fitting = create_fitting_scene()
+    fitting.AvatarProxy = scene.AvatarProxy
+    fitting.DrapeTarget = target
+    fitting.PatternPieces = [front, back]
+    fitting.HomePlacements = [
+        PiecePlacement(str(piece.PieceId), (float(piece.Placement.Base.x), float(piece.Placement.Base.y), float(piece.Placement.Base.z)), float(piece.Placement.Rotation.Angle)).to_string()
+        for piece in (front, back)
+    ]
+    fitting.PiecePlacements = list(fitting.HomePlacements)
+    doc.recompute()
+    snap_pattern_pieces_to_target((front, back), clearance=setup_clearance)
+    scene.ClothPieces = [front, back]
+    scene.DrapeTarget = target
     scene.PinMode = "None"
     scene.PinSelection = []
     doc.recompute()
+
+    target_surface = collision_surface(
+        target.SourceObject,
+        float(target.CollisionDeflection),
+        float(target.CollisionThickness),
+    )
+    target_placement = getattr(target.SourceObject, "Placement", None)
+    target_points = []
+    for point in target_surface.vertices:
+        world = target_placement.multVec(App.Vector(*point)) if target_placement is not None else App.Vector(*point)
+        target_points.append((float(world.x), float(world.y), float(world.z)))
+    target_y_min = min(point[1] for point in target_points)
+    target_y_max = max(point[1] for point in target_points)
+
+    proxy = scene.Proxy._base_or_restore()
+    solver_system = getattr(getattr(proxy, "backend", None), "system", None)
+    active_pins = tuple(getattr(solver_system, "pins", ()) or ())
+    if active_pins:
+        raise RuntimeError("visual tunic no-pin contract unexpectedly activated solver pins: %s" % (active_pins,))
+    if not str(fitting.FitStatus).startswith("Target arrangement ready"):
+        raise RuntimeError("target-aware tunic arrangement did not reach the target-ready state")
+    clearance_proofs = []
+    for panel in scene.DrapePanels:
+        indices = tuple(proxy.panel_indices.get(panel.Name, ()))
+        if not indices:
+            raise RuntimeError("missing particle index map for panel %s" % panel.Name)
+        ys = [float(solver_system.particles[index].x * 0.0 + proxy.backend.positions()[index][1]) for index in indices]
+        label = str(panel.Label)
+        if "Front" in label:
+            actual = target_y_min - max(ys)
+        else:
+            actual = min(ys) - target_y_max
+        if actual + 1e-6 < setup_clearance:
+            raise RuntimeError("step-0 target clearance failed for %s: %.6f mm" % (label, actual))
+        clearance_proofs.append(actual)
+    log("pinning-mode=none solver-pins=%d step-0-target-clearance-min=%.3f" % (len(active_pins), min(clearance_proofs)))
     proxy = scene.Proxy._base_or_restore()
     solver_system = getattr(getattr(proxy, "backend", None), "system", None)
     active_pins = tuple(getattr(solver_system, "pins", ()) or ())
