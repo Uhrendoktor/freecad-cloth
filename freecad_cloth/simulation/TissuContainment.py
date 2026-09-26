@@ -194,13 +194,20 @@ class AuthoredSurfaceContainment:
             raise ValueError("containment surface needs triangles")
 
         edge_counts = {}
+        winding = {}
         for a, b, c in surface.triangles:
-            for left, right in ((a, b), (b, c), (c, a)):
-                edge = (min(int(left), int(right)), max(int(left), int(right)))
+            triangle = (int(a), int(b), int(c))
+            for left, right in ((triangle[0], triangle[1]), (triangle[1], triangle[2]), (triangle[2], triangle[0])):
+                edge = (min(left, right), max(left, right))
+                orientation = 1 if left < right else -1
                 edge_counts[edge] = edge_counts.get(edge, 0) + 1
-        invalid_edges = [edge for edge, count in edge_counts.items() if count != 2]
+                winding[edge] = winding.get(edge, 0) + orientation
+        invalid_edges = [
+            edge for edge, count in edge_counts.items()
+            if count != 2 or winding.get(edge, 0) != 0
+        ]
         if invalid_edges:
-            raise ValueError("authored containment surface must be closed and two-manifold")
+            raise ValueError("authored containment surface must be closed and consistently wound")
 
         prepared = []
         for index, (ia, ib, ic) in enumerate(surface.triangles):
