@@ -92,13 +92,24 @@ def _migrate_visual_output_references(scene):
         scene.addProperty("App::PropertyStringList", name, "Arrangement")
         setattr(scene, name, names)
 
+def _ensure_fitting_properties(scene):
+    """Add target/anchor inputs to pre-existing fitting scenes without changing topology."""
+    if "DrapeTarget" not in getattr(scene, "PropertiesList", ()):
+        scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")
+    if "GarmentAnchors" not in getattr(scene, "PropertiesList", ()):
+        scene.addProperty("App::PropertyStringList", "GarmentAnchors", "Arrangement")
+        scene.GarmentAnchors = []
+    return scene
+
+
 def create_fitting_scene():
     import FreeCAD as App
     from freecad_cloth.avatar.AvatarFitting import BodyMeasurements, FittingScene
 
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
-    if _scene(doc) is not None:
-        return _scene(doc)
+    existing = _scene(doc)
+    if existing is not None:
+        return _ensure_fitting_properties(existing)
     obj = doc.addObject("App::FeaturePython", "FittingScene")
     obj.Label = "Avatar Fitting Scene"
     obj.addProperty("App::PropertyString", "FittingType", "Fitting").FittingType = "FittingScene"
@@ -111,6 +122,7 @@ def create_fitting_scene():
     obj.addProperty("App::PropertyStringList", "HomePlacements", "Fitting").HomePlacements = []
     obj.addProperty("App::PropertyStringList", "ArrangementPoints", "Arrangement").ArrangementPoints = []
     obj.addProperty("App::PropertyStringList", "BoundingVolumes", "Arrangement").BoundingVolumes = []
+    obj.addProperty("App::PropertyStringList", "GarmentAnchors", "Arrangement").GarmentAnchors = []
     obj.addProperty("App::PropertyStringList", "ArrangementPointObjects", "Arrangement").ArrangementPointObjects = []
     obj.addProperty("App::PropertyStringList", "BoundingVolumeObjects", "Arrangement").BoundingVolumeObjects = []
     obj.addProperty("App::PropertyBool", "SymmetryEnabled", "Arrangement").SymmetryEnabled = True
@@ -174,7 +186,13 @@ def add_selected_pattern_pieces():
     for piece in pieces:
         placement = piece.Placement
         base = placement.Base
-        value = PiecePlacement(str(piece.PieceId), (float(base.x), float(base.y), float(base.z)), float(placement.Rotation.Angle))
+        axis = placement.Rotation.Axis
+        value = PiecePlacement(
+            str(piece.PieceId),
+            (float(base.x), float(base.y), float(base.z)),
+            float(placement.Rotation.Angle),
+            (float(axis.x), float(axis.y), float(axis.z)),
+        )
         by_id[value.piece_id] = value
         home_by_id.setdefault(value.piece_id, value)
     scene.PatternPieces = sorted(set(list(scene.PatternPieces) + pieces), key=lambda o: str(o.PieceId))
@@ -185,6 +203,24 @@ def add_selected_pattern_pieces():
     doc.recompute()
     return scene
 
+
+
+
+
+def set_garment_anchors(anchors):
+    """Persist deterministic garment-local anchors on the existing fitting scene."""
+    import FreeCAD as App
+    from freecad_cloth.avatar.AvatarFitting import GarmentAnchor
+    doc = App.ActiveDocument or App.newDocument("ClothSewing")
+    scene = _ensure_fitting_properties(_scene(doc) or create_fitting_scene())
+    parsed = []
+    for anchor in anchors or ():
+        item = anchor if isinstance(anchor, GarmentAnchor) else GarmentAnchor.from_string(anchor)
+        item.validate()
+        parsed.append(item)
+    scene.GarmentAnchors = [item.to_string() for item in sorted(parsed, key=lambda a: (a.piece_id, a.name))]
+    doc.recompute()
+    return scene
 
 def position_piece(piece, x, y, z=0.0, rotation_z=0.0):
     from freecad_cloth.avatar.AvatarFitting import PiecePlacement
