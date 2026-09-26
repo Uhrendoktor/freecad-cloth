@@ -369,6 +369,10 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
                 sketch.Placement = piece.Placement
             piece_points = _piece_world_surface_points(piece, deflection=max(0.25, float(clearance) / 2.0))
             piece_clearance = minimum_surface_clearance(surface, piece_points)
+        placed_points = []
+        for anchor in selected:
+            point = piece.Placement.multVec(App.Vector(*anchor.position))
+            placed_points.append((float(point.x), float(point.y), float(point.z)))
         anchor_clearance = assert_minimum_surface_clearance(surface, placed_points, float(clearance))
         piece_clearance = assert_minimum_surface_clearance(surface, piece_points, float(clearance))
         if scene is not None:
