@@ -15,7 +15,7 @@ class SimulationQualityTaskPanel:
         "QualityPreset", "ParticleDistance", "SolverIterations", "SolverSubsteps",
         "FabricDensity", "FabricThickness", "FabricStretch", "FabricShear",
         "FabricBend", "FabricFriction", "FabricColor", "FabricSpecular",
-        "FabricRoughness", "FabricTransparency", "AvatarSkinOffset", "CollisionRadius", "Steps",
+        "FabricRoughness", "FabricTransparency", "AvatarSkinOffset", "CollisionRadius", "PinPolicy", "Steps",
     )
 
     def __init__(self, scene=None):
@@ -47,10 +47,13 @@ class SimulationQualityTaskPanel:
         cform.addRow("Avatar skin offset (mm)", self.skin_offset); cform.addRow("Fallback sphere radius (mm)", self.collision_radius); root.addWidget(collision)
         solver = QtWidgets.QGroupBox("Run"); sform = QtWidgets.QFormLayout(solver)
         self.steps = self._spin(0, 1000000, 0); sform.addRow("Simulation steps", self.steps); root.addWidget(solver)
+        self.pin_policy = QtWidgets.QComboBox(); self.pin_policy.addItem("Auto (compatible)", "auto"); self.pin_policy.addItem("Explicit", "explicit"); self.pin_policy.addItem("None (pinless)", "none"); self.pin_policy.setToolTip("Auto preserves existing default-pin behavior; None deliberately creates no implicit pins.")
+        sform.addRow("Pin policy", self.pin_policy)
         buttons = QtWidgets.QHBoxLayout(); self.step_button = QtWidgets.QPushButton("Step"); self.run_button = QtWidgets.QPushButton("Run 30"); self.reset_button = QtWidgets.QPushButton("Reset")
         buttons.addWidget(self.step_button); buttons.addWidget(self.run_button); buttons.addWidget(self.reset_button); root.addLayout(buttons)
         self.status = QtWidgets.QLabel(); self.status.setWordWrap(True); root.addWidget(self.status); root.addStretch(1)
         self.quality.currentTextChanged.connect(self._preset_changed)
+        self.pin_policy.currentIndexChanged.connect(lambda _index: self._parameters_changed())
         self.fabric_color.clicked.connect(self._choose_fabric_color)
         for widget in (self.particle_distance, self.iterations, self.substeps, self.density, self.thickness, self.stretch, self.shear, self.bend, self.friction, self.specular, self.roughness, self.transparency, self.skin_offset, self.collision_radius): widget.valueChanged.connect(self._parameters_changed)
         self.step_button.clicked.connect(lambda: self.step(1)); self.run_button.clicked.connect(lambda: self.step(30)); self.reset_button.clicked.connect(self.reset)
@@ -104,13 +107,16 @@ class SimulationQualityTaskPanel:
     def _load_widgets_only(self):
         if self.scene is None:
             return
-        widgets = [self.quality, self.particle_distance, self.iterations, self.substeps, self.density, self.thickness, self.stretch, self.shear, self.bend, self.friction, self.specular, self.roughness, self.transparency, self.skin_offset, self.collision_radius, self.steps]
+        widgets = [self.quality, self.particle_distance, self.iterations, self.substeps, self.density, self.thickness, self.stretch, self.shear, self.bend, self.friction, self.specular, self.roughness, self.transparency, self.skin_offset, self.collision_radius, self.pin_policy, self.steps]
         for widget in widgets: widget.blockSignals(True)
         try:
             self.quality.setCurrentText(str(self.scene.QualityPreset)); self.particle_distance.setValue(float(self.scene.ParticleDistance)); self.iterations.setValue(int(self.scene.SolverIterations)); self.substeps.setValue(int(self.scene.SolverSubsteps))
             self.density.setValue(float(self.scene.FabricDensity)); self.thickness.setValue(float(self.scene.FabricThickness)); self.stretch.setValue(float(self.scene.FabricStretch)); self.shear.setValue(float(self.scene.FabricShear)); self.bend.setValue(float(self.scene.FabricBend)); self.friction.setValue(float(self.scene.FabricFriction))
             self.specular.setValue(float(self.scene.FabricSpecular)); self.roughness.setValue(float(self.scene.FabricRoughness)); self.transparency.setValue(int(self.scene.FabricTransparency))
             self._set_color_button(tuple(float(value) for value in self.scene.FabricColor))
+            policy = str(getattr(self.scene, "PinPolicy", "auto"))
+            index = max(0, self.pin_policy.findData(policy))
+            self.pin_policy.setCurrentIndex(index)
             self.skin_offset.setValue(float(self.scene.AvatarSkinOffset)); self.collision_radius.setValue(float(getattr(self.scene, "CollisionRadius", 38.0))); self.steps.setValue(int(getattr(self.scene, "Steps", 0)))
         finally:
             for widget in widgets: widget.blockSignals(False)
@@ -135,6 +141,7 @@ class SimulationQualityTaskPanel:
 
     def _parameters_changed(self):
         if self.scene is None: return
+        self.scene.PinPolicy = str(self.pin_policy.currentData() or "auto")
         color = getattr(self, "_fabric_qcolor", None)
         self.scene.ParticleDistance = self.particle_distance.value(); self.scene.SolverIterations = self.iterations.value(); self.scene.SolverSubsteps = self.substeps.value(); self.scene.FabricDensity = self.density.value(); self.scene.FabricThickness = self.thickness.value(); self.scene.FabricStretch = self.stretch.value(); self.scene.FabricShear = self.shear.value(); self.scene.FabricBend = self.bend.value(); self.scene.FabricFriction = self.friction.value(); self.scene.FabricSpecular = self.specular.value(); self.scene.FabricRoughness = self.roughness.value(); self.scene.FabricTransparency = self.transparency.value()
         if color is not None:
