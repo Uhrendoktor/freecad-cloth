@@ -142,6 +142,22 @@ placement_probe = """    surface = collision_surface(
 """
 source = source.replace(surface_anchor, placement_probe, 1)
 
+post_probe_old = """    initial_clearance = None
+    try:
+        from freecad_cloth.common.MeshValidation import nearest_target_clearance
+        initial_clearance = nearest_target_clearance(tuple(backend.positions()), tuple(surface.vertices))
+    except (ImportError, ValueError):
+        initial_clearance = None
+"""
+post_probe_new = """    proxy = scene.Proxy
+    backend = getattr(proxy, "backend", None)
+    if backend is None:
+        raise RuntimeError("canonical tunic placement probe lost its simulation backend")
+"""
+if post_probe_old not in source:
+    raise RuntimeError("post-probe stale clearance block missing")
+source = source.replace(post_probe_old, post_probe_new, 1)
+
 source = source.replace(
     anchor + '\n        simulation_panel.step(batch); doc.recompute(); events()\n',
     preview_probe + '\n' + timed_anchor,
