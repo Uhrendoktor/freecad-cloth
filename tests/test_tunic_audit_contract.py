@@ -169,3 +169,7 @@ def test_tunic_placement_probe_preserves_clearance_gate_and_bounded_candidates()
     assert "placement_insets = (0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0)" in audit
     assert "tunic-placement-selected-inset-mm" in audit
     assert "placement_inset" in audit
+
+def test_tunic_audit_uses_60hz_timestep_without_changing_solver_budget():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 60.0;" in audit
