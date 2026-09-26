@@ -120,9 +120,19 @@ def nearest_target_projection(point: Vector, surface, ambiguity_tolerance: float
             candidates.append(candidate)
     if best is None:
         raise ValueError("target surface has no usable non-degenerate triangles")
-    for candidate in candidates[1:]:
-        if _dot(candidate.normal, best.normal) < 0.5:
+    opposing = [candidate for candidate in candidates[1:] if _dot(candidate.normal, best.normal) < 0.5]
+    if opposing:
+        # Co-located opposing faces are genuinely ambiguous and remain fail-closed.
+        if any(_norm(_vsub(candidate.point, best.point)) <= max(float(ambiguity_tolerance), best.distance * 1e-9) for candidate in opposing):
             raise ValueError("target projection is ambiguous across opposing surface normals")
+        directed = [
+            (candidate, _dot(_vsub(query, candidate.point), candidate.normal))
+            for candidate in (best, *opposing)
+        ]
+        directed.sort(key=lambda item: item[1], reverse=True)
+        if len(directed) > 1 and abs(directed[0][1] - directed[1][1]) <= max(float(ambiguity_tolerance), best.distance * 1e-9):
+            raise ValueError("target projection is ambiguous across opposing surface normals")
+        best = directed[0][0]
     return best
 
 
