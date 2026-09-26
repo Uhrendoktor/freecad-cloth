@@ -43,6 +43,8 @@ def _tight_tissu_collision_envelope(surface):
 _tissu_backend._collision_envelope = _tight_tissu_collision_envelope
 
 replacements = {
+    'scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()': 'scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute(); from freecad_cloth.avatar.FittingCommands import arrange_garment_on_avatar; arrange_garment_on_avatar(scene); doc.recompute(); avatar_bounds = avatar.Mesh.BoundBox; front_gap = front.Placement.Base.y - avatar_bounds.YMax; back_gap = avatar_bounds.YMin - back.Placement.Base.y; if front_gap <= 0 or back_gap <= 0: raise RuntimeError("canonical tunic panels were not placed outside the mannequin"); if list(scene.PinSelection): raise RuntimeError("canonical tunic fixture still relies on global pins"); log("avatar-arrangement-clearance-mm=front:%.2f back:%.2f" % (front_gap, back_gap))',
+    'scene.PinSelection = [str(i) for i in front_pins]': 'scene.PinSelection = []',
     'chest = 980.0; hip = 1020.0; ease = 55.0;': 'chest = 860.0; hip = 880.0; ease = 10.0;',
     'clearance = max(20.0, 0.08 * body_depth);': 'clearance = max(8.0, 0.025 * body_depth);',
     'front_y = box.YMin - clearance; back_y = box.YMax + clearance;': 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
