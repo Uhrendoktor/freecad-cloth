@@ -52,6 +52,21 @@ class AvatarFittingTests(unittest.TestCase):
         assert "rotation_axis" in fitting
         assert "if len(parts) not in (3, 4)" in fitting
 
+    def test_target_aware_samples_use_solver_pattern_mesh_not_shape_tessellation(self):
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+        start = source.index("def _piece_world_samples")
+        end = source.index("\ndef snap_pattern_pieces_to_target", start)
+        helper = source[start:end]
+        self.assertIn("resolve_piece_ir(piece)", helper)
+        self.assertIn("geometry_from_piece_ir(piece_ir)", helper)
+        self.assertIn("mesh = triangulate(geometry_from_piece_ir(piece_ir))", helper)
+        self.assertIn("placement.multVec", helper)
+        self.assertNotIn("shape.tessellate", helper)
+        self.assertNotIn("Shape", helper)
+        self.assertIn("if placement is None:", helper)
+        self.assertIn("if not mesh.vertices:", helper)
+
     def test_scene_metadata_is_deterministic(self):
         scene = FittingScene(BodyMeasurements({"hip": 960, "waist": 760}), "Avatar Collision Proxy", (PiecePlacement("piece-b", (10, 20, 30), 45), PiecePlacement("piece-a")))
         payload = scene.to_json()
