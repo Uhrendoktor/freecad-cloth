@@ -363,7 +363,8 @@ def simulation():
         raise RuntimeError("visual fixture did not create the production ClothAvatar")
     if target is None:
         raise RuntimeError("visual fixture did not create DrapeTarget")
-    box = avatar.Mesh.BoundBox; x_mid = (box.XMin + box.XMax) / 2.0; y_span = box.YMax - box.YMin; z_span = box.ZMax - box.ZMin
+    box = avatar.Mesh.BoundBox; x_mid = (box.XMin + box.XMax) / 2.0;
+    from freecad_cloth.avatar.TargetPlacement import arrange_pattern_pieces_to_target, signed_clearance y_span = box.YMax - box.YMin; z_span = box.ZMax - box.ZMin
     chest = 980.0; hip = 1020.0; ease = 55.0; panel_width = max(420.0, 0.50 * chest + ease); hem_width = max(450.0, 0.50 * hip + ease)
     shoulder_z = box.ZMin + 0.76 * z_span; hem_z = box.ZMin + 0.40 * z_span; garment_height = max(560.0, shoulder_z - hem_z); body_depth = max(120.0, min(260.0, y_span)); clearance = max(20.0, 0.08 * body_depth); front_y = box.YMin - clearance; back_y = box.YMax + clearance; rot = App.Rotation(App.Vector(1,0,0), 90.0)
     def make_piece(name, y, neckline_ratio, neckline_drop):
@@ -376,41 +377,24 @@ def simulation():
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
-    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
-    def authored_shoulder_pins(piece, particle_indices, positions):
-        targets = (
-            (0.14 * panel_width, 0.97 * garment_height),
-            (0.86 * panel_width, 0.97 * garment_height),
-        )
-        available = list(particle_indices)
-        result = []
-        for local_x, local_y in targets:
-            target_point = piece.Placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
-            index = min(available, key=lambda i: (positions[i][0] - target_point.x) ** 2 + (positions[i][1] - target_point.y) ** 2 + (positions[i][2] - target_point.z) ** 2)
-            result.append(index)
-            available.remove(index)
-        return tuple(result)
+    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; scene.PinMode = "None"; scene.PinSelection = []; refresh_drape_target(target)
+    arrangement = arrange_pattern_pieces_to_target((front, back), target, clearance=float(getattr(scene, "ArrangementClearance", 2.0)), max_translation=float(getattr(scene, "MaxPlacementTranslation", 250.0)))
+    doc.recompute()
+    if float(arrangement["minimum_clearance"]) < float(getattr(scene, "ArrangementClearance", 2.0)) - 1.0e-6:
+        raise RuntimeError("target-relative tunic arrangement did not retain the required clearance")
+    log("target-relative-arrangement=passed min-clearance-mm=%.2f" % float(arrangement["minimum_clearance"]))
     proxy = scene.Proxy
     positions = tuple(proxy.backend.positions())
-    pin_panels = list(scene.DrapePanels)
-    panel_indices = proxy.panel_indices
-    front_indices = tuple(panel_indices[pin_panels[0].Name])
-    back_indices = tuple(panel_indices[pin_panels[1].Name])
-    front_pins = authored_shoulder_pins(front, front_indices, positions)
-    back_pins = authored_shoulder_pins(back, back_indices, positions)
-    # The two panels begin on opposite sides of the avatar. Pinning both sewn
-    # shoulder endpoints would freeze each endpoint at its separated start
-    # position, making the zero-rest stitch constraint unsatisfiable. Anchor
-    # only the front shoulder endpoints; the back panel must follow through the
-    # authored shoulder stitches.
-    scene.PinSelection = [str(i) for i in front_pins]
-    if any(
-        int(a) in front_pins and int(b) in front_pins
-        for seam_pairs in getattr(proxy, "seam_stitch_pairs", {}).values()
-        for a, b in seam_pairs
-    ):
-        raise RuntimeError("visual tunic pin contract pins both endpoints of a sewn pair")
-    log("pin-map authored front=%s back-global=%s back-pinned=false" % (front_pins, back_pins)); doc.recompute()
+    if not positions:
+        raise RuntimeError("target-relative tunic scene produced no step-0 particles")
+    collision_surface = getattr(proxy, "collision_surface", None)
+    if collision_surface is None:
+        raise RuntimeError("target-relative tunic scene has no authoritative collision surface")
+    step0_clearance = signed_clearance(positions, collision_surface)
+    required_clearance = float(getattr(scene, "ArrangementClearance", 2.0))
+    if step0_clearance < required_clearance - 1.0e-6:
+        raise RuntimeError("step-0 tunic clearance is %.3f mm < %.3f mm" % (step0_clearance, required_clearance))
+    log("tunic-pin-mode=None step0-signed-clearance-mm=%.2f" % step0_clearance)
     for source in (doc.getObject("VisualTunicFront"), doc.getObject("VisualTunicBack")):
         if source is not None: source.ViewObject.Visibility = False
         sketch = getattr(source, "Sketch", None) if source is not None else None
