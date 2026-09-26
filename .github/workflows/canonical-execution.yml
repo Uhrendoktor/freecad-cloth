@@ -409,6 +409,7 @@ jobs:
           grep -q 'scenario-pass' docs/images/generated/gui-progress.log
           grep -q 'realtime-preview=passed backend=tissu' docs/images/generated/gui-progress.log
           grep -q 'drape-metrics=' docs/images/generated/gui-progress.log
+          grep -q 'target-arrangement=passed clearance-mm=' docs/images/generated/gui-progress.log
           grep -q 'home-reset=passed exact-axis-angle=true' docs/images/generated/gui-progress.log
           grep -q 'zero-gravity-step=passed steps=1' docs/images/generated/gui-progress.log
           test -s docs/images/generated/cloth-simulation-arranged.png
