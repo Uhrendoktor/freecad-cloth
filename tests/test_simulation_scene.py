@@ -62,16 +62,15 @@ def test_stale_drape_target_recompute_guard_is_safe():
     assert "source, placement" in scene.InvalidationReason
 
 
-def test_pattern_piece_scenes_do_not_add_implicit_pins():
+def test_pattern_piece_scenes_respect_persistent_pin_mode():
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]
     source = (root / "freecad_cloth" / "simulation" / "SimulationObjects.py").read_text(encoding="utf-8")
     start = source.index("def _build_pattern_scene")
     end = source.index("\n    def _build_demo", start)
     body = source[start:end]
-    assert "boundary[:2] + boundary[-2:]" not in body
-    assert "pins = explicit_pins" in body
-    assert "if pins:" in body
+    assert "_resolve_pin_indices" in body
+    assert "boundary[:2] + boundary[-2:]" in body
 
 
 def test_pin_selection_is_part_of_rebuild_signature():
@@ -308,3 +307,36 @@ def test_pattern_scene_truncates_stale_demo_panels_before_mesh_write():
     assert obj.DrapePanels == [panel_a]
     assert list(proxy.panel_triangles) == ["DrapePanelA"]
     assert writes == [("DrapePanelA", ((0, 1, 2),))]
+
+
+def test_pin_mode_resolves_without_implicit_constraints():
+    from types import SimpleNamespace
+    from freecad_cloth.simulation.SimulationObjects import _resolve_pin_indices
+
+    scene = SimpleNamespace(PinMode="None", PinSelection=["0", "1"])
+    assert _resolve_pin_indices(scene, 4, (0, 3)) == ()
+
+    scene.PinMode = "Explicit"
+    assert _resolve_pin_indices(scene, 4, (0, 3)) == (0, 1)
+
+    scene.PinMode = "Automatic"
+    assert _resolve_pin_indices(scene, 4, (0, 3)) == (0, 3)
+
+
+def test_pin_mode_is_part_of_rebuild_signature():
+    from types import SimpleNamespace
+    from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
+
+    source = SimpleNamespace(
+        Name="Body",
+        Shape=SimpleNamespace(isNull=lambda: False, hashCode=lambda: 123),
+        Placement=SimpleNamespace(
+            Base=SimpleNamespace(x=0.0, y=0.0, z=0.0),
+            Rotation=SimpleNamespace(Angle=0.0, Axis=SimpleNamespace(x=0.0, y=0.0, z=1.0)),
+        ),
+    )
+    target = SimpleNamespace(SourceObject=source, CollisionDeflection=1.0, CollisionThickness=0.0)
+    base = dict(DrapeTarget=target, PinSelection=[], StitchSamples=8, Document=SimpleNamespace(Objects=[]))
+    scene_a = SimpleNamespace(PinMode="Automatic", **base)
+    scene_b = SimpleNamespace(PinMode="None", **base)
+    assert _simulation_source_signature(scene_a, []) != _simulation_source_signature(scene_b, [])
