@@ -43,8 +43,14 @@ assert '"Fabric"' in quality_gui
 assert '"Collision"' in quality_gui
 assert '"Run"' in quality_gui
 assert "show_simulation_quality_task" in quality_gui
+assert "Refresh Drape Target" in sim_gui
+assert "Advanced sewing state" in sim_gui
+assert "Pinned vertices (advanced)" in sim_gui
+assert "Normal garment workflows should use named seams" in sim_gui
 assert "class SewingTaskPanel" in sewing_gui
 assert "Gui.Control.showDialog(panel)" in sewing_gui
+assert 'layout.addRow("Actions",self.reverse_button)' in sewing_gui
+assert 'layout.addRow("Orientation",self.reverse_button)' not in sewing_gui
 assert "class AvatarTaskPanel" in avatar_gui
 assert '"Body measurements"' in avatar_gui
 assert '"Proportions"' in avatar_gui
