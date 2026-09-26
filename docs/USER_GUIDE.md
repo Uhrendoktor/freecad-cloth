@@ -1,30 +1,122 @@
 # User guide
 
-## Start with the basic example
+## 1. First run: prove the installation
 
-After installation, open the **Cloth Pattern**, **Cloth Sewing**, and **Cloth Simulation** workbenches from the FreeCAD workbench selector.
+After installation, select **Cloth Pattern**, **Cloth Sewing**, and **Cloth Simulation** from the FreeCAD workbench selector.
 
-For a first validation, follow the **Blanket over Cube** example in [Examples](EXAMPLES.md). Pin two blanket corners, run the simulation, and verify that the cloth moves toward and around the cube.
+Run **Blanket over Cube** first. It is the small physics smoke test: a simple native pattern, a persistent FreeCAD collision target, explicit pins, gravity, and cloth motion. A successful run should visibly move the blanket toward and around the cube.
 
-## Typical garment workflow
+Once that works, continue to the garment path below.
 
-1. Create or open a native Sketcher pattern in **Cloth Pattern** and turn it into a PatternPiece. Keep Sketcher as the geometry authority.
-2. Use **Cloth Sewing** to select matching semantic edges and create seams. Editing an upstream Sketcher edge can invalidate a downstream seam rather than silently retargeting it.
-3. In **Cloth Simulation**, select or rebuild a DrapeTarget. A target can be a mannequin collision surface or supported generic FreeCAD geometry.
-4. Set simulation quality and fabric presentation. Physical material parameters affect the solver; color, roughness, specular response and transparency affect viewport rendering.
-5. Choose pins and run the simulation. Stale or non-finite states are fail-closed.
-6. Inspect the result and diagnostics before export or saving a final document.
+## 2. Minimal Pattern → Sewing → Arrange/Fit → Simulate path
 
-## Seams and visual inspection
+### Pattern
 
-Seams use deterministic colors in the 2D sewing view and retain their placed/world-space 3D presentation. Use the seam-focus command to fit a selected seam in 3D, and the Sketcher-side seam command to edit the authoritative source edge.
+1. Work in **Cloth Pattern**.
+2. Create or adopt a native Sketcher pattern piece. Native Sketcher geometry is the editable geometry authority.
+3. For a production garment, use the public **Create Garment** path when you want the native `Garment` hierarchy; standalone pattern-piece creation remains supported.
+4. Recompute before moving to sewing.
 
-## Fabric presentation
+The important user rule is that Cloth stores garment meaning around the Sketcher source; do not treat generated mesh edges as permanent semantic identities.
 
-Presentation properties are persisted on the native Fabric Material object and are separate from the physical solver parameters.
+### Sewing
 
-## Persistence and recovery
+1. Select compatible pattern edges.
+2. In **Cloth Sewing**, use **Create Seam** for a pairwise seam or the supported M:N sewing command for multi-side correspondence.
+3. Validate direction, correspondence, and length diagnostics before committing the relationship.
+4. Recompute and inspect the result.
 
-After pattern, seam-source or drape-target changes, rebuild or repair dependent derived state before simulation/export. Cloth intentionally reports stale dependencies instead of silently using outdated derived geometry.
+For inspection, **Show Sewing 2D** displays the pattern/seam correspondence. **Focus Seam in 3D** fits the selected semantic seam in world space.
 
-For debugging, compare local results with the FreeCAD/Triangle/Tissu versions recorded by the canonical workflow and attach the relevant CI artifact/log rather than editing generated evidence manually.
+### Arrange/Fit
+
+1. In the fitting/simulation workflow, create or select a persistent `DrapeTarget`.
+2. For a mannequin workflow, use the **Cloth Human Avatar** as the target. Generic supported FreeCAD Shape/PartDesign/Body/Mesh geometry can also be used as a target.
+3. Add the garment pieces to the fitting scene and use their persistent placements/arrangement metadata to put the pieces around the target.
+4. Treat arrangement changes as fitting state, not as a substitute for solver recovery. Resetting arrangement does not reset numerical simulation state.
+
+The current release documents persistent fitting/arrangement and target validity. It does not promise automatic commercial-style garment-to-body snapping for every garment.
+
+### Simulate
+
+1. Open **Simulation Controls**.
+2. Confirm the `DrapeTarget` is in a ready state.
+3. Choose a quality preset: **Fast**, **Balanced**, or **Final**.
+4. Adjust the **Fabric** and **Collision** values only when the garment needs different physical or presentation behavior.
+5. Use **Step** for controlled debugging or **Run 30** for a normal short advance.
+6. Use **Reset** to return numerical state to the starting condition while retaining authored quality/material values.
+7. Inspect the result and diagnostics before saving/exporting.
+
+The solver state is derived from the persistent document model. Pattern, seam, target, quality, material, or collision changes may invalidate downstream state and must be rebuilt or refreshed before simulation resumes.
+
+## 3. Mannequin/tunic workflow
+
+The tunic is the advanced example, not the installation smoke test.
+
+A practical sequence is:
+
+1. Create/open the garment and its native Sketcher pattern pieces.
+2. Create the semantic seams in **Cloth Sewing** and validate them.
+3. Switch to **Cloth Simulation** and create or select the mannequin target.
+4. Use **Cloth Human Avatar** / the persistent `DrapeTarget` and arrange the garment pieces before simulation.
+5. Open **Simulation Controls** and verify target status before pressing **Run 30**.
+6. During inspection, use seam focus/2D inspection and the simulation diagnostics before deciding whether a problem is pattern, sewing, fitting, collision, or solver state.
+7. Save/reload before treating the result as a persistent garment state.
+
+Do not copy the internal details of the canonical CI fixture—such as test-only coordinates or authored pin indices—into a general user recipe. The fixture is executable evidence; this guide describes the supported user workflow.
+
+## 4. Seam inspection
+
+Seam identity is semantic and deterministic. In **Cloth Sewing**:
+
+- **Show Sewing 2D** gives a top-view inspection of pattern/seam/stitch correspondence.
+- **Focus Seam in 3D** centers the selected seam in the assembled world-space result.
+- **Edit Seam Side A in Sketcher** and **Edit Seam Side B in Sketcher** open the authoritative native Sketcher sources.
+- **Repair Seam** is the explicit repair path for supported invalid correspondence.
+
+These tools are deliberately preferred over inspecting solver mesh-edge order.
+
+## 5. Simulation controls
+
+The **Simulation Controls** task panel is organized around the following states:
+
+- **Simulation quality** — **Fast**, **Balanced**, **Final**, particle distance, solver iterations, and substeps.
+- **Fabric** — density, thickness, stretch, shear, bend, friction, color, specular response, roughness, and transparency.
+- **Collision** — avatar skin offset and fallback collision radius.
+- **Run** — simulation-step count plus **Step**, **Run 30**, and **Reset**.
+
+**Step** is useful for diagnosing a single state transition. **Run 30** advances the normal short simulation batch. **Reset** removes derived numerical progress but retains the authored quality/fabric settings.
+
+## 6. Recovery from stale or invalid state
+
+Use the state shown in the task panel instead of guessing.
+
+**Target is stale/unbuilt**
+
+Refresh the target with **Refresh Drape Target**, recompute, and wait for a ready target status before running.
+
+**Target is missing/disabled**
+
+Create/select the intended target and enable it, then refresh if its source geometry changed.
+
+**Simulation is blocked**
+
+Do not bypass a disabled **Step** or **Run 30** button. The disabled state is a fail-closed dependency check. Repair the target/derived state first.
+
+**Seam is invalid after a Sketch edit**
+
+Recompute, use **Repair Seam** where applicable, or recreate the seam from the authoritative Sketcher edges.
+
+**Arrangement is wrong**
+
+Reset the arrangement and reapply the persistent fitting/placement state before changing solver parameters.
+
+**Simulation result is non-finite or otherwise unusable**
+
+Use **Reset**, inspect target validity, refresh/rebuild dependent derived state, then step again. Keep the failing state and CI log when reporting a reproducible problem.
+
+## 7. Saving and evidence
+
+The FreeCAD document is the persistence authority. Transient GUI selection and viewport previews are not.
+
+For repository evidence and reproducible examples, see [EXAMPLES.md](EXAMPLES.md). Generated images/logs live under `docs/images/generated/` during canonical validation; stable README media is published to the `docs/screenshots` branch.
