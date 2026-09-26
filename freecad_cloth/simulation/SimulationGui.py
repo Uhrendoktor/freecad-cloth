@@ -73,13 +73,15 @@ class SimulationTaskPanel:
         layout.addRow("Legacy sphere radius", self.collision_radius)
         root.addWidget(collision)
 
-        sewing = QtWidgets.QGroupBox("Sewing & pinning (optional)")
+        sewing = QtWidgets.QGroupBox("Sewing & pinning")
         layout = QtWidgets.QFormLayout(sewing)
+        self.pin_mode = QtWidgets.QComboBox(); self.pin_mode.addItems(("Automatic", "Explicit", "None"))
+        self.pin_mode.setToolTip("Automatic preserves legacy boundary pins when PinSelection is empty. Explicit uses the listed particles. None disables solver pins.")
         self.pins = QtWidgets.QLineEdit(self._join(getattr(scene, "PinSelection", [])))
         self.seams = QtWidgets.QLineEdit(self._join(getattr(scene, "SeamSelection", [])))
         self.pins.setToolTip("Optional particle indices separated by commas; leave blank for free draping")
         self.seams.setToolTip("Particle pairs such as 3-27 separated by semicolons")
-        layout.addRow("Pinned vertices", self.pins); layout.addRow("Seam pairs", self.seams)
+        layout.addRow("Pinning mode", self.pin_mode); layout.addRow("Pinned vertices", self.pins); layout.addRow("Seam pairs", self.seams)
         root.addWidget(sewing)
 
         controls = QtWidgets.QHBoxLayout()
@@ -102,6 +104,7 @@ class SimulationTaskPanel:
         self.reset_button.clicked.connect(self.reset)
         self.cloth.currentIndexChanged.connect(self._selection_changed)
         self.target.currentIndexChanged.connect(self._selection_changed)
+        self.pin_mode.currentTextChanged.connect(self._selection_changed)
         self.pins.editingFinished.connect(self._selection_changed); self.seams.editingFinished.connect(self._selection_changed)
         for widget in (self.iterations, self.timestep, self.gravity_x, self.gravity_y, self.gravity_z, self.collision_radius):
             widget.valueChanged.connect(self._parameters_changed)
@@ -135,6 +138,7 @@ class SimulationTaskPanel:
         self.stretch.setValue(float(getattr(self.scene, "StretchCompliance", 0.35)))
         self.bend.setValue(float(getattr(self.scene, "BendCompliance", 0.20)))
         self.density.setValue(float(getattr(self.scene, "ArealDensity", 0.01)))
+        self.pin_mode.setCurrentText(str(getattr(self.scene, "PinMode", "Automatic")))
         self._refresh_status()
 
     def _populate_selection_lists(self):
@@ -168,6 +172,7 @@ class SimulationTaskPanel:
         if self.target.currentData():
             obj = self.scene.Document.getObject(self.target.currentData())
             if obj: self.scene.DrapeTarget = obj
+        self.scene.PinMode = self.pin_mode.currentText()
         self.scene.PinSelection = [p.strip() for p in self.pins.text().replace(";", ",").split(",") if p.strip()]
         self.scene.SeamSelection = [p.strip() for p in self.seams.text().replace(",", ";").split(";") if p.strip()]
         self.scene.Document.recompute(); self._refresh_status()
@@ -224,7 +229,7 @@ class SimulationTaskPanel:
         except (ImportError, AttributeError, TypeError, ValueError):
             pass
         state = "ready" if bool(getattr(self.scene, "FiniteState", True)) else "invalid/non-finite"
-        self.status.setText(message or "State: %s | Target: %s | %.3f s | %d particles | %d steps" % (state, target_message, float(getattr(self.scene, "SimulatedTime", 0.0)), int(getattr(self.scene, "ParticleCount", 0)), int(getattr(self.scene, "Steps", 0))))
+        self.status.setText(message or "State: %s | Target: %s | pinning: %s | %.3f s | %d particles | %d steps" % (state, target_message, str(getattr(self.scene, "PinMode", "Automatic")), float(getattr(self.scene, "SimulatedTime", 0.0)), int(getattr(self.scene, "ParticleCount", 0)), int(getattr(self.scene, "Steps", 0))))
 
     def accept(self): self._ensure_scene().Document.recompute(); return True
 
