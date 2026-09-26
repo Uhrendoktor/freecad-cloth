@@ -676,9 +676,8 @@ def create_simulation_from_fitting():
     if scene.AvatarProxy is not None:
         simulation.AvatarProxy = scene.AvatarProxy
     target = getattr(scene, "DrapeTarget", None)
-    if target is None:
-        raise ValueError("assign a current DrapeTarget before creating simulation")
-    simulation.DrapeTarget = target
+    if target is not None:
+        simulation.DrapeTarget = target
     doc.recompute()
     return simulation
 
