@@ -17,7 +17,7 @@ def _job_block(source: str, job: str) -> str:
 
 def _job_blocks(source: str) -> dict[str, str]:
     jobs = source.split("\njobs:\n", 1)[1]
-    matches = list(re.finditer(r"^  ([A-Za-z0-9_-]+):\\n", jobs, re.MULTILINE))
+    matches = list(re.finditer(r"^  ([A-Za-z0-9_-]+):\n", jobs, re.MULTILINE))
     return {
         match.group(1): jobs[match.start() : (matches[index + 1].start() if index + 1 < len(matches) else len(jobs))]
         for index, match in enumerate(matches)
