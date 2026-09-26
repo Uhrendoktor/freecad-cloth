@@ -184,18 +184,26 @@ def apply_rigid_delta(points, delta):
     )
 
 
-def minimum_surface_clearance(surface, points):
+def minimum_surface_clearance_detail(surface, points):
     minimum = None
+    minimum_hit = None
     for point in points:
         hits = sorted(_candidate_hits(surface, point), key=lambda h: (round(h.distance, 12), h.triangle_index))
         if not hits:
             raise TargetPlacementError("target surface has no usable triangle")
         best = hits[0]
         signed = _dot(_sub(point, best.point), best.normal)
-        minimum = signed if minimum is None else min(minimum, signed)
-    if minimum is None:
+        if minimum is None or signed < minimum:
+            minimum = signed
+            minimum_hit = best
+    if minimum is None or minimum_hit is None:
         raise TargetPlacementError("clearance cannot be measured without garment points")
-    return float(minimum)
+    return float(minimum), minimum_hit
+
+
+def minimum_surface_clearance(surface, points):
+    actual, _hit = minimum_surface_clearance_detail(surface, points)
+    return actual
 
 
 def assert_minimum_surface_clearance(surface, points, required_clearance):
