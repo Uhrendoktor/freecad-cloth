@@ -51,29 +51,45 @@ def test_canonical_tunic_source_rewrite_compiles():
     audit_path = ROOT / "tests" / "freecad_tunic_audit.py"
     audit_source = audit_path.read_text(encoding="utf-8")
     module = ast.parse(audit_source, filename=str(audit_path))
-    replacements = None
-    for node in module.body:
-        if isinstance(node, ast.Assign) and any(
-            isinstance(target, ast.Name) and target.id == "replacements"
-            for target in node.targets
-        ):
-            replacements = ast.literal_eval(node.value)
-            break
+
+    def literal_assignment(name):
+        for node in module.body:
+            if isinstance(node, ast.Assign) and any(
+                isinstance(target, ast.Name) and target.id == name
+                for target in node.targets
+            ):
+                return ast.literal_eval(node.value)
+        raise AssertionError("missing transformed-source assignment: " + name)
+
+    replacements = literal_assignment("replacements")
+    preview_probe = literal_assignment("preview_probe")
+    timed_anchor = literal_assignment("timed_anchor")
     assert replacements is not None
+    assert preview_probe is not None
+    assert timed_anchor is not None
+
     seam_keys = [key for key in replacements if "for edge_a, edge_b, seam_id" in key]
     assert seam_keys == [
         '    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):\n'
-        '        seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
+        '        seam = Seam(str(front.PieceId), edge_a, edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
         '        add_seam(doc, seam)\n'
         '        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)\n'
         '        seam_records.append((seam_obj, front, back))'
     ]
+
     source_path = ROOT / "tests" / "freecad_screenshot_source.py"
     source = source_path.read_text(encoding="utf-8")
     for old, new in replacements.items():
         assert old in source
         source = source.replace(old, new, 1)
-    compile(source, str(source_path), "exec")
+
+    loop_block = (
+        "    for batch in (15,15,15,15,15,15):\n"
+        "        simulation_panel.step(batch); doc.recompute(); events()"
+    )
+    assert loop_block in source, "canonical timed-loop replacement anchor/body is missing"
+    transformed = source.replace(loop_block, preview_probe + "\n" + timed_anchor, 1)
+    compile(transformed, str(source_path), "exec")
 
 
 def test_canonical_tunic_authoritative_gate_is_fail_closed():
