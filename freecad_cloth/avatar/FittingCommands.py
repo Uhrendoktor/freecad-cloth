@@ -401,7 +401,7 @@ def apply_arrangement_point(piece, point, mirror=None):
 
 
 
-def arrange_pieces_against_target(scene=None, target=None, pieces=None, side_by_piece=None):
+def arrange_pieces_against_target(scene=None, target=None, pieces=None, side_by_piece=None, anchor_position=None):
     """Arrange fitting pieces outside the authoritative DrapeTarget using rigid transforms only."""
     import FreeCAD as App
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint, BodyMeasurements, BoundingVolume, FittingScene, PiecePlacement
@@ -441,6 +441,7 @@ def arrange_pieces_against_target(scene=None, target=None, pieces=None, side_by_
             float(scene.TargetPlacementClearance),
             float(scene.TargetPlacementMaxTranslation),
             float(scene.TargetPlacementMaxRotation),
+            anchor_position=anchor_position,
         )
         placement = PiecePlacement(piece_id, plan.position, plan.rotation_angle, plan.rotation_axis)
         _apply_piece_placement(piece, placement)
