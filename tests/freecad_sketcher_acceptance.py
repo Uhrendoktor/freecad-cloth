@@ -402,7 +402,22 @@ def run_acceptance():
                     reloaded.recompute()
                     if abs(float(audit.getDatum(audit_scaled)) - 30.0) > 1e-6:
                         raise RuntimeError("native Sketcher expression did not propagate after save/reload")
-                
+                    reloaded_seams = [item for item in reloaded.Objects if str(getattr(item, "SeamId", "")).strip()]
+                    if len(reloaded_seams) < 3:
+                        raise RuntimeError("semantic seam set did not survive save/reload: %d" % len(reloaded_seams))
+                    seam_records = tuple(reloaded_seams[:3])
+                    expected_seam_colors = seam_color_map(tuple(str(item.SeamId) for item in seam_records))
+                    if len(set(expected_seam_colors.values())) != 3:
+                        raise RuntimeError("three semantic seams must retain three distinct colors after reload")
+                    for workbench, commands in (
+                        ("ClothPatternWorkbench", ["ClothPattern_CreatePieceWithSketch"]),
+                        ("ClothSewingWorkbench", ["ClothSewing_FocusSeam3D"]),
+                        ("ClothSimulationWorkbench", ["ClothSimulation_Edit", "ClothDrape_RefreshTarget"]),
+                    ):
+                        _activate(workbench, commands)
+                        reloaded.recompute()
+                        _assert_seam_colors("%s post-reload" % workbench, seam_records)
+
                     sketch.setDatum(width_index, App.Units.Quantity("120 mm"))
                     reloaded.recompute()
                     if abs(float(sketch.getDatum(width_index)) - 120.0) > 1e-6:
