@@ -40,11 +40,11 @@ def test_canonical_tunic_uses_validated_authored_mapping():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "required_indices = (1, 2, 3, 6, 7)" in audit
     assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in audit
-    assert 'front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"' in audit
+    assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' in audit
     assert 'front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"' in audit
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in audit
     assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' in audit
-    assert 'front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"' not in audit
+    assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' not in audit
 
 
 def test_canonical_tunic_source_rewrite_compiles():
@@ -152,7 +152,7 @@ def test_tunic_step_zero_clearance_gate_is_preserved_and_fixture_starts_outside_
 
 def test_tunic_seam_mapping_uses_opposite_shoulder_edges():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert 'seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"),(front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"),(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"))' in audit
+    assert 'seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"),(front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"),(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"))' in audit
 
 
 def test_canonical_tunic_fixture_matches_validated_orientation():
