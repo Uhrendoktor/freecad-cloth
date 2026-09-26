@@ -134,6 +134,10 @@ jobs:
           persist-credentials: false
       - name: Report canonical runner mode
         run: echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+      - name: Validate generated tunic audit source
+        run: |
+          set -euo pipefail
+          python3 tests/freecad_tunic_audit.py --syntax-check
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
