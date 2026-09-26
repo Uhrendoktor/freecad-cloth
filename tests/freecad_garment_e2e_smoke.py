@@ -396,6 +396,8 @@ def run_acceptance():
                 "ClothFitting_AddPieces",
                 "ClothFitting_CreateArrangementPoint",
                 "ClothFitting_ApplyArrangementPoint",
+                "ClothFitting_SnapPiecesToTarget",
+                "ClothFitting_ResetArrangement",
                 "ClothFitting_CreateSimulation",
             ],
         )
@@ -565,9 +567,28 @@ def run_acceptance():
         Gui.runCommand("ClothFitting_AssignAvatar", 0)
         _events()
         doc.recompute()
-        if fitting.AvatarProxy is None:
-            raise RuntimeError("public fitting avatar assignment did not persist the canonical avatar")
-        print("drape-target=passed type=Mannequin", flush=True)
+        if fitting.AvatarProxy is None or fitting.DrapeTarget is not target:
+            raise RuntimeError("public fitting avatar assignment did not persist the canonical avatar/target")
+        home_before_snap = tuple(fitting.HomePlacements)
+        home_front = front.Placement
+        _select_objects(front, target)
+        Gui.runCommand("ClothFitting_SnapPiecesToTarget", 0)
+        _events()
+        doc.recompute()
+        if fitting.DrapeTarget is not target or str(fitting.FitStatus) != "Snapped to target":
+            raise RuntimeError("public fitting target snap did not persist the active target/state")
+        if tuple(fitting.HomePlacements) != home_before_snap:
+            raise RuntimeError("target snap mutated HomePlacements")
+        if front.Placement.Base == home_front.Base:
+            raise RuntimeError("target snap did not change the selected piece placement")
+        print("target-snap=passed bounded=true reversible=true", flush=True)
+
+        Gui.runCommand("ClothFitting_ResetArrangement", 0)
+        _events()
+        doc.recompute()
+        if abs(front.Placement.Base.x - home_front.Base.x) > 1e-9 or abs(front.Placement.Base.y - home_front.Base.y) > 1e-9 or abs(front.Placement.Base.z - home_front.Base.z) > 1e-9:
+            raise RuntimeError("Reset Arrangement did not restore the selected piece HomePlacement")
+        print("arrangement-reset=passed exact-home=true", flush=True)
 
         _select_objects(fitting)
         Gui.runCommand("ClothFitting_CreateSimulation", 0)
@@ -578,6 +599,8 @@ def run_acceptance():
         doc.recompute()
         if len(scene.ClothPieces) != 4:
             raise RuntimeError("fitting-created simulation did not inherit four pattern pieces")
+        if scene.DrapeTarget is not fitting.DrapeTarget:
+            raise RuntimeError("fitting-created simulation did not inherit the authoritative DrapeTarget")
         _activate(
             "ClothSimulationWorkbench",
             ["ClothDrape_CreateMannequinTarget"],
