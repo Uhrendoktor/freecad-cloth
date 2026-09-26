@@ -122,6 +122,8 @@ MeshOrientation inferMeshOrientation(
 
     return {true, signedVolume > 0.0 ? 1.0 : -1.0};
 }
+
+} // namespace
 """
     if cpp.count(include_old) != 1:
         raise RuntimeError("MeshCollider.cpp include anchor mismatch")
