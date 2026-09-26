@@ -55,18 +55,17 @@ class AvatarFittingTests(unittest.TestCase):
             if isinstance(node, ast.While)
             and "piece_clearance" in ast.unparse(node.test)
         )
-        anchor_assert = [
+        anchor_assert = next(
             node for node in ast.walk(function)
-            if isinstance(node, ast.Assign)
-            and any(isinstance(target, ast.Name) and target.id == "anchor_clearance" for target in node.targets)
-            and isinstance(node.value, ast.Call)
-            and isinstance(node.value.func, ast.Name)
-            and node.value.func.id == "assert_minimum_surface_clearance"
-        ][0]
+            if isinstance(node, ast.If)
+            and node.lineno > correction.lineno
+            and "anchor_clearance" in ast.unparse(node.test)
+            and "< float(clearance) - 1e-6" in ast.unparse(node.test)
+        )
         self.assertLess(anchor_measure.lineno, correction.lineno)
         self.assertLess(correction.lineno, anchor_assert.lineno)
-        anchor_remeasure = source.index("placed_points = []", correction.col_offset + correction.lineno)
-        assert_position_code = source.index("anchor_clearance = assert_minimum_surface_clearance", correction.col_offset + correction.lineno)
+        anchor_remeasure = source.index("anchor_clearance, _worst_anchor_normal = anchor_clearance_detail()", correction.col_offset + correction.lineno)
+        assert_position_code = source.index("if anchor_clearance < float(clearance) - 1e-6:", correction.col_offset + correction.lineno)
         self.assertLess(anchor_remeasure, assert_position_code)
 
     def test_measurements_are_valid_and_canonical(self):
