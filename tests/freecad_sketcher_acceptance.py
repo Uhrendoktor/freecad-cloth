@@ -263,7 +263,16 @@ def run_acceptance():
         seam = next((obj for obj in doc.Objects if getattr(obj, "SeamId", "")), None)
         if seam is None or str(seam.Status) != "Valid":
             raise RuntimeError("public Sewing command did not create a valid seam from native Sketch edges")
-        _record("seam-created")
+        from freecad_cloth.sewing.SewingView import seam_color_map
+        expected_seam_rgb = tuple(seam_color_map([str(seam.SeamId)])[str(seam.SeamId)])
+        actual_seam_rgb = tuple(seam.ViewObject.LineColor[:3])
+        if any(abs(actual - expected) > 1e-6 for actual, expected in zip(actual_seam_rgb, expected_seam_rgb)):
+            raise RuntimeError("seam color was not applied when the seam object was created")
+        doc.recompute()
+        actual_after_recompute = tuple(seam.ViewObject.LineColor[:3])
+        if any(abs(actual - expected) > 1e-6 for actual, expected in zip(actual_after_recompute, expected_seam_rgb)):
+            raise RuntimeError("seam color was lost across seam recompute")
+        _record("seam-created-color-stable")
 
         from freecad_cloth.sewing.SewingCommands import get_active_staged_sewing_task_panel
         staged_panel = get_active_staged_sewing_task_panel()
