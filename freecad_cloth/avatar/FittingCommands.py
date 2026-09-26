@@ -253,28 +253,23 @@ def set_arrangement_point(name, x=None, y=None, offset=None, wrap_direction=None
 
 
 def _piece_world_surface_points(piece, spacing=32.0):
-    """Sample the complete solver-neutral PatternIR tessellation in world space.
+    """Sample the solver's canonical PatternMesh vertices in world space.
 
-    Target-aware correction must use the same authoritative pattern geometry and
-    PatternPiece.Placement semantics as the simulation mesh, never a presentation
-    Shape whose placement can differ from the PatternIR geometry.
+    The optional spacing argument is retained for API compatibility, but
+    clearance must use the same base PatternMesh geometry consumed by simulation,
+    not a separately refined/presentation tessellation.
     """
     import FreeCAD as App
     from freecad_cloth.common.PatternSimulationAdapter import geometry_from_piece_ir, resolve_piece_ir
-    from freecad_cloth.pattern.PatternMesh import refine_linear_boundary, triangulate
+    from freecad_cloth.pattern.PatternMesh import triangulate
 
     placement = getattr(piece, "Placement", None)
     if placement is None:
         raise ValueError("pattern piece has no persistent placement")
-    sample_spacing = max(0.25, float(spacing))
     piece_ir = resolve_piece_ir(piece)
-    pattern = geometry_from_piece_ir(piece_ir)
-    mesh = triangulate(
-        refine_linear_boundary(pattern, sample_spacing),
-        max_area=0.45 * sample_spacing * sample_spacing,
-    )
+    mesh = triangulate(geometry_from_piece_ir(piece_ir))
     if not mesh.vertices:
-        raise ValueError("pattern piece surface tessellation produced no points")
+        raise ValueError("pattern piece PatternMesh sampling produced no points")
     points = []
     for local_x, local_y in mesh.vertices:
         world = placement.multVec(App.Vector(float(local_x), float(local_y), 0.0))
