@@ -36,6 +36,7 @@ assert 'return "Gui::PythonWorkbench"' in gui_base
 assert "class PatternPieceTaskPanel" in pattern_gui
 assert "Gui.Control.showDialog(panel)" in pattern_gui
 assert "class SimulationTaskPanel" in sim_gui
+assert "Pinning" in quality_gui
 assert "Gui.Control.showDialog(panel)" in sim_gui
 assert "class SimulationQualityTaskPanel" in quality_gui
 assert '"Simulation quality"' in quality_gui
