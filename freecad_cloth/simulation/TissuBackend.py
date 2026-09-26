@@ -139,7 +139,7 @@ def _build_signed_collision_bvh(surface, leaf_size=8):
         return None
 
     centroids = triangle_points.mean(axis=1)
-    # Keep authored winding. _to_tissu_mesh() applies the repository handness reversal.
+    # Keep authored winding. _to_tissu_mesh() applies the repository handedness reversal.
     normals /= lengths[:, None]
     bounds_min = triangle_points.min(axis=1)
     bounds_max = triangle_points.max(axis=1)
