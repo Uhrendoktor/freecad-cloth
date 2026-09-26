@@ -353,6 +353,16 @@ def simulation():
     target_source = getattr(target, "SourceObject", None)
     if target_source is not avatar:
         raise RuntimeError("visual fixture DrapeTarget does not reference the production ClothAvatar")
+    pre_status = target_status(target)
+    if str(pre_status.get("state", "")) != "ready":
+        raise RuntimeError("canonical tunic DrapeTarget is not current before placement: %s" % pre_status.get("message", pre_status))
+    target_surface = collision_surface(
+        target_source,
+        float(getattr(target, "CollisionDeflection", 1.0)),
+        float(getattr(target, "CollisionThickness", 0.0)),
+    )
+    if not target_surface.vertices or not target_surface.triangles:
+        raise RuntimeError("canonical tunic DrapeTarget has no authoritative collision triangles")
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
     def arrangement_world(name):
         raw = next((value for value in getattr(avatar, "ArrangementPoints", ()) if str(value).split("|", 1)[0] == name), None)
@@ -363,7 +373,8 @@ def simulation():
     shoulder_left = arrangement_world("shoulder_left")
     shoulder_right = arrangement_world("shoulder_right")
     hip_point = arrangement_world("hip")
-    box = target_source.Mesh.BoundBox; y_span = box.YMax - box.YMin
+    target_ys = [float(vertex[1]) for vertex in target_surface.vertices]
+    y_span = max(target_ys) - min(target_ys)
     x_mid = (shoulder_left.x + shoulder_right.x) / 2.0
     shoulder_z = (shoulder_left.z + shoulder_right.z) / 2.0
     hem_z = hip_point.z
