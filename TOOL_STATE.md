@@ -26,6 +26,9 @@ release:
   benchmark: passed
   publisher: passed
   docs_assets_published: true
+  publisher_job: 108293224713
+  published_docs_screenshots_commit: 2a7fd1e
+  published_gif_provenance: structural_timing_verified_exact_bytes_unverified
   final_issue_1017: closed_completed
   continuation_issue_1098: closed_completed
   open_prs: 0
