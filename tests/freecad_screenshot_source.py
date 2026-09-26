@@ -385,17 +385,52 @@ def simulation():
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
     rot = App.Rotation(App.Vector(1,0,0), 90.0)
-    def target_relative_piece_placement(side):
-        if side == "front":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
-        elif side == "back":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
-        else:
-            raise ValueError("tunic target-relative side must be front or back")
-        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
-    def make_piece(name, side, neckline_ratio, neckline_drop):
-        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(side); piece.Sketch.Placement = piece.Placement; return piece, outline
-    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
+    seed_z = hem_z
+    def make_piece(name, y, neckline_ratio, neckline_drop):
+        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop)
+        doc.recompute()
+        piece = _adopt_sketch(sketch, name, 10.0, 0.0)
+        piece.Label = name
+        piece.Placement = App.Placement(App.Vector(-hem_width / 2.0, y, seed_z), rot)
+        piece.Sketch.Placement = piece.Placement
+        return piece, outline
+    # Start from a target-independent workspace. The fitting command is the
+    # only mannequin-relative placement authority.
+    front, front_outline = make_piece("VisualTunicFront", -650.0, 0.64, 0.10)
+    back, back_outline = make_piece("VisualTunicBack", 650.0, 0.64, 0.07)
+    fitting = __import__("freecad_cloth.avatar.FittingCommands", fromlist=["create_fitting_scene"]).create_fitting_scene()
+    fitting.AvatarProxy = scene.AvatarProxy
+    fitting.DrapeTarget = target
+    fitting.PatternPieces = [front, back]
+    from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+    homes = []
+    for piece in (front, back):
+        base = piece.Placement.Base
+        placement = PiecePlacement(
+            str(piece.PieceId),
+            (float(base.x), float(base.y), float(base.z)),
+            float(piece.Placement.Rotation.Angle),
+        )
+        homes.append(placement.to_string())
+    fitting.PiecePlacements = list(homes)
+    fitting.HomePlacements = list(homes)
+    fitting.FitStatus = "Ready"
+    doc.recompute()
+    from freecad_cloth.avatar.FittingCommands import snap_pieces_to_drape_target
+    snap_results = snap_pieces_to_drape_target(
+        (front, back),
+        target,
+        clearance=max(8.0, 0.03 * body_depth),
+        max_translation=750.0,
+    )
+    if any(float(result["distance_after"]) + 1e-6 < float(result["clearance"]) for result in snap_results):
+        raise RuntimeError("target-aware tunic placement did not reach the requested collision clearance")
+    if tuple(fitting.HomePlacements) != tuple(homes):
+        raise RuntimeError("target-aware tunic placement mutated HomePlacements")
+    log("target-placement=target-aware rigid-snap pieces=%d clearances=%s" % (
+        len(snap_results),
+        tuple(round(float(result["distance_after"]), 3) for result in snap_results),
+    ))
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
     for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
