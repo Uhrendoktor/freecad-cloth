@@ -211,8 +211,8 @@ class FittingScene:
     pieces: Tuple[PiecePlacement, ...] = ()
     arrangement_points: Tuple[ArrangementPoint, ...] = ()
     bounding_volumes: Tuple[BoundingVolume, ...] = ()
-    garment_anchors: Tuple[GarmentAnchor, ...] = ()
     symmetry_enabled: bool = True
+    garment_anchors: Tuple[GarmentAnchor, ...] = ()
 
     def validate(self) -> None:
         self.measurements.validate()
@@ -273,8 +273,8 @@ class FittingScene:
             tuple(PiecePlacement.from_string(v) for v in data.get("pieces", ())),
             tuple(ArrangementPoint.from_string(v) for v in data.get("arrangement_points", ())),
             tuple(BoundingVolume.from_string(v) for v in data.get("bounding_volumes", ())),
-            tuple(GarmentAnchor.from_string(v) for v in data.get("garment_anchors", ())),
             bool(data.get("symmetry_enabled", True)),
+            tuple(GarmentAnchor.from_string(v) for v in data.get("garment_anchors", ())),
         )
         result.validate()
         return result
