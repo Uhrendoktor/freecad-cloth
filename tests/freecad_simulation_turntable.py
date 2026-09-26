@@ -30,6 +30,7 @@ os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "mesh")
 
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 BLANKET_SIZE = 200.0  # Validated 200 mm release fixture; keep pins/placement derived from this value.
+BLANKET_PARTICLE_DISTANCE = 20.0  # Bounded release resolution; contract requires >= 12 mm.
 # The README fixture uses the same pinned Tissu mesh-collision runtime as the
 # canonical turntable job and the validated 200 mm blanket visual example.
 os.environ["CLOTH_SIMULATION_BACKEND"] = "tissu"
@@ -281,7 +282,7 @@ def _style_mesh(obj):
 
 
 def _opposite_top_edge_pins(piece, positions, panel_indices):
-    mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, 20.0)
+    mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, BLANKET_PARTICLE_DISTANCE)
     boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
     if not boundary_vertices:
         raise RuntimeError("blanket quality mesh has no boundary vertices")
@@ -377,7 +378,7 @@ def validate_blanket_drape(panel, cube):
 
 def build_simulation_state(doc):
     stage_started = time.monotonic()
-    log("stage=scene-build-start particle_distance_min=12.0 solver_iterations=4 solver_substeps=1")
+    log("stage=scene-build-start particle_distance=%.1f solver_iterations=4 solver_substeps=1" % BLANKET_PARTICLE_DISTANCE)
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
     from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, ensure_quality_properties
@@ -407,7 +408,7 @@ def build_simulation_state(doc):
     scene.GravityY = 0.0
     scene.GravityZ = -9810.0
     scene.TimeStep = 1.0 / 60.0
-    scene.ParticleDistance = max(12.0, float(scene.ParticleDistance))
+    scene.ParticleDistance = max(BLANKET_PARTICLE_DISTANCE, float(scene.ParticleDistance))
     scene.SolverIterations = 4
     scene.SolverSubsteps = 1
     scene.FabricColor = (0.14, 0.32, 0.78)
