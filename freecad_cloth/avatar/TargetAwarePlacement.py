@@ -101,7 +101,7 @@ class _TriangleRecord:
     maximum: tuple
 
 
-class _SurfaceSpatialIndex:
+class SurfaceSpatialIndex:
     """Exact nearest-surface queries without repeated whole-mesh recomputation."""
 
     def __init__(self, surface):
@@ -265,11 +265,11 @@ def _closest_point_on_triangle(p, a, b, c):
 
 
 def _candidate_hits(surface, point, expected_normal=None):
-    return list(_SurfaceSpatialIndex(surface).nearest_triangles(point, expected_normal, limit=len(surface.triangles)))
+    return list(SurfaceSpatialIndex(surface).nearest_triangles(point, expected_normal, limit=len(surface.triangles)))
 
 
 def target_surface_anchor(surface, point, expected_normal, ambiguity_tolerance=1e-6, index=None):
-    index = index or _SurfaceSpatialIndex(surface)
+    index = index or SurfaceSpatialIndex(surface)
     hits = list(index.nearest_triangles(point, expected_normal, limit=2))
     if not hits:
         raise TargetPlacementError("no unambiguous target surface location matches the garment wrap direction")
@@ -325,7 +325,7 @@ def apply_rigid_delta(points, delta):
 
 
 def minimum_target_vertex_clearance(surface, points, index=None):
-    index = index or _SurfaceSpatialIndex(surface)
+    index = index or SurfaceSpatialIndex(surface)
     if not points:
         raise TargetPlacementError("vertex clearance cannot be measured without garment points")
     minimum = min(index.nearest_vertex_distance(point) for point in points)
@@ -333,7 +333,7 @@ def minimum_target_vertex_clearance(surface, points, index=None):
 
 
 def minimum_surface_clearance_detail(surface, points, index=None):
-    index = index or _SurfaceSpatialIndex(surface)
+    index = index or SurfaceSpatialIndex(surface)
     minimum = None
     minimum_hit = None
     for point in points:
