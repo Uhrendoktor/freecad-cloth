@@ -485,6 +485,15 @@ jobs:
           grep -q 'determinism-signature=passed' artifacts/garment-e2e.log
           grep -q 'pattern-export=passed formats=SVG,DXF' artifacts/garment-e2e.log
           grep -q 'canonical garment end-to-end acceptance passed' artifacts/garment-e2e.log
+          test -s docs/images/generated/arrange-fit-task-panel.log
+          grep -q 'arrange-fit-task-panels=passed states=not-started,present,blocked,recovered' docs/images/generated/arrange-fit-task-panel.log
+          for screenshot in \
+            docs/images/generated/arrange-fit-task-panel-not-started.png \
+            docs/images/generated/arrange-fit-task-panel-present.png \
+            docs/images/generated/arrange-fit-task-panel-blocked.png \
+            docs/images/generated/arrange-fit-task-panel-recovered.png; do
+            test -s "$screenshot"
+          done
       - name: Upload tunic visual audit
         if: always()
         uses: actions/upload-artifact@v6
@@ -495,6 +504,8 @@ jobs:
             docs/images/generated/drape-visual-metrics.json
             docs/images/generated/gui-progress.log
             docs/images/generated/gui-screenshot-manifest.txt
+            docs/images/generated/arrange-fit-task-panel*.png
+            docs/images/generated/arrange-fit-task-panel.log
             artifacts/garment-e2e.log
           if-no-files-found: error
           compression-level: 1
