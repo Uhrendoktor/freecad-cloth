@@ -402,7 +402,7 @@ def snap_pattern_pieces_to_target(pieces=None, target=None, clearance=None, max_
         scene.FitStatus = "Target snapped"
         doc.recompute()
         return {"target": str(getattr(target, "Name", "DrapeTarget")), "clearance_mm": required_clearance, "pieces": tuple(results)}
-    except BaseException:
+    except Exception:
         for piece, original in placement_before.items():
             piece.Placement = original
         for piece, original in sketch_before.items():
