@@ -54,32 +54,39 @@ class PiecePlacement:
     piece_id: str
     position: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     rotation_z: float = 0.0
+    rotation_axis: Tuple[float, float, float] = (0.0, 0.0, 1.0)
 
     def validate(self) -> None:
         if not self.piece_id.strip():
             raise ValueError("piece id must not be empty")
-        if len(self.position) != 3:
-            raise ValueError("position must contain three coordinates")
+        if len(self.position) != 3 or len(self.rotation_axis) != 3:
+            raise ValueError("position and rotation axis require three coordinates")
+        if sum(float(v) * float(v) for v in self.rotation_axis) <= 1e-18:
+            raise ValueError("rotation axis must be non-zero")
 
     def to_string(self) -> str:
         self.validate()
-        return "%s|%.12g,%.12g,%.12g|%.12g" % (
-            self.piece_id, self.position[0], self.position[1], self.position[2], self.rotation_z
+        return "%s|%.12g,%.12g,%.12g|%.12g|%.12g,%.12g,%.12g" % (
+            self.piece_id, self.position[0], self.position[1], self.position[2], self.rotation_z,
+            self.rotation_axis[0], self.rotation_axis[1], self.rotation_axis[2]
         )
 
     @classmethod
     def from_string(cls, value: str) -> "PiecePlacement":
-        piece_id, position, rotation = str(value).split("|")
+        parts = str(value).split("|")
+        if len(parts) not in (3, 4):
+            raise ValueError("piece placement must contain three or four fields")
+        piece_id, position, rotation = parts[:3]
         coords = tuple(float(v) for v in position.split(","))
-        result = cls(piece_id, coords, float(rotation))
+        axis = (0.0, 0.0, 1.0) if len(parts) == 3 else tuple(float(v) for v in parts[3].split(","))
+        result = cls(piece_id, coords, float(rotation), axis)
         result.validate()
         return result
 
 
 @dataclass(frozen=True)
 class GarmentAnchor:
-    """Persistent garment-local fitting anchor used for target-aware placement."""
-
+    """Deterministic garment-local anchor used by target-aware rigid placement."""
     piece_id: str
     name: str
     position: Tuple[float, float, float] = (0.0, 0.0, 0.0)
@@ -99,10 +106,7 @@ class GarmentAnchor:
 
     def to_string(self) -> str:
         self.validate()
-        return "%s|%s|%.12g,%.12g,%.12g|%s" % (
-            self.piece_id, self.name, self.position[0], self.position[1],
-            self.position[2], self.wrap_direction,
-        )
+        return "%s|%s|%.12g,%.12g,%.12g|%s" % (self.piece_id, self.name, self.position[0], self.position[1], self.position[2], self.wrap_direction)
 
     @classmethod
     def from_string(cls, value: str) -> "GarmentAnchor":
@@ -232,13 +236,13 @@ class FittingScene:
             if volume.name in names:
                 raise ValueError("bounding volume names must be unique")
             names.add(volume.name)
-        seen_anchors = set()
+        anchors = set()
         for anchor in self.garment_anchors:
             anchor.validate()
             key = (anchor.piece_id, anchor.name)
-            if key in seen_anchors:
-                raise ValueError("garment anchor names must be unique per pattern piece")
-            seen_anchors.add(key)
+            if key in anchors:
+                raise ValueError("garment anchor names must be unique per piece")
+            anchors.add(key)
 
     def placement_map(self) -> Dict[str, PiecePlacement]:
         self.validate()
