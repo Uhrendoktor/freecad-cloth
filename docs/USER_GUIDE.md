@@ -38,11 +38,11 @@ In **Cloth Simulation**, create or select a `DrapeTarget`: either the native hum
 
 Use the [arranged cloth turntable](https://github.com/Uhrendoktor/freecad-cloth/raw/f276d1f5f51eb4d3d9ade58aa28c8fffd3fbc7d5/docs/images/generated/cloth-simulation-arranged-turntable.gif) as the visual reference for this pre-simulation state.
 
-The arrange/reset operations prepare fitting state; they are not solver state.
+The arrange/reset operations prepare fitting state; they are not solver state. In the Simulation task panel, **Snap assigned pieces to target** uses the current DrapeTarget collision surface, fails closed for stale/ambiguous targets or excessive movement, and keeps the saved HomePlacements available through **Reset arrangement**.
 
 ## 6. Simulate
 
-Generate the preview/final mesh, choose material and quality, confirm the target is valid, then **Run**. Use **Step** for controlled/debug advancement and **Reset** to recover simulation state.
+Generate the preview/final mesh, choose material and quality, confirm the target is valid, then choose the explicit pinning mode when needed: **Automatic** preserves legacy automatic pins, **Explicit** uses only authored PinSelection values, and **None** creates a solver with zero pins. The canonical mannequin tunic acceptance uses **None** and separately verifies step-0 target clearance. Use **Run** for normal advancement, **Step** for controlled/debug advancement, and **Reset** to recover simulation state.
 
 Inspect the result and diagnostics before export or saving a final document. The draped turntable and tunic render below are stable examples of the published output.
 
