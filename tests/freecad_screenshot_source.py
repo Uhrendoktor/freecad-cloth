@@ -367,8 +367,11 @@ def simulation():
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
-    front_y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
-    back_y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
+    center_y = (shoulder_left.y + shoulder_right.y) / 2.0
+    # Seed each panel near the mannequin centerline, then let the authoritative
+    # DrapeTarget surface determine the final outward clearance.
+    front_y = center_y - 0.25 * body_depth
+    back_y = center_y + 0.25 * body_depth
     rot = App.Rotation(App.Vector(1,0,0), 90.0)
     def make_piece(name, y, neckline_ratio, neckline_drop):
         sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot); piece.Sketch.Placement = piece.Placement; return piece, outline
@@ -383,6 +386,19 @@ def simulation():
     scene.StartHeight = 0.0; scene.AutoPinning = False; scene.PinSelection = []; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
     if bool(getattr(scene, "AutoPinning", True)) or tuple(getattr(scene, "PinSelection", ())):
         raise RuntimeError("visual tunic fixture unexpectedly retained simulation start pins")
+    from freecad_cloth.avatar.FittingCommands import snap_piece_to_drape_target
+    clearance = max(8.0, 0.025 * body_depth)
+    front_snap = snap_piece_to_drape_target(front, target, clearance=clearance, max_translation=240.0)
+    back_snap = snap_piece_to_drape_target(back, target, clearance=clearance, max_translation=240.0)
+    doc.recompute()
+    if int(scene.Steps) != 0:
+        raise RuntimeError("arrangement acceptance must be evaluated before the first simulation step")
+    for piece, snap_result in ((front, front_snap), (back, back_snap)):
+        if float(snap_result["distance_after"]) + 1e-6 < clearance:
+            raise RuntimeError("step-0 arrangement clearance is below the accepted target surface margin")
+        if bool(getattr(scene, "PinSelection", ())):
+            raise RuntimeError("target arrangement unexpectedly introduced explicit solver pins")
+    log("arranged-before-simulation clearance-mm=front:%.3f back:%.3f auto-pinning=%s explicit-pins=%s" % (front_snap["distance_after"], back_snap["distance_after"], bool(getattr(scene, "AutoPinning", True)), tuple(getattr(scene, "PinSelection", ()))))
     proxy = scene.Proxy
     positions = tuple(proxy.backend.positions())
     log("arrangement=avatar-points shoulder-left=(%.1f,%.1f,%.1f) shoulder-right=(%.1f,%.1f,%.1f) hip=(%.1f,%.1f,%.1f)" % (shoulder_left.x,shoulder_left.y,shoulder_left.z,shoulder_right.x,shoulder_right.y,shoulder_right.z,hip_point.x,hip_point.y,hip_point.z))
