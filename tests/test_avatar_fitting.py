@@ -43,6 +43,12 @@ class AvatarFittingTests(unittest.TestCase):
     def test_duplicate_piece_placement_is_rejected(self):
         with self.assertRaises(ValueError): FittingScene(pieces=(PiecePlacement("piece"), PiecePlacement("piece"))).validate()
 
+    def test_target_snap_command_is_registered_with_a_named_authority(self):
+        source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+        self.assertIn("\"ClothFitting_SnapToDrapeTarget\"", source)
+        self.assertIn("exactly one pattern piece", source)
+        self.assertIn("target_status(target)", source)
+
     def test_piece_placement_round_trip(self):
         placement = PiecePlacement("front", (1.5, -2.0, 3.25), 90.0)
         self.assertEqual(PiecePlacement.from_string(placement.to_string()), placement)
@@ -108,9 +114,12 @@ class AvatarFittingTests(unittest.TestCase):
             self.assertEqual(first["distance_after"], second["distance_after"])
 
             reset_arrangement()
-            scene.DrapeTarget = None
+            conflicting = create_drape_target(doc, target_source, "FreeCAD Geometry", 0.5, 0.0)
+            doc.recompute()
             with self.assertRaisesRegex(RuntimeError, "exactly one persistent DrapeTarget"):
                 snap_piece_to_drape_target(piece, None, clearance=5.0, max_translation=20.0)
+            doc.removeObject(conflicting.Name)
+            doc.recompute()
 
             scene.DrapeTarget = target
             target_source.Placement.Base = App.Vector(2.0, 0.0, 0.0)
