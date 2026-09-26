@@ -75,6 +75,9 @@ def test_tissu_collision_surface_abi_preserves_solver_surface_identity():
     assert "return self._collision_surface" in tissu_source
     assert "self.collision_surface = collision_surface" in objects_source
     assert "_collision_surface_for_step(self)" in objects_source
+    assert "coarsen_collision_surface" in tissu_source
+    assert "closed_manifold=self._source_closed_manifold" in tissu_source
+    assert "outward_normal_sign=self._source_outward_normal_sign" in tissu_source
 
 
 def test_mesh_collision_edge_projection_is_idempotent():
