@@ -131,6 +131,9 @@ class SimulationTaskPanel:
 
     def _load_scene_values(self):
         if self.scene is None: return
+        self._ensure_property("PinMode", "App::PropertyEnumeration", "Selection", ["None", "Explicit", "Automatic"], "Explicit")
+        index = self.pin_mode.findText(str(getattr(self.scene, "PinMode", "Explicit")))
+        self.pin_mode.setCurrentIndex(index if index >= 0 else 0)
         for name, type_name, default in (("MaterialPreset", "App::PropertyString", "Cotton"), ("StretchCompliance", "App::PropertyFloat", 0.35), ("BendCompliance", "App::PropertyFloat", 0.20), ("ArealDensity", "App::PropertyFloat", 0.01)):
             self._ensure_property(name, type_name, "Fabric", default)
         index = self.material.findText(str(getattr(self.scene, "MaterialPreset", "Cotton")))
@@ -173,6 +176,7 @@ class SimulationTaskPanel:
             obj = self.scene.Document.getObject(self.target.currentData())
             if obj: self.scene.DrapeTarget = obj
         self.scene.PinMode = self.pin_mode.currentText()
+        self.scene.PinMode = str(self.pin_mode.currentText())
         self.scene.PinSelection = [p.strip() for p in self.pins.text().replace(";", ",").split(",") if p.strip()]
         self.scene.SeamSelection = [p.strip() for p in self.seams.text().replace(",", ";").split(";") if p.strip()]
         self.scene.Document.recompute(); self._refresh_status()
