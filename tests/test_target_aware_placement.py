@@ -122,3 +122,14 @@ def test_target_aware_fitting_command_is_on_fitting_surface():
     assert "target_aware_arrange_selected" in commands
     assert "target_status(target)" in commands
     assert "piece.Placement = original_placement" in commands
+
+
+def test_target_aware_command_icon_and_ci_evidence_contract():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    assert (root / "resources" / "icons" / "ClothFitting_TargetAwareArrange.svg").is_file()
+    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    assert "grep -q 'step-0-target-clearance=' docs/images/generated/gui-progress.log" in workflow
+    assert "grep -q 'first-step-target-clearance=' docs/images/generated/gui-progress.log" in workflow
+    assert "grep -q 'pin-mode=None solver-pins=0' docs/images/generated/gui-progress.log" in workflow
+    assert "cloth-simulation-arranged.png" in workflow
