@@ -590,6 +590,22 @@ def run_acceptance():
 
         _select_objects(scene)
         quality_panel = _open_quality_panel()
+        if not hasattr(quality_panel, "arrange_fit_button"):
+            raise RuntimeError("Simulation quality task panel did not expose the Arrange / Fit bridge")
+        quality_panel.arrange_fit_button.click()
+        _events()
+        fitting_bridge = doc.getObject("FittingScene")
+        if fitting_bridge is None or len(fitting_bridge.PatternPieces) != len(scene.ClothPieces):
+            raise RuntimeError("Arrange / Fit bridge did not hand simulation pieces to the fitting scene")
+        if len(fitting_bridge.HomePlacements) != len(scene.ClothPieces):
+            raise RuntimeError("Arrange / Fit bridge did not persist reversible home placements")
+        _activate("ClothSimulationWorkbench", ["ClothSimulation_Edit"])
+        _select_objects(scene)
+        quality_panel = _open_quality_panel()
+        if "4 pieces assigned" not in quality_panel.fitting_status.text():
+            raise RuntimeError("Arrange / Fit bridge did not expose fitting state after handoff")
+        if not quality_panel.reset_arrangement_button.isEnabled():
+            raise RuntimeError("Arrange / Fit bridge did not expose arrangement recovery after handoff")
         quality_panel.quality.setCurrentText("Fast")
         if not quality_panel.accept():
             raise RuntimeError("public Simulation quality task panel rejected the selected preset")
