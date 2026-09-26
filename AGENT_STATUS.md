@@ -26,7 +26,9 @@ Machine-readable supervisor/release record. Durable guidance lives in docs/DEVEL
 - Tunic visual/simulation audit: passed; evidence covers sewing, arrangement, mannequin drape target, diagnostics, persistence, determinism, and SVG/DXF export.
 - Basic blanket visual: passed with 16 motion frames at 640x480, 100 ms/frame, finite movement, connected mesh, plausible drape, and material presentation.
 - README turntables: all three are 73 frames at 640x480 with uniform 80 ms frame timing; rendered representative frames were inspected from exact canonical artifacts.
-- Publication verification matched the generated turntable GIF bytes to the `docs/screenshots` Git blobs for the final publication audit.
+- Publication verification confirmed the live README GIFs have the required 640x480, 73-frame, uniform-80-ms structure, the blanket GIF is 640x480 with 16 frames at uniform 100 ms, and the published tunic-front PNG matches the final artifact blob.
+- Publisher job #108293224713 successfully populated `docs/screenshots` at publication commit `2a7fd1e`.
+- The published turntable GIF Git blobs do not currently reproduce from the downloaded run #3976/#3979 GIF artifact bytes; exact-byte GIF provenance is therefore unverified. The durable ledger does not assert byte-identical publication.
 - README references the five stable generated assets: cloth-blanket-motion.gif, cloth-avatar-turntable.gif, cloth-simulation-arranged-turntable.gif, cloth-simulation-draped-turntable.gif, cloth-simulation-draped-front.png.
 - Canonical workflow remains fail-closed; no thresholds or validation topology were weakened.
 
@@ -35,6 +37,7 @@ Machine-readable supervisor/release record. Durable guidance lives in docs/DEVEL
 - Run #3966 exposed a deterministic publisher artifact-path bug. PR #1190 corrected only that path.
 - PR #1191 repaired Native Sketcher post-Commit continuation through a bounded Qt event-loop deferral with callback-traceback evidence.
 - Media audit exposed zero-duration README turntable GIFs. PR #1195 moved `-delay 8` before the frame glob and added uniform-delay assertions.
+- Publication provenance reconciliation for #1199: the live published assets pass the existing structural/timing gates and the publisher populated `docs/screenshots` at `2a7fd1e`, but direct content-addressed comparison did not reproduce the published GIF blob SHAs from the canonical run #3976/#3979 downloads. This is an evidence/provenance uncertainty, not a demonstrated user-facing media defect; no publisher checksum-manifest workflow change is made in this bounded repair.
 
 ## Repository hygiene
 - Exactly one GitHub Actions workflow exists.
@@ -48,5 +51,5 @@ Machine-readable supervisor/release record. Durable guidance lives in docs/DEVEL
 - Exact-head validation: complete.
 - Merged-main validation: complete.
 - Artifact and rendered-output inspection: complete.
-- README publication validation: complete.
+- README publication validation: complete for structural/timing properties; exact-byte GIF provenance remains unverified.
 - Final repository/issue/PR reconciliation: complete.

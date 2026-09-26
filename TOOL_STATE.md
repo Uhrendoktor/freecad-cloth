@@ -26,8 +26,12 @@ release:
   benchmark: passed
   publisher: passed
   docs_assets_published: true
+  publisher_job: 108293224713
+  published_docs_screenshots_commit: 2a7fd1e
+  published_gif_provenance: structural_timing_verified_exact_bytes_unverified
   final_issue_1017: closed_completed
   continuation_issue_1098: closed_completed
+  reconciliation_issue_1199: in_progress
   open_prs: 0
   open_issues: 0
 final_gate: exact_release_code_green; merged_main_green; artifacts_inspected; rendered_output_inspected; docs_published; final_repo_audit
