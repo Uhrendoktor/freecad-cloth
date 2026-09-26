@@ -396,6 +396,8 @@ def run_acceptance():
                 "ClothFitting_AddPieces",
                 "ClothFitting_CreateArrangementPoint",
                 "ClothFitting_ApplyArrangementPoint",
+                "ClothFitting_SnapPiecesToTarget",
+                "ClothFitting_ResetArrangement",
                 "ClothFitting_CreateSimulation",
             ],
         )
@@ -569,6 +571,52 @@ def run_acceptance():
             raise RuntimeError("public fitting avatar assignment did not persist the canonical avatar")
         print("drape-target=passed type=Mannequin", flush=True)
 
+        fitting_pieces = tuple(fitting.PatternPieces)
+        before_relative = tuple(
+            (str(a.PieceId), str(b.PieceId),
+             round(float(b.Placement.Base.x - a.Placement.Base.x), 6),
+             round(float(b.Placement.Base.y - a.Placement.Base.y), 6),
+             round(float(b.Placement.Base.z - a.Placement.Base.z), 6))
+            for index, a in enumerate(fitting_pieces)
+            for b in fitting_pieces[index + 1:]
+        )
+        home_snapshot = tuple(fitting.HomePlacements)
+        _select_objects(*fitting_pieces, target)
+        Gui.runCommand("ClothFitting_SnapPiecesToTarget", 0)
+        _events()
+        doc.recompute()
+        if str(fitting.FitStatus) != "Target snapped":
+            raise RuntimeError("target-aware fitting command did not persist the snapped state")
+        after_relative = tuple(
+            (str(a.PieceId), str(b.PieceId),
+             round(float(b.Placement.Base.x - a.Placement.Base.x), 6),
+             round(float(b.Placement.Base.y - a.Placement.Base.y), 6),
+             round(float(b.Placement.Base.z - a.Placement.Base.z), 6))
+            for index, a in enumerate(fitting_pieces)
+            for b in fitting_pieces[index + 1:]
+        )
+        if after_relative != before_relative:
+            raise RuntimeError("target snap changed relative PatternPiece transforms")
+        from freecad_cloth.avatar.FittingCommands import _piece_world_samples, _world_target_surface
+        from freecad_cloth.avatar.TargetPlacement import minimum_signed_clearance
+        target_surface = _world_target_surface(target)
+        clearances = {
+            str(piece.PieceId): minimum_signed_clearance(_piece_world_samples(piece), target_surface).minimum_signed_clearance
+            for piece in fitting.PatternPieces
+        }
+        required_clearance = max(2.0, float(getattr(target, "CollisionThickness", 0.0)))
+        if any(value + 1e-6 < required_clearance for value in clearances.values()):
+            raise RuntimeError("target-aware fitting did not prove step-0 clearance: %r" % clearances)
+        if tuple(fitting.HomePlacements) != home_snapshot:
+            raise RuntimeError("target-aware fitting changed HomePlacements")
+        print("target-placement=passed pieces=%d min-clearance-mm=%.3f" % (len(clearances), min(clearances.values())), flush=True)
+
+        _select_objects(*fitting_pieces, target)
+        Gui.runCommand("ClothFitting_ResetArrangement", 0)
+        _events()
+        doc.recompute()
+        if tuple(fitting.HomePlacements) != home_snapshot or str(fitting.FitStatus) != "Arrangement reset":
+            raise RuntimeError("Reset Arrangement did not preserve home state")
         _select_objects(fitting)
         Gui.runCommand("ClothFitting_CreateSimulation", 0)
         _events()
