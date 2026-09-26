@@ -205,6 +205,54 @@ jobs:
           docker cp "$PWD/." "$CID:/workspace/"
           docker start -a "$CID"
 
+      - name: Run native mesh containment research
+        run: |
+          set -euo pipefail
+          rm -rf artifacts
+          mkdir -p artifacts
+          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g             -e DISPLAY=:99             -e XDG_RUNTIME_DIR=/tmp/runtime-cloth             -e PYTHONPATH=/workspace             -e QT_X11_NO_MITSHM=1             -e QT_QPA_PLATFORM=xcb             -e LIBGL_ALWAYS_SOFTWARE=1             -e TINI_SUBREAPER=1             -w /tmp             "$FREECAD_IMAGE" bash -lc 'sleep 3600')"
+          cleanup() {
+            set +e
+            docker rm -f "$CID" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          docker cp "$PWD/." "$CID:/workspace/"
+          docker start "$CID" >/dev/null
+          docker exec "$CID" bash -lc '
+            set -euo pipefail
+            mkdir -p "$XDG_RUNTIME_DIR"
+            Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/mesh-containment-xvfb.log 2>&1 & XVFB_PID=$!
+            trap "kill $XVFB_PID 2>/dev/null || true" EXIT
+            for i in $(seq 1 20); do
+              xdpyinfo -display :99 >/dev/null 2>&1 && break
+              sleep 0.25
+            done
+            xdpyinfo -display :99 >/dev/null 2>&1
+            timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_mesh_containment_research.py
+          '
+          docker cp "$CID:/workspace/artifacts/mesh-containment.json" artifacts/mesh-containment.json
+          test -s artifacts/mesh-containment.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          data = json.loads(Path("artifacts/mesh-containment.json").read_text(encoding="utf-8"))
+          assert data["freecad_version"] == "1.1.0", data
+          assert data["foraminate"]["return_type"] == "dict", data
+          assert data["benchmark"]["queries"] == 1022 * 90, data
+          print(
+              "mesh-containment=passed version=%s solver_triangles=%d solver_isSolid=%s "
+              "elapsed_s=%.6f budget_60s=%s"
+              % (
+                  data["freecad_version"],
+                  data["solver"]["triangles"],
+                  data["solver"]["isSolid"],
+                  data["benchmark"]["elapsed_s"],
+                  data["benchmark"]["budget_60s"],
+              )
+          )
+          PY
+
   gui-sewing-creation:
     name: Sewing staged creation smoke
     needs: [local_runner_readiness]
