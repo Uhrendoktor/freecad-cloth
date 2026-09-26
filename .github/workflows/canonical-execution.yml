@@ -208,17 +208,22 @@ jobs:
         run: |
           set -euo pipefail
           CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g \
-            -e QT_X11_NO_MITSHM=1 -e PYTHONPATH=/workspace -e QT_QPA_PLATFORM=offscreen -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -w /workspace "$FREECAD_IMAGE" bash -lc \
-              '/opt/freecad/AppRun /workspace/tests/freecad_mesh_point_parity_probe.py')"
+            -e QT_X11_NO_MITSHM=1 -e PYTHONPATH=/workspace -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              mkdir -p /tmp/runtime-cloth
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              trap "kill $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              DISPLAY=:99 XDG_RUNTIME_DIR=/tmp/runtime-cloth timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_mesh_point_parity_probe.py
+            ')"
           cleanup() {
             set +e
             docker rm -f "$CID" >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
           docker cp "$PWD/." "$CID:/workspace/"
-          docker start -a "$CID"
-
           docker start -a "$CID"
 
   gui-sewing-creation:
