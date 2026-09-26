@@ -412,7 +412,6 @@ jobs:
           grep -q 'pinning-mode=none solver-pins=0' docs/images/generated/gui-progress.log
           test -s docs/images/generated/cloth-simulation-arranged.png
           test -s docs/images/generated/cloth-simulation-draped.png
-          test -s docs/images/generated/cloth-simulation-draped.png
           test -s docs/images/generated/cloth-simulation-draped-front.png
           test -s docs/images/generated/cloth-simulation-draped-rear.png
           test -s docs/images/generated/cloth-simulation-draped-left.png
