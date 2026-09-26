@@ -154,3 +154,10 @@ def test_tunic_audit_replaces_the_complete_15_step_batch_block():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "anchor + '\\n        simulation_panel.step(batch); doc.recompute(); events()\\n'" in source
     assert "preview_probe + '\\n' + timed_anchor" in source
+
+
+def test_tunic_step_zero_clearance_gate_is_preserved_while_fixture_starts_outside_target():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "clearance = max(8.0, 0.025 * body_depth)" in audit
+    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance'" in audit
+    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance'" in audit
