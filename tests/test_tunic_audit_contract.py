@@ -47,34 +47,23 @@ def test_canonical_tunic_uses_validated_authored_mapping():
 
 
 def test_canonical_tunic_source_rewrite_compiles():
-    import ast
-    audit_path = ROOT / "tests" / "freecad_tunic_audit.py"
-    audit_source = audit_path.read_text(encoding="utf-8")
-    module = ast.parse(audit_source, filename=str(audit_path))
-    replacements = None
-    for node in module.body:
-        if isinstance(node, ast.Assign) and any(
-            isinstance(target, ast.Name) and target.id == "replacements"
-            for target in node.targets
-        ):
-            replacements = ast.literal_eval(node.value)
-            break
-    assert replacements is not None
-    seam_keys = [key for key in replacements if "for edge_a, edge_b, seam_id" in key]
-    assert seam_keys == [
-        '    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):\n'
-        '        seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
-        '        add_seam(doc, seam)\n'
-        '        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)\n'
-        '        seam_records.append((seam_obj, front, back))'
-    ]
-    source_path = ROOT / "tests" / "freecad_screenshot_source.py"
-    source = source_path.read_text(encoding="utf-8")
-    for old, new in replacements.items():
-        assert old in source
-        source = source.replace(old, new, 1)
-    compile(source, str(source_path), "exec")
+    import subprocess
+    import sys
 
+    audit_path = ROOT / "tests" / "freecad_tunic_audit.py"
+    result = subprocess.run(
+        [sys.executable, str(audit_path), "--syntax-check"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, (
+        "generated tunic source syntax gate failed\n"
+        "stdout:\n%s\n"
+        "stderr:\n%s"
+        % (result.stdout, result.stderr)
+    )
+    assert "tunic-audit-source-syntax=passed" in result.stdout
 
 def test_canonical_tunic_authoritative_gate_is_fail_closed():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
@@ -113,7 +102,7 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
     assert "ParticleDistance = 32.0" in source
-    assert "SolverIterations = 1" in source
+    assert "SolverIterations = 2" in source
     assert "SolverSubsteps = 1" in source
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
@@ -169,3 +158,18 @@ def test_canonical_tunic_fixture_matches_validated_orientation():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert 'front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)' in audit
     assert 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0;' in audit
+
+if __name__ == "__main__":
+    test_canonical_tunic_uses_independent_front_back_semantic_edge_ids()
+    test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins()
+    test_canonical_tunic_uses_validated_authored_mapping()
+    test_canonical_tunic_source_rewrite_compiles()
+    test_canonical_tunic_authoritative_gate_is_fail_closed()
+    test_simulation_proxy_serializes_only_rebuildable_metadata()
+    test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit()
+    test_tissu_collision_cap_is_derived_without_mutating_authoritative_surface()
+    test_tissu_backend_keeps_authoritative_mesh_separate_from_solver_surface()
+    test_tunic_step_zero_clearance_gate_is_preserved_and_fixture_starts_outside_target()
+    test_tunic_seam_mapping_uses_opposite_shoulder_edges()
+    test_canonical_tunic_fixture_matches_validated_orientation()
+    print("tunic-audit-contract=passed")
