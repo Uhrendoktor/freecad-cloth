@@ -385,17 +385,60 @@ def simulation():
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
     rot = App.Rotation(App.Vector(1,0,0), 90.0)
-    def target_relative_piece_placement(side):
+    def arrangement_seed_placement(side):
         if side == "front":
             y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
         elif side == "back":
             y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
         else:
-            raise ValueError("tunic target-relative side must be front or back")
+            raise ValueError("tunic arrangement side must be front or back")
         return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
     def make_piece(name, side, neckline_ratio, neckline_drop):
-        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(side); piece.Sketch.Placement = piece.Placement; return piece, outline
-    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
+        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop)
+        doc.recompute()
+        piece = _adopt_sketch(sketch, name, 10.0, 0.0)
+        piece.Label = name
+        piece.Placement = arrangement_seed_placement(side)
+        piece.Sketch.Placement = piece.Placement
+        return piece, outline
+    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10)
+    back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
+    from freecad_cloth.avatar.FittingCommands import create_fitting_scene, add_selected_pattern_pieces
+    fitting = create_fitting_scene()
+    fitting.DrapeTarget = target
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(front)
+    Gui.Selection.addSelection(back)
+    add_selected_pattern_pieces()
+    home_before_snap = tuple(fitting.HomePlacements)
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(front)
+    Gui.Selection.addSelection(back)
+    Gui.Selection.addSelection(target)
+    if "ClothFitting_SnapPiecesToTarget" not in Gui.listCommands():
+        raise RuntimeError("target-aware fitting command is not registered")
+    Gui.runCommand("ClothFitting_SnapPiecesToTarget", 0)
+    events()
+    doc.recompute()
+    if fitting.DrapeTarget is not target or str(fitting.FitStatus) != "Snapped to target":
+        raise RuntimeError("target-aware tunic fitting command did not persist the snapped state")
+    if tuple(fitting.HomePlacements) != home_before_snap:
+        raise RuntimeError("target-aware tunic fitting changed HomePlacements")
+    fitting_target_surface = collision_surface(
+        target_source,
+        float(getattr(target, "CollisionDeflection", 1.0)),
+        float(getattr(target, "CollisionThickness", 0.0)),
+    )
+    from freecad_cloth.avatar.FittingCommands import _world_vertices, _surface_anchor
+    min_signed_clearance = None
+    for piece in (front, back):
+        for vertex in _world_vertices(piece):
+            surface_point, surface_normal = _surface_anchor(fitting_target_surface, vertex)
+            signed = sum((float(vertex[i]) - float(surface_point[i])) * float(surface_normal[i]) for i in range(3))
+            min_signed_clearance = signed if min_signed_clearance is None else min(min_signed_clearance, signed)
+    if min_signed_clearance is None or float(min_signed_clearance) < 2.0:
+        raise RuntimeError("target-aware tunic fixture did not prove positive step-0 target clearance: %.3f mm" % float(min_signed_clearance or 0.0))
+    log("target-aware-fitting=passed command=ClothFitting_SnapPiecesToTarget min-signed-clearance-mm=%.3f reset-home-count=%d" % (float(min_signed_clearance), len(home_before_snap)))
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
     for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
