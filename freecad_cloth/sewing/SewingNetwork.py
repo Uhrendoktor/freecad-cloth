@@ -249,6 +249,11 @@ class SewingNetworkProxy:
             obj.CorrespondenceRecovery = report.recovery
         if hasattr(obj, "CorrespondenceSeverity"):
             obj.CorrespondenceSeverity = report.severity
+        # Network recompute is also a common document-reload path. Keep the
+        # linked canonical seams visually consistent there as well.
+        from freecad_cloth.sewing.SewingView import apply_seam_colors
+        document = getattr(obj, "Document", None)
+        apply_seam_colors(getattr(document, "Objects", ()) if document is not None else ())
 
 
 def add_sewing_network(doc, seams, relationship_id, name="SewingNetwork"):
