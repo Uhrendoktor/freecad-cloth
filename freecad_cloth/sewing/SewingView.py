@@ -16,16 +16,33 @@ def seam_color_map(seam_ids):
     return result
 
 
+def _presentation_seam_id(obj):
+    """Return the canonical seam identity for any user-facing seam surface."""
+    direct = str(getattr(obj, "SeamId", "")).strip()
+    if direct:
+        return direct
+    if str(getattr(obj, "SewingType", "")).strip() == "SewingOperation":
+        seam = getattr(obj, "Seam", None)
+        linked = str(getattr(seam, "SeamId", "")).strip() if seam is not None else ""
+        if linked:
+            return linked
+    return ""
+
+
 def apply_seam_colors(objects):
-    """Apply one deterministic line color to each canonical seam object."""
-    seam_objects = [
-        obj for obj in objects
-        if str(getattr(obj, "SeamId", "")).strip()
-    ]
-    colors = seam_color_map(getattr(obj, "SeamId", "") for obj in seam_objects)
-    for obj in seam_objects:
+    """Apply one deterministic line color to every user-facing seam surface."""
+    presentations = []
+    seam_ids = []
+    for obj in objects:
+        seam_id = _presentation_seam_id(obj)
+        if not seam_id:
+            continue
+        presentations.append((obj, seam_id))
+        seam_ids.append(seam_id)
+    colors = seam_color_map(seam_ids)
+    for obj, seam_id in presentations:
         view = getattr(obj, "ViewObject", None)
-        color = colors.get(str(getattr(obj, "SeamId", "")))
+        color = colors.get(seam_id)
         if view is not None and color is not None:
             view.LineColor = color
     return colors
