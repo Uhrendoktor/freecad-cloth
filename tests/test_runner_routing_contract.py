@@ -95,3 +95,10 @@ def test_hosted_fallback_preserves_main_publication():
     assert "inputs.fallback_source_run != ''" in publish
     assert "refs/heads/main" in publish
     assert "inputs.pull_request_number != ''" in publish
+
+
+def test_broker_dispatches_immutable_pr_head_sha_and_checkout_avoids_ephemeral_merge_ref():
+    source = WORKFLOW.read_text(encoding="utf-8")
+    assert 'pull_request_sha="${{ github.event.pull_request.head.sha }}"' in source
+    assert "inputs.pull_request_sha" in source
+    assert "refs/pull/{0}/merge" not in source
