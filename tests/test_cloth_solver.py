@@ -104,7 +104,6 @@ def test_tissu_signed_collision_guard_math_and_env_gate():
 def test_tissu_signed_collision_bvh_preserves_authored_outward_winding():
     import numpy as np
 
-    from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
     from freecad_cloth.simulation.TissuBackend import (
         _build_signed_collision_bvh,
         _nearest_signed_collision,
@@ -112,23 +111,11 @@ def test_tissu_signed_collision_bvh_preserves_authored_outward_winding():
         _to_tissu_position,
     )
 
-    vertices = (
-        (-10, -10, -10), (10, -10, -10), (10, 10, -10), (-10, 10, -10),
-        (-10, -10, 10), (10, -10, 10), (10, 10, 10), (-10, 10, 10),
-    )
-    outward = (
-        (0, 2, 1), (0, 3, 2),
-        (4, 5, 6), (4, 6, 7),
-        (0, 1, 5), (0, 5, 4),
-        (3, 6, 2), (3, 7, 6),
-        (0, 4, 7), (0, 7, 3),
-        (1, 2, 6), (1, 6, 5),
-    )
-    surface = surface_from_triangles(vertices, outward, thickness=1.0)
+    surface = _cube_collision_surface(thickness=1.0)
     bvh = _build_signed_collision_bvh(surface)
     assert bvh is not None
 
-    triangle_centroids = np.asarray(bvh["triangles"]).mean(axis=1)
+    triangle_centroids = np.asarray(bvh["triangles"], dtype=np.float64).mean(axis=1)
     signed_outward = np.einsum("ij,ij->i", triangle_centroids, bvh["normals"])
     assert np.all(signed_outward > 0.0)
 
@@ -160,7 +147,6 @@ def test_tissu_signed_collision_bvh_preserves_authored_outward_winding():
         normal_outside,
         0.002,
     ) is None
-
 
 def test_tissu_collision_surface_abi_preserves_solver_surface_identity():
     from pathlib import Path
