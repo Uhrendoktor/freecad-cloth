@@ -62,7 +62,12 @@ def test_group_fit_contract_preserves_authored_spacing_and_uses_one_shared_trans
     assert "scene.HomePlacements" in body
     assert "scene.PiecePlacements = list(persisted_before)" in body
     assert "piece.Placement = original" in body
-    assert body.count("minimum_signed_clearance(") >= 2
+    assert body.count("minimum_signed_clearance(") == 1
+    assert "sample_cache = {" in body
+    assert "sample_cache[piece] = tuple(" in body
+    loop_start = body.index("for _iteration in range(16):")
+    loop_end = body.index("final_reports = [", loop_start)
+    assert "minimum_signed_clearance(" not in body[loop_start:loop_end]
     assert "PatternSimulationAdapter" in source
     assert "PatternMesh" in source
     assert "shared rigid" in body.lower()
