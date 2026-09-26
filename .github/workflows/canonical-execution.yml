@@ -515,7 +515,15 @@ jobs:
               for i in $(seq 1 12); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
               timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py
-              timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_realtime_benchmark.py
+              mkdir -p /workspace/artifacts/freecad-realtime
+              echo "realtime-wrapper-start=$(date -u +%Y-%m-%dT%H:%M:%SZ)" > /workspace/artifacts/freecad-realtime/launcher.log
+              python3 -m py_compile /workspace/tests/freecad_realtime_benchmark.py >> /workspace/artifacts/freecad-realtime/launcher.log 2>&1
+              set +e
+              timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_realtime_benchmark.py > /workspace/artifacts/freecad-realtime/freecad.log 2>&1
+              realtime_status=$?
+              set -e
+              echo "realtime-wrapper-exit=$realtime_status timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> /workspace/artifacts/freecad-realtime/launcher.log
+              exit "$realtime_status"
             '
       - name: Restore workspace from Docker volume
         if: ${{ always() }}
