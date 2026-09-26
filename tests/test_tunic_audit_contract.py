@@ -26,6 +26,7 @@ def test_canonical_tunic_starts_arranged_and_unpinned():
     assert "scene.PinSelection = []" in source
     assert "authored_shoulder_pins" not in source
     assert 'pin-map auto=false explicit=[]' in source
+    assert 'os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"' in source
     assert 'collision-mode=%s' in source
 
 
