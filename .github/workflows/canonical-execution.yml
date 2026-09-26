@@ -88,6 +88,8 @@ jobs:
                 tests/test_simulation_quality.py \
                 tests/test_simulation_quality_runtime.py \
                 tests/test_avatar_fitting.py \
+                tests/test_target_placement.py \
+                tests/test_drape_target_placement_contract.py \
                 tests/test_avatar_shoulder_pose.py \
                 tests/test_avatar_hierarchical_pose.py \
                 tests/test_humanoid_mesh.py \
