@@ -31,6 +31,18 @@ def apply_seam_colors(objects):
     return colors
 
 
+def refresh_seam_colors(document):
+    """Refresh seam presentation metadata for an active FreeCAD document.
+
+    SeamId and semantic edge references remain authoritative for identity and
+    correspondence. This helper only restores deterministic viewport colors,
+    making the presentation contract independent of which Cloth workbench is active.
+    """
+    if document is None:
+        return {}
+    return apply_seam_colors(getattr(document, "Objects", ()))
+
+
 def pattern_pieces_for_2d(objects):
     """Return pattern pieces participating in the sewing 2D focus.
 
