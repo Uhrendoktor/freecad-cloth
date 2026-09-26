@@ -52,32 +52,32 @@ def test_apply_seam_colors_marks_each_seam_pair():
     assert first.ViewObject.LineColor != second.ViewObject.LineColor
 
 
-def test_show_2d_does_not_select_seams_over_their_colors():
+def test_show_2d_preserves_selected_semantic_seams():
     seam = SimpleNamespace(SeamId="seam-1", ViewObject=SimpleNamespace(LineColor=None))
     piece = SimpleNamespace(PatternType="PatternPiece")
 
     class Selection:
         added = []
         cleared = 0
+        current = [seam]
+
+        @classmethod
+        def getSelection(cls): return list(cls.current)
 
         @classmethod
         def clearSelection(cls):
             cls.cleared += 1
+            cls.current = []
 
         @classmethod
         def addSelection(cls, obj):
             cls.added.append(obj)
+            cls.current.append(obj)
 
     class View:
-        def __init__(self):
-            self.top = 0
-            self.fit = 0
-
-        def viewTop(self):
-            self.top += 1
-
-        def fitAll(self):
-            self.fit += 1
+        def __init__(self): self.top = 0; self.fit = 0
+        def viewTop(self): self.top += 1
+        def fitAll(self): self.fit += 1
 
     view = View()
     active = SimpleNamespace(Document=SimpleNamespace(Objects=[piece, seam]), activeView=lambda: view)
@@ -87,16 +87,26 @@ def test_show_2d_does_not_select_seams_over_their_colors():
     try:
         show_sewing_2d()
     finally:
-        if previous_gui is None:
-            sys.modules.pop("FreeCADGui", None)
-        else:
-            sys.modules["FreeCADGui"] = previous_gui
+        if previous_gui is None: sys.modules.pop("FreeCADGui", None)
+        else: sys.modules["FreeCADGui"] = previous_gui
 
     assert Selection.cleared == 1
-    assert Selection.added == []
+    assert Selection.added == [seam]
     assert view.top == 1
     assert view.fit == 1
 
+
+def test_sewing_task_panel_refresh_accepts_user_facing_status_messages():
+    source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "sewing" / "SewingGui.py").read_text(encoding="utf-8")
+    assert "def _refresh(self, message=None):" in source
+    assert "self.status.setText(message or str(self.obj.Status))" in source
+
+
+def test_sewing_operation_reapplies_semantic_seam_color_on_recompute():
+    source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "sewing" / "SewingObjects.py").read_text(encoding="utf-8")
+    assert '"SeamId", "Sewing"' in source
+    assert 'obj.SeamId = str(getattr(seam, "SeamId", "") or "")' in source
+    assert 'seam_color_map([seam_id]).get(seam_id)' in source
 
 def test_seam_visual_markers_are_deterministic_and_directional():
     a = ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (20.0, 0.0, 0.0))
