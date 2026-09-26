@@ -138,6 +138,7 @@ def _build_signed_collision_bvh(surface, leaf_size=8):
     if not len(triangle_points):
         return None
 
+    # Triangle centroids are spatial partition keys only; authored winding is authoritative.
     centroids = triangle_points.mean(axis=1)
     normals /= lengths[:, None]
     bounds_min = triangle_points.min(axis=1)
