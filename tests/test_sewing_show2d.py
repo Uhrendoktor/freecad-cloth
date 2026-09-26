@@ -135,3 +135,19 @@ if __name__ == "__main__":
     test_apply_seam_colors_marks_each_seam_pair()
     test_show_2d_does_not_select_seams_over_their_colors()
     print("sewing Show 2D tests passed")
+
+
+def test_seam_color_is_anchored_to_semantic_id_not_document_set_order():
+    keep = "seam-keep"
+    baseline = seam_color_map([keep]) [keep] if False else seam_color_map([keep])[keep]
+    extended = seam_color_map(["seam-added", keep, "seam-third"])[keep]
+    reordered = seam_color_map(["seam-third", keep, "seam-added"])[keep]
+    removed = seam_color_map([keep, "seam-added"])[keep]
+    assert baseline == extended == reordered == removed
+
+
+def test_workbench_activation_refreshes_seam_presentation_without_second_palette():
+    base = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "gui.py").read_text(encoding="utf-8")
+    simulation = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "simulation" / "workbench.py").read_text(encoding="utf-8")
+    assert "from freecad_cloth.sewing.SewingView import apply_seam_colors" in base
+    assert "super().Activated()" in simulation
