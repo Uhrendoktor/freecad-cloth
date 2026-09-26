@@ -54,6 +54,9 @@ assert '"Proportions"' in avatar_gui
 assert '"Pose"' in avatar_gui
 assert '"Display"' in avatar_gui
 assert "Apply & Rebuild" in avatar_gui
+assert "Arrangement & target placement" in avatar_gui
+assert "Snap to Drape Target" in avatar_gui
+assert "ClothAvatarSnapToDrapeTarget" in avatar_gui
 assert "Gui.Control.showDialog(panel)" in avatar_gui
 assert "ClothPattern_CreatePieceTask" in commands
 assert "ClothPattern_EditPiece" in commands
@@ -145,7 +148,7 @@ def test_workbench_base_exposes_legacy_registration_aliases():
 
 
 def test_workbench_icons_are_present_and_valid_svg_resources():
-    for name in ("ClothPattern.svg", "ClothSimulation.svg", "ClothSewing.svg"):
+    for name in ("ClothPattern.svg", "ClothSimulation.svg", "ClothSewing.svg", "ClothFitting_SnapToDrapeTarget.svg"):
         path = ROOT / "resources" / "icons" / name
         assert path.is_file(), path
         content = path.read_text(encoding="utf-8").lstrip()
