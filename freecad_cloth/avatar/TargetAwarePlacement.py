@@ -16,6 +16,16 @@ class SurfaceHit:
 
 
 @dataclass(frozen=True)
+class MinimumClearanceSample:
+    """Actual worst full-surface sample and the authoritative target normal."""
+    point: tuple
+    target_point: tuple
+    normal: tuple
+    clearance: float
+    triangle_index: int
+
+
+@dataclass(frozen=True)
 class RigidDelta:
     translation: tuple
     rotation_z: float
@@ -184,18 +194,37 @@ def apply_rigid_delta(points, delta):
     )
 
 
-def minimum_surface_clearance(surface, points):
+def minimum_surface_clearance_sample(surface, points):
+    """Return the actual worst sampled garment point and its target normal."""
     minimum = None
     for point in points:
-        hits = sorted(_candidate_hits(surface, point), key=lambda h: (round(h.distance, 12), h.triangle_index))
+        hits = sorted(
+            _candidate_hits(surface, point),
+            key=lambda h: (round(h.distance, 12), h.triangle_index),
+        )
         if not hits:
             raise TargetPlacementError("target surface has no usable triangle")
         best = hits[0]
         signed = _dot(_sub(point, best.point), best.normal)
-        minimum = signed if minimum is None else min(minimum, signed)
+        candidate = MinimumClearanceSample(
+            point=tuple(float(v) for v in point),
+            target_point=tuple(float(v) for v in best.point),
+            normal=tuple(float(v) for v in best.normal),
+            clearance=float(signed),
+            triangle_index=int(best.triangle_index),
+        )
+        if minimum is None or (candidate.clearance, candidate.triangle_index) < (
+            minimum.clearance,
+            minimum.triangle_index,
+        ):
+            minimum = candidate
     if minimum is None:
         raise TargetPlacementError("clearance cannot be measured without garment points")
-    return float(minimum)
+    return minimum
+
+
+def minimum_surface_clearance(surface, points):
+    return float(minimum_surface_clearance_sample(surface, points))
 
 
 def assert_minimum_surface_clearance(surface, points, required_clearance):
