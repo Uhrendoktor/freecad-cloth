@@ -102,7 +102,7 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
     if not simulated_positions: raise RuntimeError("Tissu backend returned no simulated particle positions")
     stitch_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
     if not stitch_pairs_by_seam: raise RuntimeError("authoritative seam check has no exact solver stitch provenance")
-    seam_gaps = []
+    seam_gaps_by_id = {}
     for seam, piece_a, piece_b in seam_records:
         expected_a = f"{piece_a.PieceId}:edge:"
         expected_b = f"{piece_b.PieceId}:edge:"
@@ -113,13 +113,17 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
         pairs = tuple(stitch_pairs_by_seam.get(str(seam.SeamId), ()))
         if not pairs:
             raise RuntimeError("authoritative seam check cannot resolve exact solver pairs for %s" % seam.SeamId)
+        gaps = []
         for ga, gb in pairs:
             a = simulated_positions[int(ga)]
             b = simulated_positions[int(gb)]
-            seam_gaps.append(((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2)**0.5)
-    max_seam_gap = max(seam_gaps) if seam_gaps else 0.0
+            gaps.append(((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2)**0.5)
+        seam_gaps_by_id[str(seam.SeamId)] = max(gaps) if gaps else 0.0
+    max_seam_gap = max(seam_gaps_by_id.values()) if seam_gaps_by_id else 0.0
+    for seam_id, seam_gap in sorted(seam_gaps_by_id.items()):
+        log("authoritative-seam-gap-mm seam=%s max=%.2f" % (seam_id, seam_gap))
     if max_seam_gap > 35.0: raise RuntimeError("authoritative tunic seams did not converge: max endpoint gap %.1f mm" % max_seam_gap)
-    log("authoritative-seam-max-gap-mm=%.2f seam-ids=%s" % (max_seam_gap, tuple(str(seam.SeamId) for seam, _a, _b in seam_records)))
+    log("authoritative-seam-max-gap-mm=%.2f seam-ids=%s" % (max_seam_gap, tuple(seam_gaps_by_id)))
 """
 
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", 1)
