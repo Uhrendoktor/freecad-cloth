@@ -1,5 +1,5 @@
 name: Canonical execution
-run-name: Canonical execution · ${{ github.event_name }}${{ github.event_name == 'workflow_dispatch' && inputs.pull_request_number != '' && format(' · PR #{0}', inputs.pull_request_number) || '' }}${{ github.event_name == 'workflow_dispatch' && inputs.fallback_source_run != '' && format(' · source #{0}', inputs.fallback_source_run) || '' }}
+run-name: Canonical execution
 
 on:
   push:
