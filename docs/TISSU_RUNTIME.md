@@ -10,6 +10,7 @@ The canonical provenance is:
 - patch: `tools/tissu-mesh-collider-inside.patch`
 
 The patch is built as a wheel in GitHub Actions and passed into the Tissu-backed tunic, turntable, and benchmark jobs as an explicit artifact. The wheel is not copied into the repository or treated as an opaque permanent binary; its build provenance is uploaded beside it.
+The build helper normalizes its output directory to an absolute host path before Docker bind mounting, so default and explicit output directories behave identically in CI.
 
 To reproduce the exact runtime locally on a Docker-capable machine:
 
