@@ -4,6 +4,7 @@ The backend is intentionally FreeCAD-independent. Positions are millimetres,
 velocities millimetres/second and gravity millimetres/second².
 """
 from dataclasses import dataclass
+from itertools import combinations
 from math import floor, sqrt
 
 
@@ -83,6 +84,71 @@ def _normalize(v):
     if length < 1e-12:
         return None
     return tuple(c / length for c in v)
+
+
+def _solve_linear_system(matrix, rhs):
+    """Solve a tiny dense linear system with partial pivoting."""
+    size = len(rhs)
+    rows = [list(matrix[i]) + [float(rhs[i])] for i in range(size)]
+    for column in range(size):
+        pivot = max(range(column, size), key=lambda row: abs(rows[row][column]))
+        if abs(rows[pivot][column]) < 1e-10:
+            return None
+        if pivot != column:
+            rows[column], rows[pivot] = rows[pivot], rows[column]
+        pivot_value = rows[column][column]
+        for row in range(column + 1, size):
+            factor = rows[row][column] / pivot_value
+            if factor == 0.0:
+                continue
+            for col in range(column, size + 1):
+                rows[row][col] -= factor * rows[column][col]
+    solution = [0.0] * size
+    for row in range(size - 1, -1, -1):
+        remainder = rows[row][-1] - sum(rows[row][col] * solution[col] for col in range(row + 1, size))
+        solution[row] = remainder / rows[row][row]
+    return tuple(solution)
+
+
+def _minimal_mesh_correction(position, constraints):
+    """Return the minimum-norm correction satisfying local mesh half-spaces."""
+    best = None
+    count = len(constraints)
+    for active_size in range(1, min(3, count) + 1):
+        for active in combinations(range(count), active_size):
+            normals = [constraints[index][0] for index in active]
+            rhs = [
+                constraints[index][1] - sum(normals[row_component][component] * position[component]
+                                            for component in range(3))
+                for row_component in range(active_size)
+            ]
+            matrix = [
+                [
+                    sum(normals[row][component] * normals[column][component] for component in range(3))
+                    for column in range(active_size)
+                ]
+                for row in range(active_size)
+            ]
+            multipliers = _solve_linear_system(matrix, rhs)
+            if multipliers is None or any(value < -1e-9 for value in multipliers):
+                continue
+            multipliers = tuple(0.0 if abs(value) < 1e-9 else value for value in multipliers)
+            correction = [0.0, 0.0, 0.0]
+            for multiplier, normal in zip(multipliers, normals):
+                for component in range(3):
+                    correction[component] += multiplier * normal[component]
+            if any(
+                sum(normal[component] * (position[component] + correction[component]) for component in range(3))
+                < target - 1e-8
+                for normal, target in constraints
+            ):
+                continue
+            norm_sq = sum(value * value for value in correction)
+            tie_key = tuple(active)
+            candidate = (norm_sq, tie_key, tuple(correction))
+            if best is None or candidate[:2] < best[:2]:
+                best = candidate
+    return None if best is None else best[2]
 
 
 class ClothSystem:
@@ -219,22 +285,56 @@ class ClothSystem:
                         candidate_ids.update(grid.get((ix, iy, iz), ()))
             if not candidate_ids:
                 continue
-            best = None
-            for triangle_index in candidate_ids:
+
+            candidates = []
+            nearest_surface_distance_sq = None
+            for triangle_index in sorted(candidate_ids):
                 a, b, c, normal = prepared[triangle_index]
                 closest = _closest_point_triangle(position, a, b, c)
                 delta = tuple(position[i] - closest[i] for i in range(3))
+                distance_sq = sum(d * d for d in delta)
+                if nearest_surface_distance_sq is None or distance_sq < nearest_surface_distance_sq:
+                    nearest_surface_distance_sq = distance_sq
                 signed = sum(delta[i] * normal[i] for i in range(3))
-                if signed < thickness:
-                    distance_sq = sum(d * d for d in delta)
-                    if best is None or distance_sq < best[0]:
-                        best = (distance_sq, normal, signed)
-            if best is not None:
-                _, normal, signed = best
                 correction = thickness - signed
-                p.x += normal[0] * correction
-                p.y += normal[1] * correction
-                p.z += normal[2] * correction
+                if correction <= 0.0:
+                    continue
+                plane_offset = sum(normal[i] * a[i] for i in range(3))
+                candidates.append(
+                    (distance_sq, triangle_index, normal, plane_offset + thickness, correction)
+                )
+            if not candidates:
+                continue
+
+            candidates.sort(key=lambda item: (item[0], item[1]))
+            best = candidates[0]
+            local_distance_limit = nearest_surface_distance_sq + max(thickness * thickness, 1e-12)
+            local_correction_limit = best[4] + max(thickness, 1e-6)
+            local = []
+            for candidate in candidates:
+                if candidate[0] > local_distance_limit or candidate[4] > local_correction_limit:
+                    continue
+                _, triangle_index, normal, target, _ = candidate
+                duplicate = False
+                for existing_index, existing in enumerate(local):
+                    if sum(normal[i] * existing[0][i] for i in range(3)) > 1.0 - 1e-10:
+                        if target > existing[1]:
+                            local[existing_index] = (normal, target, triangle_index)
+                        duplicate = True
+                        break
+                if not duplicate:
+                    local.append((normal, target, triangle_index))
+            local.sort(key=lambda item: item[2])
+            local = local[:8]
+
+            constraints = [(normal, target) for normal, target, _ in local]
+            correction_vector = _minimal_mesh_correction(position, constraints)
+            if correction_vector is None:
+                _, normal, _, _, correction = best
+                correction_vector = tuple(normal[i] * correction for i in range(3))
+            p.x += correction_vector[0]
+            p.y += correction_vector[1]
+            p.z += correction_vector[2]
 
     def _collide_sphere(self, cx, cy, cz, radius):
         for p in self.particles:

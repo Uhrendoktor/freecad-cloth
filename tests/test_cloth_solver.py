@@ -32,3 +32,44 @@ def test_sewing_reduces_gap():
     system.step(dt=1/60, iterations=10, gravity=(0, 0, 0))
     after = abs(system.particles[2].x - system.particles[offset].x)
     assert after < before
+
+
+def _cube_collision_surface(thickness=1.0):
+    from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
+
+    vertices = (
+        (-10, -10, -10), (10, -10, -10), (10, 10, -10), (-10, 10, -10),
+        (-10, -10, 10), (10, -10, 10), (10, 10, 10), (-10, 10, 10),
+    )
+    triangles = (
+        (0, 1, 2), (0, 2, 3),
+        (4, 6, 5), (4, 7, 6),
+        (0, 4, 5), (0, 5, 1),
+        (3, 2, 6), (3, 6, 7),
+        (0, 3, 7), (0, 7, 4),
+        (1, 5, 6), (1, 6, 2),
+    )
+    return surface_from_triangles(vertices, triangles, thickness=thickness)
+
+
+def test_mesh_collision_corner_projects_against_both_local_faces():
+    surface = _cube_collision_surface()
+    particle = Particle(10.5, 10.5, 0.0)
+    system = ClothSystem([particle])
+
+    system._collide_surface(surface)
+
+    assert particle.position() == (11.0, 11.0, 0.0)
+
+
+def test_mesh_collision_edge_projection_is_idempotent():
+    surface = _cube_collision_surface()
+    particle = Particle(10.5, 0.0, 10.5)
+    system = ClothSystem([particle])
+
+    system._collide_surface(surface)
+    projected = particle.position()
+    system._collide_surface(surface)
+
+    assert projected == (11.0, 0.0, 11.0)
+    assert particle.position() == projected
