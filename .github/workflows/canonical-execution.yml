@@ -88,6 +88,13 @@ jobs:
             IFS=$'\t' read -r run_id event <<< "$row"
             if [ "$run_id" = "$GITHUB_RUN_ID" ]; then continue; fi
             if grep -Fxq "$run_id" "$protected"; then continue; fi
+            # Explicit workflow_dispatch runs include automatic hosted-fallback mode;
+            # keep them out of the push-time stale-run sweep. Concurrency already
+            # collapses duplicate workflow_dispatch runs on the same ref.
+            if [ "$event" = "workflow_dispatch" ]; then
+              echo "Preserving active workflow_dispatch run $run_id"
+              continue
+            fi
             echo "Canceling remaining active canonical run $run_id (event=$event)"
             gh api --method POST "repos/$REPO/actions/runs/$run_id/cancel" >/dev/null
           done
