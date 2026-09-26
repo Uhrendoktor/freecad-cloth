@@ -343,6 +343,8 @@ def simulation():
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
     from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
     from freecad_cloth.simulation.DrapeTarget import collision_surface, refresh_drape_target, target_status
+    from freecad_cloth.avatar.FittingCommands import add_selected_pattern_pieces, arrange_pieces_against_target, create_fitting_scene, reset_arrangement, _piece_placement_record
+    from freecad_cloth.avatar.AvatarFitting import PiecePlacement
     from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternObjects import add_seam
     doc = App.newDocument("ClothSimulationVisualRegression"); scene = create_quality_simulation_scene(doc); avatar = getattr(scene.AvatarProxy, "SourceObject", None); target = scene.DrapeTarget
@@ -384,18 +386,15 @@ def simulation():
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
-    rot = App.Rotation(App.Vector(1,0,0), 90.0)
-    def target_relative_piece_placement(side):
-        if side == "front":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
-        elif side == "back":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
-        else:
-            raise ValueError("tunic target-relative side must be front or back")
-        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
-    def make_piece(name, side, neckline_ratio, neckline_drop):
-        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(side); piece.Sketch.Placement = piece.Placement; return piece, outline
-    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
+    home_front_x = x_mid - hem_width - max(100.0, 0.15 * body_depth)
+    home_back_x = x_mid + max(100.0, 0.15 * body_depth)
+    def make_piece(name, home_x, neckline_ratio, neckline_drop):
+        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute()
+        piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name
+        piece.Placement = App.Placement(App.Vector(home_x, 0.0, 0.0), App.Rotation())
+        piece.Sketch.Placement = piece.Placement
+        return piece, outline
+    front, front_outline = make_piece("VisualTunicFront", home_front_x, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", home_back_x, 0.64, 0.07)
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
     for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
@@ -403,7 +402,26 @@ def simulation():
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
-    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.PinMode = "None"; scene.PinSelection = []; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
+    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.PinMode = "None"; scene.PinSelection = []; refresh_drape_target(target); doc.recompute()
+    fitting = create_fitting_scene()
+    fitting.AvatarProxy = scene.AvatarProxy
+    fitting.DrapeTarget = target
+    fitting.TargetPlacementClearance = clearance
+    Gui.Selection.clearSelection(); Gui.Selection.addSelection(front); Gui.Selection.addSelection(back)
+    add_selected_pattern_pieces()
+    side_map = {str(front.PieceId): "front", str(back.PieceId): "back"}
+    arrange_pieces_against_target(fitting, target, (front, back), side_map)
+    home_records = {str(piece.PieceId): str(value) for piece, value in zip((front, back), fitting.HomePlacements)}
+    reset_arrangement()
+    for piece in (front, back):
+        expected = PiecePlacement.from_string(home_records[str(piece.PieceId)])
+        actual = _piece_placement_record(piece)
+        if actual != expected:
+            raise RuntimeError("HomePlacement reset changed exact placement for %s" % piece.PieceId)
+    log("home-reset=passed exact-axis-angle=true")
+    arrange_pieces_against_target(fitting, target, (front, back), side_map)
+    scene.ClothPieces = [front, back]
+    doc.recompute()
     status = target_status(target)
     if str(status.get("state", "")) != "ready":
         raise RuntimeError("canonical tunic DrapeTarget is not current: %s" % status.get("message", status))
@@ -459,7 +477,16 @@ def simulation():
         raise RuntimeError("visual fixture does not contain a real humanoid mesh")
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
     simulation_panel = SimulationQualityTaskPanel(scene); task_dock = show_task(simulation_panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset")); view = Gui.activeDocument().activeView(); view.setCameraType("Orthographic"); view.viewFront(); view.fitAll(); events(); task_dock.hide(); events(); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical sewn tunic generated from native Sketcher pattern sources on production mannequin"); task_dock.show(); task_dock.raise_(); events()
-    for batch in (15,15,15,15,15,15):
+    zero_gravity_before = tuple(tuple(float(v) for v in point) for point in proxy.backend.positions())
+    scene.GravityZ = 0.0
+    simulation_panel.step(1); doc.recompute(); events()
+    zero_gravity_after = tuple(tuple(float(v) for v in point) for point in proxy.backend.positions())
+    zero_gravity_displacement = max((((a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2) ** 0.5) for a,b in zip(zero_gravity_before, zero_gravity_after)) if zero_gravity_before else 0.0
+    if not bool(scene.FiniteState):
+        raise RuntimeError("zero-gravity start-state step produced a non-finite solver state")
+    log("zero-gravity-step=passed steps=%d max-displacement-mm=%.3f" % (int(scene.Steps), zero_gravity_displacement))
+    view.viewFront(); view.fitAll(); events(); save("cloth-simulation-zero-gravity-step.png", "Tunic zero-gravity step", "one zero-gravity solver step after target-aware non-penetrating arrangement")
+    simulation_panel.reset(); scene.GravityZ = -9810.0; doc.recompute(); events()    for batch in (15,15,15,15,15,15):
         simulation_panel.step(batch); doc.recompute(); events()
     if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
         raise RuntimeError("simulation did not reach a finite 90-step state")
