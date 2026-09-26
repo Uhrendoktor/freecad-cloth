@@ -97,3 +97,12 @@ def test_simulation_proxy_serializes_only_rebuildable_metadata():
     assert proxy.source_signature is None
     assert proxy.last_steps == 0
     assert proxy.collision_surface is None
+
+if __name__ == "__main__":
+    test_canonical_tunic_uses_independent_front_back_semantic_edge_ids()
+    test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins()
+    test_canonical_tunic_uses_validated_authored_mapping()
+    test_canonical_tunic_source_rewrite_compiles()
+    test_canonical_tunic_authoritative_gate_is_fail_closed()
+    test_simulation_proxy_serializes_only_rebuildable_metadata()
+    print("tunic-audit-contract=passed")
