@@ -136,7 +136,7 @@ def save_png(view, path, state):
     capture_index = 0
     while time.monotonic() < deadline:
         capture_index += 1
-        temp_path = path + ".capture-%d.tmp" % capture_index
+        temp_path = path + ".capture-%d.tmp.png" % capture_index
         try:
             if hasattr(view, "redraw"):
                 view.redraw()
