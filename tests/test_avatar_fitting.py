@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from freecad_cloth.avatar.AvatarFitting import ArrangementPoint, BodyMeasurements, BoundingVolume, FittingScene, PiecePlacement
+from freecad_cloth.avatar.AvatarFitting import ArrangementPoint, BodyMeasurements, BoundingVolume, FittingScene, GarmentAnchor, PiecePlacement
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose, generate_mesh
 from freecad_cloth.avatar.AvatarService import AvatarService
 from freecad_cloth.avatar.AvatarArrangement import ARRANGEMENT_POINT_NAMES, arrangement_point_map, arrangement_points_from_landmarks
@@ -45,6 +45,18 @@ class AvatarFittingTests(unittest.TestCase):
     def test_piece_placement_round_trip(self):
         placement = PiecePlacement("front", (1.5, -2.0, 3.25), 90.0)
         self.assertEqual(PiecePlacement.from_string(placement.to_string()), placement)
+
+    def test_piece_placement_preserves_legacy_and_axis(self):
+        legacy = "front|1.5,-2,3.25|90"
+        self.assertEqual(PiecePlacement.from_string(legacy), PiecePlacement("front", (1.5, -2.0, 3.25), 90.0))
+        placement = PiecePlacement("front", (1.5, -2.0, 3.25), 90.0, (1.0, 0.0, 0.0))
+        self.assertEqual(PiecePlacement.from_string(placement.to_string()), placement)
+
+    def test_garment_anchor_round_trip_and_scene_persistence(self):
+        anchor = GarmentAnchor("front", "shoulder", (10.0, 20.0, 0.0), "front")
+        self.assertEqual(GarmentAnchor.from_string(anchor.to_string()), anchor)
+        scene = FittingScene(garment_anchors=(anchor,))
+        self.assertEqual(FittingScene.from_json(scene.to_json()), scene)
 
     def test_arrangement_point_round_trip_and_mirror(self):
         point = ArrangementPoint("shoulder-left", 120, 80, 15, "left", 10, "shoulders")
