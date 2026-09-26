@@ -204,17 +204,20 @@ class AvatarFittingTests(unittest.TestCase):
         except ModuleNotFoundError:
             self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
         from freecad_cloth.avatar.FittingCommands import create_fitting_scene
+        from freecad_cloth.simulation.DrapeTarget import create_drape_target
         doc = App.newDocument("FittingSceneMigration")
         try:
+            source = doc.addObject("Part::Feature", "TargetSource")
+            import Part
+            source.Shape = Part.makeBox(10.0, 10.0, 10.0)
+            target = create_drape_target(doc, source, "FreeCAD Geometry", 1.0, 0.0)
             scene = create_fitting_scene()
-            target = doc.getObject("DrapeTarget")
-            if "DrapeTarget" in scene.PropertiesList:
-                scene.removeProperty("DrapeTarget")
+            scene.DrapeTarget = target
+            scene.removeProperty("DrapeTarget")
             doc.recompute()
             restored = create_fitting_scene()
             self.assertIn("DrapeTarget", restored.PropertiesList)
-            if target is not None:
-                self.assertIs(restored.DrapeTarget, target)
+            self.assertIs(restored.DrapeTarget, target)
         finally:
             if doc.Name in App.listDocuments():
                 App.closeDocument(doc.Name)
