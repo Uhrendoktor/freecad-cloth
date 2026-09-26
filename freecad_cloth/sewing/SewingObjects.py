@@ -329,6 +329,15 @@ def add_sewing_operation(doc, seam, piece_a, piece_b, name="SewingOperation"):
     obj.setEditorMode("CorrespondenceSeverity", 1)
     obj.Proxy = SewingOperationProxy()
     obj.Proxy.execute(obj)
+    # A SewingOperation is a presentation of exactly one canonical seam.
+    # Reuse the seam palette so focused/operation views never fall back to a
+    # generic line colour.
+    seam_id = str(getattr(seam, "SeamId", "")).strip()
+    if seam_id:
+        from freecad_cloth.sewing.SewingView import seam_color_map
+        color = seam_color_map([seam_id]).get(seam_id)
+        if color is not None:
+            obj.ViewObject.LineColor = color
     from freecad_cloth.common.GarmentDocument import link_garment_object
     link_garment_object(obj, "SewingOperation", doc)
     return obj
