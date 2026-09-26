@@ -77,7 +77,7 @@ class PiecePlacement:
         if self.rotation_angle is None:
             return base
         axis = ",".join("%.12g" % float(value) for value in self.rotation_axis)
-        return "%s|%s|%.12g|%.12g" % (self.piece_id, ",".join("%.12g" % float(v) for v in self.position), self.rotation_z, self.rotation_angle) if False else "%s|%.12g,%.12g,%.12g|%.12g|%s|%.12g" % (
+        return "%s|%.12g,%.12g,%.12g|%.12g|%s|%.12g" % (
             self.piece_id, self.position[0], self.position[1], self.position[2], self.rotation_z, axis, self.rotation_angle
         )
 
