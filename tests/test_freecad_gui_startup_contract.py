@@ -103,6 +103,6 @@ if __name__ == "__main__":
     test_visual_example_prepares_gui_and_explicit_workbench_registration()
     test_sketcher_acceptance_uses_explicit_initgui_startup()
     test_canonical_gui_jobs_use_deterministic_startup_boundaries()
-    test_canonical_validation_is_commit_scoped_and_not_cancellable()
+    test_canonical_concurrency_cancels_stale_pr_runs()
     test_canonical_readme_turntable_launches_from_neutral_cwd()
     test_readme_turntable_scripts_import_freecad_gui_before_repository_path_injection()
