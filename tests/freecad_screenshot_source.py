@@ -321,10 +321,29 @@ def pattern_and_sewing():
         raise RuntimeError("pattern fixture produced empty geometry from native sketches")
     activate("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D", "ClothPattern_CreateFromSketch"])
     panel = PatternPieceTaskPanel(front); show_task(panel, "Pattern Workbench", ("Piece name", "Width", "Height", "Seam allowance", "Grainline angle")); Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll(); events(); save("cloth-pattern-design.png", "Pattern Workbench", "native Sketcher tunic pattern adopted into Cloth PatternPiece"); close_task()
-    seam = add_seam(doc, Seam(str(front.PieceId), 7, str(back.PieceId), 7, id="FrontBack", alignment="endpoints", stitch_group="MainSeam")); doc.recompute()
+    seams = [
+        add_seam(doc, Seam(str(front.PieceId), 7, str(back.PieceId), 7, id="FrontBackLeft", alignment="endpoints", stitch_group="MainSeam")),
+        add_seam(doc, Seam(str(front.PieceId), 2, str(back.PieceId), 2, id="FrontBackShoulder", alignment="uniform", stitch_group="MainSeam")),
+        add_seam(doc, Seam(str(front.PieceId), 5, str(back.PieceId), 5, id="FrontBackNeckline", alignment="uniform", stitch_group="MainSeam")),
+    ]
+    doc.recompute()
+    from freecad_cloth.sewing.SewingView import refresh_seam_colors, seam_color_map
+    refresh_seam_colors(doc)
+    visible_colors = [tuple(getattr(seam.ViewObject, "LineColor", ())) for seam in seams]
+    expected_colors = seam_color_map([str(seam.SeamId) for seam in seams])
+    if len({tuple(value) for value in visible_colors}) != 3 or any(
+        tuple(seam.ViewObject.LineColor) != tuple(expected_colors[str(seam.SeamId)]) for seam in seams
+    ):
+        raise RuntimeError("seam color lifecycle did not render three unique SeamId colors")
+    seam = seams[0]
     sewing = create_sewing_operation(); doc.recompute()
-    if str(seam.Status) != "Valid" or seam.Shape.isNull() or str(sewing.Status) != "Valid" or sewing.Shape.isNull():
-        raise RuntimeError("sewing fixture is invalid")
+    if any(str(getattr(item, "Status", "")) != "Valid" or item.Shape.isNull() for item in seams):
+        raise RuntimeError("one or more canonical seams are invalid")
+    if str(sewing.Status) != "Valid" or sewing.Shape.isNull():
+        raise RuntimeError("sewing operation is invalid")
+    if tuple(sewing.ViewObject.LineColor) != tuple(expected_colors[str(sewing.SeamId)]):
+        raise RuntimeError("SewingOperation did not inherit the canonical SeamId color")
+    log("seam-colors=three-unique-and-operation-inherited")
     activate("ClothSewingWorkbench", "Cloth Sewing", ["ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_Validate"])
     panel = SewingTaskPanel(sewing); show_task(panel, "Sewing Workbench", ("Seam", "Alignment", "Validation tolerance", "Stitch samples", "Status")); Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll(); events(); save("cloth-sewing.png", "Sewing Workbench", "native tunic Sketcher boundary and semantic seam"); close_task(); App.closeDocument(doc.Name)
 
