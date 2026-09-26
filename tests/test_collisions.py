@@ -114,3 +114,7 @@ def test_tissu_authored_contact_response_preserves_motion_direction():
     )
     reversed_containment = AuthoredSurfaceContainment(reversed_surface)
     assert reversed_containment.nearest_surface_point((9.0, 5.0, 5.0))[1] == (1.0, 0.0, 0.0)
+
+
+if __name__ == "__main__":
+    test_tissu_authored_contact_response_preserves_motion_direction()
