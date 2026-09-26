@@ -12,7 +12,7 @@ LABEL org.opencontainers.image.description="FreeCAD 1.1.0 conda-forge CI image u
 RUN apt-get update -qq \
     && apt-get install -y --no-install-recommends xvfb openbox x11-utils build-essential cmake git libomp-dev \
     && rm -rf /var/lib/apt/lists/* \
-    && mamba create -y -n freecad -c conda-forge python=3.12 pip cmake=3.31.6 freecad=1.1.0 cmake>=3.29,<4 \
+    && mamba create -y -n freecad -c conda-forge python=3.12 pip cmake=3.31.6 freecad=1.1.0 \
     && /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir pytissu==1.1.0 triangle==20250106 pytest \
     && rm -rf /tmp/Tissu \
     && git clone --no-checkout --filter=blob:none https://github.com/evanrock520-ciencias/Tissu.git /tmp/Tissu \
@@ -20,6 +20,7 @@ RUN apt-get update -qq \
     && git fetch --depth 1 origin "$TISSU_SOURCE_COMMIT" \
     && git checkout --detach "$TISSU_SOURCE_COMMIT" \
     && test "$(git rev-parse HEAD)" = "$TISSU_SOURCE_COMMIT" \
+    && /opt/conda/envs/freecad/bin/cmake --version \
     && /opt/conda/envs/freecad/bin/python /tmp/apply-tissu-contact-fix.py \
     && /opt/conda/envs/freecad/bin/cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBENCHMARK_ENABLE_WERROR=OFF -DTISSU_BUILD_VIEWER=OFF -DTISSU_ENABLE_TRACY=OFF -DCMAKE_C_FLAGS=-Wno-c2y-extensions \
     && /opt/conda/envs/freecad/bin/cmake --build build --config Release --target _cloth_sdk_core unit_tests --parallel 2 \
