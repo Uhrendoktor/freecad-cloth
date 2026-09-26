@@ -43,6 +43,7 @@ permissions:
 jobs:
   local_runner_readiness:
     name: Selected runner readiness
+    if: ${{ github.event_name != 'schedule' }}
     # This is the sole runner-start sentinel. Every substantive workload depends on it.
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 2
@@ -70,7 +71,7 @@ jobs:
           compression-level: 1
   runner_watchdog:
     name: Local runner watchdog with hosted fallback
-    if: ${{ github.event_name != 'pull_request' && inputs.runner_mode != 'hosted' }}
+    if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && inputs.runner_mode != 'hosted' }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
@@ -931,9 +932,8 @@ jobs:
           git push origin "HEAD:$branch"
   maintenance-cleanup:
     name: Repository retention cleanup
-    needs: [local_runner_readiness]
     if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * *' }}
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ubuntu-latest
     permissions:
       actions: write
       contents: write
