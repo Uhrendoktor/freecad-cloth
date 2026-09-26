@@ -866,13 +866,6 @@ jobs:
               xdpyinfo -display :99 >/dev/null 2>&1
               timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth /workspace/tests/freecad_visual_examples.py
             '
-          test -s docs/images/generated/blanket-example/blanket-visual.log
-          grep -q 'blanket-visual-acceptance=passed' docs/images/generated/blanket-example/blanket-visual.log
-          grep -q 'mesh=passed' docs/images/generated/blanket-example/blanket-visual.log
-          grep -q 'movement=passed' docs/images/generated/blanket-example/blanket-visual.log
-          grep -q 'material-presentation=passed viewport=true' docs/images/generated/blanket-example/blanket-visual.log
-          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'checkpoint-*.png' | wc -l)" -eq 5
-          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'motion-*.png' | wc -l)" -eq 16
       - name: Restore workspace from Docker volume
         if: ${{ always() }}
         run: |
@@ -883,6 +876,18 @@ jobs:
           docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
           docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
           docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Validate blanket visual evidence
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          test -s docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'blanket-visual-acceptance=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'mesh=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'movement=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'material-presentation=passed viewport=true' docs/images/generated/blanket-example/blanket-visual.log
+          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'checkpoint-*.png' | wc -l)" -eq 5
+          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'motion-*.png' | wc -l)" -eq 16
 
       - name: Build blanket motion GIF
         run: |
