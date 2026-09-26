@@ -226,6 +226,23 @@ class AvatarFittingTests(unittest.TestCase):
             if doc.Name in App.listDocuments():
                 App.closeDocument(doc.Name)
 
+    def test_fitting_scene_persists_drape_target_link(self):
+        try:
+            import FreeCAD as App
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
+        from freecad_cloth.avatar.FittingCommands import create_fitting_scene
+        doc = App.newDocument("TargetFitTargetPersistence")
+        try:
+            scene = create_fitting_scene()
+            target = doc.addObject("Part::Feature", "DrapeTargetPersistenceProbe")
+            scene.DrapeTarget = target
+            self.assertIs(scene.DrapeTarget, target)
+        finally:
+            if doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
+
+
     def test_freecad_mannequin_document_round_trip_and_rebuild(self):
         try:
             import FreeCAD as App
