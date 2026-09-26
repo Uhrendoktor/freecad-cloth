@@ -14,12 +14,38 @@ from freecad_cloth.simulation.ClothSolver import ClothSystem
 _MM = 1000.0
 _TISSU_SUBSTEPS_DEFAULT = 1
 _TISSU_COLLISION_TRIANGLES_DEFAULT = 0
+_TISSU_COLLISION_SUPPLEMENT_ENVELOPE_DEFAULT = False
+_TISSU_COLLISION_ENVELOPE_SAMPLES_DEFAULT = 5
 
 
 def _tissu_substeps():
     value = int(os.environ.get("CLOTH_TISSU_SUBSTEPS", str(_TISSU_SUBSTEPS_DEFAULT)))
     if value < 1:
         raise ValueError("CLOTH_TISSU_SUBSTEPS must be >= 1")
+    return value
+
+
+def _tissu_collision_supplement_envelope():
+    raw = os.environ.get(
+        "CLOTH_TISSU_COLLISION_SUPPLEMENT_ENVELOPE",
+        "1" if _TISSU_COLLISION_SUPPLEMENT_ENVELOPE_DEFAULT else "0",
+    ).strip().lower()
+    if raw not in {"0", "1", "false", "true", "off", "on"}:
+        raise ValueError("CLOTH_TISSU_COLLISION_SUPPLEMENT_ENVELOPE must be boolean")
+    return raw in {"1", "true", "on"}
+
+
+def _tissu_collision_envelope_samples():
+    raw = os.environ.get(
+        "CLOTH_TISSU_COLLISION_ENVELOPE_SAMPLES",
+        str(_TISSU_COLLISION_ENVELOPE_SAMPLES_DEFAULT),
+    ).strip()
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError("CLOTH_TISSU_COLLISION_ENVELOPE_SAMPLES must be an odd integer >= 3") from exc
+    if value < 3 or value % 2 == 0 or value > 25:
+        raise ValueError("CLOTH_TISSU_COLLISION_ENVELOPE_SAMPLES must be an odd integer in [3, 25]")
     return value
 
 
@@ -68,7 +94,8 @@ def _collision_envelope(surface):
     radius = max(120.0, min(240.0, 0.245 * width, 0.70 * depth))
     bottom = min_z + 0.38 * height
     top = min_z + 0.76 * height
-    samples = (0.0, 0.25, 0.50, 0.75, 1.0)
+    sample_count = _tissu_collision_envelope_samples()
+    samples = tuple(index / float(sample_count - 1) for index in range(sample_count))
     return tuple(
         (
             (center_x, center_y, bottom + (top - bottom) * t),
@@ -132,21 +159,36 @@ class TissuBackend(ClothSimulationBackend):
     def time(self):
         return self._time
 
-    def _add_collision(self):
+    def _add_collision_spheres(self, surface, prefix="drape-torso"):
         import numpy as np
+
+        if surface is None:
+            return 0
+        envelope = _collision_envelope(surface)
+        for index, (center, radius_mm) in enumerate(envelope):
+            self._sim.add_sphere(
+                f"{prefix}-{index}",
+                np.asarray(_to_tissu_position(center), dtype=np.float64),
+                float(radius_mm) / _MM,
+                friction=0.5,
+            )
+        return len(envelope)
+
+    def _add_collision(self):
         if self._collision_surface is None:
             return
         if self._collision_mode == "torso-envelope":
-            for index, (center, radius_mm) in enumerate(_collision_envelope(self._collision_surface)):
-                self._sim.add_sphere(
-                    f"drape-torso-{index}",
-                    np.asarray(_to_tissu_position(center), dtype=np.float64),
-                    float(radius_mm) / _MM,
-                    friction=0.5,
-                )
+            self._add_collision_spheres(self._source_collision_surface or self._collision_surface)
             return
         vtx, idx = _to_tissu_mesh(self._collision_surface)
         self._sim.add_mesh_from_arrays("drape-target", vtx, idx, friction=0.5)
+        if _tissu_collision_supplement_envelope():
+            count = self._add_collision_spheres(self._source_collision_surface or self._collision_surface)
+            print(
+                "cloth-tissu-collision supplemental_envelope=True spheres=%d samples=%d"
+                % (count, _tissu_collision_envelope_samples()),
+                flush=True,
+            )
 
     def _build(self, Simulation):
         import numpy as np
