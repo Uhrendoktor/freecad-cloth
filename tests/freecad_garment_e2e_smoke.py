@@ -569,12 +569,14 @@ def run_acceptance():
             raise RuntimeError("public fitting avatar assignment did not persist the canonical avatar")
         print("drape-target=passed type=Mannequin", flush=True)
 
-        fitting_pieces = tuple(fitting.PatternPieces)        _select_objects(*fitting_pieces, target)
+        fitting_pieces = tuple(fitting.PatternPieces)
+        _select_objects(*fitting_pieces, target)
         Gui.runCommand("ClothFitting_SnapPiecesToTarget", 0)
         _events()
         doc.recompute()
         if str(fitting.FitStatus) != "Target snapped":
-            raise RuntimeError("target-aware fitting command did not persist the snapped state")        from freecad_cloth.avatar.FittingCommands import _piece_world_samples, _world_target_surface
+            raise RuntimeError("target-aware fitting command did not persist the snapped state")
+        from freecad_cloth.avatar.FittingCommands import _piece_world_samples, _world_target_surface
         from freecad_cloth.avatar.TargetPlacement import minimum_signed_clearance
         target_surface = _world_target_surface(target)
         clearances = {
