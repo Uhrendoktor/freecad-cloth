@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_DIR="${1:-$ROOT/artifacts/pytissu-runtime}"
+OUT_DIR="$(cd "$(dirname "$OUT_DIR")" && pwd)/$(basename "$OUT_DIR")"
 IMAGE="${FREECAD_IMAGE:-ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3}"
 TISSU_COMMIT="c28a3c7504ddc782bef844ab5bd4cd0bde14b628"
 
