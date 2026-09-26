@@ -273,6 +273,29 @@ def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=No
     with open(METRICS, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, sort_keys=True)
 
+    fatal_records = []
+    for record in records:
+        diagnostics = tuple(record.get("diagnostics", ()) or ())
+        classification = str(record.get("failure_classification", ""))
+        if (
+            "detached-candidate" in diagnostics
+            or "edge-on-candidate" in diagnostics
+            or "collapsed-candidate" in diagnostics
+            or classification in {"detached-candidate", "edge-on-candidate"}
+        ):
+            fatal_records.append(
+                "%s classification=%s diagnostics=%s"
+                % (record["panel"], classification, diagnostics)
+            )
+    if fatal_records:
+        log("visual-diagnostics-fail-closed=%s" % json.dumps(fatal_records, sort_keys=True))
+        raise RuntimeError(
+            "canonical tunic visual geometry is not structurally plausible; "
+            "metrics persisted to %s: %s"
+            % (METRICS, "; ".join(fatal_records))
+        )
+
+
 def _make_tunic_sketch(doc, name, panel_width, garment_height, hem_width, neckline_ratio, neckline_drop=0.08):
     import Part, Sketcher
     sketch = doc.addObject("Sketcher::SketchObject", name + "Sketch")
