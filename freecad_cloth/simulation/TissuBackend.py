@@ -6,6 +6,7 @@ so installations without the optional wheel keep the existing backend usable.
 from copy import deepcopy
 from typing import Iterable, Sequence, Tuple
 import os
+from time import perf_counter
 
 from freecad_cloth.avatar.AvatarCollision import CollisionSurface, coarsen_collision_surface
 from freecad_cloth.simulation.TissuContainment import get_authored_surface_containment
