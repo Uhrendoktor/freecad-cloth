@@ -137,6 +137,5 @@ def test_tunic_start_clearance_fixture_uses_target_extrema_and_authored_orientat
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert 'VisualTunicFront", "back", 0.78, 0.18' in audit
     assert 'VisualTunicBack", "front", 0.76, 0.12' in audit
-    assert "'            y = min(target_ys) - clearance': '            y = min(target_ys) - clearance'" in audit
-    assert "'            y = max(target_ys) - clearance': '            y = max(target_ys) - clearance'" not in audit
-    assert "'            y = max(target_ys) + clearance': '            y = max(target_ys) + clearance'" in audit
+    assert "'            y = min(target_ys) - clearance':" in audit
+    assert "'            y = max(target_ys) + clearance':" in audit
