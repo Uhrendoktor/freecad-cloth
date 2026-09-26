@@ -96,3 +96,12 @@ if __name__ == "__main__":
         if name.startswith("test_") and callable(test):
             test()
     print("cloth solver tests passed")
+
+
+def test_tissu_collision_supplement_envelope_contract():
+    source = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    assert '_TISSU_COLLISION_SUPPLEMENT_ENVELOPE_DEFAULT = False' in source
+    assert 'if self._collision_supplement_envelope:' in source
+    assert 'self._add_collision_spheres(self._source_collision_surface or self._collision_surface)' in source
+    assert 'CLOTH_TISSU_COLLISION_SUPPLEMENT_ENVELOPE: 1' in workflow
