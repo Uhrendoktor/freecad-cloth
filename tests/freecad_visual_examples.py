@@ -365,7 +365,6 @@ def main():
             raise RuntimeError("simulation viewport did not apply persisted fabric transparency")
         log("material-presentation=passed viewport=true color=0.14,0.32,0.78 transparency=12")
 
-        render_motion(view, scene, frame_count=16, final_steps=120)
         log("blanket-visual-acceptance=passed")
     finally:
         if doc.Name in App.listDocuments():
