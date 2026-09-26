@@ -13,22 +13,63 @@ def _fitting_scene(doc):
     )
 
 
+def _target_display_state(info):
+    """Map the canonical DrapeTarget contract to concise UI states."""
+    state = str(info.get("state", "invalid"))
+    if state == "ready":
+        return "ready"
+    if state == "stale":
+        return "stale"
+    return "blocked"
+
+
 def fitting_stage_status(simulation):
-    """Return visible fitting state plus whether Reset arrangement is available."""
+    """Return visible fitting/target state plus whether Reset arrangement is available."""
     if simulation is None:
         return "No simulation scene selected.", False
+
+    target = getattr(simulation, "DrapeTarget", None)
+    target_info = {
+        "state": "missing",
+        "message": "No drape target selected",
+        "stale": True,
+        "reason": "target missing",
+    }
+    try:
+        from freecad_cloth.simulation.DrapeTarget import target_status
+        target_info = target_status(target)
+    except (ImportError, AttributeError, TypeError, ValueError):
+        pass
+
     doc = getattr(simulation, "Document", None)
     fitting = _fitting_scene(doc) if doc is not None else None
+    target_state = _target_display_state(target_info)
+
     if fitting is None:
-        return "Not arranged yet — use Arrange / Fit… to open the fitting stage.", False
+        return (
+            "Arrange / Fit: not started | 0 pieces assigned | target: %s — %s"
+            % (target_state, target_info["message"]),
+            False,
+        )
+
+    fitting_target = getattr(fitting, "DrapeTarget", None)
+    if fitting_target is not None:
+        try:
+            from freecad_cloth.simulation.DrapeTarget import target_status
+            target_info = target_status(fitting_target)
+            target_state = _target_display_state(target_info)
+        except (ImportError, AttributeError, TypeError, ValueError):
+            pass
+
     pieces = len(tuple(getattr(fitting, "PatternPieces", ()) or ()))
     placements = len(tuple(getattr(fitting, "PiecePlacements", ()) or ()))
     points = len(tuple(getattr(fitting, "ArrangementPoints", ()) or ()))
     state = str(getattr(fitting, "FitStatus", "Unassigned"))
     noun = "piece" if pieces == 1 else "pieces"
-    message = "%s | %d %s assigned | %d/%d saved placement(s) | %d arrangement point(s)" % (
-        state, pieces, noun, placements, pieces, points,
-    )
+    message = (
+        "Arrange / Fit: %s | %d %s assigned | %d/%d saved placement(s) | "
+        "%d arrangement point(s) | target: %s — %s"
+    ) % (state, pieces, noun, placements, pieces, points, target_state, target_info["message"])
     return message, bool(tuple(getattr(fitting, "HomePlacements", ()) or ()))
 
 
@@ -50,6 +91,10 @@ def open_arrange_fit_from_simulation(simulation):
         for piece in pieces:
             Gui.Selection.addSelection(piece)
         FittingCommands.add_selected_pattern_pieces()
+        # Re-assert the exact Simulation-owned target after the fitting scene
+        # mutates its persisted piece/placement collections.
+        if target is not None:
+            fitting.DrapeTarget = target
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(fitting)
     if Gui.Control.activeDialog():
