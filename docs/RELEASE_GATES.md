@@ -6,7 +6,7 @@
 
 | Gate | Evidence |
 |---|---|
-| Installation | [INSTALLATION.md](INSTALLATION.md) describes user and developer setup |
+| Installation | [INSTALLATION.md](INSTALLATION.md) describes user and developer setup |\n| Documentation contracts | `tests/test_documentation_contract.py` validates internal docs links, current command IDs/UI labels, runtime prerequisites, stable media references, and capability-boundary wording |
 | User workflow | [WORKBENCH_GUIDE.md](WORKBENCH_GUIDE.md) covers Pattern → Sewing → Arrange → Simulate → Iterate |
 | Example ladder | [EXAMPLES.md](EXAMPLES.md) contains basic and advanced paths |
 | Python quality | canonical non-GUI test set and compileall pass |
