@@ -329,6 +329,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     changed = run("git", "diff", "--name-only")
     changed_paths = tuple(sorted(path.strip() for path in changed.splitlines() if path.strip()))
     expected_paths = (
+        "core/CMakeLists.txt",
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
         "tests/physics/test_mesh_collider.cpp",
