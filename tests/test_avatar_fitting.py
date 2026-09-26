@@ -189,6 +189,68 @@ class AvatarFittingTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             _snap_translation(surface, (20.0, 20.0, 500.0), clearance=2.0, max_translation=100.0)
 
+    def test_target_snap_rejects_ambiguous_surface_before_mutation(self):
+        try:
+            import FreeCAD as App
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
+        from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
+        from freecad_cloth.avatar.FittingCommands import _surface_anchor
+        surface = surface_from_triangles(
+            (
+                (-10.0, -10.0, 0.0), (10.0, -10.0, 0.0), (0.0, 10.0, 0.0),
+                (-10.0, -10.0, 0.0), (0.0, 10.0, 0.0), (10.0, -10.0, 0.0),
+            ),
+            ((0, 1, 2), (3, 4, 5)),
+        )
+        with self.assertRaisesRegex(ValueError, "ambiguous"):
+            _surface_anchor(surface, (0.0, 0.0, 5.0))
+
+    def test_target_snap_rolls_back_piece_sketch_persistence_and_status(self):
+        try:
+            import FreeCAD as App
+            import Part
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
+        from freecad_cloth.avatar.FittingCommands import create_fitting_scene, snap_pieces_to_target
+        from freecad_cloth.simulation.DrapeTarget import create_drape_target
+
+        doc = App.newDocument("PatternTargetSnapRollback")
+        try:
+            target_source = doc.addObject("Part::Feature", "TargetSource")
+            target_source.Shape = Part.makeBox(20.0, 20.0, 20.0)
+            piece = doc.addObject("Part::Feature", "PatternPiece")
+            piece.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
+            piece.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = "rollback-piece"
+            sketch = doc.addObject("Part::Feature", "PatternSketch")
+            sketch.Shape = Part.makePlane(10.0, 10.0)
+            piece.addProperty("App::PropertyLink", "Sketch", "Cloth").Sketch = sketch
+            piece.Shape = Part.makeBox(10.0, 10.0, 1.0)
+            piece.Placement = App.Placement(App.Vector(30.0, 30.0, 30.0), App.Rotation(App.Vector(0, 0, 1), 15.0))
+            sketch.Placement = piece.Placement
+            target = create_drape_target(doc, target_source, "FreeCAD Geometry", 0.5, 0.0)
+            scene = create_fitting_scene()
+            scene.PatternPieces = [piece]
+            scene.PiecePlacements = ["rollback-piece|30,30,30|15"]
+            scene.HomePlacements = ["rollback-piece|30,30,30|15"]
+            scene.FitStatus = "Before"
+            doc.recompute()
+            before_piece = piece.Placement
+            before_sketch = sketch.Placement
+            before_persisted = tuple(scene.PiecePlacements)
+            before_home = tuple(scene.HomePlacements)
+            before_status = scene.FitStatus
+            with self.assertRaisesRegex(ValueError, "inside the target surface|translation"):
+                snap_pieces_to_target([piece], target, clearance=50.0, max_translation=400.0)
+            self.assertEqual(piece.Placement, before_piece)
+            self.assertEqual(sketch.Placement, before_sketch)
+            self.assertEqual(tuple(scene.PiecePlacements), before_persisted)
+            self.assertEqual(tuple(scene.HomePlacements), before_home)
+            self.assertEqual(scene.FitStatus, before_status)
+        finally:
+            if doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
+
     def test_target_snap_command_is_registered_and_fail_closed(self):
         root = Path(__file__).resolve().parents[1]
         source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
