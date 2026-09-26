@@ -209,6 +209,11 @@ def render_motion(view, scene, panel, target_vertices, cube_top_z, out_dir, chec
             final_steps,
         )
     )
+    simulated_duration_s = float(final_steps) * float(scene.TimeStep)
+    log(
+        "blanket-physics-timing timestep_s=%.9f simulated_duration_s=%.3f steps=%d"
+        % (float(scene.TimeStep), simulated_duration_s, int(final_steps))
+    )
     log("motion-frames=passed count=%d final_steps=%d" % (len(motion_steps), final_steps))
     return best_drape, best_drape_clearance, best_drape_step
 
@@ -272,7 +277,7 @@ def main():
         scene.GravityY = 0.0
         scene.GravityZ = -9810.0
         scene.StartHeight = 0.0
-        scene.TimeStep = 1.0 / 480.0
+        scene.TimeStep = 1.0 / 240.0
         # QualitySimulationProxy consumes SolverIterations; the legacy Iterations field is ignored for this runtime path.
         scene.ParticleDistance = max(12.0, float(scene.ParticleDistance))
         scene.SolverIterations = 4
