@@ -411,21 +411,18 @@ def simulation():
     fitting_scene = create_fitting_scene()
     fitting_scene.DrapeTarget = target
     fitting_scene.PatternPieces = [front, back]
-    fitting_scene.PiecePlacements = []
-    fitting_scene.HomePlacements = []
+    placement_records = []
     for piece in (front, back):
         base = piece.Placement.Base
         rotation = piece.Placement.Rotation
-        axis = rotation.Axis
         record = PiecePlacement(
             str(piece.PieceId),
             (float(base.x), float(base.y), float(base.z)),
             float(rotation.Angle),
-            (float(axis.x), float(axis.y), float(axis.z)),
-            float(rotation.Angle),
         )
-        fitting_scene.PiecePlacements.append(record.to_string())
-        fitting_scene.HomePlacements.append(record.to_string())
+        placement_records.append(record.to_string())
+    fitting_scene.PiecePlacements = list(placement_records)
+    fitting_scene.HomePlacements = list(placement_records)
     fitting_scene.FitStatus = "Ready"
     snap_results = tuple(
         snap_piece_to_drape_target(piece, target, clearance=max(8.0, 0.03 * body_depth))
