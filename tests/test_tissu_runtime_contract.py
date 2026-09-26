@@ -21,6 +21,8 @@ def test_pytissu_source_transform_contract_is_pinned_and_reproducible():
     assert "m_closedManifold" in transform
     assert "ctest --test-dir build --output-on-failure" in script
     assert "pytissu-provenance.txt" in script
+    assert "cmake==3.29.6" in script
+    assert "cmake --version | grep -q '3.29.6'" in script
     assert "pytissu-runtime" in workflow
     assert "freecad-1.1.0-py312-r3" in workflow
     assert "No timeout increases" in docs
