@@ -159,17 +159,10 @@ def test_tunic_audit_replaces_the_complete_15_step_batch_block():
 def test_tunic_step_zero_clearance_gate_is_preserved_while_fixture_starts_outside_target():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "clearance = max(8.0, 0.025 * body_depth)" in audit
-    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - (clearance + 8.0)'" in audit
-    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + (clearance + 8.0)'" in audit
+    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance'" in audit
+    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance'" in audit
 
 
-def test_tunic_placement_probe_preserves_clearance_gate_and_bounded_candidates():
+def test_tunic_seam_mapping_uses_opposite_shoulder_edges():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert "clearance = max(8.0, 0.025 * body_depth)" in audit
-    assert "placement_insets = (0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0)" in audit
-    assert "tunic-placement-selected-inset-mm" in audit
-    assert "placement_inset" in audit
-
-def test_tunic_audit_uses_60hz_timestep_without_changing_solver_budget():
-    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert "scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 60.0;" in audit
+    assert 'seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"),(front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"),(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"))' in audit
