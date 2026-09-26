@@ -1073,6 +1073,7 @@ jobs:
     permissions:
       contents: write
       packages: read
+    needs: runner_router
     runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 10
     steps:
