@@ -7,8 +7,7 @@ from freecad_cloth.avatar.TargetAwarePlacement import (
     assert_minimum_surface_clearance,
     require_ready_target_status,
     solve_rigid_z,
-    target_surface_anchor,
-    transform_surface_to_world,
+    target_surface_anchor
 )
 
 
