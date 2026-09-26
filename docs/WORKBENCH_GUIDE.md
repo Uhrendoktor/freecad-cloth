@@ -32,7 +32,7 @@ Create/select a `DrapeTarget`: either the native human mannequin or an ordinary 
 
 ### 4. Simulate
 
-Generate a preview/final mesh, choose material and quality, confirm target validity, then Run. Step is for controlled/debug advancement; Reset recovers simulation state. Pins/stitches and collision settings are persistent inputs. Fabric presentation properties include color, specular response, roughness and transparency and are persisted with the simulation/material state.
+Generate a preview/final mesh, choose material and quality, confirm target validity, then Run. Step is for controlled/debug advancement; Reset recovers simulation state. Pinning is persistent and explicit: **Automatic** preserves the legacy behavior (use `PinSelection` when present, otherwise the existing automatic boundary pins), **Explicit** uses only `PinSelection`, and **None** runs with zero solver pins. Changing the pinning mode or selection participates in the deterministic rebuild signature. Pins/stitches and collision settings are persistent inputs. Fabric presentation properties include color, specular response, roughness and transparency and are persisted with the simulation/material state.
 
 ### 5. Iterate
 
