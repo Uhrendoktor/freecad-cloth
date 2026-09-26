@@ -125,7 +125,17 @@ class ArrangementPoint:
 
     @classmethod
     def from_string(cls, value: str) -> "ArrangementPoint":
-        name, position, wrap, rotation, symmetry = str(value).split("|")
+        parts = str(value).split("|")
+        if len(parts) == 2:
+            # Legacy mannequin documents stored arrangement points as name|x,y,z.
+            name, position = parts
+            wrap = "front"
+            rotation = 0.0
+            symmetry = ""
+        elif len(parts) == 5:
+            name, position, wrap, rotation, symmetry = parts
+        else:
+            raise ValueError("arrangement point requires legacy 2-field or current 5-field serialization")
         coords = tuple(float(v) for v in position.split(","))
         if len(coords) != 3:
             raise ValueError("arrangement point position requires x, y, and offset")
