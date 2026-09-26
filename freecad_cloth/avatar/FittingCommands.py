@@ -284,7 +284,7 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None):
         center = centers[pid]
         side = side_map[pid]
         desired_y = target[2] - clearance if side == "front" else target[3] + clearance
-        delta = (target_cx - group_cx + (center[0] - group_cx), desired_y - center[1], z_anchor - group_cz + (center[2] - group_cz))
+        delta = (target_cx - group_cx, desired_y - center[1], z_anchor - group_cz)
         placement = piece.Placement
         base = placement.Base
         piece.Placement = App.Placement(
