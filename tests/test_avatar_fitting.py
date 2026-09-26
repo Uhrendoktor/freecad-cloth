@@ -275,3 +275,95 @@ class AvatarFittingTests(unittest.TestCase):
 
 
 if __name__ == "__main__": unittest.main()
+
+
+
+class TestTargetAwarePlacementContracts(unittest.TestCase):
+    def test_target_snap_reaches_clearance_and_preserves_rotation(self):
+        try:
+            import FreeCAD as App
+            import Part
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
+        from freecad_cloth.avatar.FittingCommands import create_fitting_scene, snap_pieces_to_drape_target
+        from freecad_cloth.simulation.DrapeTarget import create_drape_target, target_status
+        doc = App.newDocument("FittingSnap")
+        try:
+            source = doc.addObject("Part::Feature", "TargetSource")
+            source.Shape = Part.makeBox(100.0, 100.0, 100.0)
+            target = create_drape_target(doc, source, "FreeCAD Geometry", 0.5, 0.0)
+            scene = create_fitting_scene()
+            scene.DrapeTarget = target
+            piece = doc.addObject("Part::Feature", "PatternPiece")
+            piece.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
+            piece.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = "snap-piece"
+            piece.Shape = Part.makeBox(10.0, 10.0, 1.0)
+            piece.Placement = App.Placement(App.Vector(140.0, 45.0, 50.0), App.Rotation(App.Vector(1, 0, 0), 90.0))
+            scene.PatternPieces = [piece]
+            home = piece.Placement
+            scene.HomePlacements = ["snap-piece|140,45,50|90"]
+            scene.PiecePlacements = list(scene.HomePlacements)
+            doc.recompute()
+            self.assertEqual(target_status(target)["state"], "ready")
+            result = snap_pieces_to_drape_target((piece,), target, clearance=5.0, max_translation=100.0)
+            self.assertEqual(len(result), 1)
+            self.assertGreaterEqual(float(result[0]["distance_after"]) + 1e-6, 5.0)
+            self.assertEqual(piece.Placement.Rotation, home.Rotation)
+            self.assertEqual(tuple(scene.HomePlacements), ("snap-piece|140,45,50|90",))
+        finally:
+            if doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
+
+    def test_target_snap_rolls_back_batch_and_fit_ledger_on_failure(self):
+        try:
+            import FreeCAD as App
+            import Part
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
+        from freecad_cloth.avatar.FittingCommands import create_fitting_scene, snap_pieces_to_drape_target
+        from freecad_cloth.simulation.DrapeTarget import create_drape_target
+        doc = App.newDocument("FittingSnapRollback")
+        try:
+            source = doc.addObject("Part::Feature", "TargetSource")
+            source.Shape = Part.makeBox(100.0, 100.0, 100.0)
+            target = create_drape_target(doc, source, "FreeCAD Geometry", 0.5, 0.0)
+            scene = create_fitting_scene()
+            scene.DrapeTarget = target
+            near = doc.addObject("Part::Feature", "PatternPieceNear")
+            near.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
+            near.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = "near"
+            near.Shape = Part.makeBox(10.0, 10.0, 1.0)
+            near.Placement.Base = App.Vector(140.0, 45.0, 50.0)
+            far = doc.addObject("Part::Feature", "PatternPieceFar")
+            far.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
+            far.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = "far"
+            far.Shape = Part.makeBox(10.0, 10.0, 1.0)
+            far.Placement.Base = App.Vector(500.0, 45.0, 50.0)
+            scene.PatternPieces = [near, far]
+            scene.HomePlacements = []
+            scene.PiecePlacements = []
+            original_near = near.Placement
+            original_far = far.Placement
+            original_status = str(scene.FitStatus)
+            doc.recompute()
+            with self.assertRaisesRegex(RuntimeError, "exceeds"):
+                snap_pieces_to_drape_target((near, far), target, clearance=5.0, max_translation=100.0)
+            self.assertEqual(near.Placement, original_near)
+            self.assertEqual(far.Placement, original_far)
+            self.assertEqual(scene.PiecePlacements, [])
+            self.assertEqual(scene.FitStatus, original_status)
+        finally:
+            if doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
+
+    def test_fitting_scene_persists_target_and_simulation_handoff(self):
+        source = (r"""from freecad_cloth.avatar.FittingCommands import create_fitting_scene
+from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
+""")
+        self.assertIn("create_fitting_scene", source)
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[1]
+        fitting = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+        self.assertIn('App::PropertyLinkGlobal", "DrapeTarget", "Fitting"', fitting)
+        self.assertIn("scene.DrapeTarget = target", fitting)
+        self.assertIn("simulation.DrapeTarget = target", fitting)
