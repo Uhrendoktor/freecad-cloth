@@ -183,6 +183,31 @@ def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision():
     ]
 
 
+def test_pin_mode_controls_implicit_solver_pins():
+    from types import SimpleNamespace
+    from freecad_cloth.simulation.SimulationObjects import _resolve_pin_indices
+    scene = SimpleNamespace(PinSelection=["9", "10"], PinMode="None")
+    assert _resolve_pin_indices(scene, 20, automatic_pins=(1, 2, 3)) == ()
+    scene.PinMode = "Explicit"
+    assert _resolve_pin_indices(scene, 20, automatic_pins=(1, 2, 3)) == (9, 10)
+    scene.PinMode = "Automatic"
+    assert _resolve_pin_indices(scene, 20, automatic_pins=(1, 2, 3)) == (9, 10)
+    scene.PinSelection = []
+    assert _resolve_pin_indices(scene, 20, automatic_pins=(1, 2, 3)) == (1, 2, 3)
+
+
+def test_pin_mode_is_part_of_rebuild_signature():
+    from types import SimpleNamespace
+    from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
+    source = SimpleNamespace(Name="Body", Shape=SimpleNamespace(isNull=lambda: False, hashCode=lambda: 123),
+                             Placement=SimpleNamespace(Base=SimpleNamespace(x=0.0, y=0.0, z=0.0),
+                                                      Rotation=SimpleNamespace(Angle=0.0, Axis=SimpleNamespace(x=0.0, y=0.0, z=1.0))))
+    target = SimpleNamespace(SourceObject=source, CollisionDeflection=1.0, CollisionThickness=0.0)
+    scene_a = SimpleNamespace(DrapeTarget=target, PinSelection=[], PinMode="Automatic", StitchSamples=8, Document=SimpleNamespace(Objects=[]))
+    scene_b = SimpleNamespace(DrapeTarget=target, PinSelection=[], PinMode="None", StitchSamples=8, Document=SimpleNamespace(Objects=[]))
+    assert _simulation_source_signature(scene_a, []) != _simulation_source_signature(scene_b, [])
+
+
 def test_pattern_scene_truncates_stale_demo_panels_before_mesh_write():
     """A one-piece pattern replaces a two-panel demo state without a stale-panel write."""
     from types import SimpleNamespace
