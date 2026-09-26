@@ -641,10 +641,30 @@ def _snap_selected_pieces_to_target():
     ]
     if not selected:
         selected = list(scene.PatternPieces)
-    results = []
-    for piece in selected:
-        results.append(snap_piece_to_drape_target(piece))
-    return tuple(results)
+    from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+    snapshots = {
+        id(piece): (
+            piece.Placement,
+            getattr(getattr(piece, "Sketch", None), "Placement", None),
+        )
+        for piece in selected
+    }
+    previous_piece_placements = list(getattr(scene, "PiecePlacements", ()) or ())
+    previous_status = str(getattr(scene, "FitStatus", ""))
+    try:
+        results = [snap_piece_to_drape_target(piece) for piece in selected]
+        return tuple(results)
+    except Exception:
+        for piece in selected:
+            placement, sketch_placement = snapshots[id(piece)]
+            piece.Placement = placement
+            sketch = getattr(piece, "Sketch", None)
+            if sketch is not None and sketch_placement is not None:
+                sketch.Placement = sketch_placement
+        scene.PiecePlacements = previous_piece_placements
+        scene.FitStatus = previous_status
+        scene.Document.recompute()
+        raise
 
 
 def _apply_selected_arrangement():
