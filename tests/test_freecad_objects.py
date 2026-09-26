@@ -115,7 +115,8 @@ def test_avatar_collision_source_supports_fitting_and_simulation_scopes():
         assert proxy is fitting.AvatarProxy
         assert proxy.Name == "AvatarCollision"
         assert proxy.SourceObject == body
-        assert "DrapeTarget" not in set(getattr(fitting, "PropertiesList", ()) or ())
+        assert "DrapeTarget" in set(getattr(fitting, "PropertiesList", ()) or ())
+        assert fitting.DrapeTarget == target
 
         target = document.getObject("DrapeTarget")
         assert target is not None
