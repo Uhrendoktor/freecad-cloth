@@ -307,26 +307,29 @@ def _piece_world_samples(piece, deflection=1.0):
     raise ValueError("pattern piece %s has no usable geometry samples" % getattr(piece, "Name", "<unnamed>"))
 
 
-def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=750.0, sample_deflection=1.0):
-    """Place garment pieces directly outside the persistent DrapeTarget.
+def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=750.0, sample_deflection=1.0, max_rotation=45.0):
+    """Place fitting-scene PatternPieces against the persistent DrapeTarget.
 
-    The operation is fitting state, not solver state. Each piece is translated
-    rigidly toward its nearest target surface and then corrected outward until
-    sampled geometry meets the requested clearance. Rotation is preserved.
-    Existing HomePlacements are never overwritten, so Reset remains lossless.
+    When persisted GarmentAnchors exist for a piece, a deterministic rigid
+    translation + world-Z rotation aligns those anchors to compatible target
+    surface locations and then proves outward clearance from sampled geometry.
+    Without anchors, the legacy nearest-center translation path is retained.
+    HomePlacements are never overwritten; failures roll back all placement state.
     """
     import FreeCAD as App
-    from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+    from freecad_cloth.avatar.AvatarFitting import PiecePlacement, GarmentAnchor
     from freecad_cloth.avatar.TargetPlacement import (
         average_point,
         minimum_signed_clearance,
         nearest_target_projection,
+        solve_rigid_z,
+        wrap_normal,
     )
 
     doc = App.ActiveDocument
     if doc is None:
         raise ValueError("open a document before arranging garment pieces")
-    scene = _scene(doc)
+    scene = _ensure_fitting_properties(_scene(doc)) if _scene(doc) is not None else None
     if scene is None or not scene.PatternPieces:
         raise ValueError("create a fitting scene with pattern pieces first")
     target = _fitting_target(scene)
@@ -341,10 +344,7 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=7
 
     selected = tuple(
         sorted(
-            (
-                piece for piece in (pieces or scene.PatternPieces)
-                if getattr(piece, "PatternType", "") == "PatternPiece"
-            ),
+            (piece for piece in (pieces or scene.PatternPieces) if getattr(piece, "PatternType", "") == "PatternPiece"),
             key=lambda item: str(getattr(item, "PieceId", getattr(item, "Name", ""))),
         )
     )
@@ -353,47 +353,94 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=7
     if any(piece not in tuple(scene.PatternPieces) for piece in selected):
         raise ValueError("all target-arranged pieces must belong to the fitting scene")
 
+    anchors = tuple(
+        GarmentAnchor.from_string(value)
+        for value in getattr(scene, "GarmentAnchors", ()) or ()
+    )
+    anchors_by_piece = {}
+    for anchor in anchors:
+        anchor.validate()
+        anchors_by_piece.setdefault(str(anchor.piece_id), []).append(anchor)
+    for piece_id in list(anchors_by_piece):
+        anchors_by_piece[piece_id] = tuple(sorted(anchors_by_piece[piece_id], key=lambda item: item.name))
+
     home_before = tuple(scene.HomePlacements)
     fit_status_before = str(getattr(scene, "FitStatus", ""))
+    target_before = getattr(scene, "DrapeTarget", None)
     placement_before = {piece: piece.Placement for piece in selected}
     sketch_before = {
         piece: getattr(getattr(piece, "Sketch", None), "Placement", None)
-        for piece in selected
-        if getattr(piece, "Sketch", None) is not None
+        for piece in selected if getattr(piece, "Sketch", None) is not None
     }
     persisted_before = tuple(scene.PiecePlacements)
     results = []
 
     try:
         for piece in selected:
-            samples = _piece_world_samples(piece, sample_deflection)
-            center = average_point(samples)
-            projection = nearest_target_projection(center, surface)
-            desired = tuple(
-                projection.point[i] + projection.normal[i] * required_clearance
-                for i in range(3)
-            )
-            delta = tuple(desired[i] - center[i] for i in range(3))
-            travel = (sum(value * value for value in delta)) ** 0.5
-            if travel > guard + 1e-9:
-                raise ValueError(
-                    "target-aware placement for %s exceeds the translation guard: %.3f > %.3f mm"
-                    % (piece.Label, travel, guard)
-                )
-
+            piece_anchors = anchors_by_piece.get(str(piece.PieceId), ())
             placement = piece.Placement
-            base = placement.Base
-            updated = App.Placement(
-                App.Vector(float(base.x) + delta[0], float(base.y) + delta[1], float(base.z) + delta[2]),
-                placement.Rotation,
-            )
-            piece.Placement = updated
+            if piece_anchors:
+                source_points = []
+                target_points = []
+                for anchor in piece_anchors:
+                    source = placement.multVec(App.Vector(*anchor.position))
+                    projection = nearest_target_projection(
+                        (float(source.x), float(source.y), float(source.z)),
+                        surface,
+                        expected_normal=wrap_normal(anchor.wrap_direction),
+                    )
+                    desired = tuple(
+                        projection.point[i]
+                        + projection.normal[i] * (float(surface.thickness) + required_clearance)
+                        for i in range(3)
+                    )
+                    source_points.append((float(source.x), float(source.y), float(source.z)))
+                    target_points.append(desired)
+                delta = solve_rigid_z(
+                    source_points,
+                    target_points,
+                    max_translation=guard,
+                    max_rotation=max_rotation,
+                )
+                delta_rotation = App.Rotation(App.Vector(0, 0, 1), float(delta.rotation_z))
+                current_base = placement.Base
+                updated = App.Placement(
+                    delta_rotation.multVec(current_base) + App.Vector(*delta.translation),
+                    delta_rotation.multiply(placement.Rotation),
+                )
+                piece.Placement = updated
+                travel = (sum(float(value) * float(value) for value in delta.translation)) ** 0.5
+                rotation_delta = abs(float(delta.rotation_z))
+                placement_mode = "anchors"
+            else:
+                samples = _piece_world_samples(piece, sample_deflection)
+                center = average_point(samples)
+                projection = nearest_target_projection(center, surface)
+                desired = tuple(
+                    projection.point[i] + projection.normal[i] * required_clearance
+                    for i in range(3)
+                )
+                delta = tuple(desired[i] - center[i] for i in range(3))
+                travel = (sum(value * value for value in delta)) ** 0.5
+                if travel > guard + 1e-9:
+                    raise ValueError(
+                        "target-aware placement for %s exceeds the translation guard: %.3f > %.3f mm"
+                        % (piece.Label, travel, guard)
+                    )
+                base = placement.Base
+                piece.Placement = App.Placement(
+                    App.Vector(float(base.x) + delta[0], float(base.y) + delta[1], float(base.z) + delta[2]),
+                    placement.Rotation,
+                )
+                rotation_delta = 0.0
+                placement_mode = "nearest-center"
+
             sketch = getattr(piece, "Sketch", None)
             if sketch is not None:
-                sketch.Placement = updated
+                sketch.Placement = piece.Placement
+
             total_travel = travel
             report = minimum_signed_clearance(_piece_world_samples(piece, sample_deflection), surface)
-
             for _attempt in range(3):
                 deficit = required_clearance - report.minimum_signed_clearance
                 if deficit <= 1e-6:
@@ -417,7 +464,6 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=7
                     current.Rotation,
                 )
                 piece.Placement = corrected
-                sketch = getattr(piece, "Sketch", None)
                 if sketch is not None:
                     sketch.Placement = corrected
                 total_travel += correction
@@ -428,33 +474,37 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=7
                     "target-aware placement for %s did not prove the requested step-0 clearance"
                     % piece.Label
                 )
-            original_rotation = placement.Rotation
-            final_rotation = piece.Placement.Rotation
-            rotation_delta = abs(float(getattr(final_rotation, "Angle", 0.0)) - float(getattr(original_rotation, "Angle", 0.0)))
-            if rotation_delta > 45.0 + 1e-9:
-                raise ValueError("target-aware placement exceeded the 45 degree rotation guard")
             results.append({
                 "piece_id": str(piece.PieceId),
                 "translation_mm": float(total_travel),
+                "rotation_z": float(rotation_delta),
                 "minimum_signed_clearance_mm": float(report.minimum_signed_clearance),
                 "triangle_index": int(report.projection.triangle_index),
+                "placement_mode": placement_mode,
             })
 
         placements = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)}
         for piece in selected:
             final = piece.Placement
             base = final.Base
+            axis = final.Rotation.Axis
             placements[str(piece.PieceId)] = PiecePlacement(
                 str(piece.PieceId),
                 (float(base.x), float(base.y), float(base.z)),
                 float(final.Rotation.Angle),
+                (float(axis.x), float(axis.y), float(axis.z)),
             )
         scene.PiecePlacements = [placements[key].to_string() for key in sorted(placements)]
         if tuple(scene.HomePlacements) != home_before:
             raise RuntimeError("target-aware placement mutated HomePlacements")
+        scene.DrapeTarget = target
         scene.FitStatus = "Target snapped"
         doc.recompute()
-        return {"target": str(getattr(target, "Name", "DrapeTarget")), "clearance_mm": required_clearance, "pieces": tuple(results)}
+        return {
+            "target": str(getattr(target, "Name", "DrapeTarget")),
+            "clearance_mm": required_clearance,
+            "pieces": tuple(results),
+        }
     except BaseException:
         for piece, original in placement_before.items():
             piece.Placement = original
@@ -465,6 +515,7 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=7
         scene.PiecePlacements = list(persisted_before)
         if tuple(scene.HomePlacements) != home_before:
             scene.HomePlacements = list(home_before)
+        scene.DrapeTarget = target_before
         scene.FitStatus = fit_status_before
         doc.recompute()
         raise
