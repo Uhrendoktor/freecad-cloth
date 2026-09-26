@@ -71,15 +71,22 @@ class SimulationTaskPanel:
         self.collision_radius = self._double_box(0.0, 10000.0, float(getattr(scene, "CollisionRadius", 38.0)), 2)
         layout.addRow("Thickness", self.thickness); layout.addRow("Mesh deflection", self.deflection)
         layout.addRow("Legacy sphere radius", self.collision_radius)
+        self.target_refresh = QtWidgets.QPushButton("Refresh Drape Target")
+        self.target_refresh.setToolTip("Rebuild the persistent collision surface after changing the target geometry.")
+        self.target_refresh.clicked.connect(self._refresh_drape_target)
+        layout.addRow("Recovery", self.target_refresh)
         root.addWidget(collision)
 
-        sewing = QtWidgets.QGroupBox("Sewing & pinning")
+        sewing = QtWidgets.QGroupBox("Advanced sewing state")
         layout = QtWidgets.QFormLayout(sewing)
+        note = QtWidgets.QLabel("Optional solver-index overrides. Normal garment workflows should use named seams and fitting/arrangement controls.")
+        note.setWordWrap(True)
+        layout.addRow(note)
         self.pins = QtWidgets.QLineEdit(self._join(getattr(scene, "PinSelection", [])))
         self.seams = QtWidgets.QLineEdit(self._join(getattr(scene, "SeamSelection", [])))
-        self.pins.setToolTip("Particle indices separated by commas")
-        self.seams.setToolTip("Particle pairs such as 3-27 separated by semicolons")
-        layout.addRow("Pinned vertices", self.pins); layout.addRow("Seam pairs", self.seams)
+        self.pins.setToolTip("Advanced: particle indices separated by commas. Prefer named garment seams and fitting controls for normal use.")
+        self.seams.setToolTip("Advanced: particle pairs such as 3-27 separated by semicolons. Prefer named garment seams.")
+        layout.addRow("Pinned vertices (advanced)", self.pins); layout.addRow("Seam pairs (advanced)", self.seams)
         root.addWidget(sewing)
 
         controls = QtWidgets.QHBoxLayout()
@@ -187,6 +194,18 @@ class SimulationTaskPanel:
         self.scene.GravityX = self.gravity_x.value(); self.scene.GravityY = self.gravity_y.value(); self.scene.GravityZ = self.gravity_z.value()
         self.scene.CollisionRadius = self.collision_radius.value(); self.scene.Document.recompute(); self._refresh_status()
 
+    def _refresh_drape_target(self):
+        if self.scene is None:
+            return
+        target = getattr(self.scene, "DrapeTarget", None)
+        if target is None:
+            self._refresh_status("No DrapeTarget selected.")
+            return
+        from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
+        refresh_drape_target(target)
+        self.scene.Document.recompute()
+        self._refresh_status("Drape target collision surface rebuilt.")
+        
     def _collision_changed(self):
         if self.scene is None: return
         target = getattr(self.scene, "DrapeTarget", None)
