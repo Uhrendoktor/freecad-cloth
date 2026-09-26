@@ -135,3 +135,21 @@ if __name__ == "__main__":
     test_apply_seam_colors_marks_each_seam_pair()
     test_show_2d_does_not_select_seams_over_their_colors()
     print("sewing Show 2D tests passed")
+
+
+
+def test_seam_color_map_is_stable_under_subset_and_reorder():
+    from freecad_cloth.sewing.SewingView import seam_color_map
+    full = seam_color_map(["seam-a", "seam-b", "seam-c"])
+    subset = seam_color_map(["seam-b", "seam-c"])
+    reordered = seam_color_map(["seam-c", "seam-b"])
+    assert subset["seam-b"] == full["seam-b"]
+    assert subset["seam-c"] == full["seam-c"]
+    assert reordered == subset
+
+
+def test_seam_color_map_distinguishes_multiple_semantic_seams():
+    from freecad_cloth.sewing.SewingView import seam_color_map
+    values = seam_color_map(["TunicLeftShoulder", "TunicRightShoulder", "TunicSide"])
+    assert len(values) == 3
+    assert len(set(values.values())) == 3
