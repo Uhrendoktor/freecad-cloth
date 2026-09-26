@@ -8,6 +8,7 @@ from freecad_cloth.avatar.TargetAwarePlacement import (
     require_ready_target_status,
     solve_rigid_z,
     target_surface_anchor,
+    transform_surface,
 )
 
 
@@ -81,3 +82,11 @@ def test_fitting_simulation_handoff_preserves_authoritative_target():
     source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
     assert 'fitting_target = getattr(scene, "DrapeTarget", None)' in source
     assert "simulation.DrapeTarget = fitting_target" in source
+
+
+def test_target_surface_transform_preserves_world_coordinates_under_non_identity_offset():
+    surface = _box_surface()
+    transformed = transform_surface(surface, lambda point: (point[0] + 100.0, point[1] - 20.0, point[2] + 5.0))
+    hit = target_surface_anchor(transformed, (100.0, -20.0, 25.0), (0.0, 0.0, 1.0))
+    assert hit.point == pytest.approx((100.0, -20.0, 15.0))
+    assert hit.normal == (0.0, 0.0, 1.0)
