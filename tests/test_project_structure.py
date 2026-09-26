@@ -66,6 +66,7 @@ def test_fitting_exposes_target_arrangement_and_persists_reset_state():
     source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
     assert "def snap_pattern_pieces_to_target" in source
     assert '"ClothFitting_SnapPiecesToTarget"' in source
+    assert "select exactly one DrapeTarget" in source
     assert "scene.HomePlacements" in source
     assert 'scene.FitStatus = "Target snapped"' in source
 def test_canonical_workflow_pr_validation_contract():
