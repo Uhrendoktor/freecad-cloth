@@ -140,7 +140,7 @@ placement_probe = """    surface = collision_surface(
     if selected_placement_inset is None:
         raise RuntimeError("canonical tunic placement probe found no candidate meeting configured separation")
 
-'''
+"""
 
 source = source.replace(surface_anchor, placement_probe, 1)
 
