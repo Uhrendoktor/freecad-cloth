@@ -119,6 +119,8 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "git checkout --detach \"$TISSU_SOURCE_COMMIT\"" in dockerfile
     assert "/opt/conda/envs/freecad/bin/python /tmp/apply-tissu-contact-fix.py" in dockerfile
     assert "--target _cloth_sdk_core unit_tests" in dockerfile
+    assert "/usr/bin/cmake -S . -B build" in dockerfile
+    assert "/usr/bin/cmake --build build" in dockerfile
     assert "--gtest_filter='MeshCollider.*'" in dockerfile
     assert "ParticleInsideMeshMovesOutside" in script
     assert "tetrahedronContains" in script
