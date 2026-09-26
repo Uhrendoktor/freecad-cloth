@@ -710,7 +710,8 @@ jobs:
         env:
           CLOTH_SIMULATION_BACKEND: tissu
           CLOTH_TISSU_SUBSTEPS: 1
-          CLOTH_TISSU_COLLISION_MODE: torso-envelope
+          CLOTH_TISSU_COLLISION_MODE: mesh
+          CLOTH_TISSU_COLLISION_TRIANGLES: 2048
         run: |
           set -euo pipefail
           rm -rf docs/images/generated
@@ -841,7 +842,6 @@ jobs:
           CLOTH_SIMULATION_BACKEND: tissu
           CLOTH_TISSU_SUBSTEPS: 10
           CLOTH_TISSU_COLLISION_MODE: mesh
-          CLOTH_TISSU_COLLISION_TRIANGLES: 2048
         run: |
           set -euo pipefail
           rm -rf docs/images/generated
