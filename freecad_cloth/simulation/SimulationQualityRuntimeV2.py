@@ -185,9 +185,10 @@ class QualitySimulationProxy:
                         particle.z = particle.pz + (particle.z - particle.pz) * damping
                 base.last_steps += 1
         positions = base.backend.positions()
-        from freecad_cloth.simulation.SimulationObjects import _write_mesh
+        from freecad_cloth.simulation.SimulationObjects import _update_seam_visuals, _write_mesh
         for panel in getattr(obj, "DrapePanels", ()):
             _write_mesh(panel, positions, base.panel_triangles.get(panel.Name, ()))
+        _update_seam_visuals(obj.Document, self.seam_stitch_pairs, positions)
         self._apply_presentation(obj)
         obj.SimulatedTime = base.backend.time
         obj.ParticleCount = len(positions)
