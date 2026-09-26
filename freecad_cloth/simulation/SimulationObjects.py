@@ -29,6 +29,54 @@ def _write_grid_mesh(obj, positions, indices, nx, ny):
     _write_mesh(obj, positions, triangles)
 
 
+def _update_seam_visuals(doc, seam_stitch_pairs, positions):
+    """Render each semantic solver seam as one canonical-color native overlay."""
+    if doc is None:
+        return ()
+    from freecad_cloth.sewing.SewingView import seam_color_map
+    seam_ids = tuple(sorted(
+        str(seam_id).strip()
+        for seam_id in (seam_stitch_pairs or {})
+        if str(seam_id).strip()
+    ))
+    colors = seam_color_map(seam_ids)
+    existing = {
+        str(getattr(obj, "SimulationSeamId", "")).strip(): obj
+        for obj in getattr(doc, "Objects", ())
+        if str(getattr(obj, "SimulationSeamId", "")).strip()
+    }
+    active = set()
+    for seam_id in seam_ids:
+        visual = existing.get(seam_id)
+        if visual is None:
+            safe_id = "".join(char if char.isalnum() else "_" for char in seam_id).strip("_") or "seam"
+            visual = doc.addObject("Part::Feature", "SimulationSeamVisual_%s" % safe_id)
+            visual.Label = "Simulation seam: %s" % seam_id
+            visual.addProperty("App::PropertyString", "SimulationSeamId", "Simulation").SimulationSeamId = seam_id
+            existing[seam_id] = visual
+        stitch_pairs = tuple(seam_stitch_pairs.get(seam_id, ()))
+        side_a = [App.Vector(*positions[a]) for a, _ in stitch_pairs]
+        side_b = [App.Vector(*positions[b]) for _, b in stitch_pairs]
+        shapes = []
+        if len(side_a) >= 2:
+            shapes.append(Part.makePolygon(side_a))
+        if len(side_b) >= 2:
+            shapes.append(Part.makePolygon(side_b))
+        visual.Shape = Part.makeCompound(shapes) if shapes else Part.Shape()
+        view = getattr(visual, "ViewObject", None)
+        if view is not None:
+            view.LineColor = colors[seam_id]
+            view.LineWidth = 3.0
+            view.Visibility = bool(shapes)
+        active.add(seam_id)
+    for seam_id, visual in existing.items():
+        if seam_id not in active:
+            view = getattr(visual, "ViewObject", None)
+            if view is not None:
+                view.Visibility = False
+    return tuple(existing[seam_id] for seam_id in seam_ids)
+
+
 def _parse_pair_list(values, particle_count=None):
     pairs = []
     for value in values or ():
@@ -396,6 +444,7 @@ class SimulationProxy:
         positions = self.backend.positions()
         for panel in getattr(obj, "DrapePanels", ()):
             _write_mesh(panel, positions, self.panel_triangles.get(panel.Name, ()))
+        _update_seam_visuals(obj.Document, self.seam_stitch_pairs, positions)
         obj.SimulatedTime = self.backend.time
         obj.ParticleCount = len(positions)
         obj.FiniteState = self.backend.finite()
