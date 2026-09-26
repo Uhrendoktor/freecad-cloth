@@ -174,6 +174,20 @@ class AvatarFittingTests(unittest.TestCase):
         points = arrangement_points_from_landmarks(["waist|0,0,900", "waist|0,0,905", "neck|0,0,1150"])
         self.assertEqual(points, ["neck|0,0,1150", "waist|0,0,905"])
 
+    def test_avatar_wrap_angles_mirror_around_target(self):
+        from freecad_cloth.avatar.AvatarArrangement import wrapped_panel_angles
+
+        front, back = wrapped_panel_angles(120.0, -120.0, 0.0, 600.0)
+        self.assertGreater(front, 90.0)
+        self.assertLess(back, 90.0)
+        self.assertAlmostEqual(front + back, 180.0, places=6)
+
+    def test_avatar_wrap_angles_rejects_nonpositive_seam_height(self):
+        from freecad_cloth.avatar.AvatarArrangement import wrapped_panel_angles
+
+        with self.assertRaises(ValueError):
+            wrapped_panel_angles(100.0, -100.0, 0.0, 0.0)
+
     def test_freecad_mannequin_rebuild_invalidates_target_until_refreshed(self):
         try:
             import FreeCAD as App
