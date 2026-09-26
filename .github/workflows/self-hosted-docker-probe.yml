@@ -1,0 +1,55 @@
+name: Self-hosted Docker probe
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: self-hosted-docker-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
+
+jobs:
+  probe:
+    name: Diagnose self-hosted Docker workspace
+    runs-on: [self-hosted, linux, x64, docker]
+    timeout-minutes: 5
+    steps:
+      - name: Inspect runner and Docker topology
+        shell: bash
+        run: |
+          set -u
+          echo "=== runner ==="
+          echo "hostname=$(hostname)"
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          echo "RUNNER_WORKSPACE=$RUNNER_WORKSPACE"
+          echo "RUNNER_TEMP=$RUNNER_TEMP"
+          echo
+          echo "=== docker ==="
+          docker version || true
+          echo "--- docker context ---"
+          docker context show || true
+          docker info --format 'server={{.ServerVersion}} root={{.DockerRootDir}} driver={{.Driver}} cgroup={{.CgroupVersion}}' || true
+          echo
+          echo "=== runner container inspect ==="
+          docker inspect "$HOSTNAME" --format '{{json .Mounts}}' || true
+          echo
+          echo "=== runner container mounts ==="
+          docker inspect "$HOSTNAME" --format '{{range .Mounts}}{{println .Destination .Source}}{{end}}' || true
+          echo
+          echo "=== direct bind mount ==="
+          docker run --rm -v "$GITHUB_WORKSPACE:/workspace:ro" "$FREECAD_IMAGE" bash -lc '
+            echo "workspace=/workspace"
+            find /workspace -maxdepth 1 -mindepth 1 -printf "%f\n" | sort | head -40
+            test -f /workspace/package.xml
+          ' && echo "direct-bind=PASS" || echo "direct-bind=FAIL"
+          echo
+          echo "=== volumes-from runner container ==="
+          docker run --rm --volumes-from "$HOSTNAME" -e GITHUB_WORKSPACE="$GITHUB_WORKSPACE" "$FREECAD_IMAGE" bash -lc '
+            echo "workspace=$GITHUB_WORKSPACE"
+            find "$GITHUB_WORKSPACE" -maxdepth 1 -mindepth 1 -printf "%f\n" | sort | head -40
+            test -f "$GITHUB_WORKSPACE/package.xml"
+          ' && echo "volumes-from=PASS" || echo "volumes-from=FAIL"
