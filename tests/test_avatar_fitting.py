@@ -350,6 +350,7 @@ class AvatarFittingTests(unittest.TestCase):
             fitting = create_fitting_scene()
             fitting.DrapeTarget = target
             fitting.PatternPieces = pieces
+            fitting.GarmentAnchors = [anchor.to_string() for anchor in anchors]
             fitting.FitStatus = "Before transaction"
             fitting.PiecePlacements = [
                 PiecePlacement(str(piece.PieceId), (float(piece.Placement.Base.x), float(piece.Placement.Base.y), float(piece.Placement.Base.z)), float(piece.Placement.Rotation.Angle)).to_string()
@@ -365,7 +366,7 @@ class AvatarFittingTests(unittest.TestCase):
                 side_effect=TargetPlacementError("forced post-transform validation failure"),
             ):
                 with self.assertRaises(TargetPlacementError):
-                    snap_pattern_pieces_to_target(pieces, target, anchors, clearance=8.0)
+                    snap_pattern_pieces_to_target(pieces, clearance=8.0)
             self.assertEqual([piece.Placement for piece in pieces], before_piece)
             self.assertEqual([sketch.Placement for sketch in sketches], before_sketch)
             self.assertEqual(list(fitting.PiecePlacements), before_placements)
