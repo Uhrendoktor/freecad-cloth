@@ -120,6 +120,11 @@ class AvatarTaskPanel:
         self.arrangement_points.setToolTip("Persistent local fitting points used as a foundation for garment placement.")
         self.arrangement_points.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
         arrangement_layout.addWidget(self.arrangement_points)
+        self.snap_target_button = QtWidgets.QPushButton("Snap selected piece to Drape Target")
+        self.snap_target_button.setToolTip(
+            "Select exactly one PatternPiece. Its current side of the DrapeTarget determines the wrap direction; placement is bounded and persisted."
+        )
+        arrangement_layout.addWidget(self.snap_target_button)
         content_layout.addWidget(arrangement)
 
         self.landmarks = QtWidgets.QLabel()
@@ -157,6 +162,7 @@ class AvatarTaskPanel:
         self.apply_button.clicked.connect(self._apply)
         self.rebuild_button.clicked.connect(self._apply)
         self.fit_button.clicked.connect(self._fit_view)
+        self.snap_target_button.clicked.connect(self._snap_selected_to_target)
 
     def _find_avatar(self):
         doc = self.App.ActiveDocument
@@ -184,6 +190,7 @@ class AvatarTaskPanel:
             self.apply_button.setEnabled(False)
             self.rebuild_button.setEnabled(False)
             self.fit_button.setEnabled(False)
+            self.snap_target_button.setEnabled(False)
             self.provider.setEnabled(False)
             self.provider_source.setEnabled(False)
             return
@@ -291,6 +298,26 @@ class AvatarTaskPanel:
     def _rebuild_geometry(self):
         from freecad_cloth.avatar.AvatarCommands import rebuild_avatar
         rebuild_avatar()
+
+    def _snap_selected_to_target(self):
+        if self.avatar is None:
+            return False
+        try:
+            from freecad_cloth.avatar.FittingCommands import snap_selected_piece_to_drape_target
+            result = snap_selected_piece_to_drape_target()
+        except (ValueError, RuntimeError) as exc:
+            self._refresh_status("Target-aware placement was not applied: %s" % exc)
+            return False
+        self._refresh_status(
+            "Target-aware placement applied: %.1f mm translation, %.1f° rotation, %.1f mm anchor clearance."
+            % (
+                sum(float(v) * float(v) for v in result["translation"]) ** 0.5,
+                float(result["rotation_z"]),
+                float(result["anchor_clearance"]),
+            )
+        )
+        self._fit_view()
+        return True
 
     def _update_arrangement_points(self):
         self.arrangement_points.clear()
