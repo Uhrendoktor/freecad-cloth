@@ -340,10 +340,10 @@ def style_mesh(obj, label):
 def simulation():
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
     from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
-    from freecad_cloth.simulation.DrapeTarget import collision_surface, refresh_drape_target, target_status
+    from freecad_cloth.simulation.DrapeTarget import refresh_drape_target, target_status
     from freecad_cloth.avatar.AvatarFitting import GarmentAnchor, PiecePlacement
-    from freecad_cloth.avatar.FittingCommands import create_fitting_scene, target_aware_place_piece
-    from freecad_cloth.avatar.TargetAwarePlacement import assert_minimum_surface_clearance, transform_surface_to_world
+    from freecad_cloth.avatar.FittingCommands import create_fitting_scene, target_aware_place_piece, target_surface_world
+    from freecad_cloth.avatar.TargetAwarePlacement import assert_minimum_surface_clearance
     from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternObjects import add_seam
     doc = App.newDocument("ClothSimulationVisualRegression"); scene = create_quality_simulation_scene(doc); avatar = getattr(scene.AvatarProxy, "SourceObject", None); target = scene.DrapeTarget
@@ -414,14 +414,7 @@ def simulation():
     target_state = target_status(target)
     if target_state.get("state") != "ready":
         raise RuntimeError("canonical tunic DrapeTarget is not ready: %s" % target_state.get("message"))
-    surface = transform_surface_to_world(
-        collision_surface(
-            target.SourceObject,
-            float(target.CollisionDeflection),
-            float(target.CollisionThickness),
-        ),
-        target.SourceObject,
-    )
+    surface = target_surface_world(target)
     proxy = scene.Proxy
     backend = getattr(proxy, "backend", None)
     if backend is None:
