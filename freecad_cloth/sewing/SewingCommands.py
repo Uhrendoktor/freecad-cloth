@@ -375,7 +375,7 @@ def show_sewing_2d():
         return
     from freecad_cloth.sewing.SewingView import refresh_seam_colors
     document = Gui.activeDocument().Document
-    apply_seam_colors(document.Objects)
+    refresh_seam_colors(document)
     Gui.Selection.clearSelection()
     view = Gui.activeDocument().activeView()
     view.viewTop()
