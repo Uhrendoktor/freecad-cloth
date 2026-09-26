@@ -213,6 +213,7 @@ class ClothSystem:
             # same step. Re-project the particle against the deepest local
             # violation for a small fixed number of deterministic passes.
             # Flat-face contact still resolves on the first pass.
+            collided = False
             for _ in range(3):
                 position = p.position()
                 low = tuple(int(floor((position[i] - thickness) / cell_size)) for i in range(3))
@@ -240,6 +241,11 @@ class ClothSystem:
                 p.x += normal[0] * penetration
                 p.y += normal[1] * penetration
                 p.z += normal[2] * penetration
+            if collided:
+                # Do not convert positional collision correction into rebound
+                # velocity on the next Verlet step.
+                p.px, p.py, p.pz = p.x, p.y, p.z
+                collided = True
 
     def _collide_sphere(self, cx, cy, cz, radius):
         for p in self.particles:
