@@ -32,6 +32,8 @@ Create/select a `DrapeTarget`: either the native human mannequin or an ordinary 
 
 ### 4. Simulate
 
+For a two-panel garment on the native mannequin, use **Arrange garment on mannequin** before Run. The command uses the mannequin's persisted arrangement points, places the front/back panels outside the target with deterministic clearance, and clears global `PinSelection`; collision remains the simulation-time safety mechanism. Global pins remain available for blanket and diagnostic workflows.
+
 Generate a preview/final mesh, choose material and quality, confirm target validity, then Run. Step is for controlled/debug advancement; Reset recovers simulation state. Pins/stitches and collision settings are persistent inputs. Fabric presentation properties include color, specular response, roughness and transparency and are persisted with the simulation/material state.
 
 ### 5. Iterate
