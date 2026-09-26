@@ -39,7 +39,7 @@ def test_simulation_quality_panel_exposes_primary_fit_and_recovery_actions():
         'QPushButton("Reset arrangement")',
         'QPushButton("Refresh target")',
         'Snap assigned pieces to target',
-        "snap_pieces_to_target",
+        "snap_pattern_pieces_to_target",
         "refresh_drape_target",
         "self.target_context",
         "self.placement_status",
