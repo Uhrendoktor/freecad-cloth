@@ -168,6 +168,26 @@ def _make_curved(piece, doc):
     return sketch
 
 
+
+
+def _assert_seam_colors(doc, seams, stage):
+    from freecad_cloth.sewing.SewingView import seam_color_map
+
+    ids = [str(getattr(seam, "SeamId", "")).strip() for seam in seams]
+    if not ids or any(not seam_id for seam_id in ids) or len(set(ids)) != len(ids):
+        raise RuntimeError("seam color evidence requires unique persistent SeamId values")
+    expected = seam_color_map(ids)
+    actual = {
+        str(seam.SeamId): tuple(float(value) for value in seam.ViewObject.LineColor[:3])
+        for seam in seams
+    }
+    if actual != expected:
+        raise RuntimeError("seam colors changed during %s: actual=%r expected=%r" % (stage, actual, expected))
+    if len(set(actual.values())) != len(ids):
+        raise RuntimeError("seam colors are not unique during %s: %r" % (stage, actual))
+    return actual
+
+
 def _position_signature(scene):
     proxy = getattr(scene, "Proxy", None)
     backend = getattr(proxy, "backend", None)
@@ -511,6 +531,27 @@ def run_acceptance():
             raise RuntimeError("public Sewing operation task panel did not persist controls")
         print("sewing-operation=passed", flush=True)
 
+        canonical_seams = [seam_11] + list(network.Seams)
+        initial_colors = _assert_seam_colors(doc, canonical_seams, "post-sewing recompute")
+        _activate("ClothPatternWorkbench", ["ClothPattern_Show2D"])
+        Gui.runCommand("ClothPattern_Show2D", 0)
+        _events()
+        _assert_seam_colors(doc, canonical_seams, "Pattern activation and 2D entry")
+        _activate("ClothSewingWorkbench", ["ClothSewing_Show2D", "ClothSewing_CreateOperation"])
+        Gui.runCommand("ClothSewing_Show2D", 0)
+        _events()
+        _assert_seam_colors(doc, canonical_seams, "Sewing activation and 2D entry")
+
+        seam_11.ReversedB = True
+        doc.recompute()
+        recomputed_colors = _assert_seam_colors(doc, canonical_seams, "semantic seam recompute")
+        if recomputed_colors != initial_colors:
+            raise RuntimeError("semantic recompute changed a canonical SeamId color")
+        seam_11.ReversedB = False
+        doc.recompute()
+        _assert_seam_colors(doc, canonical_seams, "semantic seam recompute restore")
+        print("seam-color-recompute=passed seams=3 stable=true", flush=True)
+
         _select_objects(front, back, sleeve_a, sleeve_b)
         Gui.runCommand("ClothFitting_CreateScene", 0)
         Gui.runCommand("ClothFitting_SetMeasurements", 0)
@@ -549,6 +590,8 @@ def run_acceptance():
             "ClothSimulationWorkbench",
             ["ClothDrape_CreateMannequinTarget", "ClothDrape_RefreshTarget", "ClothSimulation_Step", "ClothSimulation_Reset", "ClothSimulation_Edit"],
         )
+        _assert_seam_colors(doc, canonical_seams, "Simulation activation")
+        print("seam-color-activation=passed workbenches=Pattern,Sewing,Simulation", flush=True)
         Gui.runCommand("ClothDrape_CreateMannequinTarget", 0)
         _events()
         avatar = doc.getObject("ClothAvatar")
@@ -675,6 +718,15 @@ def run_acceptance():
             print("material-presentation=passed native=true color=36/255,82/255,199/255 specular=0.70 roughness=0.20 transparency=12", flush=True)
             if any(obj is None for obj in (seam_11, network, operation, fitting, scene, target)):
                 raise RuntimeError("garment fixture did not preserve sewing/fitting/simulation objects")
+            reloaded_canonical_seams = [seam_11] + list(network.Seams)
+            reloaded_colors = _assert_seam_colors(reloaded, reloaded_canonical_seams, "save/reload recompute")
+            operation_reloaded_color = tuple(float(value) for value in operation.ViewObject.LineColor[:3])
+            expected_operation_color = reloaded_colors[str(operation.SeamId)]
+            if operation_reloaded_color != expected_operation_color:
+                raise RuntimeError("save/reload changed SewingOperation SeamId color")
+            if str(operation.SeamId) != str(seam_11.SeamId):
+                raise RuntimeError("save/reload changed the SewingOperation semantic SeamId authority")
+            print("seam-color-save-reload=passed seams=3 operation=true stable=true", flush=True)
             if str(seam_11.Status) != "Valid" or str(network.Status) != "Valid" or str(operation.Status) != "Valid":
                 raise RuntimeError("save/reload changed sewing validity")
             if len(network.Seams) != 2 or len(fitting.PatternPieces) != 4 or len(scene.ClothPieces) != 4:
