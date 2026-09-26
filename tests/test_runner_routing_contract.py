@@ -102,3 +102,9 @@ def test_broker_dispatches_immutable_pr_head_sha_and_checkout_avoids_ephemeral_m
     assert 'pull_request_sha="${{ github.event.pull_request.head.sha }}"' in source
     assert "inputs.pull_request_sha" in source
     assert "refs/pull/{0}/merge" not in source
+
+
+def test_stale_run_cleanup_tolerates_only_completed_run_409():
+    source = WORKFLOW.read_text(encoding="utf-8")
+    assert "HTTP 409" in source
+    assert 'exit "$cancel_status"' in source
