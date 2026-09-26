@@ -12,6 +12,25 @@ ARRANGEMENT_POINT_NAMES = (
 )
 
 
+def wrapped_panel_angles(front_y, back_y, target_y, seam_height, max_inward_cos=0.35):
+    """Return front/back X-axis tilt angles that wrap a flat panel seam around an avatar.
+    
+    The returned angles are measured in degrees. A front panel uses an angle above
+    90° so its shoulder edge leans inward; the back panel uses the mirrored angle
+    below 90°. The helper is solver-neutral and only depends on the authored
+    target-side geometry, making the initial arrangement deterministic and
+    reversible before any cloth constraints are solved.
+    """
+    seam_height = float(seam_height)
+    if seam_height <= 0.0:
+        raise ValueError("seam height must be positive")
+    limit = max(0.0, min(0.999, float(max_inward_cos)))
+    front_cos = max(-limit, min(limit, (float(target_y) - float(front_y)) / seam_height))
+    back_cos = max(-limit, min(limit, (float(target_y) - float(back_y)) / seam_height))
+    from math import acos, degrees
+    return degrees(acos(front_cos)), degrees(acos(back_cos))
+
+
 def arrangement_points_from_landmarks(landmarks):
     """Return stable ``name|x,y,z`` arrangement points from landmark records."""
     by_name = {}
