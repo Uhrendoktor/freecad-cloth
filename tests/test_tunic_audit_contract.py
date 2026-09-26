@@ -120,10 +120,10 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "/opt/conda/envs/freecad/bin/python /tmp/apply-tissu-contact-fix.py" in dockerfile
     assert "--target _cloth_sdk_core unit_tests" in dockerfile
     assert "--gtest_filter='MeshCollider.*'" in dockerfile
-    assert "ParticleInsideMeshMovesOutside" in patch
-    assert "tetrahedronContains" in patch
-    assert "ClosedMeshKeepsOutsideContactOutside" in patch
-    assert "OpenMeshRetainsLegacyContactDirection" in patch
+    assert "ParticleInsideMeshMovesOutside" in script
+    assert "tetrahedronContains" in script
+    assert "ClosedMeshKeepsOutsideContactOutside" in script
+    assert "OpenMeshRetainsLegacyContactDirection" in script
 
     tunic = workflow[workflow.index("  gui-tunic-visual:") : workflow.index("\n  gui-", workflow.index("  gui-tunic-visual:") + 5)]
     assert "FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix" in tunic
