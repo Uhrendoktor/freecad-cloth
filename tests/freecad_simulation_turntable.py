@@ -281,6 +281,36 @@ def _style_mesh(obj):
     obj.ViewObject.LineWidth = 1.0
 
 
+def _four_corner_pins(piece, panel_indices):
+    mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, BLANKET_PARTICLE_DISTANCE)
+    boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
+    if len(boundary_vertices) < 4:
+        raise RuntimeError("blanket boundary has fewer than four vertices")
+    half = 0.5 * BLANKET_SIZE
+    targets = (
+        App.Vector(-half, -half, 0.0),
+        App.Vector(half, -half, 0.0),
+        App.Vector(half, half, 0.0),
+        App.Vector(-half, half, 0.0),
+    )
+    available = list(panel_indices)
+    result = []
+    for target in targets:
+        index = min(
+            available,
+            key=lambda idx: (
+                (mesh_positions[idx][0] - target.x) ** 2
+                + (mesh_positions[idx][1] - target.y) ** 2
+                + (mesh_positions[idx][2] - target.z) ** 2
+            ),
+        )
+        result.append(index)
+        available.remove(index)
+    if len(set(result)) != 4:
+        raise RuntimeError("four-corner blanket pin contract collapsed to duplicate vertices")
+    return tuple(int(index) for index in result)
+
+
 def _opposite_top_edge_pins(piece, positions, panel_indices):
     mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, BLANKET_PARTICLE_DISTANCE)
     boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
@@ -427,9 +457,13 @@ def build_simulation_state(doc):
     proxy = scene.Proxy._base_or_restore()
     positions = tuple(proxy.backend.positions())
     panel_indices = tuple(proxy.panel_indices[panel.Name])
-    pins, span = _opposite_top_edge_pins(blanket, positions, panel_indices)
+    pins = _four_corner_pins(blanket, panel_indices)
+    span = max(
+        abs(float(positions[pins[i]][0]) - float(positions[pins[j]][0]))
+        for i in range(4) for j in range(i + 1, 4)
+    )
     scene.PinSelection = [str(index) for index in pins]
-    log("blanket-pins=passed opposite-corners span=%.3f indices=%s" % (span, pins))
+    log("blanket-pins=passed mode=four-corners span=%.3f indices=%s" % (span, pins))
     doc.recompute()
 
     sketch.ViewObject.Visibility = False
