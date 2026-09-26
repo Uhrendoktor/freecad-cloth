@@ -8,6 +8,7 @@ from freecad_cloth.avatar.TargetAwarePlacement import (
     require_ready_target_status,
     solve_rigid_z,
     target_surface_anchor,
+    minimum_surface_clearance_sample,
 )
 
 
@@ -47,6 +48,15 @@ def test_rigid_solution_fails_closed_on_transform_bound():
         solve_rigid_z(((0, 0, 0),), ((1000, 0, 0),), max_translation=100, max_rotation=45)
 
 
+def test_minimum_surface_clearance_sample_reports_actual_worst_point():
+    surface = _box_surface()
+    sample = minimum_surface_clearance_sample(surface, ((0, 0, 25), (0, 0, 11)))
+    assert sample.point == pytest.approx((0.0, 0.0, 11.0))
+    assert sample.target_point == pytest.approx((0.0, 0.0, 10.0))
+    assert sample.normal == pytest.approx((0.0, 0.0, 1.0))
+    assert sample.clearance == pytest.approx(1.0)
+
+
 def test_step_zero_clearance_is_enforced_against_authoritative_surface():
     surface = _box_surface()
     assert assert_minimum_surface_clearance(surface, ((0, 0, 18),), 8.0) == pytest.approx(8.0)
@@ -78,7 +88,15 @@ def test_fitting_action_checks_the_complete_piece_surface_not_only_anchors():
     root = Path(__file__).resolve().parents[1]
     fitting = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
     assert "def _piece_world_surface_points" in fitting
-    assert "shape.tessellate" in fitting
+    assert "resolve_piece_ir" in fitting
+    assert "refine_linear_boundary" in fitting
+    assert "triangulate" in fitting
+    assert "shape.tessellate" not in fitting
+    assert "minimum_surface_clearance_sample" in fitting
+    assert "clearance_sample.normal" in fitting
+    assert "while clearance_sample.clearance < float(clearance) - 1e-6" in fitting
+    assert "correction_iterations >= 64" in fitting
+    assert "normal_sum" not in fitting
     assert "piece_clearance = assert_minimum_surface_clearance" in fitting
 
 def test_target_snap_contract_is_atomic_and_matches_simulation_panel_adapter():
