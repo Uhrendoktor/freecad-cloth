@@ -102,6 +102,6 @@ def test_simulation_proxy_serializes_only_rebuildable_metadata():
 def test_tunic_realtime_solver_configuration():
     root = Path(__file__).resolve().parents[1]
     source = (root / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert 'scene.ParticleDistance = 32.0; scene.SolverIterations = 2; scene.SolverSubsteps = 1;' in source
-    assert 'tunic-solver=particle-distance-32 iterations-2 substeps-env' in source
+    assert 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1;' in source
+    assert 'tunic-solver=particle-distance-32 iterations-1 substeps-env' in source
     assert 'scene.PinMode = "None";' in source or 'scene.PinMode = \'None\';' in source
