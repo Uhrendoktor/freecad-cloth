@@ -392,7 +392,7 @@ def build_simulation_state(doc):
     blanket = create_pattern_piece_from_selected_sketch(name="Blanket", allowance=0.0, grainline=0.0)
     if blanket.Sketch is not sketch:
         raise RuntimeError("pattern piece did not retain native sketch")
-    placement = App.Placement(App.Vector(-BLANKET_SIZE / 2.0, -BLANKET_SIZE / 2.0, 90.0), App.Rotation())
+    placement = App.Placement(App.Vector(-BLANKET_SIZE / 2.0, -BLANKET_SIZE / 2.0, 70.0), App.Rotation())
     blanket.Placement = placement
     blanket.Sketch.Placement = placement
 
@@ -429,7 +429,7 @@ def build_simulation_state(doc):
     panel_indices = tuple(proxy.panel_indices[panel.Name])
     pins, span = _opposite_top_edge_pins(blanket, positions, panel_indices)
     scene.PinSelection = [str(index) for index in pins]
-    log("blanket-fixture=passed placement_z=90.0 cube_top_z=60.0 pin_span=%.3f indices=%s" % (span, pins))
+    log("blanket-fixture=passed placement_z=70.0 cube_top_z=60.0 pin_span=%.3f indices=%s" % (span, pins))
     doc.recompute()
 
     sketch.ViewObject.Visibility = False
