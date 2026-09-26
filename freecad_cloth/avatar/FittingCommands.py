@@ -396,6 +396,8 @@ def _world_collision_surface(target):
     from freecad_cloth.simulation.DrapeTarget import collision_surface
 
     source = getattr(target, "SourceObject", None)
+    if getattr(scene, "DrapeTarget", None) is not target:
+        scene.DrapeTarget = target
     if source is None:
         raise ValueError("cannot snap to target without its source object")
     local = collision_surface(
