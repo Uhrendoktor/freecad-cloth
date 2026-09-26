@@ -131,8 +131,9 @@ class SimulationTaskPanel:
 
     def _load_scene_values(self):
         if self.scene is None: return
-        for name, type_name, default in (("MaterialPreset", "App::PropertyString", "Cotton"), ("StretchCompliance", "App::PropertyFloat", 0.35), ("BendCompliance", "App::PropertyFloat", 0.20), ("ArealDensity", "App::PropertyFloat", 0.01), ("AutoPinning", "App::PropertyBool", True)):
+        for name, type_name, default in (("MaterialPreset", "App::PropertyString", "Cotton"), ("StretchCompliance", "App::PropertyFloat", 0.35), ("BendCompliance", "App::PropertyFloat", 0.20), ("ArealDensity", "App::PropertyFloat", 0.01)):
             self._ensure_property(name, type_name, "Fabric", default)
+        self._ensure_property("AutoPinning", "App::PropertyBool", "Selection", True)
         index = self.material.findText(str(getattr(self.scene, "MaterialPreset", "Cotton")))
         self.auto_pins.setChecked(bool(getattr(self.scene, "AutoPinning", True)))
         self.material.setCurrentIndex(index if index >= 0 else 0)
