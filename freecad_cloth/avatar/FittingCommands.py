@@ -97,8 +97,11 @@ def create_fitting_scene():
     from freecad_cloth.avatar.AvatarFitting import BodyMeasurements, FittingScene
 
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
-    if _scene(doc) is not None:
-        return _scene(doc)
+    existing = _scene(doc)
+    if existing is not None:
+        if "DrapeTarget" not in getattr(existing, "PropertiesList", ()):
+            existing.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")
+        return existing
     obj = doc.addObject("App::FeaturePython", "FittingScene")
     obj.Label = "Avatar Fitting Scene"
     obj.addProperty("App::PropertyString", "FittingType", "Fitting").FittingType = "FittingScene"
@@ -285,15 +288,25 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=6
         for piece in selected
     }
     try:
-        centers = []
-        desired = []
-        for piece in selected:
-            samples = _piece_world_samples(piece, sample_deflection)
-            center = average_point(samples)
-            projection = nearest_target_projection(center, _world_target_surface(target))
-            centers.append(center)
-            desired.append(tuple(projection.point[i] + projection.normal[i] * required for i in range(3)))
-        shared = tuple(
+        surface = _world_target_surface(target)
+        current_reports = [
+            minimum_signed_clearance(_piece_world_samples(piece, sample_deflection), surface)
+            for piece in selected
+        ]
+        if all(report.minimum_signed_clearance + 1e-6 >= required for report in current_reports):
+            shared = (0.0, 0.0, 0.0)
+            centers = []
+            desired = []
+        else:
+            centers = []
+            desired = []
+            for piece in selected:
+                samples = _piece_world_samples(piece, sample_deflection)
+                center = average_point(samples)
+                projection = nearest_target_projection(center, surface)
+                centers.append(center)
+                desired.append(tuple(projection.point[i] + projection.normal[i] * required for i in range(3)))
+            shared = tuple(
             sum(desired[j][i] - centers[j][i] for j in range(len(selected))) / len(selected)
             for i in range(3)
         )
@@ -542,9 +555,10 @@ def create_simulation_from_fitting():
     simulation.ClothPieces = list(scene.PatternPieces)
     if scene.AvatarProxy is not None:
         simulation.AvatarProxy = scene.AvatarProxy
-    target = getattr(scene, "DrapeTarget", None)
+    target = getattr(scene, "DrapeTarget", None) or doc.getObject("DrapeTarget")
     if target is None:
         raise ValueError("assign a DrapeTarget before creating simulation")
+    scene.DrapeTarget = target
     simulation.DrapeTarget = target
     doc.recompute()
     return simulation
