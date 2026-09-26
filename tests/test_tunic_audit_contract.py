@@ -17,11 +17,20 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
-def test_canonical_tunic_pins_only_one_side_of_sewn_shoulders():
+def test_canonical_tunic_is_explicitly_unpinned():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    assert "scene.PinSelection = [str(i) for i in front_pins]" in source
-    assert "scene.PinSelection = [str(i) for i in front_pins + back_pins]" not in source
-    assert "the back panel must follow through the" in source
+    assert "scene.AutomaticPins = False; scene.PinSelection = [];" in source
+    assert "authored_shoulder_pins" not in source
+    assert "visual tunic simulation unexpectedly created solver pins" in source
+
+
+def test_canonical_tunic_uses_avatar_arrangement_and_exact_target_surface():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "from freecad_cloth.avatar.AvatarArrangement import arrangement_point_map" in source
+    assert 'arrangement_point_map(getattr(avatar, "ArrangementPoints", ()))' in source
+    assert "collision_surface(target.SourceObject" in source
+    assert "target_front_y = min(float(vertex[1]) for vertex in chest_vertices)" in source
+    assert "target_back_y = max(float(vertex[1]) for vertex in chest_vertices)" in source
 
 
 def test_canonical_tunic_uses_validated_authored_mapping():
