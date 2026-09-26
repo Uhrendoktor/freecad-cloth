@@ -111,9 +111,10 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'tunic-simulation-start' in source
 
 
-def test_canonical_tunic_keeps_fixture_geometry_unchanged_and_gates_containment():
+def test_canonical_tunic_preserves_validated_fixture_prerequisite_and_gates_containment():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert "'clearance = max(20.0, 0.08 * body_depth)'" not in source
+    assert "'clearance = max(20.0, 0.08 * body_depth)'" in source
+    assert "'clearance = max(8.0, 0.025 * body_depth)'" in source
     assert "y = min(target_ys) - clearance" not in source
     assert "y = max(target_ys) + clearance" not in source
     assert 'make_piece("VisualTunicFront", "back", 0.78, 0.18)' not in source
