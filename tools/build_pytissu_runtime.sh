@@ -26,6 +26,45 @@ docker run --rm --security-opt seccomp=unconfined \
 
     apt-get update -qq
     apt-get install -y --no-install-recommends build-essential cmake git libomp-dev
+    python3 -m pip install --no-cache-dir --disable-pip-version-check cmake==3.31.6
+    export PATH="$(python3 -c 'import sysconfig; print(sysconfig.get_path("scripts"))'):$PATH"
+    cmake --version | grep -q '^cmake version 3\\.31\\.6
+
+    rm -rf /tmp/Tissu
+    git clone --quiet https://github.com/evanrock520-ciencias/Tissu.git /tmp/Tissu
+    cd /tmp/Tissu
+    git checkout --quiet "$TISSU_COMMIT"
+    test "$(git rev-parse HEAD)" = "$TISSU_COMMIT"
+
+    python3 /workspace/tools/patch_pytissu_source.py /tmp/Tissu
+    git diff --check
+
+    sed -i "s/^version = \"1.1.0\"$/version = \"1.1.0+freecad_cloth.1\"/" pyproject.toml
+
+    python3 -m pip install --no-cache-dir setuptools wheel
+    python3 scripts/build.py --no-viewer --no-tracy --jobs 2
+
+    ctest --test-dir build --output-on-failure -R "MeshCollider\\."
+
+    rm -f /out/*.whl
+    python3 -m pip wheel . --no-deps --no-build-isolation -w /out
+    WHEEL="$(find /out -maxdepth 1 -name "*.whl" -print -quit)"
+    test -n "$WHEEL"
+
+    python3 -m pip install --no-cache-dir --force-reinstall --no-deps "$WHEEL"
+    python3 -c "import tissu; print(tissu.__file__)"
+
+    {
+      echo "source_repo=https://github.com/evanrock520-ciencias/Tissu"
+      echo "source_commit=$TISSU_COMMIT"
+      echo "source_transform_sha256=$(sha256sum /workspace/tools/patch_pytissu_source.py | awk "{print \$1}")"
+      echo "wheel=$(basename "$WHEEL")"
+      echo "python=$(python3 --version)"
+      echo "cmake=$(cmake --version | head -n 1)"
+      echo "compiler=$(c++ --version | head -n 1)"
+    } > /out/pytissu-provenance.txt
+  '
+
     rm -rf /var/lib/apt/lists/*
 
     rm -rf /tmp/Tissu
