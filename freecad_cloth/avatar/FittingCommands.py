@@ -1,6 +1,83 @@
 """FreeCAD-facing body measurement, avatar fitting, and arrangement commands."""
 
 
+def _simulation_scene(doc):
+    return next((o for o in doc.Objects if getattr(o, "Name", "") == "ClothSimulation"), None)
+
+
+def arrange_garment_on_avatar(scene, pieces=None, point_name="chest", clearance=None):
+    """Place a bounded two-panel garment around a mannequin before simulation."""
+    import FreeCAD as App
+    from freecad_cloth.avatar.AvatarFitting import ArrangementPoint, garment_arrangement_pose
+
+    if scene is None or getattr(scene, "Document", None) is None:
+        raise ValueError("a simulation scene is required")
+    target = getattr(scene, "DrapeTarget", None)
+    if target is None or str(getattr(target, "TargetType", "")) != "Mannequin":
+        raise ValueError("automatic garment arrangement requires a Mannequin DrapeTarget")
+    source = getattr(target, "SourceObject", None)
+    if source is None or str(getattr(source, "AvatarType", "")) != "ClothAvatar":
+        raise ValueError("Mannequin DrapeTarget does not expose a ClothAvatar source")
+    selected = list(pieces or getattr(scene, "ClothPieces", ()) or ())
+    selected = [piece for piece in selected if getattr(piece, "PatternType", "") == "PatternPiece"]
+    selected.sort(key=lambda piece: str(getattr(piece, "PieceId", "") or getattr(piece, "Name", "")))
+    if len(selected) != 2:
+        raise ValueError("automatic mannequin arrangement currently requires exactly two pattern panels")
+    records = tuple(getattr(source, "ArrangementPoints", ()) or ())
+    if not records:
+        raise ValueError("mannequin has no persisted arrangement points")
+    point_values = {}
+    for value in records:
+        point = ArrangementPoint.from_string(value)
+        point_values[point.name] = point
+    point = point_values.get(str(point_name)) or point_values.get("waist") or next(iter(point_values.values()))
+    point.validate()
+    mesh = getattr(source, "Mesh", None)
+    box = getattr(mesh, "BoundBox", None) if mesh is not None else None
+    if box is None:
+        raise ValueError("mannequin mesh has no usable bounding box")
+    avatar_bounds = (box.XMin, box.XMax, box.YMin, box.YMax, box.ZMin, box.ZMax)
+    target_gap = float(getattr(target, "CollisionThickness", 0.0))
+    skin_gap = float(getattr(source, "SkinOffset", 0.0))
+    gap = max(target_gap, skin_gap, 1.0) + 2.0 if clearance is None else float(clearance)
+    if gap < 0.0:
+        raise ValueError("garment clearance must not be negative")
+    result = []
+    for piece, side in zip(selected, ("front", "back")):
+        point_for_side = type(point)(point.name, point.x, point.y, point.offset, side, point.rotation_z, point.symmetry_group)
+        width = float(getattr(piece, "Width", 0.0))
+        height = float(getattr(piece, "Height", 0.0))
+        if width <= 0.0 or height <= 0.0:
+            raise ValueError("pattern panel %s has invalid dimensions" % getattr(piece, "Name", ""))
+        x, y, z, rotation_z = garment_arrangement_pose(point_for_side, avatar_bounds, width, height, gap)
+        base = App.Vector(x, y, z)
+        placement = getattr(source, "Placement", None)
+        if placement is not None and hasattr(placement, "multVec"):
+            base = placement.multVec(base)
+        rotation = App.Rotation(App.Vector(1, 0, 0), 90.0)
+        if rotation_z:
+            try:
+                rotation = App.Rotation(App.Vector(0, 0, 1), rotation_z).multiply(rotation)
+            except (AttributeError, TypeError):
+                rotation = App.Rotation(App.Vector(1, 0, 0), 90.0)
+        piece.Placement = App.Placement(base, rotation)
+        result.append((piece, side, gap))
+    if hasattr(scene, "PinSelection"):
+        scene.PinSelection = []
+    scene.Document.recompute()
+    return tuple(result)
+
+
+def arrange_current_garment_on_avatar():
+    import FreeCAD as App
+    doc = App.ActiveDocument
+    if doc is None:
+        raise ValueError("open a document before arranging a garment")
+    scene = _simulation_scene(doc)
+    if scene is None:
+        raise ValueError("create a Cloth Simulation scene before arranging the garment")
+    return arrange_garment_on_avatar(scene)
+
 def _scene(doc):
     return next((o for o in doc.Objects if getattr(o, "FittingType", "") == "FittingScene"), None)
 
@@ -396,6 +473,7 @@ COMMANDS = [
     "ClothFitting_ApplyArrangementPoint",
     "ClothFitting_ResetArrangement",
     "ClothFitting_CreateSimulation",
+    "ClothFitting_ArrangeGarmentOnAvatar",
 ]
 _COMMAND_HANDLERS = {
     "ClothFitting_CreateScene": create_fitting_scene,
@@ -411,6 +489,7 @@ _COMMAND_HANDLERS = {
     "ClothFitting_ApplyArrangementPoint": lambda: _apply_selected_arrangement(),
     "ClothFitting_ResetArrangement": reset_arrangement,
     "ClothFitting_CreateSimulation": create_simulation_from_fitting,
+    "ClothFitting_ArrangeGarmentOnAvatar": arrange_current_garment_on_avatar,
 }
 
 
