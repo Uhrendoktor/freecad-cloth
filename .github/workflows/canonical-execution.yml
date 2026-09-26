@@ -39,7 +39,7 @@ jobs:
 
   python:
     name: Python and FreeCAD non-GUI tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
@@ -118,7 +118,7 @@ jobs:
   sketcher-startup-diagnostic:
     name: FreeCAD Sketcher startup diagnostic
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
@@ -199,7 +199,7 @@ jobs:
           compression-level: 1
   gui-sewing-creation:
     name: Sewing staged creation smoke
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
@@ -264,7 +264,7 @@ jobs:
 
   gui-sketcher-acceptance:
     name: Native Sketcher seam presentation acceptance
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
@@ -319,7 +319,7 @@ jobs:
           compression-level: 1
   gui-pattern-export:
     name: Pattern production export smoke
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
@@ -363,7 +363,7 @@ jobs:
 
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
@@ -453,7 +453,7 @@ jobs:
 
   gui-turntables:
     name: README simulation turntable
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
@@ -576,7 +576,7 @@ jobs:
 
   gui-visual-examples:
     name: Basic blanket visual example
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
@@ -658,7 +658,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 10
     steps:
       - name: Download turntables
@@ -713,7 +713,7 @@ jobs:
   maintenance-cleanup:
     name: Repository retention cleanup
     if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * *' }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, docker]
     permissions:
       actions: write
       contents: write
@@ -758,7 +758,7 @@ jobs:
   benchmark:
     name: Measured FreeCAD workbench benchmark
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v5
