@@ -3,10 +3,22 @@ from pathlib import Path
 import os
 import re
 import sys
+from time import perf_counter
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+def _stage_start(name):
+    started = perf_counter()
+    log("stage-start=%s" % name)
+    return started
+
+
+def _stage_end(name, started):
+    elapsed_ms = 1000.0 * (perf_counter() - started)
+    log("stage-end=%s elapsed_ms=%.1f" % (name, elapsed_ms))
+
 
 source_path = Path(__file__).with_name("freecad_screenshot_source.py")
 source = source_path.read_text(encoding="utf-8")
@@ -43,7 +55,8 @@ for old, new in replacements.items():
     source = source.replace(old, new, 1)
 
 
-preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
+preview_probe = '''    _preview_stage = _stage_start("realtime-preview")
+    from freecad_cloth.simulation import RealtimePreview
     if "ClothRealtimePreview" not in Gui.listCommands():
         raise RuntimeError("Realtime Cloth Preview GUI command is not registered")
     preview_saved = {name: getattr(scene, name) for name in ("ParticleDistance", "SolverIterations", "SolverSubsteps", "TimeStep", "QualityPreset")}
@@ -71,11 +84,13 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
         if getattr(scene, name) != value:
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
     log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
+    _stage_end("realtime-preview", _preview_stage)
 '''
 anchor = '    for batch in (15,15,15,15,15,15):'
 if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
-timed_anchor = '''    from time import perf_counter
+timed_anchor = '''    _authoritative_stage = _stage_start("authoritative-simulation")
+    from time import perf_counter
     simulation_started = perf_counter()
     active_backend = scene.Proxy._base_or_restore().backend
     active_collision = getattr(active_backend, "_collision_surface", None)
@@ -89,9 +104,66 @@ timed_anchor = '''    from time import perf_counter
         simulation_panel.step(batch); doc.recompute(); events()
         log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
+    _stage_end("authoritative-simulation", _authoritative_stage)
 '''
 source = source.replace(anchor, preview_probe + '\n' + timed_anchor, 1)
 
+
+source = source.replace(
+    'def run_canonical_acceptance():\\n    os.makedirs',
+    'def run_canonical_acceptance():\\n    _stage = _stage_start("canonical-acceptance")\\n    os.makedirs',
+    1,
+)
+source = source.replace(
+    '        log(marker + "=passed")\\n\\n\\ndef _mesh_geometry(mesh):',
+    '        log(marker + "=passed")\\n    _stage_end("canonical-acceptance", _stage)\\n\\n\\ndef _mesh_geometry(mesh):',
+    1,
+)
+source = source.replace(
+    'def pattern_and_sewing():\\n    from freecad_cloth.pattern.PatternModel import Seam',
+    'def pattern_and_sewing():\\n    _pattern_stage = _stage_start("pattern-and-sewing-fixture")\\n    from freecad_cloth.pattern.PatternModel import Seam',
+    1,
+)
+source = source.replace(
+    '    panel = SewingTaskPanel(sewing); show_task(panel, "Sewing Workbench", ("Seam", "Alignment", "Validation tolerance", "Stitch samples", "Status")); Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll(); events(); save("cloth-sewing.png", "Sewing Workbench", "native tunic Sketcher boundary and semantic seam"); close_task(); App.closeDocument(doc.Name)\\n\\ndef style_mesh',
+    '    panel = SewingTaskPanel(sewing); show_task(panel, "Sewing Workbench", ("Seam", "Alignment", "Validation tolerance", "Stitch samples", "Status")); Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll(); events(); save("cloth-sewing.png", "Sewing Workbench", "native tunic Sketcher boundary and semantic seam"); close_task(); App.closeDocument(doc.Name)\\n    _stage_end("pattern-and-sewing-fixture", _pattern_stage)\\n\\ndef style_mesh',
+    1,
+)
+source = source.replace(
+    'def simulation():\\n    import os',
+    'def simulation():\\n    _fixture_stage = _stage_start("tunic-simulation-fixture")\\n    import os',
+    1,
+)
+source = source.replace(
+    '    log("pin-mode=None solver-pins=0")',
+    '    _stage_end("tunic-simulation-fixture", _fixture_stage)\\n    log("pin-mode=None solver-pins=0")',
+    1,
+)
+source = source.replace(
+    'def save(name, state, proof):',
+    'def save(name, state, proof):\\n    _screenshot_stage = _stage_start("screenshot-render")',
+    1,
+)
+source = source.replace(
+    '    log("screenshot=%s state=%s bytes=%d" % (path, state, os.path.getsize(path)))',
+    '    log("screenshot=%s state=%s bytes=%d" % (path, state, os.path.getsize(path)))\\n    _stage_end("screenshot-render", _screenshot_stage)',
+    1,
+)
+source = source.replace(
+    '    if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):',
+    '    _validation_stage = _stage_start("validation")\\n    if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):',
+    1,
+)
+source = source.replace(
+    'finally:\\n    try:',
+    'finally:\\n    _cleanup_stage = _stage_start("cleanup")\\n    try:',
+    1,
+)
+source = source.replace(
+    '        events(); log("script-end exit-code=%d" % exit_code)\\n        if exit_code == 0:',
+    '        events(); log("script-end exit-code=%d" % exit_code)\\n        _stage_end("cleanup", _cleanup_stage)\\n        if exit_code == 0:',
+    1,
+)
 seam_check = """    backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
     if not simulated_positions: raise RuntimeError("Tissu backend returned no simulated particle positions")
@@ -117,7 +189,28 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
     log("authoritative-seam-max-gap-mm=%.2f seam-ids=%s" % (max_seam_gap, tuple(str(seam.SeamId) for seam, _a, _b in seam_records)))
 """
 
-source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", 1)
+source = source.replace(
+    """    write_drape_metrics(
+        panels,
+        avatar,
+        x_mid,
+        shoulder_z=shoulder_z,
+        hem_z=hem_z,
+        seam_records=seam_records,
+        proxy=proxy,
+    ); bounds = []""",
+    seam_check + "\n" + """    write_drape_metrics(
+        panels,
+        avatar,
+        x_mid,
+        shoulder_z=shoulder_z,
+        hem_z=hem_z,
+        seam_records=seam_records,
+        proxy=proxy,
+    ); bounds = []
+    _stage_end("validation", _validation_stage)""",
+    1,
+)
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
 exec(compile(source, str(source_path), "exec"), globals(), globals())
