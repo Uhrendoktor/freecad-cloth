@@ -63,6 +63,16 @@ def test_refresh_seam_colors_covers_all_document_seams_deterministically():
     ]
 
 
+def test_refresh_seam_colors_does_not_assign_colors_to_unidentified_objects():
+    blank = SimpleNamespace(SeamId=" ", ViewObject=SimpleNamespace(LineColor=None))
+    seam = SimpleNamespace(SeamId="seam-1", ViewObject=SimpleNamespace(LineColor=None))
+
+    colors = refresh_seam_colors(SimpleNamespace(Objects=[blank, seam]))
+
+    assert colors == {"seam-1": seam.ViewObject.LineColor}
+    assert blank.ViewObject.LineColor is None
+
+
 def test_show_2d_does_not_select_seams_over_their_colors():
     seam = SimpleNamespace(SeamId="seam-1", ViewObject=SimpleNamespace(LineColor=None))
     piece = SimpleNamespace(PatternType="PatternPiece")
