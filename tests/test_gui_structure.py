@@ -138,6 +138,18 @@ def test_workbench_group_registration_is_idempotent_and_keeps_flat_context_comma
     assert calls[3][1] == ["Cloth Sewing", "Validation & View"]
 
 
+def test_workbench_activation_refreshes_semantic_seam_presentation():
+    base = (ROOT / "freecad_cloth" / "gui.py").read_text(encoding="utf-8")
+    simulation = (ROOT / "freecad_cloth" / "simulation" / "workbench.py").read_text(encoding="utf-8")
+    pattern = (ROOT / "freecad_cloth" / "pattern" / "PatternCommands.py").read_text(encoding="utf-8")
+    sewing = (ROOT / "freecad_cloth" / "sewing" / "SewingCommands.py").read_text(encoding="utf-8")
+    assert "refresh_seam_colors(document)" in base
+    assert "super().Activated()" in simulation
+    assert "refresh_seam_colors()" in pattern
+    assert "refresh_seam_colors(document)" in sewing
+    assert "SimulationSeamId" not in base + simulation + pattern + sewing
+
+
 def test_workbench_base_exposes_legacy_registration_aliases():
     assert hasattr(ClothWorkbenchBase, "_normalize_commands")
     assert hasattr(ClothWorkbenchBase, "_register")
