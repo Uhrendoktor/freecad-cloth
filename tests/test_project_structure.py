@@ -79,7 +79,16 @@ def test_canonical_workflow_trusted_local_watchdog_contract():
     assert "runner_mode:" in workflow
     assert "options: [local, hosted]" in workflow
     assert 'github.event_name == ' + "'pull_request'" in workflow
-    assert "fromJSON('["ubuntu-latest"]')" in workflow
-    assert "fromJSON('["self-hosted","linux","x64","docker"]')" in workflow
+    assert "fromJSON('[\"ubuntu-latest\"]')" in workflow
+    assert "fromJSON('[\"self-hosted\",\"linux\",\"x64\",\"docker\"]')" in workflow
     assert 'if [ "$event" = "workflow_dispatch" ]; then' in workflow
     assert "Preserving active workflow_dispatch run" in workflow
+
+
+def test_blanket_evidence_validates_after_docker_restore():
+    root = Path(__file__).resolve().parents[1]
+    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    block = workflow.split("  gui-visual-examples:", 1)[1].split("  publish-readme-turntables:", 1)[0]
+    restore = block.index("name: Restore workspace from Docker volume")
+    validate = block.index("name: Validate blanket visual evidence")
+    assert restore < validate
