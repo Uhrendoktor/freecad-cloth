@@ -24,9 +24,17 @@ For an existing installation, remove the previous `freecad-cloth` directory befo
 
 ## First run
 
-Start with the **Blanket over Cube** example in [EXAMPLES.md](EXAMPLES.md). It is deliberately smaller than the tunic and is the recommended smoke test for a new installation.
+Use the two example paths for different purposes; do not treat them as interchangeable tests.
 
-Then read the concise [User guide](USER_GUIDE.md) and run the tunic workflow documented in [WORKBENCH_GUIDE.md](WORKBENCH_GUIDE.md).
+### 1. Installation smoke test — Blanket over Cube
+
+Start with the **Blanket over Cube** example in [EXAMPLES.md](EXAMPLES.md). It is the deliberately small installation smoke test: create the cloth, use a simple FreeCAD collision target, pin two blanket corners, and verify that the simulation moves the cloth around the cube. The pins are part of this smoke test. A passing blanket run does **not** validate the mannequin fitting or garment-arrangement path.
+
+### 2. Garment path — Tunic on the mannequin
+
+After the smoke test passes, use the **Tunic** example for the full garment journey: Pattern → Sewing → fitting/arrangement → Simulation. In **Cloth Sewing**, the current public fitting path creates an **Avatar Fitting Scene**, adds the selected pattern pieces, creates/uses arrangement metadata, and supports resetting the arrangement. In **Cloth Simulation**, create or refresh the mannequin **Drape Target** before running the garment simulation.
+
+The fitting/arrangement step is explicit on current main. Do not expect the tunic to be automatically snapped into a target-relative, pin-free pose; that behavior is not part of the current released documentation contract.
 
 ## Developer setup
 
