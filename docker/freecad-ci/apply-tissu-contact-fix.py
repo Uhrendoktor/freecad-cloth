@@ -380,7 +380,10 @@ TEST(MeshCollider, ClosedMeshSweptContactPreventsTunneling) {
     mesh.resolve(particles, 0.016, 0.1);
 
     EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
-    EXPECT_LT(particles[0].getPosition().y(), 0.2);
+    // The segment crosses the closed tetrahedron at y=0.0 (entry) and y=1.5
+    // (exit). Swept response must remain on the current/exit side rather than
+    // teleporting the particle back to the entry surface.
+    EXPECT_GT(particles[0].getPosition().y(), 1.0);
 }
 
 TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
