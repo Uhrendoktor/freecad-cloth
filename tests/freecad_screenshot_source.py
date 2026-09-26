@@ -424,9 +424,17 @@ def simulation():
     fitting.FitStatus = "Ready"
     refresh_drape_target(target)
     doc.recompute()
-    for piece in (front, back):
-        result = target_aware_place_piece(piece, target, anchors, clearance=clearance, max_translation=600.0, max_rotation=45.0)
-        log("target-aware-%s=%s" % (piece.PieceId, result))
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(front)
+    if not hasattr(Gui, "runCommand") or "ClothFitting_TargetAwareArrange" not in Gui.listCommands():
+        raise RuntimeError("production target-aware fitting command is unavailable")
+    Gui.runCommand("ClothFitting_TargetAwareArrange", 0)
+    events()
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(back)
+    Gui.runCommand("ClothFitting_TargetAwareArrange", 0)
+    events()
+    log("target-aware-placement=public-command anchors=%d" % len(anchors))
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
     for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
