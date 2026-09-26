@@ -17,22 +17,19 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
-def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
+def test_canonical_tunic_uses_target_aware_garment_anchors_and_no_pins():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    assert 'ArrangementPoint.from_string' in source
-    assert 'shoulder_left = arrangement_world("shoulder_left")' in source
-    assert 'shoulder_right = arrangement_world("shoulder_right")' in source
-    assert 'hip_point = arrangement_world("hip")' in source
-    assert 'os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"' in source
-    assert 'status = target_status(target)' in source
+    assert "GarmentAnchor" in source
+    assert "fitting.GarmentAnchors" in source
+    assert 'Gui.runCommand("ClothFitting_SnapPiecesToTarget", 0)' in source
+    assert "target_relative_piece_placement" not in source
+    assert "front_y =" not in source and "back_y =" not in source
     assert 'scene.PinMode = "None"' in source
     assert 'scene.PinSelection = []' in source
     assert 'if solver_pins:' in source
-    assert 'nearest_target_clearance' in source
     assert 'step0-target-vertex-clearance-mm=' in source
     assert 'authored_shoulder_pins' not in source
     assert 'scene.PinSelection = [str(i) for i in front_pins]' not in source
-    assert 'target_surface = collision_surface(' in source
     assert 'target_source.Mesh.BoundBox' not in source
 
 
@@ -107,3 +104,12 @@ def test_simulation_proxy_serializes_only_rebuildable_metadata():
     assert proxy.source_signature is None
     assert proxy.last_steps == 0
     assert proxy.collision_surface is None
+
+
+def test_target_placement_contract_is_rigid_and_solver_neutral():
+    source = (ROOT / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    target = (ROOT / "freecad_cloth" / "avatar" / "TargetPlacement.py").read_text(encoding="utf-8")
+    assert "solve_rigid_z" in source
+    assert "max_rotation" in source
+    assert "minimum_signed_clearance" in source
+    assert "import FreeCAD" not in target
