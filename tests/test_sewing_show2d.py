@@ -45,6 +45,24 @@ def test_apply_seam_colors_marks_each_seam_pair():
     assert first.ViewObject.LineColor != second.ViewObject.LineColor
 
 
+def test_apply_seam_colors_follows_seam_identity_for_sewing_operation():
+    seam = SimpleNamespace(SeamId="seam-linked")
+    operation = SimpleNamespace(
+        SewingType="SewingOperation",
+        Seam=seam,
+        ViewObject=SimpleNamespace(LineColor=None),
+    )
+    direct = SimpleNamespace(
+        SeamId="seam-direct",
+        ViewObject=SimpleNamespace(LineColor=None),
+    )
+    colors = apply_seam_colors([operation, direct])
+    assert operation.ViewObject.LineColor == colors["seam-linked"]
+    assert direct.ViewObject.LineColor == colors["seam-direct"]
+    assert operation.ViewObject.LineColor != direct.ViewObject.LineColor
+    assert "seam-linked" in colors
+
+
 def test_show_2d_does_not_select_seams_over_their_colors():
     seam = SimpleNamespace(SeamId="seam-1", ViewObject=SimpleNamespace(LineColor=None))
     piece = SimpleNamespace(PatternType="PatternPiece")
