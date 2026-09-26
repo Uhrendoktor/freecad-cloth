@@ -435,7 +435,7 @@ def build_simulation_state(doc):
     )
     pins = _nearest_pin_indices(panel_indices, positions, corner_targets)
     scene.PinSelection = [str(index) for index in pins]
-    log("blanket-pins=passed four-corner-authored indices=%s" % (pins))
+    log("blanket-pins=passed four-corner-authored indices=%s" % (pins,))
     doc.recompute()
 
     sketch.ViewObject.Visibility = False
