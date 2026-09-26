@@ -73,7 +73,7 @@ def test_fitting_action_is_registered_and_transactional():
     assert "scene.DrapeTarget" in fitting
     assert "PiecePlacement.from_string" in fitting
 
-def test_fitting_action_checks_the_complete_piece_surface_not_only_anchors():  # canonical solver geometry contract
+def test_fitting_action_checks_the_complete_piece_surface_not_only_anchors():  # canonical solver geometry contract; fresh-head validation
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]
     fitting = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
