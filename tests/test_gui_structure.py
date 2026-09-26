@@ -187,3 +187,14 @@ def test_pattern_drafting_remains_compatibility_only():
 
 
 print("GUI structure checks passed")
+
+
+
+def test_avatar_target_placement_ui_contract():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "freecad_cloth" / "avatar" / "AvatarGui.py").read_text(encoding="utf-8")
+    assert 'QGroupBox("Arrangement & target placement")' in source
+    assert 'QPushButton("Snap to Drape Target")' in source
+    assert 'ClothAvatarSnapToDrapeTarget' in source
+    assert 'snap_pieces_to_drape_target(pieces, target)' in source
