@@ -290,13 +290,14 @@ def _opposite_top_edge_pins(piece, positions, panel_indices):
     top_edge = tuple(index for index in boundary_vertices if abs(float(mesh_positions[index][1]) - top_y) <= 1e-9)
     if len(top_edge) < 2:
         raise RuntimeError("blanket top edge has fewer than two boundary vertices")
+    target_x = 0.375 * BLANKET_SIZE
     top = (
-        min(top_edge, key=lambda index: float(mesh_positions[index][0])),
-        max(top_edge, key=lambda index: float(mesh_positions[index][0])),
+        min(top_edge, key=lambda index: abs(float(mesh_positions[index][0]) + target_x)),
+        min(top_edge, key=lambda index: abs(float(mesh_positions[index][0]) - target_x)),
     )
     span = abs(float(mesh_positions[top[1]][0]) - float(mesh_positions[top[0]][0]))
     if span < 0.75 * BLANKET_SIZE:
-        raise RuntimeError("blanket pins are not opposite top-edge corners: span=%.3f" % span)
+        raise RuntimeError("blanket pins are not opposite inset top-edge anchors: span=%.3f" % span)
     return tuple(int(panel_indices[top_index]) for top_index in top), span
 
 
@@ -392,7 +393,7 @@ def build_simulation_state(doc):
     blanket = create_pattern_piece_from_selected_sketch(name="Blanket", allowance=0.0, grainline=0.0)
     if blanket.Sketch is not sketch:
         raise RuntimeError("pattern piece did not retain native sketch")
-    placement = App.Placement(App.Vector(-BLANKET_SIZE / 2.0, -BLANKET_SIZE / 2.0, 150.0), App.Rotation())
+    placement = App.Placement(App.Vector(-BLANKET_SIZE / 2.0, -BLANKET_SIZE / 2.0, 90.0), App.Rotation())
     blanket.Placement = placement
     blanket.Sketch.Placement = placement
 
