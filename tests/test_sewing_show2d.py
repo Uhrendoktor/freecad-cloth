@@ -43,6 +43,12 @@ def test_seam_color_surface_contract_carries_identity_to_sewing_operations():
     assert "apply_seam_colors(doc.Objects)" in source
 
 
+def test_seam_proxy_reapplies_color_after_recompute():
+    source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "pattern" / "PatternObjects.py").read_text(encoding="utf-8")
+    assert "build_seam_visual_shape, apply_seam_colors" in source
+    assert "apply_seam_colors(obj.Document.Objects)" in source
+
+
 def test_apply_seam_colors_marks_each_seam_pair():
     first = SimpleNamespace(SeamId="seam-a", ViewObject=SimpleNamespace(LineColor=None))
     second = SimpleNamespace(SeamId="seam-b", ViewObject=SimpleNamespace(LineColor=None))
