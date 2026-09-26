@@ -73,3 +73,10 @@ def test_mesh_collision_edge_projection_is_idempotent():
 
     assert projected == (11.0, 0.0, 11.0)
     assert particle.position() == projected
+
+
+if __name__ == "__main__":
+    for name, test in sorted(globals().items()):
+        if name.startswith("test_") and callable(test):
+            test()
+    print("cloth solver tests passed")
