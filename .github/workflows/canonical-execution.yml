@@ -14,19 +14,6 @@ on:
         type: choice
         default: local
         options: [local, hosted]
-        description: "Original run ID when invoked as an automatic hosted fallback."
-        required: false
-        type: string
-        default: ""
-        description: "PR number for the broker-dispatched hosted validation run."
-        required: false
-        type: string
-        default: ""
-        description: "Immutable PR head SHA for broker-dispatched hosted validation."
-        required: false
-        type: string
-        default: ""
-  schedule:
     - cron: '*/5 * * * *'
     - cron: '0 3 * * *'
 
