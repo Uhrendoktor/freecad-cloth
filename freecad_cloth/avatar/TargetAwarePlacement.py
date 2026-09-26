@@ -211,26 +211,6 @@ def assert_minimum_surface_clearance(surface, points, required_clearance):
     return actual
 
 
-def transform_surface_to_world(surface, source):
-    """Return the collision surface expressed in world coordinates."""
-    import FreeCAD as App
-    placement = getattr(source, "Placement", None)
-    if placement is None:
-        return surface
-    world_vertices = []
-    for point in surface.vertices:
-        world = placement.multVec(App.Vector(*point))
-        world_vertices.append((float(world.x), float(world.y), float(world.z)))
-    from freecad_cloth.avatar.AvatarCollision import CollisionSurface
-    result = CollisionSurface(
-        tuple(world_vertices),
-        tuple(surface.triangles),
-        str(surface.region),
-        float(surface.thickness),
-    )
-    result.validate()
-    return result
-
 
 def require_ready_target_status(status):
     if not isinstance(status, dict) or status.get("state") != "ready":
