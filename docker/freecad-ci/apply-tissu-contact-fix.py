@@ -233,8 +233,11 @@ bool intersectSegmentTriangle(
                     0.5 * travelLength + thickness + 1e-6,
                     candidates);
 
-                double bestT = -1.0;
-                int bestTriangle = -1;
+                double firstEnteringT = 2.0;
+                int firstEnteringTriangle = -1;
+                double lastHitT = -1.0;
+                int lastHitTriangle = -1;
+                const Eigen::Vector3d travelDirection = travel.normalized();
                 for (int candidate : candidates) {
                     const Triangle& sweptTri = m_bvh.getTriangle(candidate);
                     const Eigen::Vector3d& sweptA =
@@ -247,26 +250,50 @@ bool intersectSegmentTriangle(
                     if (!intersectSegmentTriangle(
                             start, end, sweptA, sweptB, sweptC, hitT))
                         continue;
-                    // A tunneled particle can cross a closed surface twice and
-                    // finish outside it. Resolve against the hit nearest the
-                    // current position so collision response preserves the
-                    // particle's current-side locality instead of teleporting
-                    // it back to the entry surface.
-                    if (hitT > bestT) {
-                        bestT = hitT;
-                        bestTriangle = candidate;
+
+                    Eigen::Vector3d outward =
+                        (sweptB - sweptA).cross(sweptC - sweptA);
+                    const double outwardLength = outward.norm();
+                    if (outwardLength <= 1e-12)
+                        continue;
+                    outward = outward / outwardLength * m_outwardNormalSign;
+
+                    // Closed-surface tunneling must resolve at the transition
+                    // from the exterior into the manifold. For a trajectory
+                    // that starts inside, there is no entering hit; the last
+                    // available crossing is its exit surface.
+                    const bool entering = travelDirection.dot(outward) < -1e-9;
+                    if (entering &&
+                        (hitT < firstEnteringT ||
+                         (std::abs(hitT - firstEnteringT) <= 1e-12 &&
+                          candidate < firstEnteringTriangle))) {
+                        firstEnteringT = hitT;
+                        firstEnteringTriangle = candidate;
+                    }
+                    if (hitT > lastHitT ||
+                        (std::abs(hitT - lastHitT) <= 1e-12 &&
+                         candidate > lastHitTriangle)) {
+                        lastHitT = hitT;
+                        lastHitTriangle = candidate;
                     }
                 }
 
-                if (bestTriangle >= 0) {
-                    const Triangle& sweptTri = m_bvh.getTriangle(bestTriangle);
+                int selectedTriangle = firstEnteringTriangle;
+                double selectedT = firstEnteringT;
+                if (selectedTriangle < 0 && lastHitTriangle >= 0) {
+                    selectedTriangle = lastHitTriangle;
+                    selectedT = lastHitT;
+                }
+
+                if (selectedTriangle >= 0) {
+                    const Triangle& sweptTri = m_bvh.getTriangle(selectedTriangle);
                     const Eigen::Vector3d& sweptA =
                         m_worldVertices[sweptTri.a];
                     const Eigen::Vector3d& sweptB =
                         m_worldVertices[sweptTri.b];
                     const Eigen::Vector3d& sweptC =
                         m_worldVertices[sweptTri.c];
-                    collisionPoint = start + (end - start) * bestT;
+                    collisionPoint = start + (end - start) * selectedT;
                     sweptFaceNormal =
                         (sweptB - sweptA).cross(sweptC - sweptA);
                     const double sweptNormalLength =
