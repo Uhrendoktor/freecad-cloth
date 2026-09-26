@@ -30,7 +30,7 @@ os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "mesh")
 
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 BLANKET_SIZE = 200.0  # Validated 200 mm release fixture; keep pins/placement derived from this value.
-BLANKET_PARTICLE_DISTANCE = 16.0  # Bounded release resolution; contract requires >= 12 mm.
+BLANKET_PARTICLE_DISTANCE = 20.0  # Bounded release resolution; contract requires >= 12 mm.
 BLANKET_PIN_MODE = "one-corner"  # Benchmark candidate pin contract.
 # The README fixture uses the same pinned Tissu mesh-collision runtime as the
 # canonical turntable job and the validated 200 mm blanket visual example.
