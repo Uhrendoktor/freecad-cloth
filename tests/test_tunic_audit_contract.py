@@ -148,6 +148,13 @@ def test_closed_tissu_collision_topology_is_not_coarsened():
     assert 'preserving_closed_surface=true' in source
 
 
+def test_canonical_tunic_visual_gate_is_fail_closed():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert 'classification.state in {"detached-candidate", "edge-on-candidate"}' in source
+    assert '"collapsed-candidate" in diagnostics' in source
+    assert "canonical tunic visual geometry is not structurally plausible" in source
+
+
 def test_canonical_tunic_fixture_matches_validated_start_geometry():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert '"front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)"' in audit
