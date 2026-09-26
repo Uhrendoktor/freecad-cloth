@@ -31,6 +31,7 @@ os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "mesh")
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 BLANKET_SIZE = 200.0  # Validated 200 mm release fixture; keep pins/placement derived from this value.
 BLANKET_PARTICLE_DISTANCE = 16.0  # Bounded release resolution; contract requires >= 12 mm.
+BLANKET_PIN_MODE = "two-opposite-corners"  # Benchmark candidate pin contract.
 # The README fixture uses the same pinned Tissu mesh-collision runtime as the
 # canonical turntable job and the validated 200 mm blanket visual example.
 os.environ["CLOTH_SIMULATION_BACKEND"] = "tissu"
@@ -300,6 +301,24 @@ def _opposite_top_edge_pins(piece, positions, panel_indices):
     return tuple(int(panel_indices[top_index]) for top_index in top), span
 
 
+def _four_corner_pins(piece, panel_indices):
+    mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, BLANKET_PARTICLE_DISTANCE)
+    boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
+    if len(boundary_vertices) < 4:
+        raise RuntimeError("blanket boundary has fewer than four vertices")
+    half = 0.5 * BLANKET_SIZE
+    targets = (
+        App.Vector(-half, -half, 0.0),
+        App.Vector(half, -half, 0.0),
+        App.Vector(half, half, 0.0),
+        App.Vector(-half, half, 0.0),
+    )
+    pins = _nearest_pin_indices(panel_indices, mesh_positions, targets)
+    if len(set(pins)) != 4:
+        raise RuntimeError("four-corner blanket pin contract collapsed to duplicate vertices")
+    return tuple(int(index) for index in pins)
+
+
 def _nearest_pin_indices(panel_indices, positions, targets):
     available = list(panel_indices)
     result = []
@@ -321,6 +340,24 @@ def _center_z(points):
     if not points:
         raise RuntimeError("empty simulation particle set")
     return sum(float(p[2]) for p in points) / len(points)
+
+
+def _cube_coverage_metrics(points, cube, grid=6):
+    xmin, xmax = float(cube.Shape.BoundBox.XMin), float(cube.Shape.BoundBox.XMax)
+    ymin, ymax = float(cube.Shape.BoundBox.YMin), float(cube.Shape.BoundBox.YMax)
+    cube_area = max(1e-9, (xmax - xmin) * (ymax - ymin))
+    xs = [float(point[0]) for point in points]
+    ys = [float(point[1]) for point in points]
+    overlap_x = max(0.0, min(xmax, max(xs)) - max(xmin, min(xs)))
+    overlap_y = max(0.0, min(ymax, max(ys)) - max(ymin, min(ys)))
+    bbox_overlap_ratio = (overlap_x * overlap_y) / cube_area
+    occupied = set()
+    for x, y, _z in points:
+        if xmin <= x <= xmax and ymin <= y <= ymax:
+            ix = min(grid - 1, max(0, int((x - xmin) / (xmax - xmin) * grid)))
+            iy = min(grid - 1, max(0, int((y - ymin) / (ymax - ymin) * grid)))
+            occupied.add((ix, iy))
+    return bbox_overlap_ratio, len(occupied) / float(grid * grid)
 
 
 def validate_blanket_drape(panel, cube):
@@ -427,9 +464,18 @@ def build_simulation_state(doc):
     proxy = scene.Proxy._base_or_restore()
     positions = tuple(proxy.backend.positions())
     panel_indices = tuple(proxy.panel_indices[panel.Name])
-    pins, span = _opposite_top_edge_pins(blanket, positions, panel_indices)
+    if BLANKET_PIN_MODE == "two-opposite-corners":
+        pins, span = _opposite_top_edge_pins(blanket, positions, panel_indices)
+    elif BLANKET_PIN_MODE == "four-corners":
+        pins = _four_corner_pins(blanket, panel_indices)
+        span = max(
+            abs(float(positions[pins[i]][0]) - float(positions[pins[j]][0]))
+            for i in range(4) for j in range(i + 1, 4)
+        )
+    else:
+        raise RuntimeError("unsupported blanket pin mode: %s" % BLANKET_PIN_MODE)
     scene.PinSelection = [str(index) for index in pins]
-    log("blanket-pins=passed opposite-corners span=%.3f indices=%s" % (span, pins))
+    log("blanket-pins=passed mode=%s span=%.3f indices=%s" % (BLANKET_PIN_MODE, span, pins))
     doc.recompute()
 
     sketch.ViewObject.Visibility = False
@@ -514,7 +560,29 @@ def main():
         log("blanket-motion-diagnostic max_centroid_displacement_mm=%.2f final_centroid_z_mm=%.2f min_z_mm=%.2f cube_top_z_mm=%.2f" % (
             displacement, final_z, minimum_z, cube_top,
         ))
+
+        final_vertices, _ = panel.Mesh.Topology
+        final_points = tuple((float(vertex.x), float(vertex.y), float(vertex.z)) for vertex in final_vertices)
+        drape_metrics = inspect_drape(
+            final_points,
+            tuple((float(vertex.Point.x), float(vertex.Point.y), float(vertex.Point.z)) for vertex in cube.Shape.Vertexes),
+            target_height=float(cube.Shape.BoundBox.ZLength),
+            target_width=max(float(cube.Shape.BoundBox.XLength), float(cube.Shape.BoundBox.YLength)),
+        )
+        bbox_overlap_ratio, grid_coverage_ratio = _cube_coverage_metrics(final_points, cube)
         log(
+            "blanket-coverage mode=%s particle_distance=%.1f vertical_span_ratio=%.3f lateral_span_ratio=%.3f "
+            "target_vertex_clearance=%s bbox_overlap_ratio=%.3f grid_coverage_ratio=%.3f"
+            % (
+                BLANKET_PIN_MODE,
+                float(scene.ParticleDistance),
+                drape_metrics.vertical_span_ratio,
+                drape_metrics.lateral_span_ratio,
+                "none" if drape_metrics.target_vertex_clearance is None else "%.2f" % drape_metrics.target_vertex_clearance,
+                bbox_overlap_ratio,
+                grid_coverage_ratio,
+            )
+        )        log(
             "stage=simulation-pass steps=%d simulated_time_s=%.3f elapsed_ms=%.1f"
             % (steps, float(scene.SimulatedTime), 1000.0 * (time.monotonic() - simulation_started))
         )
