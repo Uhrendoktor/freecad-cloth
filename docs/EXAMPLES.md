@@ -47,7 +47,7 @@ The tunic is the advanced acceptance path and should be attempted only after the
 ### Pattern
 
 1. Create two native Sketcher pieces for the front and back.
-2. Adopt each Sketcher object with **Create From Sketch**.
+2. Adopt each Sketcher object with **Create Pattern Piece From Selected Sketch**.
 3. Give the PatternPieces clear labels and recompute.
 4. Use **Edit native Sketch…** whenever geometry must change.
 
@@ -65,9 +65,9 @@ The production fixture checks that semantic edge identities survive into the sol
 ### Arrange / Fit
 
 1. Create the Cloth Human Mannequin.
-2. Create a Fitting Scene and add the front/back PatternPieces.
-3. Create or edit persistent Arrangement Points.
-4. Apply arrangement points to establish the initial piece placements.
+2. Create a **Fitting Scene** and add the front/back PatternPieces with **Add Selected Pattern Pieces**.
+3. Create or edit persistent Arrangement Points with **Create Arrangement Point** / **Set Arrangement Point**.
+4. Apply them with **Apply Selected Arrangement** to establish the initial piece placements.
 5. Use **Reset Arrangement** to recover the saved pre-arrangement state when placement experiments go wrong.
 
 The current release does not claim a general automatic body-snap feature. Arrangement points and persistent piece placements are the documented fitting mechanism.
