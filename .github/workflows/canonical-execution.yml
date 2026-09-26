@@ -79,7 +79,7 @@ jobs:
             gh api --method POST "repos/$REPO/actions/runs/$run_id/cancel" >/dev/null
           done
   runner_router:
-    name: Select local runner or GitHub-hosted fallback
+    name: Select trusted local runner or GitHub-hosted fallback
     runs-on: ubuntu-latest
     timeout-minutes: 2
     outputs:
@@ -88,41 +88,71 @@ jobs:
       runner_name: ${{ steps.select.outputs.runner_name }}
     steps:
       - id: select
-        name: Prefer an idle local Docker runner, otherwise use GitHub-hosted
+        name: Prefer an idle local Docker runner for trusted runs
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.CLOTH_RUNNER_DISCOVERY_TOKEN }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           required='["self-hosted","linux","x64","docker"]'
-          for attempt in 1 2 3 4 5 6; do
-            runners="$(gh api --paginate "repos/$REPO/actions/runners?per_page=100" 2>/dev/null || true)"
-            if test -n "$runners"; then
-              local="$(printf '%s' "$runners" | jq -c '
-                [(.runners // [])[]
-                  | select(.status == "online" and .busy == false)
-                  | select((["self-hosted","linux","x64","docker"] - [(.labels // [])[].name]) | length == 0)
-                ][0] // empty
-              ')"
-              if test -n "$local"; then
-                runner_name="$(printf '%s' "$local" | jq -r '.name')"
-                runner_id="$(printf '%s' "$local" | jq -r '.id')"
-                echo "runner-router=local mode=local name=$runner_name id=$runner_id"
-                echo "runs_on=$required" >> "$GITHUB_OUTPUT"
-                echo "mode=local" >> "$GITHUB_OUTPUT"
-                echo "runner_name=$runner_name" >> "$GITHUB_OUTPUT"
-                exit 0
-              fi
-            fi
-            echo "runner-router=probe attempt=$attempt mode=github-hosted reason=no-idle-matching-local-runner"
-            sleep 2
-          done
-          echo 'runner-router=github-hosted mode=fallback reason=local-runner-unreachable-or-busy'
-          echo 'runs_on=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
-          echo 'mode=github-hosted' >> "$GITHUB_OUTPUT"
-          echo 'runner_name=ubuntu-latest' >> "$GITHUB_OUTPUT"
+          fallback() {
+            local reason="$1"
+            echo "runner-router=github-hosted mode=fallback reason=$reason"
+            echo 'runs_on=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
+            echo 'mode=github-hosted' >> "$GITHUB_OUTPUT"
+            echo 'runner_name=ubuntu-latest' >> "$GITHUB_OUTPUT"
+          }
 
-  runner_heartbeat:
+          # Never route pull_request code onto a self-hosted runner.
+          # The repository is public, so forked PR code must stay on GitHub-hosted infrastructure.
+          if test "${{ github.event_name }}" = "pull_request"; then
+            fallback "pull-request-hosted-only"
+            exit 0
+          fi
+
+          # Listing repository self-hosted runners requires a narrowly scoped token
+          # with runner-list permission (for example Administration: read). The
+          # default GITHUB_TOKEN does not have that capability.
+          if test -z "${GH_TOKEN:-}"; then
+            fallback "runner-discovery-token-not-configured"
+            exit 0
+          fi
+
+          for attempt in 1 2 3 4 5 6; do
+            response_file="$RUNNER_TEMP/runner-list-$attempt.json"
+            error_file="$RUNNER_TEMP/runner-list-$attempt.err"
+            if gh api "repos/$REPO/actions/runners?per_page=100" >"$response_file" 2>"$error_file"; then
+              if jq -e '.runners | type == "array"' "$response_file" >/dev/null 2>&1; then
+                local="$(jq -c '
+                  [(.runners // [])[]
+                    | select(.status == "online" and .busy == false)
+                    | select((["self-hosted","linux","x64","docker"] - [(.labels // [])[].name]) | length == 0)
+                  ][0] // empty
+                ' "$response_file")"
+                if test -n "$local"; then
+                  runner_name="$(printf '%s' "$local" | jq -r '.name')"
+                  runner_id="$(printf '%s' "$local" | jq -r '.id')"
+                  echo "runner-router=local mode=local name=$runner_name id=$runner_id"
+                  echo "runs_on=$required" >> "$GITHUB_OUTPUT"
+                  echo "mode=local" >> "$GITHUB_OUTPUT"
+                  echo "runner_name=$runner_name" >> "$GITHUB_OUTPUT"
+                  exit 0
+                fi
+              else
+                echo "runner-router=probe attempt=$attempt mode=github-hosted reason=invalid-runner-api-response"
+              fi
+            else
+              echo "runner-router=probe attempt=$attempt mode=github-hosted reason=runner-api-error"
+              sed -n '1,3p' "$error_file" || true
+            fi
+            if test "$attempt" -lt 6; then
+              sleep 2
+            fi
+          done
+
+          fallback "local-runner-unreachable-or-busy"
+
+    runner_heartbeat:
     name: Local Docker runner heartbeat
     if: ${{ github.event_name == 'schedule' }}
     runs-on: [self-hosted, linux, x64, docker]
