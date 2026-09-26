@@ -6,11 +6,19 @@ _SEAM_GOLDEN_ANGLE = 0.618033988749895
 
 
 def seam_color_map(seam_ids):
-    """Return deterministic, visually distinct colors keyed by seam id."""
+    """Return a stable RGB keyed only by canonical SeamId.
+
+    Hashing the semantic identifier makes a seam's color invariant when the
+    document is reordered, a subset is rendered, or another seam is added.
+    """
+    import hashlib
+
     ids = sorted({str(seam_id) for seam_id in seam_ids if str(seam_id).strip()})
     result = {}
-    for index, seam_id in enumerate(ids):
-        hue = (index * _SEAM_GOLDEN_ANGLE) % 1.0
+    for seam_id in ids:
+        digest = hashlib.sha256(seam_id.encode("utf-8")).digest()
+        seed = int.from_bytes(digest[:8], "big")
+        hue = (seed % 1000000) / 1000000.0
         rgb = hsv_to_rgb(hue, 0.78, 0.92)
         result[seam_id] = tuple(round(channel, 6) for channel in rgb)
     return result
