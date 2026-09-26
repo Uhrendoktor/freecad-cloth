@@ -325,6 +325,205 @@ def apply_arrangement_point(piece, point, mirror=None):
     return position_piece(piece, point.x, point.y, point.offset, rotations[point.wrap_direction])
 
 
+
+def _ensure_fitting_target_property(scene):
+    """Ensure legacy fitting scenes can persist the authoritative DrapeTarget link."""
+    if "DrapeTarget" not in getattr(scene, "PropertiesList", ()):
+        scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")
+    return getattr(scene, "DrapeTarget", None)
+
+
+def _world_shape(obj):
+    """Return object geometry with document placement applied in world space."""
+    import Part
+
+    shape = getattr(obj, "Shape", None)
+    if shape is not None and not shape.isNull():
+        world = shape.copy()
+    else:
+        mesh = getattr(obj, "Mesh", None)
+        topology = getattr(mesh, "Topology", None) if mesh is not None else None
+        if topology is None:
+            raise ValueError("object has no usable Part Shape or Mesh topology")
+        faces = []
+        vertices, triangles = topology
+        import FreeCAD as App
+        for triangle in triangles:
+            points = []
+            try:
+                for index in triangle:
+                    vertex = vertices[int(index)]
+                    if hasattr(vertex, "x"):
+                        points.append(App.Vector(float(vertex.x), float(vertex.y), float(vertex.z)))
+                    else:
+                        points.append(App.Vector(*[float(c) for c in vertex]))
+                points.append(points[0])
+                faces.append(Part.Face(Part.makePolygon(points)))
+            except (IndexError, TypeError, ValueError, RuntimeError, AttributeError):
+                continue
+        if not faces:
+            raise ValueError("object mesh has no usable triangular faces")
+        world = Part.makeCompound(faces)
+
+    placement = getattr(obj, "Placement", None)
+    if placement is not None:
+        world.Placement = placement
+    return world
+
+
+def _shape_center(shape):
+    import FreeCAD as App
+    box = shape.BoundBox
+    return App.Vector(
+        (float(box.XMin) + float(box.XMax)) * 0.5,
+        (float(box.YMin) + float(box.YMax)) * 0.5,
+        (float(box.ZMin) + float(box.ZMax)) * 0.5,
+    )
+
+
+def snap_piece_to_drape_target(piece, target=None, clearance=8.0, max_translation=240.0, max_iterations=32):
+    """Rigorously place one PatternPiece at bounded clearance from DrapeTarget.
+
+    The operation is fitting state, never solver state. All touched state is
+    restored when validation fails after mutation.
+    """
+    import FreeCAD as App
+    from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+    from freecad_cloth.simulation.DrapeTarget import target_status
+
+    if getattr(piece, "PatternType", "") != "PatternPiece":
+        raise ValueError("piece must be a Cloth PatternPiece object")
+    clearance = float(clearance)
+    max_translation = float(max_translation)
+    max_iterations = int(max_iterations)
+    if clearance < 0.0:
+        raise ValueError("clearance must be non-negative")
+    if max_translation <= 0.0 or max_iterations < 1:
+        raise ValueError("snap limits must be positive")
+
+    doc = getattr(piece, "Document", None) or App.ActiveDocument
+    if doc is None:
+        raise ValueError("open a document before snapping a pattern piece")
+    scene = _scene(doc)
+    if scene is None:
+        raise ValueError("create a fitting scene first")
+
+    _ensure_fitting_target_property(scene)
+    if target is None:
+        target = getattr(scene, "DrapeTarget", None) or doc.getObject("DrapeTarget")
+        if target is not None:
+            scene.DrapeTarget = target
+    if target is None:
+        raise ValueError("a DrapeTarget is required before snapping a pattern piece")
+
+    status = target_status(target)
+    if status["state"] != "ready":
+        raise RuntimeError("snap blocked: %s" % status["message"])
+    source = getattr(target, "SourceObject", None)
+    if source is None:
+        raise ValueError("drape target has no source object")
+
+    pieces = (piece,)
+    snapshots = {
+        id(item): {
+            "placement": item.Placement,
+            "sketch_placement": getattr(getattr(item, "Sketch", None), "Placement", None),
+        }
+        for item in pieces
+    }
+    previous_piece_placements = list(getattr(scene, "PiecePlacements", ()) or ())
+    previous_status = str(getattr(scene, "FitStatus", ""))
+    changed = False
+
+    try:
+        target_shape = _world_shape(source)
+        piece_shape = _world_shape(piece)
+        before_distance = None
+        moved = 0.0
+
+        for _ in range(max_iterations):
+            distance, nearest, _details = piece_shape.distToShape(target_shape)
+            distance = float(distance)
+            if before_distance is None:
+                before_distance = distance
+            if distance + 1e-6 >= clearance:
+                break
+
+            if nearest and len(nearest) >= 2:
+                target_point, piece_point = nearest[0], nearest[1]
+                direction = piece_point.sub(target_point)
+                outward = _shape_center(piece_shape).sub(_shape_center(target_shape))
+                if direction.dot(outward) < 0.0:
+                    direction = direction.multiply(-1.0)
+            else:
+                direction = _shape_center(piece_shape).sub(_shape_center(target_shape))
+            if direction.Length <= 1e-9:
+                raise RuntimeError("snap blocked: target and garment have no stable outward direction")
+            direction.normalize()
+
+            step = max(clearance - distance, 2.0)
+            remaining = max_translation - moved
+            if step > remaining + 1e-9:
+                raise RuntimeError(
+                    "snap blocked: required translation exceeds %.3f mm" % max_translation
+                )
+            base = piece.Placement.Base + direction.multiply(step)
+            piece.Placement = App.Placement(base, piece.Placement.Rotation)
+            sketch = getattr(piece, "Sketch", None)
+            if sketch is not None:
+                sketch.Placement = piece.Placement
+            changed = True
+            moved += step
+            piece_shape = _world_shape(piece)
+
+        final_distance = float(piece_shape.distToShape(target_shape)[0])
+        if final_distance + 1e-6 < clearance:
+            raise RuntimeError(
+                "snap failed: final clearance %.6f mm is below %.6f mm" %
+                (final_distance, clearance)
+            )
+
+        pid = str(getattr(piece, "PieceId", "")).strip()
+        if pid:
+            values = {
+                placement.piece_id: placement
+                for placement in (
+                    PiecePlacement.from_string(value)
+                    for value in getattr(scene, "PiecePlacements", ()) or ()
+                )
+            }
+            rotation = piece.Placement.Rotation
+            axis = rotation.Axis
+            values[pid] = PiecePlacement(
+                pid,
+                (float(piece.Placement.Base.x), float(piece.Placement.Base.y), float(piece.Placement.Base.z)),
+                float(rotation.Angle),
+                (float(axis.x), float(axis.y), float(axis.z)),
+                float(rotation.Angle),
+            )
+            scene.PiecePlacements = [values[key].to_string() for key in sorted(values)]
+        scene.FitStatus = "Target snapped (clearance %.3f mm)" % final_distance
+        doc.recompute()
+        return {
+            "piece_id": pid,
+            "distance_before": float(before_distance if before_distance is not None else final_distance),
+            "distance_after": final_distance,
+            "translation": moved,
+            "clearance": clearance,
+        }
+    except Exception:
+        if changed:
+            snapshot = snapshots[id(piece)]
+            piece.Placement = snapshot["placement"]
+            sketch = getattr(piece, "Sketch", None)
+            if sketch is not None and snapshot["sketch_placement"] is not None:
+                sketch.Placement = snapshot["sketch_placement"]
+        scene.PiecePlacements = previous_piece_placements
+        scene.FitStatus = previous_status
+        doc.recompute()
+        raise
+
+
 def reset_arrangement():
     """Restore every assigned piece to its saved pre-arrangement placement."""
     import FreeCAD as App
