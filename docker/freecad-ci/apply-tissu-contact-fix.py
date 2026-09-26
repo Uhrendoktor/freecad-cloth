@@ -121,20 +121,61 @@ MeshOrientation inferMeshOrientation(
     return {true, signedVolume > 0.0 ? 1.0 : -1.0};
 }
 
+bool intersectSegmentTriangle(
+    const Eigen::Vector3d& start,
+    const Eigen::Vector3d& end,
+    const Eigen::Vector3d& a,
+    const Eigen::Vector3d& b,
+    const Eigen::Vector3d& c,
+    double& outT) {
+    const Eigen::Vector3d direction = end - start;
+    const Eigen::Vector3d edge1 = b - a;
+    const Eigen::Vector3d edge2 = c - a;
+    const Eigen::Vector3d pvec = direction.cross(edge2);
+    const double determinant = edge1.dot(pvec);
+    constexpr double epsilon = 1e-10;
+    if (std::abs(determinant) <= epsilon)
+        return false;
+
+    const double inverseDeterminant = 1.0 / determinant;
+    const Eigen::Vector3d tvec = start - a;
+    const double u = tvec.dot(pvec) * inverseDeterminant;
+    if (u < -epsilon || u > 1.0 + epsilon)
+        return false;
+
+    const Eigen::Vector3d qvec = tvec.cross(edge1);
+    const double v = direction.dot(qvec) * inverseDeterminant;
+    if (v < -epsilon || u + v > 1.0 + epsilon)
+        return false;
+
+    const double t = edge2.dot(qvec) * inverseDeterminant;
+    if (t <= epsilon || t > 1.0 + epsilon)
+        return false;
+
+    outT = std::max(0.0, std::min(1.0, t));
+    return true;
+}
+
 } // namespace
 """
     if cpp.count(include_old) != 1:
         raise RuntimeError("MeshCollider.cpp include anchor mismatch")
     cpp = cpp.replace(include_old, include_new, 1)
 
-    replace_cpp = [
-        (
-            """    m_triangles.reserve(indices.size() / 3);
+    def replace_cpp_once(old: str, new: str, label: str) -> None:
+        nonlocal cpp
+        count = cpp.count(old)
+        if count != 1:
+            raise RuntimeError(f"{label}: expected one source anchor, found {count}")
+        cpp = cpp.replace(old, new, 1)
+
+    replace_cpp_once(
+        """    m_triangles.reserve(indices.size() / 3);
     for (size_t i = 0; i + 2 < indices.size(); i += 3)
         m_triangles.emplace_back(indices[i], indices[i + 1], indices[i + 2]);
 
     m_bvh.build(m_worldVertices, m_triangles);""",
-            """    m_triangles.reserve(indices.size() / 3);
+        """    m_triangles.reserve(indices.size() / 3);
     for (size_t i = 0; i + 2 < indices.size(); i += 3)
         m_triangles.emplace_back(indices[i], indices[i + 1], indices[i + 2]);
 
@@ -144,16 +185,17 @@ MeshOrientation inferMeshOrientation(
     m_outwardNormalSign = orientation.outwardNormalSign;
 
     m_bvh.build(m_worldVertices, m_triangles);""",
-            "MeshCollider.cpp file constructor",
-        ),
-        (
-            """    m_triangles.reserve(triangles.size());
+        "MeshCollider.cpp file constructor",
+    )
+
+    replace_cpp_once(
+        """    m_triangles.reserve(triangles.size());
     for (const auto& tri : triangles) {
         m_triangles.emplace_back(tri[0], tri[1], tri[2]);
     }
 
     m_bvh.build(m_worldVertices, m_triangles);""",
-            """    m_triangles.reserve(triangles.size());
+        """    m_triangles.reserve(triangles.size());
     for (const auto& tri : triangles) {
         m_triangles.emplace_back(tri[0], tri[1], tri[2]);
     }
@@ -164,47 +206,103 @@ MeshOrientation inferMeshOrientation(
     m_outwardNormalSign = orientation.outwardNormalSign;
 
     m_bvh.build(m_worldVertices, m_triangles);""",
-            "MeshCollider.cpp vector constructor",
-        ),
-        (
-            """        if (distance <= thickness) {
+        "MeshCollider.cpp vector constructor",
+    )
+
+    replace_cpp_once(
+        """        if (distance <= thickness) {
             Eigen::Vector3d normal = (distance > 1e-6)
                                          ? toParticle.normalized()
                                          : ((b - a).cross(c - a)).normalized();
 
             Eigen::Vector3d newPosition = cp + normal * thickness;""",
-            """        if (distance <= thickness) {
-            Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
-            const double faceNormalLength = faceNormalRaw.norm();
+        """        bool sweptHit = false;
+        Eigen::Vector3d collisionPoint = cp;
+        Eigen::Vector3d sweptFaceNormal;
+        if (m_closedManifold) {
+            const Eigen::Vector3d start =
+                particle.getOldPosition();
+            const Eigen::Vector3d end = particle.getPosition();
+            const Eigen::Vector3d travel = end - start;
+            const double travelLength = travel.norm();
+            if (travelLength > 1e-6) {
+                const Eigen::Vector3d midpoint = 0.5 * (start + end);
+                std::vector<int> candidates;
+                m_bvh.query(
+                    midpoint,
+                    0.5 * travelLength + thickness + 1e-6,
+                    candidates);
+
+                double bestT = 1.0 + 1e-9;
+                int bestTriangle = -1;
+                for (int candidate : candidates) {
+                    const Triangle& sweptTri = m_bvh.getTriangle(candidate);
+                    const Eigen::Vector3d& sweptA =
+                        m_worldVertices[sweptTri.a];
+                    const Eigen::Vector3d& sweptB =
+                        m_worldVertices[sweptTri.b];
+                    const Eigen::Vector3d& sweptC =
+                        m_worldVertices[sweptTri.c];
+                    double hitT = 0.0;
+                    if (!intersectSegmentTriangle(
+                            start, end, sweptA, sweptB, sweptC, hitT))
+                        continue;
+                    if (hitT < bestT) {
+                        bestT = hitT;
+                        bestTriangle = candidate;
+                    }
+                }
+
+                if (bestTriangle >= 0) {
+                    const Triangle& sweptTri = m_bvh.getTriangle(bestTriangle);
+                    const Eigen::Vector3d& sweptA =
+                        m_worldVertices[sweptTri.a];
+                    const Eigen::Vector3d& sweptB =
+                        m_worldVertices[sweptTri.b];
+                    const Eigen::Vector3d& sweptC =
+                        m_worldVertices[sweptTri.c];
+                    collisionPoint = start + (end - start) * bestT;
+                    sweptFaceNormal =
+                        (sweptB - sweptA).cross(sweptC - sweptA);
+                    const double sweptNormalLength =
+                        sweptFaceNormal.norm();
+                    if (sweptNormalLength > 1e-12) {
+                        sweptFaceNormal /= sweptNormalLength;
+                        sweptHit = true;
+                    }
+                }
+            }
+        }
+
+        if (distance <= thickness || sweptHit) {
+            Eigen::Vector3d faceNormal =
+                sweptHit ? sweptFaceNormal : (b - a).cross(c - a);
+            const double faceNormalLength = faceNormal.norm();
             if (faceNormalLength <= 1e-12)
                 continue;
-            Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
+            faceNormal /= faceNormalLength;
 
             Eigen::Vector3d normal = faceNormal;
-            if (distance > 1e-6) {
-                normal = toParticle / distance;
-                if (m_closedManifold) {
-                    const Eigen::Vector3d outwardNormal =
-                        faceNormal * m_outwardNormalSign;
-                    // A particle on the interior side of a closed, consistently
-                    // oriented surface must be resolved along the outward
-                    // normal; outside contact preserves the existing vector.
+            if (m_closedManifold) {
+                const Eigen::Vector3d outwardNormal =
+                    faceNormal * m_outwardNormalSign;
+                if (sweptHit) {
+                    normal = outwardNormal;
+                } else if (distance > 1e-6) {
+                    normal = toParticle / distance;
                     if (normal.dot(outwardNormal) < 0.0)
                         normal = -normal;
+                } else {
+                    normal = outwardNormal;
                 }
-            } else if (m_closedManifold) {
-                normal *= m_outwardNormalSign;
+            } else if (distance > 1e-6) {
+                normal = toParticle / distance;
             }
 
-            Eigen::Vector3d newPosition = cp + normal * thickness;""",
-            "MeshCollider.cpp contact response",
-        ),
-    ]
-    for old, new, label in replace_cpp:
-        count = cpp.count(old)
-        if count != 1:
-            raise RuntimeError(f"{label}: expected one source anchor, found {count}")
-        cpp = cpp.replace(old, new, 1)
+            Eigen::Vector3d newPosition =
+                collisionPoint + normal * thickness;""",
+        "MeshCollider.cpp contact response",
+    )
     Path(cpp_path := ROOT / "core/src/physics/MeshCollider.cpp").write_text(cpp, encoding="utf-8")
 
     test_cpp = test.read_text(encoding="utf-8")
@@ -264,6 +362,20 @@ TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
     mesh.resolve(particles, 0.016, 0.1);
 
     EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+}
+
+TEST(MeshCollider, ClosedMeshSweptContactPreventsTunneling) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    const Eigen::Vector3d previous(1.0, -0.5, 0.75);
+    const Eigen::Vector3d current(1.0, 2.5, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(current);
+    particles[0].setOldPosition(previous);
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+    EXPECT_LT(particles[0].getPosition().y(), 0.2);
 }
 
 TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {

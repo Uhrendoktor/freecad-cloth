@@ -126,6 +126,9 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "tetrahedronContains" in script
     assert "ClosedMeshKeepsOutsideContactOutside" in script
     assert "OpenMeshRetainsLegacyContactDirection" in script
+    assert "ClosedMeshSweptContactPreventsTunneling" in script
+    assert "intersectSegmentTriangle" in script
+    assert "m_bvh.query" in script
 
     tunic = workflow[workflow.index("  gui-tunic-visual:") : workflow.index("\n  gui-", workflow.index("  gui-tunic-visual:") + 5)]
     assert "FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix" in tunic
@@ -136,6 +139,21 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert 'tissu-cpp-regression-result=passed' in dockerfile
     assert 'docker run --rm "$FREECAD_TUNIC_IMAGE" cat /opt/tissu-provenance.txt' in workflow
     assert 'artifacts/tissu-provenance.txt' in workflow
+
+def test_closed_tissu_collision_topology_is_not_coarsened():
+    source = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    assert 'source_closed = bool(getattr(collision_surface, "is_closed_manifold", False))' in source
+    assert 'if not source_closed:' in source
+    assert 'collision_surface = coarsen_collision_surface(collision_surface, collision_limit)' in source
+    assert 'preserving_closed_surface=true' in source
+
+
+def test_canonical_tunic_visual_gate_is_fail_closed():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert 'classification.state in {"detached-candidate", "edge-on-candidate"}' in source
+    assert '"collapsed-candidate" in diagnostics' in source
+    assert "canonical tunic visual geometry is not structurally plausible" in source
+
 
 def test_canonical_tunic_fixture_matches_validated_start_geometry():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")

@@ -106,7 +106,22 @@ class TissuBackend(ClothSimulationBackend):
         self._source_collision_surface = collision_surface
         collision_limit = _tissu_collision_triangle_limit()
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
-            collision_surface = coarsen_collision_surface(collision_surface, collision_limit)
+            source_closed = bool(getattr(collision_surface, "is_closed_manifold", False))
+            if not source_closed:
+                collision_surface = coarsen_collision_surface(collision_surface, collision_limit)
+            else:
+                # The closed-mesh contact correction needs a watertight topology.
+                # Representative-triangle coarsening destroys that invariant.
+                print(
+                    "cloth-tissu-collision preserving_closed_surface=true"
+                    " source_triangles=%d solver_triangles=%d limit=%d"
+                    % (
+                        len(self._source_collision_surface.triangles),
+                        len(collision_surface.triangles),
+                        collision_limit,
+                    ),
+                    flush=True,
+                )
             print(
                 "cloth-tissu-collision source_triangles=%d solver_triangles=%d limit=%d"
                 % (
