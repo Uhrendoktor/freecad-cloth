@@ -1,17 +1,18 @@
 """Small, FreeCAD-independent helpers for Sewing workbench views."""
-import hashlib
 from colorsys import hsv_to_rgb
 
 
+
+
+_SEAM_GOLDEN_ANGLE = 0.618033988749895
 
 
 def seam_color_map(seam_ids):
     """Return deterministic, visually distinct colors keyed by seam id."""
     ids = sorted({str(seam_id) for seam_id in seam_ids if str(seam_id).strip()})
     result = {}
-    for seam_id in ids:
-        digest = hashlib.sha256(seam_id.encode("utf-8")).digest()
-        hue = int.from_bytes(digest[:8], "big") / float(1 << 64)
+    for index, seam_id in enumerate(ids):
+        hue = (index * _SEAM_GOLDEN_ANGLE) % 1.0
         rgb = hsv_to_rgb(hue, 0.78, 0.92)
         result[seam_id] = tuple(round(channel, 6) for channel in rgb)
     return result
