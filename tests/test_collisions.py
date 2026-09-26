@@ -56,3 +56,18 @@ def test_mesh_corner_collision_resolves_multiple_contact_planes():
     assert z >= 10.0 - 1e-9
 
 
+
+
+def test_mesh_collision_correction_does_not_rebound_from_contact():
+    vertices = ((-10.0, -10.0, 0.0), (10.0, -10.0, 0.0), (10.0, 10.0, 0.0), (-10.0, 10.0, 0.0))
+    triangles = ((0, 1, 2), (0, 2, 3))
+    surface = surface_from_triangles(vertices, triangles, region="floor", thickness=0.0)
+    from freecad_cloth.simulation.ClothSolver import Particle
+    solver = XPBDClothSolver(gravity=(0.0, 0.0, -100.0), iterations=1)
+    solver.particles = [Particle(0.0, 0.0, 1.0, 1.0)]
+    solver.step(dt=0.1, iterations=1, gravity=(0.0, 0.0, -100.0), surface=surface)
+    assert abs(solver.particles[0].z) <= 1e-9
+    solver.step(dt=0.1, iterations=1, gravity=(0.0, 0.0, -100.0), surface=surface)
+    assert abs(solver.particles[0].z) <= 1e-9
+    assert abs(solver.particles[0].pz) <= 1e-9
+
