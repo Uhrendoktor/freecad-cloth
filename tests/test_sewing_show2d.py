@@ -98,6 +98,12 @@ def test_show_2d_does_not_select_seams_over_their_colors():
     assert view.fit == 1
 
 
+def test_seam_proxy_reapplies_deterministic_colors_after_recompute():
+    source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "pattern" / "PatternObjects.py").read_text(encoding="utf-8")
+    assert "apply_seam_colors, build_seam_visual_shape" in source
+    assert "apply_seam_colors(obj.Document.Objects)" in source
+
+
 def test_seam_visual_markers_are_deterministic_and_directional():
     a = ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (20.0, 0.0, 0.0))
     b = ((0.0, 10.0, 0.0), (10.0, 10.0, 0.0), (20.0, 10.0, 0.0))
