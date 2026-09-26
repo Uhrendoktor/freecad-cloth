@@ -418,6 +418,20 @@ def _surface_anchor(surface, point):
     return best[1], best[2]
 
 
+def _snap_translation(surface, anchor, clearance, max_translation):
+    import math
+    if float(clearance) < 0.0 or float(max_translation) <= 0.0:
+        raise ValueError("target snap clearance and translation bound must be positive")
+    point, normal = _surface_anchor(surface, anchor)
+    desired = tuple(point[i] + normal[i] * float(clearance) for i in range(3))
+    delta = tuple(desired[i] - anchor[i] for i in range(3))
+    magnitude = math.sqrt(sum(value * value for value in delta))
+    if magnitude > float(max_translation) + 1e-9:
+        raise ValueError("target snap exceeds the configured translation bound")
+    return delta
+
+
+
 def _world_vertices(piece):
     import FreeCAD as App
     placement = getattr(piece, "Placement", None)
@@ -470,15 +484,7 @@ def snap_pieces_to_target(pieces=None, target=None, clearance=2.0, max_translati
     vertices_by_piece = {str(piece.PieceId): _world_vertices(piece) for piece in selected}
     all_vertices = tuple(point for vertices in vertices_by_piece.values() for point in vertices)
     anchor = tuple(sum(point[i] for point in all_vertices) / len(all_vertices) for i in range(3))
-    point, normal = _surface_anchor(surface, anchor)
-    desired = tuple(point[i] + normal[i] * float(clearance) for i in range(3))
-    delta = tuple(desired[i] - anchor[i] for i in range(3))
-    import math
-    if float(clearance) < 0.0 or float(max_translation) <= 0.0:
-        raise ValueError("target snap clearance and translation bound must be positive")
-    magnitude = math.sqrt(sum(value * value for value in delta))
-    if magnitude > float(max_translation) + 1e-9:
-        raise ValueError("target snap exceeds the configured translation bound")
+    delta = _snap_translation(surface, anchor, clearance, max_translation)
 
     try:
         for piece in selected:
