@@ -230,6 +230,10 @@ def _seam_correspondence(piece_a, piece_b, seam, count, alignment="endpoints"):
 class SewingOperationProxy:
     Type = "ClothSewingOperation"
 
+    def onDocumentRestored(self, obj):
+        from freecad_cloth.sewing.SewingView import refresh_seam_colors
+        refresh_seam_colors(getattr(obj, "Document", None))
+
     def execute(self, obj):
         import Part
         from freecad_cloth.sewing.SewingView import refresh_seam_colors
