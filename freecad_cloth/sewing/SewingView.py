@@ -1,31 +1,55 @@
 """Small, FreeCAD-independent helpers for Sewing workbench views."""
 from colorsys import hsv_to_rgb
+from hashlib import sha512
 
 
-_SEAM_GOLDEN_ANGLE = 0.618033988749895
+_SEAM_COLOR_SATURATION = 0.78
+_SEAM_COLOR_VALUE = 0.92
+_SEAM_COLOR_HASH_SCALE = float(1 << 64)
+
+
+def _seam_color_for_id(seam_id):
+    identity = str(seam_id).strip()
+    if not identity:
+        raise ValueError("seam identity must not be empty")
+    digest = sha512(identity.encode("utf-8")).digest()
+    hue = int.from_bytes(digest[44:52], "big") / _SEAM_COLOR_HASH_SCALE
+    rgb = hsv_to_rgb(hue, _SEAM_COLOR_SATURATION, _SEAM_COLOR_VALUE)
+    return tuple(round(channel, 6) for channel in rgb)
 
 
 def seam_color_map(seam_ids):
-    """Return deterministic, visually distinct colors keyed by seam id."""
-    ids = sorted({str(seam_id) for seam_id in seam_ids if str(seam_id).strip()})
-    result = {}
-    for index, seam_id in enumerate(ids):
-        hue = (index * _SEAM_GOLDEN_ANGLE) % 1.0
-        rgb = hsv_to_rgb(hue, 0.78, 0.92)
-        result[seam_id] = tuple(round(channel, 6) for channel in rgb)
-    return result
+    """Return deterministic seam colors keyed only by canonical seam identity."""
+    ids = sorted({str(seam_id).strip() for seam_id in seam_ids if str(seam_id).strip()})
+    return {seam_id: _seam_color_for_id(seam_id) for seam_id in ids}
+
+
+def _presentation_seam_id(obj):
+    direct = str(getattr(obj, "SeamId", "")).strip()
+    if direct:
+        return direct
+    if str(getattr(obj, "SewingType", "")).strip() == "SewingOperation":
+        seam = getattr(obj, "Seam", None)
+        linked = str(getattr(seam, "SeamId", "")).strip() if seam is not None else ""
+        if linked:
+            return linked
+    return ""
 
 
 def apply_seam_colors(objects):
-    """Apply one deterministic line color to each canonical seam object."""
-    seam_objects = [
-        obj for obj in objects
-        if str(getattr(obj, "SeamId", "")).strip()
-    ]
-    colors = seam_color_map(getattr(obj, "SeamId", "") for obj in seam_objects)
-    for obj in seam_objects:
+    """Apply canonical SeamId colors to all user-facing seam presentations."""
+    presentations = []
+    seam_ids = []
+    for obj in objects:
+        seam_id = _presentation_seam_id(obj)
+        if not seam_id:
+            continue
+        presentations.append((obj, seam_id))
+        seam_ids.append(seam_id)
+    colors = seam_color_map(seam_ids)
+    for obj, seam_id in presentations:
         view = getattr(obj, "ViewObject", None)
-        color = colors.get(str(getattr(obj, "SeamId", "")))
+        color = colors.get(seam_id)
         if view is not None and color is not None:
             view.LineColor = color
     return colors
