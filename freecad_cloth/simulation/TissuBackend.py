@@ -14,12 +14,27 @@ from freecad_cloth.simulation.ClothSolver import ClothSystem
 _MM = 1000.0
 _TISSU_SUBSTEPS_DEFAULT = 1
 _TISSU_COLLISION_TRIANGLES_DEFAULT = 0
+_TISSU_COLLISION_THICKNESS_MM_DEFAULT = 2.0
 
 
 def _tissu_substeps():
     value = int(os.environ.get("CLOTH_TISSU_SUBSTEPS", str(_TISSU_SUBSTEPS_DEFAULT)))
     if value < 1:
         raise ValueError("CLOTH_TISSU_SUBSTEPS must be >= 1")
+    return value
+
+
+def _tissu_collision_thickness_mm():
+    raw = os.environ.get(
+        "CLOTH_TISSU_COLLISION_THICKNESS_MM",
+        str(_TISSU_COLLISION_THICKNESS_MM_DEFAULT),
+    ).strip()
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise ValueError("CLOTH_TISSU_COLLISION_THICKNESS_MM must be positive") from exc
+    if value <= 0.0:
+        raise ValueError("CLOTH_TISSU_COLLISION_THICKNESS_MM must be positive")
     return value
 
 
@@ -153,7 +168,7 @@ class TissuBackend(ClothSimulationBackend):
         positions = [_to_tissu_position(p.position()) for p in self._initial.particles]
         triangles = np.asarray(self._triangles, dtype=np.int32)
         vertices = np.asarray(positions, dtype=np.float64)
-        self._sim = Simulation(substeps=self._substeps, iterations=self._iterations, gravity=-9.81, thickness=0.002)
+        self._sim = Simulation(substeps=self._substeps, iterations=self._iterations, gravity=-9.81, thickness=_tissu_collision_thickness_mm() / _MM)
         self._fabric = self._sim.create_from_arrays("cloth", vertices, triangles, material="cotton")
         global_ids = np.asarray(self._fabric.instance.get_particle_indices(), dtype=np.int32)
         if len(global_ids) != len(positions) or not np.array_equal(global_ids, np.arange(len(positions))):
