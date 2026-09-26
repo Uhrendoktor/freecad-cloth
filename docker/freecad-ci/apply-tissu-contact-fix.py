@@ -24,9 +24,45 @@ def run(*args: str) -> str:
     return subprocess.check_output(args, cwd=ROOT, text=True).strip()
 
 
+def patch_headless_core() -> None:
+    core_path = ROOT / "core/CMakeLists.txt"
+    core = core_path.read_text(encoding="utf-8")
+
+    old_sources = "    src/io/AlembicExporter.cpp\n"
+    if core.count(old_sources) != 1:
+        raise RuntimeError("headless core: AlembicExporter source anchor mismatch")
+    core = core.replace(old_sources, "", 1)
+
+    old_find = """if(NOT TARGET Alembic::Alembic)
+    find_package(Alembic REQUIRED)
+endif()
+if(NOT TARGET Imath::Imath)
+    find_package(Imath REQUIRED)
+endif()
+
+"""
+    if core.count(old_find) != 1:
+        raise RuntimeError("headless core: Alembic/Imath find anchors mismatch")
+    core = core.replace(old_find, "", 1)
+
+    old_links = """target_link_libraries(TissuCore PUBLIC 
+    Alembic::Alembic 
+    Imath::Imath
+)
+
+"""
+    if core.count(old_links) != 1:
+        raise RuntimeError("headless core: Alembic/Imath link anchors mismatch")
+    core = core.replace(old_links, "", 1)
+
+    core_path.write_text(core, encoding="utf-8")
+
+
 def main() -> int:
     if run("git", "rev-parse", "HEAD") != EXPECTED_COMMIT:
         raise RuntimeError("Tissu source commit does not match the pinned revision")
+
+    patch_headless_core()
 
     header = ROOT / "core/include/physics/MeshCollider.hpp"
     cpp = ROOT / "core/src/physics/MeshCollider.cpp"
@@ -290,6 +326,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         raise RuntimeError("patched Tissu tree failed git diff --check")
     changed = run("git", "diff", "--name-only")
     expected = {
+        "core/CMakeLists.txt",
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
         "tests/physics/test_mesh_collider.cpp",
