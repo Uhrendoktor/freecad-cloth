@@ -75,12 +75,18 @@ class SimulationTaskPanel:
 
         sewing = QtWidgets.QGroupBox("Sewing & pinning")
         layout = QtWidgets.QFormLayout(sewing)
+        self.pin_mode = QtWidgets.QComboBox()
+        self.pin_mode.addItems(("Automatic", "Explicit", "None"))
+        self.pin_mode.setToolTip("Choose automatic compatibility pins, explicit pins, or no solver pins")
         self.pins = QtWidgets.QLineEdit(self._join(getattr(scene, "PinSelection", [])))
         self.seams = QtWidgets.QLineEdit(self._join(getattr(scene, "SeamSelection", [])))
-        self.pins.setToolTip("Particle indices separated by commas")
+        self.pins.setToolTip("Particle indices separated by commas; ignored when pinning mode is None")
         self.seams.setToolTip("Particle pairs such as 3-27 separated by semicolons")
+        layout.addRow("Pinning mode", self.pin_mode)
         layout.addRow("Pinned vertices", self.pins); layout.addRow("Seam pairs", self.seams)
-        root.addWidget(sewing)
+        self.arrange_button = QtWidgets.QPushButton("Arrange garment to target")
+        self.arrange_button.setToolTip("Move selected cloth pieces to deterministic clearance from the selected DrapeTarget")
+        root.addWidget(sewing); root.addWidget(self.arrange_button)
 
         controls = QtWidgets.QHBoxLayout()
         self.step_button = QtWidgets.QPushButton("Step")
@@ -102,7 +108,9 @@ class SimulationTaskPanel:
         self.reset_button.clicked.connect(self.reset)
         self.cloth.currentIndexChanged.connect(self._selection_changed)
         self.target.currentIndexChanged.connect(self._selection_changed)
+        self.pin_mode.currentTextChanged.connect(self._selection_changed)
         self.pins.editingFinished.connect(self._selection_changed); self.seams.editingFinished.connect(self._selection_changed)
+        self.arrange_button.clicked.connect(self.arrange_to_target)
         for widget in (self.iterations, self.timestep, self.gravity_x, self.gravity_y, self.gravity_z, self.collision_radius):
             widget.valueChanged.connect(self._parameters_changed)
         self.thickness.valueChanged.connect(self._collision_changed); self.deflection.valueChanged.connect(self._collision_changed)
@@ -126,8 +134,46 @@ class SimulationTaskPanel:
         if self.scene is None or hasattr(self.scene, name): return
         self.scene.addProperty(type_name, name, group); setattr(self.scene, name, default)
 
+    def _ensure_pin_mode_property(self):
+        if self.scene is None or hasattr(self.scene, "PinMode"):
+            return
+        self.scene.addProperty("App::PropertyEnumeration", "PinMode", "Selection")
+        self.scene.PinMode = ["Automatic", "Explicit", "None"]
+        self.scene.PinMode = "Automatic"
+
+    def arrange_to_target(self):
+        scene = self._ensure_scene()
+        target = getattr(scene, "DrapeTarget", None)
+        pieces = tuple(getattr(scene, "ClothPieces", ()) or ())
+        if target is None:
+            self._refresh_status("Select a DrapeTarget before arranging the garment.")
+            return
+        if not pieces:
+            self._refresh_status("Select at least one cloth piece before arranging the garment.")
+            return
+        try:
+            from freecad_cloth.avatar.TargetPlacement import arrange_pattern_pieces_to_target
+            result = arrange_pattern_pieces_to_target(
+                pieces,
+                target,
+                clearance=float(getattr(scene, "ArrangementClearance", 2.0)),
+                max_translation=float(getattr(scene, "MaxPlacementTranslation", 250.0)),
+            )
+            scene.Document.recompute()
+            self._refresh_status(
+                "Target-relative arrangement applied: minimum signed clearance %.2f mm."
+                % float(result["minimum_clearance"])
+            )
+            if self.Gui.activeDocument():
+                self.Gui.activeDocument().activeView().fitAll()
+        except (RuntimeError, ValueError, TypeError) as exc:
+            self._refresh_status("Arrangement refused: %s" % exc)
+
     def _load_scene_values(self):
         if self.scene is None: return
+        self._ensure_pin_mode_property()
+        pin_mode = str(getattr(self.scene, "PinMode", "Automatic"))
+        self.pin_mode.setCurrentText(pin_mode if pin_mode in ("Automatic", "Explicit", "None") else "Automatic")
         for name, type_name, default in (("MaterialPreset", "App::PropertyString", "Cotton"), ("StretchCompliance", "App::PropertyFloat", 0.35), ("BendCompliance", "App::PropertyFloat", 0.20), ("ArealDensity", "App::PropertyFloat", 0.01)):
             self._ensure_property(name, type_name, "Fabric", default)
         index = self.material.findText(str(getattr(self.scene, "MaterialPreset", "Cotton")))
@@ -168,6 +214,7 @@ class SimulationTaskPanel:
         if self.target.currentData():
             obj = self.scene.Document.getObject(self.target.currentData())
             if obj: self.scene.DrapeTarget = obj
+        self.scene.PinMode = self.pin_mode.currentText()
         self.scene.PinSelection = [p.strip() for p in self.pins.text().replace(";", ",").split(",") if p.strip()]
         self.scene.SeamSelection = [p.strip() for p in self.seams.text().replace(",", ";").split(";") if p.strip()]
         self.scene.Document.recompute(); self._refresh_status()
