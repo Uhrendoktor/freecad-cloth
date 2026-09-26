@@ -413,8 +413,14 @@ def snap_pattern_pieces_to_target(
 
     # Commit atomically after every target/profile/guard/clearance check succeeds.
     old_placements = {str(piece.PieceId): piece.Placement for piece in selected}
+    old_sketch_placements = {
+        str(piece.PieceId): getattr(getattr(piece, "Sketch", None), "Placement", None)
+        for piece in selected if getattr(piece, "Sketch", None) is not None
+    }
     old_piece_values = dict(existing)
     old_home_values = dict(homes)
+    old_pattern_pieces = tuple(scene.PatternPieces)
+    old_fit_status = str(getattr(scene, "FitStatus", ""))
     old_signature = getattr(scene, "TargetPlacementSignature", "") if hasattr(scene, "TargetPlacementSignature") else ""
     old_clearance = getattr(scene, "TargetPlacementClearance", 0.0) if hasattr(scene, "TargetPlacementClearance") else 0.0
     try:
@@ -473,6 +479,11 @@ def snap_pattern_pieces_to_target(
     except Exception:
         for piece in selected:
             piece.Placement = old_placements[str(piece.PieceId)]
+            sketch = getattr(piece, "Sketch", None)
+            saved = old_sketch_placements.get(str(piece.PieceId))
+            if sketch is not None and saved is not None:
+                sketch.Placement = saved
+        scene.PatternPieces = list(old_pattern_pieces)
         existing.clear()
         existing.update(old_piece_values)
         homes.clear()
@@ -711,7 +722,7 @@ _COMMAND_HANDLERS = {
     "ClothFitting_DeleteBoundingVolume": lambda: delete_bounding_volume("Volume1"),
     "ClothFitting_SetSymmetry": lambda: set_symmetry_enabled(True),
     "ClothFitting_ApplyArrangementPoint": lambda: _apply_selected_arrangement(),
-    "ClothFitting_SnapPiecesToTarget": snap_pattern_pieces_to_target,
+    "ClothFitting_SnapPiecesToTarget": _snap_selected_to_target,
     "ClothFitting_ResetArrangement": reset_arrangement,
     "ClothFitting_CreateSimulation": create_simulation_from_fitting,
 }
