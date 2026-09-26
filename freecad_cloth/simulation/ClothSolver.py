@@ -116,10 +116,11 @@ def _minimal_mesh_correction(position, constraints):
     count = len(constraints)
     for active_size in range(1, min(3, count) + 1):
         for active in combinations(range(count), active_size):
-            normals = [constraints[index][0] for index in active]
+            active_constraints = [constraints[index] for index in active]
+            normals = [constraint[0] for constraint in active_constraints]
             rhs = [
-                constraints[index][1] - sum(normals[row_component][component] * position[component]
-                                            for component in range(3))
+                active_constraints[row_component][1]
+                - sum(normals[row_component][component] * position[component] for component in range(3))
                 for row_component in range(active_size)
             ]
             matrix = [
