@@ -251,6 +251,27 @@ class AvatarFittingTests(unittest.TestCase):
             if doc.Name in App.listDocuments():
                 App.closeDocument(doc.Name)
 
+    def test_fitting_scene_persists_drape_target_and_simulation_link(self):
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+        self.assertIn('"DrapeTarget", "Fitting"', source)
+        self.assertIn('scene.DrapeTarget = existing_target', source)
+        self.assertIn('simulation.DrapeTarget = scene.DrapeTarget', source)
+
+    def test_target_snap_rejects_opposing_equal_nearest_surface_normals(self):
+        from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
+        from freecad_cloth.avatar.FittingCommands import _surface_anchor
+
+        surface = surface_from_triangles(
+            (
+                (-10.0, -10.0, 0.0), (10.0, -10.0, 0.0), (0.0, 10.0, 0.0),
+                (-10.0, -10.0, 0.0), (0.0, 10.0, 0.0), (10.0, -10.0, 0.0),
+            ),
+            ((0, 1, 2), (3, 4, 5)),
+        )
+        with self.assertRaises(ValueError):
+            _surface_anchor(surface, (0.0, 0.0, 5.0))
+
     def test_target_snap_command_is_registered_and_fail_closed(self):
         root = Path(__file__).resolve().parents[1]
         source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
