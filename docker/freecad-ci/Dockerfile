@@ -4,6 +4,8 @@ ARG TISSU_SOURCE_COMMIT=c28a3c7504ddc782bef844ab5bd4cd0bde14b628
 
 COPY docker/freecad-ci/apply-tissu-contact-fix.py /tmp/apply-tissu-contact-fix.py
 
+# Keep the pinned source build inside the hosted GUI job's effective execution budget.
+
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 LABEL org.opencontainers.image.source="https://github.com/Uhrendoktor/freecad-cloth"
@@ -23,7 +25,7 @@ RUN apt-get update -qq \
     && /opt/conda/envs/freecad/bin/cmake --version \
     && /opt/conda/envs/freecad/bin/python /tmp/apply-tissu-contact-fix.py \
     && /opt/conda/envs/freecad/bin/cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBENCHMARK_ENABLE_WERROR=OFF -DTISSU_BUILD_VIEWER=OFF -DTISSU_ENABLE_TRACY=OFF -DCMAKE_C_FLAGS=-Wno-c2y-extensions \
-    && /opt/conda/envs/freecad/bin/cmake --build build --config Release --target _cloth_sdk_core unit_tests --parallel 2 \
+    && /opt/conda/envs/freecad/bin/cmake --build build --config Release --target _cloth_sdk_core unit_tests --parallel 4 \
     && /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir --no-deps --no-build-isolation --force-reinstall . \
     && /opt/conda/envs/freecad/bin/python -m pip check \
     && /tmp/Tissu/build/bin/unit_tests --gtest_filter='MeshCollider.*' \
