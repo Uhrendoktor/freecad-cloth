@@ -132,3 +132,21 @@ def test_target_snap_contract_is_atomic_and_matches_simulation_panel_adapter():
     assert "snap_pattern_pieces_to_target(pattern_pieces=None" in fitting
     assert 'snap_pattern_pieces_to_target(tuple(getattr(fitting, "PatternPieces", ()) or ()))' in gui
 
+
+def test_target_clearance_spatial_index_matches_box_geometry():
+    surface = _box_surface()
+    from freecad_cloth.avatar.TargetAwarePlacement import SurfaceSpatialIndex
+    index = SurfaceSpatialIndex(surface)
+    hit = index.nearest_triangles((0, 0, 25), expected_normal=(0, 0, 1), limit=2)[0]
+    assert hit.point[2] == pytest.approx(10.0)
+    assert hit.normal == (0.0, 0.0, 1.0)
+    assert index.nearest_vertex_distance((0, 0, 25)) == pytest.approx((25.0**2 + 0.0**2 + 15.0**2) ** 0.5)
+
+
+def test_fitting_reuses_one_target_surface_index_for_clearance_queries():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    fitting = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    assert "target_index = _build_target_surface_index(surface)" in fitting
+    assert "index=target_index" in fitting
+    assert "anchor_clearance = minimum_surface_clearance(surface, placed_points, index=target_index)" in fitting
