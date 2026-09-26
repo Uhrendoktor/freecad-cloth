@@ -17,11 +17,13 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
-def test_canonical_tunic_pins_only_one_side_of_sewn_shoulders():
+def test_canonical_tunic_uses_explicit_pinless_policy():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    assert "scene.PinSelection = [str(i) for i in front_pins]" in source
-    assert "scene.PinSelection = [str(i) for i in front_pins + back_pins]" not in source
-    assert "the back panel must follow through the" in source
+    assert 'scene.PinPolicy = "none"' in source
+    assert 'scene.PinSelection = []' in source
+    assert "authored_shoulder_pins" not in source
+    assert "front_pins" not in source
+    assert "back_pins" not in source
 
 
 def test_canonical_tunic_uses_validated_authored_mapping():
@@ -94,3 +96,12 @@ def test_simulation_proxy_serializes_only_rebuildable_metadata():
     assert proxy.source_signature is None
     assert proxy.last_steps == 0
     assert proxy.collision_surface is None
+
+
+def test_target_aware_tunic_path_uses_existing_fitting_reset_contract():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    fitting = (ROOT / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    assert "target_aware_place_piece" in source
+    assert "assert_minimum_surface_clearance" in source
+    assert "HomePlacements" in fitting
+    assert "reset_arrangement" in fitting
