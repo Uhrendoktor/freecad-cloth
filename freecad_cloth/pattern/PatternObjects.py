@@ -270,8 +270,11 @@ class SeamProxy:
         if obj.ReversedB: pb0, pb1 = pb1, pb0
         if getattr(piece_a, "Placement", None) is not None: pa0, pa1 = piece_a.Placement.multVec(pa0), piece_a.Placement.multVec(pa1)
         if getattr(piece_b, "Placement", None) is not None: pb0, pb1 = piece_b.Placement.multVec(pb0), piece_b.Placement.multVec(pb1)
-        from freecad_cloth.sewing.SewingView import build_seam_visual_shape
+        from freecad_cloth.sewing.SewingView import build_seam_visual_shape, apply_seam_colors
         obj.Shape = build_seam_visual_shape(piece_a, piece_b, obj, sample_count=5, world_space=True)
+        # Reapply semantic seam colors after every recompute so Pattern, Sewing,
+        # and Simulation presentations keep the same deterministic pair colors.
+        apply_seam_colors(obj.Document.Objects)
 
 
 def add_seam(doc, seam: Seam):
