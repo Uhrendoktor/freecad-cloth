@@ -453,6 +453,29 @@ def run_acceptance():
         if any(str(getattr(seam, "Status", "")) != "Valid" for seam in network.Seams):
             raise RuntimeError("M:N network retained an invalid member seam")
         from freecad_cloth.sewing.SewingObjects import _seam_length
+        from freecad_cloth.sewing.SewingView import apply_seam_colors
+        semantic_seams = (seam_11,) + tuple(network.Seams)
+        if len({str(seam.SeamId) for seam in semantic_seams}) < 3:
+            raise RuntimeError("seam presentation acceptance requires at least three semantic SeamId values")
+        color_snapshot = {
+            str(seam.SeamId): tuple(float(value) for value in seam.ViewObject.LineColor[:3])
+            for seam in semantic_seams
+        }
+        apply_seam_colors(tuple(reversed(doc.Objects)))
+        for seam in semantic_seams:
+            if tuple(float(value) for value in seam.ViewObject.LineColor[:3]) != color_snapshot[str(seam.SeamId)]:
+                raise RuntimeError("SeamId color changed when document presentation objects were reordered")
+        doc.recompute()
+        for workbench, commands in (
+            ("ClothPatternWorkbench", ("ClothPattern_CreatePieceWithSketch",)),
+            ("ClothSewingWorkbench", ("ClothSewing_CreateSeam",)),
+            ("ClothSimulationWorkbench", ("ClothDrape_CreateMannequinTarget",)),
+        ):
+            _activate(workbench, list(commands))
+            for seam in semantic_seams:
+                if tuple(float(value) for value in seam.ViewObject.LineColor[:3]) != color_snapshot[str(seam.SeamId)]:
+                    raise RuntimeError("SeamId color changed after %s activation" % workbench)
+        print("seam-color-lifecycle=passed seams=%d activation=Pattern,Sewing,Simulation" % len(semantic_seams), flush=True)
         pieces_by_id = {str(piece.PieceId): piece for piece in pieces}
         total_a = sum(float(_seam_length(pieces_by_id[str(seam.PieceA)], seam, "A")) for seam in network.Seams)
         total_b = sum(float(_seam_length(pieces_by_id[str(seam.PieceB)], seam, "B")) for seam in network.Seams)
@@ -677,6 +700,15 @@ def run_acceptance():
                 raise RuntimeError("save/reload changed sewing/fitting/simulation membership")
             if target.SourceObject is None or target.SourceObject.Name != target_body_name:
                 raise RuntimeError("save/reload lost persistent DrapeTarget source")
+            reloaded_seams = [obj for obj in reloaded.Objects if str(getattr(obj, "SeamId", "")).strip()]
+            reloaded_colors = {
+                str(seam.SeamId): tuple(float(value) for value in seam.ViewObject.LineColor[:3])
+                for seam in reloaded_seams
+            }
+            for seam_id, color in color_snapshot.items():
+                if reloaded_colors.get(seam_id) != color:
+                    raise RuntimeError("save/reload changed semantic SeamId color for %s" % seam_id)
+            print("seam-color-save-reload=passed seams=%d" % len(reloaded_seams), flush=True)
             semantic_ids_after_reload = tuple(getattr(reloaded_pieces[0].Sketch, "SemanticEdgeIds", ()))
             if semantic_ids_after_reload != before_ids[0]:
                 raise RuntimeError("save/reload changed native Sketcher semantic edge IDs")
