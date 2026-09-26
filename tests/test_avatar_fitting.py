@@ -157,6 +157,7 @@ class AvatarFittingTests(unittest.TestCase):
     def test_avatar_arrangement_points_are_stable_and_landmark_backed(self):
         landmarks = [
             "knee_right|55,0,400", "unknown|0,0,0", "waist|0,0,900",
+            "underbust|0,0,830", "high_hip|0,0,790",
             "shoulder_left|-210,0,1050", "neck|0,0,1150", "malformed",
             "hip|0,0,700", "shoulder_right|210,0,1050", "chest|0,0,980",
             "knee_left|-55,0,400",
@@ -164,7 +165,25 @@ class AvatarFittingTests(unittest.TestCase):
         points = arrangement_points_from_landmarks(landmarks)
         self.assertEqual([record.split("|", 1)[0] for record in points], list(ARRANGEMENT_POINT_NAMES))
         self.assertEqual(arrangement_point_map(points)["shoulder_left"], "-210,0,1050")
+        self.assertEqual(arrangement_point_map(points)["high_hip"], "0,0,790")
+        self.assertEqual(arrangement_point_map(points)["underbust"], "0,0,830")
         self.assertEqual(arrangement_point_map(points)["knee_right"], "55,0,400")
+
+    def test_torso_arrangement_frame_uses_landmarks_and_surface_depth(self):
+        from freecad_cloth.avatar.AvatarArrangement import torso_arrangement_frame
+        landmarks = [
+            "shoulder_left|-200,0,1100", "shoulder_right|200,0,1100", "high_hip|0,0,700"
+        ]
+        vertices = (
+            (-210, -70, 700), (210, -72, 700), (-180, 80, 850), (180, 82, 850),
+            (-190, 75, 1000), (190, 76, 1000), (-180, 70, 1100), (180, 71, 1100),
+        )
+        frame = torso_arrangement_frame(landmarks, vertices, surface_padding=3.0)
+        self.assertAlmostEqual(frame["center_x"], 0.0)
+        self.assertAlmostEqual(frame["top_z"], 1100.0)
+        self.assertAlmostEqual(frame["low_z"], 700.0)
+        self.assertAlmostEqual(frame["front_y"], 85.0)
+        self.assertAlmostEqual(frame["back_y"], -75.0)
 
     def test_avatar_arrangement_points_ignore_unknown_and_malformed_records(self):
         self.assertEqual(arrangement_points_from_landmarks(["unknown|1,2,3", "bad"]), [])
