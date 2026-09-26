@@ -156,6 +156,34 @@ def summarize(metrics: DrapeVisualMetrics) -> dict:
     }
 
 
+_FATAL_VISUAL_STATES = frozenset({"detached-candidate"})
+_FATAL_VISUAL_DIAGNOSTICS = frozenset({
+    "lateral-detached-candidate",
+    "collapsed-candidate",
+    "below-hem-candidate",
+})
+
+
+def assert_drape_diagnostics(records: Sequence[dict]) -> None:
+    """Fail closed when rendered-drape diagnostics contradict visual acceptance."""
+    failures = []
+    for record in records:
+        classification = record.get("failure_classification", {})
+        state = str(classification.get("state", ""))
+        diagnostics = {str(item) for item in record.get("diagnostics", ())}
+        if state in _FATAL_VISUAL_STATES or diagnostics & _FATAL_VISUAL_DIAGNOSTICS:
+            failures.append(
+                "%s: classification=%s diagnostics=%s"
+                % (
+                    str(record.get("panel", "<unknown>")),
+                    state or "none",
+                    ",".join(sorted(diagnostics)),
+                )
+            )
+    if failures:
+        raise RuntimeError("drape visual acceptance failed closed: " + "; ".join(failures))
+
+
 
 def mesh_shape_sanity(vertices, triangles):
     """Return deterministic mesh-shape health metrics for visual regression.
