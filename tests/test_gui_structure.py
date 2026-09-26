@@ -54,6 +54,9 @@ assert '"Proportions"' in avatar_gui
 assert '"Pose"' in avatar_gui
 assert '"Display"' in avatar_gui
 assert "Apply & Rebuild" in avatar_gui
+assert "Arrangement & target placement" in avatar_gui
+assert "Snap to Drape Target" in avatar_gui
+assert "ClothAvatarSnapToDrapeTarget" in avatar_gui
 assert "Gui.Control.showDialog(panel)" in avatar_gui
 assert "ClothPattern_CreatePieceTask" in commands
 assert "ClothPattern_EditPiece" in commands
