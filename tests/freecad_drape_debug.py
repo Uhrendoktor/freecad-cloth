@@ -213,10 +213,12 @@ def run():
 
     front, front_outline = make_piece("DebugTunicFront", front_y)
     back, back_outline = make_piece("DebugTunicBack", back_y)
+    seam_objects = {}
     for edge_a, edge_b, seam_id in SEAMS:
         from freecad_cloth.pattern.PatternModel import Seam
         from freecad_cloth.pattern.PatternObjects import add_seam
-        add_seam(doc, Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))
+        seam_obj = add_seam(doc, Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly"))
+        seam_objects[seam_id] = seam_obj
     scene.ParticleDistance = 22.0
     scene.SolverIterations = 12
     scene.SolverSubsteps = 2
@@ -267,12 +269,15 @@ def run():
     initial_pins = tuple(backend.positions()[i] for i in pins)
 
     debug_group = doc.addObject("App::DocumentObjectGroup", "DrapeDebug")
-    seam_colors = ((1.0, 0.85, 0.0), (1.0, 0.45, 0.0), (0.2, 1.0, 0.2), (0.2, 0.8, 1.0))
-    for (edge_a, _edge_b, seam_id), color in zip(SEAMS, seam_colors):
+    for edge_a, _edge_b, seam_id in SEAMS:
         p0 = front_outline[edge_a]
         p1 = front_outline[(edge_a + 1) % len(front_outline)]
         world = [front.Placement.multVec(App.Vector(p0[0], p0[1], 0.0)), front.Placement.multVec(App.Vector(p1[0], p1[1], 0.0))]
-        debug_group.addObject(_debug_line(doc, "DebugSeam_%s" % seam_id, [(p.x, p.y, p.z) for p in world], color))
+        seam_obj = seam_objects[seam_id]
+        color = tuple(seam_obj.ViewObject.LineColor[:3])
+        feature = _debug_line(doc, "DebugSeam_%s" % seam_id, [(p.x, p.y, p.z) for p in world], color)
+        feature.addProperty("App::PropertyString", "SeamId", "Seam").SeamId = seam_id
+        debug_group.addObject(feature)
     for index, initial in enumerate(initial_pins):
         debug_group.addObject(_debug_sphere(doc, "DebugPin_%02d" % index, initial, (1.0, 0.2, 1.0), 13.0))
     for panel_obj in scene.DrapePanels:
