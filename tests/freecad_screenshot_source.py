@@ -380,7 +380,23 @@ def simulation():
     log("auto-arrangement release front=(%.1f,%.1f,%.1f) back=(%.1f,%.1f,%.1f) pins=none" % (
         release_front.x, release_front.y, release_front.z,
         release_back.x, release_back.y, release_back.z,
-    )); doc.recompute()
+    ))
+    # Stronger step-0 falsifier: compare the freshly rebuilt garment particle
+    # positions with the authoritative DrapeTarget collision surface before gravity runs.
+    from freecad_cloth.simulation.DrapeTarget import collision_surface
+    from freecad_cloth.common.DrapeVisualSanity import minimum_vertex_distance
+    doc.recompute()
+    proxy = scene.Proxy._base_or_restore()
+    initial_positions = tuple(proxy.backend.positions())
+    target_surface = collision_surface(
+        target.SourceObject,
+        float(getattr(target, "CollisionDeflection", 1.0)),
+        float(getattr(target, "CollisionThickness", 0.0)),
+    )
+    start_clearance = minimum_vertex_distance(initial_positions, target_surface.vertices)
+    if start_clearance is None or float(start_clearance) <= 0.0:
+        raise RuntimeError("auto-arranged tunic is not target-clear at step 0: clearance=%r" % (start_clearance,))
+    log("tunic-step0-clearance-mm=%.3f" % float(start_clearance))
     for source in (doc.getObject("VisualTunicFront"), doc.getObject("VisualTunicBack")):
         if source is not None: source.ViewObject.Visibility = False
         sketch = getattr(source, "Sketch", None) if source is not None else None
