@@ -203,75 +203,76 @@ bool intersectSegmentTriangle(
         ),
         (
             """        if (distance <= thickness) {
-            Eigen::Vector3d collisionPoint = cp;
-            Eigen::Vector3d faceNormal = (b - a).cross(c - a);
+            Eigen::Vector3d normal = (distance > 1e-6)
+                                         ? toParticle.normalized()
+                                         : ((b - a).cross(c - a)).normalized();
+
+            Eigen::Vector3d newPosition = cp + normal * thickness;""",
+            """        bool sweptHit = false;
+        Eigen::Vector3d collisionPoint = cp;
+        Eigen::Vector3d sweptFaceNormal;
+        if (m_closedManifold) {
+            const Eigen::Vector3d start =
+                particle.getOldPosition();
+            const Eigen::Vector3d end = particle.getPosition();
+            const Eigen::Vector3d travel = end - start;
+            const double travelLength = travel.norm();
+            if (travelLength > 1e-6) {
+                const Eigen::Vector3d midpoint = 0.5 * (start + end);
+                std::vector<int> candidates;
+                m_bvh.query(
+                    midpoint,
+                    0.5 * travelLength + thickness + 1e-6,
+                    candidates);
+
+                double bestT = 1.0 + 1e-9;
+                int bestTriangle = -1;
+                for (int candidate : candidates) {
+                    const Triangle& sweptTri = m_bvh.getTriangle(candidate);
+                    const Eigen::Vector3d& sweptA =
+                        m_worldVertices[sweptTri.a];
+                    const Eigen::Vector3d& sweptB =
+                        m_worldVertices[sweptTri.b];
+                    const Eigen::Vector3d& sweptC =
+                        m_worldVertices[sweptTri.c];
+                    double hitT = 0.0;
+                    if (!intersectSegmentTriangle(
+                            start, end, sweptA, sweptB, sweptC, hitT))
+                        continue;
+                    if (hitT < bestT) {
+                        bestT = hitT;
+                        bestTriangle = candidate;
+                    }
+                }
+
+                if (bestTriangle >= 0) {
+                    const Triangle& sweptTri = m_bvh.getTriangle(bestTriangle);
+                    const Eigen::Vector3d& sweptA =
+                        m_worldVertices[sweptTri.a];
+                    const Eigen::Vector3d& sweptB =
+                        m_worldVertices[sweptTri.b];
+                    const Eigen::Vector3d& sweptC =
+                        m_worldVertices[sweptTri.c];
+                    collisionPoint = start + (end - start) * bestT;
+                    sweptFaceNormal =
+                        (sweptB - sweptA).cross(sweptC - sweptA);
+                    const double sweptNormalLength =
+                        sweptFaceNormal.norm();
+                    if (sweptNormalLength > 1e-12) {
+                        sweptFaceNormal /= sweptNormalLength;
+                        sweptHit = true;
+                    }
+                }
+            }
+        }
+
+        if (distance <= thickness || sweptHit) {
+            Eigen::Vector3d faceNormal =
+                sweptHit ? sweptFaceNormal : (b - a).cross(c - a);
             const double faceNormalLength = faceNormal.norm();
             if (faceNormalLength <= 1e-12)
                 continue;
             faceNormal /= faceNormalLength;
-
-            bool sweptHit = false;
-            if (m_closedManifold) {
-                const Eigen::Vector3d start =
-                    particle.getOldPosition();
-                const Eigen::Vector3d end = particle.getPosition();
-                const Eigen::Vector3d travel = end - start;
-                const double travelLength = travel.norm();
-                if (travelLength > 1e-6) {
-                    const Eigen::Vector3d midpoint = 0.5 * (start + end);
-                    std::vector<int> candidates;
-                    m_bvh.query(
-                        midpoint,
-                        0.5 * travelLength + thickness + 1e-6,
-                        candidates);
-
-                    double bestT = 1.0 + 1e-9;
-                    int bestTriangle = -1;
-                    for (int candidate : candidates) {
-                        const Triangle& sweptTri =
-                            m_bvh.getTriangle(candidate);
-                        const Eigen::Vector3d& sweptA =
-                            m_worldVertices[sweptTri.a];
-                        const Eigen::Vector3d& sweptB =
-                            m_worldVertices[sweptTri.b];
-                        const Eigen::Vector3d& sweptC =
-                            m_worldVertices[sweptTri.c];
-                        double hitT = 0.0;
-                        if (!intersectSegmentTriangle(
-                                start, end, sweptA, sweptB, sweptC,
-                                hitT))
-                            continue;
-                        if (hitT < bestT) {
-                            bestT = hitT;
-                            bestTriangle = candidate;
-                        }
-                    }
-
-                    if (bestTriangle >= 0) {
-                        const Triangle& sweptTri =
-                            m_bvh.getTriangle(bestTriangle);
-                        const Eigen::Vector3d& sweptA =
-                            m_worldVertices[sweptTri.a];
-                        const Eigen::Vector3d& sweptB =
-                            m_worldVertices[sweptTri.b];
-                        const Eigen::Vector3d& sweptC =
-                            m_worldVertices[sweptTri.c];
-                        collisionPoint =
-                            start + (end - start) * bestT;
-                        faceNormal =
-                            (sweptB - sweptA).cross(sweptC - sweptA);
-                        const double sweptNormalLength =
-                            faceNormal.norm();
-                        if (sweptNormalLength > 1e-12) {
-                            faceNormal /= sweptNormalLength;
-                            sweptHit = true;
-                        }
-                    }
-                }
-            }
-
-            if (distance > thickness && !sweptHit)
-                continue;
 
             Eigen::Vector3d normal = faceNormal;
             if (!sweptHit && distance > 1e-6) {
@@ -279,9 +280,6 @@ bool intersectSegmentTriangle(
                 if (m_closedManifold) {
                     const Eigen::Vector3d outwardNormal =
                         faceNormal * m_outwardNormalSign;
-                    // A particle on the interior side of a closed, consistently
-                    // oriented surface must be resolved along the outward
-                    // normal; outside contact preserves the existing vector.
                     if (normal.dot(outwardNormal) < 0.0)
                         normal = -normal;
                 }
