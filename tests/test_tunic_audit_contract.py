@@ -115,3 +115,8 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
     assert 'tunic-simulation-start' in source
+
+
+def test_tunic_right_shoulder_experiment_uses_semantic_edge_3_pair():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' in audit
