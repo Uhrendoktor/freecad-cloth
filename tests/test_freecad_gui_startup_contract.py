@@ -106,3 +106,14 @@ if __name__ == "__main__":
     test_canonical_concurrency_groups_pull_requests()
     test_canonical_readme_turntable_launches_from_neutral_cwd()
     test_readme_turntable_scripts_import_freecad_gui_before_repository_path_injection()
+
+def test_large_gui_acceptance_scripts_fail_fast_from_freecad_process():
+    root = Path(__file__).resolve().parents[1]
+    for name in (
+        "freecad_avatar_screenshot.py",
+        "freecad_simulation_turntable.py",
+        "freecad_visual_examples.py",
+        "freecad_screenshot_source.py",
+    ):
+        source = (root / "tests" / name).read_text(encoding="utf-8")
+        assert "os._exit(1)" in source, name
