@@ -106,8 +106,7 @@ def test_group_fit_rejects_positive_clearance_without_target_proximity():
         / "FittingCommands.py"
     ).read_text(encoding="utf-8")
     start = source.index("def snap_pattern_pieces_to_target(")
-    end = source.index("
-def position_piece", start)
+    end = source.index("\\ndef position_piece", start)
     body = source[start:end]
     assert "nearest_target_projection" in body
     assert "proximity_error" in body
