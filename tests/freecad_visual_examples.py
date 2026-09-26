@@ -21,7 +21,7 @@ except ImportError:
 
 # A generic FreeCAD cube requires Tissu's mesh collision path; torso-envelope is for avatar-style targets.
 os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "mesh")
-os.environ.setdefault("CLOTH_SIMULATION_BACKEND", "xpbd-cpu")
+os.environ["CLOTH_SIMULATION_BACKEND"] = "xpbd-cpu"
 
 OUT = Path(os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")) / "blanket-example"
 OUT.mkdir(parents=True, exist_ok=True)
