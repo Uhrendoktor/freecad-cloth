@@ -155,4 +155,8 @@ def test_authored_containment_is_explicitly_opt_in_and_resets_old_position():
 if __name__ == "__main__":
     test_sphere_collision_pushes_particle_outside_surface()
     test_collision_and_structural_constraints_can_coexist()
+    test_authored_containment_closed_mesh_orientation_and_correction()
+    test_authored_containment_normal_is_outward_for_reversed_winding()
+    test_authored_containment_rejects_open_and_caches_authority()
+    test_authored_containment_is_explicitly_opt_in_and_resets_old_position()
     print("collision tests passed")
