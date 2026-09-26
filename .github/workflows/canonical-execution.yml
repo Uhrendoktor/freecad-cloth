@@ -515,6 +515,12 @@ jobs:
               for i in $(seq 1 12); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
               mkdir -p /workspace/artifacts/freecad-realtime
+              echo "startup-probe-start=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> /workspace/artifacts/freecad-realtime/launcher.log
+              set +e
+              timeout --signal=TERM --kill-after=2s 20s /opt/freecad/AppRun /workspace/tests/freecad_realtime_startup_probe.py
+              startup_probe_status=$?
+              set -e
+              echo "startup-probe-exit=$startup_probe_status timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> /workspace/artifacts/freecad-realtime/launcher.log
               echo "pre-benchmark-start=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> /workspace/artifacts/freecad-realtime/launcher.log
               set +e
               timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_realtime_benchmark.py > /workspace/artifacts/freecad-realtime/freecad-pre.log 2>&1
