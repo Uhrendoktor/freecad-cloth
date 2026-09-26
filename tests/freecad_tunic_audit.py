@@ -17,6 +17,10 @@ os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
 os.environ["CLOTH_TISSU_AUTHORED_CONTAINMENT"] = "1"
 
 replacements = {
+    'clearance = max(20.0, 0.08 * body_depth)': 'clearance = max(8.0, 0.025 * body_depth);',
+    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance',
+    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance',
+    'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)': 'front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)',
     '    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):\n'
         '        seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
         '        add_seam(doc, seam)\n'
@@ -136,6 +140,10 @@ def _compile_generated_source(source_text):
             "generated tunic audit source failed syntax validation: %s at line %d\n%s"
             % (error.msg, line_number, context)
         ) from error
+
+if "    if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):\n        raise RuntimeError(\"simulation did not reach a finite 90-step state\")" not in source:
+    raise RuntimeError("canonical 90-step gate missing from generated tunic source")
+source = source.replace("    if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):\n        raise RuntimeError(\"simulation did not reach a finite 90-step state\")", "    if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):\n        raise RuntimeError(\"simulation did not reach a finite 90-step state\")\n    active_backend = scene.Proxy._base_or_restore().backend\n    containment_corrections = int(getattr(active_backend, \"_authored_containment_corrections\", 0))\n    containment_max_correction_mm = float(getattr(active_backend, \"_authored_containment_max_correction_mm\", 0.0))\n    correction_budget = max(1, int(scene.ParticleCount) * int(scene.Steps) // 2)\n    if containment_corrections <= 0:\n        raise RuntimeError(\"authored containment experiment produced no correction telemetry\")\n    if containment_corrections > correction_budget:\n        raise RuntimeError(\"authored containment correction frequency indicates oscillation: %d > %d\" % (containment_corrections, correction_budget))\n    log(\"authored-containment-corrections=%d max-correction-mm=%.3f budget=%d\" % (\n        containment_corrections, containment_max_correction_mm, correction_budget\n    ))", 1)
 
 compiled_source = _compile_generated_source(source)
 if "--syntax-check" in sys.argv:
