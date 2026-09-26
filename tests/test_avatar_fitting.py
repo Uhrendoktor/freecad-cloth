@@ -282,6 +282,11 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertIn('scene.FitStatus = "Snapped to target"', source)
         self.assertIn("HomePlacements", source)
         self.assertIn("piece.Placement = original[str(piece.PieceId)]", source)
+        self.assertIn('obj.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")', source)
+        self.assertIn("simulation.DrapeTarget = target", source)
+        self.assertIn("scene.FitStatus = fit_status_before", source)
+        self.assertIn("sketch.Placement = placement", source)
+
 
     def test_freecad_mannequin_rebuild_invalidates_target_until_refreshed(self):
         try:
