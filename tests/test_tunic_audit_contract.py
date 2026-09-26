@@ -107,3 +107,39 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
     assert 'tunic-simulation-start' in source
+
+
+def test_tissu_ci_image_is_pinned_and_self_regressing():
+    dockerfile = (ROOT / "docker" / "freecad-ci" / "Dockerfile").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    script = (ROOT / "docker" / "freecad-ci" / "apply-tissu-contact-fix.py").read_text(encoding="utf-8")
+    source_commit = "c28a3c7504ddc782bef844ab5bd4cd0bde14b628"
+
+    assert f"ARG TISSU_SOURCE_COMMIT={source_commit}" in dockerfile
+    assert 'SHELL ["/bin/bash", "-o", "pipefail", "-c"]' in dockerfile
+    assert 'cmake=3.31.6' in dockerfile
+    assert '/opt/conda/envs/freecad/bin/cmake -S . -B build' in dockerfile
+    assert '/opt/conda/envs/freecad/bin/cmake --build build' in dockerfile
+    assert '--target _cloth_sdk_core unit_tests' in dockerfile
+    assert "--gtest_filter='MeshCollider.*'" in dockerfile
+    assert "ParticleInsideMeshMovesOutside" in script
+    assert "tetrahedronContains" in script
+    assert "ClosedMeshKeepsOutsideContactOutside" in script
+    assert "OpenMeshRetainsLegacyContactDirection" in script
+
+    tunic = workflow[workflow.index("  gui-tunic-visual:") : workflow.index("\n  gui-", workflow.index("  gui-tunic-visual:") + 5)]
+    assert "FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix" in tunic
+    assert "docker build --pull --progress=plain" in tunic
+    assert 'docker run --rm --init' in tunic
+    assert '"$FREECAD_TUNIC_IMAGE" bash -lc' in tunic
+    assert 'TISSU_FIX_SHA256=' in dockerfile
+    assert 'tissu-cpp-regression-result=passed' in dockerfile
+    assert 'docker run --rm "$FREECAD_TUNIC_IMAGE" cat /opt/tissu-provenance.txt' in workflow
+    assert 'artifacts/tissu-provenance.txt' in workflow
+
+def test_canonical_tunic_fixture_matches_validated_start_geometry():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert '"front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)"' in audit
+    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance'," in audit
+    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance'," in audit
+    assert "'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))'," in audit

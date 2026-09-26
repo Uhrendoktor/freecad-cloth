@@ -462,6 +462,8 @@ jobs:
     needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 20
+    env:
+      FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix
     steps:
       - name: Log selected execution mode
         run: |
@@ -476,13 +478,25 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Pull FreeCAD image
-        run: docker pull "$FREECAD_IMAGE"
+      - name: Build patched FreeCAD image
+        run: |
+          set -euo pipefail
+          docker build --pull --progress=plain -t "$FREECAD_TUNIC_IMAGE" -f docker/freecad-ci/Dockerfile .
+      - name: Capture Tissu provenance
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          docker run --rm "$FREECAD_TUNIC_IMAGE" bash -lc 'cat /opt/tissu-provenance.txt' > artifacts/tissu-provenance.txt
+          test -s artifacts/tissu-provenance.txt
+          grep -q '^tissu-source-commit=c28a3c7504ddc782bef844ab5bd4cd0bde14b628$' artifacts/tissu-provenance.txt
+          grep -q '^tissu-contact-fix-sha256=[0-9a-f]\{64\}$' artifacts/tissu-provenance.txt
+          grep -q '^tissu-cpp-regression-result=passed$' artifacts/tissu-provenance.txt
+
       - name: Stage workspace in Docker volume
         run: |
           set -euo pipefail
           volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
-          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_IMAGE" -lc 'true')"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_TUNIC_IMAGE" -lc 'true')"
           echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
           echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
           docker cp "$PWD/." "$carrier:/workspace/"
@@ -505,7 +519,7 @@ jobs:
             -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
             -e CLOTH_TISSU_COLLISION_TRIANGLES="$CLOTH_TISSU_COLLISION_TRIANGLES" \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
-            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_TUNIC_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
@@ -584,6 +598,7 @@ jobs:
             docs/images/generated/gui-progress.log
             docs/images/generated/gui-screenshot-manifest.txt
             artifacts/garment-e2e.log
+            artifacts/tissu-provenance.txt
           if-no-files-found: error
           compression-level: 1
 
