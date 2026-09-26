@@ -34,7 +34,7 @@ replacements = {
         '        if str(getattr(seam_obj, "EdgeAId", "")) != edge_a_id or str(getattr(seam_obj, "EdgeBId", "")) != edge_b_id: raise RuntimeError("canonical tunic seam %s did not retain authored semantic edge IDs" % seam_id)\n'
         '        seam_records.append((seam_obj, front, back))',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
-    'scene.SolverIterations = 8;': 'scene.SolverIterations = 8; log("tunic-solver=iterations-8 substeps-env");',
+    'scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1;': 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-32 iterations-1 substeps-env");',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
 }
 for old, new in replacements.items():
@@ -72,10 +72,10 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
     log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
 '''
-anchor = '''    for batch in (15,15,15,15,15,15):
+loop_anchor = '''    for batch in (15,15,15,15,15,15):
         simulation_panel.step(batch); doc.recompute(); events()'''
-if anchor not in source:
-    raise RuntimeError("simulation batch anchor/body block missing")
+if loop_anchor not in source:
+    raise RuntimeError("simulation batch anchor missing")
 timed_anchor = '''    from time import perf_counter
     simulation_started = perf_counter()
     for batch in (15,15,15,15,15,15):
@@ -84,7 +84,7 @@ timed_anchor = '''    from time import perf_counter
         log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
 '''
-source = source.replace(anchor, preview_probe + '\n' + timed_anchor, 1)
+source = source.replace(loop_anchor, preview_probe + '\n' + timed_anchor, 1)
 
 seam_check = """    backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
@@ -112,30 +112,32 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
 """
 
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", 1)
-def _compile_transformed_source(source_text, source_name):
+def _compile_generated_source(source_text):
     try:
-        return compile(source_text, str(source_name), "exec")
-    except SyntaxError as exc:
+        return compile(source_text, str(source_path), "exec")
+    except SyntaxError as error:
         lines = source_text.splitlines()
-        line_number = int(exc.lineno or 0)
-        start = max(1, line_number - 3)
-        stop = min(len(lines), line_number + 3)
-        context = "\n".join("%04d: %s" % (index, lines[index - 1]) for index in range(start, stop + 1))
-        print(
-            "TUNIC TRANSFORM SYNTAX REGRESSION: %s:%d:%d: %s" % (
-                source_name,
-                line_number,
-                int(exc.offset or 0),
-                exc.msg,
-            ),
-            flush=True,
+        line_number = int(getattr(error, "lineno", 1) or 1)
+        start = max(1, line_number - 2)
+        end = min(len(lines), line_number + 2)
+        context = "\n".join(
+            "%4d | %s" % (number, lines[number - 1])
+            for number in range(start, end + 1)
         )
-        print("transformed-source-context:\n" + context, flush=True)
-        os._exit(2)
-
+        raise RuntimeError(
+            "generated tunic audit source failed syntax validation: %s at line %d\n%s"
+            % (error.msg, line_number, context)
+        ) from error
 
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
-exec(_compile_transformed_source(source, source_path), globals(), globals())
+compiled_source = _compile_generated_source(source)
+if "--syntax-check" in sys.argv:
+    print(
+        "tunic-audit-source-syntax=passed lines=%d" % len(source.splitlines()),
+        flush=True,
+    )
+    raise SystemExit(0)
+exec(compiled_source, globals(), globals())
 print("tunic-audit-process-exit=success", flush=True)
 os._exit(0)
