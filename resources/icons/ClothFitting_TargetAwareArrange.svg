@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Target-aware garment arrangement">
+  <path d="M15 10h34v8H15zM22 18h20v8H22zM29 26h6v24h-6z" fill="currentColor"/>
+  <path d="M12 54h40" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+  <path d="M8 39l10 0m28 0h10M11 34l7 5-7 5m42-10-7 5 7 5" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
