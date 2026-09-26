@@ -42,11 +42,26 @@ def events():
 
 def save_png(view, path, state):
     view.saveImage(str(path), 640, 480, "White")
-    if not path.is_file() or path.stat().st_size < 5000:
+    if not path.is_file():
         raise RuntimeError("failed screenshot: %s" % state)
-    header = path.read_bytes()[:24]
-    if header[:8] != b"\x89PNG\r\n\x1a\n":
-        raise RuntimeError("invalid PNG capture: %s" % state)
+    try:
+        metrics = validate_png_capture(
+            path,
+            expected_width=640,
+            expected_height=480,
+        )
+    except (OSError, ValueError) as exc:
+        raise RuntimeError("failed screenshot: %s (%s)" % (state, exc)) from exc
+    log(
+        "screenshot=passed state=%s width=%d height=%d nonwhite_pixels=%d distinct_rgb=%d"
+        % (
+            state,
+            metrics["width"],
+            metrics["height"],
+            metrics["nonwhite_pixels"],
+            metrics["distinct_rgb"],
+        )
+    )
 
 
 def make_rectangle_sketch(doc, name, width, height):
@@ -223,7 +238,7 @@ def _load_cloth_modules():
     global validate_mesh, rectangle, quality_piece_mesh
     global create_pattern_piece_from_selected_sketch
     global create_simulation_scene, set_avatar_collision_source
-    global QualitySimulationProxy, ensure_quality_properties
+    global QualitySimulationProxy, ensure_quality_properties, validate_png_capture
 
     site.addsitedir(str(ROOT))
 
@@ -234,6 +249,7 @@ def _load_cloth_modules():
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
     from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, ensure_quality_properties
+    from freecad_cloth.common.VisualCaptureValidation import validate_png_capture
 
 
 def main():

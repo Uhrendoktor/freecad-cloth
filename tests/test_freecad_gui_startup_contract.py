@@ -11,6 +11,17 @@ def test_sketcher_acceptance_prepares_gui_before_workbench_assertion():
     assert run.index("_events()") < run.index("_bootstrap_workbenches()")
     assert '_stage("gui-ready")' in run
 
+def test_visual_capture_contract_uses_structural_validation_without_size_heuristic():
+    source = (ROOT / "tests" / "freecad_visual_examples.py").read_text(encoding="utf-8")
+    validator = (ROOT / "freecad_cloth" / "common" / "VisualCaptureValidation.py").read_text(encoding="utf-8")
+    assert "validate_png_capture" in source
+    assert "st_size < 5000" not in source
+    assert "expected_width=640" in source
+    assert "expected_height=480" in source
+    assert "nonwhite_pixels" in validator
+    assert "distinct_rgb" in validator
+
+
 def test_visual_example_prepares_gui_and_explicit_workbench_registration():
     source = (ROOT / "tests" / "freecad_visual_examples.py").read_text(encoding="utf-8")
     run = source.split("def main():", 1)[1]
