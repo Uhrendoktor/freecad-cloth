@@ -717,6 +717,41 @@ def run_acceptance():
                 raise RuntimeError("save/reload changed native Sketcher semantic edge IDs")
             print("save-reload=passed pieces=4 seam=1to1 network=2segment", flush=True)
 
+            # Reset must restore the persisted piece pose and native Sketcher
+            # placement exactly; then the public snap command must reapply it.
+            from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+            home_snapshot = tuple(fitting.HomePlacements)
+            Gui.runCommand("ClothFitting_ResetArrangement", 0)
+            _events()
+            reloaded.recompute()
+            home_records = {item.piece_id: item for item in (PiecePlacement.from_string(v) for v in home_snapshot)}
+            for piece in reloaded_pieces:
+                expected = home_records[str(piece.PieceId)]
+                if piece.Placement.Base != App.Vector(*expected.position):
+                    raise RuntimeError("Reset Arrangement did not restore the persisted piece position")
+                sketch = getattr(piece, "Sketch", None)
+                if sketch is not None and sketch.Placement != piece.Placement:
+                    raise RuntimeError("Reset Arrangement did not restore native Sketcher placement")
+            if tuple(fitting.HomePlacements) != home_snapshot:
+                raise RuntimeError("Reset Arrangement mutated HomePlacements")
+            print("reset-arrangement=passed native-sketch-placement=true", flush=True)
+
+            _select_objects(fitting)
+            Gui.runCommand("ClothFitting_SnapPiecesToTarget", 0)
+            _events()
+            reloaded.recompute()
+            if str(fitting.FitStatus) != "Target snapped":
+                raise RuntimeError("public target snap did not restore the fitted state after reset")
+            target_surface = _world_target_surface(target)
+            required_clearance = max(2.0, float(getattr(target, "CollisionThickness", 0.0)))
+            if any(
+                minimum_signed_clearance(_piece_world_samples(piece), target_surface).minimum_signed_clearance + 1e-6
+                < required_clearance
+                for piece in reloaded_pieces
+            ):
+                raise RuntimeError("public target snap after reset did not prove step-0 clearance")
+            print("reset-resnap=passed", flush=True)
+
             curved = reloaded_pieces[0]
             seam_11 = reloaded.getObject(seam_11_name)
             semantic_ids = tuple(curved.Sketch.SemanticEdgeIds)
