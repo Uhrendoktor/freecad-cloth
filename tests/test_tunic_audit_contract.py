@@ -98,6 +98,13 @@ def test_simulation_proxy_serializes_only_rebuildable_metadata():
     assert proxy.collision_surface is None
 
 
+def test_full_mesh_diagnostic_override_is_process_local():
+    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    assert 'os.environ["CLOTH_TISSU_COLLISION_TRIANGLES"] = "0"' in source
+    assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
+
+
 def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
