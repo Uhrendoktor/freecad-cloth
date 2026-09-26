@@ -643,17 +643,18 @@ def create_simulation_from_fitting():
         raise ValueError("create a fitting scene first")
     if not scene.PatternPieces:
         raise ValueError("add at least one pattern piece to the fitting scene")
+    from freecad_cloth.simulation.DrapeTarget import target_status
+    target = getattr(scene, "DrapeTarget", None) or doc.getObject("DrapeTarget")
+    if target is not None:
+        status = target_status(target)
+        if status["state"] != "ready":
+            raise ValueError(status["message"])
     from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
     simulation = create_simulation_scene(doc)
     simulation.ClothPieces = list(scene.PatternPieces)
     if scene.AvatarProxy is not None:
         simulation.AvatarProxy = scene.AvatarProxy
-    target = getattr(scene, "DrapeTarget", None) or doc.getObject("DrapeTarget")
     if target is not None:
-        from freecad_cloth.simulation.DrapeTarget import target_status
-        status = target_status(target)
-        if status["state"] != "ready":
-            raise ValueError(status["message"])
         simulation.DrapeTarget = target
     doc.recompute()
     return simulation
