@@ -427,9 +427,15 @@ def build_simulation_state(doc):
     proxy = scene.Proxy._base_or_restore()
     positions = tuple(proxy.backend.positions())
     panel_indices = tuple(proxy.panel_indices[panel.Name])
-    pins, span = _opposite_top_edge_pins(blanket, positions, panel_indices)
+    corner_targets = (
+        App.Vector(-BLANKET_SIZE / 2.0, -BLANKET_SIZE / 2.0, 150.0),
+        App.Vector(BLANKET_SIZE / 2.0, -BLANKET_SIZE / 2.0, 150.0),
+        App.Vector(BLANKET_SIZE / 2.0, BLANKET_SIZE / 2.0, 150.0),
+        App.Vector(-BLANKET_SIZE / 2.0, BLANKET_SIZE / 2.0, 150.0),
+    )
+    pins = _nearest_pin_indices(panel_indices, positions, corner_targets)
     scene.PinSelection = [str(index) for index in pins]
-    log("blanket-pins=passed opposite-corners span=%.3f indices=%s" % (span, pins))
+    log("blanket-pins=passed four-corner-authored indices=%s" % (pins))
     doc.recompute()
 
     sketch.ViewObject.Visibility = False
