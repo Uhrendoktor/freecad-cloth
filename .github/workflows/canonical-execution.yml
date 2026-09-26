@@ -150,6 +150,7 @@ jobs:
                 tests/test_workbench_icons.py \
                 tests/test_tunic_audit_contract.py \
                 tests/test_readme_visual_contract.py \
+                tests/test_tissu_backend.py \
                 tests/test_freecad_gui_startup_contract.py \
                 tests/test_sketcher_bootstrap_contract.py; do
                 python3 "$test"
