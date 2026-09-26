@@ -216,7 +216,7 @@ jobs:
               trap "kill $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              DISPLAY=:99 XDG_RUNTIME_DIR=/tmp/runtime-cloth timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_mesh_point_parity_probe.py
+              DISPLAY=:99 XDG_RUNTIME_DIR=/tmp/runtime-cloth PYTHONPATH=/workspace timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_mesh_point_parity_probe.py
             ')"
           cleanup() {
             set +e
