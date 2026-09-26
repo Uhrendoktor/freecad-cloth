@@ -107,3 +107,15 @@ def test_simulation_proxy_serializes_only_rebuildable_metadata():
     assert proxy.source_signature is None
     assert proxy.last_steps == 0
     assert proxy.collision_surface is None
+
+
+def test_canonical_tunic_runs_target_snap_before_solver_setup():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    snap = source.index("ClothFitting_SnapPiecesToTarget")
+    pin = source.index('scene.PinMode = "None"')
+    assert snap < pin
+    assert "minimum_signed_clearance" in source
+    assert "_world_target_surface(target)" in source
+    assert "ClothFitting_ResetArrangement" in source
+    assert "solver_pins" in source
+    assert "cloth-simulation-first-step.png" in source
