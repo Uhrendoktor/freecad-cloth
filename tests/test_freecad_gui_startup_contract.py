@@ -120,3 +120,10 @@ def test_brokered_dispatch_run_name_is_pr_identifiable():
     assert "format(' · PR #{0}', inputs.pull_request_number)" in workflow
     broker = workflow.split("  pull_request_broker:", 1)[1].split("  local_runner_readiness:", 1)[0]
     assert 'contains("PR #" + env.PR_NUMBER)' in broker
+
+
+def test_brokered_dispatch_run_name_includes_source_run_identity():
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    assert "format(' · source #{0}', inputs.fallback_source_run)" in workflow
+    broker = workflow.split("  pull_request_broker:", 1)[1].split("  local_runner_readiness:", 1)[0]
+    assert 'contains("source #" + env.GITHUB_RUN_ID)' in broker
