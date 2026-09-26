@@ -331,7 +331,7 @@ def pattern_and_sewing():
     activate("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D", "ClothPattern_CreateFromSketch"])
     expected_colors = seam_color_map(str(obj.SeamId) for obj in seam_objects)
     if len(set(expected_colors.values())) != len(seam_objects):
-        raise RuntimeError("canonical sewing fixture did not produce unique seam colors")
+        raise RuntimeError("canonical sewing fixture did not produce unique seam colors: ids=%r colors=%r" % (tuple(str(obj.SeamId) for obj in seam_objects), expected_colors))
     if any(
         not bool(getattr(obj.ViewObject, "Visibility", False))
         or any(abs(actual - expected) > 1e-6 for actual, expected in zip(
