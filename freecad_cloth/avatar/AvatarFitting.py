@@ -66,6 +66,10 @@ class PiecePlacement:
 
     def to_string(self) -> str:
         self.validate()
+        if tuple(float(v) for v in self.rotation_axis) == (0.0, 0.0, 1.0):
+            return "%s|%.12g,%.12g,%.12g|%.12g" % (
+                self.piece_id, self.position[0], self.position[1], self.position[2], self.rotation_z
+            )
         return "%s|%.12g,%.12g,%.12g|%.12g|%.12g,%.12g,%.12g" % (
             self.piece_id, self.position[0], self.position[1], self.position[2], self.rotation_z,
             self.rotation_axis[0], self.rotation_axis[1], self.rotation_axis[2]
