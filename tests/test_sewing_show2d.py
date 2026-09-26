@@ -205,3 +205,5 @@ if __name__ == "__main__":
     test_pattern_2d_refreshes_seam_colors_before_view_fit()
     test_show_2d_does_not_select_seams_over_their_colors()
     print("sewing Show 2D tests passed")
+
+# Keep canonical direct-script execution aligned with the focused seam tests above.
