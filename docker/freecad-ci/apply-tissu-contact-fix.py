@@ -233,7 +233,7 @@ bool intersectSegmentTriangle(
                     0.5 * travelLength + thickness + 1e-6,
                     candidates);
 
-                double bestT = 1.0 + 1e-9;
+                double bestT = -1.0;
                 int bestTriangle = -1;
                 for (int candidate : candidates) {
                     const Triangle& sweptTri = m_bvh.getTriangle(candidate);
@@ -247,7 +247,12 @@ bool intersectSegmentTriangle(
                     if (!intersectSegmentTriangle(
                             start, end, sweptA, sweptB, sweptC, hitT))
                         continue;
-                    if (hitT < bestT) {
+                    // A tunneled particle can cross a closed surface twice and
+                    // finish outside it. Resolve against the hit nearest the
+                    // current position so collision response preserves the
+                    // particle's current-side locality instead of teleporting
+                    // it back to the entry surface.
+                    if (hitT > bestT) {
                         bestT = hitT;
                         bestTriangle = candidate;
                     }
