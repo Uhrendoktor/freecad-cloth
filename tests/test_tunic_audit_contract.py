@@ -34,6 +34,12 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     assert 'scene.PinSelection = [str(i) for i in front_pins]' not in source
     assert 'target_surface = collision_surface(' in source
     assert 'target_source.Mesh.BoundBox' not in source
+    assert 'target_aware_place_piece' in source
+    assert 'GarmentAnchor' in source
+    assert 'assert_minimum_surface_clearance' in source
+    assert 'target_relative_piece_placement' not in source
+    assert 'front_y =' not in source and 'back_y =' not in source
+    assert 'exact_step_zero' in source
 
 
 def test_canonical_tunic_uses_validated_authored_mapping():
@@ -107,3 +113,12 @@ def test_simulation_proxy_serializes_only_rebuildable_metadata():
     assert proxy.source_signature is None
     assert proxy.last_steps == 0
     assert proxy.collision_surface is None
+
+
+def test_target_aware_fitting_preserves_home_reset_state():
+    fitting = (ROOT / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    fitting_model = (ROOT / "freecad_cloth" / "avatar" / "AvatarFitting.py").read_text(encoding="utf-8")
+    assert "target_aware_place_piece" in fitting
+    assert "HomePlacements" in fitting
+    assert "rotation_axis" in fitting_model
+    assert "GarmentAnchor" in fitting_model
