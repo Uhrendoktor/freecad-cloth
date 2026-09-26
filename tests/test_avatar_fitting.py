@@ -55,6 +55,11 @@ class AvatarFittingTests(unittest.TestCase):
         placement = PiecePlacement("front", (1.5, -2.0, 3.25), 90.0)
         self.assertEqual(PiecePlacement.from_string(placement.to_string()), placement)
 
+    def test_piece_placement_preserves_non_z_rotation_axis(self):
+        placement = PiecePlacement("front", (1.5, -2.0, 3.25), 90.0, (1.0, 0.0, 0.0))
+        self.assertEqual(PiecePlacement.from_string(placement.to_string()), placement)
+        self.assertEqual(PiecePlacement.from_string("front|1.5,-2,3.25|90").rotation_axis, (0.0, 0.0, 1.0))
+
     def test_arrangement_point_round_trip_and_mirror(self):
         point = ArrangementPoint("shoulder-left", 120, 80, 15, "left", 10, "shoulders")
         self.assertEqual(ArrangementPoint.from_string(point.to_string()), point)
@@ -182,6 +187,27 @@ class AvatarFittingTests(unittest.TestCase):
     def test_avatar_arrangement_points_replace_duplicate_with_last_value(self):
         points = arrangement_points_from_landmarks(["waist|0,0,900", "waist|0,0,905", "neck|0,0,1150"])
         self.assertEqual(points, ["neck|0,0,1150", "waist|0,0,905"])
+
+    def test_existing_fitting_scene_migrates_target_link(self):
+        try:
+            import FreeCAD as App
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
+        from freecad_cloth.avatar.FittingCommands import create_fitting_scene
+        doc = App.newDocument("FittingSceneMigration")
+        try:
+            scene = create_fitting_scene()
+            target = doc.getObject("DrapeTarget")
+            if "DrapeTarget" in scene.PropertiesList:
+                scene.removeProperty("DrapeTarget")
+            doc.recompute()
+            restored = create_fitting_scene()
+            self.assertIn("DrapeTarget", restored.PropertiesList)
+            if target is not None:
+                self.assertIs(restored.DrapeTarget, target)
+        finally:
+            if doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
 
     def test_freecad_mannequin_rebuild_invalidates_target_until_refreshed(self):
         try:
