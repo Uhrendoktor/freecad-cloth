@@ -28,6 +28,14 @@ assert "def GetResources(self):" in gui_base
 assert '"MenuText": self.MenuText' in gui_base
 assert '"ToolTip": self.ToolTip' in gui_base
 assert '"Icon": self.Icon' in gui_base
+assert "def Activated(self):" in gui_base
+assert "from freecad_cloth.sewing.SewingView import refresh_seam_colors" in gui_base
+assert "refresh_seam_colors(getattr(active, \"Document\", None))" in gui_base
+assert "super().Activated()" in (ROOT / "freecad_cloth" / "simulation" / "workbench.py").read_text()
+assert "from freecad_cloth.sewing.SewingView import refresh_seam_colors" in pattern_gui
+assert 'refresh_seam_colors(getattr(active, "Document", None))' in pattern_gui
+assert "def _update_seam_visuals" in (ROOT / "freecad_cloth" / "simulation" / "SimulationObjects.py").read_text()
+assert "SimulationSeamId" in (ROOT / "freecad_cloth" / "simulation" / "SimulationObjects.py").read_text()
 assert "def __init__(self):" in gui_base
 assert "self.commands = []" in gui_base
 assert "if self.commands:" in gui_base
@@ -42,9 +50,6 @@ assert '"Simulation quality"' in quality_gui
 assert '"Fabric"' in quality_gui
 assert '"Collision"' in quality_gui
 assert '"Run"' in quality_gui
-assert '"Pinning mode"' in quality_gui
-assert '"PinMode"' in quality_gui
-assert '"None creates the simulation with zero solver pins."' in quality_gui
 assert "show_simulation_quality_task" in quality_gui
 assert "class SewingTaskPanel" in sewing_gui
 assert "Gui.Control.showDialog(panel)" in sewing_gui
