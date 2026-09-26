@@ -252,20 +252,15 @@ def set_arrangement_point(name, x=None, y=None, offset=None, wrap_direction=None
     return point
 
 
-def _piece_local_surface_points(piece, deflection=1.0):
-    """Sample PatternIR once; rigid correction reuses the exact same local samples."""
+def _piece_local_surface_points(piece):
+    """Sample the same deterministic PatternMesh vertices consumed by the solver."""
     from freecad_cloth.common.PatternSimulationAdapter import geometry_from_piece_ir, resolve_piece_ir
-    from freecad_cloth.pattern.PatternMesh import refine_linear_boundary, triangulate
+    from freecad_cloth.pattern.PatternMesh import triangulate
 
     piece_ir = resolve_piece_ir(piece)
-    pattern = geometry_from_piece_ir(piece_ir)
-    spacing = max(0.25, float(deflection))
-    mesh = triangulate(
-        refine_linear_boundary(pattern, spacing),
-        max_area=0.45 * spacing * spacing,
-    )
+    mesh = triangulate(geometry_from_piece_ir(piece_ir))
     if not mesh.vertices:
-        raise ValueError("pattern piece mesh produced no clearance samples")
+        raise ValueError("pattern piece PatternMesh sampling produced no points")
     return tuple((float(x), float(y), 0.0) for x, y in mesh.vertices)
 
 
@@ -284,8 +279,9 @@ def _world_points_from_local(piece, local_points):
     return tuple(points)
 
 
-def _piece_world_surface_points(piece, deflection=1.0):
-    return _world_points_from_local(piece, _piece_local_surface_points(piece, deflection))
+def _piece_world_surface_points(piece):
+    """Return authoritative PatternMesh vertices in the piece's live world placement."""
+    return _world_points_from_local(piece, _piece_local_surface_points(piece))
 
 
 def set_garment_anchors(anchors):
