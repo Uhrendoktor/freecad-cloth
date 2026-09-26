@@ -486,7 +486,8 @@ def simulation():
         raise RuntimeError("zero-gravity start-state step produced a non-finite solver state")
     log("zero-gravity-step=passed steps=%d max-displacement-mm=%.3f" % (int(scene.Steps), zero_gravity_displacement))
     view.viewFront(); view.fitAll(); events(); save("cloth-simulation-zero-gravity-step.png", "Tunic zero-gravity step", "one zero-gravity solver step after target-aware non-penetrating arrangement")
-    simulation_panel.reset(); scene.GravityZ = -9810.0; doc.recompute(); events()    for batch in (15,15,15,15,15,15):
+    simulation_panel.reset(); scene.GravityZ = -9810.0; doc.recompute(); events()
+    for batch in (15,15,15,15,15,15):
         simulation_panel.step(batch); doc.recompute(); events()
     if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
         raise RuntimeError("simulation did not reach a finite 90-step state")
