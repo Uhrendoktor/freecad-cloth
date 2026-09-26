@@ -107,3 +107,17 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
     assert 'tunic-simulation-start' in source
+
+def test_tissu_api_1675_probe():
+    import subprocess
+    import sys
+
+    probe = ROOT / "tests" / "research_tissu_api_1675.py"
+    result = subprocess.run(
+        [sys.executable, str(probe)],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "TISSU_API_PROBE " in result.stdout
