@@ -168,9 +168,7 @@ def add_selected_pattern_pieces():
     by_id = {p.piece_id: p for p in existing}
     home_by_id = {p.piece_id: p for p in homes}
     for piece in pieces:
-        placement = piece.Placement
-        base = placement.Base
-        value = PiecePlacement(str(piece.PieceId), (float(base.x), float(base.y), float(base.z)), float(placement.Rotation.Angle))
+        value = _capture_piece_placement(piece, App)
         by_id[value.piece_id] = value
         home_by_id.setdefault(value.piece_id, value)
     scene.PatternPieces = sorted(set(list(scene.PatternPieces) + pieces), key=lambda o: str(o.PieceId))
@@ -472,7 +470,11 @@ def reset_arrangement():
         if piece is None:
             continue
         x, y, z = placement.position
-        piece.Placement = App.Placement(App.Vector(x, y, z), App.Rotation(App.Vector(0, 0, 1), placement.rotation_z))
+        if placement.rotation_angle is None:
+            rotation = App.Rotation(App.Vector(0, 0, 1), placement.rotation_z)
+        else:
+            rotation = App.Rotation(App.Vector(*placement.rotation_axis), placement.rotation_angle)
+        piece.Placement = App.Placement(App.Vector(x, y, z), rotation)
         current[pid] = placement
     scene.PiecePlacements = [current[k].to_string() for k in sorted(current)]
     scene.FitStatus = "Arrangement reset"
