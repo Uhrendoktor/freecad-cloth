@@ -62,6 +62,18 @@ def test_stale_drape_target_recompute_guard_is_safe():
     assert "source, placement" in scene.InvalidationReason
 
 
+def test_pattern_piece_scenes_do_not_add_implicit_pins():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "freecad_cloth" / "simulation" / "SimulationObjects.py").read_text(encoding="utf-8")
+    start = source.index("def _build_pattern_scene")
+    end = source.index("\n    def _build_demo", start)
+    body = source[start:end]
+    assert "boundary[:2] + boundary[-2:]" not in body
+    assert "pins = explicit_pins" in body
+    assert "if pins:" in body
+
+
 def test_pin_selection_is_part_of_rebuild_signature():
     from types import SimpleNamespace
     from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
