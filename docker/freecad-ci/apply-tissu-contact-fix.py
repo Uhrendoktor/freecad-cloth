@@ -65,6 +65,14 @@ endif()
         "headless core include-directory whitespace",
     )
 
+    const bindings_path = ROOT / "python/src/bindings_headless.cpp"
+    replace_once(
+        bindings_path,
+        '#include "io/AlembicExporter.hpp"\n',
+        "",
+        "headless binding Alembic include",
+    )
+
 def main() -> int:
     if run("git", "rev-parse", "HEAD") != EXPECTED_COMMIT:
         raise RuntimeError("Tissu source commit does not match the pinned revision")
@@ -89,6 +97,19 @@ def main() -> int:
     double m_outwardNormalSign = 1.0;
     BVH m_bvh;""",
         "MeshCollider.hpp member layout",
+    )
+
+    bindings = (ROOT / "python/src/bindings_headless.cpp").read_text(encoding="utf-8")
+    binding_start = '    py::class_<Tissu::AlembicExporter>(m, "AlembicExporter")'
+    binding_end = '    py::class_<OBJExporter>(m, "OBJExporter")'
+    start = bindings.find(binding_start)
+    end = bindings.find(binding_end)
+    if start < 0 or end < 0 or end <= start:
+        raise RuntimeError("headless binding Alembic exporter anchor mismatch")
+    bindings_path = ROOT / "python/src/bindings_headless.cpp"
+    bindings_path.write_text(
+        bindings[:start] + bindings[end:],
+        encoding="utf-8",
     )
 
     cpp = cpp.read_text(encoding="utf-8")
@@ -343,6 +364,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         "core/CMakeLists.txt",
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
+        "python/src/bindings_headless.cpp",
         "tests/physics/test_mesh_collider.cpp",
     )
     if changed_paths != expected_paths:
