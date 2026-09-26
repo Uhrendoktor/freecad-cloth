@@ -1,3 +1,4 @@
+import os
 from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
 
 
