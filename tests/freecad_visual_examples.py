@@ -83,44 +83,89 @@ def mesh_snapshot(panel):
     return points, faces
 
 
-def render_motion(view, scene, frame_count=16, final_steps=120):
-    steps = tuple(dict.fromkeys(
+def render_motion(view, scene, out_dir, checkpoint_steps=(15, 30, 60, 120), frame_count=16, final_steps=120):
+    import time
+
+    motion_steps = tuple(
         round(index * final_steps / float(frame_count - 1))
         for index in range(frame_count)
-    ))
+    )
+    checkpoint_steps = tuple(int(step) for step in checkpoint_steps)
+    checkpoint_names = {step: "checkpoint-%03d.png" % step for step in checkpoint_steps}
+    motion_indices = {step: index for index, step in enumerate(motion_steps)}
+    targets = tuple(sorted(set(motion_steps).union(checkpoint_steps)))
+    if targets[0] != 0 or targets[-1] != final_steps:
+        raise RuntimeError("blanket render schedule must span 0..%d" % final_steps)
+
     view.setCameraType("Orthographic")
     view.viewAxonometric()
     view.fitAll()
     events()
-    import time
-    previous_step = int(scene.Steps)
+
     phase_started = time.perf_counter()
-    replayed_steps = 0
+    previous_step = int(scene.Steps)
+    solver_steps = 0
+    recomputes = 0
     max_recompute_ms = 0.0
-    for index, target_step in enumerate(steps):
+    for target_step in targets:
         target_step = int(target_step)
-        reset = target_step < previous_step
-        if reset:
-            replayed_steps += target_step
-        else:
-            replayed_steps += target_step - previous_step
+        if target_step < previous_step:
+            raise RuntimeError(
+                "blanket render schedule is not monotonic: %d after %d"
+                % (target_step, previous_step)
+            )
+        delta_steps = target_step - previous_step
         scene.Steps = target_step
         recompute_started = time.perf_counter()
         scene.Document.recompute()
         recompute_ms = 1000.0 * (time.perf_counter() - recompute_started)
+        recomputes += 1
+        solver_steps += delta_steps
         max_recompute_ms = max(max_recompute_ms, recompute_ms)
         if not bool(scene.FiniteState):
             raise RuntimeError("blanket simulation became non-finite at step %d" % target_step)
-        save_png(view, OUT / ("motion-%03d.png" % index), "blanket motion step %d" % target_step)
-        log("blanket-timing phase=motion frame=%d target_step=%d reset=%s delta_steps=%d recompute_ms=%.1f cumulative_ms=%.1f" % (
-            index, target_step, reset, max(0, target_step - previous_step), recompute_ms,
-            1000.0 * (time.perf_counter() - phase_started),
-        ))
+        events()
+        if target_step in motion_indices:
+            save_png(
+                view,
+                out_dir / ("motion-%03d.png" % motion_indices[target_step]),
+                "blanket motion step %d" % target_step,
+            )
+        if target_step in checkpoint_names:
+            save_png(
+                view,
+                out_dir / checkpoint_names[target_step],
+                "blanket step %d" % target_step,
+            )
+        log(
+            "blanket-timing target_step=%d delta_steps=%d recompute_ms=%.1f cumulative_ms=%.1f"
+            % (
+                target_step,
+                delta_steps,
+                recompute_ms,
+                1000.0 * (time.perf_counter() - phase_started),
+            )
+        )
         previous_step = target_step
-    log("blanket-motion-timing frames=%d replayed_solver_steps=%d elapsed_ms=%.1f max_recompute_ms=%.1f final_steps=%d" % (
-        len(steps), replayed_steps, 1000.0 * (time.perf_counter() - phase_started), max_recompute_ms, final_steps,
-    ))
-    log("motion-frames=passed count=%d final_steps=%d" % (len(steps), final_steps))
+
+    elapsed_ms = 1000.0 * (time.perf_counter() - phase_started)
+    expected_solver_steps = final_steps - targets[0]
+    if solver_steps != expected_solver_steps:
+        raise RuntimeError(
+            "blanket simulation step budget mismatch: expected=%d actual=%d"
+            % (expected_solver_steps, solver_steps)
+        )
+    if recomputes != len(targets):
+        raise RuntimeError(
+            "blanket simulation recompute count mismatch: expected=%d actual=%d"
+            % (len(targets), recomputes)
+        )
+    log(
+        "blanket-simulation-timing solver_steps=%d recomputes=%d elapsed_ms=%.1f "
+        "max_recompute_ms=%.1f final_steps=%d"
+        % (solver_steps, recomputes, elapsed_ms, max_recompute_ms, final_steps)
+    )
+    log("motion-frames=passed count=%d final_steps=%d" % (len(motion_steps), final_steps))
 
 
 def _load_cloth_modules():
@@ -172,8 +217,9 @@ def main():
         cube.Shape = __import__("Part").makeBox(180.0, 180.0, 60.0, App.Vector(-90.0, -90.0, 0.0))
         doc.recompute()
 
-        scene = create_simulation_scene(doc)
-        set_avatar_collision_source(scene, cube, thickness=2.0, deflection=1.0)
+        import time
+        setup_started = time.perf_counter()
+        scene = create_simulation_scene(doc, build=False)
         ensure_quality_properties(scene)
         scene.Proxy = QualitySimulationProxy()
         scene.ClothPieces = [piece]
@@ -185,6 +231,10 @@ def main():
         # QualitySimulationProxy consumes SolverIterations; the legacy Iterations field is ignored for this runtime path.
         scene.ParticleDistance = max(12.0, float(scene.ParticleDistance))
         scene.SolverIterations = 4
+        scene.FabricColor = (0.14, 0.32, 0.78)
+        scene.FabricSpecular = 0.70
+        scene.FabricRoughness = 0.20
+        scene.FabricTransparency = 12
 
         mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, scene.ParticleDistance)
         boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
@@ -206,11 +256,17 @@ def main():
             raise RuntimeError("blanket pins are not opposite top-edge corners: span=%.3f" % pin_span)
         scene.PinSelection = [str(int(index)) for index in top]
         log("blanket-pins=passed opposite-corners span=%.3f indices=%s" % (pin_span, top))
-        scene.FabricColor = (0.14, 0.32, 0.78)
-        scene.FabricSpecular = 0.70
-        scene.FabricRoughness = 0.20
-        scene.FabricTransparency = 12
-        doc.recompute()
+
+        collision_started = time.perf_counter()
+        set_avatar_collision_source(scene, cube, thickness=2.0, deflection=1.0)
+        log(
+            "blanket-setup-timing build_and_collision_ms=%.1f total_setup_ms=%.1f particles=%d"
+            % (
+                1000.0 * (time.perf_counter() - collision_started),
+                1000.0 * (time.perf_counter() - setup_started),
+                int(scene.ParticleCount),
+            )
+        )
 
         for source in (piece, sketch):
             source.ViewObject.Visibility = False
@@ -239,32 +295,10 @@ def main():
         save_png(view, OUT / "checkpoint-000.png", "blanket initial state")
 
         initial_points = tuple(tuple(float(value) for value in point) for point in scene.Proxy._base_or_restore().backend.positions())
-        import time
         log("blanket-solver-config particle_distance=%.1f iterations=%d particles=%d" % (float(scene.ParticleDistance), int(scene.SolverIterations), int(scene.ParticleCount)))
-        simulation_started = time.perf_counter()
-        previous_step = int(scene.Steps)
-        checkpoint_replayed_steps = 0
-        max_recompute_ms = 0.0
-        render_steps = (15, 30, 60, 120)
-        for step in render_steps:
-            recompute_started = time.perf_counter()
-            scene.Steps = step
-            doc.recompute()
-            recompute_ms = 1000.0 * (time.perf_counter() - recompute_started)
-            max_recompute_ms = max(max_recompute_ms, recompute_ms)
-            checkpoint_replayed_steps += int(step) - previous_step
-            events()
-            save_png(view, OUT / ("checkpoint-%03d.png" % step), "blanket step %d" % step)
-            log("blanket-timing phase=checkpoint target_step=%d reset=False delta_steps=%d recompute_ms=%.1f cumulative_ms=%.1f" % (
-                step, int(step) - previous_step, recompute_ms,
-                1000.0 * (time.perf_counter() - simulation_started),
-            ))
-            previous_step = int(step)
+        render_motion(view, scene, OUT, frame_count=16, final_steps=120)
 
         final_points = tuple(tuple(float(value) for value in point) for point in scene.Proxy._base_or_restore().backend.positions())
-        log("blanket-checkpoints-elapsed-ms=%.1f replayed_solver_steps=%d max_recompute_ms=%.1f" % (
-            1000.0 * (time.perf_counter() - simulation_started), checkpoint_replayed_steps, max_recompute_ms,
-        ))
         if not initial_points or not final_points:
             raise RuntimeError("blanket simulation produced no particles")
         max_displacement = max(
@@ -306,7 +340,6 @@ def main():
             raise RuntimeError("simulation viewport did not apply persisted fabric transparency")
         log("material-presentation=passed viewport=true color=0.14,0.32,0.78 transparency=12")
 
-        render_motion(view, scene, frame_count=16, final_steps=120)
         log("blanket-visual-acceptance=passed")
     finally:
         if doc.Name in App.listDocuments():
