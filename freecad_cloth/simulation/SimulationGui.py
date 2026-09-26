@@ -73,6 +73,16 @@ class SimulationTaskPanel:
         layout.addRow("Legacy sphere radius", self.collision_radius)
         root.addWidget(collision)
 
+        fitting = QtWidgets.QGroupBox("Garment fitting")
+        fitting_layout = QtWidgets.QVBoxLayout(fitting)
+        self.arrange_garment_button = QtWidgets.QPushButton("Arrange garment on mannequin")
+        self.arrange_garment_button.setToolTip("Place a two-panel garment outside the selected mannequin using persistent arrangement points. This does not use global pins.")
+        fitting_layout.addWidget(self.arrange_garment_button)
+        self.arrange_garment_status = QtWidgets.QLabel()
+        self.arrange_garment_status.setWordWrap(True)
+        fitting_layout.addWidget(self.arrange_garment_status)
+        root.addWidget(fitting)
+
         sewing = QtWidgets.QGroupBox("Sewing & pinning")
         layout = QtWidgets.QFormLayout(sewing)
         self.pins = QtWidgets.QLineEdit(self._join(getattr(scene, "PinSelection", [])))
@@ -100,6 +110,7 @@ class SimulationTaskPanel:
         self.step_button.clicked.connect(lambda: self.step(1))
         self.run_button.clicked.connect(lambda: self.step(30))
         self.reset_button.clicked.connect(self.reset)
+        self.arrange_garment_button.clicked.connect(self._arrange_garment)
         self.cloth.currentIndexChanged.connect(self._selection_changed)
         self.target.currentIndexChanged.connect(self._selection_changed)
         self.pins.editingFinished.connect(self._selection_changed); self.seams.editingFinished.connect(self._selection_changed)
@@ -160,6 +171,22 @@ class SimulationTaskPanel:
                 index = self.target.findData(selected.Name)
                 if index >= 0: self.target.setCurrentIndex(index)
 
+    def _arrange_garment(self):
+        if self.scene is None:
+            self._refresh_status("Create a Cloth Simulation scene before arranging the garment.")
+            return False
+        try:
+            from freecad_cloth.avatar.FittingCommands import arrange_garment_on_avatar
+            arranged = arrange_garment_on_avatar(self.scene)
+        except Exception as exc:
+            self.arrange_garment_status.setText("Arrangement blocked: %s" % exc)
+            self._refresh_status("Arrange garment was not applied.")
+            return False
+        labels = ", ".join(getattr(piece, "Label", getattr(piece, "Name", "panel")) for piece, _side, _gap in arranged)
+        self.arrange_garment_status.setText("Placed %s outside the mannequin; global pins cleared." % labels)
+        self._refresh_status("Garment arranged from the mannequin's persistent arrangement points.")
+        return True
+
     def _selection_changed(self):
         if self.scene is None: return
         if self.cloth.currentData():
@@ -170,7 +197,7 @@ class SimulationTaskPanel:
             if obj: self.scene.DrapeTarget = obj
         self.scene.PinSelection = [p.strip() for p in self.pins.text().replace(";", ",").split(",") if p.strip()]
         self.scene.SeamSelection = [p.strip() for p in self.seams.text().replace(",", ";").split(";") if p.strip()]
-        self.scene.Document.recompute(); self._refresh_status()
+        self.scene.Document.recompute(); self._refresh_fitting_status(); self._refresh_status()
 
     def _material_changed(self, preset):
         if self.scene is None: return
