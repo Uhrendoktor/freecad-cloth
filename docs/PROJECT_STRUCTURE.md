@@ -13,7 +13,7 @@ The repository is both a normal Python project and a directly installable FreeCA
 │   ├── gui.py                      # shared workbench registration base
 │   ├── common/                     # shared utilities and document adapters
 │   ├── shared/                     # solver/workbench-neutral contracts
-│   ├── avatar/                     # avatar model, fitting, collision, GUI
+│   ├── avatar/                     # avatar model, target-aware fitting, collision, GUI
 │   ├── pattern/                    # pattern geometry, objects, IR, sketch, GUI
 │   ├── sewing/                     # sewing graph, references, network, GUI
 │   └── simulation/                 # solver, draping, targets, diagnostics, GUI
