@@ -931,7 +931,7 @@ jobs:
           compression-level: 1
   publish-readme-turntables:
     name: Publish README turntables and example motion
-    needs: runner_router
+    needs: [runner_router, gui-tunic-visual, gui-turntables, gui-visual-examples]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: write
