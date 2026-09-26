@@ -515,7 +515,7 @@ jobs:
       - name: Run native-Sketcher tunic audit
         env:
           CLOTH_SIMULATION_BACKEND: tissu
-          CLOTH_TISSU_SUBSTEPS: 4
+          CLOTH_TISSU_SUBSTEPS: 1
           CLOTH_TISSU_COLLISION_MODE: torso-envelope
         run: |
           set -euo pipefail
