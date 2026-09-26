@@ -252,8 +252,12 @@ def set_arrangement_point(name, x=None, y=None, offset=None, wrap_direction=None
     return point
 
 
-def _piece_local_surface_points(piece):
-    """Sample the same deterministic PatternMesh vertices consumed by the solver."""
+def _piece_local_surface_points(piece, deflection=1.0):
+    """Sample the same deterministic PatternMesh vertices consumed by the solver.
+
+    ``deflection`` remains accepted for the existing correction call site, but
+    the clearance preflight deliberately uses the solver's exact base mesh ABI.
+    """
     from freecad_cloth.common.PatternSimulationAdapter import geometry_from_piece_ir, resolve_piece_ir
     from freecad_cloth.pattern.PatternMesh import triangulate
 
