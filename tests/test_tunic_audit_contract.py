@@ -166,6 +166,6 @@ def test_tunic_step_zero_clearance_gate_is_preserved_while_fixture_starts_outsid
 def test_tunic_placement_probe_preserves_clearance_gate_and_bounded_candidates():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "clearance = max(8.0, 0.025 * body_depth)" in audit
-    assert "placement_candidates = (0.0, 4.0, 8.0, 12.0, 16.0, 24.0, 32.0, 48.0, 64.0, 96.0, 128.0)" in audit
+    assert "placement_candidates = (0.0, 4.0, 8.0, 12.0, 16.0, 24.0, 32.0, 48.0, 64.0, 96.0, 128.0, 160.0, 192.0, 224.0, 256.0)" in audit
     assert "tunic-placement-selected-extra-mm" in audit
     assert "placement_extra" in audit
