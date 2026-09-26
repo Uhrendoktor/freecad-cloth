@@ -14,11 +14,12 @@ The repository publishes its exact CI image and dependency versions in `.github/
 ## User installation
 
 1. Download or clone this repository.
-2. Copy the repository directory into FreeCAD's user `Mod` directory.
-3. Restart FreeCAD.
-4. Select **Cloth Pattern**, **Cloth Sewing**, or **Cloth Simulation** from the workbench selector.
+2. Copy the complete repository directory directly below FreeCAD's user `Mod` directory.
+3. Keep `Init.py` and `InitGui.py` at the repository root.
+4. Restart FreeCAD.
+5. Select **Cloth Pattern**, **Cloth Sewing**, or **Cloth Simulation** from the workbench selector.
 
-The repository root contains the required FreeCAD bootstrap files `Init.py` and `InitGui.py`; do not move those files below another directory level.
+From the FreeCAD Python console, `App.getUserAppDataDir()` reports the user-data root. Use its `Mod` subdirectory rather than guessing a platform-specific path.
 
 For an existing installation, remove the previous `freecad-cloth` directory before replacing it so stale Python modules cannot remain on the module search path.
 
@@ -26,7 +27,7 @@ For an existing installation, remove the previous `freecad-cloth` directory befo
 
 Start with the **Blanket over Cube** example in [EXAMPLES.md](EXAMPLES.md). It is deliberately smaller than the tunic and is the recommended smoke test for a new installation.
 
-Then read the concise [User guide](USER_GUIDE.md) and run the tunic workflow documented in [WORKBENCH_GUIDE.md](WORKBENCH_GUIDE.md).
+Then read the [User guide](USER_GUIDE.md). For the tunic path, use the Arrange / Fit and DrapeTarget sequence in [WORKBENCH_GUIDE.md](WORKBENCH_GUIDE.md), including **Snap pieces to target** only for fitting scenes with authored garment anchors.
 
 ## Developer setup
 
@@ -47,3 +48,10 @@ The canonical command set is defined in `.github/workflows/canonical-execution.y
 **A seam becomes invalid after editing a sketch:** recompute the document and use the explicit seam repair/remap workflow. Cloth never silently retargets a seam to another edge.
 
 **Visual CI differs from local FreeCAD:** use the same FreeCAD/Triangle/Tissu versions recorded by the canonical workflow before comparing screenshots.
+
+
+## Arrange / Fit recovery
+
+The **Cloth Simulation** task panel exposes **Refresh target**, **Arrange / Fit…**, **Snap pieces to target**, and **Reset arrangement**. A disabled Snap button means the persistent DrapeTarget is not ready; fix the target state first rather than bypassing validation.
+
+The target-aware action is not a general-purpose solver. It performs bounded rigid placement from authored GarmentAnchors, uses the persistent DrapeTarget as geometric authority, and fails closed when complete-piece clearance cannot be established.
