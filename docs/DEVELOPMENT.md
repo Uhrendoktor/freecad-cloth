@@ -22,6 +22,10 @@ There is exactly one workflow: `.github/workflows/canonical-execution.yml`.
 
 Do not replace, duplicate, or casually refactor it. In particular, preserve the existing Docker/Xvfb path that launches real FreeCAD and captures the validated GUI states and avatar audit artifacts. GUI diagnostics remain available as `cloth-gui-diagnostics`.
 
+### Canonical runner routing
+
+Pull-request events run on GitHub-hosted infrastructure only; untrusted public-PR code is never routed to self-hosted runners. Trusted events may use an idle `self-hosted/linux/x64/docker` runner only when the optional `CLOTH_RUNNER_DISCOVERY_TOKEN` can list repository runners. Missing or invalid credentials, API failures, or no idle matching runner fail closed to `ubuntu-latest`.
+
 The canonical FreeCAD test image is Python 3.12-based; a CI run that starts FreeCAD under Python <3.12 is unsupported.
 
 Any UI or workflow-facing change must use the canonical workflow as its acceptance path. Never weaken screenshot assertions to make CI green.
