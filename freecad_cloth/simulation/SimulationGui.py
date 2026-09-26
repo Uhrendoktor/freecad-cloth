@@ -73,11 +73,11 @@ class SimulationTaskPanel:
         layout.addRow("Legacy sphere radius", self.collision_radius)
         root.addWidget(collision)
 
-        sewing = QtWidgets.QGroupBox("Sewing & pinning")
+        sewing = QtWidgets.QGroupBox("Sewing & pinning (optional)")
         layout = QtWidgets.QFormLayout(sewing)
         self.pins = QtWidgets.QLineEdit(self._join(getattr(scene, "PinSelection", [])))
         self.seams = QtWidgets.QLineEdit(self._join(getattr(scene, "SeamSelection", [])))
-        self.pins.setToolTip("Particle indices separated by commas")
+        self.pins.setToolTip("Optional particle indices separated by commas; leave blank for free draping")
         self.seams.setToolTip("Particle pairs such as 3-27 separated by semicolons")
         layout.addRow("Pinned vertices", self.pins); layout.addRow("Seam pairs", self.seams)
         root.addWidget(sewing)
