@@ -14,12 +14,34 @@ from freecad_cloth.simulation.ClothSolver import ClothSystem
 _MM = 1000.0
 _TISSU_SUBSTEPS_DEFAULT = 1
 _TISSU_COLLISION_TRIANGLES_DEFAULT = 0
+_TISSU_COLLISION_SUPPLEMENT_ENVELOPE_DEFAULT = False
+_TISSU_COLLISION_ENVELOPE_PROFILE_DEFAULT = "centerline"
 
 
 def _tissu_substeps():
     value = int(os.environ.get("CLOTH_TISSU_SUBSTEPS", str(_TISSU_SUBSTEPS_DEFAULT)))
     if value < 1:
         raise ValueError("CLOTH_TISSU_SUBSTEPS must be >= 1")
+    return value
+
+
+def _tissu_collision_supplement_envelope():
+    raw = os.environ.get(
+        "CLOTH_TISSU_COLLISION_SUPPLEMENT_ENVELOPE",
+        "1" if _TISSU_COLLISION_SUPPLEMENT_ENVELOPE_DEFAULT else "0",
+    ).strip().lower()
+    if raw not in {"0", "1", "false", "true", "off", "on"}:
+        raise ValueError("CLOTH_TISSU_COLLISION_SUPPLEMENT_ENVELOPE must be boolean")
+    return raw in {"1", "true", "on"}
+
+
+def _tissu_collision_envelope_profile():
+    value = os.environ.get(
+        "CLOTH_TISSU_COLLISION_ENVELOPE_PROFILE",
+        _TISSU_COLLISION_ENVELOPE_PROFILE_DEFAULT,
+    ).strip().lower()
+    if value not in {"centerline", "shoulder-caps"}:
+        raise ValueError("CLOTH_TISSU_COLLISION_ENVELOPE_PROFILE must be centerline or shoulder-caps")
     return value
 
 
@@ -47,6 +69,28 @@ def _to_tissu_mesh(surface):
     vertices = [np.asarray(_to_tissu_position(v), dtype=np.float64) for v in surface.vertices]
     triangles = [[int(a), int(c), int(b)] for a, b, c in surface.triangles]
     return vertices, triangles
+
+
+def _collision_shoulder_caps(surface):
+    if surface is None or not surface.vertices:
+        return ()
+    xs = [float(v[0]) for v in surface.vertices]
+    ys = [float(v[1]) for v in surface.vertices]
+    zs = [float(v[2]) for v in surface.vertices]
+    min_x, max_x = min(xs), max(xs)
+    min_y, max_y = min(ys), max(ys)
+    min_z, max_z = min(zs), max(zs)
+    width = max(1.0, max_x - min_x)
+    depth = max(1.0, max_y - min_y)
+    height = max(1.0, max_z - min_z)
+    center_y = 0.5 * (min_y + max_y)
+    shoulder_z = min_z + 0.80 * height
+    offset_x = 0.30 * width
+    radius = max(100.0, min(170.0, 0.14 * width, 0.60 * depth))
+    return (
+        ((-offset_x, center_y, shoulder_z), radius),
+        ((offset_x, center_y, shoulder_z), radius),
+    )
 
 
 def _collision_envelope(surface):
@@ -132,21 +176,38 @@ class TissuBackend(ClothSimulationBackend):
     def time(self):
         return self._time
 
-    def _add_collision(self):
+    def _add_collision_spheres(self, surface, prefix="drape-torso"):
         import numpy as np
+
+        if surface is None:
+            return 0
+        envelope = _collision_envelope(surface)
+        if _tissu_collision_envelope_profile() == "shoulder-caps":
+            envelope = envelope + _collision_shoulder_caps(surface)
+        for index, (center, radius_mm) in enumerate(envelope):
+            self._sim.add_sphere(
+                f"{prefix}-{index}",
+                np.asarray(_to_tissu_position(center), dtype=np.float64),
+                float(radius_mm) / _MM,
+                friction=0.5,
+            )
+        return len(envelope)
+
+    def _add_collision(self):
         if self._collision_surface is None:
             return
         if self._collision_mode == "torso-envelope":
-            for index, (center, radius_mm) in enumerate(_collision_envelope(self._collision_surface)):
-                self._sim.add_sphere(
-                    f"drape-torso-{index}",
-                    np.asarray(_to_tissu_position(center), dtype=np.float64),
-                    float(radius_mm) / _MM,
-                    friction=0.5,
-                )
+            self._add_collision_spheres(self._source_collision_surface or self._collision_surface)
             return
         vtx, idx = _to_tissu_mesh(self._collision_surface)
         self._sim.add_mesh_from_arrays("drape-target", vtx, idx, friction=0.5)
+        if _tissu_collision_supplement_envelope():
+            count = self._add_collision_spheres(self._source_collision_surface or self._collision_surface)
+            print(
+                "cloth-tissu-collision supplemental_envelope=True spheres=%d profile=%s"
+                % (count, _tissu_collision_envelope_profile()),
+                flush=True,
+            )
 
     def _build(self, Simulation):
         import numpy as np
