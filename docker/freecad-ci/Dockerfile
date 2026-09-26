@@ -4,6 +4,8 @@ ARG TISSU_SOURCE_COMMIT=c28a3c7504ddc782bef844ab5bd4cd0bde14b628
 
 COPY docker/freecad-ci/apply-tissu-contact-fix.py /tmp/apply-tissu-contact-fix.py
 
+# Keep the pinned source build inside the hosted GUI job's effective execution budget.
+
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 LABEL org.opencontainers.image.source="https://github.com/Uhrendoktor/freecad-cloth"
