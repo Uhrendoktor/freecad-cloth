@@ -538,6 +538,7 @@ jobs:
               for i in $(seq 1 12); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
               timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py
+              timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_realtime_benchmark.py
             '
       - name: Restore workspace from Docker volume
         if: ${{ always() }}
@@ -554,6 +555,16 @@ jobs:
         run: |
           set -euo pipefail
           test -s docs/images/generated/gui-progress.log
+          test -s artifacts/freecad-realtime/metrics.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          m = json.loads(Path("artifacts/freecad-realtime/metrics.json").read_text(encoding="utf-8"))
+          assert m["finite"], m
+          assert m["mean_frame_ms"] <= m["frame_budget_ms"], m
+          assert m["p95_frame_ms"] <= 50.0, m
+          print("realtime-performance=passed mean_frame_ms=%.2f p95_frame_ms=%.2f fps=%.2f particles=%d" % (m["mean_frame_ms"], m["p95_frame_ms"], m["fps_mean"], m["particles"]))
+          PY
           grep -q 'scenario-pass' docs/images/generated/gui-progress.log
           grep -q 'realtime-preview=passed backend=tissu' docs/images/generated/gui-progress.log
           grep -q 'drape-metrics=' docs/images/generated/gui-progress.log
