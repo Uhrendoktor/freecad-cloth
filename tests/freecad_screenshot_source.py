@@ -440,7 +440,33 @@ def simulation():
         raise RuntimeError("public target-aware arrangement did not complete for the back panel")
     if tuple(fitting.PiecePlacements) == tuple(fitting.HomePlacements):
         raise RuntimeError("target-aware arrangement did not change either panel placement")
-    log("target-aware-placement=public-command anchors=%d" % len(anchors))
+    saved_home = {
+        str(piece.PieceId): (
+            piece.Placement,
+            piece.Sketch.Placement if getattr(piece, "Sketch", None) is not None else None,
+        )
+        for piece in (front, back)
+    }
+    Gui.Selection.clearSelection()
+    Gui.runCommand("ClothFitting_ResetArrangement", 0)
+    events(); doc.recompute()
+    if tuple(fitting.PiecePlacements) != tuple(fitting.HomePlacements):
+        raise RuntimeError("Reset Arrangement changed persisted HomePlacements/PiecePlacements identity")
+    for piece in (front, back):
+        expected = saved_home[str(piece.PieceId)]
+        if piece.Placement != expected[0]:
+            raise RuntimeError("Reset Arrangement did not restore the saved Home Placement for %s" % piece.Label)
+        if expected[1] is not None and piece.Sketch.Placement != expected[1]:
+            raise RuntimeError("Reset Arrangement did not restore the linked Sketch for %s" % piece.Label)
+    Gui.Selection.addSelection(front)
+    Gui.runCommand("ClothFitting_TargetAwareArrange", 0)
+    events()
+    Gui.Selection.clearSelection(); Gui.Selection.addSelection(back)
+    Gui.runCommand("ClothFitting_TargetAwareArrange", 0)
+    events()
+    if str(fitting.FitStatus) != "Target-aware placement applied":
+        raise RuntimeError("target-aware re-entry after Reset Arrangement failed")
+    log("target-aware-placement=public-command reset-regression=passed anchors=%d" % len(anchors))
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
     for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
