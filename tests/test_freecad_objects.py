@@ -173,8 +173,8 @@ def test_target_aware_snap_rolls_back_piece_sketch_and_fit_ledger_after_post_tra
         finally:
             TargetPlacement.minimum_signed_clearance = original_clearance
 
-        assert tuple(piece.Placement.Base) == (60.0, -10.0, 20.0)
-        assert tuple(sketch.Placement.Base) == (60.0, -10.0, 20.0)
+        assert (piece.Placement.Base.x, piece.Placement.Base.y, piece.Placement.Base.z) == (60.0, -10.0, 20.0)
+        assert (sketch.Placement.Base.x, sketch.Placement.Base.y, sketch.Placement.Base.z) == (60.0, -10.0, 20.0)
         assert tuple(fitting.PiecePlacements) == tuple(fitting.HomePlacements)
         assert str(fitting.FitStatus) == "Before snap"
     finally:
