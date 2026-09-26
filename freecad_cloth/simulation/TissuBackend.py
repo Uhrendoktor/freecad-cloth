@@ -4,10 +4,12 @@ The reference solver remains the deterministic fallback. Tissu is imported lazil
 so installations without the optional wheel keep the existing backend usable.
 """
 from copy import deepcopy
+from math import sqrt
 from typing import Iterable, Sequence, Tuple
 import os
 
 from freecad_cloth.avatar.AvatarCollision import CollisionSurface, coarsen_collision_surface
+from freecad_cloth.simulation.TissuContainment import get_authored_surface_containment
 from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 
@@ -29,6 +31,271 @@ def _tissu_collision_triangle_limit():
         raise ValueError("CLOTH_TISSU_COLLISION_TRIANGLES must be >= 0")
     return value
 
+
+def _tissu_authored_containment_enabled():
+    return os.environ.get("CLOTH_TISSU_AUTHORED_CONTAINMENT", "0").strip() == "1"
+
+
+def _build_stitch_components(stitches, particle_count):
+    parent = list(range(int(particle_count)))
+
+    def find(index):
+        root = index
+        while parent[root] != root:
+            root = parent[root]
+        while parent[index] != index:
+            next_index = parent[index]
+            parent[index] = root
+            index = next_index
+        return root
+
+    for left, right in stitches:
+        left = int(left)
+        right = int(right)
+        if not (0 <= left < particle_count and 0 <= right < particle_count):
+            raise ValueError("Tissu stitch particle index out of range")
+        left_root = find(left)
+        right_root = find(right)
+        if left_root != right_root:
+            parent[right_root] = left_root
+
+    groups = {}
+    for index in range(particle_count):
+        groups.setdefault(find(index), []).append(index)
+    return tuple(
+        tuple(sorted(indices))
+        for indices in groups.values()
+        if len(indices) > 1
+    )
+
+
+def _vector_length(vector):
+    return sqrt(sum(float(component) ** 2 for component in vector))
+
+
+def _to_tissu_vector(vector_mm):
+    x, y, z = vector_mm
+    return (float(x) / _MM, float(z) / _MM, float(y) / _MM)
+
+
+def _vector_add(left, right):
+    return tuple(float(left[index]) + float(right[index]) for index in range(3))
+
+
+def _vector_sub(left, right):
+    return tuple(float(left[index]) - float(right[index]) for index in range(3))
+
+
+def _vector_dot(left, right):
+    return sum(float(left[index]) * float(right[index]) for index in range(3))
+
+
+def _vector_scale(vector, factor):
+    return tuple(float(value) * float(factor) for value in vector)
+
+
+def _remove_inward_motion(displacement_tissu, outward_normal_mm):
+    normal_tissu = _to_tissu_vector(outward_normal_mm)
+    normal_length = _vector_length(normal_tissu)
+    if normal_length <= 1.0e-12:
+        raise RuntimeError("authored containment returned a degenerate outward normal")
+    normal_tissu = _vector_scale(normal_tissu, 1.0 / normal_length)
+    normal_component = _vector_dot(displacement_tissu, normal_tissu)
+    if normal_component >= 0.0:
+        return displacement_tissu
+    return _vector_sub(
+        displacement_tissu,
+        _vector_scale(normal_tissu, normal_component),
+    )
+
+
+def _apply_authored_containment_correction(
+    sim,
+    containment,
+    stitch_components=(),
+    stitch_edges=(),
+    pinned_indices=(),
+):
+    particles = sim.solver.get_particles()
+    particle_count = len(particles)
+    positions_mm = [_from_tissu_position(particle.get_position()) for particle in particles]
+    inverse_mass = [float(particle.get_inverse_mass()) for particle in particles]
+    pinned = {int(index) for index in pinned_indices}
+
+    corrected = 0
+    max_correction_mm = 0.0
+    corrected_indices = set()
+    stitch_edges = {
+        tuple(sorted((int(left), int(right))))
+        for left, right in stitch_edges
+    }
+
+    def apply_rigid_component(component):
+        nonlocal corrected, max_correction_mm
+        component = tuple(component)
+        component_set = set(component)
+        if any(index in pinned or inverse_mass[index] <= 0.0 for index in component):
+            return
+
+        candidate_deltas = []
+        for index in component:
+            correction = containment.correction(positions_mm[index])
+            if correction is not None:
+                target, _normal = correction
+                candidate_deltas.append(
+                    _vector_sub(target, positions_mm[index])
+                )
+        if not candidate_deltas:
+            return
+
+        mean_delta = tuple(
+            sum(delta[axis] for delta in candidate_deltas) / len(candidate_deltas)
+            for axis in range(3)
+        )
+        candidates = sorted(
+            (mean_delta, *candidate_deltas),
+            key=lambda delta: (
+                _vector_length(delta),
+                tuple(round(float(value), 12) for value in delta),
+            ),
+        )
+
+        chosen = None
+        for delta in candidates:
+            moved_positions = {
+                index: _vector_add(positions_mm[index], delta)
+                for index in component
+            }
+            if all(not containment.contains(value) for value in moved_positions.values()):
+                chosen = delta
+                break
+        if chosen is None:
+            return
+
+        seam_before = {
+            edge: _vector_length(
+                _vector_sub(positions_mm[edge[0]], positions_mm[edge[1]])
+            )
+            for edge in stitch_edges
+            if edge[0] in component_set and edge[1] in component_set
+        }
+        saved_current = {
+            index: tuple(float(value) for value in particles[index].get_position())
+            for index in component
+        }
+        saved_old = {
+            index: tuple(float(value) for value in particles[index].get_old_position())
+            for index in component
+        }
+
+        for index in component:
+            correction = containment.correction(positions_mm[index])
+            if correction is None:
+                target = _vector_add(positions_mm[index], chosen)
+                _closest_normal = None
+            else:
+                target, _closest_normal = correction
+                target = _vector_add(positions_mm[index], _vector_sub(target, positions_mm[index]))
+                target = _vector_add(positions_mm[index], chosen)
+
+            new_position_tissu = tuple(
+                float(value) for value in _to_tissu_position(target)
+            )
+            displacement_tissu = _vector_sub(saved_current[index], saved_old[index])
+            if _closest_normal is None:
+                normal_for_velocity = (0.0, 0.0, 1.0)
+            else:
+                normal_for_velocity = _closest_normal
+            displacement_tissu = _remove_inward_motion(
+                displacement_tissu,
+                normal_for_velocity,
+            )
+            particle = particles[index]
+            particle.set_position(new_position_tissu)
+            particle.set_old_position(
+                _vector_sub(new_position_tissu, displacement_tissu)
+            )
+
+        seam_after = {
+            edge: _vector_length(
+                _vector_sub(
+                    _from_tissu_position(particles[edge[0]].get_position()),
+                    _from_tissu_position(particles[edge[1]].get_position()),
+                )
+            )
+            for edge in seam_before
+        }
+        outside_after = all(
+            not containment.contains(_from_tissu_position(particles[index].get_position()))
+            for index in component
+        )
+        seam_preserved = all(
+            seam_after[edge] <= seam_before[edge] + 1.0e-9
+            for edge in seam_before
+        )
+        finite_after = all(
+            all(abs(float(value)) < 1.0e6 for value in particles[index].get_position())
+            and all(abs(float(value)) < 1.0e6 for value in particles[index].get_old_position())
+            for index in component
+        )
+        if not outside_after or not seam_preserved or not finite_after:
+            for index in component:
+                particles[index].set_position(saved_current[index])
+                particles[index].set_old_position(saved_old[index])
+            return
+
+        displacement = _vector_length(chosen)
+        for index in component:
+            positions_mm[index] = _vector_add(positions_mm[index], chosen)
+            corrected_indices.add(index)
+        corrected += len(component)
+        max_correction_mm = max(max_correction_mm, displacement)
+
+    for component in stitch_components:
+        apply_rigid_component(component)
+
+    stitch_member_indices = {
+        index for component in stitch_components for index in component
+    }
+    for index in range(particle_count):
+        if index in corrected_indices or index in stitch_member_indices:
+            continue
+        if index in pinned or inverse_mass[index] <= 0.0:
+            continue
+        correction = containment.correction(positions_mm[index])
+        if correction is None:
+            continue
+        target, normal = correction
+        saved_current = tuple(float(value) for value in particles[index].get_position())
+        saved_old = tuple(float(value) for value in particles[index].get_old_position())
+        new_position_tissu = tuple(float(value) for value in _to_tissu_position(target))
+        displacement_tissu = _remove_inward_motion(
+            _vector_sub(saved_current, saved_old),
+            normal,
+        )
+        particle = particles[index]
+        particle.set_position(new_position_tissu)
+        particle.set_old_position(
+            _vector_sub(new_position_tissu, displacement_tissu)
+        )
+        outside_after = not containment.contains(_from_tissu_position(particle.get_position()))
+        finite_after = (
+            all(abs(float(value)) < 1.0e6 for value in particle.get_position())
+            and all(abs(float(value)) < 1.0e6 for value in particle.get_old_position())
+        )
+        if not outside_after or not finite_after:
+            particle.set_position(saved_current)
+            particle.set_old_position(saved_old)
+            continue
+        positions_mm[index] = target
+        corrected += 1
+        corrected_indices.add(index)
+        max_correction_mm = max(
+            max_correction_mm,
+            _vector_length(_vector_sub(target, _from_tissu_position(saved_current))),
+        )
+
+    return corrected, max_correction_mm
 
 def _to_tissu_position(position):
     x, y, z = position
@@ -103,7 +370,20 @@ class TissuBackend(ClothSimulationBackend):
         self._triangles = tuple(tuple(int(i) for i in tri) for tri in triangles)
         self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins))
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
+        self._stitch_components = _build_stitch_components(
+            self._stitches,
+            len(self._initial.particles),
+        )
         self._source_collision_surface = collision_surface
+        self._authored_containment = None
+        self._authored_containment_corrections = 0
+        self._authored_containment_max_correction_mm = 0.0
+        if (
+            _tissu_authored_containment_enabled()
+            and collision_mode == "mesh"
+            and self._source_collision_surface is not None
+        ):
+            self._authored_containment = get_authored_surface_containment(self._source_collision_surface)
         collision_limit = _tissu_collision_triangle_limit()
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
             collision_surface = coarsen_collision_surface(collision_surface, collision_limit)
@@ -175,6 +455,30 @@ class TissuBackend(ClothSimulationBackend):
         _gx, _gy, gz = gravity
         self._sim.gravity = float(gz) / _MM
         self._sim.step(float(dt))
+        if self._authored_containment is not None:
+            corrected, max_correction_mm = _apply_authored_containment_correction(
+                self._sim,
+                self._authored_containment,
+                stitch_components=self._stitch_components,
+                stitch_edges=self._stitches,
+                pinned_indices=self._pin_indices,
+            )
+            self._authored_containment_corrections += corrected
+            self._authored_containment_max_correction_mm = max(
+                self._authored_containment_max_correction_mm,
+                max_correction_mm,
+            )
+            if corrected:
+                print(
+                    "cloth-tissu-authored-containment corrected=%d cumulative=%d max_correction_mm=%.3f time=%.4f"
+                    % (
+                        corrected,
+                        self._authored_containment_corrections,
+                        self._authored_containment_max_correction_mm,
+                        self._time,
+                    ),
+                    flush=True,
+                )
         self._iterations = int(iterations)
         self._time += float(dt)
 
