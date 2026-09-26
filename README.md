@@ -20,7 +20,7 @@ FreeCAD/Sketcher owns editable geometry and document persistence; Cloth owns gar
 
 ## Installation and examples
 
-Start with [Installation](docs/INSTALLATION.md), then run the [Blanket over Cube](docs/EXAMPLES.md) example before the full tunic acceptance path. The [Release gates](docs/RELEASE_GATES.md) define what “complete” means for this repository and explicitly separate implemented behavior from the commercial-feature roadmap.
+Start with the human-first [Getting started](docs/GETTING_STARTED.md), then use [Installation](docs/INSTALLATION.md) and run the [Blanket over Cube](docs/EXAMPLES.md) example before the full tunic acceptance path. The [Release gates](docs/RELEASE_GATES.md) define what “complete” means for this repository and explicitly separate implemented behavior from the commercial-feature roadmap.
 
 ## Screenshots and simulation media
 
