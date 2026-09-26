@@ -224,6 +224,45 @@ def test_native_seam_reference_save_reload_curve_edit_and_missing():
             App.closeDocument(document.Name)
 
 
+def test_simulation_pin_policy_save_reload_and_signature_roundtrip():
+    if App is None or Part is None:
+        return
+    document = App.newDocument("SimulationPinPolicyRoundtrip")
+    path = None
+    try:
+        from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, _simulation_source_signature
+        scene = create_simulation_scene(document)
+        scene.AutomaticPins = False
+        scene.PinSelection = []
+        document.recompute()
+        signature_before = _simulation_source_signature(scene, [])
+        fd, path = tempfile.mkstemp(suffix=".FCStd")
+        os.close(fd)
+        document.saveAs(path)
+        App.closeDocument(document.Name)
+        document = None
+        reloaded = App.openDocument(path)
+        reloaded.recompute()
+        restored = reloaded.getObject("ClothSimulation")
+        assert bool(restored.AutomaticPins) is False
+        assert list(restored.PinSelection) == []
+        assert _simulation_source_signature(restored, []) == signature_before
+        restored.AutomaticPins = True
+        reloaded.recompute()
+        assert _simulation_source_signature(restored, []) != signature_before
+        App.closeDocument(reloaded.Name)
+    finally:
+        try:
+            if document is not None and document.Name in App.listDocuments():
+                App.closeDocument(document.Name)
+        finally:
+            if path:
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
+
+
 def test_native_mn_network_save_reload_curve_edit_invalidates_and_repairs():
     if App is None or Part is None:
         return
