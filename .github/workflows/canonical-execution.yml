@@ -120,15 +120,15 @@ jobs:
             error_file="$RUNNER_TEMP/runner-list-$attempt.err"
             if gh api "repos/$REPO/actions/runners?per_page=100" >"$response_file" 2>"$error_file"; then
               if jq -e '.runners | type == "array"' "$response_file" >/dev/null 2>&1; then
-                local="$(jq -c '
+                local_runner="$(jq -c '
                   [(.runners // [])[]
                     | select(.status == "online" and .busy == false)
                     | select((["self-hosted","linux","x64","docker"] - [(.labels // [])[].name]) | length == 0)
                   ][0] // empty
                 ' "$response_file")"
-                if test -n "$local"; then
-                  runner_name="$(printf '%s' "$local" | jq -r '.name')"
-                  runner_id="$(printf '%s' "$local" | jq -r '.id')"
+                if test -n "$local_runner"; then
+                  runner_name="$(printf '%s' "$local_runner" | jq -r '.name')"
+                  runner_id="$(printf '%s' "$local_runner" | jq -r '.id')"
                   echo "runner-router=local mode=local name=$runner_name id=$runner_id"
                   echo "runs_on=$required" >> "$GITHUB_OUTPUT"
                   echo "mode=local" >> "$GITHUB_OUTPUT"
@@ -140,7 +140,6 @@ jobs:
               fi
             else
               echo "runner-router=probe attempt=$attempt mode=github-hosted reason=runner-api-error"
-              sed -n '1,3p' "$error_file" || true
             fi
             if test "$attempt" -lt 6; then
               sleep 2
@@ -150,9 +149,10 @@ jobs:
           fallback "local-runner-unreachable-or-busy"
 
   runner_heartbeat:
-    name: Local Docker runner heartbeat
+    name: Runner heartbeat
     if: ${{ github.event_name == 'schedule' }}
-    runs-on: [self-hosted, linux, x64, docker]
+    needs: runner_router
+    runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 2
     steps:
       - name: Verify local Docker runner is usable
@@ -931,12 +931,11 @@ jobs:
           compression-level: 1
   publish-readme-turntables:
     name: Publish README turntables and example motion
-    needs: [gui-tunic-visual, gui-turntables, gui-visual-examples]
+    needs: runner_router
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: write
       packages: read
-    needs: runner_router
     runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
     timeout-minutes: 10
     steps:
