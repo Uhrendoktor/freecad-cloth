@@ -185,7 +185,6 @@ def test_simulation_quality_panel_exposes_bounded_arrange_fit_bridge():
     assert 'QtWidgets.QGroupBox("Context")' in quality_gui
     assert 'QtWidgets.QGroupBox("Arrange / Fit")' in quality_gui
     assert 'QPushButton("Arrange / Fit…")' in quality_gui
-    assert 'QPushButton("Snap pieces to target")' in quality_gui
     assert 'QPushButton("Reset arrangement")' in quality_gui
     assert 'QPushButton("Refresh target")' in quality_gui
     assert "fitting_stage_status" in quality_gui
@@ -193,6 +192,10 @@ def test_simulation_quality_panel_exposes_bounded_arrange_fit_bridge():
     assert "reset_arrangement_from_simulation" in quality_gui
     assert "snap_to_target" in quality_gui
     assert "ClothPieces" in handoff
+    assert "FittingCommands.create_fitting_scene" in handoff
+    assert "FittingCommands.add_selected_pattern_pieces" in handoff
+    assert "fitting.DrapeTarget = target" not in handoff
+    assert "snap_pattern_pieces_to_target" not in quality_gui
     assert 'Gui.activateWorkbench("ClothSewingWorkbench")' in handoff
     assert "assign_avatar_source" not in handoff
 
