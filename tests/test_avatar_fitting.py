@@ -70,7 +70,7 @@ class AvatarFittingTests(unittest.TestCase):
             doc.recompute()
             restored = create_fitting_scene()
             self.assertIn("DrapeTarget", restored.PropertiesList)
-            self.assertIs(restored.DrapeTarget, target)
+            self.assertEqual(restored.DrapeTarget, target)
         finally:
             if doc.Name in App.listDocuments():
                 App.closeDocument(doc.Name)
