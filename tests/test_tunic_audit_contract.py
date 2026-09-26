@@ -107,3 +107,40 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
     assert 'tunic-simulation-start' in source
+
+
+def test_solver_collision_surface_uses_tissu_owned_surface_without_replacing_authority():
+    from types import SimpleNamespace
+    from freecad_cloth.simulation.SimulationObjects import _solver_collision_surface
+
+    authoritative = object()
+    solver_surface = object()
+    tissu_proxy = SimpleNamespace(
+        collision_surface=authoritative,
+        backend=SimpleNamespace(name="tissu", _collision_surface=solver_surface),
+    )
+    cpu_proxy = SimpleNamespace(
+        collision_surface=authoritative,
+        backend=SimpleNamespace(name="xpbd-cpu", _collision_surface=object()),
+    )
+
+    assert _solver_collision_surface(tissu_proxy) is solver_surface
+    assert _solver_collision_surface(cpu_proxy) is authoritative
+
+
+def test_tunic_success_path_uses_freecad_native_shutdown():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    success_block = source.split("if exit_code == 0:", 1)[1].split("window = Gui.getMainWindow()", 1)[0]
+    assert "App.exit()" in success_block
+    assert "os._exit" not in success_block
+
+
+def test_tunic_fixture_restores_validated_front_back_orientation():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)' in audit
+
+
+def test_tunic_start_clearance_uses_target_extrema():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'y = min(target_ys) - clearance' in audit
+    assert 'y = max(target_ys) + clearance' in audit
