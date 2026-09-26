@@ -33,6 +33,9 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     assert 'authored_shoulder_pins' not in source
     assert 'scene.PinSelection = [str(i) for i in front_pins]' not in source
     assert 'target_surface = collision_surface(' in source
+    assert 'target_aware_place_piece(front, target, front_anchors' in source
+    assert 'target_aware_place_piece(back, target, back_anchors' in source
+    assert 'target-aware rigid-anchors results=' in source
     assert 'target_source.Mesh.BoundBox' not in source
 
 
