@@ -56,6 +56,9 @@ def test_canonical_workflow_fails_closed_on_turntable_quality():
     turntables = source.split("  gui-turntables:", 1)[1].split("  gui-visual-examples:", 1)[0]
     assert "CLOTH_TISSU_SUBSTEPS: 1" in turntables
     assert "CLOTH_TISSU_COLLISION_MODE: mesh" in turntables
+    turntable_source = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
+    assert "BLANKET_PARTICLE_DISTANCE = 20.0" in turntable_source
+    assert "scene.SolverSubsteps = 1" in turntable_source
     assert "blanket-motion-diagnostic" in source
     assert "blanket-turntable-pass" in source
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
