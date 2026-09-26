@@ -305,6 +305,46 @@ def test_native_mn_network_save_reload_curve_edit_invalidates_and_repairs():
             App.closeDocument(document.Name)
 
 
+
+def test_simulation_pin_mode_save_reload_and_signature_round_trip():
+    if App is None or Part is None:
+        return
+    from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature, create_simulation_scene
+
+    doc = App.newDocument("SimulationPinModeRoundTrip")
+    path = None
+    try:
+        scene = create_simulation_scene(doc)
+        scene.PinMode = "None"
+        scene.PinSelection = []
+        doc.recompute()
+        signature_before = _simulation_source_signature(scene, [])
+        fd, path = tempfile.mkstemp(prefix="cloth-pinmode-", suffix=".FCStd")
+        os.close(fd)
+        doc.saveAs(path)
+        App.closeDocument(doc.Name)
+        doc = None
+        restored_doc = App.openDocument(path)
+        restored_doc.recompute()
+        restored = restored_doc.getObject("ClothSimulation")
+        assert restored is not None
+        assert str(restored.PinMode) == "None"
+        assert list(restored.PinSelection) == []
+        assert _simulation_source_signature(restored, []) == signature_before
+        restored.PinMode = "Automatic"
+        restored_doc.recompute()
+        assert _simulation_source_signature(restored, []) != signature_before
+        App.closeDocument(restored_doc.Name)
+    finally:
+        if doc is not None and doc.Name in App.listDocuments():
+            App.closeDocument(doc.Name)
+        if path:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+
+
 if __name__ == "__main__":
     test_pattern_piece_proxy_recomputes_deterministically()
     test_pattern_piece_proxy_rejects_invalid_dimensions()
