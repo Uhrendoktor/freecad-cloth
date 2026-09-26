@@ -2,13 +2,15 @@
 
 This directory is intentionally small. Read the documents in this order:
 
-1. **[USER_GUIDE.md](USER_GUIDE.md)** — first-run human workflow, recovery, and visual inspection.
-2. **WORKBENCH_GUIDE.md** — detailed workflow and UI behavior.
-3. **ARCHITECTURE.md** — authoritative data, dependency and invalidation contracts.
-4. **PROJECT_STRUCTURE.md** — canonical package/module tree and FreeCAD bootstrap layout.
-5. **[ROADMAP.md](../ROADMAP.md)** — prototype → MVP → production scope and release gates.
-6. **RESEARCH.md** — condensed CLO/garment-workflow research and FreeCAD mapping.
-7. **DEVELOPMENT.md** — testing, CI, screenshots, agent handoff and contribution rules.
+1. **[INSTALLATION.md](INSTALLATION.md)** — install the workbench and verify the first run.
+2. **[EXAMPLES.md](EXAMPLES.md)** — run the **Blanket over Cube** smoke test, then the tunic acceptance example.
+3. **[USER_GUIDE.md](USER_GUIDE.md)** — the canonical human workflow from pattern through recovery and tunic.
+4. **WORKBENCH_GUIDE.md** — detailed workflow, public commands and UI behavior.
+5. **ARCHITECTURE.md** — authoritative data, dependency and invalidation contracts.
+6. **PROJECT_STRUCTURE.md** — canonical package/module tree and FreeCAD bootstrap layout.
+7. **[ROADMAP.md](../ROADMAP.md)** — prototype → MVP → production scope and release gates.
+8. **RESEARCH.md** — condensed CLO/garment-workflow research and FreeCAD mapping.
+9. **DEVELOPMENT.md** — testing, CI, screenshots, agent handoff and contribution rules.
 
 ## Source of truth
 
@@ -17,6 +19,7 @@ This directory is intentionally small. Read the documents in this order:
 - `TOOL_STATE.md` is the compact execution-policy/state record.
 - `docs/PROJECT_STRUCTURE.md` is the source of truth for where implementation modules belong.
 - `docs/ARCHITECTURE.md` is the source of truth for domain ownership and dependency direction.
+- `docs/USER_GUIDE.md` is the canonical first-run human workflow.
 - `docs/` contains durable guidance, not dated scratch notes.
 
 ## Documentation rule
