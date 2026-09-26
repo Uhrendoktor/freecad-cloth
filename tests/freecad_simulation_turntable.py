@@ -31,7 +31,7 @@ os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "mesh")
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 BLANKET_SIZE = 200.0  # Validated 200 mm release fixture; keep pins/placement derived from this value.
 BLANKET_PARTICLE_DISTANCE = 16.0  # Bounded release resolution; contract requires >= 12 mm.
-BLANKET_PIN_MODE = "two-cube-back-corners"  # Benchmark candidate pin contract.
+BLANKET_PIN_MODE = "two-opposite-corners"  # Benchmark candidate pin contract.
 BLANKET_START_Z = 150.0  # Fixture candidate: 10 mm above the 60 mm cube top.
 # The README fixture uses the same pinned Tissu mesh-collision runtime as the
 # canonical turntable job and the validated 200 mm blanket visual example.
@@ -495,7 +495,7 @@ def build_simulation_state(doc):
     blanket = create_pattern_piece_from_selected_sketch(name="Blanket", allowance=0.0, grainline=0.0)
     if blanket.Sketch is not sketch:
         raise RuntimeError("pattern piece did not retain native sketch")
-    placement = App.Placement(App.Vector(-BLANKET_SIZE / 2.0, -BLANKET_SIZE / 2.0, BLANKET_START_Z), App.Rotation())
+    placement = App.Placement(App.Vector(0.0, 0.0, BLANKET_START_Z), App.Rotation())
     blanket.Placement = placement
     blanket.Sketch.Placement = placement
 
