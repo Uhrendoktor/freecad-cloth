@@ -35,11 +35,19 @@ BLANKET_SIZE = 200.0  # Validated 200 mm release fixture; keep pins/placement de
 os.environ["CLOTH_SIMULATION_BACKEND"] = "tissu"
 os.makedirs(OUT, exist_ok=True)
 LOG = os.path.join(OUT, "simulation-turntable-progress.log")
+_TIMING_START = time.perf_counter()
 
 
 def log(message):
     with open(LOG, "a", encoding="utf-8") as handle:
         handle.write(message + "\n")
+        handle.flush()
+
+
+def log_timing(stage, started):
+    elapsed = time.perf_counter() - started
+    total = time.perf_counter() - _TIMING_START
+    log("timing stage=%s elapsed_s=%.3f total_s=%.3f" % (stage, elapsed, total))
 
 
 def events():
@@ -190,7 +198,9 @@ def render_turntable(view, objects, frame_dir, frame_count=72):
 
 
 def _render_turntable_isolated(view, objects, frame_dir, frame_count=72):
+    started = time.perf_counter()
     frame_total = frame_count + 1
+    log("timing-start stage=render:%s frames=%d" % (os.path.basename(frame_dir), frame_total))
     center = combined_center(objects)
     target = coin.SbVec3f(center.x, center.y, center.z)
     view.setCameraType("Orthographic")
@@ -205,6 +215,7 @@ def _render_turntable_isolated(view, objects, frame_dir, frame_count=72):
     up = coin.SbVec3f(0.0, 0.0, 1.0)
     frame_hashes = []
     start_angle = pi / 2.0
+    frame_started = time.perf_counter()
     for frame in range(frame_total):
         # Start from a cloth-visible angle, then cover a full 360 degrees
         # without duplicating frame 000 at the end.
@@ -218,6 +229,9 @@ def _render_turntable_isolated(view, objects, frame_dir, frame_count=72):
         save_png(view, frame_path, "turntable frame %03d" % frame)
         with open(frame_path, "rb") as handle:
             frame_hashes.append(hashlib.sha256(handle.read()).hexdigest())
+        if frame in (0, 18, 36, 54, 72):
+            log("timing frame stage=render:%s frame=%d elapsed_s=%.3f total_s=%.3f" % (os.path.basename(frame_dir), frame, time.perf_counter() - frame_started, time.perf_counter() - _TIMING_START))
+            frame_started = time.perf_counter()
     if len(frame_hashes) != frame_total or len(set(frame_hashes)) != frame_total:
         raise RuntimeError("turntable frames are not all distinct: %s" % frame_dir)
     camera.position = base_position
@@ -226,6 +240,7 @@ def _render_turntable_isolated(view, objects, frame_dir, frame_count=72):
         view.redraw()
     events()
     log("turntable-pass dir=%s frames=%d" % (frame_dir, frame_total))
+    log_timing("render:%s" % os.path.basename(frame_dir), started)
 
 
 def _make_rectangle_sketch(doc, name, width, height):
@@ -435,15 +450,19 @@ def main():
 
     doc = App.newDocument("ClothBlanketTurntable")
     try:
+        started = time.perf_counter()
         scene, cube, blanket, panel, initial_positions = build_simulation_state(doc)
-        view = Gui.activeDocument().activeView()
+        log_timing("build-scene", started)
+        view = Gui.ActiveDocument.activeView()
         arranged_objects = [cube, panel]
         render_turntable(view, arranged_objects, os.path.join(OUT, "cloth-simulation-arranged-turntable-frames"))
 
         steps = int(os.environ.get("CLOTH_BLANKET_STEPS", "120"))
         scene.Steps = steps
+        started = time.perf_counter()
         doc.recompute()
         events()
+        log_timing("simulate:%d-steps" % steps, started)
         if int(scene.Steps) != steps or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
             raise RuntimeError("blanket simulation did not reach a finite %d-step state" % steps)
         if panel.Mesh.CountFacets <= 50:
@@ -465,8 +484,13 @@ def main():
 
         panel.ViewObject.Visibility = True
         cube.ViewObject.Visibility = True
+        started = time.perf_counter()
         doc.recompute()
+        events()
+        log_timing("post-simulation-recompute", started)
+        started = time.perf_counter()
         validate_blanket_drape(panel, cube)
+        log_timing("validate-drape", started)
 
         render_turntable(view, [cube, panel], os.path.join(OUT, "cloth-simulation-draped-turntable-frames"))
         log("blanket-turntable-pass")
