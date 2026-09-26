@@ -2,7 +2,7 @@ name: Canonical execution
 
 on:
   push:
-    branches: [main, agent/issue-1241-unpinned-arrangement]
+    branches: [main]
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
