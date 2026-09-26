@@ -115,7 +115,10 @@ def test_avatar_collision_source_supports_fitting_and_simulation_scopes():
         assert proxy is fitting.AvatarProxy
         assert proxy.Name == "AvatarCollision"
         assert proxy.SourceObject == body
-        assert "DrapeTarget" not in set(getattr(fitting, "PropertiesList", ()) or ())
+        assert "DrapeTarget" in set(getattr(fitting, "PropertiesList", ()) or ())
+        fitting_target = document.getObject("DrapeTarget")
+        assert fitting_target is not None
+        assert fitting.DrapeTarget == fitting_target
 
         target = document.getObject("DrapeTarget")
         assert target is not None
@@ -305,7 +308,74 @@ def test_native_mn_network_save_reload_curve_edit_invalidates_and_repairs():
             App.closeDocument(document.Name)
 
 
+def test_target_aware_freecad_placement_is_transactional_and_resettable():
+    if App is None or Part is None:
+        return
+    document = App.newDocument("TargetAwarePlacementContract")
+    try:
+        from freecad_cloth.avatar.AvatarFitting import GarmentAnchor, PiecePlacement
+        from freecad_cloth.avatar.FittingCommands import create_fitting_scene, reset_arrangement, set_garment_anchors, snap_pieces_to_target
+        from freecad_cloth.pattern.PatternModel import PatternPiece
+        from freecad_cloth.pattern.PatternObjects import add_pattern_piece
+        from freecad_cloth.simulation.DrapeTarget import target_status
+        from freecad_cloth.simulation.SimulationObjects import set_avatar_collision_source
+
+        body = document.addObject("Part::Feature", "TargetBody")
+        body.Shape = Part.makeBox(80, 80, 160, App.Vector(-40, -40, -80))
+        document.recompute()
+        fitting = create_fitting_scene()
+        set_avatar_collision_source(fitting, body, thickness=0.0, deflection=1.0)
+        target = fitting.DrapeTarget
+        assert target is document.getObject("DrapeTarget")
+        assert target_status(target)["state"] == "ready"
+
+        piece_model = PatternPiece("TargetAwarePiece", [(0, 0), (40, 0), (40, 20), (0, 20)], id="target-aware-piece")
+        piece = add_pattern_piece(document, piece_model)
+        piece.Placement = App.Placement(App.Vector(-20, 50, -10), App.Rotation(App.Vector(0, 0, 1), 0))
+        fitting.PatternPieces = [piece]
+        home = PiecePlacement(str(piece.PieceId), (-20.0, 50.0, -10.0), 0.0)
+        fitting.PiecePlacements = [home.to_string()]
+        fitting.HomePlacements = [home.to_string()]
+        set_garment_anchors((
+            GarmentAnchor(str(piece.PieceId), "left", (10, 0, 0), "back"),
+            GarmentAnchor(str(piece.PieceId), "right", (30, 0, 0), "back"),
+        ))
+        before_home = list(fitting.HomePlacements)
+
+        snap_pieces_to_target(clearance=8.0, max_translation=100.0, max_rotation=45.0)
+        document.recompute()
+        assert abs(float(piece.Placement.Base.y) - 48.0) < 1e-7
+        assert list(fitting.HomePlacements) == before_home
+        assert list(fitting.PiecePlacements) != before_home
+
+        reset_arrangement()
+        document.recompute()
+        assert abs(float(piece.Placement.Base.x) + 20.0) < 1e-7
+        assert abs(float(piece.Placement.Base.y) - 50.0) < 1e-7
+        assert list(fitting.PiecePlacements) == before_home
+
+        original_piece = piece.Placement
+        original_entries = list(fitting.PiecePlacements)
+        body.Shape = Part.makeBox(80, 80, 160, App.Vector(-40, -35, -80))
+        document.recompute()
+        assert target_status(target)["state"] == "stale"
+        failed = False
+        try:
+            snap_pieces_to_target(clearance=8.0, max_translation=100.0, max_rotation=45.0)
+        except Exception:
+            failed = True
+        assert failed
+        assert piece.Placement == original_piece
+        assert list(fitting.PiecePlacements) == original_entries
+        assert list(fitting.HomePlacements) == before_home
+    finally:
+        if document.Name in App.listDocuments():
+            App.closeDocument(document.Name)
+
+
 if __name__ == "__main__":
+
+    test_target_aware_freecad_placement_is_transactional_and_resettable()
     test_pattern_piece_proxy_recomputes_deterministically()
     test_pattern_piece_proxy_rejects_invalid_dimensions()
     test_native_seam_reference_save_reload_curve_edit_and_missing()
