@@ -150,3 +150,14 @@ def test_fitting_reuses_one_target_surface_index_for_clearance_queries():
     assert "target_index = _build_target_surface_index(surface)" in fitting
     assert "index=target_index" in fitting
     assert "anchor_clearance = minimum_surface_clearance(surface, placed_points, index=target_index)" in fitting
+
+
+def test_fitting_reuses_one_local_sample_mesh_across_corrections():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    fitting = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    local = fitting.index("local_piece_points = _piece_local_surface_points")
+    loop = fitting.index("while (", local)
+    assert local < loop
+    assert fitting.index("_world_points_from_local(piece, local_piece_points)", loop) > loop
+    assert fitting.count("_piece_local_surface_points(piece, deflection=max(0.25, float(clearance) / 2.0))") == 1
