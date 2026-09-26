@@ -3,7 +3,6 @@ from math import ceil
 import weakref
 
 from freecad_cloth.simulation.SimulationQuality import FabricMaterial, QUALITY_PRESETS, normalize_color_rgb, preset
-from freecad_cloth.simulation.SimulationObjects import PIN_MODE_NAMES, resolve_pin_indices
 
 QUALITY_NAMES = tuple(QUALITY_PRESETS)
 _RUNTIME_BASES = weakref.WeakKeyDictionary()
@@ -15,7 +14,6 @@ def ensure_quality_properties(scene):
         ("ParticleDistance", "App::PropertyFloat", "Quality", None, 4.0),
         ("SolverIterations", "App::PropertyInteger", "Quality", None, 8),
         ("SolverSubsteps", "App::PropertyInteger", "Quality", None, 1),
-        ("PinMode", "App::PropertyEnumeration", "Quality", list(PIN_MODE_NAMES), "Automatic"),
         ("FabricDensity", "App::PropertyFloat", "Fabric", None, 150.0),
         ("FabricThickness", "App::PropertyFloat", "Fabric", None, 0.5),
         ("FabricStretch", "App::PropertyFloat", "Fabric", None, 0.02),
@@ -187,9 +185,10 @@ class QualitySimulationProxy:
                         particle.z = particle.pz + (particle.z - particle.pz) * damping
                 base.last_steps += 1
         positions = base.backend.positions()
-        from freecad_cloth.simulation.SimulationObjects import _write_mesh
+        from freecad_cloth.simulation.SimulationObjects import _update_seam_visuals, _write_mesh
         for panel in getattr(obj, "DrapePanels", ()):
             _write_mesh(panel, positions, base.panel_triangles.get(panel.Name, ()))
+        _update_seam_visuals(obj.Document, self.seam_stitch_pairs, positions)
         self._apply_presentation(obj)
         obj.SimulatedTime = base.backend.time
         obj.ParticleCount = len(positions)
@@ -215,7 +214,7 @@ class QualitySimulationProxy:
     def _build_demo(self, obj, signature):
         from freecad_cloth.simulation.ClothBackend import default_backend_registry
         from freecad_cloth.simulation.ClothSolver import ClothSystem
-        from freecad_cloth.simulation.SimulationObjects import _parse_pair_list, _write_grid_mesh
+        from freecad_cloth.simulation.SimulationObjects import _parse_pair_list, _parse_int_list, _write_grid_mesh
         base = self._base_or_restore()
         spacing = max(0.25, float(obj.ParticleDistance))
         width, height = 100.0, 60.0
@@ -228,13 +227,8 @@ class QualitySimulationProxy:
         constraints = list(left.constraints) + [type(c)(c.a + offset, c.b + offset, c.rest, c.compliance) for c in right.constraints]
         system = ClothSystem(particles, constraints)
         system.add_stitches(_parse_pair_list(getattr(obj, "SeamSelection", ()), len(particles)) or tuple((j * nx + nx - 1, offset + j * nx) for j in range(ny)))
-        pins = resolve_pin_indices(
-            obj,
-            len(particles),
-            (0, nx - 1, offset, offset + nx - 1),
-        )
-        if pins:
-            system.pin(pins)
+        pins = _parse_int_list(getattr(obj, "PinSelection", ()), len(particles)) or (0, nx - 1, offset, offset + nx - 1)
+        system.pin(pins)
         base.backend = default_backend_registry().create("xpbd-cpu", system)
         tris = []
         for j in range(ny - 1):
