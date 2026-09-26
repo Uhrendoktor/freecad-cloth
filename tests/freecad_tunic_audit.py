@@ -100,8 +100,8 @@ for old, new in replacements.items():
 
 
 pin_pattern = re.compile(
-    r'    def authored_shoulder_pins\\(piece, particle_indices, positions\\):.*?'
-    r'    log\\("pin-map authored front=%s back-global=%s back-pinned=false" % \\(front_pins, back_pins\\)\\); doc\\.recompute\\(\\)',
+    r'    def authored_shoulder_pins\(piece, particle_indices, positions\):.*?'
+    r'    log\("pin-map authored front=%s back-global=%s back-pinned=false" % \(front_pins, back_pins\)\); doc\.recompute\(\)',
     re.S,
 )
 source, pin_count = pin_pattern.subn(
@@ -133,7 +133,7 @@ step0_probe = '''    from freecad_cloth.avatar.TargetAwarePlacement import surfa
         raise RuntimeError("target-aware tunic step-0 penetration: min signed clearance %.2f mm" % step0.minimum)
     log("step0-clearance=passed min-signed-clearance-mm=%.2f point-index=%d triangle-index=%d" % (step0.minimum, step0.point_index, step0.triangle_index))
 '''
-if "step0_clearance" not in source:
+if "step0-clearance=passed" not in source:
     source = source.replace("    from freecad_cloth.simulation import RealtimePreview\n", step0_probe + "    from freecad_cloth.simulation import RealtimePreview\n", 1)
 preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
     if "ClothRealtimePreview" not in Gui.listCommands():
