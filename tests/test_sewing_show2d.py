@@ -139,7 +139,7 @@ if __name__ == "__main__":
 
 def test_seam_color_is_anchored_to_semantic_id_not_document_set_order():
     keep = "seam-keep"
-    baseline = seam_color_map([keep]) [keep] if False else seam_color_map([keep])[keep]
+    baseline = seam_color_map([keep])[keep]
     extended = seam_color_map(["seam-added", keep, "seam-third"])[keep]
     reordered = seam_color_map(["seam-third", keep, "seam-added"])[keep]
     removed = seam_color_map([keep, "seam-added"])[keep]
