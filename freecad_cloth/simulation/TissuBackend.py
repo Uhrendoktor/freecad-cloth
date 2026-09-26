@@ -146,7 +146,10 @@ class TissuBackend(ClothSimulationBackend):
                 )
             return
         vtx, idx = _to_tissu_mesh(self._collision_surface)
-        self._sim.add_mesh_from_arrays("drape-target", vtx, idx, friction=0.5)
+        collision_friction = float(os.environ.get("CLOTH_TISSU_COLLISION_FRICTION", "0.5"))
+        if not 0.0 <= collision_friction <= 1.0:
+            raise ValueError("CLOTH_TISSU_COLLISION_FRICTION must be in [0, 1]")
+        self._sim.add_mesh_from_arrays("drape-target", vtx, idx, friction=collision_friction)
 
     def _build(self, Simulation):
         import numpy as np
