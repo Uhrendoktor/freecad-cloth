@@ -3,8 +3,8 @@
 FreeCAD Cloth has three cooperating native workbenches:
 
 - **Cloth Pattern** — author and inspect 2D pattern pieces.
-- **Cloth Sewing** — create, edit and validate semantic sewing relationships.
-- **Cloth Simulation** — choose a fitting target, arrange, mesh, drape and inspect results.
+- **Cloth Sewing** — create, edit and validate semantic sewing relationships, plus fitting/avatar arrangement.
+- **Cloth Simulation** — create/refresh the DrapeTarget, configure quality/material state, arrange and simulate.
 
 ## Production 2D export
 
@@ -28,7 +28,17 @@ If a Sketch edit invalidates a semantic edge reference, the seam remains invalid
 
 ### 3. Arrange and fit
 
-Create/select a `DrapeTarget`: either the native human mannequin or an ordinary FreeCAD Shape/PartDesign/Body/Mesh. Arrange pieces using persistent placements/arrangement metadata. Reset and superimpose are deterministic fitting operations, not solver state.
+Create/select the persistent `DrapeTarget`: either the native human mannequin or an ordinary supported FreeCAD Shape/PartDesign/Body/Mesh.
+
+The fitting stage is persistent document state:
+- add the selected PatternPieces to a Fitting Scene;
+- use Arrangement Points and saved PiecePlacements for deterministic manual placement;
+- use **Snap pieces to target** from the Simulation task panel when authored GarmentAnchors are present;
+- use **Reset arrangement** to restore the saved HomePlacements.
+
+Target-aware placement is bounded rigid placement, not a general automatic garment-fitting solver. It uses the authoritative DrapeTarget and fails closed when complete PatternPiece surface clearance cannot be established.
+
+After changing the avatar or target, use **Refresh target** before fitting again.
 
 ### 4. Simulate
 
@@ -75,3 +85,10 @@ Simulation shows target identity/validity before Run/Step. Quality/material cont
 **Seam invalid after editing:** recompute and validate; repair semantic references explicitly.
 
 **Simulation stale:** inspect target/scene status, refresh the target or regenerate the derived mesh, then run again.
+
+
+## Simulation fitting handoff
+
+The **Cloth Simulation** task panel exposes **Arrange / Fit…**, **Snap pieces to target**, **Refresh target**, and **Reset arrangement**. These controls hand off the simulation's PatternPieces and persistent DrapeTarget to the existing fitting scene rather than creating a second fitting authority.
+
+The accepted production UI path exercises the task-panel Snap button, not only the underlying Python helper.
