@@ -12,8 +12,8 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())' in source
     assert 'back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())' in source
     assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in source
-    assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in source
-    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' in source
+    assert 'front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"' in source
+    assert 'front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"' in source
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
@@ -40,10 +40,18 @@ def test_canonical_tunic_uses_validated_authored_mapping():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "required_indices = (1, 2, 6, 7)" in audit
     assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in audit
-    assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in audit
-    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' in audit
+    assert 'front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"' in audit
+    assert 'front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"' in audit
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in audit
     assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' not in audit
+
+
+def test_canonical_tunic_fixture_matches_validated_start_geometry():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)' in audit
+    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance'," in audit
+    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance'," in audit
+    assert "'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))'," in audit
 
 
 def test_canonical_tunic_source_rewrite_compiles():
