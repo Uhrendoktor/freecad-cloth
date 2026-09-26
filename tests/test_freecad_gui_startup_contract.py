@@ -97,7 +97,13 @@ def test_canonical_concurrency_groups_pull_requests():
 def test_canonical_readme_turntable_launches_from_neutral_cwd():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
     turntable = workflow.split("  gui-turntables:", 1)[1].split("  gui-visual-examples:", 1)[0]
-    assert '-w /tmp "$FREECAD_IMAGE"' in turntable
+    assert any(
+        token in turntable
+        for token in (
+            '-w /tmp "$FREECAD_IMAGE"',
+            '-w /tmp "$FREECAD_TISSU_IMAGE"',
+        )
+    )
     assert "/opt/freecad/AppRun /workspace/tests/freecad_avatar_screenshot.py" in turntable
     assert "/opt/freecad/AppRun /workspace/tests/freecad_simulation_turntable.py" in turntable
 
