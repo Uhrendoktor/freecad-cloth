@@ -91,6 +91,19 @@ def test_mesh_collision_edge_projection_is_idempotent():
     assert max(abs(value) for value in drift) <= 1e-9, drift
 
 
+def test_tissu_supplemental_avatar_collision_is_env_gated_and_mesh_only():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+
+    assert "CLOTH_TISSU_SUPPLEMENTAL_AVATAR_COLLISION" in source
+    assert "requires mesh collision mode" in source
+    assert 'self._sim.add_mesh_from_arrays("drape-target"' in source
+    assert "self._sim.add_sphere(" in source
+    assert "if self._supplemental_avatar_collision:" in source
+
+
 if __name__ == "__main__":
     for name, test in sorted(globals().items()):
         if name.startswith("test_") and callable(test):
