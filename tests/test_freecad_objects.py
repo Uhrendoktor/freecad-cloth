@@ -311,3 +311,202 @@ if __name__ == "__main__":
     test_native_seam_reference_save_reload_curve_edit_and_missing()
     test_native_mn_network_save_reload_curve_edit_invalidates_and_repairs()
     print("FreeCAD object proxy and native seam reference tests passed")
+
+
+def _placement_tuple(placement):
+    base = placement.Base
+    axis = placement.Rotation.Axis
+    return (
+        float(base.x), float(base.y), float(base.z),
+        float(placement.Rotation.Angle),
+        float(axis.x), float(axis.y), float(axis.z),
+    )
+
+
+def _make_target_snap_fixture(name, linked_target=True):
+    from freecad_cloth.avatar import FittingCommands
+    from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+    from freecad_cloth.simulation.DrapeTarget import create_drape_target
+
+    document = App.newDocument(name)
+    source = document.addObject("Part::Feature", "TargetSource")
+    source.Shape = Part.makeBox(40.0, 40.0, 40.0)
+    source.Placement = App.Placement(
+        App.Vector(100.0, 50.0, 10.0),
+        App.Rotation(App.Vector(0.0, 0.0, 1.0), 25.0),
+    )
+    world_center = source.Placement.multVec(App.Vector(20.0, 20.0, 20.0))
+    sketch = document.addObject("Part::Feature", "PatternSketch")
+    sketch.Shape = Part.Shape()
+    piece = document.addObject("Part::Feature", "PatternPiece")
+    piece.addProperty("App::PropertyString", "PatternType", "Pattern").PatternType = "PatternPiece"
+    piece.addProperty("App::PropertyString", "PieceId", "Pattern").PieceId = "fixture-piece"
+    piece.addProperty("App::PropertyLink", "Sketch", "Pattern").Sketch = sketch
+    piece.Shape = Part.makeBox(10.0, 10.0, 2.0, App.Vector(-5.0, -5.0, -1.0))
+    piece.Placement = App.Placement(
+        world_center,
+        App.Rotation(App.Vector(1.0, 0.0, 0.0), 90.0),
+    )
+    sketch.Placement = piece.Placement
+    target = create_drape_target(document, source, "FreeCAD Geometry", 0.5, 0.0)
+    fitting = FittingCommands.create_fitting_scene()
+    fitting.DrapeTarget = target if linked_target else None
+    fitting.PatternPieces = [piece]
+    home = piece.Placement
+    record = PiecePlacement(
+        str(piece.PieceId),
+        (float(home.Base.x), float(home.Base.y), float(home.Base.z)),
+        float(home.Rotation.Angle),
+        (float(home.Rotation.Axis.x), float(home.Rotation.Axis.y), float(home.Rotation.Axis.z)),
+    ).to_string()
+    fitting.PiecePlacements = [record]
+    fitting.HomePlacements = [record]
+    fitting.FitStatus = "Ready"
+    document.recompute()
+    return document, source, target, fitting, piece, sketch, record
+
+
+def test_target_snap_uses_world_target_placement_and_reset_restores_linked_sketch():
+    if App is None or Part is None:
+        return
+    from freecad_cloth.avatar import FittingCommands
+    from freecad_cloth.avatar.TargetPlacement import minimum_signed_clearance
+
+    document, source, target, fitting, piece, sketch, home_record = _make_target_snap_fixture("TargetSnapReset")
+    try:
+        world_center = source.Placement.multVec(App.Vector(20.0, 20.0, 20.0))
+        world_shape = FittingCommands._world_shape(source)
+        bounds = world_shape.BoundBox
+        assert abs(((bounds.XMin + bounds.XMax) / 2.0) - world_center.x) < 1e-7
+        assert abs(((bounds.YMin + bounds.YMax) / 2.0) - world_center.y) < 1e-7
+        assert abs(((bounds.ZMin + bounds.ZMax) / 2.0) - world_center.z) < 1e-7
+
+        home_piece = _placement_tuple(piece.Placement)
+        home_sketch = _placement_tuple(sketch.Placement)
+        first = FittingCommands.snap_piece_to_drape_target(
+            piece, target=target, clearance=2.0, max_translation=240.0
+        )
+        first_piece = _placement_tuple(piece.Placement)
+        assert first_piece != home_piece
+
+        world_surface = FittingCommands._world_target_surface(target)
+        report = minimum_signed_clearance(FittingCommands._piece_world_samples(piece), world_surface)
+        assert report.minimum_signed_clearance >= 2.0 - 1e-6
+
+        FittingCommands.reset_arrangement()
+        assert _placement_tuple(piece.Placement) == home_piece
+        assert _placement_tuple(sketch.Placement) == home_sketch
+        assert tuple(fitting.PiecePlacements) == tuple(fitting.HomePlacements)
+        assert tuple(fitting.HomePlacements) == (home_record,)
+        assert str(fitting.FitStatus) == "Arrangement reset"
+
+        second = FittingCommands.snap_piece_to_drape_target(
+            piece, target=target, clearance=2.0, max_translation=240.0
+        )
+        assert _placement_tuple(piece.Placement) == first_piece
+        assert abs(float(second["distance_after"]) - float(first["distance_after"])) < 1e-9
+    finally:
+        if document.Name in App.listDocuments():
+            App.closeDocument(document.Name)
+
+
+def test_target_snap_rollback_restores_all_touched_state_after_forced_post_transform_failure():
+    if App is None or Part is None:
+        return
+    from freecad_cloth.avatar import FittingCommands
+
+    document, _source, target, fitting, piece, sketch, home_record = _make_target_snap_fixture(
+        "TargetSnapRollback", linked_target=False
+    )
+    try:
+        before_piece = _placement_tuple(piece.Placement)
+        before_sketch = _placement_tuple(sketch.Placement)
+        before_piece_records = tuple(fitting.PiecePlacements)
+        before_home_records = tuple(fitting.HomePlacements)
+        before_status = str(fitting.FitStatus)
+        before_target = fitting.DrapeTarget
+        original_clearance = FittingCommands._shape_clearance
+        calls = {"count": 0}
+
+        def failing_clearance(piece_shape, target_shape):
+            calls["count"] += 1
+            if calls["count"] == 2:
+                raise RuntimeError("forced post-transform validation failure")
+            return original_clearance(piece_shape, target_shape)
+
+        FittingCommands._shape_clearance = failing_clearance
+        try:
+            try:
+                FittingCommands.snap_piece_to_drape_target(
+                    piece, target=target, clearance=5.0, max_translation=240.0
+                )
+            except RuntimeError as exc:
+                assert "forced post-transform validation failure" in str(exc)
+            else:
+                raise AssertionError("forced post-transform validation failure did not fire")
+        finally:
+            FittingCommands._shape_clearance = original_clearance
+
+        assert _placement_tuple(piece.Placement) == before_piece
+        assert _placement_tuple(sketch.Placement) == before_sketch
+        assert tuple(fitting.PiecePlacements) == before_piece_records
+        assert tuple(fitting.HomePlacements) == before_home_records
+        assert str(fitting.FitStatus) == before_status
+        assert fitting.DrapeTarget == before_target
+    finally:
+        if document.Name in App.listDocuments():
+            App.closeDocument(document.Name)
+
+
+def test_stale_drape_target_rejects_snap_before_mutation():
+    if App is None or Part is None:
+        return
+    from freecad_cloth.avatar import FittingCommands
+
+    document, source, target, _fitting, piece, _sketch, _home = _make_target_snap_fixture("StaleTargetSnap")
+    try:
+        source.Placement.Base.x += 5.0
+        document.recompute()
+        try:
+            FittingCommands.snap_piece_to_drape_target(piece, target=target)
+        except (RuntimeError, ValueError) as exc:
+            assert "stale" in str(exc).lower()
+        else:
+            raise AssertionError("stale DrapeTarget should reject snap before mutation")
+    finally:
+        if document.Name in App.listDocuments():
+            App.closeDocument(document.Name)
+
+
+def test_fitting_created_simulation_propagates_target_and_observes_source_staleness():
+    if App is None or Part is None:
+        return
+    from freecad_cloth.avatar import FittingCommands
+    from freecad_cloth.simulation.DrapeTarget import target_status
+
+    document = App.newDocument("FittingTargetPropagation")
+    try:
+        source = document.addObject("Part::Feature", "TargetSource")
+        source.Shape = Part.makeBox(20.0, 20.0, 20.0)
+        target = __import__("freecad_cloth.simulation.DrapeTarget", fromlist=["create_drape_target"]).create_drape_target(
+            document, source, "FreeCAD Geometry", 0.5, 0.0
+        )
+        piece = document.addObject("Part::Feature", "PatternPiece")
+        piece.Shape = Part.makeBox(5.0, 5.0, 1.0)
+        piece.addProperty("App::PropertyString", "PatternType", "Pattern").PatternType = "PatternPiece"
+        piece.addProperty("App::PropertyString", "PieceId", "Pattern").PieceId = "propagation-piece"
+        fitting = FittingCommands.create_fitting_scene()
+        fitting.DrapeTarget = target
+        fitting.PatternPieces = [piece]
+        document.recompute()
+
+        simulation = FittingCommands.create_simulation_from_fitting()
+        assert simulation.DrapeTarget == target
+        assert target_status(simulation.DrapeTarget)["state"] == "ready"
+
+        source.Placement.Base.x += 15.0
+        document.recompute()
+        assert target_status(simulation.DrapeTarget)["state"] == "stale"
+    finally:
+        if document.Name in App.listDocuments():
+            App.closeDocument(document.Name)
