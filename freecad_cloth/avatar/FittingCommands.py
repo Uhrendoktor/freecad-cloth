@@ -535,7 +535,18 @@ class _FittingProxy:
         placements = tuple(PiecePlacement.from_string(v) for v in obj.PiecePlacements)
         points = tuple(ArrangementPoint.from_string(v) for v in obj.ArrangementPoints)
         volumes = tuple(BoundingVolume.from_string(v) for v in obj.BoundingVolumes)
-        FittingScene(measurements, avatar_name, placements, points, volumes, bool(obj.SymmetryEnabled)).validate()
+        FittingScene(
+            measurements,
+            avatar_name,
+            placements,
+            points,
+            volumes,
+            bool(obj.SymmetryEnabled),
+            str(getattr(obj, "ArrangementTargetSignature", "")),
+            float(getattr(obj, "TargetPlacementClearance", 8.0)),
+            float(getattr(obj, "TargetPlacementMaxTranslation", 1200.0)),
+            float(getattr(obj, "TargetPlacementMaxRotation", 180.0)),
+        ).validate()
 
 
 COMMANDS = [
