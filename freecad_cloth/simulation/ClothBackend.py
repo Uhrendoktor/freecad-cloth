@@ -74,6 +74,11 @@ def validate_pinned_stitch_pairs(
 class ClothSimulationBackend(ABC):
     name = "abstract"
 
+    @property
+    def solver_collision_surface(self):
+        """Return the backend-facing collision surface, if the backend derives one."""
+        return None
+
     @abstractmethod
     def step(self, dt=1.0 / 60.0, iterations=8, gravity=(0.0, 0.0, -9810.0), sphere=None, surface=None):
         raise NotImplementedError
