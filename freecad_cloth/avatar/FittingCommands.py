@@ -104,7 +104,8 @@ def create_fitting_scene():
     obj.addProperty("App::PropertyString", "FittingType", "Fitting").FittingType = "FittingScene"
     obj.addProperty("App::PropertyString", "MeasurementData", "Measurements").MeasurementData = BodyMeasurements().to_json()
     obj.addProperty("App::PropertyString", "MeasurementUnit", "Measurements").MeasurementUnit = "mm"
-    obj.addProperty("App::PropertyLink", "AvatarProxy", "Fitting")
+    obj.addProperty("App::PropertyLinkGlobal", "AvatarProxy", "Fitting")
+    obj.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")
     obj.addProperty("App::PropertyLinkListGlobal", "PatternPieces", "Fitting")
     obj.addProperty("App::PropertyStringList", "PiecePlacements", "Fitting").PiecePlacements = []
     obj.addProperty("App::PropertyStringList", "HomePlacements", "Fitting").HomePlacements = []
@@ -148,7 +149,21 @@ def assign_avatar_source(source=None):
     avatar = create_avatar_collision(doc) if doc.getObject("AvatarCollision") is None else doc.getObject("AvatarCollision")
     avatar = set_avatar_collision_source(scene, source)
     scene.AvatarProxy = avatar
-    scene.FitStatus = "Avatar assigned"
+    from freecad_cloth.simulation.DrapeTarget import assign_drape_target, create_drape_target
+    target_type = "Mannequin" if str(getattr(source, "AvatarType", "")) == "ClothAvatar" else "FreeCAD Geometry"
+    target = doc.getObject("DrapeTarget")
+    if target is None:
+        target = create_drape_target(
+            doc,
+            source=source,
+            target_type=target_type,
+            deflection=1.0,
+            thickness=float(getattr(avatar, "CollisionThickness", 0.0)),
+        )
+    else:
+        assign_drape_target(target, source, target_type)
+    scene.DrapeTarget = target
+    scene.FitStatus = "Avatar and target assigned"
     doc.recompute()
     return scene
 
@@ -196,6 +211,204 @@ def position_piece(piece, x, y, z=0.0, rotation_z=0.0):
     scene.PiecePlacements = [entries[k].to_string() for k in sorted(entries)]
     doc.recompute()
     return piece
+
+
+def _world_surface_vertices(target):
+    """Resolve the authoritative DrapeTarget surface into world space."""
+    from freecad_cloth.simulation.DrapeTarget import collision_surface
+    import FreeCAD as App
+
+    source = getattr(target, "SourceObject", None)
+    if source is None:
+        raise ValueError("drape target has no source object")
+    surface = collision_surface(
+        source,
+        float(getattr(target, "CollisionDeflection", 1.0)),
+        float(getattr(target, "CollisionThickness", 0.0)),
+    )
+    placement = getattr(source, "Placement", None)
+    if placement is None:
+        return tuple(tuple(float(c) for c in p) for p in surface.vertices)
+    result = []
+    for point in surface.vertices:
+        world = placement.multVec(App.Vector(*point))
+        result.append((float(world.x), float(world.y), float(world.z)))
+    return tuple(result)
+
+
+def snap_pattern_pieces_to_target(pieces=None, clearance=None):
+    """Rigidly arrange PatternPieces around a current DrapeTarget.
+
+    The placement is persisted fitting state, not solver state. The operation is
+    transactional: target, ambiguity, and step-0 clearance checks happen before
+    any PatternPiece placement is mutated.
+    """
+    import FreeCAD as App
+    from freecad_cloth.simulation.DrapeTarget import target_status
+    from freecad_cloth.avatar.AvatarProvider import provider_from_target
+    from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+
+    doc = App.ActiveDocument
+    if doc is None:
+        raise ValueError("open a document before snapping garment pieces to a target")
+    scene = _scene(doc)
+    if scene is None or not scene.PatternPieces:
+        raise ValueError("create a fitting scene with pattern pieces first")
+
+    target = getattr(scene, "DrapeTarget", None)
+    if target is None:
+        target = doc.getObject("DrapeTarget")
+        if target is not None:
+            scene.DrapeTarget = target
+    status = target_status(target)
+    if status["state"] != "ready":
+        raise ValueError("cannot arrange against target: %s" % status["message"])
+
+    source = getattr(target, "SourceObject", None)
+    if source is None:
+        raise ValueError("drape target has no source object")
+
+    selected = tuple(sorted(
+        (piece for piece in (pieces or scene.PatternPieces)
+         if getattr(piece, "PatternType", "") == "PatternPiece"),
+        key=lambda item: str(getattr(item, "PieceId", getattr(item, "Name", ""))),
+    ))
+    if not selected:
+        raise ValueError("no PatternPiece objects were supplied")
+
+    target_vertices = _world_surface_vertices(target)
+    if len(target_vertices) < 3:
+        raise ValueError("drape target collision surface has insufficient geometry")
+
+    tx = (min(p[0] for p in target_vertices) + max(p[0] for p in target_vertices)) / 2.0
+    ty_min = min(p[1] for p in target_vertices)
+    ty_max = max(p[1] for p in target_vertices)
+    tz_min = min(p[2] for p in target_vertices)
+    tz_max = max(p[2] for p in target_vertices)
+
+    # Built-in mannequin providers expose stable semantic landmarks. Generic
+    # FreeCAD targets intentionally remain target-neutral and fall back to the
+    # collision-surface midpoint.
+    tz_anchor = (tz_min + tz_max) / 2.0
+    try:
+        provider = provider_from_target(
+            source,
+            str(getattr(target, "TargetType", "FreeCAD Geometry")),
+            deflection=float(getattr(target, "CollisionDeflection", 1.0)),
+            thickness=float(getattr(target, "CollisionThickness", 0.0)),
+        )
+        landmark_map = {
+            record.name: tuple(record.position)
+            for record in provider.landmarks()
+        }
+        if "chest" in landmark_map and "hip" in landmark_map:
+            chest = source.Placement.multVec(App.Vector(*landmark_map["chest"]))
+            hip = source.Placement.multVec(App.Vector(*landmark_map["hip"]))
+            tz_anchor = float((chest.z + hip.z) / 2.0)
+    except (AttributeError, TypeError, ValueError, RuntimeError):
+        pass
+    if not (tz_min <= tz_anchor <= tz_max):
+        tz_anchor = (tz_min + tz_max) / 2.0
+
+    target_clearance = max(
+        2.0,
+        float(getattr(target, "CollisionThickness", 0.0)) + 2.0,
+    )
+    requested_clearance = target_clearance if clearance is None else float(clearance)
+    clearance = max(target_clearance, requested_clearance)
+
+    boxes = {
+        str(piece.PieceId): _world_bounds(piece)
+        for piece in selected
+    }
+    centers = {
+        pid: (
+            (box[0] + box[1]) / 2.0,
+            (box[2] + box[3]) / 2.0,
+            (box[4] + box[5]) / 2.0,
+        )
+        for pid, box in boxes.items()
+    }
+
+    sides = {}
+    for pid, box in boxes.items():
+        if box[3] <= ty_min:
+            sides[pid] = "front"
+        elif box[2] >= ty_max:
+            sides[pid] = "back"
+        else:
+            raise ValueError(
+                "pattern piece %s overlaps the target Y span; refusing ambiguous arrangement" % pid
+            )
+
+    group_cx = sum(center[0] for center in centers.values()) / len(centers)
+    group_cz = sum(center[2] for center in centers.values()) / len(centers)
+    proposed = {}
+    for piece in selected:
+        pid = str(piece.PieceId)
+        center = centers[pid]
+        desired_y = ty_min - clearance if sides[pid] == "front" else ty_max + clearance
+        delta_x = tx - group_cx
+        delta_y = desired_y - center[1]
+        delta_z = tz_anchor - group_cz
+        placement = piece.Placement
+        base = placement.Base
+        proposed[pid] = App.Placement(
+            App.Vector(
+                float(base.x) + delta_x,
+                float(base.y) + delta_y,
+                float(base.z) + delta_z,
+            ),
+            placement.Rotation,
+        )
+
+    # Before mutation, prove the proposed world Y bounds clear the authoritative
+    # DrapeTarget envelope by the requested margin at simulation step 0.
+    proofs = {}
+    for piece in selected:
+        pid = str(piece.PieceId)
+        before = boxes[pid]
+        shift = proposed[pid].Base - piece.Placement.Base
+        moved_y_min = before[2] + float(shift.y)
+        moved_y_max = before[3] + float(shift.y)
+        actual_clearance = (
+            ty_min - moved_y_max
+            if sides[pid] == "front"
+            else moved_y_min - ty_max
+        )
+        proofs[pid] = float(actual_clearance)
+        if actual_clearance + 1e-6 < clearance:
+            raise ValueError(
+                "target arrangement clearance proof failed for %s: %.6f" %
+                (pid, actual_clearance)
+            )
+
+    current = {
+        placement.piece_id: placement
+        for placement in (
+            PiecePlacement.from_string(value)
+            for value in scene.PiecePlacements
+        )
+    }
+    for piece in selected:
+        pid = str(piece.PieceId)
+        piece.Placement = proposed[pid]
+        current[pid] = PiecePlacement(
+            pid,
+            (
+                float(piece.Placement.Base.x),
+                float(piece.Placement.Base.y),
+                float(piece.Placement.Base.z),
+            ),
+            float(piece.Placement.Rotation.Angle),
+        )
+    scene.PiecePlacements = [
+        current[key].to_string()
+        for key in sorted(current)
+    ]
+    scene.FitStatus = "Target arrangement ready (step-0 Y clearance %.3f mm)" % min(proofs.values())
+    doc.recompute()
+    return scene
 
 
 def create_arrangement_point(name, x, y, offset=0.0, wrap_direction="front", rotation_z=0.0, symmetry_group="", mirror=False):
@@ -364,6 +577,9 @@ def create_simulation_from_fitting():
     simulation.ClothPieces = list(scene.PatternPieces)
     if scene.AvatarProxy is not None:
         simulation.AvatarProxy = scene.AvatarProxy
+    if getattr(scene, "DrapeTarget", None) is None:
+        raise ValueError("assign a current DrapeTarget before creating simulation")
+    simulation.DrapeTarget = scene.DrapeTarget
     doc.recompute()
     return simulation
 
@@ -394,6 +610,7 @@ COMMANDS = [
     "ClothFitting_DeleteBoundingVolume",
     "ClothFitting_SetSymmetry",
     "ClothFitting_ApplyArrangementPoint",
+    "ClothFitting_SnapPiecesToTarget",
     "ClothFitting_ResetArrangement",
     "ClothFitting_CreateSimulation",
 ]
@@ -409,6 +626,7 @@ _COMMAND_HANDLERS = {
     "ClothFitting_DeleteBoundingVolume": lambda: delete_bounding_volume("Volume1"),
     "ClothFitting_SetSymmetry": lambda: set_symmetry_enabled(True),
     "ClothFitting_ApplyArrangementPoint": lambda: _apply_selected_arrangement(),
+    "ClothFitting_SnapPiecesToTarget": snap_pattern_pieces_to_target,
     "ClothFitting_ResetArrangement": reset_arrangement,
     "ClothFitting_CreateSimulation": create_simulation_from_fitting,
 }
