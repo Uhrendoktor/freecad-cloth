@@ -80,4 +80,10 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
     log("tunic-seam-max-gap-mm=%.2f" % seam_gap)
 """
 
+
+anchor = '    write_drape_metrics(panels, avatar, x_mid, shoulder_z=shoulder_z, hem_z=hem_z); bounds = []'
+if anchor not in source:
+    raise RuntimeError("drape metrics anchor missing")
+source = source.replace(anchor, seam_check + anchor, 1)
+
 exec(compile(source, str(source_path), "exec"), globals(), globals())
