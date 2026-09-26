@@ -331,14 +331,20 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
         total_translation = App.Vector(0.0, 0.0, 0.0)
         previous_proximity_error = None
 
+        # PatternMesh geometry is rigid during this operation: sample each piece once and
+        # translate the cached world points instead of re-triangulating on every iteration.
+        sample_cache = {
+            piece: tuple(_piece_world_samples(piece, sample_deflection))
+            for piece in selected
+        }
+
         for _iteration in range(16):
             centers = []
             projections = []
             proximity_errors = []
-            clearance_reports = []
 
             for piece in selected:
-                samples = _piece_world_samples(piece, sample_deflection)
+                samples = sample_cache[piece]
                 center = average_point(samples)
                 projection = nearest_target_projection(center, surface)
                 target_point = tuple(
@@ -353,19 +359,10 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
                 centers.append(center)
                 projections.append(projection)
                 proximity_errors.append(error_norm)
-                clearance_reports.append(
-                    minimum_signed_clearance(samples, surface)
-                )
 
             proximity_error = sum(value * value for value in proximity_errors) ** 0.5
 
-            if (
-                proximity_error <= 1e-6
-                and all(
-                    report.minimum_signed_clearance >= required - 1e-6
-                    for report in clearance_reports
-                )
-            ):
+            if proximity_error <= 1e-6:
                 break
 
             # The same rigid displacement must serve every panel. Weight each
@@ -415,6 +412,10 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
                     placement.Base + step,
                     placement.Rotation,
                 )
+                sample_cache[piece] = tuple(
+                    tuple(float(point[index]) + float(step[index]) for index in range(3))
+                    for point in sample_cache[piece]
+                )
                 sketch = getattr(piece, "Sketch", None)
                 if sketch is not None:
                     sketch.Placement = piece.Placement
@@ -422,9 +423,8 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
             doc.recompute()
 
             next_proximity_errors = []
-            next_clearance_reports = []
             for piece in selected:
-                samples = _piece_world_samples(piece, sample_deflection)
+                samples = sample_cache[piece]
                 center = average_point(samples)
                 projection = nearest_target_projection(center, surface)
                 error_vector = tuple(
@@ -434,7 +434,6 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
                 next_proximity_errors.append(
                     sum(value * value for value in error_vector) ** 0.5
                 )
-                next_clearance_reports.append(minimum_signed_clearance(samples, surface))
 
             next_proximity_error = (
                 sum(value * value for value in next_proximity_errors) ** 0.5
@@ -447,14 +446,14 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
             total_translation = proposed
             previous_proximity_error = proximity_error
 
-            if all(
-                report.minimum_signed_clearance >= required - 1e-6
-                for report in next_clearance_reports
-            ) and next_proximity_error <= 1e-6:
+            if next_proximity_error <= 1e-6:
                 break
 
+        # Perform the authoritative exact PatternMesh clearance proof once, after
+        # convergence. Repeating this O(samples × target-triangles) scan per iteration
+        # was the observed 300 s tunic-audit timeout mechanism.
         final_reports = [
-            minimum_signed_clearance(_piece_world_samples(piece, sample_deflection), surface)
+            minimum_signed_clearance(sample_cache[piece], surface)
             for piece in selected
         ]
         if any(
@@ -472,8 +471,7 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
 
         final_proximity_error = 0.0
         for piece in selected:
-            samples = _piece_world_samples(piece, sample_deflection)
-            center = average_point(samples)
+            center = average_point(sample_cache[piece])
             projection = nearest_target_projection(center, surface)
             error_vector = tuple(
                 float(projection.point[index]) + float(projection.normal[index]) * required - center[index]
