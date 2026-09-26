@@ -52,12 +52,13 @@ def save_png(view, path, state):
     # Reject empty/corrupt captures by checking that the rendered frame contains
     # more than the uniform background. File size is not a reliable proxy for
     # image validity because sparse FreeCAD views can encode very small PNGs.
-    sampled_pixels = {
+    background = int(image.pixel(0, 0))
+    sampled_pixels = [
         int(image.pixel(x, y))
-        for x in range(0, image.width(), 40)
-        for y in range(0, image.height(), 40)
-    }
-    if len(sampled_pixels) < 8:
+        for x in range(0, image.width(), 20)
+        for y in range(0, image.height(), 20)
+    ]
+    if sum(pixel != background for pixel in sampled_pixels) < 8:
         raise RuntimeError("empty screenshot content: %s" % state)
 
     header = path.read_bytes()[:24]
