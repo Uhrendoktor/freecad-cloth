@@ -276,6 +276,7 @@ class AvatarFittingTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
         self.assertIn("ClothFitting_SnapPiecesToTarget", source)
+        self.assertIn('"ClothFitting_SnapPiecesToTarget": lambda: _snap_selected_to_target()', source)
         self.assertIn('raise ValueError("select exactly one DrapeTarget and one or more PatternPiece objects")', source)
         self.assertIn('status = target_status(target)', source)
         self.assertIn('if status["state"] != "ready":', source)
