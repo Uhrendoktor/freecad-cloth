@@ -98,6 +98,7 @@ jobs:
                 tests/test_pattern_simulation_adapter.py \
                 tests/test_seam_graph.py \
                 tests/test_workbench_icons.py \
+                tests/test_target_aware_placement.py \
                 tests/test_tunic_audit_contract.py \
                 tests/test_readme_visual_contract.py \
                 tests/test_freecad_gui_startup_contract.py \
@@ -188,6 +189,7 @@ jobs:
         with:
           name: sketcher-startup-diagnostic
           path: |
+            docs/images/generated/cloth-simulation-arranged.png
             artifacts/plain.log
             artifacts/module-path.log
             artifacts/plain.marker
