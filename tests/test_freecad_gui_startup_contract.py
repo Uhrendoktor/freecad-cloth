@@ -77,10 +77,11 @@ def test_canonical_gui_jobs_use_deterministic_startup_boundaries():
     assert "freecad_ci_bootstrap.FCMacro" not in sketcher
     assert "freecad_ci_bootstrap.FCMacro" not in visual
 
-def test_canonical_concurrency_cancels_stale_pr_runs():
+def test_canonical_concurrency_groups_pull_requests():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
     assert "canonical-{0}-pr-{1}" in workflow
     assert "cancel-in-progress: true" in workflow
+    assert "cancel-stale-pr-runs:" not in workflow
 
 def test_canonical_readme_turntable_launches_from_neutral_cwd():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
@@ -102,6 +103,6 @@ if __name__ == "__main__":
     test_visual_example_prepares_gui_and_explicit_workbench_registration()
     test_sketcher_acceptance_uses_explicit_initgui_startup()
     test_canonical_gui_jobs_use_deterministic_startup_boundaries()
-    test_canonical_concurrency_cancels_stale_pr_runs()
+    test_canonical_concurrency_groups_pull_requests()
     test_canonical_readme_turntable_launches_from_neutral_cwd()
     test_readme_turntable_scripts_import_freecad_gui_before_repository_path_injection()
