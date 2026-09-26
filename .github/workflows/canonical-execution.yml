@@ -230,6 +230,2507 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Pull FreeCAD image
         run: docker pull "$FREECAD_IMAGE"
+      - name: Capture Tissu provenance
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          docker run --rm "$FREECAD_TUNIC_IMAGE" bash -lc 'cat /opt/tissu-provenance.txt' > artifacts/tissu-provenance.txt
+          test -s artifacts/tissu-provenance.txt
+          grep -q '^tissu-source-commit=c28a3c7504ddc782bef844ab5bd4cd0bde14b628
+          set -euo pipefail
+          volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_IMAGE" -lc 'true')"
+          echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
+          echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
+          docker cp "$PWD/." "$carrier:/workspace/"
+
+      - name: Run staged creation smoke
+        run: |
+          set -euo pipefail
+          rm -rf artifacts
+          mkdir -p artifacts
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SEWING_SMOKE_LOG=/workspace/artifacts/sewing-creation-smoke.log \
+            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_sewing_creation_smoke.py
+              test -s /workspace/artifacts/sewing-creation-smoke.log
+            '
+      - name: Restore workspace from Docker volume
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOCKER_WORKSPACE_CARRIER:-}" ]; then
+            exit 0
+          fi
+          docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
+          docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
+          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Inspect smoke evidence
+        run: |
+          set -euo pipefail
+          grep -q 'preview-1to1=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'commit-1to1=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'cancel-1to1=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'selection-count-rejection=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'preview-mn=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'commit-mn=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'preview-free=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'commit-free=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'cancel-free=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'invalid-same-piece-preview=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'invalid-mn-partition-preview=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'curved-sampling=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'curved-mn=passed members=2,2 segments=3 physical-length=proportional' artifacts/sewing-creation-smoke.log
+          grep -q 'curved-mn-reversal=passed segments=3' artifacts/sewing-creation-smoke.log
+          grep -q 'correspondence-gui-evidence=passed severity=info' artifacts/sewing-creation-smoke.log
+          grep -q 'seam-visual-3d=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'seam-visual-2d=passed top-view=true' artifacts/sewing-creation-smoke.log
+          grep -q 'curved-mn-save-reload=passed same-endpoint-pairs=true' artifacts/sewing-creation-smoke.log
+          grep -q 'stale-endpoint-invalidation=passed commit-blocked=true' artifacts/sewing-creation-smoke.log
+      - name: Upload sewing creation smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: sewing-creation-smoke
+          path: artifacts/sewing-creation-smoke.log
+          if-no-files-found: error
+          compression-level: 1
+
+  gui-sketcher-acceptance:
+    name: Native Sketcher seam presentation acceptance
+    needs: [local_runner_readiness]
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 10
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Stage workspace in Docker volume
+        run: |
+          set -euo pipefail
+          volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_IMAGE" -lc 'true')"
+          echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
+          echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
+          docker cp "$PWD/." "$carrier:/workspace/"
+
+      - name: Run native Sketcher acceptance
+        run: |
+          set -euo pipefail
+          rm -rf artifacts
+          mkdir -p artifacts
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e FREECAD_USER_HOME=/tmp/freecad-user \
+            -e FREECAD_USER_DATA=/tmp/freecad-user-data \
+            -e FREECAD_USER_TEMP=/tmp/freecad-user-temp \
+            -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e SKETCHER_STAGE_FILE=/workspace/artifacts/sketcher-stage.log \
+            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              rm -rf "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
+              mkdir -p "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP" "$XDG_RUNTIME_DIR" /workspace/artifacts
+              rm -rf /tmp/freecad-mod
+              mkdir -p /tmp/freecad-mod/freecad-cloth
+              cp -a /workspace/package.xml /workspace/resources /workspace/freecad_cloth /workspace/freecad /tmp/freecad-mod/freecad-cloth/
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_sketcher_acceptance.py > /workspace/artifacts/sketcher-acceptance.log 2>&1
+              grep -q "native Sketcher acceptance passed" /workspace/artifacts/sketcher-acceptance.log
+            '
+      - name: Restore workspace from Docker volume
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOCKER_WORKSPACE_CARRIER:-}" ]; then
+            exit 0
+          fi
+          docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
+          docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
+          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Inspect Sketcher evidence
+        run: |
+          set -euo pipefail
+          test -s artifacts/sketcher-acceptance.log
+          grep -q "native Sketcher acceptance passed" artifacts/sketcher-acceptance.log
+      - name: Upload Sketcher acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: sketcher-acceptance
+          path: |
+            artifacts/sketcher-acceptance.log
+            artifacts/sketcher-stage.log
+          if-no-files-found: error
+          compression-level: 1
+  gui-pattern-export:
+    name: Pattern production export smoke
+    needs: [local_runner_readiness]
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 10
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Stage workspace in Docker volume
+        run: |
+          set -euo pipefail
+          volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_IMAGE" -lc 'true')"
+          echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
+          echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
+          docker cp "$PWD/." "$carrier:/workspace/"
+
+      - name: Run public export smoke
+        run: |
+          set -euo pipefail
+          rm -rf artifacts
+          mkdir -p artifacts
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1             -e CLOTH_PATTERN_EXPORT_LOG=/workspace/artifacts/pattern-production-export.log             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_pattern_export_smoke.py
+              test -s /workspace/artifacts/pattern-production-export.log
+            '
+      - name: Restore workspace from Docker volume
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOCKER_WORKSPACE_CARRIER:-}" ]; then
+            exit 0
+          fi
+          docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
+          docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
+          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Inspect export evidence
+        run: |
+          set -euo pipefail
+          grep -q 'pattern-export=passed formats=SVG,DXF' artifacts/pattern-production-export.log
+          grep -q 'pattern-export-smoke=completed' artifacts/pattern-production-export.log
+      - name: Upload pattern export evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: pattern-production-export
+          path: artifacts/pattern-production-export.log
+          if-no-files-found: error
+          compression-level: 1
+
+  gui-tunic-visual:
+    name: Full tunic visual and simulation audit
+    needs: [local_runner_readiness]
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 20
+    env:
+      FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build patched FreeCAD image
+        run: |
+          set -euo pipefail
+          docker build --pull --progress=plain -t "$FREECAD_TUNIC_IMAGE" -f docker/freecad-ci/Dockerfile .
+      - name: Stage workspace in Docker volume
+        run: |
+          set -euo pipefail
+          volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_TUNIC_IMAGE" -lc 'true')"
+          echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
+          echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
+          docker cp "$PWD/." "$carrier:/workspace/"
+
+      - name: Run native-Sketcher tunic audit
+        env:
+          CLOTH_SIMULATION_BACKEND: tissu
+          CLOTH_TISSU_SUBSTEPS: 1
+          CLOTH_TISSU_COLLISION_MODE: mesh
+          CLOTH_TISSU_COLLISION_TRIANGLES: 2048
+        run: |
+          set -euo pipefail
+          rm -rf docs/images/generated
+          mkdir -p docs/images/generated
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
+            -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" \
+            -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
+            -e CLOTH_TISSU_COLLISION_TRIANGLES="$CLOTH_TISSU_COLLISION_TRIANGLES" \
+            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
+            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_TUNIC_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 12); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py
+              timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_realtime_benchmark.py
+            '
+      - name: Restore workspace from Docker volume
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOCKER_WORKSPACE_CARRIER:-}" ]; then
+            exit 0
+          fi
+          docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
+          docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
+          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Validate visual and simulation evidence
+        run: |
+          set -euo pipefail
+          test -s docs/images/generated/gui-progress.log
+          test -s artifacts/freecad-realtime/metrics.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          m = json.loads(Path("artifacts/freecad-realtime/metrics.json").read_text(encoding="utf-8"))
+          assert m["finite"], m
+          assert m["mean_frame_ms"] <= m["frame_budget_ms"], m
+          assert m["p95_frame_ms"] <= 50.0, m
+          print("realtime-performance=passed mean_frame_ms=%.2f p95_frame_ms=%.2f fps=%.2f particles=%d" % (m["mean_frame_ms"], m["p95_frame_ms"], m["fps_mean"], m["particles"]))
+          PY
+          grep -q 'scenario-pass' docs/images/generated/gui-progress.log
+          grep -q 'realtime-preview=passed backend=tissu' docs/images/generated/gui-progress.log
+          grep -q 'drape-metrics=' docs/images/generated/gui-progress.log
+          test -s docs/images/generated/cloth-simulation-draped.png
+          test -s docs/images/generated/cloth-simulation-draped-front.png
+          test -s docs/images/generated/cloth-simulation-draped-rear.png
+          test -s docs/images/generated/cloth-simulation-draped-left.png
+          test -s docs/images/generated/cloth-simulation-draped-right.png
+          test -s docs/images/generated/cloth-simulation-draped-top.png
+          test -s docs/images/generated/cloth-simulation-draped-bottom.png
+          test -s docs/images/generated/cloth-simulation-draped-diagnostics.png
+          grep -q 'diagnostic-map=passed metric=stress' docs/images/generated/gui-progress.log
+          grep -q 'diagnostic-stale-guard=passed' docs/images/generated/gui-progress.log
+          test -s artifacts/garment-e2e.log
+          grep -q 'staged-selection=passed' artifacts/garment-e2e.log
+          grep -q 'sewing-mn=passed sides=2,2 segments=2' artifacts/garment-e2e.log
+          grep -q 'sewing-mn-physical=passed curved-edge=true proportional=true' artifacts/garment-e2e.log
+          grep -q 'seam-markers=passed 3d-and-2d=true' artifacts/garment-e2e.log
+          grep -q 'arrangement=passed pieces=4' artifacts/garment-e2e.log
+          grep -q 'garment-hierarchy=passed groups=Patterns,Sewing,Fabric,Avatar,Simulation' artifacts/garment-e2e.log
+          grep -q 'material-presentation=passed native=true' artifacts/garment-e2e.log
+          grep -q 'drape-target=passed type=Mannequin' artifacts/garment-e2e.log
+          grep -q 'diagnostics=passed metric=stress' artifacts/garment-e2e.log
+          grep -q 'save-reload=passed pieces=4 seam=1to1 network=2segment' artifacts/garment-e2e.log
+          grep -q 'invalidation=passed seam=' artifacts/garment-e2e.log
+          grep -q 'invalidation-restore=passed seam=Valid' artifacts/garment-e2e.log
+          grep -q 'stale-export=blocked' artifacts/garment-e2e.log
+          grep -q 'diagnostics-after-invalidation=passed metric=stress' artifacts/garment-e2e.log
+          grep -q 'determinism-signature=passed' artifacts/garment-e2e.log
+          grep -q 'pattern-export=passed formats=SVG,DXF' artifacts/garment-e2e.log
+          grep -q 'canonical garment end-to-end acceptance passed' artifacts/garment-e2e.log
+      - name: Upload tunic visual audit
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: tunic-visual-audit
+          path: |
+            docs/images/generated/cloth-simulation-draped*.png
+            docs/images/generated/drape-visual-metrics.json
+            docs/images/generated/gui-progress.log
+            docs/images/generated/gui-screenshot-manifest.txt
+            artifacts/garment-e2e.log
+            artifacts/tissu-provenance.txt
+          if-no-files-found: error
+          compression-level: 1
+
+  gui-turntables:
+    name: README simulation turntable
+    needs: [local_runner_readiness]
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 25
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Stage workspace in Docker volume
+        run: |
+          set -euo pipefail
+          volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_IMAGE" -lc 'true')"
+          echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
+          echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
+          docker cp "$PWD/." "$carrier:/workspace/"
+
+      - name: Render avatar and blanket turntable frames
+        env:
+          CLOTH_SIMULATION_BACKEND: tissu
+          CLOTH_TISSU_SUBSTEPS: 10
+          CLOTH_TISSU_COLLISION_MODE: mesh
+        run: |
+          set -euo pipefail
+          rm -rf docs/images/generated
+          mkdir -p docs/images/generated
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
+            -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
+            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
+            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_avatar_screenshot.py
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_simulation_turntable.py
+            '
+      - name: Restore workspace from Docker volume
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOCKER_WORKSPACE_CARRIER:-}" ]; then
+            exit 0
+          fi
+          docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
+          docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
+          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Validate turntable frame counts on restored workspace
+        run: |
+          set -euo pipefail
+          test "$(find docs/images/generated/cloth-avatar-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
+          test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
+          test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
+
+      - name: Validate blanket motion and camera evidence
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, re
+          log = Path("docs/images/generated/simulation-turntable-progress.log").read_text(encoding="utf-8")
+          for marker in (
+              "stage=scene-build-pass",
+              "stage=arranged-render-pass",
+              "stage=simulation-pass",
+              "stage=validation-pass",
+              "stage=draped-render-pass",
+              "stage=total-pass",
+          ):
+            if marker not in log: raise SystemExit("missing timing marker: "+marker)
+          if "stage=validation-pass state=structurally-plausible" not in log:
+            raise SystemExit("drape gate did not remain structurally-plausible")
+          m = re.findall(r"blanket-motion-diagnostic max_centroid_displacement_mm=([+-]?[0-9.]+).*min_z_mm=([+-]?[0-9.]+).*cube_top_z_mm=([+-]?[0-9.]+)", log)
+          if not m: raise SystemExit("missing blanket motion diagnostic")
+          displacement, minimum_z, cube_top = (float(x) for x in m[-1])
+          if displacement < 40.0: raise SystemExit("blanket displacement below 40 mm")
+          if minimum_z > cube_top + 35.0: raise SystemExit("blanket did not approach cube")
+          if "blanket-turntable-pass" not in log: raise SystemExit("blanket turntable incomplete")
+          if "mesh-quality=passed" not in log: raise SystemExit("blanket mesh-quality evidence missing")
+          for directory in ("cloth-avatar-turntable-frames","cloth-simulation-arranged-turntable-frames","cloth-simulation-draped-turntable-frames"):
+            hashes=[]
+            frames=sorted((Path("docs/images/generated")/directory).glob("frame-*.png"))
+            if len(frames) != 73: raise SystemExit("unexpected frame count for "+directory)
+            for frame_path in frames:
+              hashes.append(hashlib.sha256(frame_path.read_bytes()).hexdigest())
+            if len(set(hashes)) != 73: raise SystemExit("all 73 frames are not distinct for "+directory)
+            checkpoints=[]
+            for frame in (0,18,36,54):
+              p=Path("docs/images/generated")/directory/("frame-%03d.png"%frame)
+              if not p.is_file(): raise SystemExit("missing "+str(p))
+              checkpoints.append(hashlib.sha256(p.read_bytes()).hexdigest())
+            if len(set(checkpoints)) != 4: raise SystemExit("camera checkpoints not distinct for "+directory)
+          PY
+      - name: Build README turntable GIFs
+        run: |
+          set -euo pipefail
+          if command -v magick >/dev/null 2>&1; then IM=(magick)
+          elif command -v convert >/dev/null 2>&1; then IM=(convert)
+          else sudo apt-get update && sudo apt-get install -y imagemagick && IM=(convert)
+          fi
+          for spec in \
+            "cloth-avatar-turntable-frames cloth-avatar-turntable.gif" \
+            "cloth-simulation-arranged-turntable-frames cloth-simulation-arranged-turntable.gif" \
+            "cloth-simulation-draped-turntable-frames cloth-simulation-draped-turntable.gif"; do
+            read -r frame_dir gif <<< "$spec"
+            "${IM[@]}" -delay 8 "docs/images/generated/$frame_dir"/frame-*.png \
+              -loop 0 -colors 128 \
+              "docs/images/generated/$gif"
+            test -s "docs/images/generated/$gif"
+            frame_delays="$(identify -format '%T\n' "docs/images/generated/$gif" | sort -u)"
+            test "$frame_delays" = "8"
+          done
+          for gif in \
+            docs/images/generated/cloth-avatar-turntable.gif \
+            docs/images/generated/cloth-simulation-arranged-turntable.gif \
+            docs/images/generated/cloth-simulation-draped-turntable.gif; do
+            identify -format '%n\n' "$gif" | head -n 1 | grep -qx '73'
+          done
+      - name: Upload README turntable evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: readme-turntables
+          path: |
+            docs/images/generated/cloth-avatar-turntable.gif
+            docs/images/generated/cloth-simulation-arranged-turntable.gif
+            docs/images/generated/cloth-simulation-draped-turntable.gif
+            docs/images/generated/cloth-avatar-turntable-frames/frame-000.png
+            docs/images/generated/cloth-avatar-turntable-frames/frame-018.png
+            docs/images/generated/cloth-avatar-turntable-frames/frame-036.png
+            docs/images/generated/cloth-avatar-turntable-frames/frame-054.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-000.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-018.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-036.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-054.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-000.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-018.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-036.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-054.png
+            docs/images/generated/avatar-gui-progress.log
+            docs/images/generated/simulation-turntable-progress.log
+          if-no-files-found: ignore
+          compression-level: 1
+
+
+  gui-visual-examples:
+    name: Basic blanket visual example
+    needs: [local_runner_readiness]
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 15
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Stage workspace in Docker volume
+        run: |
+          set -euo pipefail
+          volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_IMAGE" -lc 'true')"
+          echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
+          echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
+          docker cp "$PWD/." "$carrier:/workspace/"
+
+      - name: Run blanket visual example
+        run: |
+          set -euo pipefail
+          rm -rf docs/images/generated/blanket-example
+          mkdir -p docs/images/generated/blanket-example
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e FREECAD_USER_HOME=/tmp/freecad-user \
+            -e FREECAD_USER_DATA=/tmp/freecad-user-data \
+            -e FREECAD_USER_TEMP=/tmp/freecad-user-temp \
+            -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
+            -e CLOTH_SIMULATION_BACKEND=xpbd-cpu \
+            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              rm -rf "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
+              mkdir -p "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP" "$XDG_RUNTIME_DIR" /workspace/docs/images/generated/blanket-example
+              rm -rf /tmp/freecad-mod
+              mkdir -p /tmp/freecad-mod/freecad-cloth
+              cp -a /workspace/Init.py /workspace/InitGui.py /workspace/package.xml /workspace/resources /workspace/freecad_cloth /tmp/freecad-mod/freecad-cloth/
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth /workspace/tests/freecad_visual_examples.py
+            '
+      - name: Restore workspace from Docker volume
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOCKER_WORKSPACE_CARRIER:-}" ]; then
+            exit 0
+          fi
+          docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
+          docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
+          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Validate blanket visual evidence
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          test -s docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'blanket-visual-acceptance=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'mesh=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'movement=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'material-presentation=passed viewport=true' docs/images/generated/blanket-example/blanket-visual.log
+          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'checkpoint-*.png' | wc -l)" -eq 5
+          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'motion-*.png' | wc -l)" -eq 16
+
+      - name: Build blanket motion GIF
+        run: |
+          set -euo pipefail
+          if command -v magick >/dev/null 2>&1; then
+            IM=(magick)
+          elif command -v convert >/dev/null 2>&1; then
+            IM=(convert)
+          else
+            sudo apt-get update
+            sudo apt-get install -y imagemagick
+            IM=(convert)
+          fi
+          "${IM[@]}" -delay 10 -loop 0 \
+            docs/images/generated/blanket-example/motion-*.png \
+            -colors 128 docs/images/generated/blanket-example/blanket-motion.gif
+          identify -format '%n\n' docs/images/generated/blanket-example/blanket-motion.gif | head -n 1 | grep -qx '16'
+          frame_delays="$(identify -format '%T\n' docs/images/generated/blanket-example/blanket-motion.gif | sort -u)"
+          test "$frame_delays" = "10"
+          test -s docs/images/generated/blanket-example/blanket-motion.gif
+      - name: Upload blanket visual evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: blanket-visual-example
+          path: |
+            docs/images/generated/blanket-example/*.png
+            docs/images/generated/blanket-example/blanket-motion.gif
+            docs/images/generated/blanket-example/blanket-visual.log
+          if-no-files-found: error
+          compression-level: 1
+  publish-readme-turntables:
+    name: Publish README turntables and example motion
+    needs: [local_runner_readiness, gui-tunic-visual, gui-turntables, gui-visual-examples]
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '') }}
+    permissions:
+      contents: write
+      packages: read
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 10
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - name: Download turntables
+        uses: actions/download-artifact@v6
+        with:
+          name: readme-turntables
+          path: turntables
+      - name: Download blanket visual example
+        uses: actions/download-artifact@v6
+        with:
+          name: blanket-visual-example
+          path: blanket
+      - name: Download tunic visual audit
+        uses: actions/download-artifact@v6
+        with:
+          name: tunic-visual-audit
+          path: tunic
+      - name: Update stable README asset branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" screenshot-repo
+          cd screenshot-repo
+          branch="docs/screenshots"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            git fetch origin "$branch"
+            git checkout -B "$branch" "origin/$branch"
+          else
+            git checkout -b "$branch"
+          fi
+          mkdir -p docs/images/generated
+          cp ../turntables/cloth-avatar-turntable.gif docs/images/generated/
+          cp ../turntables/cloth-simulation-arranged-turntable.gif docs/images/generated/
+          cp ../turntables/cloth-simulation-draped-turntable.gif docs/images/generated/
+          cp ../blanket/blanket-motion.gif docs/images/generated/cloth-blanket-motion.gif
+          cp ../tunic/docs/images/generated/cloth-simulation-draped-front.png docs/images/generated/cloth-simulation-draped-front.png
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/images/generated/cloth-avatar-turntable.gif \
+            docs/images/generated/cloth-simulation-arranged-turntable.gif \
+            docs/images/generated/cloth-simulation-draped-turntable.gif \
+            docs/images/generated/cloth-blanket-motion.gif \
+            docs/images/generated/cloth-simulation-draped-front.png
+          if git diff --cached --quiet; then
+            echo "README turntables are already current."
+            exit 0
+          fi
+          git commit -m "ci: publish stable README turntables"
+          git push origin "HEAD:$branch"
+  maintenance-cleanup:
+    name: Repository retention cleanup
+    if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * *' }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+    timeout-minutes: 10
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - name: Remove stale agent branches and old completed workflow runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH_RETENTION_DAYS: 14
+          RUN_RETENTION_DAYS: 30
+        run: |
+          set -euo pipefail
+          branch_cutoff="$(date -u -d "-${BRANCH_RETENTION_DAYS} days" +%s)"
+          run_cutoff="$(date -u -d "-${RUN_RETENTION_DAYS} days" +%s)"
+          open_heads="$(gh pr list --repo "$REPO" --state open --limit 100 --json headRefName --jq '.[].headRefName')"
+          gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name' |
+          while IFS= read -r branch_name; do
+            case "$branch_name" in
+              agent/*) ;;
+              *) continue ;;
+            esac
+            if printf '%s\n' "$open_heads" | grep -Fxq "$branch_name"; then
+              echo "Keeping open-PR branch: $branch_name"
+              continue
+            fi
+            sha="$(gh api "repos/$REPO/branches/$branch_name" --jq '.commit.sha')"
+            authored="$(gh api "repos/$REPO/commits/$sha" --jq '.commit.author.date // .commit.committer.date')"
+            authored_epoch="$(date -u -d "$authored" +%s)"
+            if [ "$authored_epoch" -lt "$branch_cutoff" ]; then
+              gh api --method DELETE "repos/$REPO/git/refs/heads/$branch_name"
+            fi
+          done
+          gh api --paginate "repos/$REPO/actions/runs?per_page=100&status=completed" |
+            jq -r '.workflow_runs[] | [.id, .created_at] | @tsv' |
+            while IFS=$'\t' read -r run_id created_at; do
+              created_epoch="$(date -u -d "$created_at" +%s)"
+              if [ "$created_epoch" -lt "$run_cutoff" ]; then
+                gh api --method DELETE "repos/$REPO/actions/runs/$run_id"
+              fi
+            done
+  benchmark:
+    name: Measured FreeCAD workbench benchmark
+    needs: [local_runner_readiness]
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 12
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Pull published FreeCAD image
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
+        run: |
+          set -euo pipefail
+          printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1
+          timeout --signal=TERM --kill-after=30s 10m docker pull "$IMAGE"
+      - name: Run isolated FreeCAD workbench measurements
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
+        run: |
+          set -uo pipefail
+          rm -rf artifacts/workbench-benchmark
+          mkdir -p artifacts/workbench-benchmark
+          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu -w /workspace "$IMAGE" -euo pipefail -c '
+            set -e
+            python3 -c "import tissu, pytest; print(\"Tissu\", tissu.__file__); print(\"pytest\", pytest.__version__)"
+            mkdir -p "$XDG_RUNTIME_DIR"
+            Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+            openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+            trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+            for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+            xdpyinfo -display :99 >/dev/null 2>&1
+            for wb in Pattern Sewing Simulation; do
+              echo "=== benchmark: $wb ==="
+              rm -f /tmp/cloth-benchmark-trace.log
+              CLOTH_BENCHMARK_WORKBENCH="$wb" CLOTH_BENCHMARK_OUTPUT="artifacts/workbench-benchmark/$wb.json" CLOTH_BENCHMARK_REPEATS=7 timeout --signal=TERM --kill-after=10s 180s /opt/freecad/AppRun tests/freecad_workbench_benchmark.py
+              test -s "artifacts/workbench-benchmark/$wb.json"
+            done
+          ')"
+          cleanup() {
+            set +e
+            docker cp "$CID:/workspace/artifacts/workbench-benchmark/." artifacts/workbench-benchmark/ 2>/dev/null || true
+            docker cp "$CID:/tmp/cloth-benchmark-trace.log" artifacts/workbench-benchmark/cloth-benchmark-trace.log 2>/dev/null || true
+            docker cp "$CID:/tmp/xvfb.log" artifacts/workbench-benchmark/xvfb.log 2>/dev/null || true
+            docker cp "$CID:/tmp/openbox.log" artifacts/workbench-benchmark/openbox.log 2>/dev/null || true
+            docker rm -f "$CID" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          docker cp "$PWD/." "$CID:/workspace/"
+          docker start -a "$CID"
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "FreeCAD benchmark failed with status $status"
+            exit "$status"
+          fi
+          docker cp "$CID:/workspace/artifacts/workbench-benchmark/." artifacts/workbench-benchmark/
+          docker cp "$CID:/tmp/cloth-benchmark-trace.log" artifacts/workbench-benchmark/cloth-benchmark-trace.log 2>/dev/null || true
+          docker cp "$CID:/tmp/xvfb.log" artifacts/workbench-benchmark/xvfb.log 2>/dev/null || true
+          python3 tools/merge_workbench_benchmark.py artifacts/workbench-benchmark
+      - name: Install plotting dependency
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/workbench-benchmark-venv"
+          "$RUNNER_TEMP/workbench-benchmark-venv/bin/python" -m pip install --disable-pip-version-check matplotlib
+      - name: Generate benchmark plots
+        run: |
+          "$RUNNER_TEMP/workbench-benchmark-venv/bin/python" tools/plot_workbench_benchmark.py artifacts/workbench-benchmark/benchmark.json artifacts/workbench-benchmark/plots
+      - name: Upload benchmark measurements and plots
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: workbench-benchmark
+          path: artifacts/workbench-benchmark
+          if-no-files-found: warn
+          compression-level: 1
+ artifacts/tissu-provenance.txt
+          grep -q '^tissu-contact-fix-sha256=[0-9a-f]\{64\}
+          set -euo pipefail
+          volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_IMAGE" -lc 'true')"
+          echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
+          echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
+          docker cp "$PWD/." "$carrier:/workspace/"
+
+      - name: Run staged creation smoke
+        run: |
+          set -euo pipefail
+          rm -rf artifacts
+          mkdir -p artifacts
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SEWING_SMOKE_LOG=/workspace/artifacts/sewing-creation-smoke.log \
+            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_sewing_creation_smoke.py
+              test -s /workspace/artifacts/sewing-creation-smoke.log
+            '
+      - name: Restore workspace from Docker volume
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOCKER_WORKSPACE_CARRIER:-}" ]; then
+            exit 0
+          fi
+          docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
+          docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
+          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Inspect smoke evidence
+        run: |
+          set -euo pipefail
+          grep -q 'preview-1to1=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'commit-1to1=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'cancel-1to1=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'selection-count-rejection=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'preview-mn=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'commit-mn=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'preview-free=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'commit-free=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'cancel-free=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'invalid-same-piece-preview=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'invalid-mn-partition-preview=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'curved-sampling=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'curved-mn=passed members=2,2 segments=3 physical-length=proportional' artifacts/sewing-creation-smoke.log
+          grep -q 'curved-mn-reversal=passed segments=3' artifacts/sewing-creation-smoke.log
+          grep -q 'correspondence-gui-evidence=passed severity=info' artifacts/sewing-creation-smoke.log
+          grep -q 'seam-visual-3d=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'seam-visual-2d=passed top-view=true' artifacts/sewing-creation-smoke.log
+          grep -q 'curved-mn-save-reload=passed same-endpoint-pairs=true' artifacts/sewing-creation-smoke.log
+          grep -q 'stale-endpoint-invalidation=passed commit-blocked=true' artifacts/sewing-creation-smoke.log
+      - name: Upload sewing creation smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: sewing-creation-smoke
+          path: artifacts/sewing-creation-smoke.log
+          if-no-files-found: error
+          compression-level: 1
+
+  gui-sketcher-acceptance:
+    name: Native Sketcher seam presentation acceptance
+    needs: [local_runner_readiness]
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 10
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Stage workspace in Docker volume
+        run: |
+          set -euo pipefail
+          volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_IMAGE" -lc 'true')"
+          echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
+          echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
+          docker cp "$PWD/." "$carrier:/workspace/"
+
+      - name: Run native Sketcher acceptance
+        run: |
+          set -euo pipefail
+          rm -rf artifacts
+          mkdir -p artifacts
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e FREECAD_USER_HOME=/tmp/freecad-user \
+            -e FREECAD_USER_DATA=/tmp/freecad-user-data \
+            -e FREECAD_USER_TEMP=/tmp/freecad-user-temp \
+            -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e SKETCHER_STAGE_FILE=/workspace/artifacts/sketcher-stage.log \
+            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              rm -rf "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
+              mkdir -p "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP" "$XDG_RUNTIME_DIR" /workspace/artifacts
+              rm -rf /tmp/freecad-mod
+              mkdir -p /tmp/freecad-mod/freecad-cloth
+              cp -a /workspace/package.xml /workspace/resources /workspace/freecad_cloth /workspace/freecad /tmp/freecad-mod/freecad-cloth/
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_sketcher_acceptance.py > /workspace/artifacts/sketcher-acceptance.log 2>&1
+              grep -q "native Sketcher acceptance passed" /workspace/artifacts/sketcher-acceptance.log
+            '
+      - name: Restore workspace from Docker volume
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOCKER_WORKSPACE_CARRIER:-}" ]; then
+            exit 0
+          fi
+          docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
+          docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
+          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Inspect Sketcher evidence
+        run: |
+          set -euo pipefail
+          test -s artifacts/sketcher-acceptance.log
+          grep -q "native Sketcher acceptance passed" artifacts/sketcher-acceptance.log
+      - name: Upload Sketcher acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: sketcher-acceptance
+          path: |
+            artifacts/sketcher-acceptance.log
+            artifacts/sketcher-stage.log
+          if-no-files-found: error
+          compression-level: 1
+  gui-pattern-export:
+    name: Pattern production export smoke
+    needs: [local_runner_readiness]
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 10
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Stage workspace in Docker volume
+        run: |
+          set -euo pipefail
+          volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_IMAGE" -lc 'true')"
+          echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
+          echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
+          docker cp "$PWD/." "$carrier:/workspace/"
+
+      - name: Run public export smoke
+        run: |
+          set -euo pipefail
+          rm -rf artifacts
+          mkdir -p artifacts
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1             -e CLOTH_PATTERN_EXPORT_LOG=/workspace/artifacts/pattern-production-export.log             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_pattern_export_smoke.py
+              test -s /workspace/artifacts/pattern-production-export.log
+            '
+      - name: Restore workspace from Docker volume
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOCKER_WORKSPACE_CARRIER:-}" ]; then
+            exit 0
+          fi
+          docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
+          docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
+          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Inspect export evidence
+        run: |
+          set -euo pipefail
+          grep -q 'pattern-export=passed formats=SVG,DXF' artifacts/pattern-production-export.log
+          grep -q 'pattern-export-smoke=completed' artifacts/pattern-production-export.log
+      - name: Upload pattern export evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: pattern-production-export
+          path: artifacts/pattern-production-export.log
+          if-no-files-found: error
+          compression-level: 1
+
+  gui-tunic-visual:
+    name: Full tunic visual and simulation audit
+    needs: [local_runner_readiness]
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 20
+    env:
+      FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build patched FreeCAD image
+        run: |
+          set -euo pipefail
+          docker build --pull --progress=plain -t "$FREECAD_TUNIC_IMAGE" -f docker/freecad-ci/Dockerfile .
+      - name: Stage workspace in Docker volume
+        run: |
+          set -euo pipefail
+          volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_TUNIC_IMAGE" -lc 'true')"
+          echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
+          echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
+          docker cp "$PWD/." "$carrier:/workspace/"
+
+      - name: Run native-Sketcher tunic audit
+        env:
+          CLOTH_SIMULATION_BACKEND: tissu
+          CLOTH_TISSU_SUBSTEPS: 1
+          CLOTH_TISSU_COLLISION_MODE: mesh
+          CLOTH_TISSU_COLLISION_TRIANGLES: 2048
+        run: |
+          set -euo pipefail
+          rm -rf docs/images/generated
+          mkdir -p docs/images/generated
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
+            -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" \
+            -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
+            -e CLOTH_TISSU_COLLISION_TRIANGLES="$CLOTH_TISSU_COLLISION_TRIANGLES" \
+            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
+            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_TUNIC_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 12); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py
+              timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_realtime_benchmark.py
+            '
+      - name: Restore workspace from Docker volume
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOCKER_WORKSPACE_CARRIER:-}" ]; then
+            exit 0
+          fi
+          docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
+          docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
+          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Validate visual and simulation evidence
+        run: |
+          set -euo pipefail
+          test -s docs/images/generated/gui-progress.log
+          test -s artifacts/freecad-realtime/metrics.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          m = json.loads(Path("artifacts/freecad-realtime/metrics.json").read_text(encoding="utf-8"))
+          assert m["finite"], m
+          assert m["mean_frame_ms"] <= m["frame_budget_ms"], m
+          assert m["p95_frame_ms"] <= 50.0, m
+          print("realtime-performance=passed mean_frame_ms=%.2f p95_frame_ms=%.2f fps=%.2f particles=%d" % (m["mean_frame_ms"], m["p95_frame_ms"], m["fps_mean"], m["particles"]))
+          PY
+          grep -q 'scenario-pass' docs/images/generated/gui-progress.log
+          grep -q 'realtime-preview=passed backend=tissu' docs/images/generated/gui-progress.log
+          grep -q 'drape-metrics=' docs/images/generated/gui-progress.log
+          test -s docs/images/generated/cloth-simulation-draped.png
+          test -s docs/images/generated/cloth-simulation-draped-front.png
+          test -s docs/images/generated/cloth-simulation-draped-rear.png
+          test -s docs/images/generated/cloth-simulation-draped-left.png
+          test -s docs/images/generated/cloth-simulation-draped-right.png
+          test -s docs/images/generated/cloth-simulation-draped-top.png
+          test -s docs/images/generated/cloth-simulation-draped-bottom.png
+          test -s docs/images/generated/cloth-simulation-draped-diagnostics.png
+          grep -q 'diagnostic-map=passed metric=stress' docs/images/generated/gui-progress.log
+          grep -q 'diagnostic-stale-guard=passed' docs/images/generated/gui-progress.log
+          test -s artifacts/garment-e2e.log
+          grep -q 'staged-selection=passed' artifacts/garment-e2e.log
+          grep -q 'sewing-mn=passed sides=2,2 segments=2' artifacts/garment-e2e.log
+          grep -q 'sewing-mn-physical=passed curved-edge=true proportional=true' artifacts/garment-e2e.log
+          grep -q 'seam-markers=passed 3d-and-2d=true' artifacts/garment-e2e.log
+          grep -q 'arrangement=passed pieces=4' artifacts/garment-e2e.log
+          grep -q 'garment-hierarchy=passed groups=Patterns,Sewing,Fabric,Avatar,Simulation' artifacts/garment-e2e.log
+          grep -q 'material-presentation=passed native=true' artifacts/garment-e2e.log
+          grep -q 'drape-target=passed type=Mannequin' artifacts/garment-e2e.log
+          grep -q 'diagnostics=passed metric=stress' artifacts/garment-e2e.log
+          grep -q 'save-reload=passed pieces=4 seam=1to1 network=2segment' artifacts/garment-e2e.log
+          grep -q 'invalidation=passed seam=' artifacts/garment-e2e.log
+          grep -q 'invalidation-restore=passed seam=Valid' artifacts/garment-e2e.log
+          grep -q 'stale-export=blocked' artifacts/garment-e2e.log
+          grep -q 'diagnostics-after-invalidation=passed metric=stress' artifacts/garment-e2e.log
+          grep -q 'determinism-signature=passed' artifacts/garment-e2e.log
+          grep -q 'pattern-export=passed formats=SVG,DXF' artifacts/garment-e2e.log
+          grep -q 'canonical garment end-to-end acceptance passed' artifacts/garment-e2e.log
+      - name: Upload tunic visual audit
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: tunic-visual-audit
+          path: |
+            docs/images/generated/cloth-simulation-draped*.png
+            docs/images/generated/drape-visual-metrics.json
+            docs/images/generated/gui-progress.log
+            docs/images/generated/gui-screenshot-manifest.txt
+            artifacts/garment-e2e.log
+          if-no-files-found: error
+          compression-level: 1
+
+  gui-turntables:
+    name: README simulation turntable
+    needs: [local_runner_readiness]
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 25
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Stage workspace in Docker volume
+        run: |
+          set -euo pipefail
+          volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_IMAGE" -lc 'true')"
+          echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
+          echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
+          docker cp "$PWD/." "$carrier:/workspace/"
+
+      - name: Render avatar and blanket turntable frames
+        env:
+          CLOTH_SIMULATION_BACKEND: tissu
+          CLOTH_TISSU_SUBSTEPS: 10
+          CLOTH_TISSU_COLLISION_MODE: mesh
+        run: |
+          set -euo pipefail
+          rm -rf docs/images/generated
+          mkdir -p docs/images/generated
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
+            -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
+            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
+            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_avatar_screenshot.py
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_simulation_turntable.py
+            '
+      - name: Restore workspace from Docker volume
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOCKER_WORKSPACE_CARRIER:-}" ]; then
+            exit 0
+          fi
+          docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
+          docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
+          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Validate turntable frame counts on restored workspace
+        run: |
+          set -euo pipefail
+          test "$(find docs/images/generated/cloth-avatar-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
+          test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
+          test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
+
+      - name: Validate blanket motion and camera evidence
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, re
+          log = Path("docs/images/generated/simulation-turntable-progress.log").read_text(encoding="utf-8")
+          for marker in (
+              "stage=scene-build-pass",
+              "stage=arranged-render-pass",
+              "stage=simulation-pass",
+              "stage=validation-pass",
+              "stage=draped-render-pass",
+              "stage=total-pass",
+          ):
+            if marker not in log: raise SystemExit("missing timing marker: "+marker)
+          if "stage=validation-pass state=structurally-plausible" not in log:
+            raise SystemExit("drape gate did not remain structurally-plausible")
+          m = re.findall(r"blanket-motion-diagnostic max_centroid_displacement_mm=([+-]?[0-9.]+).*min_z_mm=([+-]?[0-9.]+).*cube_top_z_mm=([+-]?[0-9.]+)", log)
+          if not m: raise SystemExit("missing blanket motion diagnostic")
+          displacement, minimum_z, cube_top = (float(x) for x in m[-1])
+          if displacement < 40.0: raise SystemExit("blanket displacement below 40 mm")
+          if minimum_z > cube_top + 35.0: raise SystemExit("blanket did not approach cube")
+          if "blanket-turntable-pass" not in log: raise SystemExit("blanket turntable incomplete")
+          if "mesh-quality=passed" not in log: raise SystemExit("blanket mesh-quality evidence missing")
+          for directory in ("cloth-avatar-turntable-frames","cloth-simulation-arranged-turntable-frames","cloth-simulation-draped-turntable-frames"):
+            hashes=[]
+            frames=sorted((Path("docs/images/generated")/directory).glob("frame-*.png"))
+            if len(frames) != 73: raise SystemExit("unexpected frame count for "+directory)
+            for frame_path in frames:
+              hashes.append(hashlib.sha256(frame_path.read_bytes()).hexdigest())
+            if len(set(hashes)) != 73: raise SystemExit("all 73 frames are not distinct for "+directory)
+            checkpoints=[]
+            for frame in (0,18,36,54):
+              p=Path("docs/images/generated")/directory/("frame-%03d.png"%frame)
+              if not p.is_file(): raise SystemExit("missing "+str(p))
+              checkpoints.append(hashlib.sha256(p.read_bytes()).hexdigest())
+            if len(set(checkpoints)) != 4: raise SystemExit("camera checkpoints not distinct for "+directory)
+          PY
+      - name: Build README turntable GIFs
+        run: |
+          set -euo pipefail
+          if command -v magick >/dev/null 2>&1; then IM=(magick)
+          elif command -v convert >/dev/null 2>&1; then IM=(convert)
+          else sudo apt-get update && sudo apt-get install -y imagemagick && IM=(convert)
+          fi
+          for spec in \
+            "cloth-avatar-turntable-frames cloth-avatar-turntable.gif" \
+            "cloth-simulation-arranged-turntable-frames cloth-simulation-arranged-turntable.gif" \
+            "cloth-simulation-draped-turntable-frames cloth-simulation-draped-turntable.gif"; do
+            read -r frame_dir gif <<< "$spec"
+            "${IM[@]}" -delay 8 "docs/images/generated/$frame_dir"/frame-*.png \
+              -loop 0 -colors 128 \
+              "docs/images/generated/$gif"
+            test -s "docs/images/generated/$gif"
+            frame_delays="$(identify -format '%T\n' "docs/images/generated/$gif" | sort -u)"
+            test "$frame_delays" = "8"
+          done
+          for gif in \
+            docs/images/generated/cloth-avatar-turntable.gif \
+            docs/images/generated/cloth-simulation-arranged-turntable.gif \
+            docs/images/generated/cloth-simulation-draped-turntable.gif; do
+            identify -format '%n\n' "$gif" | head -n 1 | grep -qx '73'
+          done
+      - name: Upload README turntable evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: readme-turntables
+          path: |
+            docs/images/generated/cloth-avatar-turntable.gif
+            docs/images/generated/cloth-simulation-arranged-turntable.gif
+            docs/images/generated/cloth-simulation-draped-turntable.gif
+            docs/images/generated/cloth-avatar-turntable-frames/frame-000.png
+            docs/images/generated/cloth-avatar-turntable-frames/frame-018.png
+            docs/images/generated/cloth-avatar-turntable-frames/frame-036.png
+            docs/images/generated/cloth-avatar-turntable-frames/frame-054.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-000.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-018.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-036.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-054.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-000.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-018.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-036.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-054.png
+            docs/images/generated/avatar-gui-progress.log
+            docs/images/generated/simulation-turntable-progress.log
+          if-no-files-found: ignore
+          compression-level: 1
+
+
+  gui-visual-examples:
+    name: Basic blanket visual example
+    needs: [local_runner_readiness]
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 15
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Stage workspace in Docker volume
+        run: |
+          set -euo pipefail
+          volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_IMAGE" -lc 'true')"
+          echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
+          echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
+          docker cp "$PWD/." "$carrier:/workspace/"
+
+      - name: Run blanket visual example
+        run: |
+          set -euo pipefail
+          rm -rf docs/images/generated/blanket-example
+          mkdir -p docs/images/generated/blanket-example
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e FREECAD_USER_HOME=/tmp/freecad-user \
+            -e FREECAD_USER_DATA=/tmp/freecad-user-data \
+            -e FREECAD_USER_TEMP=/tmp/freecad-user-temp \
+            -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
+            -e CLOTH_SIMULATION_BACKEND=xpbd-cpu \
+            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              rm -rf "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
+              mkdir -p "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP" "$XDG_RUNTIME_DIR" /workspace/docs/images/generated/blanket-example
+              rm -rf /tmp/freecad-mod
+              mkdir -p /tmp/freecad-mod/freecad-cloth
+              cp -a /workspace/Init.py /workspace/InitGui.py /workspace/package.xml /workspace/resources /workspace/freecad_cloth /tmp/freecad-mod/freecad-cloth/
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth /workspace/tests/freecad_visual_examples.py
+            '
+      - name: Restore workspace from Docker volume
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOCKER_WORKSPACE_CARRIER:-}" ]; then
+            exit 0
+          fi
+          docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
+          docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
+          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Validate blanket visual evidence
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          test -s docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'blanket-visual-acceptance=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'mesh=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'movement=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'material-presentation=passed viewport=true' docs/images/generated/blanket-example/blanket-visual.log
+          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'checkpoint-*.png' | wc -l)" -eq 5
+          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'motion-*.png' | wc -l)" -eq 16
+
+      - name: Build blanket motion GIF
+        run: |
+          set -euo pipefail
+          if command -v magick >/dev/null 2>&1; then
+            IM=(magick)
+          elif command -v convert >/dev/null 2>&1; then
+            IM=(convert)
+          else
+            sudo apt-get update
+            sudo apt-get install -y imagemagick
+            IM=(convert)
+          fi
+          "${IM[@]}" -delay 10 -loop 0 \
+            docs/images/generated/blanket-example/motion-*.png \
+            -colors 128 docs/images/generated/blanket-example/blanket-motion.gif
+          identify -format '%n\n' docs/images/generated/blanket-example/blanket-motion.gif | head -n 1 | grep -qx '16'
+          frame_delays="$(identify -format '%T\n' docs/images/generated/blanket-example/blanket-motion.gif | sort -u)"
+          test "$frame_delays" = "10"
+          test -s docs/images/generated/blanket-example/blanket-motion.gif
+      - name: Upload blanket visual evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: blanket-visual-example
+          path: |
+            docs/images/generated/blanket-example/*.png
+            docs/images/generated/blanket-example/blanket-motion.gif
+            docs/images/generated/blanket-example/blanket-visual.log
+          if-no-files-found: error
+          compression-level: 1
+  publish-readme-turntables:
+    name: Publish README turntables and example motion
+    needs: [local_runner_readiness, gui-tunic-visual, gui-turntables, gui-visual-examples]
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '') }}
+    permissions:
+      contents: write
+      packages: read
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 10
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - name: Download turntables
+        uses: actions/download-artifact@v6
+        with:
+          name: readme-turntables
+          path: turntables
+      - name: Download blanket visual example
+        uses: actions/download-artifact@v6
+        with:
+          name: blanket-visual-example
+          path: blanket
+      - name: Download tunic visual audit
+        uses: actions/download-artifact@v6
+        with:
+          name: tunic-visual-audit
+          path: tunic
+      - name: Update stable README asset branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" screenshot-repo
+          cd screenshot-repo
+          branch="docs/screenshots"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            git fetch origin "$branch"
+            git checkout -B "$branch" "origin/$branch"
+          else
+            git checkout -b "$branch"
+          fi
+          mkdir -p docs/images/generated
+          cp ../turntables/cloth-avatar-turntable.gif docs/images/generated/
+          cp ../turntables/cloth-simulation-arranged-turntable.gif docs/images/generated/
+          cp ../turntables/cloth-simulation-draped-turntable.gif docs/images/generated/
+          cp ../blanket/blanket-motion.gif docs/images/generated/cloth-blanket-motion.gif
+          cp ../tunic/docs/images/generated/cloth-simulation-draped-front.png docs/images/generated/cloth-simulation-draped-front.png
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/images/generated/cloth-avatar-turntable.gif \
+            docs/images/generated/cloth-simulation-arranged-turntable.gif \
+            docs/images/generated/cloth-simulation-draped-turntable.gif \
+            docs/images/generated/cloth-blanket-motion.gif \
+            docs/images/generated/cloth-simulation-draped-front.png
+          if git diff --cached --quiet; then
+            echo "README turntables are already current."
+            exit 0
+          fi
+          git commit -m "ci: publish stable README turntables"
+          git push origin "HEAD:$branch"
+  maintenance-cleanup:
+    name: Repository retention cleanup
+    if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * *' }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+    timeout-minutes: 10
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - name: Remove stale agent branches and old completed workflow runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH_RETENTION_DAYS: 14
+          RUN_RETENTION_DAYS: 30
+        run: |
+          set -euo pipefail
+          branch_cutoff="$(date -u -d "-${BRANCH_RETENTION_DAYS} days" +%s)"
+          run_cutoff="$(date -u -d "-${RUN_RETENTION_DAYS} days" +%s)"
+          open_heads="$(gh pr list --repo "$REPO" --state open --limit 100 --json headRefName --jq '.[].headRefName')"
+          gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name' |
+          while IFS= read -r branch_name; do
+            case "$branch_name" in
+              agent/*) ;;
+              *) continue ;;
+            esac
+            if printf '%s\n' "$open_heads" | grep -Fxq "$branch_name"; then
+              echo "Keeping open-PR branch: $branch_name"
+              continue
+            fi
+            sha="$(gh api "repos/$REPO/branches/$branch_name" --jq '.commit.sha')"
+            authored="$(gh api "repos/$REPO/commits/$sha" --jq '.commit.author.date // .commit.committer.date')"
+            authored_epoch="$(date -u -d "$authored" +%s)"
+            if [ "$authored_epoch" -lt "$branch_cutoff" ]; then
+              gh api --method DELETE "repos/$REPO/git/refs/heads/$branch_name"
+            fi
+          done
+          gh api --paginate "repos/$REPO/actions/runs?per_page=100&status=completed" |
+            jq -r '.workflow_runs[] | [.id, .created_at] | @tsv' |
+            while IFS=$'\t' read -r run_id created_at; do
+              created_epoch="$(date -u -d "$created_at" +%s)"
+              if [ "$created_epoch" -lt "$run_cutoff" ]; then
+                gh api --method DELETE "repos/$REPO/actions/runs/$run_id"
+              fi
+            done
+  benchmark:
+    name: Measured FreeCAD workbench benchmark
+    needs: [local_runner_readiness]
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 12
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Pull published FreeCAD image
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
+        run: |
+          set -euo pipefail
+          printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1
+          timeout --signal=TERM --kill-after=30s 10m docker pull "$IMAGE"
+      - name: Run isolated FreeCAD workbench measurements
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
+        run: |
+          set -uo pipefail
+          rm -rf artifacts/workbench-benchmark
+          mkdir -p artifacts/workbench-benchmark
+          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu -w /workspace "$IMAGE" -euo pipefail -c '
+            set -e
+            python3 -c "import tissu, pytest; print(\"Tissu\", tissu.__file__); print(\"pytest\", pytest.__version__)"
+            mkdir -p "$XDG_RUNTIME_DIR"
+            Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+            openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+            trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+            for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+            xdpyinfo -display :99 >/dev/null 2>&1
+            for wb in Pattern Sewing Simulation; do
+              echo "=== benchmark: $wb ==="
+              rm -f /tmp/cloth-benchmark-trace.log
+              CLOTH_BENCHMARK_WORKBENCH="$wb" CLOTH_BENCHMARK_OUTPUT="artifacts/workbench-benchmark/$wb.json" CLOTH_BENCHMARK_REPEATS=7 timeout --signal=TERM --kill-after=10s 180s /opt/freecad/AppRun tests/freecad_workbench_benchmark.py
+              test -s "artifacts/workbench-benchmark/$wb.json"
+            done
+          ')"
+          cleanup() {
+            set +e
+            docker cp "$CID:/workspace/artifacts/workbench-benchmark/." artifacts/workbench-benchmark/ 2>/dev/null || true
+            docker cp "$CID:/tmp/cloth-benchmark-trace.log" artifacts/workbench-benchmark/cloth-benchmark-trace.log 2>/dev/null || true
+            docker cp "$CID:/tmp/xvfb.log" artifacts/workbench-benchmark/xvfb.log 2>/dev/null || true
+            docker cp "$CID:/tmp/openbox.log" artifacts/workbench-benchmark/openbox.log 2>/dev/null || true
+            docker rm -f "$CID" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          docker cp "$PWD/." "$CID:/workspace/"
+          docker start -a "$CID"
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "FreeCAD benchmark failed with status $status"
+            exit "$status"
+          fi
+          docker cp "$CID:/workspace/artifacts/workbench-benchmark/." artifacts/workbench-benchmark/
+          docker cp "$CID:/tmp/cloth-benchmark-trace.log" artifacts/workbench-benchmark/cloth-benchmark-trace.log 2>/dev/null || true
+          docker cp "$CID:/tmp/xvfb.log" artifacts/workbench-benchmark/xvfb.log 2>/dev/null || true
+          python3 tools/merge_workbench_benchmark.py artifacts/workbench-benchmark
+      - name: Install plotting dependency
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/workbench-benchmark-venv"
+          "$RUNNER_TEMP/workbench-benchmark-venv/bin/python" -m pip install --disable-pip-version-check matplotlib
+      - name: Generate benchmark plots
+        run: |
+          "$RUNNER_TEMP/workbench-benchmark-venv/bin/python" tools/plot_workbench_benchmark.py artifacts/workbench-benchmark/benchmark.json artifacts/workbench-benchmark/plots
+      - name: Upload benchmark measurements and plots
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: workbench-benchmark
+          path: artifacts/workbench-benchmark
+          if-no-files-found: warn
+          compression-level: 1
+ artifacts/tissu-provenance.txt
+          grep -q '^tissu-cpp-regression-result=passed
+          set -euo pipefail
+          volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_IMAGE" -lc 'true')"
+          echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
+          echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
+          docker cp "$PWD/." "$carrier:/workspace/"
+
+      - name: Run staged creation smoke
+        run: |
+          set -euo pipefail
+          rm -rf artifacts
+          mkdir -p artifacts
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SEWING_SMOKE_LOG=/workspace/artifacts/sewing-creation-smoke.log \
+            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_sewing_creation_smoke.py
+              test -s /workspace/artifacts/sewing-creation-smoke.log
+            '
+      - name: Restore workspace from Docker volume
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOCKER_WORKSPACE_CARRIER:-}" ]; then
+            exit 0
+          fi
+          docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
+          docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
+          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Inspect smoke evidence
+        run: |
+          set -euo pipefail
+          grep -q 'preview-1to1=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'commit-1to1=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'cancel-1to1=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'selection-count-rejection=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'preview-mn=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'commit-mn=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'preview-free=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'commit-free=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'cancel-free=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'invalid-same-piece-preview=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'invalid-mn-partition-preview=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'curved-sampling=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'curved-mn=passed members=2,2 segments=3 physical-length=proportional' artifacts/sewing-creation-smoke.log
+          grep -q 'curved-mn-reversal=passed segments=3' artifacts/sewing-creation-smoke.log
+          grep -q 'correspondence-gui-evidence=passed severity=info' artifacts/sewing-creation-smoke.log
+          grep -q 'seam-visual-3d=passed' artifacts/sewing-creation-smoke.log
+          grep -q 'seam-visual-2d=passed top-view=true' artifacts/sewing-creation-smoke.log
+          grep -q 'curved-mn-save-reload=passed same-endpoint-pairs=true' artifacts/sewing-creation-smoke.log
+          grep -q 'stale-endpoint-invalidation=passed commit-blocked=true' artifacts/sewing-creation-smoke.log
+      - name: Upload sewing creation smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: sewing-creation-smoke
+          path: artifacts/sewing-creation-smoke.log
+          if-no-files-found: error
+          compression-level: 1
+
+  gui-sketcher-acceptance:
+    name: Native Sketcher seam presentation acceptance
+    needs: [local_runner_readiness]
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 10
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Stage workspace in Docker volume
+        run: |
+          set -euo pipefail
+          volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_IMAGE" -lc 'true')"
+          echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
+          echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
+          docker cp "$PWD/." "$carrier:/workspace/"
+
+      - name: Run native Sketcher acceptance
+        run: |
+          set -euo pipefail
+          rm -rf artifacts
+          mkdir -p artifacts
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e FREECAD_USER_HOME=/tmp/freecad-user \
+            -e FREECAD_USER_DATA=/tmp/freecad-user-data \
+            -e FREECAD_USER_TEMP=/tmp/freecad-user-temp \
+            -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e SKETCHER_STAGE_FILE=/workspace/artifacts/sketcher-stage.log \
+            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              rm -rf "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
+              mkdir -p "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP" "$XDG_RUNTIME_DIR" /workspace/artifacts
+              rm -rf /tmp/freecad-mod
+              mkdir -p /tmp/freecad-mod/freecad-cloth
+              cp -a /workspace/package.xml /workspace/resources /workspace/freecad_cloth /workspace/freecad /tmp/freecad-mod/freecad-cloth/
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_sketcher_acceptance.py > /workspace/artifacts/sketcher-acceptance.log 2>&1
+              grep -q "native Sketcher acceptance passed" /workspace/artifacts/sketcher-acceptance.log
+            '
+      - name: Restore workspace from Docker volume
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOCKER_WORKSPACE_CARRIER:-}" ]; then
+            exit 0
+          fi
+          docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
+          docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
+          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Inspect Sketcher evidence
+        run: |
+          set -euo pipefail
+          test -s artifacts/sketcher-acceptance.log
+          grep -q "native Sketcher acceptance passed" artifacts/sketcher-acceptance.log
+      - name: Upload Sketcher acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: sketcher-acceptance
+          path: |
+            artifacts/sketcher-acceptance.log
+            artifacts/sketcher-stage.log
+          if-no-files-found: error
+          compression-level: 1
+  gui-pattern-export:
+    name: Pattern production export smoke
+    needs: [local_runner_readiness]
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 10
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Stage workspace in Docker volume
+        run: |
+          set -euo pipefail
+          volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_IMAGE" -lc 'true')"
+          echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
+          echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
+          docker cp "$PWD/." "$carrier:/workspace/"
+
+      - name: Run public export smoke
+        run: |
+          set -euo pipefail
+          rm -rf artifacts
+          mkdir -p artifacts
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1             -e CLOTH_PATTERN_EXPORT_LOG=/workspace/artifacts/pattern-production-export.log             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_pattern_export_smoke.py
+              test -s /workspace/artifacts/pattern-production-export.log
+            '
+      - name: Restore workspace from Docker volume
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOCKER_WORKSPACE_CARRIER:-}" ]; then
+            exit 0
+          fi
+          docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
+          docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
+          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Inspect export evidence
+        run: |
+          set -euo pipefail
+          grep -q 'pattern-export=passed formats=SVG,DXF' artifacts/pattern-production-export.log
+          grep -q 'pattern-export-smoke=completed' artifacts/pattern-production-export.log
+      - name: Upload pattern export evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: pattern-production-export
+          path: artifacts/pattern-production-export.log
+          if-no-files-found: error
+          compression-level: 1
+
+  gui-tunic-visual:
+    name: Full tunic visual and simulation audit
+    needs: [local_runner_readiness]
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 20
+    env:
+      FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build patched FreeCAD image
+        run: |
+          set -euo pipefail
+          docker build --pull --progress=plain -t "$FREECAD_TUNIC_IMAGE" -f docker/freecad-ci/Dockerfile .
+      - name: Stage workspace in Docker volume
+        run: |
+          set -euo pipefail
+          volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_TUNIC_IMAGE" -lc 'true')"
+          echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
+          echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
+          docker cp "$PWD/." "$carrier:/workspace/"
+
+      - name: Run native-Sketcher tunic audit
+        env:
+          CLOTH_SIMULATION_BACKEND: tissu
+          CLOTH_TISSU_SUBSTEPS: 1
+          CLOTH_TISSU_COLLISION_MODE: mesh
+          CLOTH_TISSU_COLLISION_TRIANGLES: 2048
+        run: |
+          set -euo pipefail
+          rm -rf docs/images/generated
+          mkdir -p docs/images/generated
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
+            -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" \
+            -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
+            -e CLOTH_TISSU_COLLISION_TRIANGLES="$CLOTH_TISSU_COLLISION_TRIANGLES" \
+            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
+            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_TUNIC_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 12); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py
+              timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_realtime_benchmark.py
+            '
+      - name: Restore workspace from Docker volume
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOCKER_WORKSPACE_CARRIER:-}" ]; then
+            exit 0
+          fi
+          docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
+          docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
+          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Validate visual and simulation evidence
+        run: |
+          set -euo pipefail
+          test -s docs/images/generated/gui-progress.log
+          test -s artifacts/freecad-realtime/metrics.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          m = json.loads(Path("artifacts/freecad-realtime/metrics.json").read_text(encoding="utf-8"))
+          assert m["finite"], m
+          assert m["mean_frame_ms"] <= m["frame_budget_ms"], m
+          assert m["p95_frame_ms"] <= 50.0, m
+          print("realtime-performance=passed mean_frame_ms=%.2f p95_frame_ms=%.2f fps=%.2f particles=%d" % (m["mean_frame_ms"], m["p95_frame_ms"], m["fps_mean"], m["particles"]))
+          PY
+          grep -q 'scenario-pass' docs/images/generated/gui-progress.log
+          grep -q 'realtime-preview=passed backend=tissu' docs/images/generated/gui-progress.log
+          grep -q 'drape-metrics=' docs/images/generated/gui-progress.log
+          test -s docs/images/generated/cloth-simulation-draped.png
+          test -s docs/images/generated/cloth-simulation-draped-front.png
+          test -s docs/images/generated/cloth-simulation-draped-rear.png
+          test -s docs/images/generated/cloth-simulation-draped-left.png
+          test -s docs/images/generated/cloth-simulation-draped-right.png
+          test -s docs/images/generated/cloth-simulation-draped-top.png
+          test -s docs/images/generated/cloth-simulation-draped-bottom.png
+          test -s docs/images/generated/cloth-simulation-draped-diagnostics.png
+          grep -q 'diagnostic-map=passed metric=stress' docs/images/generated/gui-progress.log
+          grep -q 'diagnostic-stale-guard=passed' docs/images/generated/gui-progress.log
+          test -s artifacts/garment-e2e.log
+          grep -q 'staged-selection=passed' artifacts/garment-e2e.log
+          grep -q 'sewing-mn=passed sides=2,2 segments=2' artifacts/garment-e2e.log
+          grep -q 'sewing-mn-physical=passed curved-edge=true proportional=true' artifacts/garment-e2e.log
+          grep -q 'seam-markers=passed 3d-and-2d=true' artifacts/garment-e2e.log
+          grep -q 'arrangement=passed pieces=4' artifacts/garment-e2e.log
+          grep -q 'garment-hierarchy=passed groups=Patterns,Sewing,Fabric,Avatar,Simulation' artifacts/garment-e2e.log
+          grep -q 'material-presentation=passed native=true' artifacts/garment-e2e.log
+          grep -q 'drape-target=passed type=Mannequin' artifacts/garment-e2e.log
+          grep -q 'diagnostics=passed metric=stress' artifacts/garment-e2e.log
+          grep -q 'save-reload=passed pieces=4 seam=1to1 network=2segment' artifacts/garment-e2e.log
+          grep -q 'invalidation=passed seam=' artifacts/garment-e2e.log
+          grep -q 'invalidation-restore=passed seam=Valid' artifacts/garment-e2e.log
+          grep -q 'stale-export=blocked' artifacts/garment-e2e.log
+          grep -q 'diagnostics-after-invalidation=passed metric=stress' artifacts/garment-e2e.log
+          grep -q 'determinism-signature=passed' artifacts/garment-e2e.log
+          grep -q 'pattern-export=passed formats=SVG,DXF' artifacts/garment-e2e.log
+          grep -q 'canonical garment end-to-end acceptance passed' artifacts/garment-e2e.log
+      - name: Upload tunic visual audit
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: tunic-visual-audit
+          path: |
+            docs/images/generated/cloth-simulation-draped*.png
+            docs/images/generated/drape-visual-metrics.json
+            docs/images/generated/gui-progress.log
+            docs/images/generated/gui-screenshot-manifest.txt
+            artifacts/garment-e2e.log
+          if-no-files-found: error
+          compression-level: 1
+
+  gui-turntables:
+    name: README simulation turntable
+    needs: [local_runner_readiness]
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 25
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Stage workspace in Docker volume
+        run: |
+          set -euo pipefail
+          volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_IMAGE" -lc 'true')"
+          echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
+          echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
+          docker cp "$PWD/." "$carrier:/workspace/"
+
+      - name: Render avatar and blanket turntable frames
+        env:
+          CLOTH_SIMULATION_BACKEND: tissu
+          CLOTH_TISSU_SUBSTEPS: 10
+          CLOTH_TISSU_COLLISION_MODE: mesh
+        run: |
+          set -euo pipefail
+          rm -rf docs/images/generated
+          mkdir -p docs/images/generated
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
+            -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
+            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
+            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_avatar_screenshot.py
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_simulation_turntable.py
+            '
+      - name: Restore workspace from Docker volume
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOCKER_WORKSPACE_CARRIER:-}" ]; then
+            exit 0
+          fi
+          docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
+          docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
+          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Validate turntable frame counts on restored workspace
+        run: |
+          set -euo pipefail
+          test "$(find docs/images/generated/cloth-avatar-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
+          test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
+          test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
+
+      - name: Validate blanket motion and camera evidence
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, re
+          log = Path("docs/images/generated/simulation-turntable-progress.log").read_text(encoding="utf-8")
+          for marker in (
+              "stage=scene-build-pass",
+              "stage=arranged-render-pass",
+              "stage=simulation-pass",
+              "stage=validation-pass",
+              "stage=draped-render-pass",
+              "stage=total-pass",
+          ):
+            if marker not in log: raise SystemExit("missing timing marker: "+marker)
+          if "stage=validation-pass state=structurally-plausible" not in log:
+            raise SystemExit("drape gate did not remain structurally-plausible")
+          m = re.findall(r"blanket-motion-diagnostic max_centroid_displacement_mm=([+-]?[0-9.]+).*min_z_mm=([+-]?[0-9.]+).*cube_top_z_mm=([+-]?[0-9.]+)", log)
+          if not m: raise SystemExit("missing blanket motion diagnostic")
+          displacement, minimum_z, cube_top = (float(x) for x in m[-1])
+          if displacement < 40.0: raise SystemExit("blanket displacement below 40 mm")
+          if minimum_z > cube_top + 35.0: raise SystemExit("blanket did not approach cube")
+          if "blanket-turntable-pass" not in log: raise SystemExit("blanket turntable incomplete")
+          if "mesh-quality=passed" not in log: raise SystemExit("blanket mesh-quality evidence missing")
+          for directory in ("cloth-avatar-turntable-frames","cloth-simulation-arranged-turntable-frames","cloth-simulation-draped-turntable-frames"):
+            hashes=[]
+            frames=sorted((Path("docs/images/generated")/directory).glob("frame-*.png"))
+            if len(frames) != 73: raise SystemExit("unexpected frame count for "+directory)
+            for frame_path in frames:
+              hashes.append(hashlib.sha256(frame_path.read_bytes()).hexdigest())
+            if len(set(hashes)) != 73: raise SystemExit("all 73 frames are not distinct for "+directory)
+            checkpoints=[]
+            for frame in (0,18,36,54):
+              p=Path("docs/images/generated")/directory/("frame-%03d.png"%frame)
+              if not p.is_file(): raise SystemExit("missing "+str(p))
+              checkpoints.append(hashlib.sha256(p.read_bytes()).hexdigest())
+            if len(set(checkpoints)) != 4: raise SystemExit("camera checkpoints not distinct for "+directory)
+          PY
+      - name: Build README turntable GIFs
+        run: |
+          set -euo pipefail
+          if command -v magick >/dev/null 2>&1; then IM=(magick)
+          elif command -v convert >/dev/null 2>&1; then IM=(convert)
+          else sudo apt-get update && sudo apt-get install -y imagemagick && IM=(convert)
+          fi
+          for spec in \
+            "cloth-avatar-turntable-frames cloth-avatar-turntable.gif" \
+            "cloth-simulation-arranged-turntable-frames cloth-simulation-arranged-turntable.gif" \
+            "cloth-simulation-draped-turntable-frames cloth-simulation-draped-turntable.gif"; do
+            read -r frame_dir gif <<< "$spec"
+            "${IM[@]}" -delay 8 "docs/images/generated/$frame_dir"/frame-*.png \
+              -loop 0 -colors 128 \
+              "docs/images/generated/$gif"
+            test -s "docs/images/generated/$gif"
+            frame_delays="$(identify -format '%T\n' "docs/images/generated/$gif" | sort -u)"
+            test "$frame_delays" = "8"
+          done
+          for gif in \
+            docs/images/generated/cloth-avatar-turntable.gif \
+            docs/images/generated/cloth-simulation-arranged-turntable.gif \
+            docs/images/generated/cloth-simulation-draped-turntable.gif; do
+            identify -format '%n\n' "$gif" | head -n 1 | grep -qx '73'
+          done
+      - name: Upload README turntable evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: readme-turntables
+          path: |
+            docs/images/generated/cloth-avatar-turntable.gif
+            docs/images/generated/cloth-simulation-arranged-turntable.gif
+            docs/images/generated/cloth-simulation-draped-turntable.gif
+            docs/images/generated/cloth-avatar-turntable-frames/frame-000.png
+            docs/images/generated/cloth-avatar-turntable-frames/frame-018.png
+            docs/images/generated/cloth-avatar-turntable-frames/frame-036.png
+            docs/images/generated/cloth-avatar-turntable-frames/frame-054.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-000.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-018.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-036.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-054.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-000.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-018.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-036.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-054.png
+            docs/images/generated/avatar-gui-progress.log
+            docs/images/generated/simulation-turntable-progress.log
+          if-no-files-found: ignore
+          compression-level: 1
+
+
+  gui-visual-examples:
+    name: Basic blanket visual example
+    needs: [local_runner_readiness]
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 15
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Stage workspace in Docker volume
+        run: |
+          set -euo pipefail
+          volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_IMAGE" -lc 'true')"
+          echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
+          echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
+          docker cp "$PWD/." "$carrier:/workspace/"
+
+      - name: Run blanket visual example
+        run: |
+          set -euo pipefail
+          rm -rf docs/images/generated/blanket-example
+          mkdir -p docs/images/generated/blanket-example
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e FREECAD_USER_HOME=/tmp/freecad-user \
+            -e FREECAD_USER_DATA=/tmp/freecad-user-data \
+            -e FREECAD_USER_TEMP=/tmp/freecad-user-temp \
+            -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
+            -e CLOTH_SIMULATION_BACKEND=xpbd-cpu \
+            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              rm -rf "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
+              mkdir -p "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP" "$XDG_RUNTIME_DIR" /workspace/docs/images/generated/blanket-example
+              rm -rf /tmp/freecad-mod
+              mkdir -p /tmp/freecad-mod/freecad-cloth
+              cp -a /workspace/Init.py /workspace/InitGui.py /workspace/package.xml /workspace/resources /workspace/freecad_cloth /tmp/freecad-mod/freecad-cloth/
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth /workspace/tests/freecad_visual_examples.py
+            '
+      - name: Restore workspace from Docker volume
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOCKER_WORKSPACE_CARRIER:-}" ]; then
+            exit 0
+          fi
+          docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
+          docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
+          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Validate blanket visual evidence
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          test -s docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'blanket-visual-acceptance=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'mesh=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'movement=passed' docs/images/generated/blanket-example/blanket-visual.log
+          grep -q 'material-presentation=passed viewport=true' docs/images/generated/blanket-example/blanket-visual.log
+          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'checkpoint-*.png' | wc -l)" -eq 5
+          test "$(find docs/images/generated/blanket-example -maxdepth 1 -name 'motion-*.png' | wc -l)" -eq 16
+
+      - name: Build blanket motion GIF
+        run: |
+          set -euo pipefail
+          if command -v magick >/dev/null 2>&1; then
+            IM=(magick)
+          elif command -v convert >/dev/null 2>&1; then
+            IM=(convert)
+          else
+            sudo apt-get update
+            sudo apt-get install -y imagemagick
+            IM=(convert)
+          fi
+          "${IM[@]}" -delay 10 -loop 0 \
+            docs/images/generated/blanket-example/motion-*.png \
+            -colors 128 docs/images/generated/blanket-example/blanket-motion.gif
+          identify -format '%n\n' docs/images/generated/blanket-example/blanket-motion.gif | head -n 1 | grep -qx '16'
+          frame_delays="$(identify -format '%T\n' docs/images/generated/blanket-example/blanket-motion.gif | sort -u)"
+          test "$frame_delays" = "10"
+          test -s docs/images/generated/blanket-example/blanket-motion.gif
+      - name: Upload blanket visual evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: blanket-visual-example
+          path: |
+            docs/images/generated/blanket-example/*.png
+            docs/images/generated/blanket-example/blanket-motion.gif
+            docs/images/generated/blanket-example/blanket-visual.log
+          if-no-files-found: error
+          compression-level: 1
+  publish-readme-turntables:
+    name: Publish README turntables and example motion
+    needs: [local_runner_readiness, gui-tunic-visual, gui-turntables, gui-visual-examples]
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '') }}
+    permissions:
+      contents: write
+      packages: read
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 10
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - name: Download turntables
+        uses: actions/download-artifact@v6
+        with:
+          name: readme-turntables
+          path: turntables
+      - name: Download blanket visual example
+        uses: actions/download-artifact@v6
+        with:
+          name: blanket-visual-example
+          path: blanket
+      - name: Download tunic visual audit
+        uses: actions/download-artifact@v6
+        with:
+          name: tunic-visual-audit
+          path: tunic
+      - name: Update stable README asset branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" screenshot-repo
+          cd screenshot-repo
+          branch="docs/screenshots"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            git fetch origin "$branch"
+            git checkout -B "$branch" "origin/$branch"
+          else
+            git checkout -b "$branch"
+          fi
+          mkdir -p docs/images/generated
+          cp ../turntables/cloth-avatar-turntable.gif docs/images/generated/
+          cp ../turntables/cloth-simulation-arranged-turntable.gif docs/images/generated/
+          cp ../turntables/cloth-simulation-draped-turntable.gif docs/images/generated/
+          cp ../blanket/blanket-motion.gif docs/images/generated/cloth-blanket-motion.gif
+          cp ../tunic/docs/images/generated/cloth-simulation-draped-front.png docs/images/generated/cloth-simulation-draped-front.png
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/images/generated/cloth-avatar-turntable.gif \
+            docs/images/generated/cloth-simulation-arranged-turntable.gif \
+            docs/images/generated/cloth-simulation-draped-turntable.gif \
+            docs/images/generated/cloth-blanket-motion.gif \
+            docs/images/generated/cloth-simulation-draped-front.png
+          if git diff --cached --quiet; then
+            echo "README turntables are already current."
+            exit 0
+          fi
+          git commit -m "ci: publish stable README turntables"
+          git push origin "HEAD:$branch"
+  maintenance-cleanup:
+    name: Repository retention cleanup
+    if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * *' }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+    timeout-minutes: 10
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - name: Remove stale agent branches and old completed workflow runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH_RETENTION_DAYS: 14
+          RUN_RETENTION_DAYS: 30
+        run: |
+          set -euo pipefail
+          branch_cutoff="$(date -u -d "-${BRANCH_RETENTION_DAYS} days" +%s)"
+          run_cutoff="$(date -u -d "-${RUN_RETENTION_DAYS} days" +%s)"
+          open_heads="$(gh pr list --repo "$REPO" --state open --limit 100 --json headRefName --jq '.[].headRefName')"
+          gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name' |
+          while IFS= read -r branch_name; do
+            case "$branch_name" in
+              agent/*) ;;
+              *) continue ;;
+            esac
+            if printf '%s\n' "$open_heads" | grep -Fxq "$branch_name"; then
+              echo "Keeping open-PR branch: $branch_name"
+              continue
+            fi
+            sha="$(gh api "repos/$REPO/branches/$branch_name" --jq '.commit.sha')"
+            authored="$(gh api "repos/$REPO/commits/$sha" --jq '.commit.author.date // .commit.committer.date')"
+            authored_epoch="$(date -u -d "$authored" +%s)"
+            if [ "$authored_epoch" -lt "$branch_cutoff" ]; then
+              gh api --method DELETE "repos/$REPO/git/refs/heads/$branch_name"
+            fi
+          done
+          gh api --paginate "repos/$REPO/actions/runs?per_page=100&status=completed" |
+            jq -r '.workflow_runs[] | [.id, .created_at] | @tsv' |
+            while IFS=$'\t' read -r run_id created_at; do
+              created_epoch="$(date -u -d "$created_at" +%s)"
+              if [ "$created_epoch" -lt "$run_cutoff" ]; then
+                gh api --method DELETE "repos/$REPO/actions/runs/$run_id"
+              fi
+            done
+  benchmark:
+    name: Measured FreeCAD workbench benchmark
+    needs: [local_runner_readiness]
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 12
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Pull published FreeCAD image
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
+        run: |
+          set -euo pipefail
+          printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1
+          timeout --signal=TERM --kill-after=30s 10m docker pull "$IMAGE"
+      - name: Run isolated FreeCAD workbench measurements
+        env:
+          IMAGE: ${{ env.FREECAD_IMAGE }}
+        run: |
+          set -uo pipefail
+          rm -rf artifacts/workbench-benchmark
+          mkdir -p artifacts/workbench-benchmark
+          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu -w /workspace "$IMAGE" -euo pipefail -c '
+            set -e
+            python3 -c "import tissu, pytest; print(\"Tissu\", tissu.__file__); print(\"pytest\", pytest.__version__)"
+            mkdir -p "$XDG_RUNTIME_DIR"
+            Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+            openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+            trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+            for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+            xdpyinfo -display :99 >/dev/null 2>&1
+            for wb in Pattern Sewing Simulation; do
+              echo "=== benchmark: $wb ==="
+              rm -f /tmp/cloth-benchmark-trace.log
+              CLOTH_BENCHMARK_WORKBENCH="$wb" CLOTH_BENCHMARK_OUTPUT="artifacts/workbench-benchmark/$wb.json" CLOTH_BENCHMARK_REPEATS=7 timeout --signal=TERM --kill-after=10s 180s /opt/freecad/AppRun tests/freecad_workbench_benchmark.py
+              test -s "artifacts/workbench-benchmark/$wb.json"
+            done
+          ')"
+          cleanup() {
+            set +e
+            docker cp "$CID:/workspace/artifacts/workbench-benchmark/." artifacts/workbench-benchmark/ 2>/dev/null || true
+            docker cp "$CID:/tmp/cloth-benchmark-trace.log" artifacts/workbench-benchmark/cloth-benchmark-trace.log 2>/dev/null || true
+            docker cp "$CID:/tmp/xvfb.log" artifacts/workbench-benchmark/xvfb.log 2>/dev/null || true
+            docker cp "$CID:/tmp/openbox.log" artifacts/workbench-benchmark/openbox.log 2>/dev/null || true
+            docker rm -f "$CID" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          docker cp "$PWD/." "$CID:/workspace/"
+          docker start -a "$CID"
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "FreeCAD benchmark failed with status $status"
+            exit "$status"
+          fi
+          docker cp "$CID:/workspace/artifacts/workbench-benchmark/." artifacts/workbench-benchmark/
+          docker cp "$CID:/tmp/cloth-benchmark-trace.log" artifacts/workbench-benchmark/cloth-benchmark-trace.log 2>/dev/null || true
+          docker cp "$CID:/tmp/xvfb.log" artifacts/workbench-benchmark/xvfb.log 2>/dev/null || true
+          python3 tools/merge_workbench_benchmark.py artifacts/workbench-benchmark
+      - name: Install plotting dependency
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/workbench-benchmark-venv"
+          "$RUNNER_TEMP/workbench-benchmark-venv/bin/python" -m pip install --disable-pip-version-check matplotlib
+      - name: Generate benchmark plots
+        run: |
+          "$RUNNER_TEMP/workbench-benchmark-venv/bin/python" tools/plot_workbench_benchmark.py artifacts/workbench-benchmark/benchmark.json artifacts/workbench-benchmark/plots
+      - name: Upload benchmark measurements and plots
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: workbench-benchmark
+          path: artifacts/workbench-benchmark
+          if-no-files-found: warn
+          compression-level: 1
+ artifacts/tissu-provenance.txt
+
       - name: Stage workspace in Docker volume
         run: |
           set -euo pipefail
