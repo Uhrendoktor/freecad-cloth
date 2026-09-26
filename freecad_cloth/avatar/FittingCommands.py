@@ -505,9 +505,9 @@ def snap_pattern_pieces_to_target(
     if doc is None:
         raise ValueError("open a document before fitting garment pieces")
     scene = scene or _scene(doc)
-    if scene is None:
-        raise ValueError("create a fitting scene first")
-    target = target or getattr(scene, "DrapeTarget", None)
+    if scene is None and pieces is None:
+        raise ValueError("create a fitting scene or supply pattern pieces explicitly")
+    target = target or (getattr(scene, "DrapeTarget", None) if scene is not None else None)
     if target is None:
         raise ValueError("assign a persistent DrapeTarget before target-relative fitting")
     status = target_status(target)
@@ -536,9 +536,9 @@ def snap_pattern_pieces_to_target(
     piece_ids = {str(getattr(piece, "PieceId", piece.Name)) for piece in selected}
     if set(normalized_sides) != piece_ids:
         raise ValueError("side assignment must cover every selected pattern piece")
-    clearance = float(clearance if clearance is not None else getattr(scene, "TargetClearance", 20.0))
-    max_translation = float(max_translation if max_translation is not None else getattr(scene, "PlacementTranslationLimit", 1000.0))
-    max_rotation = float(max_rotation if max_rotation is not None else getattr(scene, "PlacementRotationLimit", 90.0))
+    clearance = float(clearance if clearance is not None else getattr(scene, "TargetClearance", 20.0) if scene is not None else 20.0)
+    max_translation = float(max_translation if max_translation is not None else getattr(scene, "PlacementTranslationLimit", 1000.0) if scene is not None else 1000.0)
+    max_rotation = float(max_rotation if max_rotation is not None else getattr(scene, "PlacementRotationLimit", 90.0) if scene is not None else 90.0)
     if clearance < 0 or max_translation <= 0 or max_rotation <= 0:
         raise ValueError("target-relative fitting bounds must be positive")
     surface = _target_world_surface(target)
@@ -563,7 +563,7 @@ def snap_pattern_pieces_to_target(
     common_dx = anchor_x - group_cx
     common_dz = group_target_cz - group_cz
     homes = {}
-    for value in getattr(scene, "HomePlacements", ()) or ():
+    for value in (getattr(scene, "HomePlacements", ()) if scene is not None else ()) or ():
         placement = PiecePlacement.from_string(value)
         homes[placement.piece_id] = placement
     updated = {}
@@ -595,11 +595,11 @@ def snap_pattern_pieces_to_target(
             (float(piece.Placement.Base.x), float(piece.Placement.Base.y), float(piece.Placement.Base.z)),
             float(piece.Placement.Rotation.Angle),
         )
-    for pid, placement in updated.items():
+    if scene is not None:
         existing = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)}
-        existing[pid] = placement
+        existing.update(updated)
         scene.PiecePlacements = [existing[k].to_string() for k in sorted(existing)]
-    scene.FitStatus = "Target-relative fit"
+        scene.FitStatus = "Target-relative fit"
     doc.recompute()
     report = target_relative_clearance_report(selected, target, normalized_sides, clearance)
     return report
