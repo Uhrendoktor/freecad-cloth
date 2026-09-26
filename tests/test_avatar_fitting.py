@@ -1,3 +1,4 @@
+import ast
 import json
 import os
 from pathlib import Path
@@ -23,6 +24,39 @@ class AvatarFittingTests(unittest.TestCase):
         sync_end = source.index("\n\ndef create_fitting_scene", sync_start)
         self.assertNotIn("Document.recompute()", source[sync_start:sync_end])
         self.assertIn("scene.Document.addObject", source[sync_start:sync_end])
+
+    def test_target_aware_clearance_assertion_runs_after_correction_path(self):
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        function = next(
+            node for node in tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == "target_aware_place_piece"
+        )
+        anchor_measure = next(
+            node for node in ast.walk(function)
+            if isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id == "anchor_clearance" for target in node.targets)
+            and isinstance(node.value, ast.Call)
+            and isinstance(node.value.func, ast.Name)
+            and node.value.func.id == "minimum_surface_clearance"
+        )
+        correction = next(
+            node for node in ast.walk(function)
+            if isinstance(node, ast.If)
+            and isinstance(node.test, ast.Compare)
+            and "piece_clearance" in ast.unparse(node.test)
+        )
+        anchor_assert = [
+            node for node in ast.walk(function)
+            if isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id == "anchor_clearance" for target in node.targets)
+            and isinstance(node.value, ast.Call)
+            and isinstance(node.value.func, ast.Name)
+            and node.value.func.id == "assert_minimum_surface_clearance"
+        ][0]
+        self.assertLess(anchor_measure.lineno, correction.lineno)
+        self.assertLess(correction.lineno, anchor_assert.lineno)
 
     def test_measurements_are_valid_and_canonical(self):
         measurements = BodyMeasurements({"waist": 760, "height": 1700, "chest": 900})
