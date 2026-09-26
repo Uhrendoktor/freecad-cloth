@@ -1,34 +1,214 @@
 diff --git a/core/include/physics/MeshCollider.hpp b/core/include/physics/MeshCollider.hpp
-index 4e6a5a1..8ad4c70 100644
 --- a/core/include/physics/MeshCollider.hpp
 +++ b/core/include/physics/MeshCollider.hpp
-@@ -30,6 +30,8 @@ private:
-     std::vector<Eigen::Vector3d> m_localVertices;
-     std::vector<Eigen::Vector3d> m_worldVertices;
-     std::vector<Triangle> m_triangles;
+@@ -1,43 +1,45 @@
+-#pragma once
+-
+-#include <array>
+-#include <vector>
+-
+-#include "data-structures/BVH.hpp"
+-#include "math/Types.hpp"
+-#include "physics/Collider.hpp"
+-
+-namespace Tissu {
+-
+-class MeshCollider : public Collider {
+-public:
+-    MeshCollider(const std::string& meshPath, double friction);
+-
+-    MeshCollider(const std::vector<Eigen::Vector3d>& vertices,
+-                 const std::vector<std::array<int, 3>>& triangles,
+-                 double friction);
+-
+-    void resolve(std::vector<Particle>& particles, double dt,
+-                 double thickness) override;
+-
+-    void transform(const Eigen::Vector3d& position,
+-                   const Eigen::Quaterniond& rotation) override;
+-
+-    const std::string& getMeshPath() const { return m_meshPath; }
+-
+-    /** @brief World-space transformed vertices (updated by transform()). */
+-    const std::vector<Eigen::Vector3d>& getWorldVertices() const {
+-        return m_worldVertices;
+-    }
+-    /** @brief Triangle index list matching getWorldVertices(). */
+-    const std::vector<Triangle>& getTriangles() const { return m_triangles; }
+-
+-private:
+-    std::string m_meshPath;
+-    std::vector<Eigen::Vector3d> m_localVertices;
+-    std::vector<Eigen::Vector3d> m_worldVertices;
+-    std::vector<Triangle> m_triangles;
+-    BVH m_bvh;
+-};
+-
+-} // namespace Tissu
++#pragma once
++
++#include <array>
++#include <vector>
++
++#include "data-structures/BVH.hpp"
++#include "math/Types.hpp"
++#include "physics/Collider.hpp"
++
++namespace Tissu {
++
++class MeshCollider : public Collider {
++public:
++    MeshCollider(const std::string& meshPath, double friction);
++
++    MeshCollider(const std::vector<Eigen::Vector3d>& vertices,
++                 const std::vector<std::array<int, 3>>& triangles,
++                 double friction);
++
++    void resolve(std::vector<Particle>& particles, double dt,
++                 double thickness) override;
++
++    void transform(const Eigen::Vector3d& position,
++                   const Eigen::Quaterniond& rotation) override;
++
++    const std::string& getMeshPath() const { return m_meshPath; }
++
++    /** @brief World-space transformed vertices (updated by transform()). */
++    const std::vector<Eigen::Vector3d>& getWorldVertices() const {
++        return m_worldVertices;
++    }
++    /** @brief Triangle index list matching getWorldVertices(). */
++    const std::vector<Triangle>& getTriangles() const { return m_triangles; }
++
++private:
++    std::string m_meshPath;
++    std::vector<Eigen::Vector3d> m_localVertices;
++    std::vector<Eigen::Vector3d> m_worldVertices;
++    std::vector<Triangle> m_triangles;
 +    bool m_closedManifold = false;
 +    double m_outwardNormalSign = 1.0;
-     BVH m_bvh;
- };
- 
++    BVH m_bvh;
++};
++
++} // namespace Tissu
 diff --git a/core/src/physics/MeshCollider.cpp b/core/src/physics/MeshCollider.cpp
-index a0b83a8..5c7b6f9 100644
 --- a/core/src/physics/MeshCollider.cpp
 +++ b/core/src/physics/MeshCollider.cpp
-@@ -1,8 +1,43 @@
- #include "physics/MeshCollider.hpp"
- 
- #include "io/OBJLoader.hpp"
- #include "math/Geometry.hpp"
- #include "physics/Particle.hpp"
- 
+@@ -1,102 +1,196 @@
+-#include "physics/MeshCollider.hpp"
+-
+-#include "io/OBJLoader.hpp"
+-#include "math/Geometry.hpp"
+-#include "physics/Particle.hpp"
+-
+-namespace Tissu {
+-
+-MeshCollider::MeshCollider(const std::string& meshPath, double friction)
+-    : m_meshPath(meshPath) {
+-    m_friction = friction;
+-
+-    std::vector<Eigen::Vector3d> positions;
+-    std::vector<int> indices;
+-
+-    if (!OBJLoader::load(meshPath, positions, indices))
+-        throw std::runtime_error("Could not load mesh: " + meshPath);
+-
+-    m_localVertices = positions;
+-    m_worldVertices = positions;
+-
+-    m_triangles.reserve(indices.size() / 3);
+-    for (size_t i = 0; i + 2 < indices.size(); i += 3)
+-        m_triangles.emplace_back(indices[i], indices[i + 1], indices[i + 2]);
+-
+-    m_bvh.build(m_worldVertices, m_triangles);
+-}
+-
+-MeshCollider::MeshCollider(const std::vector<Eigen::Vector3d>& vertices,
+-                           const std::vector<std::array<int, 3>>& triangles,
+-                           double friction)
+-    : m_localVertices(vertices), m_worldVertices(vertices) {
+-    m_friction = friction;
+-
+-    m_triangles.reserve(triangles.size());
+-    for (const auto& tri : triangles) {
+-        m_triangles.emplace_back(tri[0], tri[1], tri[2]);
+-    }
+-
+-    m_bvh.build(m_worldVertices, m_triangles);
+-}
+-
+-void MeshCollider::transform(const Eigen::Vector3d& position,
+-                             const Eigen::Quaterniond& rotation) {
+-    Collider::transform(position, rotation);
+-
+-    for (size_t i = 0; i < m_localVertices.size(); ++i)
+-        m_worldVertices[i] = rotation * m_localVertices[i] + position;
+-
+-    m_bvh.build(m_worldVertices, m_triangles);
+-}
+-
+-void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
+-                           double thickness) {
+-    Eigen::Vector3d linearVel = getLinearVelocity(dt);
+-    Eigen::Vector3d omega = getAngularVelocity(dt);
+-
+-    for (auto& particle : particles) {
+-        int triIdx =
+-            m_bvh.closestTriangle(particle.getPosition(), m_worldVertices);
+-        if (triIdx == -1)
+-            continue;
+-
+-        const Triangle& tri = m_bvh.getTriangle(triIdx);
+-        const Eigen::Vector3d& a = m_worldVertices[tri.a];
+-        const Eigen::Vector3d& b = m_worldVertices[tri.b];
+-        const Eigen::Vector3d& c = m_worldVertices[tri.c];
+-
+-        Eigen::Vector3d cp =
+-            closestPointOnTriangle(particle.getPosition(), a, b, c);
+-        Eigen::Vector3d toParticle = particle.getPosition() - cp;
+-        double distance = toParticle.norm();
+-
+-        if (distance <= thickness) {
+-            Eigen::Vector3d normal = (distance > 1e-6)
+-                                         ? toParticle.normalized()
+-                                         : ((b - a).cross(c - a)).normalized();
+-
+-            Eigen::Vector3d newPosition = cp + normal * thickness;
+-            particle.setPosition(newPosition);
+-
+-            Eigen::Vector3d colliderVelocity =
+-                linearVel + omega.cross(newPosition - m_position);
+-            Eigen::Vector3d colliderDisplacement = colliderVelocity * dt;
+-            Eigen::Vector3d particleDisplacement =
+-                particle.getPosition() - particle.getOldPosition();
+-            Eigen::Vector3d relDisplacement =
+-                particleDisplacement - colliderDisplacement;
+-
+-            double normalVelMag = relDisplacement.dot(normal);
+-            Eigen::Vector3d normalVel = normal * normalVelMag;
+-            Eigen::Vector3d tangentVel = relDisplacement - normalVel;
+-
+-            Eigen::Vector3d newVelocity =
+-                normalVel + tangentVel * (1.0 - m_friction);
+-
+-            particle.setOldPosition(particle.getPosition() - newVelocity);
+-        }
+-    }
+-}
+-
+-} // namespace Tissu
++#include "physics/MeshCollider.hpp"
++
++#include "io/OBJLoader.hpp"
++#include "math/Geometry.hpp"
++#include "physics/Particle.hpp"
++
 +#include <algorithm>
 +#include <cmath>
 +#include <cstdint>
 +#include <unordered_map>
 +
- namespace Tissu {
- 
++namespace Tissu {
++
 +namespace {
 +
 +struct MeshOrientation {
@@ -75,8 +255,7 @@ index a0b83a8..5c7b6f9 100644
 +            const auto key = edgeKey(from, to);
 +            auto& edge = edges[key];
 +            ++edge.first;
-+            edge.second +=
-+                from == std::min(from, to) ? 1 : -1;
++            edge.second += from == std::min(from, to) ? 1 : -1;
 +        }
 +    }
 +
@@ -91,40 +270,84 @@ index a0b83a8..5c7b6f9 100644
 +    return {true, signedVolume > 0.0 ? 1.0 : -1.0};
 +}
 +
- MeshCollider::MeshCollider(const std::string& meshPath, double friction)
-     : m_meshPath(meshPath) {
-     m_friction = friction;
-@@ -20,6 +55,10 @@ MeshCollider::MeshCollider(const std::string& meshPath, double friction)
-         m_triangles.emplace_back(indices[i], indices[i + 1], indices[i + 2]);
- 
++
++
++MeshCollider::MeshCollider(const std::string& meshPath, double friction)
++    : m_meshPath(meshPath) {
++    m_friction = friction;
++
++    std::vector<Eigen::Vector3d> positions;
++    std::vector<int> indices;
++
++    if (!OBJLoader::load(meshPath, positions, indices))
++        throw std::runtime_error("Could not load mesh: " + meshPath);
++
++    m_localVertices = positions;
++    m_worldVertices = positions;
++
++    m_triangles.reserve(indices.size() / 3);
++    for (size_t i = 0; i + 2 < indices.size(); i += 3)
++        m_triangles.emplace_back(indices[i], indices[i + 1], indices[i + 2]);
++
 +    const MeshOrientation orientation =
 +        inferMeshOrientation(m_worldVertices, m_triangles);
 +    m_closedManifold = orientation.closedManifold;
 +    m_outwardNormalSign = orientation.outwardNormalSign;
 +
-     m_bvh.build(m_worldVertices, m_triangles);
- }
- 
-@@ -34,6 +73,10 @@ MeshCollider::MeshCollider(const std::vector<Eigen::Vector3d>& vertices,
-         m_triangles.emplace_back(tri[0], tri[1], tri[2]);
-     }
- 
++    m_bvh.build(m_worldVertices, m_triangles);
++}
++
++MeshCollider::MeshCollider(const std::vector<Eigen::Vector3d>& vertices,
++                           const std::vector<std::array<int, 3>>& triangles,
++                           double friction)
++    : m_localVertices(vertices), m_worldVertices(vertices) {
++    m_friction = friction;
++
++    m_triangles.reserve(triangles.size());
++    for (const auto& tri : triangles) {
++        m_triangles.emplace_back(tri[0], tri[1], tri[2]);
++    }
++
 +    const MeshOrientation orientation =
 +        inferMeshOrientation(m_worldVertices, m_triangles);
 +    m_closedManifold = orientation.closedManifold;
 +    m_outwardNormalSign = orientation.outwardNormalSign;
 +
-     m_bvh.build(m_worldVertices, m_triangles);
- }
- 
-@@ -56,14 +99,31 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
-         Eigen::Vector3d toParticle = particle.getPosition() - cp;
-         double distance = toParticle.norm();
- 
-         if (distance <= thickness) {
--            Eigen::Vector3d normal = (distance > 1e-6)
--                                         ? toParticle.normalized()
--                                         : ((b - a).cross(c - a)).normalized();
++    m_bvh.build(m_worldVertices, m_triangles);
++}
++
++void MeshCollider::transform(const Eigen::Vector3d& position,
++                             const Eigen::Quaterniond& rotation) {
++    Collider::transform(position, rotation);
++
++    for (size_t i = 0; i < m_localVertices.size(); ++i)
++        m_worldVertices[i] = rotation * m_localVertices[i] + position;
++
++    m_bvh.build(m_worldVertices, m_triangles);
++}
++
++void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
++                           double thickness) {
++    Eigen::Vector3d linearVel = getLinearVelocity(dt);
++    Eigen::Vector3d omega = getAngularVelocity(dt);
++
++    for (auto& particle : particles) {
++        int triIdx =
++            m_bvh.closestTriangle(particle.getPosition(), m_worldVertices);
++        if (triIdx == -1)
++            continue;
++
++        const Triangle& tri = m_bvh.getTriangle(triIdx);
++        const Eigen::Vector3d& a = m_worldVertices[tri.a];
++        const Eigen::Vector3d& b = m_worldVertices[tri.b];
++        const Eigen::Vector3d& c = m_worldVertices[tri.c];
++
++        Eigen::Vector3d cp =
++            closestPointOnTriangle(particle.getPosition(), a, b, c);
++        Eigen::Vector3d toParticle = particle.getPosition() - cp;
++        double distance = toParticle.norm();
++
++        if (distance <= thickness) {
 +            Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
 +            const double faceNormalLength = faceNormalRaw.norm();
 +            if (faceNormalLength <= 1e-12)
@@ -138,37 +361,212 @@ index a0b83a8..5c7b6f9 100644
 +                if (m_closedManifold) {
 +                    const Eigen::Vector3d outwardNormal =
 +                        faceNormal * m_outwardNormalSign;
-+                    // A particle on the interior side of a closed, consistently
-+                    // oriented surface must be resolved along the outward
-+                    // normal; outside contact preserves the existing vector.
 +                    if (normal.dot(outwardNormal) < 0.0)
 +                        normal = -normal;
 +                }
 +            } else if (m_closedManifold) {
 +                normal *= m_outwardNormalSign;
 +            }
- 
-             Eigen::Vector3d newPosition = cp + normal * thickness;
-             particle.setPosition(newPosition);
++
++            Eigen::Vector3d newPosition = cp + normal * thickness;
++            particle.setPosition(newPosition);
++
++            Eigen::Vector3d colliderVelocity =
++                linearVel + omega.cross(newPosition - m_position);
++            Eigen::Vector3d colliderDisplacement = colliderVelocity * dt;
++            Eigen::Vector3d particleDisplacement =
++                particle.getPosition() - particle.getOldPosition();
++            Eigen::Vector3d relDisplacement =
++                particleDisplacement - colliderDisplacement;
++
++            double normalVelMag = relDisplacement.dot(normal);
++            Eigen::Vector3d normalVel = normal * normalVelMag;
++            Eigen::Vector3d tangentVel = relDisplacement - normalVel;
++
++            Eigen::Vector3d newVelocity =
++                normalVel + tangentVel * (1.0 - m_friction);
++
++            particle.setOldPosition(particle.getPosition() - newVelocity);
++        }
++    }
++}
++
++} // namespace Tissu
 diff --git a/tests/physics/test_mesh_collider.cpp b/tests/physics/test_mesh_collider.cpp
-index 8bd3bc7..43d4c0f 100644
 --- a/tests/physics/test_mesh_collider.cpp
 +++ b/tests/physics/test_mesh_collider.cpp
-@@ -1,5 +1,35 @@
- #include <vector>
- 
- #include "Eigen/Dense"
- #include "physics/MeshCollider.hpp"
- #include "physics/Particle.hpp"
- #include "gtest/gtest.h"
- 
- using namespace Tissu;
- 
- static MeshCollider makeTetrahedron(double friction = 0.0) {
-@@ -15,6 +45,27 @@ static MeshCollider makeTetrahedron(double friction = 0.0) {
-     return MeshCollider(vertices, triangles, friction);
- }
- 
+@@ -1,161 +1,223 @@
+-#include <vector>
+-
+-#include "Eigen/Dense"
+-#include "physics/MeshCollider.hpp"
+-#include "physics/Particle.hpp"
+-#include "gtest/gtest.h"
+-
+-using namespace Tissu;
+-
+-static MeshCollider makeTetrahedron(double friction = 0.0) {
+-    std::vector<Eigen::Vector3d> vertices = {
+-        {0.0, 0.0, 0.0},
+-        {2.0, 0.0, 0.0},
+-        {1.0, 0.0, 2.0},
+-        {1.0, 2.0, 1.0},
+-    };
+-    std::vector<std::array<int, 3>> triangles = {
+-        {0, 2, 1},
+-        {0, 1, 3},
+-        {1, 2, 3},
+-        {0, 3, 2},
+-    };
+-    return MeshCollider(vertices, triangles, friction);
+-}
+-
+-TEST(MeshCollider, ParticleInsideMeshMovesOutside) {
+-    MeshCollider mesh = makeTetrahedron(0.5);
+-
+-    Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
+-    std::vector<Particle> particles;
+-    particles.emplace_back(initialPos);
+-
+-    mesh.resolve(particles, 0.016, 1.0);
+-
+-    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
+-    EXPECT_GT(distanceMoved, 0.0);
+-}
+-
+-TEST(MeshCollider, ParticleOutsideMeshDoesNotChangePosition) {
+-    MeshCollider mesh = makeTetrahedron(0.0);
+-
+-    Eigen::Vector3d initialPos(100.0, 100.0, 100.0);
+-    std::vector<Particle> particles;
+-    particles.emplace_back(initialPos);
+-
+-    mesh.resolve(particles, 0.016, 0.0);
+-
+-    EXPECT_EQ(particles[0].getPosition(), initialPos);
+-}
+-
+-TEST(MeshCollider, ParticleInThicknessRangeIsProjectedOutside) {
+-    MeshCollider mesh = makeTetrahedron(0.0);
+-
+-    Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
+-    std::vector<Particle> particles;
+-    particles.emplace_back(initialPos);
+-
+-    mesh.resolve(particles, 0.016, 2.0);
+-
+-    double distance = (particles[0].getPosition() - initialPos).norm();
+-    EXPECT_GT(distance, 0.0);
+-}
+-
+-TEST(MeshCollider, MultipleParticlesAreAllResolved) {
+-    MeshCollider mesh = makeTetrahedron(0.0);
+-
+-    std::vector<Particle> particles;
+-    particles.emplace_back(Eigen::Vector3d(1.0, 0.5, 0.75));
+-    particles.emplace_back(Eigen::Vector3d(100.0, 100.0, 100.0));
+-    particles.emplace_back(Eigen::Vector3d(0.5, 0.25, 0.375));
+-    particles.emplace_back(Eigen::Vector3d(1.0, 1.0, 1.0));
+-
+-    mesh.resolve(particles, 0.016, 1.0);
+-
+-    EXPECT_NE(particles[0].getPosition(), particles[0].getOldPosition());
+-    EXPECT_EQ(particles[1].getPosition(), particles[1].getOldPosition());
+-    EXPECT_NE(particles[2].getPosition(), particles[2].getOldPosition());
+-}
+-
+-TEST(MeshCollider, FullFrictionCancelsTangentialVelocity) {
+-    MeshCollider mesh = makeTetrahedron(1.0);
+-
+-    Eigen::Vector3d pos(1.0, -0.01, 0.75);
+-    std::vector<Particle> particles;
+-    particles.emplace_back(pos);
+-    particles[0].setOldPosition(Eigen::Vector3d(0.0, -0.01, 0.75));
+-
+-    mesh.resolve(particles, 0.016, 0.1);
+-
+-    double velocityX =
+-        particles[0].getPosition().x() - particles[0].getOldPosition().x();
+-    double velocityZ =
+-        particles[0].getPosition().z() - particles[0].getOldPosition().z();
+-
+-    EXPECT_NEAR(velocityX, 0.0, 1e-9);
+-    EXPECT_NEAR(velocityZ, 0.0, 1e-9);
+-}
+-
+-TEST(MeshCollider, NoFrictionDoesNotChangeTangentialVelocity) {
+-    MeshCollider mesh = makeTetrahedron(0.0);
+-
+-    Eigen::Vector3d pos(1.0, -0.01, 0.75);
+-    std::vector<Particle> particles;
+-    particles.emplace_back(pos);
+-    particles[0].setOldPosition(Eigen::Vector3d(0.0, -0.01, 0.75));
+-
+-    mesh.resolve(particles, 0.016, 0.1);
+-
+-    double velocityX =
+-        particles[0].getPosition().x() - particles[0].getOldPosition().x();
+-
+-    EXPECT_NEAR(velocityX, 1.0, 1e-6);
+-}
+-
+-TEST(MeshCollider, TransformMovesMeshAndAffectsResolution) {
+-    MeshCollider mesh = makeTetrahedron(0.0);
+-
+-    Eigen::Vector3d insidePos(1.0, 0.5, 0.75);
+-
+-    std::vector<Particle> beforeParticles;
+-    beforeParticles.emplace_back(insidePos);
+-    mesh.resolve(beforeParticles, 0.016, 1.0);
+-    bool movedBefore =
+-        (beforeParticles[0].getPosition() - insidePos).norm() > 0.0;
+-
+-    MeshCollider transformed = makeTetrahedron(0.0);
+-    transformed.transform(Eigen::Vector3d(10.0, 10.0, 10.0),
+-                          Eigen::Quaterniond::Identity());
+-
+-    std::vector<Particle> afterParticles;
+-    afterParticles.emplace_back(insidePos);
+-    transformed.resolve(afterParticles, 0.016, 1.0);
+-    bool movedAfter =
+-        (afterParticles[0].getPosition() - insidePos).norm() > 0.0;
+-
+-    EXPECT_TRUE(movedBefore);
+-    EXPECT_FALSE(movedAfter);
+-}
+-
+-TEST(MeshCollider, TransformWithRotationWorks) {
+-    MeshCollider mesh = makeTetrahedron(0.0);
+-
+-    Eigen::Vector3d insidePos(1.0, 0.5, 0.75);
+-    std::vector<Particle> beforeParticles;
+-    beforeParticles.emplace_back(insidePos);
+-    mesh.resolve(beforeParticles, 0.016, 1.0);
+-    bool movedBefore =
+-        (beforeParticles[0].getPosition() - insidePos).norm() > 0.0;
+-
+-    MeshCollider rotated = makeTetrahedron(0.0);
+-    Eigen::Quaterniond rot(Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitY()));
+-    rotated.transform(Eigen::Vector3d(0.0, 0.0, 0.0), rot);
+-
+-    EXPECT_TRUE(movedBefore);
+-
+-    std::vector<Particle> rotatedParticles;
+-    rotatedParticles.emplace_back(Eigen::Vector3d(-1.0, 0.5, -0.75));
+-    rotated.resolve(rotatedParticles, 0.016, 1.0);
+-    EXPECT_NE(rotatedParticles[0].getPosition(),
+-              rotatedParticles[0].getOldPosition());
+-}
++#include <array>
++#include <vector>
++
++#include "Eigen/Dense"
++#include "physics/MeshCollider.hpp"
++#include "physics/Particle.hpp"
++#include "gtest/gtest.h"
++
++using namespace Tissu;
++
 +static bool tetrahedronContains(const Eigen::Vector3d& point) {
 +    const std::vector<Eigen::Vector3d> vertices = {
 +        {0.0, 0.0, 0.0},
@@ -199,17 +597,34 @@ index 8bd3bc7..43d4c0f 100644
 +    return true;
 +}
 +
- TEST(MeshCollider, ParticleInsideMeshMovesOutside) {
-     MeshCollider mesh = makeTetrahedron(0.5);
- 
-     Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
-     std::vector<Particle> particles;
-     particles.emplace_back(initialPos);
- 
-     mesh.resolve(particles, 0.016, 1.0);
- 
-     double distanceMoved = (particles[0].getPosition() - initialPos).norm();
-     EXPECT_GT(distanceMoved, 0.0);
++static MeshCollider makeTetrahedron(double friction = 0.0) {
++    std::vector<Eigen::Vector3d> vertices = {
++        {0.0, 0.0, 0.0},
++        {2.0, 0.0, 0.0},
++        {1.0, 0.0, 2.0},
++        {1.0, 2.0, 1.0},
++    };
++    std::vector<std::array<int, 3>> triangles = {
++        {0, 2, 1},
++        {0, 1, 3},
++        {1, 2, 3},
++        {0, 3, 2},
++    };
++    return MeshCollider(vertices, triangles, friction);
++}
++
++TEST(MeshCollider, ParticleInsideMeshMovesOutside) {
++    MeshCollider mesh = makeTetrahedron(0.5);
++
++    Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
++    EXPECT_TRUE(tetrahedronContains(initialPos));
++    std::vector<Particle> particles;
++    particles.emplace_back(initialPos);
++
++    mesh.resolve(particles, 0.016, 1.0);
++
++    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
++    EXPECT_GT(distanceMoved, 0.0);
 +    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
 +}
 +
@@ -240,7 +655,128 @@ index 8bd3bc7..43d4c0f 100644
 +    mesh.resolve(particles, 0.016, 0.1);
 +
 +    EXPECT_GT(particles[0].getPosition().y(), initialPos.y());
- }
- 
- TEST(MeshCollider, ParticleOutsideMeshDoesNotChangePosition) {
-     MeshCollider mesh = makeTetrahedron(0.0);
++}
++
++TEST(MeshCollider, ParticleOutsideMeshDoesNotChangePosition) {
++    MeshCollider mesh = makeTetrahedron(0.0);
++
++    Eigen::Vector3d initialPos(100.0, 100.0, 100.0);
++    std::vector<Particle> particles;
++    particles.emplace_back(initialPos);
++
++    mesh.resolve(particles, 0.016, 0.0);
++
++    EXPECT_EQ(particles[0].getPosition(), initialPos);
++}
++
++TEST(MeshCollider, ParticleInThicknessRangeIsProjectedOutside) {
++    MeshCollider mesh = makeTetrahedron(0.0);
++
++    Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
++    std::vector<Particle> particles;
++    particles.emplace_back(initialPos);
++
++    mesh.resolve(particles, 0.016, 2.0);
++
++    double distance = (particles[0].getPosition() - initialPos).norm();
++    EXPECT_GT(distance, 0.0);
++}
++
++TEST(MeshCollider, MultipleParticlesAreAllResolved) {
++    MeshCollider mesh = makeTetrahedron(0.0);
++
++    std::vector<Particle> particles;
++    particles.emplace_back(Eigen::Vector3d(1.0, 0.5, 0.75));
++    particles.emplace_back(Eigen::Vector3d(100.0, 100.0, 100.0));
++    particles.emplace_back(Eigen::Vector3d(0.5, 0.25, 0.375));
++    particles.emplace_back(Eigen::Vector3d(1.0, 1.0, 1.0));
++
++    mesh.resolve(particles, 0.016, 1.0);
++
++    EXPECT_NE(particles[0].getPosition(), particles[0].getOldPosition());
++    EXPECT_EQ(particles[1].getPosition(), particles[1].getOldPosition());
++    EXPECT_NE(particles[2].getPosition(), particles[2].getOldPosition());
++}
++
++TEST(MeshCollider, FullFrictionCancelsTangentialVelocity) {
++    MeshCollider mesh = makeTetrahedron(1.0);
++
++    Eigen::Vector3d pos(1.0, -0.01, 0.75);
++    std::vector<Particle> particles;
++    particles.emplace_back(pos);
++    particles[0].setOldPosition(Eigen::Vector3d(0.0, -0.01, 0.75));
++
++    mesh.resolve(particles, 0.016, 0.1);
++
++    double velocityX =
++        particles[0].getPosition().x() - particles[0].getOldPosition().x();
++    double velocityZ =
++        particles[0].getPosition().z() - particles[0].getOldPosition().z();
++
++    EXPECT_NEAR(velocityX, 0.0, 1e-9);
++    EXPECT_NEAR(velocityZ, 0.0, 1e-9);
++}
++
++TEST(MeshCollider, NoFrictionDoesNotChangeTangentialVelocity) {
++    MeshCollider mesh = makeTetrahedron(0.0);
++
++    Eigen::Vector3d pos(1.0, -0.01, 0.75);
++    std::vector<Particle> particles;
++    particles.emplace_back(pos);
++    particles[0].setOldPosition(Eigen::Vector3d(0.0, -0.01, 0.75));
++
++    mesh.resolve(particles, 0.016, 0.1);
++
++    double velocityX =
++        particles[0].getPosition().x() - particles[0].getOldPosition().x();
++
++    EXPECT_NEAR(velocityX, 1.0, 1e-6);
++}
++
++TEST(MeshCollider, TransformMovesMeshAndAffectsResolution) {
++    MeshCollider mesh = makeTetrahedron(0.0);
++
++    Eigen::Vector3d insidePos(1.0, 0.5, 0.75);
++
++    std::vector<Particle> beforeParticles;
++    beforeParticles.emplace_back(insidePos);
++    mesh.resolve(beforeParticles, 0.016, 1.0);
++    bool movedBefore =
++        (beforeParticles[0].getPosition() - insidePos).norm() > 0.0;
++
++    MeshCollider transformed = makeTetrahedron(0.0);
++    transformed.transform(Eigen::Vector3d(10.0, 10.0, 10.0),
++                          Eigen::Quaterniond::Identity());
++
++    std::vector<Particle> afterParticles;
++    afterParticles.emplace_back(insidePos);
++    transformed.resolve(afterParticles, 0.016, 1.0);
++    bool movedAfter =
++        (afterParticles[0].getPosition() - insidePos).norm() > 0.0;
++
++    EXPECT_TRUE(movedBefore);
++    EXPECT_FALSE(movedAfter);
++}
++
++TEST(MeshCollider, TransformWithRotationWorks) {
++    MeshCollider mesh = makeTetrahedron(0.0);
++
++    Eigen::Vector3d insidePos(1.0, 0.5, 0.75);
++    std::vector<Particle> beforeParticles;
++    beforeParticles.emplace_back(insidePos);
++    mesh.resolve(beforeParticles, 0.016, 1.0);
++    bool movedBefore =
++        (beforeParticles[0].getPosition() - insidePos).norm() > 0.0;
++
++    MeshCollider rotated = makeTetrahedron(0.0);
++    Eigen::Quaterniond rot(Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitY()));
++    rotated.transform(Eigen::Vector3d(0.0, 0.0, 0.0), rot);
++
++    EXPECT_TRUE(movedBefore);
++
++    std::vector<Particle> rotatedParticles;
++    rotatedParticles.emplace_back(Eigen::Vector3d(-1.0, 0.5, -0.75));
++    rotated.resolve(rotatedParticles, 0.016, 1.0);
++    EXPECT_NE(rotatedParticles[0].getPosition(),
++              rotatedParticles[0].getOldPosition());
++}
