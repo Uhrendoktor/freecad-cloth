@@ -59,6 +59,29 @@ def test_authored_containment_closed_mesh_orientation_and_correction():
         assert not containment.contains((12.0, 5.0, 5.0))
 
 
+def test_authored_containment_normal_is_outward_for_reversed_winding():
+    from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
+    from freecad_cloth.simulation.TissuContainment import AuthoredSurfaceContainment
+
+    surface = _cube_surface(thickness=2.0)
+    reversed_surface = surface_from_triangles(
+        surface.vertices,
+        tuple(tuple(reversed(triangle)) for triangle in surface.triangles),
+        region="reversed-cube",
+        thickness=2.0,
+    )
+    containment = AuthoredSurfaceContainment(reversed_surface)
+    assert containment.contains((5.0, 5.0, 5.0))
+    closest, normal, distance_sq, triangle_index = containment.nearest_surface_point(
+        (9.0, 5.0, 5.0)
+    )
+    assert closest == (10.0, 5.0, 5.0)
+    assert normal == (1.0, 0.0, 0.0)
+    assert distance_sq == 1.0
+    assert triangle_index in {6, 7}
+    assert containment.correct((9.0, 5.0, 5.0)) == (12.0, 5.0, 5.0)
+
+
 def test_authored_containment_rejects_open_and_caches_authority():
     from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
     from freecad_cloth.simulation.TissuContainment import (
