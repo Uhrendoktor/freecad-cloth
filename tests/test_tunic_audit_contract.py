@@ -111,7 +111,5 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
 
 
 # Research-only direct execution from the existing canonical Python job.
-import os as _os
-if _os.environ.get("CLOTH_RUN_1670_PROBE") == "1":
-    import subprocess as _subprocess
-    _subprocess.run(["python3", str(ROOT / "tools" / "research_closed_mesh_containment_1670.py")], check=True)
+import subprocess as _subprocess
+_subprocess.run(["python3", str(ROOT / "tools" / "research_closed_mesh_containment_1670.py")], check=True)
