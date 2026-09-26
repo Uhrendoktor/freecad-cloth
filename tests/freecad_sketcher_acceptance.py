@@ -382,6 +382,15 @@ def run_acceptance():
                     changed_seam = next((obj for obj in reloaded.Objects if getattr(obj, "SeamId", "") == seam_id), None)
                     if changed_seam is None:
                         raise RuntimeError("seam did not survive save/reload")
+                    from freecad_cloth.sewing.SewingView import seam_color_map
+                    expected_reloaded_seam_rgb = tuple(seam_color_map([seam_id])[seam_id])
+                    actual_reloaded_seam_rgb = tuple(changed_seam.ViewObject.LineColor[:3])
+                    if any(abs(actual - expected) > 1e-6 for actual, expected in zip(actual_reloaded_seam_rgb, expected_reloaded_seam_rgb)):
+                        raise RuntimeError("seam color did not survive save/reload: actual=%r expected=%r" % (actual_reloaded_seam_rgb, expected_reloaded_seam_rgb))
+                    reloaded.recompute()
+                    actual_recomputed_seam_rgb = tuple(changed_seam.ViewObject.LineColor[:3])
+                    if any(abs(actual - expected) > 1e-6 for actual, expected in zip(actual_recomputed_seam_rgb, expected_reloaded_seam_rgb)):
+                        raise RuntimeError("seam color was lost on recompute: actual=%r expected=%r" % (actual_recomputed_seam_rgb, expected_reloaded_seam_rgb))
                     if str(changed_seam.Status) == "Valid":
                         raise RuntimeError("native Sketcher edit did not invalidate downstream seam")
                     _record("reload-and-invalidation-passed")
