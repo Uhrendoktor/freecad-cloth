@@ -110,6 +110,7 @@ def plan_target_relative_placement(
     clearance: float,
     max_translation: float,
     max_rotation: float,
+    anchor_position: Vector3 = None,
 ) -> PlacementPlan:
     direction = str(wrap_direction).strip().lower()
     if direction not in VALID_WRAP_DIRECTIONS:
@@ -132,20 +133,23 @@ def plan_target_relative_placement(
         0.5 * (ty_min + ty_max),
         0.5 * (tz_min + tz_max),
     )
+    anchor = target_center if anchor_position is None else tuple(float(v) for v in anchor_position)
+    if len(anchor) != 3:
+        raise ValueError("anchor position must contain three coordinates")
     piece_center = (0.5 * (px_min + px_max), 0.5 * (py_min + py_max), 0.0)
     rotation = compose_side_rotation(direction)
     rotated_center = _quat_rotate(rotation, piece_center)
 
     if direction == "front":
-        anchor = (target_center[0], ty_min - float(clearance), target_center[2])
+        target_anchor = (anchor[0], ty_min - float(clearance), anchor[2])
     elif direction == "back":
-        anchor = (target_center[0], ty_max + float(clearance), target_center[2])
+        target_anchor = (anchor[0], ty_max + float(clearance), anchor[2])
     elif direction == "left":
-        anchor = (tx_min - float(clearance), target_center[1], target_center[2])
+        target_anchor = (tx_min - float(clearance), anchor[1], anchor[2])
     else:
-        anchor = (tx_max + float(clearance), target_center[1], target_center[2])
+        target_anchor = (tx_max + float(clearance), anchor[1], anchor[2])
 
-    position = tuple(anchor[i] - rotated_center[i] for i in range(3))
+    position = tuple(target_anchor[i] - rotated_center[i] for i in range(3))
     translation = sqrt(sum((position[i] - float(home_position[i])) ** 2 for i in range(3)))
     if translation > float(max_translation) + 1e-9:
         raise ValueError(
