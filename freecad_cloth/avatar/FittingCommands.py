@@ -318,7 +318,13 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=7
         raise ValueError("all target-arranged pieces must belong to the fitting scene")
 
     home_before = tuple(scene.HomePlacements)
+    fit_status_before = str(getattr(scene, "FitStatus", ""))
     placement_before = {piece: piece.Placement for piece in selected}
+    sketch_before = {
+        piece: getattr(getattr(piece, "Sketch", None), "Placement", None)
+        for piece in selected
+        if getattr(piece, "Sketch", None) is not None
+    }
     persisted_before = tuple(scene.PiecePlacements)
     results = []
 
@@ -341,10 +347,14 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=7
 
             placement = piece.Placement
             base = placement.Base
-            piece.Placement = App.Placement(
+            updated = App.Placement(
                 App.Vector(float(base.x) + delta[0], float(base.y) + delta[1], float(base.z) + delta[2]),
                 placement.Rotation,
             )
+            piece.Placement = updated
+            sketch = getattr(piece, "Sketch", None)
+            if sketch is not None:
+                sketch.Placement = updated
             total_travel = travel
             report = minimum_signed_clearance(_piece_world_samples(piece, sample_deflection), surface)
 
@@ -362,7 +372,7 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=7
                 current = piece.Placement
                 current_base = current.Base
                 correction_delta = tuple(direction[i] * correction for i in range(3))
-                piece.Placement = App.Placement(
+                corrected = App.Placement(
                     App.Vector(
                         float(current_base.x) + correction_delta[0],
                         float(current_base.y) + correction_delta[1],
@@ -370,6 +380,10 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=7
                     ),
                     current.Rotation,
                 )
+                piece.Placement = corrected
+                sketch = getattr(piece, "Sketch", None)
+                if sketch is not None:
+                    sketch.Placement = corrected
                 total_travel += correction
                 report = minimum_signed_clearance(_piece_world_samples(piece, sample_deflection), surface)
 
@@ -408,9 +422,14 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=7
     except BaseException:
         for piece, original in placement_before.items():
             piece.Placement = original
+        for piece, original in sketch_before.items():
+            sketch = getattr(piece, "Sketch", None)
+            if sketch is not None and original is not None:
+                sketch.Placement = original
         scene.PiecePlacements = list(persisted_before)
         if tuple(scene.HomePlacements) != home_before:
             scene.HomePlacements = list(home_before)
+        scene.FitStatus = fit_status_before
         doc.recompute()
         raise
 
@@ -560,7 +579,11 @@ def reset_arrangement():
         if piece is None:
             continue
         x, y, z = placement.position
-        piece.Placement = App.Placement(App.Vector(x, y, z), App.Rotation(App.Vector(0, 0, 1), placement.rotation_z))
+        restored = App.Placement(App.Vector(x, y, z), App.Rotation(App.Vector(0, 0, 1), placement.rotation_z))
+        piece.Placement = restored
+        sketch = getattr(piece, "Sketch", None)
+        if sketch is not None:
+            sketch.Placement = restored
         current[pid] = placement
     scene.PiecePlacements = [current[k].to_string() for k in sorted(current)]
     scene.FitStatus = "Arrangement reset"
