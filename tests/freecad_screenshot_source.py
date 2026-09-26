@@ -457,6 +457,7 @@ def simulation():
             "canonical tunic step-0 target clearance is below configured separation: "
             "%.2f mm < %.2f mm" % (float(initial_clearance or 0.0), float(clearance))
         )
+    log("target-arrangement=passed clearance-mm=%.2f" % float(initial_clearance))
     log("pin-mode=None solver-pins=0")
     log("target-collision-mode=mesh")
     log("step0-target-vertex-clearance-mm=%.2f required-mm=%.2f" % (float(initial_clearance), float(clearance)))
