@@ -204,3 +204,12 @@ def test_pattern_drafting_remains_compatibility_only():
 
 
 print("GUI structure checks passed")
+
+
+def test_common_workbench_activation_refreshes_seam_presentation():
+    root = Path(__file__).resolve().parents[1]
+    gui_source = (root / "freecad_cloth" / "gui.py").read_text(encoding="utf-8")
+    simulation = (root / "freecad_cloth" / "simulation" / "workbench.py").read_text(encoding="utf-8")
+    assert "from freecad_cloth.sewing.SewingView import refresh_seam_colors" in gui_source
+    assert "return refresh_seam_colors()" in gui_source
+    assert "super().Activated()" in simulation
