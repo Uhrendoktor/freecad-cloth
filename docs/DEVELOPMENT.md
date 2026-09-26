@@ -30,7 +30,7 @@ The dispatched PR validation run forces `runner_mode=hosted` and checks out `ref
 
 Trusted `push`, schedule, and manual `workflow_dispatch` runs retain the existing local-first router. It uses the dedicated `CLOTH_RUNNER_DISCOVERY_TOKEN` rather than `GITHUB_TOKEN` for repository runner discovery, logs API failures instead of treating them as an empty runner list, and falls back to `ubuntu-latest` when the credential is unavailable, the API fails, or no idle matching runner exists.
 
-The runner discovery API is not used by the public-PR broker.
+The runner discovery API is not used by the public-PR broker. The `runner_router` job is skipped for `pull_request_target`, so the broker cannot cause downstream self-hosted execution.
 
 The canonical FreeCAD test image is Python 3.12-based; a CI run that starts FreeCAD under Python <3.12 is unsupported.
 
