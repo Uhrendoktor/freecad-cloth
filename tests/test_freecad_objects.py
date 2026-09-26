@@ -328,6 +328,7 @@ def _make_target_snap_fixture(name, linked_target=True):
         App.Rotation(App.Vector(0.0, 0.0, 1.0), 25.0),
     )
     world_center = source.Placement.multVec(App.Vector(20.0, 20.0, 20.0))
+    world_top = source.Placement.multVec(App.Vector(20.0, 20.0, 40.0))
     sketch = document.addObject("Part::Feature", "PatternSketch")
     sketch.Shape = Part.Shape()
     piece = document.addObject("Part::Feature", "PatternPiece")
@@ -336,7 +337,7 @@ def _make_target_snap_fixture(name, linked_target=True):
     piece.addProperty("App::PropertyLink", "Sketch", "Pattern").Sketch = sketch
     piece.Shape = Part.makeBox(10.0, 10.0, 2.0, App.Vector(-5.0, -5.0, -1.0))
     piece.Placement = App.Placement(
-        world_center,
+        App.Vector(world_top.x, world_top.y, world_top.z + 1.0),
         App.Rotation(App.Vector(1.0, 0.0, 0.0), 90.0),
     )
     sketch.Placement = piece.Placement
