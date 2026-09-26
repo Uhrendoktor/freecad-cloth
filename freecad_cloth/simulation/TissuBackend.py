@@ -119,13 +119,9 @@ def _closest_point_on_triangle(point, a, b, c):
 def _build_signed_collision_bvh(surface, leaf_size=8):
     import numpy as np
 
-    vertices = np.asarray(
-        [_to_tissu_position(vertex) for vertex in surface.vertices],
-        dtype=np.float64,
-    )
-    raw_triangles = np.asarray(surface.triangles, dtype=np.int32)
-    # Match the authoritative Tissu mesh registration exactly, including its Y/Z handedness reversal.
-    triangle_points = vertices[raw_triangles[:, [0, 2, 1]]]
+    mesh_vertices, mesh_triangles = _to_tissu_mesh(surface)
+    vertices = np.asarray(mesh_vertices, dtype=np.float64)
+    triangle_points = vertices[np.asarray(mesh_triangles, dtype=np.int32)]
     normals = np.cross(
         triangle_points[:, 1] - triangle_points[:, 0],
         triangle_points[:, 2] - triangle_points[:, 0],
