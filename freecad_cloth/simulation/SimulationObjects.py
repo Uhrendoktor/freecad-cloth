@@ -367,6 +367,15 @@ def _collision_for_scene(obj):
     return None
 
 
+def _solver_collision_surface(proxy):
+    """Return the backend-owned Tissu surface while preserving authoritative state."""
+    authoritative = getattr(proxy, "collision_surface", None)
+    backend = getattr(proxy, "backend", None)
+    if getattr(backend, "name", "") == "tissu":
+        return getattr(backend, "_collision_surface", authoritative)
+    return authoritative
+
+
 class SimulationProxy:
     Type = "ClothSimulation"
 
@@ -420,7 +429,7 @@ class SimulationProxy:
                     float(obj.TimeStep), int(obj.Iterations),
                     (float(obj.GravityX), float(obj.GravityY), float(obj.GravityZ)),
                     fallback_sphere,
-                    getattr(self, "collision_surface", None),
+                    _solver_collision_surface(self),
                 )
             self.last_steps = steps
         positions = self.backend.positions()
