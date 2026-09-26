@@ -369,10 +369,12 @@ def simulation():
         raise RuntimeError("drape target has no collision vertices near the avatar chest arrangement point")
     target_front_y = min(float(vertex[1]) for vertex in chest_vertices)
     target_back_y = max(float(vertex[1]) for vertex in chest_vertices)
-    front_y = target_front_y - clearance; back_y = target_back_y + clearance; rot = App.Rotation(App.Vector(1,0,0), 90.0)
+    initial_front_y = target_front_y + min(3.0, max(1.0, 0.25 * clearance))
+    initial_back_y = target_back_y - min(3.0, max(1.0, 0.25 * clearance))
+    rot = App.Rotation(App.Vector(1,0,0), 90.0)
     def make_piece(name, y, neckline_ratio, neckline_drop):
         sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot); piece.Sketch.Placement = piece.Placement; return piece, outline
-    front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)
+    front, front_outline = make_piece("VisualTunicFront", initial_front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", initial_back_y, 0.64, 0.07)
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
     for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
@@ -380,15 +382,62 @@ def simulation():
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
-    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.AutomaticPins = False; scene.PinSelection = []; scene.ClothPieces = [front, back]; doc.recompute()
+    from freecad_cloth.avatar.FittingCommands import create_fitting_scene, add_selected_pattern_pieces, reset_arrangement, snap_piece_to_drape_target, _world_shape
+    fitting = create_fitting_scene()
+    fitting.AvatarProxy = scene.AvatarProxy
+    fitting.DrapeTarget = target
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(front)
+    Gui.Selection.addSelection(back)
+    add_selected_pattern_pieces()
+    home_placements = {str(piece.PieceId): piece.Placement for piece in (front, back)}
+    snap_results = {}
+    for piece in (front, back):
+        snap_results[str(piece.PieceId)] = snap_piece_to_drape_target(
+            piece, target=target, clearance=clearance, max_translation=240.0
+        )
+    if any(float(result["translation"]) <= 0.0 for result in snap_results.values()):
+        raise RuntimeError("target-relative tunic snap did not move the deliberately intersecting start")
+    for piece in (front, back):
+        distance = float(_world_shape(piece).distToShape(_world_shape(target.SourceObject))[0])
+        if distance + 1e-6 < clearance:
+            raise RuntimeError("target-relative tunic placement lacks required source-shape clearance")
+    log("step0-target-clearance=passed front=%.3f back=%.3f" % (
+        float(snap_results[str(front.PieceId)]["distance_after"]),
+        float(snap_results[str(back.PieceId)]["distance_after"]),
+    ))
+    reset_arrangement()
+    for piece in (front, back):
+        original = home_placements[str(piece.PieceId)]
+        restored = piece.Placement
+        if (
+            abs(float(restored.Base.x) - float(original.Base.x)) > 1e-6
+            or abs(float(restored.Base.y) - float(original.Base.y)) > 1e-6
+            or abs(float(restored.Base.z) - float(original.Base.z)) > 1e-6
+            or abs(float(restored.Rotation.Angle) - float(original.Rotation.Angle)) > 1e-6
+            or abs(float(restored.Rotation.Axis.x) - float(original.Rotation.Axis.x)) > 1e-6
+            or abs(float(restored.Rotation.Axis.y) - float(original.Rotation.Axis.y)) > 1e-6
+            or abs(float(restored.Rotation.Axis.z) - float(original.Rotation.Axis.z)) > 1e-6
+        ):
+            raise RuntimeError("target-relative placement did not restore HomePlacement exactly")
+    for piece in (front, back):
+        snap_piece_to_drape_target(piece, target=target, clearance=clearance, max_translation=240.0)
+    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.AutomaticPins = False; scene.PinSelection = []; scene.ClothPieces = [front, back]; scene.DrapeTarget = target; doc.recompute()
     proxy = scene.Proxy
-    positions = tuple(proxy.backend.positions())
-    if str(getattr(getattr(proxy, "backend", None), "name", "")) == "tissu":
-        if tuple(getattr(proxy.backend, "_pin_indices", ())):
-            raise RuntimeError("visual tunic simulation unexpectedly created solver pins")
-        if str(getattr(proxy.backend, "_collision_mode", "")) != "mesh":
-            raise RuntimeError("visual tunic Tissu backend is not using exact target mesh collision")
-    log("pin-policy automatic=%s explicit=%s collision=%s" % (bool(scene.AutomaticPins), tuple(scene.PinSelection), getattr(proxy.backend, "_collision_mode", "solver-default"))); doc.recompute()
+    backend = getattr(proxy, "backend", None)
+    pin_records = tuple(
+        getattr(backend, "_pins", ())
+        or getattr(backend, "_pin_indices", ())
+        or tuple(getattr(getattr(backend, "system", None), "pins", {}).keys())
+    )
+    if pin_records:
+        raise RuntimeError("visual tunic simulation unexpectedly created solver pins: %s" % (pin_records,))
+    if str(getattr(backend, "name", "")) == "tissu" and str(getattr(backend, "_collision_mode", "")) != "mesh":
+        raise RuntimeError("visual tunic Tissu backend is not using exact target mesh collision")
+    log("pin-policy automatic=%s explicit=%s solver-pins=%s collision=%s" % (
+        bool(scene.AutomaticPins), tuple(scene.PinSelection), pin_records,
+        getattr(backend, "_collision_mode", "solver-default"),
+    )); doc.recompute()
     for source in (doc.getObject("VisualTunicFront"), doc.getObject("VisualTunicBack")):
         if source is not None: source.ViewObject.Visibility = False
         sketch = getattr(source, "Sketch", None) if source is not None else None
