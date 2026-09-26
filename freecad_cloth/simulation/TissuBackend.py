@@ -36,28 +36,211 @@ def _tissu_authored_containment_enabled():
     return os.environ.get("CLOTH_TISSU_AUTHORED_CONTAINMENT", "0").strip() == "1"
 
 
-def _apply_authored_containment_correction(sim, containment):
-    import numpy as np
-    from math import sqrt
+def _build_stitch_components(stitches, particle_count):
+    parent = list(range(int(particle_count)))
+
+    def find(index):
+        root = index
+        while parent[root] != root:
+            root = parent[root]
+        while parent[index] != index:
+            next_index = parent[index]
+            parent[index] = root
+            index = next_index
+        return root
+
+    for left, right in stitches:
+        left = int(left)
+        right = int(right)
+        if not (0 <= left < particle_count and 0 <= right < particle_count):
+            raise ValueError("Tissu stitch particle index out of range")
+        left_root = find(left)
+        right_root = find(right)
+        if left_root != right_root:
+            parent[right_root] = left_root
+
+    groups = {}
+    for index in range(particle_count):
+        groups.setdefault(find(index), []).append(index)
+    return tuple(
+        tuple(sorted(indices))
+        for indices in groups.values()
+        if len(indices) > 1
+    )
+
+
+def _vector_length(vector):
+    return sqrt(sum(float(component) ** 2 for component in vector))
+
+
+def _to_tissu_vector(vector_mm):
+    x, y, z = vector_mm
+    return (float(x) / _MM, float(z) / _MM, float(y) / _MM)
+
+
+def _vector_add(left, right):
+    return tuple(float(left[index]) + float(right[index]) for index in range(3))
+
+
+def _vector_sub(left, right):
+    return tuple(float(left[index]) - float(right[index]) for index in range(3))
+
+
+def _apply_authored_containment_correction(
+    sim,
+    containment,
+    stitch_components=(),
+    pinned_indices=(),
+):
+    particles = sim.solver.get_particles()
+    particle_count = len(particles)
+    positions_mm = [_from_tissu_position(particle.get_position()) for particle in particles]
+    old_positions_tissu = [tuple(float(value) for value in particle.get_old_position()) for particle in particles]
+    inverse_mass = [float(particle.get_inverse_mass()) for particle in particles]
+    pinned = {int(index) for index in pinned_indices}
 
     corrected = 0
     max_correction_mm = 0.0
-    particles = sim.solver.get_particles()
-    for particle in particles:
-        if float(particle.get_inverse_mass()) <= 0.0:
-            continue
-        position_mm = _from_tissu_position(particle.get_position())
-        corrected_mm = containment.correct(position_mm)
-        if corrected_mm is None:
-            continue
-        displacement_mm = sqrt(
-            sum((float(corrected_mm[index]) - float(position_mm[index])) ** 2 for index in range(3))
+    corrected_indices = set()
+
+    self_stitches = tuple(self._current_stitches)
+    component_edges = {
+        tuple(sorted((int(left), int(right))))
+        for left, right in self_stitches
+    }
+
+    def apply_rigid_component(component):
+        component = tuple(component)
+        if any(index in pinned or inverse_mass[index] <= 0.0 for index in component):
+            return 0, 0.0
+        candidate_deltas = []
+        for index in component:
+            target = containment.correct(positions_mm[index])
+            if target is not None:
+                candidate_deltas.append(
+                    _vector_sub(target, positions_mm[index])
+                )
+        if not candidate_deltas:
+            return 0, 0.0
+
+        mean_delta = tuple(
+            sum(delta[axis] for delta in candidate_deltas) / len(candidate_deltas)
+            for axis in range(3)
         )
-        corrected_position = np.asarray(_to_tissu_position(corrected_mm), dtype=np.float64)
-        particle.set_position(corrected_position)
-        particle.set_old_position(corrected_position)
+        candidates = [mean_delta]
+        candidates.extend(candidate_deltas)
+        candidates = sorted(
+            enumerate(candidates),
+            key=lambda item: (_vector_length(item[1]), item[0]),
+        )
+
+        chosen = None
+        for _candidate_index, delta in candidates:
+            moved_positions = {
+                index: _vector_add(positions_mm[index], delta)
+                for index in component
+            }
+            if all(not containment.contains(value) for value in moved_positions.values()):
+                chosen = delta
+                break
+        if chosen is None:
+            return 0, 0.0
+
+        seam_before = {
+            edge: _vector_length(
+                _vector_sub(positions_mm[edge[0]], positions_mm[edge[1]])
+            )
+            for edge in component_edges
+            if edge[0] in component_set and edge[1] in component_set
+        }
+        saved_current = {
+            index: tuple(float(value) for value in particles[index].get_position())
+            for index in component
+        }
+        saved_old = {
+            index: tuple(float(value) for value in particles[index].get_old_position())
+            for index in component
+        }
+        delta_tissu = _to_tissu_vector(chosen)
+
+        for index in component:
+            new_position_mm = _vector_add(positions_mm[index], chosen)
+            new_position_tissu = tuple(
+                float(value) for value in _to_tissu_position(new_position_mm)
+            )
+            new_old_tissu = _vector_add(old_positions_tissu[index], delta_tissu)
+            particles[index].set_position(new_position_tissu)
+            particles[index].set_old_position(new_old_tissu)
+
+        seam_after = {
+            edge: _vector_length(
+                _vector_sub(
+                    _from_tissu_position(particles[edge[0]].get_position()),
+                    _from_tissu_position(particles[edge[1]].get_position()),
+                )
+            )
+            for edge in seam_before
+        }
+        outside_after = all(
+            not containment.contains(_from_tissu_position(particles[index].get_position()))
+            for index in component
+        )
+        seam_preserved = all(
+            seam_after[edge] <= seam_before[edge] + 1.0e-9
+            for edge in seam_before
+        )
+        if not outside_after or not seam_preserved:
+            for index in component:
+                particles[index].set_position(saved_current[index])
+                particles[index].set_old_position(saved_old[index])
+            return 0, 0.0
+
+        displacement = _vector_length(chosen)
+        for index in component:
+            positions_mm[index] = _vector_add(positions_mm[index], chosen)
+            old_positions_tissu[index] = _vector_add(old_positions_tissu[index], delta_tissu)
+            corrected_indices.add(index)
+        return len(component), displacement
+
+    component_set = set()
+    for component in stitch_components:
+        component_set = set(component)
+        count, displacement = apply_rigid_component(component)
+        corrected += count
+        max_correction_mm = max(max_correction_mm, displacement)
+
+    stitch_member_indices = {index for component in stitch_components for index in component}
+    for index in range(particle_count):
+        if index in corrected_indices or index in stitch_member_indices:
+            continue
+        if index in pinned or inverse_mass[index] <= 0.0:
+            continue
+        target = containment.correct(positions_mm[index])
+        if target is None:
+            continue
+        delta = _vector_sub(target, positions_mm[index])
+        new_position_tissu = tuple(
+            float(value) for value in _to_tissu_position(target)
+        )
+        delta_tissu = _to_tissu_vector(delta)
+        new_old_tissu = _vector_add(old_positions_tissu[index], delta_tissu)
+        if containment.contains(target):
+            continue
+        particle = particles[index]
+        saved_current = tuple(float(value) for value in particle.get_position())
+        saved_old = tuple(float(value) for value in particle.get_old_position())
+        particle.set_position(new_position_tissu)
+        particle.set_old_position(new_old_tissu)
+        outside_after = not containment.contains(_from_tissu_position(particle.get_position()))
+        if not outside_after:
+            particle.set_position(saved_current)
+            particle.set_old_position(saved_old)
+            continue
+        positions_mm[index] = target
+        old_positions_tissu[index] = new_old_tissu
         corrected += 1
-        max_correction_mm = max(max_correction_mm, displacement_mm)
+        max_correction_mm = max(max_correction_mm, _vector_length(delta))
+
     return corrected, max_correction_mm
 
 
