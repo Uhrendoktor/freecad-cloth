@@ -393,12 +393,13 @@ def simulation():
     doc.recompute()
     activate("ClothSewingWorkbench", "Cloth Sewing", ["ClothFitting_SnapPiecesToTarget"])
     if "ClothFitting_SnapPiecesToTarget" not in Gui.listCommands():
-        raise RuntimeError("public Snap Pieces to Target command is not registered")    Gui.Selection.clearSelection(); Gui.Selection.addSelection(front); Gui.Selection.addSelection(back); Gui.Selection.addSelection(target); events()
+        raise RuntimeError("public Snap Pieces to Target command is not registered")
     Gui.Selection.clearSelection(); Gui.Selection.addSelection(front); Gui.Selection.addSelection(back); Gui.Selection.addSelection(target); events()
     Gui.runCommand("ClothFitting_SnapPiecesToTarget", 0)
     events(); doc.recompute()
     if str(fitting.FitStatus) != "Target snapped":
-        raise RuntimeError("public Snap Pieces to Target command did not persist the snapped state")    target_surface = _world_target_surface(target)
+        raise RuntimeError("public Snap Pieces to Target command did not persist the snapped state")
+    target_surface = _world_target_surface(target)
     step0_clearance = {
         str(piece.PieceId): minimum_signed_clearance(
             _piece_world_samples(piece), target_surface
