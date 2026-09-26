@@ -497,14 +497,12 @@ def snap_piece_to_drape_target(piece, target=None, clearance=8.0, max_translatio
                     for value in getattr(scene, "PiecePlacements", ()) or ()
                 )
             }
-            rotation = piece.Placement.Rotation
-            axis = rotation.Axis
+            current = values.get(pid)
+            rotation_z = float(current.rotation_z) if current is not None else float(piece.Placement.Rotation.Angle)
             values[pid] = PiecePlacement(
                 pid,
                 (float(piece.Placement.Base.x), float(piece.Placement.Base.y), float(piece.Placement.Base.z)),
-                float(rotation.Angle),
-                (float(axis.x), float(axis.y), float(axis.z)),
-                float(rotation.Angle),
+                rotation_z,
             )
             scene.PiecePlacements = [values[key].to_string() for key in sorted(values)]
         scene.FitStatus = "Target snapped (clearance %.3f mm)" % final_distance
@@ -547,12 +545,10 @@ def reset_arrangement():
         if piece is None:
             continue
         x, y, z = placement.position
-        if placement.rotation_angle is not None:
-            axis = App.Vector(*placement.rotation_axis)
-            rotation = App.Rotation(axis, float(placement.rotation_angle))
-        else:
-            rotation = App.Rotation(App.Vector(0, 0, 1), float(placement.rotation_z))
-        piece.Placement = App.Placement(App.Vector(x, y, z), rotation)
+        piece.Placement = App.Placement(
+            App.Vector(x, y, z),
+            App.Rotation(App.Vector(0, 0, 1), float(placement.rotation_z)),
+        )
         sketch = getattr(piece, "Sketch", None)
         if sketch is not None:
             sketch.Placement = piece.Placement
