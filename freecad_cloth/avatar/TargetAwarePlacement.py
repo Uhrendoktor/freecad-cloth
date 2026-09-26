@@ -208,6 +208,17 @@ def assert_minimum_surface_clearance(surface, points, required_clearance):
     return actual
 
 
+def transform_surface(surface, transform_point):
+    """Return a CollisionSurface transformed into the caller's world coordinate frame."""
+    transformed = tuple(
+        tuple(float(value) for value in transform_point(tuple(float(v) for v in point)))
+        for point in surface.vertices
+    )
+    result = surface.__class__(transformed, surface.triangles, surface.region, surface.thickness)
+    result.validate()
+    return result
+
+
 def require_ready_target_status(status):
     if not isinstance(status, dict) or status.get("state") != "ready":
         message = status.get("message") if isinstance(status, dict) else None
