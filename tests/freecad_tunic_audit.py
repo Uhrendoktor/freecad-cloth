@@ -112,7 +112,7 @@ placement_probe = """    surface = collision_surface(
         float(getattr(target, "CollisionDeflection", 1.0)),
         float(getattr(target, "CollisionThickness", 0.0)),
     )
-    placement_candidates = (0.0, 4.0, 8.0, 12.0, 16.0, 24.0, 32.0, 48.0, 64.0, 96.0, 128.0)
+    placement_candidates = (0.0, 4.0, 8.0, 12.0, 16.0, 24.0, 32.0, 48.0, 64.0, 80.0, 88.0, 92.0, 96.0) + tuple(float(value) for value in range(97, 129))
     selected_placement_extra = None
     initial_clearance = None
     for candidate in placement_candidates:
