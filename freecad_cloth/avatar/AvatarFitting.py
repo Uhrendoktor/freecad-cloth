@@ -54,24 +54,66 @@ class PiecePlacement:
     piece_id: str
     position: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     rotation_z: float = 0.0
+    rotation_axis: Tuple[float, float, float] = (0.0, 0.0, 1.0)
 
     def validate(self) -> None:
         if not self.piece_id.strip():
             raise ValueError("piece id must not be empty")
-        if len(self.position) != 3:
-            raise ValueError("position must contain three coordinates")
+        if len(self.position) != 3 or len(self.rotation_axis) != 3:
+            raise ValueError("position and rotation axis require three coordinates")
+        if sum(float(v) * float(v) for v in self.rotation_axis) <= 1e-18:
+            raise ValueError("rotation axis must be non-zero")
 
     def to_string(self) -> str:
         self.validate()
-        return "%s|%.12g,%.12g,%.12g|%.12g" % (
-            self.piece_id, self.position[0], self.position[1], self.position[2], self.rotation_z
+        return "%s|%.12g,%.12g,%.12g|%.12g|%.12g,%.12g,%.12g" % (
+            self.piece_id, self.position[0], self.position[1], self.position[2], self.rotation_z,
+            self.rotation_axis[0], self.rotation_axis[1], self.rotation_axis[2]
         )
 
     @classmethod
     def from_string(cls, value: str) -> "PiecePlacement":
-        piece_id, position, rotation = str(value).split("|")
+        parts = str(value).split("|")
+        if len(parts) not in (3, 4):
+            raise ValueError("piece placement must contain three or four fields")
+        piece_id, position, rotation = parts[:3]
         coords = tuple(float(v) for v in position.split(","))
-        result = cls(piece_id, coords, float(rotation))
+        axis = (0.0, 0.0, 1.0) if len(parts) == 3 else tuple(float(v) for v in parts[3].split(","))
+        result = cls(piece_id, coords, float(rotation), axis)
+        result.validate()
+        return result
+
+
+@dataclass(frozen=True)
+class GarmentAnchor:
+    """Deterministic garment-local anchor used by target-aware rigid placement."""
+    piece_id: str
+    name: str
+    position: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    wrap_direction: str = "front"
+
+    VALID_WRAP_DIRECTIONS = ("front", "back", "left", "right")
+
+    def validate(self) -> None:
+        if not self.piece_id.strip():
+            raise ValueError("garment anchor piece id must not be empty")
+        if not self.name.strip():
+            raise ValueError("garment anchor name must not be empty")
+        if len(self.position) != 3:
+            raise ValueError("garment anchor position requires three coordinates")
+        if self.wrap_direction not in self.VALID_WRAP_DIRECTIONS:
+            raise ValueError("garment anchor wrap direction must be front, back, left, or right")
+
+    def to_string(self) -> str:
+        self.validate()
+        return "%s|%s|%.12g,%.12g,%.12g|%s" % (
+            self.piece_id, self.name, self.position[0], self.position[1], self.position[2], self.wrap_direction
+        )
+
+    @classmethod
+    def from_string(cls, value: str) -> "GarmentAnchor":
+        piece_id, name, position, wrap = str(value).split("|")
+        result = cls(piece_id, name, tuple(float(v) for v in position.split(",")), wrap)
         result.validate()
         return result
 
@@ -184,6 +226,7 @@ class FittingScene:
     arrangement_points: Tuple[ArrangementPoint, ...] = ()
     bounding_volumes: Tuple[BoundingVolume, ...] = ()
     symmetry_enabled: bool = True
+    garment_anchors: Tuple[GarmentAnchor, ...] = ()
 
     def validate(self) -> None:
         self.measurements.validate()
@@ -207,6 +250,13 @@ class FittingScene:
             if volume.name in names:
                 raise ValueError("bounding volume names must be unique")
             names.add(volume.name)
+        anchors = set()
+        for anchor in self.garment_anchors:
+            anchor.validate()
+            key = (anchor.piece_id, anchor.name)
+            if key in anchors:
+                raise ValueError("garment anchor names must be unique per piece")
+            anchors.add(key)
 
     def placement_map(self) -> Dict[str, PiecePlacement]:
         self.validate()
@@ -224,6 +274,7 @@ class FittingScene:
             "pieces": [item.to_string() for item in sorted(self.pieces, key=lambda p: p.piece_id)],
             "arrangement_points": [item.to_string() for item in sorted(self.arrangement_points, key=lambda p: p.name)],
             "bounding_volumes": [item.to_string() for item in sorted(self.bounding_volumes, key=lambda v: v.name)],
+            "garment_anchors": [item.to_string() for item in sorted(self.garment_anchors, key=lambda a: (a.piece_id, a.name))],
             "symmetry_enabled": bool(self.symmetry_enabled),
         }, sort_keys=True, separators=(",", ":"))
 
@@ -237,6 +288,7 @@ class FittingScene:
             tuple(ArrangementPoint.from_string(v) for v in data.get("arrangement_points", ())),
             tuple(BoundingVolume.from_string(v) for v in data.get("bounding_volumes", ())),
             bool(data.get("symmetry_enabled", True)),
+            tuple(GarmentAnchor.from_string(v) for v in data.get("garment_anchors", ())),
         )
         result.validate()
         return result

@@ -306,6 +306,8 @@ def _adopt_sketch(sketch, name, allowance, grainline):
 def pattern_and_sewing():
     from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternObjects import add_seam
+    from freecad_cloth.avatar.AvatarFitting import GarmentAnchor, PiecePlacement
+    from freecad_cloth.avatar.FittingCommands import create_fitting_scene, set_garment_anchors, snap_pieces_to_target
     from freecad_cloth.pattern.PatternGui import PatternPieceTaskPanel
     from freecad_cloth.sewing.SewingCommands import create_sewing_operation
     from freecad_cloth.sewing.SewingGui import SewingTaskPanel
@@ -385,17 +387,15 @@ def simulation():
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
     rot = App.Rotation(App.Vector(1,0,0), 90.0)
-    def target_relative_piece_placement(side):
-        if side == "front":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
-        elif side == "back":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
-        else:
-            raise ValueError("tunic target-relative side must be front or back")
-        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
-    def make_piece(name, side, neckline_ratio, neckline_drop):
-        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(side); piece.Sketch.Placement = piece.Placement; return piece, outline
-    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
+    def make_piece(name, neckline_ratio, neckline_drop):
+        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop)
+        doc.recompute()
+        piece = _adopt_sketch(sketch, name, 10.0, 0.0)
+        piece.Label = name
+        piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, 0.0, hem_z), rot)
+        piece.Sketch.Placement = piece.Placement
+        return piece, outline
+    front, front_outline = make_piece("VisualTunicFront", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", 0.64, 0.07)
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
     for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
@@ -403,6 +403,37 @@ def simulation():
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
+    fitting = create_fitting_scene()
+    fitting.AvatarProxy = scene.AvatarProxy
+    fitting.DrapeTarget = target
+    fitting.PatternPieces = [front, back]
+    initial_records = []
+    for piece in (front, back):
+        axis = piece.Placement.Rotation.Axis
+        initial_records.append(
+            PiecePlacement(
+                str(piece.PieceId),
+                (float(piece.Placement.Base.x), float(piece.Placement.Base.y), float(piece.Placement.Base.z)),
+                float(piece.Placement.Rotation.Angle),
+                (float(axis.x), float(axis.y), float(axis.z)),
+            )
+        )
+    fitting.PiecePlacements = [record.to_string() for record in initial_records]
+    fitting.HomePlacements = [record.to_string() for record in initial_records]
+    set_garment_anchors((
+        GarmentAnchor(str(front.PieceId), "shoulder_left", (0.14 * panel_width, 0.97 * garment_height, 0.0), "front"),
+        GarmentAnchor(str(front.PieceId), "shoulder_right", (0.86 * panel_width, 0.97 * garment_height, 0.0), "front"),
+        GarmentAnchor(str(back.PieceId), "shoulder_left", (0.14 * panel_width, 0.97 * garment_height, 0.0), "back"),
+        GarmentAnchor(str(back.PieceId), "shoulder_right", (0.86 * panel_width, 0.97 * garment_height, 0.0), "back"),
+    ))
+    refresh_drape_target(target); doc.recompute()
+    before_home = tuple(fitting.HomePlacements)
+    placement_results = snap_pieces_to_target(clearance=clearance, max_translation=600.0, max_rotation=45.0)
+    if tuple(fitting.HomePlacements) != before_home:
+        raise RuntimeError("target-aware placement mutated HomePlacements")
+    if tuple(fitting.PiecePlacements) == before_home:
+        raise RuntimeError("target-aware placement did not change persisted PiecePlacements")
+    log("target-aware-placement=passed pieces=%d home-preserved=true" % len(placement_results))
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.PinMode = "None"; scene.PinSelection = []; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
     status = target_status(target)
     if str(status.get("state", "")) != "ready":
