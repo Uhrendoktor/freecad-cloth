@@ -24,7 +24,9 @@ This fixture intentionally avoids the human avatar so users can isolate cloth, c
 
 ## 2. Tunic
 
-The tunic is the full garment acceptance scenario. It uses two pattern pieces, semantic sewing, a production MakeHuman mannequin, persisted quality/material settings, diagnostics, save/reload and invalidation.
+The tunic is the full garment acceptance scenario. It uses two pattern pieces, semantic sewing, a production MakeHuman mannequin, persisted quality/material settings, diagnostics, save/reload and invalidation. Start it through the Simulation → Arrange / Fit handoff so the fitting stage carries the same persistent `DrapeTarget` used by simulation.
+
+The canonical tunic fixture uses `PinMode=None` with an empty `PinSelection`, so it runs with zero solver pins; target placement is a fitting concern, not a global-pin workaround. The target-aware placement integration exposes the production `ClothFitting_SnapPiecesToTarget` action. When present, that action applies a bounded rigid translation against the persistent `DrapeTarget`, proves clearance for the full selected pieces, and keeps **Reset arrangement** as the rollback path. It does not perform conformal deformation.
 
 Use the generated artifacts only as evidence: the tunic is not a substitute for the simpler blanket when debugging a local installation.
 
