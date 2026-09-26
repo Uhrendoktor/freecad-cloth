@@ -72,6 +72,53 @@ def test_pin_selection_is_part_of_rebuild_signature():
     scene_b = SimpleNamespace(DrapeTarget=target, PinSelection=["3", "4"], StitchSamples=8, Document=SimpleNamespace(Objects=[]))
     assert _simulation_source_signature(scene_a, []) != _simulation_source_signature(scene_b, [])
 
+def test_automatic_pin_policy_preserves_legacy_defaults_and_explicit_overrides():
+    from types import SimpleNamespace
+    from freecad_cloth.simulation.SimulationObjects import _resolve_pin_indices
+
+    legacy = SimpleNamespace(PinSelection=[], AutomaticPins=True)
+    assert _resolve_pin_indices(legacy, 8, (0, 1, 6, 7)) == (0, 1, 6, 7)
+
+    explicit = SimpleNamespace(PinSelection=["2", "5"], AutomaticPins=True)
+    assert _resolve_pin_indices(explicit, 8, (0, 1, 6, 7)) == (2, 5)
+
+    unpinned = SimpleNamespace(PinSelection=[], AutomaticPins=False)
+    assert _resolve_pin_indices(unpinned, 8, (0, 1, 6, 7)) == ()
+
+
+def test_automatic_pin_policy_defaults_true_for_legacy_documents():
+    from types import SimpleNamespace
+    from freecad_cloth.simulation.SimulationObjects import _resolve_pin_indices
+
+    legacy = SimpleNamespace(PinSelection=[])
+    assert _resolve_pin_indices(legacy, 8, (0, 1, 6, 7)) == (0, 1, 6, 7)
+
+
+def test_automatic_pin_policy_is_part_of_rebuild_signature():
+    from types import SimpleNamespace
+    from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
+
+    source = SimpleNamespace(
+        Name="Body",
+        Shape=SimpleNamespace(isNull=lambda: False, hashCode=lambda: 123),
+        Placement=SimpleNamespace(
+            Base=SimpleNamespace(x=0.0, y=0.0, z=0.0),
+            Rotation=SimpleNamespace(Angle=0.0, Axis=SimpleNamespace(x=0.0, y=0.0, z=1.0)),
+        ),
+    )
+    target = SimpleNamespace(SourceObject=source, CollisionDeflection=1.0, CollisionThickness=0.0)
+    legacy = SimpleNamespace(DrapeTarget=target, PinSelection=[], StitchSamples=8, Document=SimpleNamespace(Objects=[]))
+    explicit = SimpleNamespace(DrapeTarget=target, PinSelection=[], AutomaticPins=False, StitchSamples=8, Document=SimpleNamespace(Objects=[]))
+    assert _simulation_source_signature(legacy, []) != _simulation_source_signature(explicit, [])
+
+
+def test_unpinned_policy_is_explicitly_persisted_on_simulation_scene():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "freecad_cloth" / "simulation" / "SimulationObjects.py").read_text(encoding="utf-8")
+    assert 'scene.addProperty("App::PropertyBool", "AutomaticPins", "Selection").AutomaticPins = True' in source
+    assert '_resolve_pin_indices(obj, len(particles), automatic_defaults)' in source
+    assert 'if pins:\n            system.pin(pins)' in source
+
 
 
 def test_seam_pair_records_preserve_exact_solver_stitch_provenance():
