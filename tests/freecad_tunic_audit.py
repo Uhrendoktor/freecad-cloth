@@ -99,15 +99,15 @@ source = source.replace(
     1,
 )
 
-surface_anchor = """    surface = collision_surface(
+surface_anchor = '''    surface = collision_surface(
         target_source,
         float(getattr(target, "CollisionDeflection", 1.0)),
         float(getattr(target, "CollisionThickness", 0.0)),
     )
-"""
+'''
 if surface_anchor not in source:
     raise RuntimeError("surface collision anchor missing")
-placement_probe = """    surface = collision_surface(
+placement_probe = '''    surface = collision_surface(
         target_source,
         float(getattr(target, "CollisionDeflection", 1.0)),
         float(getattr(target, "CollisionThickness", 0.0)),
@@ -140,22 +140,22 @@ placement_probe = """    surface = collision_surface(
     if selected_placement_inset is None:
         raise RuntimeError("canonical tunic placement probe found no candidate meeting configured separation")
 
-"""
+'''
 
 source = source.replace(surface_anchor, placement_probe, 1)
 
-post_probe_old = """    initial_clearance = None
+post_probe_old = '''    initial_clearance = None
     try:
         from freecad_cloth.common.MeshValidation import nearest_target_clearance
         initial_clearance = nearest_target_clearance(tuple(backend.positions()), tuple(surface.vertices))
     except (ImportError, ValueError):
         initial_clearance = None
-"""
-post_probe_new = """    proxy = scene.Proxy
+'''
+post_probe_new = '''    proxy = scene.Proxy
     backend = getattr(proxy, "backend", None)
     if backend is None:
         raise RuntimeError("canonical tunic placement probe lost its simulation backend")
-"""
+'''
 if post_probe_old not in source:
     raise RuntimeError("post-probe stale clearance block missing")
 source = source.replace(post_probe_old, post_probe_new, 1)
@@ -166,7 +166,7 @@ source = source.replace(
     1,
 )
 
-seam_check = """    backend_state = scene.Proxy._base_or_restore()
+seam_check = '''    backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
     if not simulated_positions: raise RuntimeError("Tissu backend returned no simulated particle positions")
     stitch_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
@@ -189,7 +189,7 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
     max_seam_gap = max(seam_gaps) if seam_gaps else 0.0
     if max_seam_gap > 35.0: raise RuntimeError("authoritative tunic seams did not converge: max endpoint gap %.1f mm" % max_seam_gap)
     log("authoritative-seam-max-gap-mm=%.2f seam-ids=%s" % (max_seam_gap, tuple(str(seam.SeamId) for seam, _a, _b in seam_records)))
-"""
+'''
 
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", 1)
 # The source uses the production simulation path; this wrapper only stabilizes
