@@ -98,13 +98,14 @@ def sampled_min_distance(source, target, source_limit=256, target_limit=1024):
     return math.sqrt(best) if math.isfinite(best) else None
 
 
-def update_debug_geometry(doc, seam_obj, pin_obj, backend, pins):
+def update_debug_geometry(doc, seam_objects, pin_obj, backend, pins, seam_stitch_pairs):
     positions = backend.positions()
-    lines = []
-    for a, b in getattr(backend, "_stitches", ()):
-        pa, pb = positions[int(a)], positions[int(b)]
-        lines.append(Part.makePolygon([App.Vector(*pa), App.Vector(*pb)]))
-    seam_obj.Shape = Part.makeCompound(lines) if lines else Part.Shape()
+    for seam_id, seam_obj in seam_objects.items():
+        lines = []
+        for a, b in tuple(seam_stitch_pairs.get(seam_id, ())):
+            pa, pb = positions[int(a)], positions[int(b)]
+            lines.append(Part.makePolygon([App.Vector(*pa), App.Vector(*pb)]))
+        seam_obj.Shape = Part.makeCompound(lines) if lines else Part.Shape()
     spheres = [Part.makeSphere(13.0, App.Vector(*positions[int(i)])) for i in pins]
     pin_obj.Shape = Part.makeCompound(spheres) if spheres else Part.Shape()
     doc.recompute()
@@ -197,13 +198,33 @@ def run():
             avatar.ViewObject.LineColor = (0.25, 0.25, 0.25)
         except Exception:
             pass
-        seam_obj = doc.addObject("Part::Feature", "DebugCurrentStitches")
-        seam_obj.ViewObject.LineColor = (1.0, 0.90, 0.0)
-        seam_obj.ViewObject.LineWidth = 4.0
+        seam_stitch_pairs = {
+            str(seam_id): tuple(pairs)
+            for seam_id, pairs in getattr(scene.Proxy, "seam_stitch_pairs", {}).items()
+        }
+        if not seam_stitch_pairs:
+            seam_stitch_pairs = {
+                str(seam_id): tuple(pairs)
+                for seam_id, pairs in getattr(base, "seam_stitch_pairs", {}).items()
+            }
+        if not seam_stitch_pairs:
+            raise RuntimeError("production simulation seam provenance is missing")
+        from freecad_cloth.sewing.SewingView import seam_color_map
+        seam_objects = {}
+        colors = seam_color_map(seam_stitch_pairs)
+        if len(set(colors.values())) != len(colors):
+            raise RuntimeError("production seam identities did not receive distinct colors")
+        for index, seam_id in enumerate(sorted(seam_stitch_pairs)):
+            seam_obj = doc.addObject("Part::Feature", "DebugCurrentStitches_%02d" % index)
+            seam_obj.Label = "Debug Stitches %s" % seam_id
+            seam_obj.addProperty("App::PropertyString", "SeamId", "Seam").SeamId = seam_id
+            seam_obj.ViewObject.LineColor = colors[seam_id]
+            seam_obj.ViewObject.LineWidth = 4.0
+            seam_objects[seam_id] = seam_obj
         pin_obj = doc.addObject("Part::Feature", "DebugActivePins")
         pin_obj.ViewObject.ShapeColor = (1.0, 0.10, 1.0)
         pin_obj.ViewObject.Transparency = 5
-        update_debug_geometry(doc, seam_obj, pin_obj, backend, pins)
+        update_debug_geometry(doc, seam_objects, pin_obj, backend, pins, seam_stitch_pairs)
         doc.recompute(); events()
         log("debug-geometry-ready")
         panel = SimulationQualityTaskPanel(scene)
@@ -214,7 +235,7 @@ def run():
             while int(scene.Steps) < target_step:
                 panel.step(1)
                 log("solver-step-done step=%s" % getattr(scene, "Steps", "?"))
-            doc.recompute(); update_debug_geometry(doc, seam_obj, pin_obj, backend, pins); events()
+            doc.recompute(); update_debug_geometry(doc, seam_objects, pin_obj, backend, pins, seam_stitch_pairs); events()
             checkpoints.append(checkpoint_metrics(backend, pins, initial_pins, target_vertices, triangles, target_step))
             log("metrics-ready step=%d" % target_step)
             view = Gui.activeDocument().activeView()

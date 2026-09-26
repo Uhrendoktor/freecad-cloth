@@ -356,9 +356,22 @@ try:
         Gui.Control.closeDialog()
     process_events()
 
-    visual_seam = curved_network.Seams[0]
+    from freecad_cloth.sewing.SewingView import seam_color_map
+    visual_seams = tuple(curved_network.Seams)
+    seam_ids = tuple(str(seam.SeamId) for seam in visual_seams)
+    expected_colors = seam_color_map(seam_ids)
+    actual_colors = {
+        str(seam.SeamId): tuple(seam.ViewObject.LineColor[:3])
+        for seam in visual_seams
+    }
+    assert len(actual_colors) == len(visual_seams)
+    assert len(set(actual_colors.values())) == len(visual_seams)
+    for seam_id, color in expected_colors.items():
+        assert actual_colors[seam_id] == color
+    visual_seam = visual_seams[0]
     assert not visual_seam.Shape.isNull()
     assert len(visual_seam.Shape.Edges) >= 10
+    record("seam-colors=passed unique=%d stable-by-seam-id=true" % len(actual_colors))
     record("seam-visual-3d=passed edges=%d" % len(visual_seam.Shape.Edges))
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(visual_seam)

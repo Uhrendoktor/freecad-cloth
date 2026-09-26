@@ -272,6 +272,11 @@ class SeamProxy:
         if getattr(piece_b, "Placement", None) is not None: pb0, pb1 = piece_b.Placement.multVec(pb0), piece_b.Placement.multVec(pb1)
         from freecad_cloth.sewing.SewingView import build_seam_visual_shape
         obj.Shape = build_seam_visual_shape(piece_a, piece_b, obj, sample_count=5, world_space=True)
+        # Re-apply the canonical seam palette after recompute/save-reload. View
+        # properties are presentation state, while SeamId remains authoritative.
+        from freecad_cloth.sewing.SewingView import apply_seam_colors
+        document = getattr(obj, "Document", None)
+        apply_seam_colors(getattr(document, "Objects", ()) if document is not None else ())
 
 
 def add_seam(doc, seam: Seam):
