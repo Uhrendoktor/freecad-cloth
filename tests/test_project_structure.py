@@ -44,7 +44,23 @@ def test_shared_contract_is_freecad_independent():
     assert not target.is_human()
 
 
-def test_human_documentation_contract():
+
+
+def test_target_placement_contract_is_solver_neutral_and_registered():
+    root = Path(__file__).resolve().parents[1]
+    module = root / "freecad_cloth" / "avatar" / "TargetPlacement.py"
+    source = module.read_text(encoding="utf-8")
+    assert "class TargetProjection" in source
+    assert "def nearest_target_projection" in source
+    assert "def minimum_signed_clearance" in source
+    assert "import FreeCAD" not in source
+    fitting = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    assert "def snap_pattern_pieces_to_target" in fitting
+    assert '"ClothFitting_SnapPiecesToTarget"' in fitting
+    assert "select exactly one DrapeTarget" in fitting
+    assert "scene.HomePlacements" in fitting
+    assert 'scene.FitStatus = "Target snapped"' in fitting
+\ndef test_human_documentation_contract():
     root = Path(__file__).resolve().parents[1]
     user_guide = root / "docs" / "USER_GUIDE.md"
     docs_readme = root / "docs" / "README.md"
