@@ -24,3 +24,5 @@ def test_pytissu_source_transform_contract_is_pinned_and_reproducible():
     assert "pytissu-runtime" in workflow
     assert "freecad-1.1.0-py312-r3" in workflow
     assert "No timeout increases" in docs
+    assert "bash -n tools/build_pytissu_runtime.sh" in workflow
+    assert "cmake version 3.31.6" in script
