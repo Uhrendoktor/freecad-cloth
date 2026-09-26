@@ -4,6 +4,7 @@ import hashlib
 import json
 from typing import Optional, Tuple
 from freecad_cloth.avatar.AvatarCollision import CollisionSurface, surface_from_freecad
+from freecad_cloth.avatar.TargetPlacement import target_bounds
 
 
 @dataclass(frozen=True)
@@ -149,6 +150,43 @@ def target_status(target):
         }
     return {"state": "ready", "message": "Drape target collision surface is current", "stale": False, "reason": ""}
 
+
+
+
+def resolve_authoritative_target(doc, target=None):
+    objects = tuple(getattr(doc, "Objects", ()) or ())
+    if target is not None:
+        if target not in objects:
+            raise ValueError("drape target does not belong to the active document")
+        status = target_status(target)
+        if status["state"] != "ready":
+            raise ValueError("drape target is not current: %s" % status["message"])
+        return target
+    candidates = tuple(
+        obj for obj in objects
+        if str(getattr(obj, "TargetType", "")) in DrapeTargetSpec.VALID_TYPES
+        and hasattr(obj, "SourceObject")
+    )
+    if not candidates:
+        raise ValueError("no DrapeTarget is available")
+    if len(candidates) != 1:
+        raise ValueError("ambiguous DrapeTarget: expected exactly one target")
+    status = target_status(candidates[0])
+    if status["state"] != "ready":
+        raise ValueError("drape target is not current: %s" % status["message"])
+    return candidates[0]
+
+
+def authoritative_collision_bounds(target):
+    status = target_status(target)
+    if status["state"] != "ready":
+        raise ValueError("drape target is not current: %s" % status["message"])
+    surface = collision_surface(
+        getattr(target, "SourceObject", None),
+        float(getattr(target, "CollisionDeflection", 1.0)),
+        float(getattr(target, "CollisionThickness", 0.0)),
+    )
+    return target_bounds(surface.vertices)
 
 def refresh_drape_target(target):
     source = getattr(target, "SourceObject", None)
