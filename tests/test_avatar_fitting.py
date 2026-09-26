@@ -39,12 +39,11 @@ class AvatarFittingTests(unittest.TestCase):
             and any(isinstance(target, ast.Name) and target.id == "anchor_clearance" for target in node.targets)
             and isinstance(node.value, ast.Call)
             and isinstance(node.value.func, ast.Name)
-            and node.value.func.id == "minimum_surface_clearance"
+            and node.value.func.id == "anchor_clearance_detail"
         )
         correction = next(
             node for node in ast.walk(function)
-            if isinstance(node, ast.If)
-            and isinstance(node.test, ast.Compare)
+            if isinstance(node, ast.While)
             and "piece_clearance" in ast.unparse(node.test)
         )
         anchor_assert = [
