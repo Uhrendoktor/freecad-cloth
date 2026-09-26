@@ -74,6 +74,32 @@ def _placement_signature(piece):
     )
 
 
+PIN_MODE_NAMES = ("Automatic", "Explicit", "None")
+
+
+def normalize_pin_mode(value):
+    """Return a supported persistent pinning mode, preserving legacy defaults."""
+    mode = str(value or "Automatic").strip()
+    return mode if mode in PIN_MODE_NAMES else "Automatic"
+
+
+def resolve_pin_indices(obj, particle_count, automatic_default=()):
+    """Resolve the solver pin indices from the persistent pinning mode."""
+    mode = normalize_pin_mode(getattr(obj, "PinMode", "Automatic"))
+    explicit = _parse_int_list(getattr(obj, "PinSelection", ()), particle_count)
+    if mode == "None":
+        return ()
+    if mode == "Explicit":
+        return explicit
+    if explicit:
+        return explicit
+    return tuple(
+        int(index)
+        for index in automatic_default
+        if 0 <= int(index) < int(particle_count)
+    )
+
+
 def _simulation_source_signature(obj, pieces):
     """Return deterministic inputs that require rebuilding the cloth scene."""
     if pieces:
@@ -107,7 +133,11 @@ def _simulation_source_signature(obj, pieces):
             float(getattr(avatar, "CollisionDeflection", 0.0)) if avatar is not None else 0.0,
             float(getattr(avatar, "CollisionThickness", 0.0)) if avatar is not None else 0.0,
         )
-    pin_signature = _parse_int_list(getattr(obj, "PinSelection", ()))
+    pin_mode = normalize_pin_mode(getattr(obj, "PinMode", "Automatic"))
+    pin_signature = (
+        pin_mode,
+        _parse_int_list(getattr(obj, "PinSelection", ())) if pin_mode != "None" else (),
+    )
     return (
         pattern_signature,
         target_signature,
@@ -459,17 +489,18 @@ class SimulationProxy:
             int(getattr(obj, "StitchSamples", 8)),
         )
         system.add_stitches(seam_pairs)
-        explicit_pins = _parse_int_list(getattr(obj, "PinSelection", ()), len(particles))
-        if explicit_pins:
-            pins = explicit_pins
+        first = panel_data[str(pieces[0].PieceId)] if pieces else None
+        boundary = (
+            tuple(dict.fromkeys(i for edge in first["boundary_edges"] for i in edge))
+            if first is not None else ()
+        )
+        pins = resolve_pin_indices(
+            obj,
+            len(particles),
+            tuple(boundary[:2] + boundary[-2:]),
+        )
+        if pins:
             system.pin(pins)
-        elif pieces:
-            first = panel_data[str(pieces[0].PieceId)]
-            boundary = list(dict.fromkeys(i for edge in first["boundary_edges"] for i in edge))
-            pins = tuple(boundary[:2] + boundary[-2:])
-            system.pin(pins)
-        else:
-            pins = ()
         collision_surface = _collision_for_scene(obj)
         registry = default_backend_registry()
         backend_name = preferred_backend_name(registry)
@@ -515,8 +546,13 @@ class SimulationProxy:
         constraints = list(left.constraints) + [type(c)(c.a + offset, c.b + offset, c.rest, c.compliance) for c in right.constraints]
         system = ClothSystem(particles, constraints)
         system.add_stitches(_parse_pair_list(getattr(obj, "SeamSelection", ()), len(particles)) or tuple((j * nx + nx - 1, offset + j * nx) for j in range(ny)))
-        pins = _parse_int_list(getattr(obj, "PinSelection", ()), len(particles)) or (0, nx - 1, offset, offset + nx - 1)
-        system.pin(pins)
+        pins = resolve_pin_indices(
+            obj,
+            len(particles),
+            (0, nx - 1, offset, offset + nx - 1),
+        )
+        if pins:
+            system.pin(pins)
         self.backend = default_backend_registry().create("xpbd-cpu", system)
         tris = []
         for j in range(ny - 1):
@@ -640,6 +676,9 @@ def create_simulation_scene(doc):
     scene.addProperty("App::PropertyLinkListGlobal", "DrapePanels", "Output")
     scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Selection")
     scene.addProperty("App::PropertyLinkGlobal", "AvatarProxy", "Compatibility")
+    scene.addProperty("App::PropertyEnumeration", "PinMode", "Quality")
+    scene.PinMode = list(PIN_MODE_NAMES)
+    scene.PinMode = "Automatic"
     scene.addProperty("App::PropertyStringList", "PinSelection", "Selection").PinSelection = []
     scene.addProperty("App::PropertyStringList", "SeamSelection", "Selection").SeamSelection = []
     scene.addProperty("App::PropertyFloat", "SimulatedTime", "State").SimulatedTime = 0.0
