@@ -368,7 +368,15 @@ def simulation():
         raw = next((value for value in getattr(avatar, "ArrangementPoints", ()) if str(value).split("|", 1)[0] == name), None)
         if raw is None:
             raise RuntimeError("canonical tunic is missing avatar arrangement point %s" % name)
-        point = ArrangementPoint.from_string(raw)
+        fields = str(raw).split("|")
+        if len(fields) == 2:
+            point_name, coords = fields
+            values = tuple(float(value) for value in coords.split(","))
+            if len(values) != 3:
+                raise RuntimeError("canonical tunic arrangement point %s has invalid coordinates" % name)
+            point = ArrangementPoint(point_name, *values)
+        else:
+            point = ArrangementPoint.from_string(raw)
         return avatar.Placement.multVec(App.Vector(*point.position()))
     shoulder_left = arrangement_world("shoulder_left")
     shoulder_right = arrangement_world("shoulder_right")
