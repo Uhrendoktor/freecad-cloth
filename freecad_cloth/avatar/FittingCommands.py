@@ -213,6 +213,23 @@ def position_piece(piece, x, y, z=0.0, rotation_z=0.0):
     return piece
 
 
+def _classify_target_side(bounds, target_y_min, target_y_max):
+    """Classify a piece only when its full Y extent is outside the target."""
+    if float(bounds[3]) <= float(target_y_min):
+        return "front"
+    if float(bounds[2]) >= float(target_y_max):
+        return "back"
+    raise ValueError("pattern piece overlaps the target Y span; refusing ambiguous arrangement")
+
+
+def _step0_target_clearance(bounds, side, target_y_min, target_y_max):
+    """Return the minimum Y separation from the target envelope."""
+    if side == "front":
+        return float(target_y_min) - float(bounds[3])
+    if side == "back":
+        return float(bounds[2]) - float(target_y_max)
+    raise ValueError("unsupported target side: %s" % side)
+
 def _world_surface_vertices(target):
     """Resolve the authoritative DrapeTarget surface into world space."""
     from freecad_cloth.simulation.DrapeTarget import collision_surface
@@ -330,16 +347,10 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None):
         for pid, box in boxes.items()
     }
 
-    sides = {}
-    for pid, box in boxes.items():
-        if box[3] <= ty_min:
-            sides[pid] = "front"
-        elif box[2] >= ty_max:
-            sides[pid] = "back"
-        else:
-            raise ValueError(
-                "pattern piece %s overlaps the target Y span; refusing ambiguous arrangement" % pid
-            )
+    sides = {
+        pid: _classify_target_side(box, ty_min, ty_max)
+        for pid, box in boxes.items()
+    }
 
     group_cx = sum(center[0] for center in centers.values()) / len(centers)
     group_cz = sum(center[2] for center in centers.values()) / len(centers)
@@ -371,11 +382,12 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None):
         shift = proposed[pid].Base - piece.Placement.Base
         moved_y_min = before[2] + float(shift.y)
         moved_y_max = before[3] + float(shift.y)
-        actual_clearance = (
-            ty_min - moved_y_max
-            if sides[pid] == "front"
-            else moved_y_min - ty_max
+        moved_bounds = (
+            before[0] + float(shift.x), before[1] + float(shift.x),
+            moved_y_min, moved_y_max,
+            before[4] + float(shift.z), before[5] + float(shift.z),
         )
+        actual_clearance = _step0_target_clearance(moved_bounds, sides[pid], ty_min, ty_max)
         proofs[pid] = float(actual_clearance)
         if actual_clearance + 1e-6 < clearance:
             raise ValueError(
