@@ -25,16 +25,22 @@ def run(*args: str) -> str:
 
 
 def main() -> int:
-    binding_text = bindings.read_text(encoding="utf-8")
+    bindings = ROOT / "python/src/bindings.cpp"
+    bindings_headless = ROOT / "python/src/bindings_headless.cpp"
+    engine = ROOT / "python/tissu/engine.py"
+
+    binding_paths = (bindings, bindings_headless)
+    for binding in binding_paths:
+        binding_text = binding.read_text(encoding="utf-8")
     binding_old = """        .def("get_mesh_path", &MeshCollider::getMeshPath)
         .def("get_world_vertices", &MeshCollider::getWorldVertices);"""
     binding_new = """        .def("get_mesh_path", &MeshCollider::getMeshPath)
         .def("get_world_vertices", &MeshCollider::getWorldVertices)
         .def("set_closed_manifold_hint", &MeshCollider::setClosedManifoldHint,
              py::arg("closed_manifold"), py::arg("outward_normal_sign"));"""
-    if binding_text.count(binding_old) != 1:
-        raise RuntimeError("bindings MeshCollider anchor mismatch")
-    bindings.write_text(binding_text.replace(binding_old, binding_new), encoding="utf-8")
+        if binding_text.count(binding_old) != 1:
+            raise RuntimeError(f"{binding.name} MeshCollider anchor mismatch")
+        binding.write_text(binding_text.replace(binding_old, binding_new), encoding="utf-8")
 
     engine_text = engine.read_text(encoding="utf-8")
     engine_old = """    def add_mesh_from_arrays(
@@ -75,8 +81,6 @@ def main() -> int:
     header = ROOT / "core/include/physics/MeshCollider.hpp"
     cpp = ROOT / "core/src/physics/MeshCollider.cpp"
     test = ROOT / "tests/physics/test_mesh_collider.cpp"
-    bindings = ROOT / "python/src/bindings.cpp"
-    engine = ROOT / "python/tissu/engine.py"
 
     replace_once(
         header,
@@ -514,6 +518,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
         "python/src/bindings.cpp",
+        "python/src/bindings_headless.cpp",
         "python/tissu/engine.py",
         "tests/physics/test_mesh_collider.cpp",
     }
