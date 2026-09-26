@@ -340,7 +340,10 @@ def style_mesh(obj, label):
 def simulation():
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
     from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
-    from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
+    from freecad_cloth.simulation.DrapeTarget import refresh_drape_target, collision_surface
+    from freecad_cloth.avatar.FittingCommands import create_fitting_scene, reset_arrangement, snap_piece_to_target
+    from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+    from freecad_cloth.avatar.TargetPlacement import minimum_signed_clearance, surface_outward_direction
     from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternObjects import add_seam
     doc = App.newDocument("ClothSimulationVisualRegression"); scene = create_quality_simulation_scene(doc); avatar = getattr(scene.AvatarProxy, "SourceObject", None); target = scene.DrapeTarget
@@ -361,6 +364,49 @@ def simulation():
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
+    fitting = create_fitting_scene()
+    fitting.AvatarProxy = scene.AvatarProxy
+    fitting.DrapeTarget = target
+    homes = {}
+    for piece in (front, back):
+        base = piece.Placement.Base
+        home = PiecePlacement(str(piece.PieceId), (float(base.x), float(base.y), float(base.z)), float(piece.Placement.Rotation.Angle))
+        homes[str(piece.PieceId)] = home
+    fitting.PatternPieces = [front, back]
+    fitting.PiecePlacements = [homes[key].to_string() for key in sorted(homes)]
+    fitting.HomePlacements = [homes[key].to_string() for key in sorted(homes)]
+    fitting.TargetPlacementClearance = 6.0
+    fitting.TargetPlacementMaxTranslation = 300.0
+    doc.recompute()
+    if fitting.DrapeTarget != target:
+        raise RuntimeError("fitting scene did not persist the authoritative DrapeTarget")
+    try:
+        fitting.DrapeTarget = None
+        try:
+            snap_piece_to_target(front)
+        except ValueError:
+            pass
+        else:
+            raise RuntimeError("target-relative placement accepted a missing target")
+    finally:
+        fitting.DrapeTarget = target
+    doc.recompute()
+    deltas = {str(piece.PieceId): snap_piece_to_target(piece, target=target) for piece in (front, back)}
+    after_snap = {str(piece.PieceId): piece.Placement for piece in (front, back)}
+    reset_arrangement()
+    for piece in (front, back):
+        restored = piece.Placement
+        if restored != homes[str(piece.PieceId)] and (
+            abs(float(restored.Base.x) - float(homes[str(piece.PieceId)].position[0])) > 1e-6
+            or abs(float(restored.Base.y) - float(homes[str(piece.PieceId)].position[1])) > 1e-6
+            or abs(float(restored.Base.z) - float(homes[str(piece.PieceId)].position[2])) > 1e-6
+            or abs(float(restored.Rotation.Angle) - float(homes[str(piece.PieceId)].rotation_z)) > 1e-6
+        ):
+            raise RuntimeError("target-relative placement did not restore HomePlacement exactly")
+    for piece in (front, back):
+        snap_piece_to_target(piece, target=target)
+    doc.recompute()
+    log("target-placement=passed deltas=%s" % deltas)
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
     def authored_shoulder_pins(piece, particle_indices, positions):
         targets = (
@@ -377,6 +423,17 @@ def simulation():
         return tuple(result)
     proxy = scene.Proxy
     positions = tuple(proxy.backend.positions())
+    target_surface = collision_surface(target, float(getattr(target, "CollisionDeflection", 1.0)), float(getattr(target, "CollisionThickness", 0.0)))
+    clearance_records = []
+    for piece, panel_name in zip((front, back), (str(scene.DrapePanels[0].Name), str(scene.DrapePanels[1].Name))):
+        indices = tuple(proxy.panel_indices[panel_name])
+        piece_points = tuple(positions[index] for index in indices)
+        direction = surface_outward_direction(tuple(piece_points), target_surface)
+        clearance_value = minimum_signed_clearance(piece_points, target_surface, direction)
+        if clearance_value is None or clearance_value < float(fitting.TargetPlacementClearance) - 1e-4:
+            raise RuntimeError("step-0 target clearance failed for %s: %.3f mm" % (piece.Label, float(clearance_value or -1.0)))
+        clearance_records.append((str(piece.PieceId), round(float(clearance_value), 3)))
+    log("step-0-target-clearance=passed values=%s" % clearance_records)
     pin_panels = list(scene.DrapePanels)
     panel_indices = proxy.panel_indices
     front_indices = tuple(panel_indices[pin_panels[0].Name])
