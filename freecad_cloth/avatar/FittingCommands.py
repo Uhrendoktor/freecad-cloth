@@ -92,6 +92,22 @@ def _migrate_visual_output_references(scene):
         scene.addProperty("App::PropertyStringList", name, "Arrangement")
         setattr(scene, name, names)
 
+def _ensure_fitting_properties(scene):
+    """Migrate persisted fitting scenes to the current target/placement contract."""
+    if scene is None:
+        return None
+    properties = set(getattr(scene, "PropertiesList", ()) or ())
+    if "DrapeTarget" not in properties:
+        scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")
+        properties.add("DrapeTarget")
+    target = getattr(scene, "DrapeTarget", None)
+    if target is None:
+        target = scene.Document.getObject("DrapeTarget")
+        if target is not None:
+            scene.DrapeTarget = target
+    return scene
+
+
 def create_fitting_scene():
     import FreeCAD as App
     from freecad_cloth.avatar.AvatarFitting import BodyMeasurements, FittingScene
@@ -99,8 +115,8 @@ def create_fitting_scene():
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
     existing = _scene(doc)
     if existing is not None:
-        if "DrapeTarget" not in getattr(existing, "PropertiesList", ()):
-            existing.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")
+        _ensure_fitting_properties(existing)
+        doc.recompute()
         return existing
     obj = doc.addObject("App::FeaturePython", "FittingScene")
     obj.Label = "Avatar Fitting Scene"
@@ -145,6 +161,7 @@ def assign_avatar_source(source=None):
 
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
     scene = _scene(doc) or create_fitting_scene()
+    _ensure_fitting_properties(scene)
     if source is None:
         source = next((o for o in Gui.Selection.getSelection() if hasattr(o, "Shape") or hasattr(o, "Mesh")), None)
     if source is None:
@@ -167,6 +184,7 @@ def add_selected_pattern_pieces():
 
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
     scene = _scene(doc) or create_fitting_scene()
+    _ensure_fitting_properties(scene)
     pieces = [o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"]
     if not pieces:
         raise ValueError("select one or more pattern pieces before adding them to the fitting scene")
@@ -262,6 +280,7 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=6
     scene = _scene(doc)
     if scene is None:
         raise ValueError("create a fitting scene first")
+    _ensure_fitting_properties(scene)
     target = _fitting_target(scene)
     required = (
         max(float(clearance), 0.0)
@@ -565,10 +584,10 @@ def create_simulation_from_fitting():
     if scene.AvatarProxy is not None:
         simulation.AvatarProxy = scene.AvatarProxy
     target = getattr(scene, "DrapeTarget", None) or doc.getObject("DrapeTarget")
-    if target is None:
-        raise ValueError("assign a DrapeTarget before creating simulation")
-    scene.DrapeTarget = target
-    simulation.DrapeTarget = target
+    if target is not None:
+        _ensure_fitting_properties(scene)
+        scene.DrapeTarget = target
+        simulation.DrapeTarget = target
     doc.recompute()
     return simulation
 
