@@ -97,8 +97,14 @@ def create_fitting_scene():
     from freecad_cloth.avatar.AvatarFitting import BodyMeasurements, FittingScene
 
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
-    if _scene(doc) is not None:
-        return _scene(doc)
+    existing = _scene(doc)
+    if existing is not None:
+        if "DrapeTarget" not in getattr(existing, "PropertiesList", ()):
+            existing.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")
+        if "GarmentAnchors" not in getattr(existing, "PropertiesList", ()):
+            existing.addProperty("App::PropertyStringList", "GarmentAnchors", "Arrangement")
+            existing.GarmentAnchors = []
+        return existing
     obj = doc.addObject("App::FeaturePython", "FittingScene")
     obj.Label = "Avatar Fitting Scene"
     obj.addProperty("App::PropertyString", "FittingType", "Fitting").FittingType = "FittingScene"
@@ -268,6 +274,33 @@ def set_garment_anchors(anchors):
     return scene
 
 
+
+def target_surface_world(target):
+    """Return the persistent DrapeTarget collision surface in world coordinates."""
+    import FreeCAD as App
+    from freecad_cloth.avatar.AvatarCollision import CollisionSurface
+    from freecad_cloth.simulation.DrapeTarget import collision_surface
+
+    source = getattr(target, "SourceObject", None)
+    if source is None:
+        raise ValueError("drape target source is required")
+    surface = collision_surface(
+        source,
+        float(getattr(target, "CollisionDeflection", 1.0)),
+        float(getattr(target, "CollisionThickness", 0.0)),
+    )
+    placement = getattr(source, "Placement", None)
+    if placement is None:
+        return surface
+    vertices = []
+    for point in surface.vertices:
+        world = placement.multVec(App.Vector(*point))
+        vertices.append((float(world.x), float(world.y), float(world.z)))
+    result = CollisionSurface(tuple(vertices), tuple(surface.triangles), str(surface.region), float(surface.thickness))
+    result.validate()
+    return result
+
+
 def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translation=600.0, max_rotation=45.0):
     """Place one piece rigidly against the persistent DrapeTarget transactionally."""
     import FreeCAD as App
@@ -291,9 +324,11 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
         source_object = getattr(target, "SourceObject", None)
         if source_object is None:
             raise ValueError("drape target source is required")
-        surface = collision_surface(source_object, float(getattr(target, "CollisionDeflection", 1.0)), float(getattr(target, "CollisionThickness", 0.0)))
-        from freecad_cloth.avatar.TargetAwarePlacement import transform_surface_to_world
-        surface = transform_surface_to_world(surface, source_object)
+        if scene is None:
+            raise ValueError("create a fitting scene first")
+        if getattr(scene, "DrapeTarget", None) is not target:
+            raise ValueError("target-aware placement must use the fitting scene's authoritative DrapeTarget")
+        surface = target_surface_world(target)
         piece_id = str(piece.PieceId)
         selected = tuple(item if isinstance(item, GarmentAnchor) else GarmentAnchor.from_string(item) for item in anchors or ())
         selected = tuple(sorted((item for item in selected if str(item.piece_id) == piece_id), key=lambda item: item.name))
@@ -473,6 +508,9 @@ def reset_arrangement():
             continue
         x, y, z = placement.position
         piece.Placement = App.Placement(App.Vector(x, y, z), App.Rotation(App.Vector(*placement.rotation_axis), placement.rotation_z))
+        sketch = getattr(piece, "Sketch", None)
+        if sketch is not None:
+            sketch.Placement = piece.Placement
         current[pid] = placement
     scene.PiecePlacements = [current[k].to_string() for k in sorted(current)]
     scene.FitStatus = "Arrangement reset"
@@ -494,8 +532,9 @@ def create_simulation_from_fitting():
     if scene.AvatarProxy is not None:
         simulation.AvatarProxy = scene.AvatarProxy
     fitting_target = getattr(scene, "DrapeTarget", None)
-    if fitting_target is not None:
-        simulation.DrapeTarget = fitting_target
+    if fitting_target is None:
+        raise ValueError("assign a current DrapeTarget before creating simulation")
+    simulation.DrapeTarget = fitting_target
     doc.recompute()
     return simulation
 
