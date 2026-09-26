@@ -290,13 +290,16 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
     changed = run("git", "diff", "--name-only")
-    expected = {
+    changed_paths = tuple(sorted(path.strip() for path in changed.splitlines() if path.strip()))
+    expected_paths = (
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
         "tests/physics/test_mesh_collider.cpp",
-    }
-    if set(changed.splitlines()) != expected:
-        raise RuntimeError(f"unexpected patched files: {changed!r}")
+    )
+    if changed_paths != expected_paths:
+        raise RuntimeError(
+            "unexpected patched files: %r (expected %r)" % (changed_paths, expected_paths)
+        )
 
     script_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     print(f"Tissu source commit: {EXPECTED_COMMIT}")
