@@ -81,7 +81,7 @@ class SimulationQualityTaskPanel:
         self.refresh_target_button.setObjectName("ClothSimulationRefreshTargetButton")
         self.arrange_button.setToolTip("Create the existing Arrange & Fit scene, add selected garment pieces, or apply the selected arrangement point.")
         self.reset_arrangement_button.setToolTip("Restore the saved Arrange & Fit home placements.")
-        self.refresh_target_button.setToolTip("Rebuild collision geometry from the current DrapeTarget source.")
+        self.refresh_target_button.setToolTip("Recover the current DrapeTarget using its existing validation and refresh paths.")
         cform.addRow("Target", self.target_context)
         cform.addRow("Placement", self.placement_status)
         cform.addRow("", self.arrange_button)
