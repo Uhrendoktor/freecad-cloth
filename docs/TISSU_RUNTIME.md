@@ -1,6 +1,6 @@
 # Reproducible Tissu runtime
 
-Canonical GUI simulation uses a source transformed Tissu 1.1.0 runtime because the pinned upstream `MeshCollider::resolve()` implementation derives its collision normal directly from the particle-to-closest-point vector. For a particle that has crossed into a closed mesh, that vector points inward. The repository-controlled source transform corrects that direction only for closed, consistently wound collision surfaces; open/non-manifold meshes retain the legacy behavior.
+Canonical GUI simulation uses a repository-controlled source-transformed Tissu 1.1.0 runtime because the pinned upstream `MeshCollider::resolve()` implementation derives its collision normal directly from the particle-to-closest-point vector. For a particle that has crossed into a closed mesh, that vector points inward. The repository-controlled source transform corrects that direction only for closed, consistently wound collision surfaces; open/non-manifold meshes retain the legacy behavior.
 
 The canonical provenance is:
 
