@@ -18,6 +18,7 @@ class ClothSimulationWorkbench(ClothWorkbenchBase):
         self.Icon = str(Path(__file__).resolve().parents[2] / "resources" / "icons" / "ClothSimulation.svg")
 
     def Activated(self):
+        super().Activated()
         import freecad_cloth.simulation.DrapeCommands as DrapeCommands
         DrapeCommands.register_gui_commands()
 
