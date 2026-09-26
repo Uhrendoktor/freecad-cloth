@@ -24,7 +24,7 @@ This fixture intentionally avoids the human avatar so users can isolate cloth, c
 
 ## 2. Tunic
 
-The tunic is the full garment acceptance scenario. It uses two pattern pieces, semantic sewing, a production MakeHuman mannequin, persisted quality/material settings, diagnostics, save/reload and invalidation.
+The tunic is the full garment acceptance scenario. It uses two pattern pieces, semantic sewing, a production MakeHuman mannequin, target-surface arrangement before step 1, deliberately zero solver pins, persisted quality/material settings, diagnostics, save/reload and invalidation.
 
 Use the generated artifacts only as evidence: the tunic is not a substitute for the simpler blanket when debugging a local installation.
 
