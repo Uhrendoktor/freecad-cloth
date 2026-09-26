@@ -118,3 +118,22 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
     assert 'tunic-simulation-start' in source
+
+
+def test_solver_collision_surface_uses_tissu_owned_surface_without_replacing_authority():
+    from types import SimpleNamespace
+    from freecad_cloth.simulation.SimulationObjects import _solver_collision_surface
+
+    authoritative = object()
+    solver_surface = object()
+    tissu_proxy = SimpleNamespace(
+        collision_surface=authoritative,
+        backend=SimpleNamespace(name="tissu", _collision_surface=solver_surface),
+    )
+    cpu_proxy = SimpleNamespace(
+        collision_surface=authoritative,
+        backend=SimpleNamespace(name="xpbd-cpu", _collision_surface=object()),
+    )
+
+    assert _solver_collision_surface(tissu_proxy) is solver_surface
+    assert _solver_collision_surface(cpu_proxy) is authoritative
