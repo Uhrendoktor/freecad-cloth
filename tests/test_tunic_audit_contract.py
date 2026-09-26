@@ -148,3 +148,9 @@ def test_tissu_backend_keeps_authoritative_mesh_separate_from_solver_surface():
     assert "collision_surface = coarsen_collision_surface(collision_surface, collision_limit)" in source
     assert "self._collision_surface = collision_surface" in source
     assert "source_triangles=%d solver_triangles=%d limit=%d" in source
+
+
+def test_tunic_audit_replaces_the_complete_15_step_batch_block():
+    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "anchor + '\\n        simulation_panel.step(batch); doc.recompute(); events()\\n'" in source
+    assert "preview_probe + '\\n' + timed_anchor" in source
