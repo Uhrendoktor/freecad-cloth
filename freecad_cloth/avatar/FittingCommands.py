@@ -524,13 +524,13 @@ def snap_pieces_to_target(pieces=None, target=None, clearance=2.0, max_translati
     persisted_before = tuple(scene.PiecePlacements)
     fit_status_before = str(getattr(scene, "FitStatus", ""))
     surface = _world_collision_surface(target)
-    scene.DrapeTarget = target
     vertices_by_piece = {str(piece.PieceId): _world_vertices(piece) for piece in selected}
     all_vertices = tuple(point for vertices in vertices_by_piece.values() for point in vertices)
     anchor = tuple(sum(point[i] for point in all_vertices) / len(all_vertices) for i in range(3))
-    delta = _snap_translation(surface, anchor, clearance, max_translation)
 
     try:
+        scene.DrapeTarget = target
+        delta = _snap_translation(surface, anchor, clearance, max_translation)
         for piece in selected:
             placement = piece.Placement
             base = placement.Base
