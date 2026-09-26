@@ -118,3 +118,46 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
     assert 'tunic-simulation-start' in source
+
+
+def test_tissu_collision_cap_is_derived_without_mutating_authoritative_surface():
+    from freecad_cloth.avatar.AvatarCollision import CollisionSurface, coarsen_collision_surface
+
+    vertices = tuple((float(i % 5), float((i // 5) % 5), float(i // 25)) for i in range(75))
+    triangles = tuple(
+        (row * 5 + col, row * 5 + col + 1, (row + 1) * 5 + col)
+        for row in range(14)
+        for col in range(4)
+    )
+    source = CollisionSurface(vertices, triangles, "DrapeTarget", 0.5)
+    derived = coarsen_collision_surface(source, 8)
+
+    assert len(source.triangles) == 56
+    assert len(derived.triangles) == 8
+    assert derived is not source
+    assert derived.vertices is source.vertices
+    assert derived.region == source.region
+    assert derived.thickness == source.thickness
+    assert set(derived.triangles).issubset(set(source.triangles))
+
+
+def test_tissu_backend_keeps_authoritative_mesh_separate_from_solver_surface():
+    source = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    assert "self._source_collision_surface = collision_surface" in source
+    assert 'collision_mode == "mesh"' in source
+    assert "collision_surface = coarsen_collision_surface(collision_surface, collision_limit)" in source
+    assert "self._collision_surface = collision_surface" in source
+    assert "source_triangles=%d solver_triangles=%d limit=%d" in source
+
+
+def test_tunic_audit_replaces_the_complete_15_step_batch_block():
+    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "anchor + '\\n        simulation_panel.step(batch); doc.recompute(); events()\\n'" in source
+    assert "preview_probe + '\\n' + timed_anchor" in source
+
+
+def test_tunic_step_zero_clearance_gate_is_preserved_while_fixture_starts_outside_target():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "clearance = max(8.0, 0.025 * body_depth)" in audit
+    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance'" in audit
+    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance'" in audit
