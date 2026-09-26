@@ -80,3 +80,13 @@ def test_group_fit_persists_rotation_axis_in_piece_placement_source_contract():
     body = source[start:end]
     assert "placement.Rotation.Axis" in body
     assert "PiecePlacement(" in body
+
+
+def test_target_link_is_part_of_transactional_rollback_contract():
+    from pathlib import Path
+    source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    start = source.index("def snap_pattern_pieces_to_target(")
+    end = source.index("\ndef position_piece", start)
+    body = source[start:end]
+    assert "target_before = getattr(scene, \"DrapeTarget\", None)" in body
+    assert "scene.DrapeTarget = target_before" in body
