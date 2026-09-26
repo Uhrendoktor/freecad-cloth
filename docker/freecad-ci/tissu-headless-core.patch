@@ -1,13 +1,15 @@
 diff --git a/core/CMakeLists.txt b/core/CMakeLists.txt
 --- a/core/CMakeLists.txt
 +++ b/core/CMakeLists.txt
-@@ -23,27 +23,17 @@ set(CORE_SOURCES
-     src/io/OBJExporter.cpp
+@@ -28,7 +28,6 @@
      src/io/ConfigLoader.cpp
      src/io/SceneLoader.cpp
      src/io/SceneExporter.cpp
 -    src/io/AlembicExporter.cpp
      src/io/StateSerializer.cpp
+     src/utils/Logger.cpp
+ )
+@@ -33,13 +32,6 @@
      src/utils/Logger.cpp
  )
  
@@ -21,10 +23,7 @@ diff --git a/core/CMakeLists.txt b/core/CMakeLists.txt
  add_library(TissuCore STATIC ${CORE_SOURCES})
  
  if(MSVC)
-     target_compile_options(TissuCore PRIVATE /openmp)
- endif()
- 
- target_link_libraries(TissuCore PUBLIC Eigen3::Eigen)
+@@ -50,10 +42,6 @@
  target_link_libraries(TissuCore PUBLIC tinyobjloader)
  target_link_libraries(TissuCore PUBLIC nlohmann_json::nlohmann_json)
  target_link_libraries(TissuCore PUBLIC OpenMP::OpenMP_CXX)
@@ -34,3 +33,4 @@ diff --git a/core/CMakeLists.txt b/core/CMakeLists.txt
 -)
  
  if (TARGET TracyClient)
+     target_link_libraries(TissuCore PUBLIC TracyClient)
