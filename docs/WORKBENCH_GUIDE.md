@@ -28,7 +28,7 @@ If a Sketch edit invalidates a semantic edge reference, the seam remains invalid
 
 ### 3. Arrange and fit
 
-Create/select a `DrapeTarget`: either the native human mannequin or an ordinary FreeCAD Shape/PartDesign/Body/Mesh. Arrange pieces using persistent placements/arrangement metadata. Reset and superimpose are deterministic fitting operations, not solver state.
+Create/select a `DrapeTarget`: either the native human mannequin or an ordinary FreeCAD Shape/PartDesign/Body/Mesh. Arrange pieces using persistent placements/arrangement metadata. From the Simulation task panel, **Arrange / Fit…** hands the current cloth pieces and target into the native fitting stage without changing solver state. **Reset arrangement** restores the saved pre-arrangement placements. Reset and superimpose are deterministic fitting operations, not solver state.
 
 ### 4. Simulate
 
@@ -64,7 +64,7 @@ Task panels read **Context → Primary action → Secondary actions → Paramete
 
 Important state is visible in the document tree/Property Editor. Multi-step sewing stages selection before commit: `Enter` completes the stage, `Delete` undoes the latest stage, `Esc` cancels. Invalid selections are visibly rejected.
 
-Simulation shows target identity/validity before Run/Step. Quality/material controls are separate from target selection. Stale state always has an actionable recovery path.
+Simulation shows target identity/validity and the current Arrange / Fit state before Run/Step. Quality/material controls are separate from fitting state. Stale state and fitting recovery always have an actionable path.
 
 ## Troubleshooting
 
