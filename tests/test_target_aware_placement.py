@@ -5,6 +5,7 @@ from freecad_cloth.avatar.TargetAwarePlacement import (
     TargetPlacementError,
     apply_rigid_delta,
     assert_minimum_surface_clearance,
+    minimum_surface_clearance_hit,
     require_ready_target_status,
     solve_rigid_z,
     target_surface_anchor,
@@ -45,6 +46,14 @@ def test_rigid_solution_is_deterministic_and_bounded():
 def test_rigid_solution_fails_closed_on_transform_bound():
     with pytest.raises(TargetPlacementError):
         solve_rigid_z(((0, 0, 0),), ((1000, 0, 0),), max_translation=100, max_rotation=45)
+
+
+def test_minimum_clearance_reports_deepest_outward_normal():
+    surface = _box_surface()
+    clearance, point, normal = minimum_surface_clearance_hit(surface, ((0, 0, 9), (0, 0, 12)))
+    assert clearance == pytest.approx(-1.0)
+    assert point[2] == pytest.approx(10.0)
+    assert normal == (0.0, 0.0, 1.0)
 
 
 def test_step_zero_clearance_is_enforced_against_authoritative_surface():
