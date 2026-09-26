@@ -205,6 +205,41 @@ jobs:
           docker cp "$PWD/." "$CID:/workspace/"
           docker start -a "$CID"
 
+  tissu-runtime:
+    name: Build patched Tissu runtime
+    needs: [local_runner_readiness]
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 20
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and test patched Tissu wheel
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/pytissu-runtime
+          tools/build_pytissu_runtime.sh artifacts/pytissu-runtime
+          test -n "$(find artifacts/pytissu-runtime -maxdepth 1 -name '*.whl' -print -quit)"
+          test -s artifacts/pytissu-runtime/pytissu-provenance.txt
+          cat artifacts/pytissu-runtime/pytissu-provenance.txt
+      - name: Upload patched Tissu runtime
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: pytissu-runtime
+          path: artifacts/pytissu-runtime
+          if-no-files-found: error
+          compression-level: 1
   gui-sewing-creation:
     name: Sewing staged creation smoke
     needs: [local_runner_readiness]
@@ -459,7 +494,7 @@ jobs:
 
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
-    needs: [local_runner_readiness]
+    needs: [local_runner_readiness, tissu-runtime]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 20
     steps:
@@ -471,6 +506,11 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Download patched Tissu runtime
+        uses: actions/download-artifact@v6
+        with:
+          name: pytissu-runtime
+          path: artifacts/pytissu-runtime
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -507,6 +547,7 @@ jobs:
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
+              python3 -m pip install --no-cache-dir --force-reinstall --no-deps /workspace/artifacts/pytissu-runtime/*.whl >/tmp/pytissu-install.log 2>&1
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
@@ -589,7 +630,7 @@ jobs:
 
   gui-turntables:
     name: README simulation turntable
-    needs: [local_runner_readiness]
+    needs: [local_runner_readiness, tissu-runtime]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 25
     steps:
@@ -601,6 +642,11 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Download patched Tissu runtime
+        uses: actions/download-artifact@v6
+        with:
+          name: pytissu-runtime
+          path: artifacts/pytissu-runtime
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -634,6 +680,7 @@ jobs:
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
+              python3 -m pip install --no-cache-dir --force-reinstall --no-deps /workspace/artifacts/pytissu-runtime/*.whl >/tmp/pytissu-install.log 2>&1
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
@@ -978,7 +1025,7 @@ jobs:
             done
   benchmark:
     name: Measured FreeCAD workbench benchmark
-    needs: [local_runner_readiness]
+    needs: [local_runner_readiness, tissu-runtime]
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 12
@@ -991,6 +1038,11 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Download patched Tissu runtime
+        uses: actions/download-artifact@v6
+        with:
+          name: pytissu-runtime
+          path: artifacts/pytissu-runtime
       - name: Pull published FreeCAD image
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
@@ -1007,6 +1059,7 @@ jobs:
           mkdir -p artifacts/workbench-benchmark
           CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu -w /workspace "$IMAGE" -euo pipefail -c '
             set -e
+            python3 -m pip install --no-cache-dir --force-reinstall --no-deps /workspace/artifacts/pytissu-runtime/*.whl
             python3 -c "import tissu, pytest; print(\"Tissu\", tissu.__file__); print(\"pytest\", pytest.__version__)"
             mkdir -p "$XDG_RUNTIME_DIR"
             Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
