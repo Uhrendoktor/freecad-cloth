@@ -44,6 +44,7 @@ jobs:
   local_runner_readiness:
     name: Selected runner readiness
     if: ${{ github.event_name != 'schedule' }}
+    if: ${{ github.event_name != 'schedule' }}
     # This is the sole runner-start sentinel. Every substantive workload depends on it.
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 2
