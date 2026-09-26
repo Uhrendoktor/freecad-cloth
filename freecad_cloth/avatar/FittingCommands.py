@@ -1,3 +1,5 @@
+from math import sqrt
+
 """FreeCAD-facing body measurement, avatar fitting, and arrangement commands."""
 
 
