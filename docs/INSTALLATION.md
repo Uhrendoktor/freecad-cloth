@@ -65,6 +65,6 @@ Do not create a second workflow for a one-off GUI or documentation check.
 
 **Simulation is blocked:** inspect the persistent `DrapeTarget` status. A **stale**, **unbuilt**, **unassigned**, **invalid**, **missing** or **disabled** target must be rebuilt/refreshed before simulation can run.
 
-**The tunic intersects the mannequin:** correct persistent arrangement/placements and refresh the `DrapeTarget` after source changes. The validated tunic path uses target-relative starting placement and `PinMode=None); it does not establish a general automatic body-snap workflow.
+**The tunic intersects the mannequin:** correct persistent arrangement/placements and refresh the `DrapeTarget` after source changes. The validated tunic path uses target-relative starting placement and `PinMode=None`; it does not establish a general automatic body-snap workflow.
 
 **Local visual output differs from CI:** use the FreeCAD/Triangle/Tissu versions recorded by the canonical workflow before comparing rendered artifacts. Published README media is generated from validated CI artifacts; do not replace it with ad-hoc screenshots.
