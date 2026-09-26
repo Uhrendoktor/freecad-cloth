@@ -15,3 +15,6 @@ assert "ClothRealtimePreview" in source
 assert "RealtimePreview" in workbench
 assert "ClothRealtimePreview" in workbench
 print("realtime preview contract: ok")
+
+assert "register_gui_command()" not in source
+assert "RealtimePreview.register_gui_command()" in workbench
