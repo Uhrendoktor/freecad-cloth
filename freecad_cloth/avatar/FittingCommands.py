@@ -92,13 +92,21 @@ def _migrate_visual_output_references(scene):
         scene.addProperty("App::PropertyStringList", name, "Arrangement")
         setattr(scene, name, names)
 
+def _ensure_fitting_properties(scene):
+    """Migrate legacy fitting scenes to current persistent fitting properties."""
+    if "DrapeTarget" not in getattr(scene, "PropertiesList", ()):
+        scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")
+    return scene
+
+
 def create_fitting_scene():
     import FreeCAD as App
     from freecad_cloth.avatar.AvatarFitting import BodyMeasurements, FittingScene
 
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
-    if _scene(doc) is not None:
-        return _scene(doc)
+    existing = _scene(doc)
+    if existing is not None:
+        return _ensure_fitting_properties(existing)
     obj = doc.addObject("App::FeaturePython", "FittingScene")
     obj.Label = "Avatar Fitting Scene"
     obj.addProperty("App::PropertyString", "FittingType", "Fitting").FittingType = "FittingScene"
@@ -149,6 +157,7 @@ def assign_avatar_source(source=None):
     avatar = create_avatar_collision(doc) if doc.getObject("AvatarCollision") is None else doc.getObject("AvatarCollision")
     avatar = set_avatar_collision_source(scene, source)
     scene.AvatarProxy = avatar
+    _ensure_fitting_properties(scene)
     existing_target = doc.getObject("DrapeTarget")
     if existing_target is not None:
         scene.DrapeTarget = existing_target
@@ -174,7 +183,13 @@ def add_selected_pattern_pieces():
     for piece in pieces:
         placement = piece.Placement
         base = placement.Base
-        value = PiecePlacement(str(piece.PieceId), (float(base.x), float(base.y), float(base.z)), float(placement.Rotation.Angle))
+        axis = placement.Rotation.Axis
+        value = PiecePlacement(
+            str(piece.PieceId),
+            (float(base.x), float(base.y), float(base.z)),
+            float(placement.Rotation.Angle),
+            (float(axis.x), float(axis.y), float(axis.z)),
+        )
         by_id[value.piece_id] = value
         home_by_id.setdefault(value.piece_id, value)
     scene.PatternPieces = sorted(set(list(scene.PatternPieces) + pieces), key=lambda o: str(o.PieceId))
@@ -196,7 +211,13 @@ def position_piece(piece, x, y, z=0.0, rotation_z=0.0):
     placement = App.Placement(App.Vector(float(x), float(y), float(z)), App.Rotation(App.Vector(0, 0, 1), float(rotation_z)))
     piece.Placement = placement
     entries = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)}
-    entries[str(piece.PieceId)] = PiecePlacement(str(piece.PieceId), (float(x), float(y), float(z)), float(rotation_z))
+    axis = placement.Rotation.Axis
+    entries[str(piece.PieceId)] = PiecePlacement(
+        str(piece.PieceId),
+        (float(x), float(y), float(z)),
+        float(placement.Rotation.Angle),
+        (float(axis.x), float(axis.y), float(axis.z)),
+    )
     scene.PiecePlacements = [entries[k].to_string() for k in sorted(entries)]
     doc.recompute()
     return piece
@@ -302,6 +323,7 @@ def set_symmetry_enabled(enabled=True):
     scene = _scene(doc)
     if scene is None:
         raise ValueError("create a fitting scene first")
+    _ensure_fitting_properties(scene)
     scene.SymmetryEnabled = bool(enabled)
     doc.recompute()
     return scene
@@ -480,7 +502,10 @@ def snap_pieces_to_target(pieces=None, target=None, clearance=2.0, max_translati
         float(getattr(target, "CollisionThickness", 0.0)),
     )
     original = {str(piece.PieceId): piece.Placement for piece in selected}
+    original_sketch = {str(piece.PieceId): getattr(getattr(piece, "Sketch", None), "Placement", None) for piece in selected}
     persisted_before = tuple(scene.PiecePlacements)
+    target_before = getattr(scene, "DrapeTarget", None)
+    fit_status_before = str(getattr(scene, "FitStatus", ""))
     vertices_by_piece = {str(piece.PieceId): _world_vertices(piece) for piece in selected}
     all_vertices = tuple(point for vertices in vertices_by_piece.values() for point in vertices)
     anchor = tuple(sum(point[i] for point in all_vertices) / len(all_vertices) for i in range(3))
@@ -490,10 +515,14 @@ def snap_pieces_to_target(pieces=None, target=None, clearance=2.0, max_translati
         for piece in selected:
             placement = piece.Placement
             base = placement.Base
-            piece.Placement = App.Placement(
+            updated = App.Placement(
                 App.Vector(float(base.x) + delta[0], float(base.y) + delta[1], float(base.z) + delta[2]),
                 placement.Rotation,
             )
+            piece.Placement = updated
+            sketch = getattr(piece, "Sketch", None)
+            if sketch is not None:
+                sketch.Placement = updated
         doc.recompute()
         for piece in selected:
             for vertex in _world_vertices(piece):
@@ -504,7 +533,13 @@ def snap_pieces_to_target(pieces=None, target=None, clearance=2.0, max_translati
     except BaseException:
         for piece in selected:
             piece.Placement = original[str(piece.PieceId)]
+            sketch = getattr(piece, "Sketch", None)
+            saved = original_sketch.get(str(piece.PieceId))
+            if sketch is not None and saved is not None:
+                sketch.Placement = saved
         scene.PiecePlacements = list(persisted_before)
+        scene.DrapeTarget = target_before
+        scene.FitStatus = fit_status_before
         doc.recompute()
         raise
 
@@ -512,10 +547,12 @@ def snap_pieces_to_target(pieces=None, target=None, clearance=2.0, max_translati
     for piece in selected:
         placement = piece.Placement
         base = placement.Base
+        axis = placement.Rotation.Axis
         current[str(piece.PieceId)] = PiecePlacement(
             str(piece.PieceId),
             (float(base.x), float(base.y), float(base.z)),
             float(placement.Rotation.Angle),
+            (float(axis.x), float(axis.y), float(axis.z)),
         )
     scene.PiecePlacements = [current[key].to_string() for key in sorted(current)]
     scene.FitStatus = "Snapped to target"
