@@ -408,10 +408,12 @@ def simulation():
     homes = []
     for piece in (front, back):
         base = piece.Placement.Base
+        axis = piece.Placement.Rotation.Axis
         placement = PiecePlacement(
             str(piece.PieceId),
             (float(base.x), float(base.y), float(base.z)),
             float(piece.Placement.Rotation.Angle),
+            (float(axis.x), float(axis.y), float(axis.z)),
         )
         homes.append(placement.to_string())
     fitting.PiecePlacements = list(homes)
