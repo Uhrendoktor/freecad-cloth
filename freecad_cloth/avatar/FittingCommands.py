@@ -295,13 +295,18 @@ def set_garment_anchors(anchors):
     return scene
 
 
+def _build_target_surface_index(surface):
+    from freecad_cloth.avatar.TargetAwarePlacement import SurfaceSpatialIndex
+    return SurfaceSpatialIndex(surface)
+
+
 def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translation=600.0, max_rotation=45.0):
     """Place one piece rigidly against the persistent DrapeTarget transactionally."""
     import FreeCAD as App
     from freecad_cloth.avatar.AvatarFitting import GarmentAnchor, PiecePlacement
     from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
     from freecad_cloth.avatar.TargetAwarePlacement import (
-        TargetPlacementError, assert_minimum_surface_clearance, minimum_surface_clearance,
+        TargetPlacementError, SurfaceSpatialIndex, assert_minimum_surface_clearance, minimum_surface_clearance,
         minimum_surface_clearance_detail, minimum_target_vertex_clearance,
         require_ready_target_status,
         solve_rigid_z, target_surface_anchor, wrap_normal,
@@ -321,6 +326,7 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
         if source_object is None:
             raise ValueError("drape target source is required")
         surface = collision_surface(source_object, float(getattr(target, "CollisionDeflection", 1.0)), float(getattr(target, "CollisionThickness", 0.0)))
+        target_index = _build_target_surface_index(surface)
         piece_id = str(piece.PieceId)
         selected = tuple(item if isinstance(item, GarmentAnchor) else GarmentAnchor.from_string(item) for item in anchors or ())
         selected = tuple(sorted((item for item in selected if str(item.piece_id) == piece_id), key=lambda item: item.name))
@@ -331,7 +337,7 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
         for anchor in selected:
             anchor.validate()
             source = piece.Placement.multVec(App.Vector(*anchor.position))
-            hit = target_surface_anchor(surface, (source.x, source.y, source.z), wrap_normal(anchor.wrap_direction))
+            hit = target_surface_anchor(surface, (source.x, source.y, source.z), wrap_normal(anchor.wrap_direction), index=target_index)
             desired = tuple(hit.point[i] + hit.normal[i] * (float(surface.thickness) + float(clearance)) for i in range(3))
             source_points.append((float(source.x), float(source.y), float(source.z)))
             target_points.append(desired)
@@ -349,8 +355,8 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
             placed_points.append((float(point.x), float(point.y), float(point.z)))
         anchor_clearance = minimum_surface_clearance(surface, placed_points)
         piece_points = _piece_world_surface_points(piece, deflection=max(0.25, float(clearance) / 2.0))
-        piece_clearance, worst_hit = minimum_surface_clearance_detail(surface, piece_points)
-        vertex_clearance = minimum_target_vertex_clearance(surface, piece_points)
+        piece_clearance, worst_hit = minimum_surface_clearance_detail(surface, piece_points, index=target_index)
+        vertex_clearance = minimum_target_vertex_clearance(surface, piece_points, index=target_index)
         correction_count = 0
         while (
             (piece_clearance < float(clearance) - 1e-6 or vertex_clearance < float(clearance) - 1e-6)
@@ -371,14 +377,14 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
             if sketch is not None:
                 sketch.Placement = piece.Placement
             piece_points = _piece_world_surface_points(piece, deflection=max(0.25, float(clearance) / 2.0))
-            piece_clearance, worst_hit = minimum_surface_clearance_detail(surface, piece_points)
-            vertex_clearance = minimum_target_vertex_clearance(surface, piece_points)
+            piece_clearance, worst_hit = minimum_surface_clearance_detail(surface, piece_points, index=target_index)
+            vertex_clearance = minimum_target_vertex_clearance(surface, piece_points, index=target_index)
             correction_count += 1
-        piece_clearance = assert_minimum_surface_clearance(surface, piece_points, float(clearance))
+        piece_clearance = assert_minimum_surface_clearance(surface, piece_points, float(clearance), index=target_index)
         anchor_clearance = assert_minimum_surface_clearance(surface, tuple(
             tuple(float(value) for value in piece.Placement.multVec(App.Vector(*anchor.position)))
             for anchor in selected
-        ), float(clearance))
+        ), float(clearance), index=target_index)
         if vertex_clearance < float(clearance) - 1e-6:
             raise TargetPlacementError(
                 "target-aware vertex clearance %.6f mm is below the required %.6f mm"
