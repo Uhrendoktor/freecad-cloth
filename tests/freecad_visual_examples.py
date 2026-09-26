@@ -245,7 +245,7 @@ def main():
         scene.GravityY = 0.0
         scene.GravityZ = -9810.0
         scene.StartHeight = 0.0
-        scene.TimeStep = 1.0 / 480.0
+        scene.TimeStep = 1.0 / 60.0
         # QualitySimulationProxy consumes SolverIterations; the legacy Iterations field is ignored for this runtime path.
         scene.ParticleDistance = max(12.0, float(scene.ParticleDistance))
         scene.SolverIterations = 4
@@ -314,8 +314,8 @@ def main():
         save_png(view, OUT / "checkpoint-000.png", "blanket initial state")
 
         initial_points = tuple(tuple(float(value) for value in point) for point in scene.Proxy._base_or_restore().backend.positions())
-        log("blanket-solver-config particle_distance=%.1f iterations=%d particles=%d backend=%s" % (
-            float(scene.ParticleDistance), int(scene.SolverIterations), int(scene.ParticleCount),
+        log("blanket-solver-config particle_distance=%.1f iterations=%d timestep=%.6f particles=%d backend=%s" % (
+            float(scene.ParticleDistance), int(scene.SolverIterations), float(scene.TimeStep), int(scene.ParticleCount),
             getattr(scene.Proxy._base_or_restore().backend, "name", "unknown"),
         ))
         log("blanket-backend-contract=passed requested=%s active=%s" % (
