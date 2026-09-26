@@ -471,13 +471,17 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Pull FreeCAD image
-        run: docker pull "$FREECAD_IMAGE"
+      - name: Build patched FreeCAD image for tunic validation
+        run: |
+          set -euo pipefail
+          docker build --pull -t freecad-ci:tissu-patched docker/freecad-ci
+          echo "FREECAD_IMAGE=freecad-ci:tissu-patched" >> "$GITHUB_ENV"
+      - name: Verify patched Tissu provenance
+        run: |
+          set -euo pipefail
+          docker run --rm freecad-ci:tissu-patched cat /opt/tissu-provenance.txt
+          grep -q 'tissu-source-commit=c28a3c7504ddc782bef844ab5bd4cd0bde14b628' <(docker run --rm freecad-ci:tissu-patched cat /opt/tissu-provenance.txt)
+          grep -q 'tissu-cpp-regression-result=passed' <(docker run --rm freecad-ci:tissu-patched cat /opt/tissu-provenance.txt)
       - name: Stage workspace in Docker volume
         run: |
           set -euo pipefail
