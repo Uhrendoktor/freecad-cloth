@@ -459,17 +459,13 @@ class SimulationProxy:
             int(getattr(obj, "StitchSamples", 8)),
         )
         system.add_stitches(seam_pairs)
+        # Pins are opt-in solver state. Pattern scenes must not silently anchor
+        # garment boundaries when the user leaves PinSelection empty.
+        # Garment stability comes from placement, sewing, gravity and collision.
         explicit_pins = _parse_int_list(getattr(obj, "PinSelection", ()), len(particles))
-        if explicit_pins:
-            pins = explicit_pins
+        pins = explicit_pins
+        if pins:
             system.pin(pins)
-        elif pieces:
-            first = panel_data[str(pieces[0].PieceId)]
-            boundary = list(dict.fromkeys(i for edge in first["boundary_edges"] for i in edge))
-            pins = tuple(boundary[:2] + boundary[-2:])
-            system.pin(pins)
-        else:
-            pins = ()
         collision_surface = _collision_for_scene(obj)
         registry = default_backend_registry()
         backend_name = preferred_backend_name(registry)
