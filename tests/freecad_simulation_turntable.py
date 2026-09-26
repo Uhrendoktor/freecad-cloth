@@ -393,8 +393,9 @@ def build_simulation_state(doc):
     scene.GravityX = 0.0
     scene.GravityY = 0.0
     scene.GravityZ = -9810.0
-    scene.TimeStep = 1.0 / 480.0
-    scene.SolverIterations = 20
+    scene.TimeStep = 1.0 / 60.0
+    scene.ParticleDistance = max(12.0, float(scene.ParticleDistance))
+    scene.SolverIterations = 4
     scene.FabricColor = (0.14, 0.32, 0.78)
     scene.FabricSpecular = 0.70
     scene.FabricRoughness = 0.20
@@ -439,7 +440,7 @@ def main():
         arranged_objects = [cube, panel]
         render_turntable(view, arranged_objects, os.path.join(OUT, "cloth-simulation-arranged-turntable-frames"))
 
-        steps = int(os.environ.get("CLOTH_BLANKET_STEPS", "480"))
+        steps = int(os.environ.get("CLOTH_BLANKET_STEPS", "120"))
         scene.Steps = steps
         doc.recompute()
         events()
@@ -448,6 +449,7 @@ def main():
         if panel.Mesh.CountFacets <= 50:
             raise RuntimeError("blanket drape mesh is too small")
         final_positions = tuple(scene.Proxy._base_or_restore().backend.positions())
+        log("blanket-turntable-config particle_distance=%.1f iterations=%d particles=%d steps=%d" % (float(scene.ParticleDistance), int(scene.SolverIterations), int(scene.ParticleCount), steps))
         initial_z = _center_z(initial_positions)
         final_z = _center_z(final_positions)
         displacement = abs(final_z - initial_z)
