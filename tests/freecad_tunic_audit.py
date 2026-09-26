@@ -149,6 +149,15 @@ def _compile_generated_source(source_text):
             % (error.msg, line_number, context)
         ) from error
 
+containment_gate = "    if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):\\n        raise RuntimeError(\"simulation did not reach a finite 90-step state\")\\n    containment_corrections = int(getattr(active_backend, \"_authored_containment_corrections\", 0))\\n    containment_max_penetration = float(getattr(active_backend, \"_authored_containment_max_penetration\", 0.0)) * 1000.0\\n    max_allowed_corrections = max(1, int(scene.ParticleCount) * int(scene.Steps) // 2)\\n    if containment_corrections <= 0:\\n        raise RuntimeError(\"authored containment experiment produced no correction telemetry\")\\n    if containment_corrections > max_allowed_corrections:\\n        raise RuntimeError(\"authored containment correction frequency indicates oscillation: %d > %d\" % (containment_corrections, max_allowed_corrections))\\n    log(\"authored-containment-corrections=%d max-penetration-mm=%.3f allowed=%d\" % (\\n        containment_corrections, containment_max_penetration, max_allowed_corrections\\n    ))"
+if 'simulation did not reach a finite 90-step state' not in source:
+    raise RuntimeError("generated source does not contain the canonical 90-step simulation gate")
+source = source.replace(
+    '    if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):\\n'
+    '        raise RuntimeError("simulation did not reach a finite 90-step state")',
+    containment_gate,
+    1,
+)
 compiled_source = _compile_generated_source(source)
 if "--syntax-check" in sys.argv:
     print(
