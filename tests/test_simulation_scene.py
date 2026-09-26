@@ -66,11 +66,13 @@ def test_pin_mode_semantics_preserve_automatic_defaults_and_support_no_pins():
     from types import SimpleNamespace
     from freecad_cloth.simulation.SimulationObjects import resolve_pin_indices
 
+    legacy = SimpleNamespace(PinSelection=[])
     automatic = SimpleNamespace(PinSelection=[], PinMode="Automatic")
     explicit = SimpleNamespace(PinSelection=["2", "5"], PinMode="Explicit")
     explicit_empty = SimpleNamespace(PinSelection=[], PinMode="Explicit")
     none = SimpleNamespace(PinSelection=["2", "5"], PinMode="None")
 
+    assert resolve_pin_indices(legacy, 8, (0, 7)) == (0, 7)
     assert resolve_pin_indices(automatic, 8, (0, 7)) == (0, 7)
     assert resolve_pin_indices(explicit, 8, (0, 7)) == (2, 5)
     assert resolve_pin_indices(explicit_empty, 8, (0, 7)) == ()
