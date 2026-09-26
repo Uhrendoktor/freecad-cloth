@@ -91,3 +91,8 @@ def test_fitting_simulation_target_propagation_and_staleness():
     finally:
         if doc.Name in App.listDocuments():
             App.closeDocument(doc.Name)
+
+
+
+if __name__ == "__main__":
+    unittest.main()
