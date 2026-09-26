@@ -13,7 +13,7 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())' in source
     assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in source
     assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in source
-    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' in source
+    assert 'front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"' in source
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
@@ -38,12 +38,13 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
 
 def test_canonical_tunic_uses_validated_authored_mapping():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert "required_indices = (1, 2, 6, 7)" in audit
+    assert "required_indices = (1, 2, 5, 7)" in audit
     assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in audit
     assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in audit
-    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' in audit
+    assert 'front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"' in audit
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in audit
     assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' not in audit
+    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' not in audit
 
 
 def test_canonical_tunic_source_rewrite_compiles():
@@ -107,3 +108,17 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
     assert 'tunic-simulation-start' in source
+
+
+def test_tunic_left_shoulder_experiment_uses_semantic_edge_5_pair():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"' in audit
+    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' not in audit
+
+
+def test_tunic_left_shoulder_experiment_preserves_validated_fixture():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'VisualTunicFront", "back", 0.78, 0.18' in audit
+    assert 'VisualTunicBack", "front", 0.76, 0.12' in audit
+    assert 'y = min(target_ys) - clearance' in audit
+    assert 'y = max(target_ys) + clearance' in audit
