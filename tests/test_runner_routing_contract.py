@@ -13,6 +13,36 @@ def _job_block(source: str, job: str) -> str:
     return remainder if next_job < 0 else remainder[:next_job]
 
 
+
+def _job_blocks(source: str) -> dict[str, str]:
+    jobs = source.split("\njobs:\n", 1)[1]
+    matches = list(re.finditer(r"^  ([A-Za-z0-9_-]+):\\n", jobs, re.MULTILINE))
+    return {
+        match.group(1): jobs[match.start() : (matches[index + 1].start() if index + 1 < len(matches) else len(jobs))]
+        for index, match in enumerate(matches)
+    }
+
+
+def test_no_pull_request_path_can_select_self_hosted():
+    source = WORKFLOW.read_text(encoding="utf-8")
+    trigger_section = source.split("\njobs:\n", 1)[0]
+    assert "\n  pull_request:\n" not in trigger_section
+    assert "\n  pull_request_target:\n" in trigger_section
+
+    trusted_event_gates = (
+        "github.event_name != 'pull_request_target'",
+        "github.event_name == 'push'",
+        "github.event_name == 'schedule'",
+        "github.event_name == 'workflow_dispatch'",
+    )
+    for job, block in _job_blocks(source).items():
+        if "self-hosted" not in block:
+            continue
+        assert any(gate in block for gate in trusted_event_gates), (
+            f"{job} exposes a self-hosted runner without a trusted-event gate"
+        )
+
+
 def test_one_canonical_workflow():
     workflows = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
     workflows += sorted((ROOT / ".github" / "workflows").glob("*.yaml"))
@@ -30,6 +60,7 @@ def test_pull_request_broker_dispatches_hosted_validation():
     assert "--ref main" in broker
     assert "-f runner_mode=hosted" in broker
     assert "-f pull_request_number=" in broker
+    assert "-f pull_request_sha=" in broker
     assert "actions/checkout" not in broker
     assert "self-hosted" not in broker
 
@@ -59,7 +90,7 @@ def test_trusted_jobs_default_to_local_runner():
         assert "inputs.runner_mode == 'hosted'" in block
 
 
-def test_pr_validation_checks_out_only_the_requested_merge_ref():
+def test_pr_validation_checks_out_only_the_requested_pr_head_sha():
     source = WORKFLOW.read_text(encoding="utf-8")
     python = _job_block(source, "python")
     assert "inputs.pull_request_number != ''" in python
