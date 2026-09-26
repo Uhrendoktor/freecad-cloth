@@ -223,6 +223,51 @@ def minimum_surface_clearance_sample(surface, points):
     return minimum
 
 
+@dataclass(frozen=True)
+class ClearanceCorrection:
+    """Bounded rigid translation correction driven by the worst surface sample."""
+    translation: tuple
+    iterations: int
+    sample: MinimumClearanceSample
+
+
+def converge_surface_clearance(
+    sample_at_translation,
+    required_clearance,
+    *,
+    initial_translation=(0.0, 0.0, 0.0),
+    max_translation=600.0,
+    max_iterations=64,
+):
+    """Iteratively translate along each actual minimum-clearance sample normal."""
+    required = float(required_clearance)
+    maximum = float(max_translation)
+    initial = tuple(float(v) for v in initial_translation)
+    if _norm(initial) > maximum + 1e-6:
+        raise TargetPlacementError("target-aware translation exceeds the configured bound")
+    correction = (0.0, 0.0, 0.0)
+    iterations = 0
+    sample = sample_at_translation(correction)
+    while sample.clearance < required - 1e-6:
+        if iterations >= int(max_iterations):
+            raise TargetPlacementError("target-aware full-surface clearance correction did not converge")
+        deficit = required - float(sample.clearance)
+        total = _add(initial, correction)
+        remaining = maximum - _norm(total)
+        if remaining <= 1e-9:
+            raise TargetPlacementError("target-aware clearance correction exceeds the configured translation bound")
+        step = min(deficit + 1e-6, remaining)
+        correction = _add(
+            correction,
+            _scale(sample.normal, step),
+        )
+        if _norm(_add(initial, correction)) > maximum + 1e-6:
+            raise TargetPlacementError("target-aware clearance correction exceeds the configured translation bound")
+        iterations += 1
+        sample = sample_at_translation(correction)
+    return ClearanceCorrection(correction, iterations, sample)
+
+
 def minimum_surface_clearance(surface, points):
     return float(minimum_surface_clearance_sample(surface, points))
 
