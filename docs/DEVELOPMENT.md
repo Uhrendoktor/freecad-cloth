@@ -22,7 +22,7 @@ There is exactly one workflow: `.github/workflows/canonical-execution.yml`.
 
 ### Canonical runner modes
 
-The canonical workflow has one validation graph with three runner states. Public `pull_request` events are always resolved to `ubuntu-latest`; fork and untrusted PR code is never sent to the self-hosted Docker runner. Trusted `push`/`schedule` runs default to the existing self-hosted Docker runner so the FreeCAD GUI path uses the validated local environment. A hosted watchdog waits up to 45 seconds for the Python validation job to start; if local execution does not begin, it dispatches the same workflow with `runner_mode=hosted`, records the source run, and cancels the stalled local attempt.
+The canonical workflow has one validation graph with a trusted PR broker and explicit runner modes. Public PR activity enters through `pull_request_target` only to dispatch the canonical workflow from `main` in `runner_mode=hosted`; the broker does not check out or execute PR code. The dispatched validation run checks out the PR merge ref on GitHub-hosted runners with persisted credentials disabled, so untrusted PR code never reaches the self-hosted Docker runner. Trusted `push`/`schedule` runs default to the existing self-hosted Docker runner so the FreeCAD GUI path uses the validated local environment. A hosted watchdog waits up to 45 seconds for the Python validation job to start; if local execution does not begin, it dispatches the same workflow with `runner_mode=hosted`, records the source run, and cancels the stalled local attempt.
 
 For manual recovery or diagnosis, `workflow_dispatch` accepts `runner_mode=hosted` to force the GitHub-hosted path. Automatic fallback dispatches are protected from the push-time stale-run sweep, while normal workflow concurrency still collapses duplicate manual dispatches on the same ref. The selected mode is emitted in the Python job log as `ci-runner-mode=...`.
 
@@ -32,7 +32,7 @@ Do not replace, duplicate, or casually refactor it. In particular, preserve the 
 
 ### Canonical runner routing
 
-Pull-request validation always uses GitHub-hosted runners. Trusted push, schedule, and manual runs prefer the existing Docker self-hosted runner; a hosted watchdog waits a bounded startup grace period for the Python sentinel and dispatches the same canonical workflow in explicit hosted mode if the local run does not start. The watchdog uses only the standard Actions token and does not enumerate self-hosted runners or require a long-lived runner credential.
+Pull-request validation is brokered from the trusted default branch and always uses GitHub-hosted runners. Trusted push, schedule, and manual runs prefer the existing Docker self-hosted runner; a hosted watchdog waits a bounded startup grace period for the Python sentinel and dispatches the same canonical workflow in explicit hosted mode if the local run does not start. The watchdog uses only the standard Actions token and does not enumerate self-hosted runners or require a long-lived runner credential.
 
 The canonical FreeCAD test image is Python 3.12-based; a CI run that starts FreeCAD under Python <3.12 is unsupported.
 
