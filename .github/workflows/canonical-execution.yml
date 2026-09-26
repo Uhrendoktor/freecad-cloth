@@ -864,10 +864,28 @@ jobs:
               fi
               exit "$status"
             '
+
+      - name: Restore workspace from Docker volume
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOCKER_WORKSPACE_CARRIER:-}" ]; then
+            exit 0
+          fi
+          docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
+          docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
+          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Validate blanket visual evidence
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
           root = Path("docs/images/generated/blanket-example")
           log_path = root / "blanket-visual.log"
+          if not log_path.is_file():
+              raise SystemExit("blanket validation log is missing")
           log = log_path.read_text(encoding="utf-8")
           checkpoints = sorted(root.glob("checkpoint-*.png"))
           motions = sorted(root.glob("motion-*.png"))
@@ -889,17 +907,6 @@ jobs:
               raise SystemExit("blanket validation expected 16 motion frames, got %d" % len(motions))
           print("blanket-validation=passed")
           PY
-      - name: Restore workspace from Docker volume
-        if: ${{ always() }}
-        run: |
-          set -euo pipefail
-          if [ -z "${DOCKER_WORKSPACE_CARRIER:-}" ]; then
-            exit 0
-          fi
-          docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
-          docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
-          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
-
       - name: Build blanket motion GIF
         run: |
           set -euo pipefail
