@@ -362,15 +362,15 @@ class AvatarTaskPanel:
             (obj for obj in active.Document.Objects if getattr(obj, "FittingType", "") == "FittingScene"),
             None,
         )
-        target = getattr(scene, "DrapeTarget", None) if scene is not None else None
-        if target is None:
-            target = active.Document.getObject("DrapeTarget")
-        if target is None:
+        if scene is not None and getattr(scene, "DrapeTarget", None) is None:
             self._refresh_status("Create or assign a DrapeTarget before snapping garment pieces.")
             return
         try:
             from freecad_cloth.avatar.FittingCommands import snap_pieces_to_drape_target
-            results = snap_pieces_to_drape_target(pieces, target)
+            results = snap_pieces_to_drape_target(
+                pieces,
+                getattr(scene, "DrapeTarget", None) if scene is not None else None,
+            )
         except (RuntimeError, TypeError, ValueError) as exc:
             self._refresh_status("Garment placement blocked: %s" % exc)
             return
