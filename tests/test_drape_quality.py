@@ -97,16 +97,13 @@ if __name__ == "__main__":
     print("drape quality and target tests passed")
 
 
-def test_canonical_tunic_fixture_has_swapped_panel_placement():
+def test_canonical_tunic_fixture_uses_target_relative_garment_arrangement():
     fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert "front_y = box.YMax + clearance" in fixture
-    assert "back_y = box.YMin - clearance" in fixture
+    assert "arrange_garment_on_avatar(scene)" in fixture
+    assert "scene.PinSelection = []" in fixture
+    assert "avatar-arrangement-clearance-mm" in fixture
 
 
-def test_canonical_tunic_fixture_uses_narrow_panel_ease():
+def test_canonical_tunic_fixture_keeps_two_panel_profile():
     fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert "chest = 860.0; hip = 880.0; ease = 10.0" in fixture
-
-def test_canonical_tunic_fixture_uses_experimental_clearance_profile():
-    fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert "clearance = max(8.0, 0.025 * body_depth);" in fixture
+    assert '"VisualTunicFront"' in fixture and '"VisualTunicBack"' in fixture
