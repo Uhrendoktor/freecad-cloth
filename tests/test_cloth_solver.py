@@ -62,6 +62,18 @@ def test_mesh_collision_corner_projects_against_both_local_faces():
     assert particle.position() == (11.0, 11.0, 0.0)
 
 
+def test_tissu_collision_envelope_supplement_contract():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    assert "CLOTH_TISSU_COLLISION_SUPPLEMENT_ENVELOPE" in source
+    assert "self._sim.add_mesh_from_arrays" in source
+    assert "self._add_collision_spheres" in source
+    assert "if self._collision_supplement_envelope:" in source
+    assert "_source_collision_surface or self._collision_surface" in source
+
+
 def test_tissu_collision_surface_abi_preserves_solver_surface_identity():
     from pathlib import Path
 
