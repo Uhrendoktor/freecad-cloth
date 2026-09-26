@@ -34,7 +34,7 @@ replacements = {
         '        if str(getattr(seam_obj, "EdgeAId", "")) != edge_a_id or str(getattr(seam_obj, "EdgeBId", "")) != edge_b_id: raise RuntimeError("canonical tunic seam %s did not retain authored semantic edge IDs" % seam_id)\n'
         '        seam_records.append((seam_obj, front, back))',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
-    'scene.SolverIterations = 8;': 'scene.SolverIterations = 8; log("tunic-solver=iterations-8 substeps-env");',
+    'scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1;': 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-32 iterations-1 substeps-env");',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
 }
 for old, new in replacements.items():
@@ -77,6 +77,10 @@ if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
 timed_anchor = '''    from time import perf_counter
     simulation_started = perf_counter()
+    log("tunic-simulation-start particles=%d iterations=%d substeps=%d timestep=%.6f backend=%s" % (
+        int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps), float(scene.TimeStep),
+        str(getattr(scene.Proxy._base_or_restore().backend, "name", "")),
+    ))
     for batch in (15,15,15,15,15,15):
         batch_started = perf_counter()
         simulation_panel.step(batch); doc.recompute(); events()

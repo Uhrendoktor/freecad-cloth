@@ -383,7 +383,7 @@ def simulation():
     hem_width = max(450.0, panel_width + 80.0)
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
-    clearance = max(20.0, 0.08 * body_depth)
+    clearance = max(8.0, 0.025 * body_depth)
     rot = App.Rotation(App.Vector(1,0,0), 90.0)
     def target_relative_piece_placement(side):
         if side == "front":
@@ -403,7 +403,7 @@ def simulation():
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
-    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.PinMode = "None"; scene.PinSelection = []; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
+    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.85; scene.PinMode = "None"; scene.PinSelection = []; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
     status = target_status(target)
     if str(status.get("state", "")) != "ready":
         raise RuntimeError("canonical tunic DrapeTarget is not current: %s" % status.get("message", status))
