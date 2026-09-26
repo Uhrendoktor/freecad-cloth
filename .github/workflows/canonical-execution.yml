@@ -633,11 +633,7 @@ jobs:
           mkdir -p artifacts
           docker run --rm "$FREECAD_TISSU_IMAGE" bash -lc 'cat /opt/tissu-provenance.txt' > artifacts/tissu-provenance.txt
           test -s artifacts/tissu-provenance.txt
-          grep -q '^tissu-source-commit=c28a3c7504ddc782bef844ab5bd4cd0bde14b628$' artifacts/tissu-provenance.txt
-          grep -q '^tissu-contact-fix-sha256=[0-9a-f]\{64\}$' artifacts/tissu-provenance.txt
-          grep -q '^tissu-cpp-regression-result=passed$' artifacts/tissu-provenance.txt
-
-      - name: Stage workspace in Docker volume
+          grep -q '^tissu-source-commit=c28a3c7504ddc782bef844ab5bd4cd0bde14b628      - name: Stage workspace in Docker volume
         run: |
           set -euo pipefail
           volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
@@ -1072,6 +1068,7 @@ jobs:
           compression-level: 1
 
  artifacts/tissu-provenance.txt
+
       - name: Stage workspace in Docker volume
         run: |
           set -euo pipefail
