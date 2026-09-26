@@ -1,20 +1,17 @@
 """Small, FreeCAD-independent helpers for Sewing workbench views."""
+import hashlib
 from colorsys import hsv_to_rgb
 
 
-_SEAM_GOLDEN_ANGLE = 0.618033988749895
 
 
 def seam_color_map(seam_ids):
-    """Return a stable presentation color keyed only by canonical SeamId."""
-    import hashlib
-
+    """Return deterministic, visually distinct colors keyed by seam id."""
     ids = sorted({str(seam_id) for seam_id in seam_ids if str(seam_id).strip()})
     result = {}
     for seam_id in ids:
         digest = hashlib.sha256(seam_id.encode("utf-8")).digest()
-        seed = int.from_bytes(digest[:8], "big")
-        hue = (seed % 1000000) / 1000000.0
+        hue = int.from_bytes(digest[:8], "big") / float(1 << 64)
         rgb = hsv_to_rgb(hue, 0.78, 0.92)
         result[seam_id] = tuple(round(channel, 6) for channel in rgb)
     return result
@@ -33,6 +30,19 @@ def apply_seam_colors(objects):
         if view is not None and color is not None:
             view.LineColor = color
     return colors
+
+
+def refresh_seam_colors(document=None):
+    """Refresh every canonical seam/operation color from its persistent SeamId."""
+    if document is None:
+        try:
+            import FreeCAD as App
+            document = App.ActiveDocument
+        except ImportError:
+            document = None
+    if document is None:
+        return {}
+    return apply_seam_colors(document.Objects)
 
 
 def pattern_pieces_for_2d(objects):
