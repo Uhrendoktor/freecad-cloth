@@ -114,7 +114,7 @@ class TargetProjection:
     distance: float
 
 
-def nearest_target_projection(point: Vector, surface, ambiguity_tolerance: float = 1e-6) -> TargetProjection:
+def nearest_target_projection(point: Vector, surface, expected_normal: Vector = None, ambiguity_tolerance: float = 1e-6) -> TargetProjection:
     """Find the nearest target triangle and orient its normal away from surface.center.
 
     A near-equal nearest projection with a materially different normal is rejected
@@ -122,6 +122,7 @@ def nearest_target_projection(point: Vector, surface, ambiguity_tolerance: float
     """
     surface.validate()
     query = tuple(float(value) for value in point)
+    expected = _normalize(expected_normal) if expected_normal is not None else None
     best = None
     candidates = []
     for index, triangle in enumerate(surface.triangles):
@@ -129,6 +130,8 @@ def nearest_target_projection(point: Vector, surface, ambiguity_tolerance: float
         try:
             normal = _oriented_outward_normal(a, b, c, surface.center)
         except ValueError:
+            continue
+        if expected is not None and _dot(normal, expected) < 0.20:
             continue
         closest = _closest_point_on_triangle(query, a, b, c)
         distance = _norm(_vsub(query, closest))
@@ -145,6 +148,66 @@ def nearest_target_projection(point: Vector, surface, ambiguity_tolerance: float
         if _dot(candidate.normal, best.normal) < 0.5:
             raise ValueError("target projection is ambiguous across opposing surface normals")
     return best
+
+
+
+@dataclass(frozen=True)
+class RigidDelta:
+    translation: Vector
+    rotation_z: float
+    residual_max: float
+
+
+def wrap_normal(wrap_direction: str) -> Vector:
+    normals = {
+        "front": (0.0, -1.0, 0.0),
+        "back": (0.0, 1.0, 0.0),
+        "left": (-1.0, 0.0, 0.0),
+        "right": (1.0, 0.0, 0.0),
+    }
+    try:
+        return normals[str(wrap_direction)]
+    except KeyError as exc:
+        raise ValueError("unsupported garment wrap direction") from exc
+
+
+def solve_rigid_z(source_points: Iterable[Vector], target_points: Iterable[Vector], max_translation: float = 750.0, max_rotation: float = 45.0) -> RigidDelta:
+    """Return a deterministic rigid world-Z rotation plus translation for anchor pairs."""
+    from math import atan2, cos, degrees, sin
+    source = tuple(tuple(float(v) for v in point) for point in source_points)
+    target = tuple(tuple(float(v) for v in point) for point in target_points)
+    if not source or len(source) != len(target):
+        raise ValueError("rigid target placement requires equally sized non-empty anchor sets")
+    sx = sum(point[0] for point in source) / len(source)
+    sy = sum(point[1] for point in source) / len(source)
+    tx = sum(point[0] for point in target) / len(target)
+    ty = sum(point[1] for point in target) / len(target)
+    angle = 0.0
+    if len(source) > 1:
+        cosine = sine = 0.0
+        for a, b in zip(source, target):
+            ax, ay = a[0] - sx, a[1] - sy
+            bx, by = b[0] - tx, b[1] - ty
+            cosine += ax * bx + ay * by
+            sine += ax * by - ay * bx
+        if abs(cosine) <= 1e-12 and abs(sine) <= 1e-12:
+            raise ValueError("garment anchors do not define a stable rigid orientation")
+        angle = atan2(sine, cosine)
+    c, s = cos(angle), sin(angle)
+    rotated = tuple((c * point[0] - s * point[1], s * point[0] + c * point[1], point[2]) for point in source)
+    translation = tuple(
+        sum(target_point[i] - rotated_point[i] for target_point, rotated_point in zip(target, rotated)) / len(target)
+        for i in range(3)
+    )
+    travel = _norm(translation)
+    rotation = abs(degrees(angle))
+    if travel > float(max_translation) + 1e-9:
+        raise ValueError("target-aware placement exceeds the translation guard: %.6f > %.6f" % (travel, float(max_translation)))
+    if rotation > float(max_rotation) + 1e-9:
+        raise ValueError("target-aware placement exceeds the rotation guard: %.6f > %.6f" % (rotation, float(max_rotation)))
+    transformed = tuple(_vadd(rotated_point, translation) for rotated_point in rotated)
+    residual = max(_norm(_vsub(a, b)) for a, b in zip(transformed, target))
+    return RigidDelta(translation, degrees(angle), residual)
 
 
 def signed_target_clearance(point: Vector, surface) -> float:
