@@ -128,6 +128,9 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "OpenMeshRetainsLegacyContactDirection" in script
     assert "patch_headless_core" in script
     assert "src/io/AlembicExporter.cpp" in script
+    assert "headless binding Alembic include" in script
+    assert 'py::class_<Tissu::AlembicExporter>' in script
+    assert "headless binding Alembic exporter anchor mismatch" in script
 
     tunic = workflow[workflow.index("  gui-tunic-visual:") : workflow.index("\n  gui-", workflow.index("  gui-tunic-visual:") + 5)]
     assert "FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix" in tunic
