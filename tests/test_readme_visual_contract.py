@@ -62,3 +62,46 @@ def test_canonical_workflow_fails_closed_on_turntable_quality():
 def test_readme_turntable_uses_no_unsupported_patternpiece_display_mode():
     source = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
     assert "blanket.ViewObject.DisplayMode" not in source
+
+
+def test_readme_media_links_are_pinned_to_an_immutable_commit():
+    import re
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assets = (
+        "cloth-blanket-motion.gif",
+        "cloth-avatar-turntable.gif",
+        "cloth-simulation-arranged-turntable.gif",
+        "cloth-simulation-draped-turntable.gif",
+        "cloth-simulation-draped-front.png",
+    )
+    base = "https://github.com/Uhrendoktor/freecad-cloth/raw/"
+    for asset in assets:
+        assert re.search(
+            rf"{re.escape(base)}[0-9a-f]{{40}}/docs/images/generated/{re.escape(asset)}",
+            readme,
+        )
+    assert "raw/refs/heads/docs/screenshots/" not in readme
+
+
+def test_user_guide_keeps_the_canonical_human_journey():
+    guide = (ROOT / "docs" / "USER_GUIDE.md").read_text(encoding="utf-8")
+    for heading in (
+        "## 1. Installation",
+        "## 2. Blanket over Cube",
+        "## 3. Pattern",
+        "## 4. Sewing",
+        "## 5. Arrange / Fit",
+        "## 6. Simulate",
+        "## 7. Recovery",
+        "## 8. Tunic",
+    ):
+        assert heading in guide
+    for target in (
+        "INSTALLATION.md",
+        "EXAMPLES.md#1-blanket-over-cube",
+        "WORKBENCH_GUIDE.md#1-pattern",
+        "WORKBENCH_GUIDE.md#2-sewing",
+        "EXAMPLES.md#2-tunic",
+    ):
+        assert target in guide
