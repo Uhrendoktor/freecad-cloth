@@ -211,7 +211,7 @@ class TissuBackend(ClothSimulationBackend):
         self._authored_containment_corrections += corrected_count
         self._authored_containment_max_penetration = max(
             self._authored_containment_max_penetration,
-            max_penetration_mm / _MM,
+            max_penetration_m,
         )
         if corrected_count:
             print(
