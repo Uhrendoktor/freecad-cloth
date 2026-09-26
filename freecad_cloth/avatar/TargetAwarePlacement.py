@@ -1,6 +1,6 @@
 """Deterministic, solver-neutral rigid garment placement against a target surface."""
 from dataclasses import dataclass
-from math import atan2, cos, degrees, radians, sin, sqrt
+from math import atan2, cos, degrees, floor, radians, sin, sqrt
 
 
 class TargetPlacementError(ValueError):
@@ -76,17 +76,164 @@ def _surface_center(surface):
     return tuple(float(v) for v in surface.center)
 
 
-def _triangle_data(surface, index):
+def _triangle_data(surface, index, center=None):
     try:
         ia, ib, ic = surface.triangles[index]
         a, b, c = surface.vertices[ia], surface.vertices[ib], surface.vertices[ic]
     except (IndexError, TypeError, ValueError) as exc:
         raise TargetPlacementError("target surface triangle data is invalid") from exc
+    if center is None:
+        center = _surface_center(surface)
     normal = _unit(_cross(_sub(b, a), _sub(c, a)))
-    center = _scale(_add(_add(a, b), c), 1.0 / 3.0)
-    if _dot(normal, _sub(center, _surface_center(surface))) < 0.0:
+    triangle_center = _scale(_add(_add(a, b), c), 1.0 / 3.0)
+    if _dot(normal, _sub(triangle_center, center)) < 0.0:
         normal = _scale(normal, -1.0)
     return tuple(a), tuple(b), tuple(c), normal
+
+
+@dataclass(frozen=True)
+class _TriangleRecord:
+    a: tuple
+    b: tuple
+    c: tuple
+    normal: tuple
+    minimum: tuple
+    maximum: tuple
+
+
+class SurfaceSpatialIndex:
+    """Exact nearest-surface queries without repeated whole-mesh recomputation."""
+
+    def __init__(self, surface):
+        vertices = tuple(getattr(surface, "vertices", ()) or ())
+        triangles = tuple(getattr(surface, "triangles", ()) or ())
+        if not vertices or not triangles:
+            raise TargetPlacementError("target surface has no usable geometry")
+        self.surface = surface
+        self.center = _surface_center(surface)
+        minimum = tuple(min(float(vertex[i]) for vertex in vertices) for i in range(3))
+        maximum = tuple(max(float(vertex[i]) for vertex in vertices) for i in range(3))
+        span = max(maximum[i] - minimum[i] for i in range(3))
+        cells_per_axis = max(8, min(64, int(round(max(1, len(triangles)) ** (1.0 / 3.0)))))
+        self.cell_size = max(20.0, span / float(cells_per_axis)) if span > 1e-9 else 20.0
+        self.origin = minimum
+        self._triangle_cells = {}
+        self._vertex_cells = {}
+        self.records = []
+        self._build(triangles, vertices)
+
+    def _cell_coord(self, point):
+        return tuple(int(floor((float(point[i]) - self.origin[i]) / self.cell_size)) for i in range(3))
+
+    def _cell_bounds(self, cell):
+        low = tuple(self.origin[i] + float(cell[i]) * self.cell_size for i in range(3))
+        high = tuple(low[i] + self.cell_size for i in range(3))
+        return low, high
+
+    def _cell_range(self, minimum, maximum):
+        return self._cell_coord(minimum), self._cell_coord(maximum)
+
+    def _build(self, triangles, vertices):
+        for vertex_index, vertex in enumerate(vertices):
+            self._vertex_cells.setdefault(self._cell_coord(vertex), []).append(vertex_index)
+        for index, triangle in enumerate(triangles):
+            a, b, c, normal = _triangle_data(self.surface, index, self.center)
+            minimum = tuple(min(a[i], b[i], c[i]) for i in range(3))
+            maximum = tuple(max(a[i], b[i], c[i]) for i in range(3))
+            self.records.append(_TriangleRecord(a, b, c, normal, minimum, maximum))
+            low, high = self._cell_range(minimum, maximum)
+            for ix in range(low[0], high[0] + 1):
+                for iy in range(low[1], high[1] + 1):
+                    for iz in range(low[2], high[2] + 1):
+                        self._triangle_cells.setdefault((ix, iy, iz), []).append(index)
+
+    @staticmethod
+    def _sort_hits(hits, limit):
+        return tuple(sorted(hits, key=lambda item: (round(item.distance, 12), item.triangle_index))[:limit])
+
+    def nearest_triangles(self, point, expected_normal=None, limit=1):
+        expected = _unit(expected_normal) if expected_normal is not None else None
+        center_cell = self._cell_coord(point)
+        seen_cells = set()
+        seen_triangles = set()
+        best = []
+        radius = 0
+        while radius <= 128:
+            low = tuple(center_cell[i] - radius for i in range(3))
+            high = tuple(center_cell[i] + radius for i in range(3))
+            for ix in range(low[0], high[0] + 1):
+                for iy in range(low[1], high[1] + 1):
+                    for iz in range(low[2], high[2] + 1):
+                        cell = (ix, iy, iz)
+                        if cell in seen_cells:
+                            continue
+                        seen_cells.add(cell)
+                        for index in self._triangle_cells.get(cell, ()):
+                            if index in seen_triangles:
+                                continue
+                            seen_triangles.add(index)
+                            record = self.records[index]
+                            if expected is not None and _dot(record.normal, expected) < 0.20:
+                                continue
+                            closest = _closest_point_on_triangle(point, record.a, record.b, record.c)
+                            hit = SurfaceHit(
+                                index,
+                                closest,
+                                record.normal,
+                                _norm(_sub(point, closest)),
+                            )
+                            if len(best) < limit:
+                                best.append(hit)
+                                best = list(self._sort_hits(best, limit))
+                            elif hit.distance < best[-1].distance:
+                                best[-1] = hit
+                                best = list(self._sort_hits(best, limit))
+            if len(best) >= limit:
+                cube_low = tuple(self.origin[i] + float(center_cell[i] - radius) * self.cell_size for i in range(3))
+                cube_high = tuple(cube_low[i] + float(2 * radius + 1) * self.cell_size for i in range(3))
+                lower_bound = min(
+                    min(float(point[i]) - cube_low[i] for i in range(3)),
+                    min(cube_high[i] - float(point[i]) for i in range(3)),
+                )
+                if best[-1].distance <= lower_bound + 1e-9:
+                    break
+            radius += 1
+        if not best:
+            raise TargetPlacementError("target surface has no usable triangle")
+        return tuple(best)
+
+    def nearest_vertex_distance(self, point):
+        center_cell = self._cell_coord(point)
+        seen_cells = set()
+        best = float("inf")
+        radius = 0
+        while radius <= 128:
+            low = tuple(center_cell[i] - radius for i in range(3))
+            high = tuple(center_cell[i] + radius for i in range(3))
+            for ix in range(low[0], high[0] + 1):
+                for iy in range(low[1], high[1] + 1):
+                    for iz in range(low[2], high[2] + 1):
+                        cell = (ix, iy, iz)
+                        if cell in seen_cells:
+                            continue
+                        seen_cells.add(cell)
+                        for vertex_index in self._vertex_cells.get(cell, ()):
+                            vertex = self.surface.vertices[vertex_index]
+                            distance = _norm(_sub(point, vertex))
+                            best = min(best, distance)
+            if best < float("inf"):
+                cube_low = tuple(self.origin[i] + float(center_cell[i] - radius) * self.cell_size for i in range(3))
+                cube_high = tuple(cube_low[i] + float(2 * radius + 1) * self.cell_size for i in range(3))
+                lower_bound = min(
+                    min(float(point[i]) - cube_low[i] for i in range(3)),
+                    min(cube_high[i] - float(point[i]) for i in range(3)),
+                )
+                if best <= lower_bound + 1e-9:
+                    break
+            radius += 1
+        if best == float("inf"):
+            raise TargetPlacementError("target surface has no vertices")
+        return best
 
 
 def _closest_point_on_triangle(p, a, b, c):
@@ -117,33 +264,17 @@ def _closest_point_on_triangle(p, a, b, c):
     return _add(a, _add(_scale(ab, vb * denom), _scale(ac, vc * denom)))
 
 
-def _surface_triangle_data(surface):
-    """Cache triangle geometry once per placement call; preserve deterministic surface semantics."""
-    return tuple(_triangle_data(surface, index) for index in range(len(surface.triangles)))
+def _candidate_hits(surface, point, expected_normal=None):
+    return list(SurfaceSpatialIndex(surface).nearest_triangles(point, expected_normal, limit=len(surface.triangles)))
 
 
-def _nearest_surface_hit(triangles, point, expected_normal=None):
-    expected = _unit(expected_normal) if expected_normal is not None else None
-    best = None
-    second = None
-    for index, (a, b, c, normal) in enumerate(triangles):
-        if expected is not None and _dot(normal, expected) < 0.20:
-            continue
-        closest = _closest_point_on_triangle(point, a, b, c)
-        hit = SurfaceHit(index, closest, normal, _norm(_sub(point, closest)))
-        if best is None or (hit.distance, hit.triangle_index) < (best.distance, best.triangle_index):
-            second = best
-            best = hit
-        elif second is None or (hit.distance, hit.triangle_index) < (second.distance, second.triangle_index):
-            second = hit
-    return best, second
-
-
-def target_surface_anchor(surface, point, expected_normal, ambiguity_tolerance=1e-6):
-    best, second = _nearest_surface_hit(_surface_triangle_data(surface), point, expected_normal)
-    if best is None:
+def target_surface_anchor(surface, point, expected_normal, ambiguity_tolerance=1e-6, index=None):
+    index = index or SurfaceSpatialIndex(surface)
+    hits = list(index.nearest_triangles(point, expected_normal, limit=2))
+    if not hits:
         raise TargetPlacementError("no unambiguous target surface location matches the garment wrap direction")
-    if second is not None and abs(second.distance - best.distance) <= float(ambiguity_tolerance) and _dot(best.normal, second.normal) < 0.20:
+    best = hits[0]
+    if len(hits) > 1 and abs(hits[1].distance - best.distance) <= float(ambiguity_tolerance) and _dot(best.normal, hits[1].normal) < 0.20:
         raise TargetPlacementError("target surface location is ambiguous for the garment anchor")
     return best
 
@@ -193,42 +324,37 @@ def apply_rigid_delta(points, delta):
     )
 
 
-def minimum_surface_clearance(surface, points):
-    triangles = _surface_triangle_data(surface)
-    minimum = None
-    for point in points:
-        best, _ = _nearest_surface_hit(triangles, point)
-        if best is None:
-            raise TargetPlacementError("target surface has no usable triangle")
-        signed = _dot(_sub(point, best.point), best.normal)
-        minimum = signed if minimum is None else min(minimum, signed)
-    if minimum is None:
-        raise TargetPlacementError("clearance cannot be measured without garment points")
+def minimum_target_vertex_clearance(surface, points, index=None):
+    index = index or SurfaceSpatialIndex(surface)
+    if not points:
+        raise TargetPlacementError("vertex clearance cannot be measured without garment points")
+    minimum = min(index.nearest_vertex_distance(point) for point in points)
     return float(minimum)
 
 
-def minimum_surface_clearance_hit(surface, points):
-    """Return the minimum signed clearance and its outward correction normal."""
-    triangles = _surface_triangle_data(surface)
+def minimum_surface_clearance_detail(surface, points, index=None):
+    index = index or SurfaceSpatialIndex(surface)
     minimum = None
-    minimum_point = None
-    minimum_normal = None
+    minimum_hit = None
     for point in points:
-        best, _ = _nearest_surface_hit(triangles, point)
-        if best is None:
-            raise TargetPlacementError("target surface has no usable triangle")
+        hits = index.nearest_triangles(point, limit=1)
+        best = hits[0]
         signed = _dot(_sub(point, best.point), best.normal)
         if minimum is None or signed < minimum:
             minimum = signed
-            minimum_point = best.point
-            minimum_normal = best.normal
-    if minimum is None:
+            minimum_hit = best
+    if minimum is None or minimum_hit is None:
         raise TargetPlacementError("clearance cannot be measured without garment points")
-    return float(minimum), tuple(minimum_point), tuple(minimum_normal)
+    return float(minimum), minimum_hit
 
 
-def assert_minimum_surface_clearance(surface, points, required_clearance):
-    actual = minimum_surface_clearance(surface, points)
+def minimum_surface_clearance(surface, points, index=None):
+    actual, _hit = minimum_surface_clearance_detail(surface, points, index=index)
+    return actual
+
+
+def assert_minimum_surface_clearance(surface, points, required_clearance, index=None):
+    actual = minimum_surface_clearance(surface, points, index=index)
     required = float(required_clearance)
     if actual < required - 1e-6:
         raise TargetPlacementError(
