@@ -213,7 +213,6 @@ jobs:
         run: docker info >/dev/null
 
   python:
-    if: ${{ github.event_name != 'pull_request_target' }}
     name: Python and FreeCAD non-GUI tests
     needs: [runner_router]
     runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
@@ -410,7 +409,6 @@ jobs:
           if-no-files-found: warn
           compression-level: 1
   gui-sewing-creation:
-    if: ${{ github.event_name != 'pull_request_target' }}
     name: Sewing staged creation smoke
     needs: [runner_router]
     runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
@@ -504,7 +502,6 @@ jobs:
           compression-level: 1
 
   gui-sketcher-acceptance:
-    if: ${{ github.event_name != 'pull_request_target' }}
     name: Native Sketcher seam presentation acceptance
     needs: [runner_router]
     runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
@@ -588,7 +585,6 @@ jobs:
           if-no-files-found: error
           compression-level: 1
   gui-pattern-export:
-    if: ${{ github.event_name != 'pull_request_target' }}
     name: Pattern production export smoke
     needs: [runner_router]
     runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
@@ -661,7 +657,6 @@ jobs:
           compression-level: 1
 
   gui-tunic-visual:
-    if: ${{ github.event_name != 'pull_request_target' }}
     name: Full tunic visual and simulation audit
     needs: [runner_router]
     runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
@@ -792,7 +787,6 @@ jobs:
           compression-level: 1
 
   gui-turntables:
-    if: ${{ github.event_name != 'pull_request_target' }}
     name: README simulation turntable
     needs: [runner_router]
     runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
@@ -959,7 +953,6 @@ jobs:
 
 
   gui-visual-examples:
-    if: ${{ github.event_name != 'pull_request_target' }}
     name: Basic blanket visual example
     needs: [runner_router]
     runs-on: ${{ fromJSON(needs.runner_router.outputs.runs_on) }}
