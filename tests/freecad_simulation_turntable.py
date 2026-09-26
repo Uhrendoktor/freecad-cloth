@@ -36,6 +36,10 @@ BLANKET_PARTICLE_DISTANCE = 16.0  # Bounded release resolution; contract require
 os.environ["CLOTH_SIMULATION_BACKEND"] = "tissu"
 os.makedirs(OUT, exist_ok=True)
 LOG = os.path.join(OUT, "simulation-turntable-progress.log")
+CAPTURE_STABILIZATION_SECONDS = 2.0
+CAPTURE_SETTLE_DELAY_SECONDS = 0.05
+CAPTURE_STABLE_SAMPLES = 2
+CAPTURE_WARMUP_SECONDS = 5.0
 
 
 def log(message):
@@ -130,24 +134,171 @@ def wait_for_gui_ready(timeout_seconds=15.0):
     raise RuntimeError("FreeCAD GUI did not become visible within %.1fs" % timeout_seconds)
 
 
-def save_png(view, path, state):
-    deadline = time.monotonic() + 2.0
-    while time.monotonic() < deadline:
-        if hasattr(view, "redraw"):
-            view.redraw()
-        events()
-        view.saveImage(path, 640, 480, "White")
-        if os.path.isfile(path) and os.path.getsize(path) >= 1000:
-            with open(path, "rb") as handle:
-                header = handle.read(24)
-            valid_dimensions = (
-                header[:8] == b"\x89PNG\r\n\x1a\n"
-                and int.from_bytes(header[16:20], "big") == 640
-                and int.from_bytes(header[20:24], "big") == 480
-            )
-            if valid_dimensions and _png_has_visible_content(path):
+def warmup_render(view, state, path):
+    """Warm the real 3D renderer on the current camera state before frame capture."""
+    deadline = time.monotonic() + CAPTURE_WARMUP_SECONDS
+    attempt = 0
+    started = time.monotonic()
+    pending_path = path + ".warmup"
+    log(
+        "render-warmup-start state=%s budget_s=%.2f"
+        % (state, CAPTURE_WARMUP_SECONDS)
+    )
+    try:
+        while time.monotonic() < deadline:
+            attempt += 1
+            attempt_started = time.monotonic()
+            if hasattr(view, "redraw"):
+                view.redraw()
+            events()
+            time.sleep(CAPTURE_SETTLE_DELAY_SECONDS)
+            if hasattr(view, "redraw"):
+                view.redraw()
+            events()
+            view.saveImage(pending_path, 640, 480, "White")
+            valid_dimensions = False
+            visible = False
+            if os.path.isfile(pending_path) and os.path.getsize(pending_path) >= 1000:
+                with open(pending_path, "rb") as handle:
+                    header = handle.read(24)
+                valid_dimensions = (
+                    header[:8] == b"\x89PNG\r\n\x1a\n"
+                    and int.from_bytes(header[16:20], "big") == 640
+                    and int.from_bytes(header[20:24], "big") == 480
+                )
+                if valid_dimensions:
+                    visible = _png_has_visible_content(pending_path)
+            if valid_dimensions and visible:
+                log(
+                    "render-warmup-pass state=%s attempts=%d elapsed_ms=%.1f"
+                    % (
+                        state,
+                        attempt,
+                        1000.0 * (time.monotonic() - started),
+                    )
+                )
                 return
-        time.sleep(0.05)
+            log(
+                "render-warmup-attempt state=%s attempt=%d result=not-visible valid_dimensions=%d elapsed_ms=%.1f"
+                % (
+                    state,
+                    attempt,
+                    int(valid_dimensions),
+                    1000.0 * (time.monotonic() - attempt_started),
+                )
+            )
+            time.sleep(CAPTURE_SETTLE_DELAY_SECONDS)
+    finally:
+        if os.path.isfile(pending_path):
+            os.remove(pending_path)
+    log(
+        "render-warmup-fail state=%s attempts=%d elapsed_ms=%.1f"
+        % (state, attempt, 1000.0 * (time.monotonic() - started))
+    )
+    raise RuntimeError("GUI render did not stabilize for %s" % state)
+
+
+def save_png(view, path, state, previous_hash=None):
+    """Capture only after the GUI has produced the same valid frame twice."""
+    deadline = time.monotonic() + CAPTURE_STABILIZATION_SECONDS
+    attempt = 0
+    stable_hash = None
+    stable_samples = 0
+    previous_label = "none" if previous_hash is None else previous_hash[:12]
+    pending_path = path + ".pending"
+    started = time.monotonic()
+    log(
+        "capture-start state=%s budget_s=%.2f stable_samples=%d previous_hash=%s"
+        % (state, CAPTURE_STABILIZATION_SECONDS, CAPTURE_STABLE_SAMPLES, previous_label)
+    )
+    try:
+        while time.monotonic() < deadline:
+            attempt += 1
+            attempt_started = time.monotonic()
+            if hasattr(view, "redraw"):
+                view.redraw()
+            events()
+            time.sleep(CAPTURE_SETTLE_DELAY_SECONDS)
+            if hasattr(view, "redraw"):
+                view.redraw()
+            events()
+            view.saveImage(pending_path, 640, 480, "White")
+            valid_dimensions = False
+            visible = False
+            digest = None
+            if os.path.isfile(pending_path) and os.path.getsize(pending_path) >= 1000:
+                with open(pending_path, "rb") as handle:
+                    data = handle.read()
+                header = data[:24]
+                valid_dimensions = (
+                    header[:8] == b"\x89PNG\r\n\x1a\n"
+                    and int.from_bytes(header[16:20], "big") == 640
+                    and int.from_bytes(header[20:24], "big") == 480
+                )
+                if valid_dimensions:
+                    visible = _png_has_visible_content(pending_path)
+                    if visible:
+                        digest = hashlib.sha256(data).hexdigest()
+            if not valid_dimensions or not visible:
+                stable_hash = None
+                stable_samples = 0
+                log(
+                    "capture-attempt state=%s attempt=%d result=not-visible valid_dimensions=%d elapsed_ms=%.1f"
+                    % (
+                        state,
+                        attempt,
+                        int(valid_dimensions),
+                        1000.0 * (time.monotonic() - attempt_started),
+                    )
+                )
+            elif previous_hash is not None and digest == previous_hash:
+                stable_hash = None
+                stable_samples = 0
+                log(
+                    "capture-attempt state=%s attempt=%d result=stale-previous hash=%s elapsed_ms=%.1f"
+                    % (
+                        state,
+                        attempt,
+                        digest[:12],
+                        1000.0 * (time.monotonic() - attempt_started),
+                    )
+                )
+            else:
+                if digest == stable_hash:
+                    stable_samples += 1
+                else:
+                    stable_hash = digest
+                    stable_samples = 1
+                log(
+                    "capture-attempt state=%s attempt=%d result=valid hash=%s stable_samples=%d elapsed_ms=%.1f"
+                    % (
+                        state,
+                        attempt,
+                        digest[:12],
+                        stable_samples,
+                        1000.0 * (time.monotonic() - attempt_started),
+                    )
+                )
+                if stable_samples >= CAPTURE_STABLE_SAMPLES:
+                    os.replace(pending_path, path)
+                    log(
+                        "capture-pass state=%s attempts=%d elapsed_ms=%.1f hash=%s"
+                        % (
+                            state,
+                            attempt,
+                            1000.0 * (time.monotonic() - started),
+                            digest[:12],
+                        )
+                    )
+                    return digest
+            time.sleep(CAPTURE_SETTLE_DELAY_SECONDS)
+    finally:
+        if os.path.isfile(pending_path):
+            os.remove(pending_path)
+    log(
+        "capture-fail state=%s attempts=%d elapsed_ms=%.1f"
+        % (state, attempt, 1000.0 * (time.monotonic() - started))
+    )
     raise RuntimeError("PNG capture contains no visible rendered content for %s" % state)
 
 
@@ -208,19 +359,42 @@ def _render_turntable_isolated(view, objects, frame_dir, frame_count=72):
     up = coin.SbVec3f(0.0, 0.0, 1.0)
     frame_hashes = []
     start_angle = pi / 2.0
+    first_angle = start_angle
+    camera.position = coin.SbRotation(
+        coin.SbVec3f(0.0, 0.0, 1.0), first_angle
+    ).multVec(base_offset) + target
+    camera.pointAt(target, up)
+    warmup_render(
+        view,
+        "turntable %s initial frame" % frame_dir,
+        os.path.join(frame_dir, ".render"),
+    )
     for frame in range(frame_total):
         # Start from a cloth-visible angle, then cover a full 360 degrees
         # without duplicating frame 000 at the end.
         angle = start_angle + 2.0 * pi * frame / frame_total
         camera.position = coin.SbRotation(coin.SbVec3f(0.0, 0.0, 1.0), angle).multVec(base_offset) + target
         camera.pointAt(target, up)
-        if hasattr(view, "redraw"):
-            view.redraw()
-        events()
         frame_path = os.path.join(frame_dir, "frame-%03d.png" % frame)
-        save_png(view, frame_path, "turntable frame %03d" % frame)
-        with open(frame_path, "rb") as handle:
-            frame_hashes.append(hashlib.sha256(handle.read()).hexdigest())
+        previous_hash = frame_hashes[-1] if frame_hashes else None
+        log(
+            "turntable-frame-start dir=%s frame=%d/%d angle_deg=%.3f previous_hash=%s"
+            % (
+                frame_dir,
+                frame + 1,
+                frame_total,
+                angle * 180.0 / pi,
+                "none" if previous_hash is None else previous_hash[:12],
+            )
+        )
+        frame_hashes.append(
+            save_png(
+                view,
+                frame_path,
+                "turntable frame %03d" % frame,
+                previous_hash=previous_hash,
+            )
+        )
         if frame == 0 or (frame + 1) % 18 == 0 or frame == frame_total - 1:
             log(
                 "turntable-progress dir=%s frame=%d/%d elapsed_ms=%.1f"
