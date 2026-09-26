@@ -117,24 +117,33 @@ def _closest_point_on_triangle(p, a, b, c):
     return _add(a, _add(_scale(ab, vb * denom), _scale(ac, vc * denom)))
 
 
-def _candidate_hits(surface, point, expected_normal=None):
+def _surface_triangle_data(surface):
+    """Cache triangle geometry once per placement call; preserve deterministic surface semantics."""
+    return tuple(_triangle_data(surface, index) for index in range(len(surface.triangles)))
+
+
+def _nearest_surface_hit(triangles, point, expected_normal=None):
     expected = _unit(expected_normal) if expected_normal is not None else None
-    hits = []
-    for index in range(len(surface.triangles)):
-        a, b, c, normal = _triangle_data(surface, index)
+    best = None
+    second = None
+    for index, (a, b, c, normal) in enumerate(triangles):
         if expected is not None and _dot(normal, expected) < 0.20:
             continue
         closest = _closest_point_on_triangle(point, a, b, c)
-        hits.append(SurfaceHit(index, closest, normal, _norm(_sub(point, closest))))
-    return hits
+        hit = SurfaceHit(index, closest, normal, _norm(_sub(point, closest)))
+        if best is None or (hit.distance, hit.triangle_index) < (best.distance, best.triangle_index):
+            second = best
+            best = hit
+        elif second is None or (hit.distance, hit.triangle_index) < (second.distance, second.triangle_index):
+            second = hit
+    return best, second
 
 
 def target_surface_anchor(surface, point, expected_normal, ambiguity_tolerance=1e-6):
-    hits = sorted(_candidate_hits(surface, point, expected_normal), key=lambda h: (round(h.distance, 12), h.triangle_index))
-    if not hits:
+    best, second = _nearest_surface_hit(_surface_triangle_data(surface), point, expected_normal)
+    if best is None:
         raise TargetPlacementError("no unambiguous target surface location matches the garment wrap direction")
-    best = hits[0]
-    if len(hits) > 1 and abs(hits[1].distance - best.distance) <= float(ambiguity_tolerance) and _dot(best.normal, hits[1].normal) < 0.20:
+    if second is not None and abs(second.distance - best.distance) <= float(ambiguity_tolerance) and _dot(best.normal, second.normal) < 0.20:
         raise TargetPlacementError("target surface location is ambiguous for the garment anchor")
     return best
 
@@ -185,12 +194,12 @@ def apply_rigid_delta(points, delta):
 
 
 def minimum_surface_clearance(surface, points):
+    triangles = _surface_triangle_data(surface)
     minimum = None
     for point in points:
-        hits = sorted(_candidate_hits(surface, point), key=lambda h: (round(h.distance, 12), h.triangle_index))
-        if not hits:
+        best, _ = _nearest_surface_hit(triangles, point)
+        if best is None:
             raise TargetPlacementError("target surface has no usable triangle")
-        best = hits[0]
         signed = _dot(_sub(point, best.point), best.normal)
         minimum = signed if minimum is None else min(minimum, signed)
     if minimum is None:
