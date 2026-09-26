@@ -351,6 +351,15 @@ def _seam_pairs(pattern, panel_data, seam_samples=8):
     return _seam_pair_records(pattern, panel_data, seam_samples)[0]
 
 
+def _solver_collision_surface(proxy):
+    """Return the solver-owned Tissu surface without replacing authoritative state."""
+    authoritative = getattr(proxy, "collision_surface", None)
+    backend = getattr(proxy, "backend", None)
+    if getattr(backend, "name", "") == "tissu":
+        return getattr(backend, "_collision_surface", authoritative)
+    return authoritative
+
+
 def _collision_for_scene(obj):
     """Resolve collision strictly from the persistent DrapeTarget."""
     target = getattr(obj, "DrapeTarget", None)
@@ -420,7 +429,7 @@ class SimulationProxy:
                     float(obj.TimeStep), int(obj.Iterations),
                     (float(obj.GravityX), float(obj.GravityY), float(obj.GravityZ)),
                     fallback_sphere,
-                    getattr(self, "collision_surface", None),
+                    _solver_collision_surface(self),
                 )
             self.last_steps = steps
         positions = self.backend.positions()
