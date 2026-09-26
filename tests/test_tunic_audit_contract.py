@@ -19,12 +19,13 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
 
 def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert 'ArrangementPoint.from_string' in source
     assert 'shoulder_left = arrangement_world("shoulder_left")' in source
     assert 'shoulder_right = arrangement_world("shoulder_right")' in source
     assert 'hip_point = arrangement_world("hip")' in source
     assert 'os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"' in source
-    assert 'os.environ["CLOTH_TISSU_AUTHORED_CONTAINMENT"] = "1"' in source
+    assert 'os.environ["CLOTH_TISSU_AUTHORED_CONTAINMENT"] = "1"' in audit
     assert 'status = target_status(target)' in source
     assert 'scene.PinMode = "None"' in source
     assert 'scene.PinSelection = []' in source
