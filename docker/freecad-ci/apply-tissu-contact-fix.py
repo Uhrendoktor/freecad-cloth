@@ -411,7 +411,11 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
 
     solver = ROOT / "core/src/physics/Solver.cpp"
     solver_cpp = solver.read_text(encoding="utf-8")
-    old_solver = """    for (int i = 0; i < m_iterations; i++) {
+    old_solver = """    for (auto& constraint : m_constraints) {
+        constraint->resetLambda();
+    }
+
+    for (int i = 0; i < m_iterations; i++) {
         solveConstraints(dt);
     }
 
@@ -421,7 +425,11 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
 
     solveSelfCollisions(dt, world.getThickness());
 """
-    new_solver = """    const auto& colliders = world.getColliders();
+    new_solver = """    for (auto& constraint : m_constraints) {
+        constraint->resetLambda();
+    }
+
+    const auto& colliders = world.getColliders();
     for (int i = 0; i < m_iterations; i++) {
         for (auto& collider : colliders)
             collider->resolve(m_particles, dt, world.getThickness());
