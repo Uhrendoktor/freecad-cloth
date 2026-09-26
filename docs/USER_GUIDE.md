@@ -13,7 +13,7 @@ For the repository's canonical visual acceptance fixture, the exact executable s
 For a GUI-built scene:
 
 1. Switch to **Cloth Pattern**.
-2. Create a new pattern piece with **Create Piece Task** / `ClothPattern_CreatePieceTask`.
+2. Create a new pattern piece with **Create Pattern Piece Task** / `ClothPattern_CreatePieceTask`.
 3. In the pattern task panel, keep **Sketch** as the geometry authority or use **Edit native Sketch…** to enter FreeCAD Sketcher.
 4. Give the piece a simple rectangular outline and recompute.
 5. Switch to a standard FreeCAD workbench and create a cube/box to act as collision geometry.
@@ -77,7 +77,7 @@ A typical sequence is:
 
 1. **Create Fitting Scene** / `ClothFitting_CreateScene`.
 2. **Assign Avatar Source** / `ClothFitting_AssignAvatar` when using the native mannequin.
-3. **Add Pieces** / `ClothFitting_AddPieces` to the fitting scene.
+3. **Add Selected Pattern Pieces** / `ClothFitting_AddPieces` to the fitting scene.
 4. Create or use arrangement points and apply them to each piece with **Apply Arrangement Point** / `ClothFitting_ApplyArrangementPoint`.
 5. Use **Reset Arrangement** / `ClothFitting_ResetArrangement` when you need to return all assigned pieces to their saved pre-arrangement placement.
 6. **Create Simulation** / `ClothFitting_CreateSimulation` to carry the fitting scene into Cloth Simulation.
