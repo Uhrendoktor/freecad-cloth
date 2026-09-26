@@ -252,9 +252,8 @@ def set_arrangement_point(name, x=None, y=None, offset=None, wrap_direction=None
     return point
 
 
-def _piece_world_surface_points(piece, deflection=1.0):
-    """Sample PatternIR with the same placement semantics used by simulation."""
-    import FreeCAD as App
+def _piece_local_surface_points(piece, deflection=1.0):
+    """Sample PatternIR once; rigid correction reuses the exact same local samples."""
     from freecad_cloth.common.PatternSimulationAdapter import geometry_from_piece_ir, resolve_piece_ir
     from freecad_cloth.pattern.PatternMesh import refine_linear_boundary, triangulate
 
@@ -267,16 +266,26 @@ def _piece_world_surface_points(piece, deflection=1.0):
     )
     if not mesh.vertices:
         raise ValueError("pattern piece mesh produced no clearance samples")
+    return tuple((float(x), float(y), 0.0) for x, y in mesh.vertices)
+
+
+def _world_points_from_local(piece, local_points):
+    import FreeCAD as App
+
     placement = getattr(piece, "Placement", None)
     if placement is None:
         raise ValueError("pattern piece has no persistent placement")
     points = []
-    for x, y in mesh.vertices:
-        world = placement.multVec(App.Vector(float(x), float(y), 0.0))
+    for x, y, z in local_points:
+        world = placement.multVec(App.Vector(float(x), float(y), float(z)))
         points.append((float(world.x), float(world.y), float(world.z)))
     if not points:
         raise ValueError("pattern piece produced no world-space clearance samples")
     return tuple(points)
+
+
+def _piece_world_surface_points(piece, deflection=1.0):
+    return _world_points_from_local(piece, _piece_local_surface_points(piece, deflection))
 
 
 def set_garment_anchors(anchors):
@@ -354,7 +363,8 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
             point = piece.Placement.multVec(App.Vector(*anchor.position))
             placed_points.append((float(point.x), float(point.y), float(point.z)))
         anchor_clearance = minimum_surface_clearance(surface, placed_points, index=target_index)
-        piece_points = _piece_world_surface_points(piece, deflection=max(0.25, float(clearance) / 2.0))
+        local_piece_points = _piece_local_surface_points(piece, deflection=max(0.25, float(clearance) / 2.0))
+        piece_points = _world_points_from_local(piece, local_piece_points)
         piece_clearance, worst_hit = minimum_surface_clearance_detail(surface, piece_points, index=target_index)
         vertex_clearance = minimum_target_vertex_clearance(surface, piece_points, index=target_index)
         correction_count = 0
@@ -376,7 +386,7 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
             piece.Placement = App.Placement(corrected_base, piece.Placement.Rotation)
             if sketch is not None:
                 sketch.Placement = piece.Placement
-            piece_points = _piece_world_surface_points(piece, deflection=max(0.25, float(clearance) / 2.0))
+            piece_points = _world_points_from_local(piece, local_piece_points)
             piece_clearance, worst_hit = minimum_surface_clearance_detail(surface, piece_points, index=target_index)
             vertex_clearance = minimum_target_vertex_clearance(surface, piece_points, index=target_index)
             correction_count += 1
