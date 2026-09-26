@@ -112,7 +112,7 @@ def test_ready_and_negative_drape_target_states_fail_closed():
         import FreeCAD as App
     except ImportError:
         return
-    from freecad_cloth.simulation.DrapeTarget import refresh_drape_target, target_status
+    from freecad_cloth.simulation.DrapeTarget import create_drape_target, refresh_drape_target, target_status
 
     case = _freecad_case((0.0,))
     assert case is not None
