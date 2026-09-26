@@ -92,12 +92,34 @@ def render_motion(view, scene, frame_count=16, final_steps=120):
     view.viewAxonometric()
     view.fitAll()
     events()
+    import time
+    previous_step = int(scene.Steps)
+    phase_started = time.perf_counter()
+    replayed_steps = 0
+    max_recompute_ms = 0.0
     for index, target_step in enumerate(steps):
-        scene.Steps = int(target_step)
+        target_step = int(target_step)
+        reset = target_step < previous_step
+        if reset:
+            replayed_steps += target_step
+        else:
+            replayed_steps += target_step - previous_step
+        scene.Steps = target_step
+        recompute_started = time.perf_counter()
         scene.Document.recompute()
+        recompute_ms = 1000.0 * (time.perf_counter() - recompute_started)
+        max_recompute_ms = max(max_recompute_ms, recompute_ms)
         if not bool(scene.FiniteState):
             raise RuntimeError("blanket simulation became non-finite at step %d" % target_step)
         save_png(view, OUT / ("motion-%03d.png" % index), "blanket motion step %d" % target_step)
+        log("blanket-timing phase=motion frame=%d target_step=%d reset=%s delta_steps=%d recompute_ms=%.1f cumulative_ms=%.1f" % (
+            index, target_step, reset, max(0, target_step - previous_step), recompute_ms,
+            1000.0 * (time.perf_counter() - phase_started),
+        ))
+        previous_step = target_step
+    log("blanket-motion-timing frames=%d replayed_solver_steps=%d elapsed_ms=%.1f max_recompute_ms=%.1f final_steps=%d" % (
+        len(steps), replayed_steps, 1000.0 * (time.perf_counter() - phase_started), max_recompute_ms, final_steps,
+    ))
     log("motion-frames=passed count=%d final_steps=%d" % (len(steps), final_steps))
 
 
@@ -220,15 +242,29 @@ def main():
         import time
         log("blanket-solver-config particle_distance=%.1f iterations=%d particles=%d" % (float(scene.ParticleDistance), int(scene.SolverIterations), int(scene.ParticleCount)))
         simulation_started = time.perf_counter()
+        previous_step = int(scene.Steps)
+        checkpoint_replayed_steps = 0
+        max_recompute_ms = 0.0
         render_steps = (15, 30, 60, 120)
         for step in render_steps:
+            recompute_started = time.perf_counter()
             scene.Steps = step
             doc.recompute()
+            recompute_ms = 1000.0 * (time.perf_counter() - recompute_started)
+            max_recompute_ms = max(max_recompute_ms, recompute_ms)
+            checkpoint_replayed_steps += int(step) - previous_step
             events()
             save_png(view, OUT / ("checkpoint-%03d.png" % step), "blanket step %d" % step)
+            log("blanket-timing phase=checkpoint target_step=%d reset=False delta_steps=%d recompute_ms=%.1f cumulative_ms=%.1f" % (
+                step, int(step) - previous_step, recompute_ms,
+                1000.0 * (time.perf_counter() - simulation_started),
+            ))
+            previous_step = int(step)
 
         final_points = tuple(tuple(float(value) for value in point) for point in scene.Proxy._base_or_restore().backend.positions())
-        log("blanket-checkpoints-elapsed-ms=%.1f" % (1000.0 * (time.perf_counter() - simulation_started)))
+        log("blanket-checkpoints-elapsed-ms=%.1f replayed_solver_steps=%d max_recompute_ms=%.1f" % (
+            1000.0 * (time.perf_counter() - simulation_started), checkpoint_replayed_steps, max_recompute_ms,
+        ))
         if not initial_points or not final_points:
             raise RuntimeError("blanket simulation produced no particles")
         max_displacement = max(
