@@ -20,11 +20,13 @@ def test_one_canonical_workflow():
     assert [path.name for path in workflows] == ["canonical-execution.yml"]
 
 
-def test_pull_request_broker_dispatches_hosted_validation():
+def test_pull_request_broker_is_trusted_and_hosted():
     source = WORKFLOW.read_text(encoding="utf-8")
     assert "pull_request_target:" in source
+    assert "\n  pull_request:\n" not in source
 
     broker = _job_block(source, "pull_request_broker")
+    assert "if: ${{ github.event_name == 'pull_request_target' }}" in broker
     assert "runs-on: ubuntu-latest" in broker
     assert "actions: write" in broker
     assert "contents: read" in broker
@@ -34,14 +36,15 @@ def test_pull_request_broker_dispatches_hosted_validation():
     assert "-f pull_request_number=" in broker
     assert "actions/checkout" not in broker
     assert "self-hosted" not in broker
+    assert "/actions/runners" not in broker
 
 
-def test_pr_validation_cannot_reach_self_hosted():
+def test_pr_broker_cannot_start_substantive_work():
     source = WORKFLOW.read_text(encoding="utf-8")
-    readiness = _job_block(source, "local_runner_readiness")
-    assert "github.event_name != 'pull_request_target'" in readiness
+    router = _job_block(source, "runner_router")
+    assert "github.event_name != 'pull_request_target'" in router
 
-    jobs = (
+    for job in (
         "python",
         "sketcher-startup-diagnostic",
         "gui-sewing-creation",
@@ -50,45 +53,45 @@ def test_pr_validation_cannot_reach_self_hosted():
         "gui-tunic-visual",
         "gui-turntables",
         "gui-visual-examples",
-    )
-    for job in jobs:
+        "publish-readme-turntables",
+        "maintenance-cleanup",
+        "benchmark",
+    ):
         block = _job_block(source, job)
-        assert "needs: [local_runner_readiness]" in block
-        assert "inputs.runner_mode == 'hosted'" in block
-        assert "fromJSON('[\"ubuntu-latest\"]')" in block
+        assert "needs: runner_router" in block or "needs: [runner_router," in block
 
     sketcher = _job_block(source, "sketcher-startup-diagnostic")
     assert "github.event_name == 'workflow_dispatch'" in sketcher
     assert "inputs.pull_request_number != ''" in sketcher
 
 
-def test_pr_validation_checks_out_only_the_requested_merge_ref():
+def test_pr_validation_forced_hosted_on_trusted_dispatch():
     source = WORKFLOW.read_text(encoding="utf-8")
-    python = _job_block(source, "python")
-    assert "refs/pull/{0}/merge" in python
-    assert "persist-credentials: false" in python
+    router = _job_block(source, "runner_router")
+    assert "inputs.runner_mode" in router
+    assert 'fallback "explicit-hosted"' in router
+    assert "secrets.CLOTH_RUNNER_DISCOVERY_TOKEN" in router
+    assert "repos/$REPO/actions/runners?per_page=100" in router
+    assert "runner-api-error" in router
+    assert "local-runner-unreachable-or-busy" in router
 
 
-def test_trusted_jobs_default_to_local_runner():
+def test_pr_dispatch_checks_out_only_the_requested_merge_ref():
     source = WORKFLOW.read_text(encoding="utf-8")
-    for job in ("python", "gui-tunic-visual", "gui-turntables", "gui-visual-examples", "benchmark"):
+    for job in (
+        "python",
+        "sketcher-startup-diagnostic",
+        "gui-sewing-creation",
+        "gui-sketcher-acceptance",
+        "gui-pattern-export",
+        "gui-tunic-visual",
+        "gui-turntables",
+        "gui-visual-examples",
+        "benchmark",
+    ):
         block = _job_block(source, job)
-        assert "self-hosted" in block
-        assert "inputs.runner_mode == 'hosted'" in block
-
-
-def test_watchdog_is_hosted_and_failover_is_bounded():
-    source = WORKFLOW.read_text(encoding="utf-8")
-    watchdog = _job_block(source, "runner_watchdog")
-    assert "runs-on: ubuntu-latest" in watchdog
-    assert "grace_seconds=45" in watchdog
-    assert "Selected runner readiness" in watchdog
-    assert "gh workflow run canonical-execution.yml" in watchdog
-    assert "-f runner_mode=hosted" in watchdog
-    assert "cancel" in watchdog
-    assert "github.event_name != 'pull_request_target'" in watchdog
-    assert "/actions/runners" not in source
-    assert "CLOTH_RUNNER_DISCOVERY_TOKEN" not in source
+        assert "refs/pull/{0}/merge" in block
+        assert "persist-credentials: false" in block
 
 
 def test_only_heartbeat_is_static_self_hosted():
@@ -97,3 +100,15 @@ def test_only_heartbeat_is_static_self_hosted():
     assert source.count(static) == 1
     heartbeat = _job_block(source, "runner_heartbeat")
     assert static in heartbeat
+
+
+def test_time_budgets_remain_unchanged():
+    source = WORKFLOW.read_text(encoding="utf-8")
+    for timeout in (
+        "timeout-minutes: 20",
+        "timeout-minutes: 5",
+        "timeout-minutes: 10",
+        "timeout-minutes: 25",
+        "timeout-minutes: 12",
+    ):
+        assert timeout in source
