@@ -308,30 +308,31 @@ class ClothSystem:
                 continue
 
             candidates.sort(key=lambda item: (item[0], item[1]))
-            best = candidates[0]
             local_distance_limit = nearest_surface_distance_sq + max(thickness * thickness, 1e-12)
-            local_correction_limit = best[4] + max(thickness, 1e-6)
             local = []
             for candidate in candidates:
-                if candidate[0] > local_distance_limit or candidate[4] > local_correction_limit:
+                if candidate[0] > local_distance_limit:
                     continue
                 _, triangle_index, normal, target, _ = candidate
                 duplicate = False
                 for existing_index, existing in enumerate(local):
-                    if sum(normal[i] * existing[0][i] for i in range(3)) > 1.0 - 1e-10:
-                        if target > existing[1]:
-                            local[existing_index] = (normal, target, triangle_index)
+                    if sum(normal[i] * existing[2][i] for i in range(3)) > 1.0 - 1e-10:
+                        if target > existing[3]:
+                            local[existing_index] = candidate
                         duplicate = True
                         break
                 if not duplicate:
-                    local.append((normal, target, triangle_index))
-            local.sort(key=lambda item: item[2])
+                    local.append(candidate)
+            local.sort(key=lambda item: (item[0], item[1]))
             local = local[:8]
+            if not local:
+                continue
 
-            constraints = [(normal, target) for normal, target, _ in local]
+            constraints = [(candidate[2], candidate[3]) for candidate in local]
             correction_vector = _minimal_mesh_correction(position, constraints)
             if correction_vector is None:
-                _, _, normal, _, correction = best
+                _, _, normal, target, _ = local[0]
+                correction = target - sum(normal[i] * position[i] for i in range(3))
                 correction_vector = tuple(normal[i] * correction for i in range(3))
             p.x += correction_vector[0]
             p.y += correction_vector[1]
