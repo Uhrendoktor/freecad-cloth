@@ -318,6 +318,10 @@ def main():
             float(scene.ParticleDistance), int(scene.SolverIterations), int(scene.ParticleCount),
             getattr(scene.Proxy._base_or_restore().backend, "name", "unknown"),
         ))
+        log("blanket-backend-contract=passed requested=%s active=%s" % (
+            os.environ.get("CLOTH_SIMULATION_BACKEND", "auto"),
+            getattr(scene.Proxy._base_or_restore().backend, "name", "unknown"),
+        ))
 
         first_step_started = time.perf_counter()
         scene.Steps = 1
