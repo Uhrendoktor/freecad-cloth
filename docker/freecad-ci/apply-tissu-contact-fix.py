@@ -283,20 +283,21 @@ bool intersectSegmentTriangle(
             faceNormal /= faceNormalLength;
 
             Eigen::Vector3d normal = faceNormal;
-            if (!sweptHit && distance > 1e-6) {
-                normal = toParticle / distance;
-                if (m_closedManifold) {
-                    const Eigen::Vector3d outwardNormal =
-                        faceNormal * m_outwardNormalSign;
+            if (m_closedManifold) {
+                const Eigen::Vector3d outwardNormal =
+                    faceNormal * m_outwardNormalSign;
+                if (sweptHit) {
+                    normal = outwardNormal;
+                } else if (distance > 1e-6) {
+                    normal = toParticle / distance;
                     if (normal.dot(outwardNormal) < 0.0)
                         normal = -normal;
+                } else {
+                    normal = outwardNormal;
                 }
-            } else if (m_closedManifold) {
-                normal *= m_outwardNormalSign;
+            } else if (distance > 1e-6) {
+                normal = toParticle / distance;
             }
-
-            if (sweptHit)
-                normal *= m_outwardNormalSign;
 
             Eigen::Vector3d newPosition =
                 collisionPoint + normal * thickness;""",
