@@ -11,13 +11,14 @@ For a first validation, follow the **Blanket over Cube** example in [Examples](E
 1. Create or open a native Sketcher pattern in **Cloth Pattern** and turn it into a PatternPiece. Keep Sketcher as the geometry authority.
 2. Use **Cloth Sewing** to select matching semantic edges and create seams. Editing an upstream Sketcher edge can invalidate a downstream seam rather than silently retargeting it.
 3. In **Cloth Simulation**, select or rebuild a DrapeTarget. A target can be a mannequin collision surface or supported generic FreeCAD geometry.
-4. Set simulation quality and fabric presentation. Physical material parameters affect the solver; color, roughness, specular response and transparency affect viewport rendering.
-5. Choose pins and run the simulation. Stale or non-finite states are fail-closed.
+4. Arrange or fit the garment. Use **Snap Pattern Pieces To Target** for deterministic target-relative placement, then **Reset Arrangement** for recovery. This is fitting state, not solver state.
+5. Set simulation quality and fabric presentation. Physical material parameters affect the solver; color, roughness, specular response and transparency affect viewport rendering.
+6. Add pins only when fixed attachment is required, then run the simulation. Pins are optional. Stale or non-finite states are fail-closed.
 6. Inspect the result and diagnostics before export or saving a final document.
 
 ## Seams and visual inspection
 
-Seams use deterministic colors in the 2D sewing view and retain their placed/world-space 3D presentation. Use the seam-focus command to fit a selected seam in 3D, and the Sketcher-side seam command to edit the authoritative source edge.
+Seams use deterministic colors in the 2D sewing view and retain their placed/world-space 3D presentation. Sewing-operation stitch/correspondence geometry carries the same semantic seam color so the relationship remains identifiable across views. Use the seam-focus command to fit a selected seam in 3D, and the Sketcher-side seam command to edit the authoritative source edge.
 
 ## Fabric presentation
 
