@@ -207,6 +207,26 @@ def minimum_surface_clearance(surface, points):
     return float(minimum)
 
 
+def minimum_surface_clearance_hit(surface, points):
+    """Return the minimum signed clearance and its outward correction normal."""
+    triangles = _surface_triangle_data(surface)
+    minimum = None
+    minimum_point = None
+    minimum_normal = None
+    for point in points:
+        best, _ = _nearest_surface_hit(triangles, point)
+        if best is None:
+            raise TargetPlacementError("target surface has no usable triangle")
+        signed = _dot(_sub(point, best.point), best.normal)
+        if minimum is None or signed < minimum:
+            minimum = signed
+            minimum_point = best.point
+            minimum_normal = best.normal
+    if minimum is None:
+        raise TargetPlacementError("clearance cannot be measured without garment points")
+    return float(minimum), tuple(minimum_point), tuple(minimum_normal)
+
+
 def assert_minimum_surface_clearance(surface, points, required_clearance):
     actual = minimum_surface_clearance(surface, points)
     required = float(required_clearance)
