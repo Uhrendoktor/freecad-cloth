@@ -3,7 +3,7 @@ run-name: Canonical execution
 
 on:
   push:
-    branches: [main]
+    branches: [main, agent/1515-right-shoulder-edge3-ab]
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
