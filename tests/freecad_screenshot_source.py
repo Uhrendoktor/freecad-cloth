@@ -462,10 +462,8 @@ def simulation():
     simulation_panel.step(1); doc.recompute(); events()
     if not bool(scene.FiniteState):
         raise RuntimeError("canonical tunic did not reach a finite state after the first solver step")
-    first_clearance = min(
-        minimum_signed_clearance(_piece_world_samples(front), target_surface).minimum_signed_clearance,
-        minimum_signed_clearance(_piece_world_samples(back), target_surface).minimum_signed_clearance,
-    )
+    first_positions = tuple(scene.Proxy.backend.positions())
+    first_clearance = minimum_signed_clearance(first_positions, target_surface).minimum_signed_clearance
     log("first-step-target-clearance=%.6f required=0.000000" % first_clearance)
     simulation_panel.reset(); doc.recompute(); events()
     for batch in (15,15,15,15,15,15):
