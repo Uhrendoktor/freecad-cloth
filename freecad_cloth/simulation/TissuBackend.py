@@ -29,6 +29,10 @@ def _tissu_collision_triangle_limit():
         raise ValueError("CLOTH_TISSU_COLLISION_TRIANGLES must be >= 0")
     return value
 
+def _tissu_supplemental_avatar_collision():
+    value = os.environ.get("CLOTH_TISSU_SUPPLEMENTAL_AVATAR_COLLISION", "0").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
 
 def _to_tissu_position(position):
     x, y, z = position
@@ -99,6 +103,9 @@ class TissuBackend(ClothSimulationBackend):
         collision_mode = str(os.environ.get("CLOTH_TISSU_COLLISION_MODE", collision_mode)).strip().lower()
         if collision_mode not in {"mesh", "torso-envelope"}:
             raise ValueError("unsupported Tissu collision mode")
+        self._supplemental_avatar_collision = _tissu_supplemental_avatar_collision()
+        if self._supplemental_avatar_collision and collision_mode != "mesh":
+            raise ValueError("CLOTH_TISSU_SUPPLEMENTAL_AVATAR_COLLISION requires mesh collision mode")
         self._initial = deepcopy(system)
         self._triangles = tuple(tuple(int(i) for i in tri) for tri in triangles)
         self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins))
@@ -147,6 +154,20 @@ class TissuBackend(ClothSimulationBackend):
             return
         vtx, idx = _to_tissu_mesh(self._collision_surface)
         self._sim.add_mesh_from_arrays("drape-target", vtx, idx, friction=0.5)
+        if self._supplemental_avatar_collision:
+            envelope = _collision_envelope(self._source_collision_surface or self._collision_surface)
+            print(
+                "cloth-tissu-supplemental-avatar-collision spheres=%d"
+                % len(envelope),
+                flush=True,
+            )
+            for index, (center, radius_mm) in enumerate(envelope):
+                self._sim.add_sphere(
+                    f"drape-torso-{index}",
+                    np.asarray(_to_tissu_position(center), dtype=np.float64),
+                    float(radius_mm) / _MM,
+                    friction=0.5,
+                )
 
     def _build(self, Simulation):
         import numpy as np
