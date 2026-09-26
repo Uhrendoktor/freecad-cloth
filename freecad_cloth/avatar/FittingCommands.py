@@ -198,6 +198,108 @@ def position_piece(piece, x, y, z=0.0, rotation_z=0.0):
     return piece
 
 
+def _world_bounds(obj):
+    """Return an object's world-space axis-aligned bounds without mutating it."""
+    import FreeCAD as App
+
+    shape = getattr(obj, "Shape", None)
+    bound = getattr(shape, "BoundBox", None) if shape is not None and not getattr(shape, "isNull", lambda: True)() else None
+    if bound is None:
+        mesh = getattr(obj, "Mesh", None)
+        bound = getattr(mesh, "BoundBox", None) if mesh is not None else None
+    if bound is None:
+        raise ValueError("object has no usable Shape/Mesh bounds: %s" % getattr(obj, "Name", "<unnamed>"))
+    placement = getattr(obj, "Placement", None)
+    corners = (
+        App.Vector(bound.XMin, bound.YMin, bound.ZMin),
+        App.Vector(bound.XMin, bound.YMin, bound.ZMax),
+        App.Vector(bound.XMin, bound.YMax, bound.ZMin),
+        App.Vector(bound.XMin, bound.YMax, bound.ZMax),
+        App.Vector(bound.XMax, bound.YMin, bound.ZMin),
+        App.Vector(bound.XMax, bound.YMin, bound.ZMax),
+        App.Vector(bound.XMax, bound.YMax, bound.ZMin),
+        App.Vector(bound.XMax, bound.YMax, bound.ZMax),
+    )
+    world = [placement.multVec(point) if placement is not None else point for point in corners]
+    return (
+        min(float(p.x) for p in world), max(float(p.x) for p in world),
+        min(float(p.y) for p in world), max(float(p.y) for p in world),
+        min(float(p.z) for p in world), max(float(p.z) for p in world),
+    )
+
+
+def snap_pattern_pieces_to_target(pieces=None, clearance=None):
+    """Deterministically place pattern pieces around the assigned avatar/target.
+
+    The operation is presentation/fitting state, not solver pinning: it moves
+    the current garment as a rigid group in world space, keeps each piece's
+    rotation, and stores the new placement in the fitting scene. The original
+    placement remains restorable through HomePlacements.
+
+    Pieces already in front/back space keep that side. Ambiguous pieces are
+    split deterministically by PieceId. X/Z spacing inside the garment is
+    preserved while the group is centered over the target.
+    """
+    import FreeCAD as App
+
+    doc = App.ActiveDocument
+    if doc is None:
+        raise ValueError("open a document before snapping garment pieces to a target")
+    scene = _scene(doc)
+    if scene is None or not scene.PatternPieces:
+        raise ValueError("create a fitting scene with pattern pieces first")
+    source = getattr(getattr(scene, "AvatarProxy", None), "SourceObject", None)
+    if source is None:
+        raise ValueError("assign an avatar or target source before snapping garment pieces")
+    selected = tuple(pieces or scene.PatternPieces)
+    selected = tuple(sorted((piece for piece in selected if getattr(piece, "PatternType", "") == "PatternPiece"), key=lambda item: str(getattr(item, "PieceId", item.Name))))
+    if not selected:
+        raise ValueError("no PatternPiece objects were supplied")
+    target = _world_bounds(source)
+    target_cx = (target[0] + target[1]) / 2.0
+    target_cy = (target[2] + target[3]) / 2.0
+    target_height = max(1.0, target[5] - target[4])
+    z_anchor = target[4] + 0.60 * target_height
+    if clearance is None:
+        drape_target = getattr(doc, "getObject", lambda _name: None)("DrapeTarget")
+        clearance = float(getattr(drape_target, "CollisionThickness", 2.0)) if drape_target is not None else 2.0
+    clearance = max(0.0, float(clearance))
+
+    boxes = {str(piece.PieceId): _world_bounds(piece) for piece in selected}
+    centers = {pid: ((b[0] + b[1]) / 2.0, (b[2] + b[3]) / 2.0, (b[4] + b[5]) / 2.0) for pid, b in boxes.items()}
+    group_cx = sum(center[0] for center in centers.values()) / len(centers)
+    group_cz = sum(center[2] for center in centers.values()) / len(centers)
+    ordered = list(selected)
+    outside = [piece for piece in ordered if abs(centers[str(piece.PieceId)][1] - target_cy) > clearance]
+    ambiguous = [piece for piece in ordered if piece not in outside]
+    side_map = {}
+    for piece in outside:
+        side_map[str(piece.PieceId)] = "front" if centers[str(piece.PieceId)][1] < target_cy else "back"
+    for index, piece in enumerate(ambiguous):
+        side_map[str(piece.PieceId)] = "front" if index % 2 == 0 else "back"
+
+    placements = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)}
+    for piece in ordered:
+        pid = str(piece.PieceId)
+        center = centers[pid]
+        side = side_map[pid]
+        desired_y = target[2] - clearance if side == "front" else target[3] + clearance
+        delta = (target_cx - group_cx + (center[0] - group_cx), desired_y - center[1], z_anchor - group_cz + (center[2] - group_cz))
+        placement = piece.Placement
+        base = placement.Base
+        piece.Placement = App.Placement(
+            App.Vector(float(base.x) + delta[0], float(base.y) + delta[1], float(base.z) + delta[2]),
+            placement.Rotation,
+        )
+        updated = piece.Placement
+        placements[pid] = PiecePlacement(pid, (float(updated.Base.x), float(updated.Base.y), float(updated.Base.z)), float(updated.Rotation.Angle))
+
+    scene.PiecePlacements = [placements[k].to_string() for k in sorted(placements)]
+    scene.FitStatus = "Snapped to target"
+    doc.recompute()
+    return scene
+
+
 def create_arrangement_point(name, x, y, offset=0.0, wrap_direction="front", rotation_z=0.0, symmetry_group="", mirror=False):
     import FreeCAD as App
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
@@ -394,6 +496,7 @@ COMMANDS = [
     "ClothFitting_DeleteBoundingVolume",
     "ClothFitting_SetSymmetry",
     "ClothFitting_ApplyArrangementPoint",
+    "ClothFitting_SnapPiecesToTarget",
     "ClothFitting_ResetArrangement",
     "ClothFitting_CreateSimulation",
 ]
@@ -409,6 +512,7 @@ _COMMAND_HANDLERS = {
     "ClothFitting_DeleteBoundingVolume": lambda: delete_bounding_volume("Volume1"),
     "ClothFitting_SetSymmetry": lambda: set_symmetry_enabled(True),
     "ClothFitting_ApplyArrangementPoint": lambda: _apply_selected_arrangement(),
+    "ClothFitting_SnapPiecesToTarget": snap_pattern_pieces_to_target,
     "ClothFitting_ResetArrangement": reset_arrangement,
     "ClothFitting_CreateSimulation": create_simulation_from_fitting,
 }
