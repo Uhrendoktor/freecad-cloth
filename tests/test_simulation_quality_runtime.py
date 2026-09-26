@@ -68,3 +68,15 @@ def test_non_tissu_step_uses_authoritative_collision_surface():
     )
 
     assert _collision_surface_for_step(proxy) is authoritative
+
+
+def test_both_simulation_step_paths_use_the_collision_surface_handoff_helper():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    simulation_source = (root / "freecad_cloth" / "simulation" / "SimulationObjects.py").read_text(encoding="utf-8")
+    quality_source = (root / "freecad_cloth" / "simulation" / "SimulationQualityRuntimeV2.py").read_text(encoding="utf-8")
+
+    assert "_collision_surface_for_step(self)" in simulation_source
+    assert "_collision_surface_for_step(base)" in quality_source
+    assert "self.collision_surface = collision_surface" in simulation_source
