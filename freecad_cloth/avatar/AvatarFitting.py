@@ -66,10 +66,13 @@ class PiecePlacement:
 
     def to_string(self) -> str:
         self.validate()
-        return "%s|%.12g,%.12g,%.12g|%.12g|%.12g,%.12g,%.12g" % (
-            self.piece_id, self.position[0], self.position[1], self.position[2], self.rotation_z,
-            self.rotation_axis[0], self.rotation_axis[1], self.rotation_axis[2]
+        base = "%s|%.12g,%.12g,%.12g|%.12g" % (
+            self.piece_id, self.position[0], self.position[1], self.position[2], self.rotation_z
         )
+        axis = tuple(float(v) for v in self.rotation_axis)
+        if axis == (0.0, 0.0, 1.0):
+            return base
+        return base + "|%.12g,%.12g,%.12g" % axis
 
     @classmethod
     def from_string(cls, value: str) -> "PiecePlacement":
