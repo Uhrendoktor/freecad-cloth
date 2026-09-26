@@ -587,7 +587,27 @@ def run_acceptance():
         if any(value + 1e-6 < required_clearance for value in clearances.values()):
             raise RuntimeError("target-aware fitting did not prove step-0 clearance: %r" % clearances)
         home_snapshot = tuple(fitting.HomePlacements)
+        home_piece_states = {
+            str(piece.PieceId): (piece.Placement, getattr(getattr(piece, "Sketch", None), "Placement", None))
+            for piece in fitting.PatternPieces
+        }
         print("target-placement=passed pieces=%d min-clearance-mm=%.3f" % (len(clearances), min(clearances.values())), flush=True)
+        Gui.runCommand("ClothFitting_ResetArrangement", 0)
+        _events()
+        doc.recompute()
+        if tuple(fitting.HomePlacements) != home_snapshot:
+            raise RuntimeError("Reset Arrangement mutated HomePlacements")
+        for piece in fitting.PatternPieces:
+            expected_piece, expected_sketch = home_piece_states[str(piece.PieceId)]
+            if piece.Placement != expected_piece:
+                raise RuntimeError("Reset Arrangement did not restore PatternPiece placement for %s" % piece.PieceId)
+            sketch = getattr(piece, "Sketch", None)
+            if sketch is not None and expected_sketch is not None and sketch.Placement != expected_sketch:
+                raise RuntimeError("Reset Arrangement did not restore linked Sketch placement for %s" % piece.PieceId)
+        Gui.runCommand("ClothFitting_SnapPiecesToTarget", 0)
+        _events()
+        doc.recompute()
+        print("target-placement-reset=passed", flush=True)
         Gui.runCommand("ClothFitting_CreateSimulation", 0)
         _events()
         scene = doc.getObject("ClothSimulation")
