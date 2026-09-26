@@ -396,6 +396,19 @@ def simulation():
     def make_piece(name, side, neckline_ratio, neckline_drop):
         sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(side); piece.Sketch.Placement = piece.Placement; return piece, outline
     front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
+    from freecad_cloth.avatar.FittingCommands import snap_pieces_to_drape_target
+    snap_results = snap_pieces_to_drape_target(
+        (front, back),
+        target,
+        clearance=float(clearance),
+        max_translation=240.0,
+    )
+    if any(float(result["distance_after"]) + 1e-6 < float(result["clearance"]) for result in snap_results):
+        raise RuntimeError("target-aware tunic placement did not reach requested clearance")
+    log("target-snap=passed pieces=%d clearances=%s" % (
+        len(snap_results),
+        tuple(round(float(result["distance_after"]), 3) for result in snap_results),
+    ))
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
     for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
