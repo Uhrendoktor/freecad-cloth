@@ -352,8 +352,9 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
         # resolution. The convergence algorithm itself is solver-neutral; this
         # callback supplies only the current FreeCAD surface sample.
         sample_spacing = min(32.0, max(8.0, 4.0 * float(clearance)))
+        correction_base = piece.Placement.Base
         def _sample_at_translation(correction):
-            corrected_base = piece.Placement.Base + App.Vector(*correction)
+            corrected_base = correction_base + App.Vector(*correction)
             piece.Placement = App.Placement(corrected_base, piece.Placement.Rotation)
             if sketch is not None:
                 sketch.Placement = piece.Placement
