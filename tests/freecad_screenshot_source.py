@@ -369,13 +369,6 @@ def simulation():
     # deterministic wrap angles above. Sewing is therefore free to converge
     # without freezing any garment particles in global PinSelection.
     proxy = scene.Proxy
-    positions = tuple(proxy.backend.positions())
-    pin_panels = list(scene.DrapePanels)
-    panel_indices = proxy.panel_indices
-    front_indices = tuple(panel_indices[pin_panels[0].Name])
-    back_indices = tuple(panel_indices[pin_panels[1].Name])
-    front_indices = tuple(panel_indices[pin_panels[0].Name])
-    back_indices = tuple(panel_indices[pin_panels[1].Name])
     scene.PinSelection = []
     log("arrangement=avatar-wrap front-angle=%.3f back-angle=%.3f front-panel=%s back-panel=%s pins=0" % (front_angle, back_angle, front.Name, back.Name))
     doc.recompute()
