@@ -1,6 +1,7 @@
 import unittest
 
 from freecad_cloth.common.DrapeFailureClassifier import classify_drape, summarize_classification
+from freecad_cloth.common.DrapeVisualSanity import assert_drape_diagnostics
 from freecad_cloth.common.DrapeVisualSanity import inspect_drape, mesh_shape_sanity, seam_correspondence_gap, summarize
 from freecad_cloth.common.MeshValidation import validate_mesh
 
@@ -154,13 +155,48 @@ class DrapeVisualSanityTests(unittest.TestCase):
         self.assertEqual(data["state"], "structurally-plausible")
         self.assertIsInstance(data["reasons"], list)
 
+    def test_drape_diagnostics_accepts_clean_attached_result(self):
+        assert_drape_diagnostics((
+            {
+                "panel": "Front",
+                "failure_classification": {"state": "structurally-plausible"},
+                "diagnostics": [],
+            },
+            {
+                "panel": "Back",
+                "failure_classification": {"state": "structurally-plausible"},
+                "diagnostics": ["target-clearance-candidate"],
+            },
+        ))
+
+    def test_drape_diagnostics_rejects_detached_and_collapsed_results(self):
+        for record in (
+            {
+                "panel": "Front",
+                "failure_classification": {"state": "detached-candidate"},
+                "diagnostics": [],
+            },
+            {
+                "panel": "Back",
+                "failure_classification": {"state": "structurally-plausible"},
+                "diagnostics": ["collapsed-candidate"],
+            },
+            {
+                "panel": "Side",
+                "failure_classification": {"state": "structurally-plausible"},
+                "diagnostics": ["below-hem-candidate"],
+            },
+            {
+                "panel": "Lateral",
+                "failure_classification": {"state": "structurally-plausible"},
+                "diagnostics": ["lateral-detached-candidate"],
+            },
+        ):
+            with self.assertRaisesRegex(RuntimeError, "drape visual acceptance failed closed"):
+                assert_drape_diagnostics((record,))
+
+
 
 if __name__ == "__main__":
     unittest.main()
-
-def test_drape_visual_acceptance_contract_is_fail_closed():
-    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    assert "from freecad_cloth.common.DrapeVisualSanity import assert_drape_diagnostics" in source
-    assert "assert_drape_diagnostics(json.load(handle).get(\"panels\", ()))" in source
-    assert source.index("assert_drape_diagnostics(json.load(handle).get") < source.index("task_dock.show(); task_dock.raise_(); events(); close_task()")
 
