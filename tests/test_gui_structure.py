@@ -54,6 +54,9 @@ assert '"Proportions"' in avatar_gui
 assert '"Pose"' in avatar_gui
 assert '"Display"' in avatar_gui
 assert "Apply & Rebuild" in avatar_gui
+assert "Snap selected piece to Drape Target" in avatar_gui
+assert "Select exactly one PatternPiece before snapping to a DrapeTarget" in fitting_commands
+assert "ClothFitting_SnapToDrapeTarget" in fitting_commands
 assert "Gui.Control.showDialog(panel)" in avatar_gui
 assert "ClothPattern_CreatePieceTask" in commands
 assert "ClothPattern_EditPiece" in commands
