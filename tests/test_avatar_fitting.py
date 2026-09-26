@@ -371,3 +371,11 @@ if __name__ == "__main__": unittest.main()
         self.assertIn("ClothFitting_SnapPiecesToTarget", source)
         self.assertTrue(icon.is_file())
         self.assertGreater(icon.stat().st_size, 100)
+
+
+    def test_create_simulation_from_fitting_preserves_authoritative_target_link(self):
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+        self.assertIn("target = getattr(scene, \"DrapeTarget\", None)", source)
+        self.assertIn('raise ValueError("assign a current DrapeTarget before creating simulation")', source)
+        self.assertIn("simulation.DrapeTarget = target", source)
