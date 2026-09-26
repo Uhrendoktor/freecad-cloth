@@ -260,6 +260,12 @@ def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=No
         record["connected_components"] = int(mesh_result.components)
         record["failure_classification"] = summarize_classification(classification)
         record["diagnostics"] = diagnostics
+        if classification.state in {"detached-candidate", "edge-on-candidate"} or "collapsed-candidate" in diagnostics:
+            raise RuntimeError(
+                "canonical tunic visual geometry is not structurally plausible: "
+                "%s state=%s diagnostics=%s"
+                % (record["panel"], classification.state, tuple(diagnostics))
+            )
         records.append(record)
         log("drape-metrics=%s" % json.dumps(record, sort_keys=True))
     payload = {
