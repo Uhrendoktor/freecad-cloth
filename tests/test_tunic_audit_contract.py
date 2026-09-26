@@ -17,15 +17,23 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
-def test_canonical_tunic_uses_target_relative_placement_and_no_pins():
+def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    assert 'def target_relative_piece_placement(target_box, side):' in source
-    assert 'y = target_box.YMin - clearance if side == "front" else target_box.YMax + clearance' in source
+    assert 'ArrangementPoint.from_string' in source
+    assert 'shoulder_left = arrangement_world("shoulder_left")' in source
+    assert 'shoulder_right = arrangement_world("shoulder_right")' in source
+    assert 'hip_point = arrangement_world("hip")' in source
+    assert 'os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"' in source
+    assert 'status = target_status(target)' in source
     assert 'scene.PinMode = "None"' in source
     assert 'scene.PinSelection = []' in source
     assert 'if solver_pins:' in source
+    assert 'nearest_target_clearance' in source
+    assert 'step0-target-vertex-clearance-mm=' in source
     assert 'authored_shoulder_pins' not in source
     assert 'scene.PinSelection = [str(i) for i in front_pins]' not in source
+    assert 'target_surface = collision_surface(' in source
+    assert 'target_source.Mesh.BoundBox' not in source
 
 
 def test_canonical_tunic_uses_validated_authored_mapping():
@@ -70,6 +78,7 @@ def test_canonical_tunic_source_rewrite_compiles():
 
 def test_canonical_tunic_authoritative_gate_is_fail_closed():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"' in source
     assert "proxy=proxy" in source
     assert "authoritative tunic seams did not converge" in source
     assert "if max_seam_gap > 35.0" in source
