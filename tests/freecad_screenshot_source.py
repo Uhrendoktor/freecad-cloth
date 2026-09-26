@@ -433,6 +433,7 @@ def simulation():
     if tuple(fitting.HomePlacements) != tuple(home_values):
         raise RuntimeError("target snap changed canonical HomePlacements")
     surface_for_proof = _world_collision_surface(target)
+    target_surface = collision_surface(target_source, float(getattr(target, "CollisionDeflection", 1.0)), float(getattr(target, "CollisionThickness", 0.0)))
     minimum_signed = min(
         min(
             sum((point[i] - _surface_anchor(surface_for_proof, point)[0][i]) * _surface_anchor(surface_for_proof, point)[1][i] for i in range(3))
