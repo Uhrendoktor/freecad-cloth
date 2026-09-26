@@ -10,6 +10,7 @@ import os
 from freecad_cloth.avatar.AvatarCollision import CollisionSurface, coarsen_collision_surface
 from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
+from freecad_cloth.simulation.AuthoredSurfaceContainment import AuthoredSurfaceContainment
 
 _MM = 1000.0
 _TISSU_SUBSTEPS_DEFAULT = 1
@@ -28,6 +29,10 @@ def _tissu_collision_triangle_limit():
     if value < 0:
         raise ValueError("CLOTH_TISSU_COLLISION_TRIANGLES must be >= 0")
     return value
+
+
+def _tissu_authored_containment_enabled():
+    return os.environ.get("CLOTH_TISSU_AUTHORED_CONTAINMENT", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _to_tissu_position(position):
@@ -118,6 +123,15 @@ class TissuBackend(ClothSimulationBackend):
             )
         self._collision_surface = collision_surface
         self._collision_mode = collision_mode
+        self._containment_guard = None
+        if (
+            collision_mode == "mesh"
+            and _tissu_authored_containment_enabled()
+            and self._source_collision_surface is not None
+        ):
+            self._containment_guard = AuthoredSurfaceContainment(self._source_collision_surface)
+        self._containment_corrections = 0
+        self._containment_max_exit_mm = 0.0
         self._time = 0.0
         self._iterations = 8
         self._substeps = _tissu_substeps()
@@ -164,6 +178,34 @@ class TissuBackend(ClothSimulationBackend):
             self._sim.solver.add_stitch(int(a), int(b), 0.0)
         self._add_collision()
 
+    def _apply_authored_containment(self):
+        guard = self._containment_guard
+        if guard is None:
+            return 0
+        import numpy as np
+        particles = self._sim.solver.get_particles()
+        corrected_count = 0
+        max_exit_mm = 0.0
+        for index, position in enumerate(self.positions()):
+            correction = guard.correct(position)
+            if correction is None:
+                continue
+            corrected, exit_mm, _normal = correction
+            target = np.asarray(_to_tissu_position(corrected), dtype=np.float64)
+            particles[index].set_position(target)
+            particles[index].set_old_position(target)
+            corrected_count += 1
+            max_exit_mm = max(max_exit_mm, float(exit_mm))
+        self._containment_corrections += corrected_count
+        self._containment_max_exit_mm = max(self._containment_max_exit_mm, max_exit_mm)
+        if corrected_count:
+            print(
+                "cloth-tissu-authored-containment corrected=%d exit_mm=%.3f time=%.4f"
+                % (corrected_count, max_exit_mm, self._time),
+                flush=True,
+            )
+        return corrected_count
+
     def step(self, dt=1.0 / 60.0, iterations=8, gravity=(0.0, 0.0, -9810.0), sphere=None, surface=None):
         if dt <= 0 or iterations < 1:
             raise ValueError("dt and iterations must be positive")
@@ -175,6 +217,7 @@ class TissuBackend(ClothSimulationBackend):
         _gx, _gy, gz = gravity
         self._sim.gravity = float(gz) / _MM
         self._sim.step(float(dt))
+        self._apply_authored_containment()
         self._iterations = int(iterations)
         self._time += float(dt)
 
