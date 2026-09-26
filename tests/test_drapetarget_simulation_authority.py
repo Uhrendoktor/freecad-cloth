@@ -54,11 +54,6 @@ class DrapeTargetAuthorityTests(unittest.TestCase):
         self.assertIn("FreeCAD Geometry", DrapeTargetSpec.VALID_TYPES)
 
 
-if __name__ == "__main__":
-    test_fitting_simulation_target_propagation_and_staleness()
-    unittest.main()
-
-
 def test_fitting_simulation_target_propagation_and_staleness():
     try:
         import FreeCAD as App
@@ -96,4 +91,5 @@ def test_fitting_simulation_target_propagation_and_staleness():
 
 
 if __name__ == "__main__":
+    test_fitting_simulation_target_propagation_and_staleness()
     unittest.main()
