@@ -85,6 +85,15 @@ def _material(scene):
     ).validate()
 
 
+def _solver_collision_surface(base):
+    """Return the backend-owned solver surface without replacing authoritative state."""
+    authoritative = getattr(base, "collision_surface", None)
+    backend = getattr(base, "backend", None)
+    if getattr(backend, "name", "") == "tissu":
+        return getattr(backend, "_collision_surface", authoritative)
+    return authoritative
+
+
 class QualitySimulationProxy:
     """Wrap the deterministic simulation proxy with quality/material behavior."""
 
@@ -178,7 +187,7 @@ class QualitySimulationProxy:
                         dt, int(obj.SolverIterations),
                         (float(obj.GravityX), float(obj.GravityY), float(obj.GravityZ)),
                         sphere,
-                        base.collision_surface,
+                        _solver_collision_surface(base),
                     )
                     system = getattr(base.backend, "system", None)
                     for particle in getattr(system, "particles", ()):
