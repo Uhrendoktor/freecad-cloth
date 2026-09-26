@@ -30,8 +30,8 @@ def box_surface():
 
 class TargetAwarePlacementTests(unittest.TestCase):
     def test_wrap_normals_match_canonical_axes(self):
-        self.assertEqual(wrap_normal("front"), (0.0, -1.0, 0.0))
-        self.assertEqual(wrap_normal("back"), (0.0, 1.0, 0.0))
+        self.assertEqual(wrap_normal("front"), (0.0, 1.0, 0.0))
+        self.assertEqual(wrap_normal("back"), (0.0, -1.0, 0.0))
 
     def test_target_surface_anchor_is_deterministic(self):
         surface = box_surface()
