@@ -205,12 +205,17 @@ def position_piece(piece, x, y, z=0.0, rotation_z=0.0):
 
 
 def _fitting_target(scene):
-    """Return the persistent DrapeTarget owned by the fitting workflow."""
+    """Return exactly one current DrapeTarget for the fitting workflow."""
     target = getattr(scene, "DrapeTarget", None)
     if target is None:
-        target = getattr(scene.Document, "getObject", lambda _name: None)("DrapeTarget")
-    if target is None:
-        raise ValueError("create or select a DrapeTarget before arranging garment pieces")
+        candidates = tuple(
+            obj for obj in scene.Document.Objects
+            if "TargetType" in getattr(obj, "PropertiesList", ())
+            and hasattr(obj, "SourceObject")
+        )
+        if len(candidates) != 1:
+            raise ValueError("select exactly one DrapeTarget before arranging garment pieces")
+        target = candidates[0]
     from freecad_cloth.simulation.DrapeTarget import target_status
     status = target_status(target)
     if status["state"] != "ready":
