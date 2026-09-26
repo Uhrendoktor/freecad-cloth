@@ -220,6 +220,8 @@ def create_pattern_drafting():
 def show_pattern_2d():
     """Switch the active document to a top-down 2D drafting view."""
     from freecad_cloth.pattern.PatternGui import show_pattern_view
+    from freecad_cloth.sewing.SewingView import refresh_seam_colors
+    refresh_seam_colors()
     show_pattern_view()
 
 
