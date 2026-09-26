@@ -43,6 +43,94 @@ for old, new in replacements.items():
     source = source.replace(old, new, 1)
 
 
+
+pattern_lifecycle_old = """    seam = add_seam(doc, Seam(str(front.PieceId), 7, str(back.PieceId), 7, id="FrontBack", alignment="endpoints", stitch_group="MainSeam")); doc.recompute()
+    sewing = create_sewing_operation(); doc.recompute()
+    if str(seam.Status) != "Valid" or seam.Shape.isNull() or str(sewing.Status) != "Valid" or sewing.Shape.isNull():
+        raise RuntimeError("sewing fixture is invalid")
+"""
+pattern_lifecycle_new = """    seam_records = []
+    for edge_a, edge_b, seam_id in ((7, 7, "FrontBack"), (2, 2, "FrontBackShoulder"), (5, 5, "FrontBackSide")):
+        seam_obj = add_seam(
+            doc,
+            Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="endpoints", stitch_group="MainSeam"),
+        )
+        seam_records.append(seam_obj)
+    seam = seam_records[0]
+    doc.recompute()
+    Gui.Selection.clearSelection(); Gui.Selection.addSelection(seam)
+    sewing = create_sewing_operation(); doc.recompute()
+    if any(str(item.Status) != "Valid" or item.Shape.isNull() for item in seam_records) or str(sewing.Status) != "Valid" or sewing.Shape.isNull():
+        raise RuntimeError("sewing fixture is invalid")
+"""
+if pattern_lifecycle_old not in source:
+    raise RuntimeError("pattern lifecycle seam anchor missing")
+source = source.replace(pattern_lifecycle_old, pattern_lifecycle_new, 1)
+
+pattern_lifecycle_anchor = """    activate("ClothSewingWorkbench", "Cloth Sewing", ["ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_Validate"])
+"""
+pattern_lifecycle_probe = r'''    from freecad_cloth.sewing.SewingView import refresh_seam_colors, seam_color_map, apply_seam_colors
+    semantic_seams = tuple(seam_records)
+    seam_ids = tuple(str(item.SeamId) for item in semantic_seams)
+    if len(set(seam_ids)) < 3:
+        raise RuntimeError("pattern/sewing lifecycle fixture requires at least three semantic SeamId values")
+    def seam_rgb(obj):
+        return tuple(round(float(value), 4) for value in obj.ViewObject.LineColor[:3])
+    refresh_seam_colors(doc)
+    expected = seam_color_map(seam_ids)
+    color_snapshot = {str(item.SeamId): seam_rgb(item) for item in semantic_seams}
+    for seam_id, actual in color_snapshot.items():
+        target = expected[seam_id]
+        if max(abs(actual[index] - target[index]) for index in range(3)) > 0.01:
+            raise RuntimeError("SeamId-derived RGB mismatch for %s" % seam_id)
+    doc.recompute()
+    if str(sewing.SeamId) != str(seam.SeamId):
+        raise RuntimeError("SewingOperation did not inherit linked SeamId")
+    if seam_rgb(sewing) != seam_rgb(seam):
+        raise RuntimeError("SewingOperation presentation color diverged from linked SeamId")
+    apply_seam_colors(tuple(reversed(doc.Objects)))
+    for item in semantic_seams:
+        if seam_rgb(item) != color_snapshot[str(item.SeamId)]:
+            raise RuntimeError("seam color changed under document-order reversal")
+    activate("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_Show2D"])
+    Gui.runCommand("ClothPattern_Show2D", 0); events()
+    save("seam-lifecycle-pattern-2d.png", "Pattern 2D seam colors", "three persistent SeamId values; Pattern 2D entry refresh")
+    activate("ClothSewingWorkbench", "Cloth Sewing", ["ClothSewing_Show2D", "ClothSewing_FocusSeam3D"])
+    Gui.runCommand("ClothSewing_Show2D", 0); events()
+    save("seam-lifecycle-sewing-2d.png", "Sewing 2D seam colors", "three persistent SeamId values; Sewing 2D entry refresh")
+    Gui.Selection.clearSelection(); Gui.Selection.addSelection(seam)
+    Gui.runCommand("ClothSewing_FocusSeam3D", 0); events()
+    save("seam-lifecycle-sewing-3d-focus.png", "Sewing 3D seam focus", "selected semantic seam focused in 3D")
+    activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
+    view = Gui.activeDocument().activeView(); view.viewFront(); view.fitAll(); events()
+    save("seam-lifecycle-simulation.png", "Simulation workbench seam colors", "Simulation activation refresh preserves SeamId-derived RGB")
+    doc.recompute(); refresh_seam_colors(doc)
+    for item in semantic_seams:
+        if seam_rgb(item) != color_snapshot[str(item.SeamId)]:
+            raise RuntimeError("recompute changed semantic SeamId color for %s" % item.SeamId)
+    log("seam-color-recompute=passed seams=%d" % len(semantic_seams))
+    import tempfile
+    close_task()
+    doc.recompute()
+    with tempfile.TemporaryDirectory() as directory:
+        seam_color_path = os.path.join(directory, "seam-color-lifecycle.FCStd")
+        doc.saveAs(seam_color_path)
+        App.closeDocument(doc.Name)
+        reloaded = App.openDocument(seam_color_path)
+        reloaded.recompute()
+        refresh_seam_colors(reloaded)
+        reloaded_seams = [obj for obj in reloaded.Objects if str(getattr(obj, "SeamId", "")).strip()]
+        reloaded_colors = {str(obj.SeamId): seam_rgb(obj) for obj in reloaded_seams}
+        for seam_id, expected_color in color_snapshot.items():
+            if reloaded_colors.get(seam_id) != expected_color:
+                raise RuntimeError("save/reload changed semantic SeamId color for %s" % seam_id)
+        log("seam-color-save-reload=passed seams=%d" % len(reloaded_seams))
+        doc = reloaded
+'''
+if pattern_lifecycle_anchor not in source:
+    raise RuntimeError("pattern lifecycle screenshot anchor missing")
+source = source.replace(pattern_lifecycle_anchor, pattern_lifecycle_probe + "\n" + pattern_lifecycle_anchor, 1)
+
 preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
     if "ClothRealtimePreview" not in Gui.listCommands():
         raise RuntimeError("Realtime Cloth Preview GUI command is not registered")
