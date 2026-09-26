@@ -154,6 +154,14 @@ class AvatarFittingTests(unittest.TestCase):
     def test_invalid_mannequin_measurements_are_rejected(self):
         with self.assertRaises(ValueError): AvatarParameters().with_measurements(underbust=1200, chest=1000)
 
+    def test_fitting_module_exposes_reversible_target_snap_command(self):
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+        assert "def snap_pattern_pieces_to_target" in source
+        assert 'scene.FitStatus = "Snapped to target"' in source
+        assert "HomePlacements" in source
+
+
     def test_avatar_arrangement_points_are_stable_and_landmark_backed(self):
         landmarks = [
             "knee_right|55,0,400", "unknown|0,0,0", "waist|0,0,900",
