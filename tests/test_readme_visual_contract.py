@@ -79,3 +79,11 @@ def test_blanket_visual_fixture_uses_authoritative_quality_solver_budget():
     assert 'scene.SolverIterations = 4' in source
     assert 'scene.SolverSubsteps = 1' in source
     assert 'motion-frames=passed count=%d final_steps=%d' in source
+
+def test_readme_turntable_uses_validated_blanket_fixture_profile():
+    source = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
+    assert "BLANKET_SIZE = 200.0" in source
+    assert "BLANKET_PARTICLE_DISTANCE = 16.0" in source
+    assert "BLANKET_START_Z = 170.0" in source
+    assert "App.Vector(0.0, 0.0, BLANKET_START_Z)" in source
+    assert "scene.TimeStep = 1.0 / 240.0" in source
