@@ -28,11 +28,17 @@ If a Sketch edit invalidates a semantic edge reference, the seam remains invalid
 
 ### 3. Arrange and fit
 
-Create/select a `DrapeTarget`: either the native human mannequin or an ordinary FreeCAD Shape/PartDesign/Body/Mesh. Arrange pieces using persistent placements/arrangement metadata. Reset and superimpose are deterministic fitting operations, not solver state.
+Create/select a `DrapeTarget`: either the native human mannequin or an ordinary FreeCAD Shape/PartDesign/Body/Mesh. In **Cloth Simulation**, the **Context** group shows the persistent target and its current status. **Refresh target** is the target-recovery control: it re-enables a disabled target, opens target editing for an invalid or unassigned target, or refreshes the target after a source change.
+
+Use **Arrange / Fit…** to hand the current Simulation garment pieces to the persistent fitting stage. The fitting stage keeps its `PiecePlacements` and `HomePlacements` ledger, so **Reset arrangement** can restore the saved pre-arrangement state. The visible **Snap pieces to target** control is the bridge to production target-aware placement.
+
+The production `ClothFitting_SnapPiecesToTarget` action belongs to the target-aware placement integration. When that integration is present, the action uses a bounded rigid translation against the persistent `DrapeTarget`, preserves the authored piece relationships, validates clearance for the full selected pieces, and rolls back the placement ledger on failure. It is a placement operation, not conformal deformation. Do not describe generic body/automatic snap as categorically unavailable once this bounded target-aware command is validated; distinguish this production placement action from future conformal fitting and richer fit maps.
+
+Reset and superimpose remain deterministic fitting operations, not solver state.
 
 ### 4. Simulate
 
-Generate a preview/final mesh, choose material and quality, confirm target validity, then Run. Step is for controlled/debug advancement; Reset recovers simulation state. Pinning is persistent and explicit: **Automatic** preserves the legacy behavior (use `PinSelection` when present, otherwise the existing automatic boundary pins), **Explicit** uses only `PinSelection`, and **None** runs with zero solver pins. Changing the pinning mode or selection participates in the deterministic rebuild signature. Pins/stitches and collision settings are persistent inputs. Fabric presentation properties include color, specular response, roughness and transparency and are persisted with the simulation/material state.
+Generate a preview/final mesh, choose material and quality, confirm target validity, then Run. Step is for controlled/debug advancement; Reset recovers simulation state. Pinning is persistent and explicit: **Automatic** preserves the legacy behavior (use `PinSelection` when present, otherwise the existing automatic boundary pins), **Explicit** uses only `PinSelection`, and **None** runs with zero solver pins. Changing the pinning mode or selection participates in the deterministic rebuild signature. The canonical tunic fixture uses **None** with an empty `PinSelection`, so it advances with zero solver pins. Pins/stitches and collision settings are persistent inputs. Fabric presentation properties include color, specular response, roughness and transparency and are persisted with the simulation/material state.
 
 ### 5. Iterate
 
