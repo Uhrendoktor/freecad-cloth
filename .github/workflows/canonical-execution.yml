@@ -32,7 +32,7 @@ jobs:
   cancel-stale-pr-runs:
     name: Cancel stale canonical runs
     if: \${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, docker]
     permissions:
       actions: write
       contents: read
@@ -79,6 +79,8 @@ jobs:
             echo "Canceling remaining active canonical run $run_id (event=$event)"
             gh api --method POST "repos/$REPO/actions/runs/$run_id/cancel" >/dev/null
           done
+          echo "Canceling purge run $GITHUB_RUN_ID"
+          gh api --method POST "repos/$REPO/actions/runs/$GITHUB_RUN_ID/cancel" >/dev/null || true
   runner_heartbeat:
     name: Local Docker runner heartbeat
     if: ${{ github.event_name == 'schedule' }}
@@ -89,6 +91,7 @@ jobs:
         run: docker info >/dev/null
 
   python:
+    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' || !startsWith(github.event.head_commit.message, '[purge-actions]') }}
     name: Python and FreeCAD non-GUI tests
     runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 20
@@ -167,7 +170,7 @@ jobs:
 
   sketcher-startup-diagnostic:
     name: FreeCAD Sketcher startup diagnostic
-    if: github.event_name == 'pull_request'
+    if: ${{ (github.event_name == 'pull_request') && (github.event_name != 'push' || github.ref != 'refs/heads/main' || !startsWith(github.event.head_commit.message, '[purge-actions]')) }}
     runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 5
     steps:
@@ -248,6 +251,7 @@ jobs:
           if-no-files-found: warn
           compression-level: 1
   gui-sewing-creation:
+    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' || !startsWith(github.event.head_commit.message, '[purge-actions]') }}
     name: Sewing staged creation smoke
     runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 10
@@ -313,6 +317,7 @@ jobs:
           compression-level: 1
 
   gui-sketcher-acceptance:
+    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' || !startsWith(github.event.head_commit.message, '[purge-actions]') }}
     name: Native Sketcher seam presentation acceptance
     runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 10
@@ -368,6 +373,7 @@ jobs:
           if-no-files-found: error
           compression-level: 1
   gui-pattern-export:
+    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' || !startsWith(github.event.head_commit.message, '[purge-actions]') }}
     name: Pattern production export smoke
     runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 10
@@ -412,6 +418,7 @@ jobs:
           compression-level: 1
 
   gui-tunic-visual:
+    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' || !startsWith(github.event.head_commit.message, '[purge-actions]') }}
     name: Full tunic visual and simulation audit
     runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 20
@@ -501,6 +508,7 @@ jobs:
           compression-level: 1
 
   gui-turntables:
+    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' || !startsWith(github.event.head_commit.message, '[purge-actions]') }}
     name: README simulation turntable
     runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 25
@@ -624,6 +632,7 @@ jobs:
 
 
   gui-visual-examples:
+    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' || !startsWith(github.event.head_commit.message, '[purge-actions]') }}
     name: Basic blanket visual example
     runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 15
@@ -703,7 +712,7 @@ jobs:
   publish-readme-turntables:
     name: Publish README turntables and example motion
     needs: [gui-tunic-visual, gui-turntables, gui-visual-examples]
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') && (github.event_name != 'push' || github.ref != 'refs/heads/main' || !startsWith(github.event.head_commit.message, '[purge-actions]')) }}
     permissions:
       contents: write
       packages: read
@@ -761,7 +770,7 @@ jobs:
           git push origin "HEAD:$branch"
   maintenance-cleanup:
     name: Repository retention cleanup
-    if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * *' }}
+    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '0 3 * * *') && (github.event_name != 'push' || github.ref != 'refs/heads/main' || !startsWith(github.event.head_commit.message, '[purge-actions]')) }}
     runs-on: [self-hosted, linux, x64, docker]
     permissions:
       actions: write
@@ -806,7 +815,7 @@ jobs:
             done
   benchmark:
     name: Measured FreeCAD workbench benchmark
-    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+    if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.event_name != 'push' || github.ref != 'refs/heads/main' || !startsWith(github.event.head_commit.message, '[purge-actions]')) }}
     runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 12
     steps:
