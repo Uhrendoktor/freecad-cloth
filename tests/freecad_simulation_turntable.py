@@ -31,7 +31,7 @@ os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "mesh")
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 BLANKET_SIZE = 200.0  # Validated 200 mm release fixture; keep pins/placement derived from this value.
 BLANKET_PARTICLE_DISTANCE = 16.0  # Bounded release resolution; contract requires >= 12 mm.
-BLANKET_PIN_MODE = "two-edge-midpoints"  # Benchmark candidate pin contract.
+BLANKET_PIN_MODE = "two-cube-back-corners"  # Benchmark candidate pin contract.
 BLANKET_START_Z = 150.0  # Fixture candidate: 10 mm above the 60 mm cube top.
 # The README fixture uses the same pinned Tissu mesh-collision runtime as the
 # canonical turntable job and the validated 200 mm blanket visual example.
@@ -302,6 +302,21 @@ def _opposite_top_edge_pins(piece, positions, panel_indices):
     return tuple(int(panel_indices[top_index]) for top_index in top), span
 
 
+def _two_cube_back_corners(piece, panel_indices):
+    mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, BLANKET_PARTICLE_DISTANCE)
+    boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
+    if not boundary_vertices:
+        raise RuntimeError("blanket quality mesh has no boundary vertices")
+    targets = (
+        App.Vector(-90.0, 90.0, 0.0),
+        App.Vector(90.0, 90.0, 0.0),
+    )
+    pins = _nearest_pin_indices(panel_indices, mesh_positions, targets)
+    if len(set(pins)) != 2:
+        raise RuntimeError("cube-back-corner blanket pin contract collapsed to duplicate vertices")
+    return tuple(int(index) for index in pins)
+
+
 def _two_edge_midpoints(piece, panel_indices):
     mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, BLANKET_PARTICLE_DISTANCE)
     boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
@@ -518,6 +533,10 @@ def build_simulation_state(doc):
     if BLANKET_PIN_MODE == "no-pins":
         pins = tuple()
         span = 0.0
+    elif BLANKET_PIN_MODE == "two-cube-back-corners":
+        pins = _two_cube_back_corners(blanket, panel_indices)
+        span = ((float(positions[pins[1]][0]) - float(positions[pins[0]][0])) ** 2
+                + (float(positions[pins[1]][1]) - float(positions[pins[0]][1])) ** 2) ** 0.5
     elif BLANKET_PIN_MODE == "two-edge-midpoints":
         pins = _two_edge_midpoints(blanket, panel_indices)
         span = ((float(positions[pins[1]][0]) - float(positions[pins[0]][0])) ** 2
