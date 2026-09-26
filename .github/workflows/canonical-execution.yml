@@ -67,6 +67,25 @@ jobs:
         run: |
           set -euo pipefail
           protected="$RUNNER_TEMP/protected-runs"
+          cancel_run() {
+            local run_id="$1"
+            local label="$2"
+            local cancel_output
+            local cancel_status
+            if cancel_output="$(gh api --method POST "repos/$REPO/actions/runs/$run_id/cancel" 2>&1)"; then
+              return 0
+            fi
+            cancel_status=$?
+            if [[ "$cancel_output" == *"HTTP 409"* ]] && {
+              [[ "$cancel_output" == *"Cannot cancel a workflow run that is completed"* ]] ||
+              [[ "$cancel_output" == *"Cannot cancel a workflow run that is canceled"* ]]
+            }; then
+              echo "$label $run_id completed/canceled before cancellation; continuing"
+              return 0
+            fi
+            echo "$cancel_output" >&2
+            return "$cancel_status"
+          }
           : > "$protected"
           mapfile -t prs < <(gh pr list --repo "$REPO" --state open --limit 100 --json number --jq '.[].number')
           mapfile -t runs < <(gh api --paginate "repos/$REPO/actions/runs?event=pull_request_target&per_page=100" --jq '.workflow_runs[] | select(.name == "Canonical execution") | [.id, .status, .created_at, ([.pull_requests[]?.number] | join(","))] | @tsv')
@@ -89,17 +108,7 @@ jobs:
               case "$status" in
                 queued|in_progress|pending|requested|waiting)
                   echo "Canceling stale PR run $run_id (status=$status) for PR #$pr"
-                  if cancel_output="$(gh api --method POST "repos/$REPO/actions/runs/$run_id/cancel" 2>&1)"; then
-                    :
-                  else
-                    cancel_status=$?
-                    if grep -q "HTTP 409" <<< "$cancel_output"; then
-                      echo "Stale PR run $run_id completed before cancellation; continuing"
-                    else
-                      echo "$cancel_output" >&2
-                      exit "$cancel_status"
-                    fi
-                  fi
+                  cancel_run "$run_id" "Stale PR run"
                   ;;
               esac
             done
@@ -117,17 +126,7 @@ jobs:
               continue
             fi
             echo "Canceling remaining active canonical run $run_id (event=$event)"
-            if cancel_output="$(gh api --method POST "repos/$REPO/actions/runs/$run_id/cancel" 2>&1)"; then
-              :
-            else
-              cancel_status=$?
-              if grep -q "HTTP 409" <<< "$cancel_output"; then
-                echo "Canonical run $run_id completed before cancellation; continuing"
-              else
-                echo "$cancel_output" >&2
-                exit "$cancel_status"
-              fi
-            fi
+            cancel_run "$run_id" "Canonical run"
           done
   pull_request_broker:
     name: Dispatch hosted PR validation from canonical base
