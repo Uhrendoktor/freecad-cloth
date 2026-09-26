@@ -107,3 +107,11 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
     assert 'tunic-simulation-start' in source
+
+
+def test_tunic_start_clearance_fixture_uses_validated_orientation_and_target_extrema():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'VisualTunicFront", "back", 0.78, 0.18' in audit
+    assert 'VisualTunicBack", "front", 0.76, 0.12' in audit
+    assert 'min(target_ys) - clearance' in audit
+    assert 'max(target_ys) + clearance' in audit
