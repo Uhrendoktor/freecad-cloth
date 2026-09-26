@@ -62,3 +62,12 @@ def test_canonical_workflow_fails_closed_on_turntable_quality():
 def test_readme_turntable_uses_no_unsupported_patternpiece_display_mode():
     source = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
     assert "blanket.ViewObject.DisplayMode" not in source
+
+
+def test_blanket_visual_fixture_uses_authoritative_quality_solver_budget():
+    source = (ROOT / "tests" / "freecad_visual_examples.py").read_text(encoding="utf-8")
+    assert 'os.environ.setdefault("CLOTH_SIMULATION_BACKEND", "xpbd-cpu")' in source
+    assert 'scene.ParticleDistance = max(12.0, float(scene.ParticleDistance))' in source
+    assert 'scene.SolverIterations = 4' in source
+    assert 'scene.SolverSubsteps = 1' in source
+    assert 'motion-frames=passed count=%d final_steps=%d' in source
