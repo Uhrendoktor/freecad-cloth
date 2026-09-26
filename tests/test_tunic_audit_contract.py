@@ -19,11 +19,13 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
 
 def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert 'ArrangementPoint.from_string' in source
     assert 'shoulder_left = arrangement_world("shoulder_left")' in source
     assert 'shoulder_right = arrangement_world("shoulder_right")' in source
     assert 'hip_point = arrangement_world("hip")' in source
     assert 'os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"' in source
+    assert 'os.environ["CLOTH_TISSU_AUTHORED_CONTAINMENT"] = "1"' in audit
     assert 'status = target_status(target)' in source
     assert 'scene.PinMode = "None"' in source
     assert 'scene.PinSelection = []' in source
@@ -107,3 +109,14 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
     assert 'tunic-simulation-start' in source
+
+
+def test_canonical_tunic_uses_validated_fixture_recut_and_gates_containment():
+    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "'    clearance = max(20.0, 0.08 * body_depth)': '    clearance = max(8.0, 0.025 * body_depth);'" in source
+    assert "'        y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '        y = min(target_ys) - clearance'" in source
+    assert "'        y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '        y = max(target_ys) + clearance'" in source
+    assert 'make_piece("VisualTunicFront", "back", 0.78, 0.18)' in source
+    assert 'make_piece("VisualTunicBack", "front", 0.76, 0.12)' in source
+    assert "authored containment experiment produced no correction telemetry" in source
+    assert "authored containment correction frequency indicates oscillation" in source
