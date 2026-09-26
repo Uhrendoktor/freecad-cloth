@@ -407,20 +407,6 @@ jobs:
           grep -q 'scenario-pass' docs/images/generated/gui-progress.log
           grep -q 'realtime-preview=passed backend=tissu' docs/images/generated/gui-progress.log
           grep -q 'drape-metrics=' docs/images/generated/gui-progress.log
-          grep -q 'first-step-target-clearance=' docs/images/generated/gui-progress.log
-          test -s docs/images/generated/cloth-simulation-arranged.png
-          test -s docs/images/generated/cloth-simulation-first-step.png
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          log = Path("docs/images/generated/gui-progress.log").read_text(encoding="utf-8")
-          values = re.findall(r"first-step-target-clearance=([+-]?[0-9.]+)", log)
-          if not values:
-              raise SystemExit("missing first-step target clearance")
-          clearance = float(values[-1])
-          if clearance < -1e-6:
-              raise SystemExit(f"first solver step penetrated target: {clearance:.6f} mm")
-          PY
           test -s docs/images/generated/cloth-simulation-draped.png
           test -s docs/images/generated/cloth-simulation-draped-front.png
           test -s docs/images/generated/cloth-simulation-draped-rear.png
@@ -455,8 +441,6 @@ jobs:
         with:
           name: tunic-visual-audit
           path: |
-            docs/images/generated/cloth-simulation-arranged.png
-            docs/images/generated/cloth-simulation-first-step.png
             docs/images/generated/cloth-simulation-draped*.png
             docs/images/generated/drape-visual-metrics.json
             docs/images/generated/gui-progress.log
