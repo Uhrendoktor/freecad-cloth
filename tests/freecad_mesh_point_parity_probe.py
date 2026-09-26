@@ -72,7 +72,7 @@ def unique_forward_hits(hits, point, eps):
 def classify(mesh, point, boundary_eps):
     # FreeCAD's native implementation intersects the infinite line. Recover
     # half-line semantics by projecting hit points onto the chosen direction.
-    hits = mesh.foraminate((tuple(float(v) for v in point), DIRECTION), math.pi)
+    hits = mesh.foraminate(tuple(float(v) for v in point), DIRECTION, math.pi)
     if not isinstance(hits, dict):
         raise RuntimeError("foraminate() returned %s, expected dict" % type(hits).__name__)
 
@@ -112,7 +112,7 @@ def deterministic_points(bounds):
 
 
 def nearest_exit(mesh, point):
-    hits = mesh.foraminate((tuple(float(v) for v in point), DIRECTION), math.pi)
+    hits = mesh.foraminate(tuple(float(v) for v in point), DIRECTION, math.pi)
     candidates = []
     for facet_index, hit in hits.items():
         q = tuple(float(v) for v in hit)
@@ -167,7 +167,7 @@ try:
         flush=True,
     )
 
-    probe = solver_mesh.foraminate(((0.0, 0.0, 0.0), DIRECTION), math.pi)
+    probe = solver_mesh.foraminate((0.0, 0.0, 0.0), DIRECTION, math.pi)
     print(
         "foraminate type=%s len=%d sample=%s"
         % (type(probe).__name__, len(probe), repr(next(iter(probe.items()), None))),
