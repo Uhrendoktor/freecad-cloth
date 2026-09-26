@@ -5,7 +5,7 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.sewing.SewingCommands import show_sewing_2d
-from freecad_cloth.sewing.SewingView import apply_seam_colors, pattern_pieces_for_2d, seam_color_map, seam_visual_markers
+from freecad_cloth.sewing.SewingView import apply_seam_colors, pattern_pieces_for_2d, refresh_seam_colors, seam_color_map, seam_visual_markers
 
 
 def test_2d_focus_includes_only_authoritative_pattern_pieces_in_document_order():
@@ -40,7 +40,32 @@ def test_seam_color_surface_contract_carries_identity_to_sewing_operations():
     source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "sewing" / "SewingObjects.py").read_text(encoding="utf-8")
     assert '"SeamId", "Sewing"' in source
     assert 'obj.SeamId = str(getattr(seam, "SeamId", "") or "")' in source
-    assert "apply_seam_colors(doc.Objects)" in source
+    assert "refresh_seam_colors(doc)" in source
+
+
+def test_seam_color_is_identity_stable_across_subsets_and_document_reorder():
+    full = seam_color_map(["seam-a", "seam-b", "seam-c"])
+    subset = seam_color_map(["seam-b", "seam-c"])
+    reordered = seam_color_map(["seam-c", "seam-b"])
+    assert full["seam-b"] == subset["seam-b"]
+    assert full["seam-c"] == subset["seam-c"]
+    assert reordered == subset
+
+
+def test_refresh_seam_colors_is_document_wide_and_identity_only():
+    first = SimpleNamespace(SeamId="seam-c", ViewObject=SimpleNamespace(LineColor=None))
+    second = SimpleNamespace(SeamId="seam-a", ViewObject=SimpleNamespace(LineColor=None))
+    operation = SimpleNamespace(SeamId="seam-c", ViewObject=SimpleNamespace(LineColor=None), SewingType="SewingOperation")
+    unrelated = SimpleNamespace(Name="diagnostic")
+    document = SimpleNamespace(Objects=[first, unrelated, second, operation])
+
+    colors = refresh_seam_colors(document)
+
+    assert set(colors) == {"seam-a", "seam-c"}
+    assert first.ViewObject.LineColor == colors["seam-c"]
+    assert second.ViewObject.LineColor == colors["seam-a"]
+    assert operation.ViewObject.LineColor == colors["seam-c"]
+    assert not hasattr(unrelated, "ViewObject") or unrelated.ViewObject.LineColor is None
 
 
 def test_apply_seam_colors_marks_each_seam_pair():
@@ -132,6 +157,8 @@ if __name__ == "__main__":
     test_2d_focus_includes_only_authoritative_pattern_pieces_in_document_order()
     test_2d_focus_ignores_unrelated_objects_without_freecad_runtime()
     test_seam_colors_are_distinct_and_stable_by_seam_id()
+    test_seam_color_is_identity_stable_across_subsets_and_document_reorder()
+    test_refresh_seam_colors_is_document_wide_and_identity_only()
     test_apply_seam_colors_marks_each_seam_pair()
     test_show_2d_does_not_select_seams_over_their_colors()
     print("sewing Show 2D tests passed")
