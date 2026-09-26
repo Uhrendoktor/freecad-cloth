@@ -5,7 +5,7 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.sewing.SewingCommands import show_sewing_2d
-from freecad_cloth.sewing.SewingView import apply_seam_colors, pattern_pieces_for_2d, seam_color_map, seam_visual_markers
+from freecad_cloth.sewing.SewingView import apply_seam_colors, pattern_pieces_for_2d, seam_color_for_id, seam_color_map, seam_visual_markers
 
 
 def test_2d_focus_includes_only_authoritative_pattern_pieces_in_document_order():
@@ -34,6 +34,15 @@ def test_seam_colors_are_distinct_and_stable_by_seam_id():
     reverse = seam_color_map(reversed(seam_ids))
     assert forward == reverse
     assert len(set(forward.values())) == len(seam_ids)
+    with_extra = seam_color_map(seam_ids + ["seam-0"])
+    assert all(with_extra[item] == forward[item] for item in seam_ids)
+    assert all(seam_color_for_id(item) == forward[item] for item in seam_ids)
+
+
+def test_seam_color_is_identity_not_creation_order():
+    assert seam_color_for_id("seam-alpha") == seam_color_for_id("seam-alpha")
+    assert seam_color_for_id("seam-alpha") != seam_color_for_id("seam-beta")
+    assert seam_color_map(["seam-alpha"])["seam-alpha"] == seam_color_map(["seam-alpha", "seam-beta"])["seam-alpha"]
 
 
 def test_apply_seam_colors_marks_each_seam_pair():
