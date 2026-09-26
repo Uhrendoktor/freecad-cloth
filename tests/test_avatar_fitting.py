@@ -239,7 +239,7 @@ class AvatarFittingTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "exactly one DrapeTarget"):
                 snap_pieces_to_drape_target((piece,), None, clearance=5.0, max_translation=100.0)
 
-            source_a.Placement.Base = App.Vector(2.0, 0.0, 0.0)
+            source_b.Placement.Base = App.Vector(2.0, 0.0, 0.0)
             doc.recompute()
             with self.assertRaisesRegex(RuntimeError, "snap blocked"):
                 snap_pieces_to_drape_target((piece,), target_b, clearance=5.0, max_translation=100.0)
