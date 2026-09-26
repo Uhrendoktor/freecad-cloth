@@ -28,11 +28,15 @@ If a Sketch edit invalidates a semantic edge reference, the seam remains invalid
 
 ### 3. Arrange and fit
 
-Create/select a `DrapeTarget`: either the native human mannequin or an ordinary FreeCAD Shape/PartDesign/Body/Mesh. Arrange pieces using persistent placements/arrangement metadata. Reset and superimpose are deterministic fitting operations, not solver state.
+For the mannequin garment path, use **Cloth Sewing**'s fitting tools before simulation. Create an **Avatar Fitting Scene**, add the selected PatternPieces, and establish explicit piece placements/arrangement metadata. The fitting layer persists home placements and exposes **Reset Arrangement** for recovery; arrangement-point controls provide deterministic placement operations.
+
+Then in **Cloth Simulation**, create or select a **Drape Target**. For the human path, **Create Mannequin Drape Target** creates the canonical mannequin target, and **Refresh Drape Target** rebuilds its collision geometry after target changes. Generic FreeCAD Shape/PartDesign/Body/Mesh targets use the same target contract.
+
+Current main does not define automatic target-relative snapping of the tunic into a pin-free start pose. The fitting/arrangement layer is an explicit pre-simulation operation; do not read it as an implemented auto-fitting contract.
 
 ### 4. Simulate
 
-Generate a preview/final mesh, choose material and quality, confirm target validity, then Run. Step is for controlled/debug advancement; Reset recovers simulation state. Pins/stitches and collision settings are persistent inputs. Fabric presentation properties include color, specular response, roughness and transparency and are persisted with the simulation/material state.
+Generate a preview/final mesh, choose material and quality, confirm target validity, then Run. Step is for controlled/debug advancement; Reset recovers simulation state. Pins/stitches and collision settings are persistent inputs on current main. Fabric presentation properties include color, specular response, roughness and transparency and are persisted with the simulation/material state.
 
 ### 5. Iterate
 
