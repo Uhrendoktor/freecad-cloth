@@ -94,7 +94,7 @@ def seam_color_snapshot(seams):
     ids = tuple(str(getattr(seam, "SeamId", "")) for seam in seams)
     expected = seam_color_map(ids)
     actual = {
-        str(getattr(seam, "SeamId", "")): tuple(seam.ViewObject.LineColor[:3])
+        str(getattr(seam, "SeamId", "")): tuple(round(float(value), 6) for value in seam.ViewObject.LineColor[:3])
         for seam in seams
     }
     for seam_id, expected_rgb in expected.items():
