@@ -22,12 +22,12 @@ The supported human workflow is:
 
 Open **Cloth Pattern**.
 
-For a new piece, use **Pattern → Create Piece** / **Create Pattern Piece** or the task-panel command **ClothPattern_CreatePieceTask**. The normal geometry authority is native FreeCAD Sketcher.
+For a new piece, use **Create Pattern Piece Task** (ClothPattern_CreatePieceTask) or **Create Pattern Piece With Sketch** (ClothPattern_CreatePiece). The normal geometry authority is native FreeCAD Sketcher.
 
 For an existing native Sketcher object:
 
 1. Select the Sketcher object.
-2. Run **Create From Sketch** (ClothPattern_CreateFromSketch).
+2. Run **Create Pattern Piece From Selected Sketch** (ClothPattern_CreateFromSketch).
 3. Recompute.
 4. Select the resulting PatternPiece and use **Edit native Sketch…** for geometry edits.
 
@@ -59,8 +59,8 @@ A practical sequence is:
 
 1. Run **Create Avatar** (ClothFitting_CreateAvatar) when a mannequin is not already present.
 2. Use **Edit Avatar** to set measurements, provider, pose and skin offset. The current provider default is the bundled MakeHuman HM08-based mannequin.
-3. Create a **Fitting Scene** (ClothFitting_CreateScene) and add the selected PatternPieces with **Add Pieces**.
-4. Create or edit persistent **Arrangement Points** and apply an arrangement point to a selected PatternPiece.
+3. Create a **Fitting Scene** (ClothFitting_CreateScene) and add the selected PatternPieces with **Add Selected Pattern Pieces** (ClothFitting_AddPieces).
+4. Use **Create Arrangement Point**, **Set Arrangement Point**, and **Apply Selected Arrangement** to establish persistent placements.
 5. Use **Reset Arrangement** when you need to return pieces to their saved pre-arrangement placement.
 
 Arrangement is explicit and persistent. The current release does **not** provide a general automatic “snap garment to body” operation comparable to a commercial avatar-fitting system. The arrangement-point contract is the current documented placement mechanism.
