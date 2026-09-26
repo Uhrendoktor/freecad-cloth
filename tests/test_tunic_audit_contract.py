@@ -27,7 +27,10 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     assert 'status = target_status(target)' in source
     assert 'scene.PinMode = "None"' in source
     assert 'scene.PinSelection = []' in source
-    assert 'if solver_pins:' in source
+    assert 'VisualTunicFront", "back", 0.78, 0.18' in source
+    assert 'VisualTunicBack", "front", 0.76, 0.12' in source
+    assert "y = min(target_ys) - clearance" in source
+    assert "y = max(target_ys) + clearance" in source\n    assert 'if solver_pins:' in source
     assert 'nearest_target_clearance' in source
     assert 'step0-target-vertex-clearance-mm=' in source
     assert 'authored_shoulder_pins' not in source
@@ -102,7 +105,7 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
     assert "ParticleDistance = 32.0" in source
-    assert "SolverIterations = 1" in source
+    assert "SolverIterations = 2" in source
     assert "SolverSubsteps = 1" in source
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
