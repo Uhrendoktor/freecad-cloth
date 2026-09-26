@@ -71,7 +71,7 @@ def test_canonical_tunic_source_rewrite_compiles():
     seam_keys = [key for key in replacements if "for edge_a, edge_b, seam_id" in key]
     assert seam_keys == [
         '    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):\n'
-        '        seam = Seam(str(front.PieceId), edge_a, edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
+        '        seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
         '        add_seam(doc, seam)\n'
         '        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)\n'
         '        seam_records.append((seam_obj, front, back))'
