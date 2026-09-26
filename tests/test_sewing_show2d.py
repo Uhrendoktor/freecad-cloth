@@ -128,3 +128,11 @@ if __name__ == "__main__":
     test_apply_seam_colors_marks_each_seam_pair()
     test_show_2d_does_not_select_seams_over_their_colors()
     print("sewing Show 2D tests passed")
+
+
+def test_seam_proxy_reapplies_colors_after_recompute():
+    from pathlib import Path
+    source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "pattern" / "PatternObjects.py").read_text(encoding="utf-8")
+    marker = 'from freecad_cloth.sewing.SewingView import build_seam_visual_shape, apply_seam_colors'
+    assert marker in source
+    assert 'apply_seam_colors(obj.Document.Objects)' in source
