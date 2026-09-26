@@ -363,6 +363,20 @@ TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
     EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
 }
 
+TEST(MeshCollider, ClosedMeshSweptContactPreventsTunneling) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    const Eigen::Vector3d previous(1.0, -0.5, 0.75);
+    const Eigen::Vector3d current(1.0, 2.5, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(current);
+    particles[0].setOldPosition(previous);
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+    EXPECT_LT(particles[0].getPosition().y(), 0.2);
+}
+
 TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     const std::vector<Eigen::Vector3d> vertices = {
         {0.0, 0.0, 0.0},
