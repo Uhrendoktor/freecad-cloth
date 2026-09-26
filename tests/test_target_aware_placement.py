@@ -62,6 +62,16 @@ def test_minimum_surface_clearance_detail_returns_worst_hit_normal():
     assert hit.normal == (0.0, 0.0, 1.0)
 
 
+def test_target_clearance_correction_runs_before_anchor_assertion():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    fitting = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    initial = fitting.index("anchor_clearance = minimum_surface_clearance(surface, placed_points)")
+    correction = fitting.index("while (", initial)
+    final_assert = fitting.index("anchor_clearance = assert_minimum_surface_clearance", correction)
+    assert initial < correction < final_assert
+
+
 def test_target_clearance_correction_is_bounded_and_uses_worst_sample_normal():
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]
