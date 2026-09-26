@@ -364,6 +364,12 @@ def simulation():
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
+    from freecad_cloth.sewing.SewingView import seam_color_map
+    semantic_seam_ids = tuple(str(record[0].SeamId) for record in seam_records)
+    semantic_colors = seam_color_map(semantic_seam_ids)
+    if set(semantic_colors) != set(semantic_seam_ids) or len(set(semantic_colors.values())) != len(semantic_seam_ids):
+        raise RuntimeError("canonical tunic seam colors are incomplete or non-unique")
+    log("seam-colors=passed count=%d unique=true" % len(semantic_seam_ids))
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
     front_anchors = (
         GarmentAnchor(str(front.PieceId), "shoulder_left", (0.14 * panel_width, 0.97 * garment_height, 0.0), "front"),
