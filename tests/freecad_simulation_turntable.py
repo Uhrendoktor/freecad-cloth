@@ -409,7 +409,7 @@ def build_simulation_state(doc):
     scene.TimeStep = 1.0 / 60.0
     scene.ParticleDistance = max(20.0, float(scene.ParticleDistance))
     scene.SolverIterations = 4
-    scene.SolverSubsteps = 4
+    scene.SolverSubsteps = 1
     scene.FabricColor = (0.14, 0.32, 0.78)
     scene.FabricSpecular = 0.70
     scene.FabricRoughness = 0.20
