@@ -91,6 +91,89 @@ def test_mesh_collision_edge_projection_is_idempotent():
     assert max(abs(value) for value in drift) <= 1e-9, drift
 
 
+
+def test_research_tissu_public_state_injection_probe():
+    """Research-only runtime probe for the pinned canonical pytissu API."""
+    import importlib.metadata
+    import time
+
+    import numpy as np
+    from tissu import Simulation
+
+    distribution_version = importlib.metadata.version("pytissu")
+    import tissu
+    print(
+        "TISSU_PUBLIC_STATE_PROBE "
+        "package=%s module=%s version=%s"
+        % (distribution_version, tissu.__file__, getattr(tissu, "__version__", "n/a")),
+        flush=True,
+    )
+    assert distribution_version == "1.1.0"
+
+    sim = Simulation(substeps=1, iterations=1, gravity=0.0, thickness=0.002)
+    sim.create_grid("probe", rows=32, cols=32, spacing=0.01, material="cotton")
+    particles = sim.solver.get_particles()
+    assert len(particles) == 1024
+
+    dt = 1.0 / 60.0
+    particle = particles[10]
+    original = np.asarray(particle.get_position(), dtype=np.float64)
+    old = np.asarray(particle.get_old_position(), dtype=np.float64)
+    velocity_before = np.asarray(particle.get_velocity(dt), dtype=np.float64)
+
+    delta = np.asarray((0.0001, -0.0002, 0.0003), dtype=np.float64)
+    particle.set_position(original + delta)
+    particle.set_old_position(old + delta)
+
+    assert np.allclose(np.asarray(particle.get_position()), original + delta)
+    assert np.allclose(np.asarray(particle.get_old_position()), old + delta)
+    assert np.allclose(np.asarray(particle.get_velocity(dt)), velocity_before)
+
+    # Apply the same displacement to both endpoints of an explicit stitch:
+    # the geometric seam length is preserved by construction.
+    a, b = particles[0], particles[1]
+    before_gap = np.linalg.norm(
+        np.asarray(a.get_position()) - np.asarray(b.get_position())
+    )
+    sim.solver.add_stitch(0, 1, 0.0)
+    common_delta = np.asarray((0.0002, 0.0, -0.0001), dtype=np.float64)
+    for endpoint in (a, b):
+        endpoint.set_position(np.asarray(endpoint.get_position()) + common_delta)
+        endpoint.set_old_position(np.asarray(endpoint.get_old_position()) + common_delta)
+    after_gap = np.linalg.norm(
+        np.asarray(a.get_position()) - np.asarray(b.get_position())
+    )
+    assert abs(after_gap - before_gap) <= 1e-12
+
+    sim.step(dt)
+    assert np.all(np.isfinite(sim.positions))
+    print(
+        "TISSU_PUBLIC_STATE_PROBE seam_gap_delta=%.3e velocity_delta=%.3e"
+        % (
+            abs(after_gap - before_gap),
+            float(np.linalg.norm(np.asarray(particle.get_velocity(dt)) - velocity_before)),
+        ),
+        flush=True,
+    )
+
+    # Measure the additive public-state mutation cost at the same 1024-particle
+    # scale used by the containment benchmark. No solver step is changed here.
+    start = time.perf_counter()
+    for _ in range(90):
+        for item in particles:
+            pos = np.asarray(item.get_position(), dtype=np.float64)
+            prev = np.asarray(item.get_old_position(), dtype=np.float64)
+            item.set_position(pos + delta)
+            item.set_old_position(prev + delta)
+    mutation_elapsed = time.perf_counter() - start
+    print(
+        "TISSU_PUBLIC_STATE_PROBE mutation_1024x90_s=%.6f"
+        % mutation_elapsed,
+        flush=True,
+    )
+    assert mutation_elapsed < 1.0
+
+
 if __name__ == "__main__":
     for name, test in sorted(globals().items()):
         if name.startswith("test_") and callable(test):
