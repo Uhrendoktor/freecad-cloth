@@ -53,7 +53,7 @@ def test_human_documentation_contract():
 def test_canonical_workflow_pr_validation_contract():
     root = Path(__file__).resolve().parents[1]
     workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
-    assert "pull_request:" in workflow
+    assert "pull_request_target:" in workflow
     assert "types: [opened, synchronize, reopened]" in workflow
     assert "push:" in workflow
     assert "branches: [main]" in workflow
@@ -67,3 +67,31 @@ def test_workbench_benchmark_merge_script_is_checked_in():
     source = script.read_text(encoding="utf-8")
     assert 'names = ["Pattern", "Sewing", "Simulation"]' in source
     assert "benchmark.json" in source
+
+
+def test_canonical_workflow_trusted_local_watchdog_contract():
+    root = Path(__file__).resolve().parents[1]
+    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    assert "pull_request_broker:" in workflow
+    assert "runner_watchdog:" in workflow
+    assert "runner-watchdog=local-started" in workflow
+    assert "runner-watchdog=fallback" in workflow
+    assert "actions: write" in workflow
+    assert "runner_mode:" in workflow
+    assert "options: [local, hosted]" in workflow
+    assert "github.event_name == 'pull_request_target'" in workflow
+    assert "fromJSON(" in workflow and "ubuntu-latest" in workflow
+    assert "fromJSON(" in workflow and "self-hosted" in workflow and "docker" in workflow
+    assert "Never route pull_request code onto a self-hosted runner." in workflow
+    assert "pull_request_target" not in workflow
+    assert 'if [ "$event" = "workflow_dispatch" ]; then' in workflow
+    assert "Preserving active workflow_dispatch run" in workflow
+
+
+def test_blanket_evidence_validates_after_docker_restore():
+    root = Path(__file__).resolve().parents[1]
+    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    block = workflow.split("  gui-visual-examples:", 1)[1].split("  publish-readme-turntables:", 1)[0]
+    restore = block.index("name: Restore workspace from Docker volume")
+    validate = block.index("name: Validate blanket visual evidence")
+    assert restore < validate
