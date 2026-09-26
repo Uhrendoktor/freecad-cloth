@@ -65,6 +65,14 @@ def test_canonical_tunic_source_rewrite_compiles():
     )
     assert "tunic-audit-source-syntax=passed" in result.stdout
 
+def test_canonical_tunic_start_clearance_uses_target_extrema():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'VisualTunicFront", "back", 0.78, 0.18' in audit
+    assert 'VisualTunicBack", "front", 0.76, 0.12' in audit
+    assert 'y = min(target_ys) - clearance' in audit
+    assert 'y = max(target_ys) + clearance' in audit
+
+
 def test_canonical_tunic_authoritative_gate_is_fail_closed():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert 'os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"' in source
