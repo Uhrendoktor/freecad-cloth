@@ -105,6 +105,10 @@ def create_fitting_scene():
     obj.addProperty("App::PropertyString", "MeasurementData", "Measurements").MeasurementData = BodyMeasurements().to_json()
     obj.addProperty("App::PropertyString", "MeasurementUnit", "Measurements").MeasurementUnit = "mm"
     obj.addProperty("App::PropertyLink", "AvatarProxy", "Fitting")
+    obj.addProperty("App::PropertyLink", "DrapeTarget", "Fitting")
+    obj.addProperty("App::PropertyFloat", "TargetClearance", "Fitting").TargetClearance = 20.0
+    obj.addProperty("App::PropertyFloat", "PlacementTranslationLimit", "Fitting").PlacementTranslationLimit = 1000.0
+    obj.addProperty("App::PropertyAngle", "PlacementRotationLimit", "Fitting").PlacementRotationLimit = 90.0
     obj.addProperty("App::PropertyLinkListGlobal", "PatternPieces", "Fitting")
     obj.addProperty("App::PropertyStringList", "PiecePlacements", "Fitting").PiecePlacements = []
     obj.addProperty("App::PropertyStringList", "HomePlacements", "Fitting").HomePlacements = []
@@ -148,6 +152,9 @@ def assign_avatar_source(source=None):
     avatar = create_avatar_collision(doc) if doc.getObject("AvatarCollision") is None else doc.getObject("AvatarCollision")
     avatar = set_avatar_collision_source(scene, source)
     scene.AvatarProxy = avatar
+    candidate = getattr(source, "DrapeTarget", None) or doc.getObject("DrapeTarget")
+    if candidate is not None and getattr(candidate, "SourceObject", None) is source:
+        scene.DrapeTarget = candidate
     scene.FitStatus = "Avatar assigned"
     doc.recompute()
     return scene
@@ -638,6 +645,14 @@ def create_simulation_from_fitting():
     simulation.ClothPieces = list(scene.PatternPieces)
     if scene.AvatarProxy is not None:
         simulation.AvatarProxy = scene.AvatarProxy
+    if getattr(scene, "DrapeTarget", None) is not None:
+        generated_target = getattr(simulation, "DrapeTarget", None)
+        simulation.DrapeTarget = scene.DrapeTarget
+        if generated_target is not None and generated_target is not scene.DrapeTarget:
+            try:
+                doc.removeObject(generated_target.Name)
+            except Exception:
+                pass
     doc.recompute()
     return simulation
 
@@ -668,6 +683,7 @@ COMMANDS = [
     "ClothFitting_DeleteBoundingVolume",
     "ClothFitting_SetSymmetry",
     "ClothFitting_ApplyArrangementPoint",
+    "ClothFitting_SnapPiecesToTarget",
     "ClothFitting_ResetArrangement",
     "ClothFitting_CreateSimulation",
 ]
@@ -683,6 +699,7 @@ _COMMAND_HANDLERS = {
     "ClothFitting_DeleteBoundingVolume": lambda: delete_bounding_volume("Volume1"),
     "ClothFitting_SetSymmetry": lambda: set_symmetry_enabled(True),
     "ClothFitting_ApplyArrangementPoint": lambda: _apply_selected_arrangement(),
+    "ClothFitting_SnapPiecesToTarget": lambda: snap_pattern_pieces_to_target(),
     "ClothFitting_ResetArrangement": reset_arrangement,
     "ClothFitting_CreateSimulation": create_simulation_from_fitting,
 }
