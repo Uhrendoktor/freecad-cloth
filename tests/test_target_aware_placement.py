@@ -143,3 +143,31 @@ def test_rigid_anchor_transform_preserves_intra_panel_anchor_distance():
     def distance(a, b):
         return sum((a[i] - b[i]) ** 2 for i in range(3)) ** 0.5
     assert distance(source[0], source[1]) == pytest.approx(distance(transformed[0], transformed[1]))
+
+
+def test_world_target_surface_applies_source_placement():
+    try:
+        import FreeCAD as App
+        import Part
+    except ModuleNotFoundError:
+        pytest.skip("FreeCAD Python module is unavailable in the non-GUI test runner")
+    from freecad_cloth.avatar.FittingCommands import target_surface_world
+    from freecad_cloth.simulation.DrapeTarget import create_drape_target, refresh_drape_target
+    doc = App.newDocument("TargetPlacementWorldTransform")
+    try:
+        source = doc.addObject("Part::Feature", "TargetSource")
+        source.Shape = Part.makeBox(20.0, 20.0, 20.0)
+        source.Placement.Base = App.Vector(100.0, 40.0, 30.0)
+        target = create_drape_target(doc, source, "FreeCAD Geometry", 0.5, 0.0)
+        refresh_drape_target(target)
+        doc.recompute()
+        surface = target_surface_world(target)
+        xs = [point[0] for point in surface.vertices]
+        ys = [point[1] for point in surface.vertices]
+        zs = [point[2] for point in surface.vertices]
+        assert min(xs) >= pytest.approx(100.0)
+        assert min(ys) >= pytest.approx(40.0)
+        assert min(zs) >= pytest.approx(30.0)
+    finally:
+        if doc.Name in App.listDocuments():
+            App.closeDocument(doc.Name)
