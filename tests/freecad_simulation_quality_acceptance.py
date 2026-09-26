@@ -101,6 +101,9 @@ def run_acceptance():
             raise RuntimeError("simulation panel did not expose the Arrange / Fit / target-snap bridge")
         if panel.reset_arrangement_button.isEnabled():
             raise RuntimeError("reset arrangement should be disabled before fitting handoff")
+        snap_command_available = "ClothFitting_SnapPiecesToTarget" in Gui.listCommands()
+        if panel.snap_to_target_button.isEnabled() != snap_command_available:
+            raise RuntimeError("Snap pieces to target did not fail closed on the public command registration state")
         panel.quality.setCurrentText("Final")
         _events()
         doc.recompute()
