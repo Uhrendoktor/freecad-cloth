@@ -155,7 +155,7 @@ def assert_drape_diagnostics(records: Sequence[dict]) -> None:
         classification = record.get("failure_classification", {})
         state = str(classification.get("state", ""))
         diagnostics = {str(item) for item in record.get("diagnostics", ())}
-        fatal = state in _FATAL_DUTY_STATES or bool(diagnostics & _FATAL_DUTY_DIAGNOSTICS)
+        fatal = state in _FATAL_VISUAL_STATES or bool(diagnostics & _FATAL_VISUAL_DIAGNOSTICS)
         if fatal:
             failures.append(
                 "%s: classification=%s diagnostics=%s"
