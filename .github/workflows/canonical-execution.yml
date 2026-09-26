@@ -207,10 +207,17 @@ jobs:
       - name: Run FreeCAD mesh parity probe
         run: |
           set -euo pipefail
-          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \\
-            -e QT_X11_NO_MITSHM=1 -e PYTHONPATH=/workspace -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \\
-            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc \\
-              '/opt/freecad/AppRun /workspace/tests/freecad_mesh_point_parity_probe.py'
+          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e QT_X11_NO_MITSHM=1 -e PYTHONPATH=/workspace -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -w /workspace "$FREECAD_IMAGE" bash -lc \
+              '/opt/freecad/AppRun /workspace/tests/freecad_mesh_point_parity_probe.py')"
+          cleanup() {
+            set +e
+            docker rm -f "$CID" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          docker cp "$PWD/." "$CID:/workspace/"
+          docker start -a "$CID"
 
           docker start -a "$CID"
 
