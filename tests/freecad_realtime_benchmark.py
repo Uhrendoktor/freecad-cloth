@@ -99,5 +99,4 @@ def main():
             trace("stage=app-exit-exception type=%s elapsed_ms=%.3f" % (type(exc).__name__, 1000.0 * (time.perf_counter() - run_started)))
 
 
-if __name__ == "__main__":
-    main()
+main()
