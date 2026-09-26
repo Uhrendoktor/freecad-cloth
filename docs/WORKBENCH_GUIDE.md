@@ -12,7 +12,7 @@ The public command IDs below are useful when reproducing a scenario or when a co
 
 ### New pattern piece
 
-Use **Cloth Pattern → Create Piece** or the **Create Piece** task panel.
+Use **Create Pattern Piece Task** (ClothPattern_CreatePieceTask) or **Create Pattern Piece With Sketch** (ClothPattern_CreatePiece).
 
 The PatternPiece task panel exposes:
 
@@ -86,8 +86,8 @@ Typical sequence:
 1. **Create Avatar** (ClothFitting_CreateAvatar).
 2. **Edit Avatar** (ClothFitting_EditAvatar) to change Body measurements, Proportions, Avatar provider, Pose and Display.
 3. **Create Fitting Scene** (ClothFitting_CreateScene).
-4. Select PatternPieces and run **Add Pieces** (ClothFitting_AddPieces).
-5. Create/edit **Arrangement Points** and apply one to a selected PatternPiece.
+4. Select PatternPieces and run **Add Selected Pattern Pieces** (ClothFitting_AddPieces).
+5. Use **Create Arrangement Point**, **Set Arrangement Point**, and **Apply Selected Arrangement** to establish persistent placements.
 6. Use **Reset Arrangement** when needed.
 7. Create the simulation from the fitting scene with **Create Simulation**.
 
@@ -167,7 +167,7 @@ The status message reports target state and solver state. Run/Step is blocked wh
 
 For a compact reproducible garment flow:
 
-1. **Pattern:** create two native Sketcher sketches and adopt them with **Create From Sketch**.
+1. **Pattern:** create two native Sketcher sketches and adopt them with **Create Pattern Piece From Selected Sketch**.
 2. **Sewing:** select matching semantic edges, **Create Seam**, **Preview**, then **Commit**; create a Sewing Operation and validate it.
 3. **Arrange/Fit:** create a mannequin and fitting scene, add the two PatternPieces, create arrangement points and apply them to establish persistent placements.
 4. **Drape Target:** create the mannequin target and **Apply & Refresh** it.
