@@ -1,8 +1,9 @@
 """Native UI handoff from Simulation to the existing Cloth fitting stage.
 
 The persistent FittingScene remains the fitting-stage authority. This bridge
-copies only the already-authored garment pieces from Simulation and carries the
-same persistent DrapeTarget into fitting, preserving HomePlacements/Reset.
+copies only the already-authored garment pieces from Simulation and opens the
+existing fitting task. The persistent DrapeTarget remains document-owned by
+Simulation; the bridge does not create a second target or fitting-state authority.
 """
 
 
@@ -41,9 +42,6 @@ def open_arrange_fit_from_simulation(simulation):
         raise RuntimeError("open a document before opening Arrange / Fit")
     from freecad_cloth.avatar import FittingCommands
     fitting = FittingCommands.create_fitting_scene()
-    target = getattr(simulation, "DrapeTarget", None)
-    if target is not None:
-        fitting.DrapeTarget = target
     pieces = tuple(getattr(simulation, "ClothPieces", ()) or ())
     if pieces:
         Gui.Selection.clearSelection()
