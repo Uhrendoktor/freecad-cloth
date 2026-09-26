@@ -113,6 +113,16 @@ def test_legacy_piece_placement_defaults_to_z_axis():
     assert restored.rotation_axis == (0.0, 0.0, 1.0)
 
 
+def test_public_arrange_derives_default_anchors_when_none_are_persisted():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    commands = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    assert "def _default_garment_anchors" in commands
+    assert "if scene.GarmentAnchors:" in commands
+    assert "scene.GarmentAnchors = [anchor.to_string() for anchor in anchors]" in commands
+    assert "anchors_before = tuple(scene.GarmentAnchors)" in commands
+
+
 def test_target_aware_fitting_command_is_on_fitting_surface():
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]
