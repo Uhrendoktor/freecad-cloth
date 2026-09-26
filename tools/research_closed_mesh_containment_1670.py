@@ -116,10 +116,11 @@ def ray_triangle(origin: Vec, direction: Vec, a: Vec, b: Vec, c: Vec):
     if v < -1e-11 or u + v > 1.0 + 1e-11:
         return None
     t = dot(edge2, qvec) * inv
-    if t <= 0.0:
+    if t < -1e-9:
         return None
     w = 1.0 - u - v
-    ambiguous = min(abs(u), abs(v), abs(w)) <= 1e-9
+    boundary = t <= 1e-9
+    ambiguous = boundary or min(abs(u), abs(v), abs(w)) <= 1e-9
     return t, ambiguous
 
 
@@ -207,6 +208,7 @@ class TriangleBVH:
     def _ray_parity(self, p: Vec, direction: Vec):
         hits = 0
         ambiguous = False
+        boundary = False
         stack = [0]
         while stack:
             ni = stack.pop()
@@ -219,13 +221,16 @@ class TriangleBVH:
                     hit = ray_triangle(p, direction, a, b, c)
                     if hit is None:
                         continue
-                    _t, amb = hit
+                    t, amb = hit
+                    if t <= 1e-9:
+                        boundary = True
+                        continue
                     ambiguous = ambiguous or amb
                     hits += 1
                 continue
             stack.append(node.left)
             stack.append(node.right)
-        return hits & 1, ambiguous
+        return hits & 1, ambiguous, boundary
 
     def classify(self, p: Vec, boundary_tol: float = 1e-6) -> str:
         # A direct zero-distance hit is boundary; ambiguous shared-edge/corner
@@ -237,7 +242,9 @@ class TriangleBVH:
         )
         parities = []
         for direction in directions:
-            parity, ambiguous = self._ray_parity(p, direction)
+            parity, ambiguous, boundary = self._ray_parity(p, direction)
+            if boundary:
+                return "boundary"
             if ambiguous:
                 continue
             parities.append(parity)
@@ -363,6 +370,21 @@ def deterministic_points(surface: tuple[Vec, ...], count: int):
     return tuple(out)
 
 
+def validate_closed_mesh(vertices: tuple[Vec, ...], triangles: tuple[Tri, ...]):
+    edge_use = {}
+    for tid, tri in enumerate(triangles):
+        if len(set(tri)) != 3:
+            raise RuntimeError("degenerate triangle %d" % tid)
+        for a, b in ((tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0])):
+            key = (a, b) if a < b else (b, a)
+            edge_use[key] = edge_use.get(key, 0) + 1
+    bad = [edge for edge, count in edge_use.items() if count != 2]
+    if bad:
+        raise RuntimeError("source mesh is not closed/manifold: edges=%d bad_edges=%d sample=%s"
+                           % (len(edge_use), len(bad), bad[:8]))
+    return len(edge_use)
+
+
 def benchmark():
     from freecad_cloth.avatar.AvatarModel import AvatarParameters
     from freecad_cloth.avatar.HumanoidMesh import fit_makehuman_mesh, load_makehuman_mesh
@@ -373,6 +395,7 @@ def benchmark():
     vertices = tuple(fitted.vertices)
     triangles = tuple(fitted.triangles)
     assert len(triangles) == 26756, len(triangles)
+    edge_count = validate_closed_mesh(vertices, triangles)
 
     t0 = perf_counter()
     bvh = TriangleBVH(vertices, triangles)
@@ -401,11 +424,11 @@ def benchmark():
     workload_s = perf_counter() - t0
 
     print(
-        "CONTAINMENT_BENCH source_triangles=%d source_vertices=%d nodes=%d "
+        "CONTAINMENT_BENCH source_triangles=%d source_vertices=%d edges=%d nodes=%d "
         "build_s=%.6f classify_1022_s=%.6f correction_128_s=%.6f "
         "workload_1022x90_s=%.6f counts=%s"
         % (
-            len(triangles), len(vertices), len(bvh.nodes), build_s,
+            len(triangles), len(vertices), edge_count, len(bvh.nodes), build_s,
             classify_once_s, correction_s, workload_s, total_counts,
         ),
         flush=True,
