@@ -20,6 +20,14 @@ Workbench ownership is explicit: `pattern`, `sewing`, `avatar`, and `simulation`
 
 There is exactly one workflow: `.github/workflows/canonical-execution.yml`.
 
+### Canonical runner modes
+
+The canonical workflow has one validation graph with three runner states. Public `pull_request` events are always resolved to `ubuntu-latest`; fork and untrusted PR code is never sent to the self-hosted Docker runner. Trusted `push`/`schedule` runs default to the existing self-hosted Docker runner so the FreeCAD GUI path uses the validated local environment. A hosted watchdog waits up to 45 seconds for the Python validation job to start; if local execution does not begin, it dispatches the same workflow with `runner_mode=hosted`, records the source run, and cancels the stalled local attempt.
+
+For manual recovery or diagnosis, `workflow_dispatch` accepts `runner_mode=hosted` to force the GitHub-hosted path. Automatic fallback dispatches are protected from the push-time stale-run sweep, while normal workflow concurrency still collapses duplicate manual dispatches on the same ref. The selected mode is emitted in the Python job log as `ci-runner-mode=...`.
+
+The watchdog intentionally does not enumerate repository self-hosted runners and does not require a long-lived privileged credential. Its falsifier is duplicate substantive execution caused by a startup race; any such event should be treated as a CI defect and investigated before changing the grace period or validation thresholds.
+
 Do not replace, duplicate, or casually refactor it. In particular, preserve the existing Docker/Xvfb path that launches real FreeCAD and captures the validated GUI states and avatar audit artifacts. GUI diagnostics remain available as `cloth-gui-diagnostics`.
 
 ### Canonical runner routing
