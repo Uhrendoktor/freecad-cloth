@@ -99,6 +99,8 @@ class TissuBackend(ClothSimulationBackend):
         self._collision_mode = collision_mode
         self._time = 0.0
         self._iterations = 8
+        self._configured_iterations = None
+        self._configured_gravity_z = None
         self._substeps = _tissu_substeps()
         self._build(Simulation)
 
@@ -124,6 +126,8 @@ class TissuBackend(ClothSimulationBackend):
 
     def _build(self, Simulation):
         import numpy as np
+        self._configured_iterations = None
+        self._configured_gravity_z = None
         positions = [_to_tissu_position(p.position()) for p in self._initial.particles]
         triangles = np.asarray(self._triangles, dtype=np.int32)
         vertices = np.asarray(positions, dtype=np.float64)
@@ -145,11 +149,17 @@ class TissuBackend(ClothSimulationBackend):
             raise RuntimeError("TissuBackend collision surface is immutable after construction")
         if sphere is not None:
             raise RuntimeError("TissuBackend does not support sphere fallback collision")
-        self._sim.solver.set_iterations(max(1, int(iterations)))
+        iteration_value = max(1, int(iterations))
+        if iteration_value != self._configured_iterations:
+            self._sim.solver.set_iterations(iteration_value)
+            self._configured_iterations = iteration_value
         _gx, _gy, gz = gravity
-        self._sim.gravity = float(gz) / _MM
+        gravity_value = float(gz) / _MM
+        if gravity_value != self._configured_gravity_z:
+            self._sim.gravity = gravity_value
+            self._configured_gravity_z = gravity_value
         self._sim.step(float(dt))
-        self._iterations = int(iterations)
+        self._iterations = iteration_value
         self._time += float(dt)
 
     def reset(self):
