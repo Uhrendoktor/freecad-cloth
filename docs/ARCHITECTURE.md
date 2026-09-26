@@ -64,6 +64,8 @@ A fitting scene stores garment placements, arrangement points/anchors, wrap/supe
 
 `DrapeTarget` is target-neutral and is implemented in `freecad_cloth.simulation.DrapeTarget`. Providers include the native human mannequin and ordinary FreeCAD Shape/PartDesign/Body/Mesh geometry. Both produce a solver-neutral `CollisionSurface`. Target edits invalidate derived collision state; stale targets must never be consumed by simulation.
 
+Fitting placement is a separate persistent concern. The target-snap command moves pattern pieces relative to the assigned target and records the resulting `PiecePlacements`; it does not mutate solver pin state. Solver pins are explicit simulation inputs and remain empty unless the user supplies them.
+
 ## Simulation lifecycle
 
 Persistent inputs include quality/resolution, material, collision settings, pins/stitches and solver controls. Particles/triangles/constraints/numerical state are derived. Input changes invalidate derived state.
