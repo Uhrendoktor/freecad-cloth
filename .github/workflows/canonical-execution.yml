@@ -4,7 +4,7 @@ run-name: Canonical execution
 on:
   push:
     branches: [main]
-  pull_request_target:
+  pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
@@ -19,23 +19,12 @@ on:
         required: false
         type: string
         default: ""
-      pull_request_number:
-        description: "PR number for the broker-dispatched hosted validation run."
-        required: false
-        type: string
-        default: ""
-      pull_request_sha:
-        description: "Immutable PR head SHA for broker-dispatched hosted validation."
-        required: false
-        type: string
-        default: ""
   schedule:
-    - cron: '*/5 * * * *'
     - cron: '0 3 * * *'
 
 concurrency:
   # Keep only the newest PR run for each PR; older pushes are obsolete.
-  group: ${{ github.event_name == 'workflow_dispatch' && inputs.pull_request_number != '' && format('canonical-{0}-pr-{1}', github.workflow, inputs.pull_request_number) || github.event_name == 'pull_request_target' && format('canonical-broker-{0}-pr-{1}', github.workflow, github.event.pull_request.number) || format('canonical-{0}-{1}-{2}', github.workflow, github.event_name, github.ref) }}
+  group: ${{ github.event_name == 'pull_request' && format('canonical-pr-{0}', github.event.pull_request.number) || format('canonical-{0}-{1}-{2}', github.workflow, github.event_name, github.ref) }}
   cancel-in-progress: true
 
 env:
@@ -43,7 +32,7 @@ env:
   QT_X11_NO_MITSHM: 1
   QT_QPA_PLATFORM: xcb
   LIBGL_ALWAYS_SOFTWARE: 1
-  CLOTH_CI_RUNNER_MODE: ${{ inputs.runner_mode || (github.event_name == 'pull_request_target' && 'hosted' || 'local') }}
+  CLOTH_CI_RUNNER_MODE: ${{ inputs.runner_mode || (github.event_name == 'pull_request' && 'hosted' || 'local') }}
   XDG_RUNTIME_DIR: /tmp/runtime-cloth
 
 permissions:
@@ -52,134 +41,11 @@ permissions:
   packages: read
 
 jobs:
-  cancel-stale-pr-runs:
-    name: Cancel stale canonical runs
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-      contents: read
-    steps:
-      - name: Keep only the newest canonical run for each open PR
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          protected="$RUNNER_TEMP/protected-runs"
-          : > "$protected"
-          mapfile -t prs < <(gh pr list --repo "$REPO" --state open --limit 100 --json number --jq '.[].number')
-          mapfile -t runs < <(gh api --paginate "repos/$REPO/actions/runs?event=pull_request_target&per_page=100" --jq '.workflow_runs[] | select(.name == "Canonical execution") | [.id, .status, .created_at, ([.pull_requests[]?.number] | join(","))] | @tsv')
-          for pr in "${prs[@]}"; do
-            candidates=()
-            for row in "${runs[@]}"; do
-              IFS=$'\t' read -r run_id status created_at pr_numbers <<< "$row"
-              case ",$pr_numbers," in
-                *",$pr,"*) candidates+=( "$created_at"$'\t'"$run_id"$'\t'"$status" ) ;;
-              esac
-            done
-            if [ "${#candidates[@]}" -eq 0 ]; then continue; fi
-            newest_run_id="$(printf '%s\n' "${candidates[@]}" | sort -r | head -n 1 | cut -f2)"
-            echo "$newest_run_id" >> "$protected"
-            echo "PR #$pr: preserving newest run $newest_run_id"
-            for candidate in "${candidates[@]}"; do
-              run_id="$(printf '%s' "$candidate" | cut -f2)"
-              status="$(printf '%s' "$candidate" | cut -f3)"
-              if [ "$run_id" = "$newest_run_id" ]; then continue; fi
-              case "$status" in
-                queued|in_progress|pending|requested|waiting)
-                  echo "Canceling stale PR run $run_id (status=$status) for PR #$pr"
-                  if cancel_output="$(gh api --method POST "repos/$REPO/actions/runs/$run_id/cancel" 2>&1)"; then
-                    :
-                  else
-                    cancel_status=$?
-                    if grep -q "HTTP 409" <<< "$cancel_output"; then
-                      echo "Stale PR run $run_id completed before cancellation; continuing"
-                    else
-                      echo "$cancel_output" >&2
-                      exit "$cancel_status"
-                    fi
-                  fi
-                  ;;
-              esac
-            done
-          done
-          mapfile -t active < <(gh api --paginate "repos/$REPO/actions/runs?per_page=100" --jq '.workflow_runs[] | select(.name == "Canonical execution") | select(.status == "queued" or .status == "in_progress" or .status == "pending" or .status == "requested" or .status == "waiting") | [.id, .event] | @tsv')
-          for row in "${active[@]}"; do
-            IFS=$'\t' read -r run_id event <<< "$row"
-            if [ "$run_id" = "$GITHUB_RUN_ID" ]; then continue; fi
-            if grep -Fxq "$run_id" "$protected"; then continue; fi
-            # Explicit workflow_dispatch runs include automatic hosted-fallback mode;
-            # keep them out of the push-time stale-run sweep. Concurrency already
-            # collapses duplicate workflow_dispatch runs on the same ref.
-            if [ "$event" = "workflow_dispatch" ]; then
-              echo "Preserving active workflow_dispatch run $run_id"
-              continue
-            fi
-            echo "Canceling remaining active canonical run $run_id (event=$event)"
-            if cancel_output="$(gh api --method POST "repos/$REPO/actions/runs/$run_id/cancel" 2>&1)"; then
-              :
-            else
-              cancel_status=$?
-              if grep -q "HTTP 409" <<< "$cancel_output"; then
-                echo "Canonical run $run_id completed before cancellation; continuing"
-              else
-                echo "$cancel_output" >&2
-                exit "$cancel_status"
-              fi
-            fi
-          done
-  pull_request_broker:
-    name: Dispatch hosted PR validation from canonical base
-    if: ${{ github.event_name == 'pull_request_target' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    permissions:
-      actions: write
-      contents: read
-    steps:
-      - name: Dispatch hosted validation from main
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          set -euo pipefail
-          gh workflow run canonical-execution.yml \
-            --repo "$REPO" \
-            --ref main \
-            -f runner_mode=hosted \
-            -f pull_request_number="$PR_NUMBER" \
-            -f pull_request_sha="${{ github.event.pull_request.head.sha }}" \
-            -f fallback_source_run="$GITHUB_RUN_ID"
-          echo "pr-router=hosted-dispatch pr=$PR_NUMBER source_run=$GITHUB_RUN_ID workflow_ref=main"
-  brokered_hosted_status:
-    name: Publish brokered hosted run status
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.pull_request_number != '' && inputs.pull_request_sha != '' }}
-    runs-on: ubuntu-latest
-    permissions:
-      statuses: write
-      contents: read
-    steps:
-      - name: Publish hosted validation status on immutable PR head
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          PR_SHA: ${{ inputs.pull_request_sha }}
-          PR_NUMBER: ${{ inputs.pull_request_number }}
-        run: |
-          set -euo pipefail
-          gh api --method POST "repos/$REPO/statuses/$PR_SHA" \
-            -f state=pending \
-            -f context="canonical/hosted-validation" \
-            -f description="Hosted canonical validation run $GITHUB_RUN_ID for PR #$PR_NUMBER" \
-            -f target_url="https://github.com/$REPO/actions/runs/$GITHUB_RUN_ID" >/dev/null
   local_runner_readiness:
     name: Selected runner readiness
-    if: ${{ github.event_name != 'pull_request_target' }}
-    # This is the sole local-start sentinel. Every substantive trusted workload
-    # depends on it, so the watchdog cannot dispatch a fallback after workload starts.
-    runs-on: ${{ inputs.runner_mode == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    if: ${{ github.event_name != 'schedule' }}
+    # This is the sole runner-start sentinel. Every substantive workload depends on it.
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 2
     steps:
       - name: Record selected execution mode
@@ -192,7 +58,6 @@ jobs:
             echo "run-id=$GITHUB_RUN_ID"
             echo "runner=$RUNNER_NAME"
             echo "runner-os=$RUNNER_OS"
-            echo "fallback-source-run=${{ inputs.fallback_source_run || 'none' }}"
           } | tee artifacts/runner-mode.txt
       - name: Verify Docker capability on the selected runner
         run: timeout --signal=TERM --kill-after=5s 20s docker info >/dev/null
@@ -206,7 +71,7 @@ jobs:
           compression-level: 1
   runner_watchdog:
     name: Local runner watchdog with hosted fallback
-    if: ${{ github.event_name != 'pull_request_target' && github.event_name != 'pull_request' && inputs.runner_mode != 'hosted' }}
+    if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && inputs.runner_mode != 'hosted' }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
@@ -253,22 +118,7 @@ jobs:
           gh api --method POST "repos/$REPO/actions/runs/$GITHUB_RUN_ID/cancel" >/dev/null || true
           echo "runner-watchdog=local-run-cancel-requested source_run=$GITHUB_RUN_ID"
 
-  runner_heartbeat:
-    name: Local Docker runner heartbeat
-    needs: [local_runner_readiness]
-    if: ${{ github.event_name == 'schedule' }}
-    runs-on: [self-hosted, linux, x64, docker]
-    timeout-minutes: 2
-    steps:
-      - name: Log selected execution mode
-        run: |
-          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
-          echo "runner=$RUNNER_NAME"
-      - name: Verify local Docker runner is usable
-        run: docker info >/dev/null
-
   python:
-    if: ${{ github.event_name != 'pull_request_target' }}
     name: Python and FreeCAD non-GUI tests
     needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
@@ -280,10 +130,10 @@ jobs:
           echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.pull_request_sha != '' && inputs.pull_request_sha || github.sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Report canonical runner mode
-        run: echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE fallback_source_run=${{ inputs.fallback_source_run || 'none' }}"
+        run: echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -355,121 +205,10 @@ jobs:
           docker cp "$PWD/." "$CID:/workspace/"
           docker start -a "$CID"
 
-  sketcher-startup-diagnostic:
-    name: FreeCAD Sketcher startup diagnostic
-    needs: [local_runner_readiness]
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.pull_request_number != '' }}
-    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
-    timeout-minutes: 5
-    steps:
-      - name: Log selected execution mode
-        run: |
-          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
-          echo "runner=$RUNNER_NAME"
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ inputs.pull_request_sha != '' && inputs.pull_request_sha || github.sha }}
-          persist-credentials: false
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Pull FreeCAD image
-        run: docker pull "$FREECAD_IMAGE"
-      - name: Stage workspace in Docker volume
-        run: |
-          set -euo pipefail
-          volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
-          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_IMAGE" -lc 'true')"
-          echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
-          echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
-          docker cp "$PWD/." "$carrier:/workspace/"
-
-      - name: Probe FreeCAD startup boundary
-        run: |
-          set -euo pipefail
-          rm -rf artifacts
-          mkdir -p artifacts
-          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
-            -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
-            -e FREECAD_USER_HOME=/tmp/freecad-user \
-            -e FREECAD_USER_DATA=/tmp/freecad-user-data \
-            -e FREECAD_USER_TEMP=/tmp/freecad-user-temp \
-            -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -e FREECAD_PROBE_MARKER_DIR=/workspace/artifacts \
-            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
-              set -euo pipefail
-              rm -rf "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
-              mkdir -p "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP" "$XDG_RUNTIME_DIR" /workspace/artifacts
-              rm -rf /tmp/freecad-mod
-              mkdir -p /tmp/freecad-mod/freecad-cloth
-              cp -a /workspace/package.xml /workspace/resources /workspace/freecad_cloth /workspace/freecad /tmp/freecad-mod/freecad-cloth/
-              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
-              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
-              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
-              xdpyinfo -display :99 >/dev/null 2>&1
-              probe_case() {
-                name="$1"
-                shift
-                export FREECAD_PROBE_CASE="$name"
-                marker="/workspace/artifacts/$name.marker"
-                log="/workspace/artifacts/$name.log"
-                rm -f "$marker" "$log"
-                set +e
-                timeout --signal=TERM --kill-after=5s 60s /opt/freecad/AppRun "$@" /workspace/tests/freecad_startup_probe.py >"$log" 2>&1
-                status=$?
-                set -e
-                echo "case=$name exit=$status" | tee -a "$log"
-                if test -f "$marker"; then echo -n 'marker='; cat "$marker"; else echo 'marker=absent'; fi | tee -a "$log"
-              }
-              probe_case plain
-              probe_case module-path -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth
-              set +e
-              timeout --signal=TERM --kill-after=5s 60s /opt/freecad/AppRun /workspace/tests/freecad_sketcher_boundary_probe.py > /workspace/artifacts/boundary.log 2>&1
-              boundary_status=$?
-              set -e
-              echo "boundary-exit=$boundary_status" >> /workspace/artifacts/boundary.log
-              cat /workspace/artifacts/boundary.log
-              set +e
-              export SKETCHER_STAGE_FILE=/workspace/artifacts/sketcher-stage.log
-              PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=5s 120s /opt/freecad/AppRun /workspace/tests/freecad_sketcher_acceptance.py > /workspace/artifacts/actual-acceptance.log 2>&1
-              actual_status=$?
-              set -e
-              echo "actual-acceptance-exit=$actual_status" >> /workspace/artifacts/actual-acceptance.log
-              cat /workspace/artifacts/actual-acceptance.log
-            '
-      - name: Restore workspace from Docker volume
-        if: ${{ always() }}
-        run: |
-          set -euo pipefail
-          if [ -z "${DOCKER_WORKSPACE_CARRIER:-}" ]; then
-            exit 0
-          fi
-          docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
-          docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
-          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
-
-      - name: Upload startup diagnostic
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: sketcher-startup-diagnostic
-          path: |
-            artifacts/plain.log
-            artifacts/module-path.log
-            artifacts/plain.marker
-            artifacts/module-path.marker
-            artifacts/boundary.log
-            artifacts/actual-acceptance.log
-          if-no-files-found: warn
-          compression-level: 1
   gui-sewing-creation:
-    if: ${{ github.event_name != 'pull_request_target' }}
     name: Sewing staged creation smoke
     needs: [local_runner_readiness]
-    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 10
     steps:
       - name: Log selected execution mode
@@ -478,7 +217,7 @@ jobs:
           echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.pull_request_sha != '' && inputs.pull_request_sha || github.sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: docker/login-action@v3
         with:
@@ -560,10 +299,9 @@ jobs:
           compression-level: 1
 
   gui-sketcher-acceptance:
-    if: ${{ github.event_name != 'pull_request_target' }}
     name: Native Sketcher seam presentation acceptance
     needs: [local_runner_readiness]
-    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 10
     steps:
       - name: Log selected execution mode
@@ -572,7 +310,7 @@ jobs:
           echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.pull_request_sha != '' && inputs.pull_request_sha || github.sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: docker/login-action@v3
         with:
@@ -644,10 +382,9 @@ jobs:
           if-no-files-found: error
           compression-level: 1
   gui-pattern-export:
-    if: ${{ github.event_name != 'pull_request_target' }}
     name: Pattern production export smoke
     needs: [local_runner_readiness]
-    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 10
     steps:
       - name: Log selected execution mode
@@ -656,7 +393,7 @@ jobs:
           echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.pull_request_sha != '' && inputs.pull_request_sha || github.sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: docker/login-action@v3
         with:
@@ -717,10 +454,9 @@ jobs:
           compression-level: 1
 
   gui-tunic-visual:
-    if: ${{ github.event_name != 'pull_request_target' }}
     name: Full tunic visual and simulation audit
     needs: [local_runner_readiness]
-    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 20
     steps:
       - name: Log selected execution mode
@@ -729,7 +465,7 @@ jobs:
           echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.pull_request_sha != '' && inputs.pull_request_sha || github.sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: docker/login-action@v3
         with:
@@ -848,10 +584,9 @@ jobs:
           compression-level: 1
 
   gui-turntables:
-    if: ${{ github.event_name != 'pull_request_target' }}
     name: README simulation turntable
     needs: [local_runner_readiness]
-    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 25
     steps:
       - name: Log selected execution mode
@@ -860,7 +595,7 @@ jobs:
           echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.pull_request_sha != '' && inputs.pull_request_sha || github.sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: docker/login-action@v3
         with:
@@ -1015,10 +750,9 @@ jobs:
 
 
   gui-visual-examples:
-    if: ${{ github.event_name != 'pull_request_target' }}
     name: Basic blanket visual example
     needs: [local_runner_readiness]
-    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 15
     steps:
       - name: Log selected execution mode
@@ -1027,7 +761,7 @@ jobs:
           echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.pull_request_sha != '' && inputs.pull_request_sha || github.sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: docker/login-action@v3
         with:
@@ -1129,11 +863,11 @@ jobs:
   publish-readme-turntables:
     name: Publish README turntables and example motion
     needs: [local_runner_readiness, gui-tunic-visual, gui-turntables, gui-visual-examples]
-    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '' && inputs.pull_request_number != '') }}
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '') }}
     permissions:
       contents: write
       packages: read
-    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 10
     steps:
       - name: Log selected execution mode
@@ -1191,9 +925,8 @@ jobs:
           git push origin "HEAD:$branch"
   maintenance-cleanup:
     name: Repository retention cleanup
-    needs: [local_runner_readiness]
     if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * *' }}
-    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ubuntu-latest
     permissions:
       actions: write
       contents: write
@@ -1243,7 +976,7 @@ jobs:
     name: Measured FreeCAD workbench benchmark
     needs: [local_runner_readiness]
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
-    runs-on: ${{ (github.event_name == 'pull_request_target' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 12
     steps:
       - name: Log selected execution mode
@@ -1252,7 +985,7 @@ jobs:
           echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.pull_request_sha != '' && inputs.pull_request_sha || github.sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Pull published FreeCAD image
         env:

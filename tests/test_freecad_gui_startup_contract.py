@@ -77,10 +77,11 @@ def test_canonical_gui_jobs_use_deterministic_startup_boundaries():
     assert "freecad_ci_bootstrap.FCMacro" not in sketcher
     assert "freecad_ci_bootstrap.FCMacro" not in visual
 
-def test_canonical_concurrency_cancels_stale_pr_runs():
+def test_canonical_concurrency_groups_pull_requests():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
-    assert "canonical-broker-{0}-pr-{1}" in workflow
+    assert "canonical-pr-{0}" in workflow
     assert "cancel-in-progress: true" in workflow
+    assert "cancel-stale-pr-runs:" not in workflow
 
 def test_canonical_readme_turntable_launches_from_neutral_cwd():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
@@ -102,37 +103,17 @@ if __name__ == "__main__":
     test_visual_example_prepares_gui_and_explicit_workbench_registration()
     test_sketcher_acceptance_uses_explicit_initgui_startup()
     test_canonical_gui_jobs_use_deterministic_startup_boundaries()
-    test_canonical_concurrency_cancels_stale_pr_runs()
+    test_canonical_concurrency_groups_pull_requests()
     test_canonical_readme_turntable_launches_from_neutral_cwd()
     test_readme_turntable_scripts_import_freecad_gui_before_repository_path_injection()
 
-def test_broker_exposes_hosted_validation_run_as_pr_status():
-    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
-    broker = workflow.split("  pull_request_broker:", 1)[1].split("  local_runner_readiness:", 1)[0]
-    assert "statuses: write" in broker
-    assert 'context="canonical/hosted-validation"' in broker
-    assert "actions/runs/$hosted_run_id" in broker
-
-
-def test_brokered_dispatch_run_name_is_pr_identifiable():
-    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
-    assert "run-name: Canonical execution" in workflow
-    assert "format(' · PR #{0}', inputs.pull_request_number)" in workflow
-    broker = workflow.split("  pull_request_broker:", 1)[1].split("  local_runner_readiness:", 1)[0]
-    assert 'contains("PR #" + env.PR_NUMBER)' in broker
-
-
-def test_brokered_dispatch_run_name_includes_source_run_identity():
-    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
-    assert "format(' · source #{0}', inputs.fallback_source_run)" in workflow
-    broker = workflow.split("  pull_request_broker:", 1)[1].split("  local_runner_readiness:", 1)[0]
-    assert 'contains("source #" + env.GITHUB_RUN_ID)' in broker
-
-
-def test_workflow_dispatch_publishes_its_own_hosted_run_status():
-    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
-    assert "Publish brokered hosted run status" in workflow
-    status_job = workflow.split("  brokered_hosted_status:", 1)[1].split("  local_runner_readiness:", 1)[0]
-    assert "statuses: write" in status_job
-    assert "inputs.pull_request_sha" in status_job
-    assert "GITHUB_RUN_ID" in status_job
+def test_large_gui_acceptance_scripts_fail_fast_from_freecad_process():
+    root = Path(__file__).resolve().parents[1]
+    for name in (
+        "freecad_avatar_screenshot.py",
+        "freecad_simulation_turntable.py",
+        "freecad_visual_examples.py",
+        "freecad_screenshot_source.py",
+    ):
+        source = (root / "tests" / name).read_text(encoding="utf-8")
+        assert "os._exit(1)" in source, name

@@ -562,4 +562,4 @@ except BaseException as error:
     print("SIMULATION TURNTABLE FAILURE: %r" % (error,), flush=True)
     print(traceback.format_exc(), flush=True)
     log("simulation-turntable-fail exception=%r" % (error,))
-    raise
+    os._exit(1)
