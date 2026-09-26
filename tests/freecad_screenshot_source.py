@@ -338,9 +338,13 @@ def style_mesh(obj, label):
 
 
 def simulation():
+    import os
+    os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
     from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
-    from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
+    from freecad_cloth.simulation.DrapeTarget import collision_surface, refresh_drape_target, target_status
+    from freecad_cloth.avatar.FittingCommands import arrange_garment_on_avatar
+    from freecad_cloth.avatar.TargetAwarePlacement import assert_minimum_surface_clearance
     from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternObjects import add_seam
     doc = App.newDocument("ClothSimulationVisualRegression"); scene = create_quality_simulation_scene(doc); avatar = getattr(scene.AvatarProxy, "SourceObject", None); target = scene.DrapeTarget
@@ -351,17 +355,43 @@ def simulation():
     target_source = getattr(target, "SourceObject", None)
     if target_source is not avatar:
         raise RuntimeError("visual fixture DrapeTarget does not reference the production ClothAvatar")
-    box = target_source.Mesh.BoundBox; x_mid = (box.XMin + box.XMax) / 2.0; y_span = box.YMax - box.YMin; z_span = box.ZMax - box.ZMin
-    chest = 980.0; hip = 1020.0; ease = 55.0; panel_width = max(420.0, 0.50 * chest + ease); hem_width = max(450.0, 0.50 * hip + ease)
-    shoulder_z = box.ZMin + 0.76 * z_span; hem_z = box.ZMin + 0.40 * z_span; garment_height = max(560.0, shoulder_z - hem_z); body_depth = max(120.0, min(260.0, y_span)); clearance = max(20.0, 0.08 * body_depth); rot = App.Rotation(App.Vector(1,0,0), 90.0)
-    def target_relative_piece_placement(target_box, side):
-        if side not in ("front", "back"):
-            raise ValueError("tunic target-relative side must be front or back")
-        y = target_box.YMin - clearance if side == "front" else target_box.YMax + clearance
-        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
-    def make_piece(name, side, neckline_ratio, neckline_drop):
-        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(box, side); piece.Sketch.Placement = piece.Placement; return piece, outline
-    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
+    pre_status = target_status(target)
+    if str(pre_status.get("state", "")) != "ready":
+        raise RuntimeError("canonical tunic DrapeTarget is not current before placement: %s" % pre_status.get("message", pre_status))
+    target_surface = collision_surface(
+        target_source,
+        float(getattr(target, "CollisionDeflection", 1.0)),
+        float(getattr(target, "CollisionThickness", 0.0)),
+    )
+    if not target_surface.vertices or not target_surface.triangles:
+        raise RuntimeError("canonical tunic DrapeTarget has no authoritative collision triangles")
+    from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
+    def arrangement_world(name):
+        raw = next((value for value in getattr(avatar, "ArrangementPoints", ()) if str(value).split("|", 1)[0] == name), None)
+        if raw is None:
+            raise RuntimeError("canonical tunic is missing avatar arrangement point %s" % name)
+        point = ArrangementPoint.from_string(raw)
+        return avatar.Placement.multVec(App.Vector(*point.position()))
+    shoulder_left = arrangement_world("shoulder_left")
+    shoulder_right = arrangement_world("shoulder_right")
+    hip_point = arrangement_world("hip")
+    target_ys = [float(vertex[1]) for vertex in target_surface.vertices]
+    y_span = max(target_ys) - min(target_ys)
+    x_mid = (shoulder_left.x + shoulder_right.x) / 2.0
+    shoulder_z = (shoulder_left.z + shoulder_right.z) / 2.0
+    hem_z = hip_point.z
+    shoulder_width = abs(shoulder_right.x - shoulder_left.x)
+    panel_width = max(420.0, shoulder_width + 100.0)
+    hem_width = max(450.0, panel_width + 80.0)
+    garment_height = max(560.0, shoulder_z - hem_z)
+    panel_width = max(420.0, shoulder_width + 100.0)
+    hem_width = max(450.0, panel_width + 80.0)
+    garment_height = max(560.0, shoulder_z - hem_z)
+    clearance = 8.0
+    rot = App.Rotation(App.Vector(1,0,0), 90.0)
+    def make_piece(name, neckline_ratio, neckline_drop):
+        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, 0.0, hem_z), rot); piece.Sketch.Placement = piece.Placement; return piece, outline
+    front, front_outline = make_piece("VisualTunicFront", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", 0.64, 0.07)
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
     for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
@@ -370,6 +400,11 @@ def simulation():
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.PinMode = "None"; scene.PinSelection = []; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
+    arrangement = arrange_garment_on_avatar(scene, (front, back), clearance=clearance)
+    log("target-aware-arrangement front=%s back=%s" % (arrangement.get(str(front.PieceId)), arrangement.get(str(back.PieceId))))
+    status = target_status(target)
+    if str(status.get("state", "")) != "ready":
+        raise RuntimeError("canonical tunic DrapeTarget is not current: %s" % status.get("message", status))
     proxy = scene.Proxy
     backend = getattr(proxy, "backend", None)
     if backend is None:
@@ -384,7 +419,27 @@ def simulation():
         raise RuntimeError("canonical tunic must use PinMode=None")
     if solver_pins:
         raise RuntimeError("canonical tunic PinMode=None still has solver pins: %s" % (solver_pins,))
+    surface = collision_surface(
+        target_source,
+        float(getattr(target, "CollisionDeflection", 1.0)),
+        float(getattr(target, "CollisionThickness", 0.0)),
+    )
+    initial_clearance = None
+    try:
+        from freecad_cloth.common.MeshValidation import nearest_target_clearance
+        initial_clearance = nearest_target_clearance(tuple(backend.positions()), tuple(surface.vertices))
+    except (ImportError, ValueError):
+        initial_clearance = None
+    if initial_clearance is None or float(initial_clearance) < float(clearance):
+        raise RuntimeError(
+            "canonical tunic step-0 target clearance is below configured separation: "
+            "%.2f mm < %.2f mm" % (float(initial_clearance or 0.0), float(clearance))
+        )
+    surface_clearance = assert_minimum_surface_clearance(surface, tuple(backend.positions()), clearance)
     log("pin-mode=None solver-pins=0")
+    log("target-collision-mode=mesh")
+    log("step0-target-vertex-clearance-mm=%.2f required-mm=%.2f" % (float(initial_clearance), float(clearance)))
+    log("step0-target-surface-clearance-mm=%.2f required-mm=%.2f" % (float(surface_clearance), float(clearance)))
     for source in (doc.getObject("VisualTunicFront"), doc.getObject("VisualTunicBack")):
         if source is not None: source.ViewObject.Visibility = False
         sketch = getattr(source, "Sketch", None) if source is not None else None
@@ -394,7 +449,12 @@ def simulation():
         raise RuntimeError("expected two drape panels, got %d" % len(panels))
     for panel, label in zip(panels, ("Drape: Tunic Front", "Drape: Tunic Back")):
         style_mesh(panel, label); panel.ViewObject.Visibility = True
-    avatar.ViewObject.Visibility = True; doc.recompute(); log("avatar-bounds x=%.1f..%.1f y=%.1f..%.1f z=%.1f..%.1f" % (box.XMin,box.XMax,box.YMin,box.YMax,box.ZMin,box.ZMax)); log("tunic-source=freecad-native-sketcher edges=%d front=%s back=%s" % (len(front.Sketch.Geometry),front.Sketch.Name,back.Sketch.Name))
+    avatar.ViewObject.Visibility = True; doc.recompute()
+    target_xs = [float(vertex[0]) for vertex in target_surface.vertices]
+    target_ys = [float(vertex[1]) for vertex in target_surface.vertices]
+    target_zs = [float(vertex[2]) for vertex in target_surface.vertices]
+    log("target-surface-bounds x=%.1f..%.1f y=%.1f..%.1f z=%.1f..%.1f" % (min(target_xs),max(target_xs),min(target_ys),max(target_ys),min(target_zs),max(target_zs)))
+    log("tunic-source=freecad-native-sketcher edges=%d front=%s back=%s" % (len(front.Sketch.Geometry),front.Sketch.Name,back.Sketch.Name))
     if int(getattr(avatar, "MeshVertexCount", 0)) <= 100 or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100:
         raise RuntimeError("visual fixture does not contain a real humanoid mesh")
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
