@@ -300,7 +300,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     solver_test_cpp = solver_test.read_text(encoding="utf-8")
     solver_test_cpp = solver_test_cpp.replace(
         '#include "physics/Solver.hpp"\n',
-        '#include "physics/Collider.hpp"\n#include "physics/Solver.hpp"\n',
+        '#include "physics/Collider.hpp"\n#include "physics/Solver.hpp"\n#include <engine/World.hpp>\n',
         1,
     )
     collider_helper = """class OrderProbeCollider final : public Collider {
