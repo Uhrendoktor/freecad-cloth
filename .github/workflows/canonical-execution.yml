@@ -146,7 +146,7 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts
           CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g \
-            -e PYTHONPATH=/workspace -w /tmp "$FREECAD_IMAGE" bash -lc '
+            -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 -w /tmp "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               test "$(python3 -c "import sys; print(sys.version_info[:2])")" = "(3, 12)"
@@ -217,7 +217,12 @@ jobs:
               test -n "$FREECAD_CMD"
               test -x "$FREECAD_CMD"
               echo "mesh-parity-freecadcmd=$FREECAD_CMD"
-              PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=10s 60s "$FREECAD_CMD" /workspace/tests/freecad_mesh_point_parity_probe.py
+              mkdir -p "$XDG_RUNTIME_DIR"
+    Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/mesh-parity-xvfb.log 2>&1 & XVFB_PID=$!
+    trap "kill $XVFB_PID 2>/dev/null || true" EXIT
+    for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+    xdpyinfo -display :99 >/dev/null 2>&1
+    PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_mesh_point_parity_probe.py
             ')"
           cleanup() {
             set +e
