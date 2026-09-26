@@ -3,7 +3,7 @@ run-name: Canonical execution
 
 on:
   push:
-    branches: [main]
+    branches: [main, agent/1519-full-mesh-collision-diagnostic-20260926]
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
