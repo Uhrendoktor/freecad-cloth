@@ -276,16 +276,17 @@ class AuthoredSurfaceIndex:
 
     def correction(self, point, thickness, boundary_epsilon=_BOUNDARY_EPSILON):
         point = np.asarray(point, dtype=np.float64)
+        if not self._parity_contains(point):
+            return None
         triangle_index, closest, distance_sq = self._nearest_triangle(point)
-        if distance_sq <= float(boundary_epsilon) ** 2 or not self._parity_contains(point):
+        if distance_sq <= float(boundary_epsilon) ** 2:
             return None
         normal = self.normals[triangle_index]
         distance = math.sqrt(max(distance_sq, 0.0))
         target = closest + normal * float(thickness)
-        penetration = float(distance) + float(thickness)
         if float(np.dot(point - closest, normal)) > 1.0e-7:
             raise RuntimeError("authored containment normal points toward the inside")
-        return target, penetration
+        return target, float(distance)
 
 
 def build_authored_surface_index(vertices, triangles, leaf_size=_DEFAULT_LEAF_SIZE):
