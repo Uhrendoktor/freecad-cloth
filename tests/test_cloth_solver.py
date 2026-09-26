@@ -63,6 +63,19 @@ def test_mesh_collision_corner_projects_against_both_local_faces():
     assert particle.position() == (11.0, 11.0, 0.0)
 
 
+def test_tissu_supplemental_collision_can_be_combined_with_signed_guard():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    backend_source = (root / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    workflow_source = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    assert "CLOTH_TISSU_SIGNED_COLLISION_GUARD" in backend_source
+    assert "CLOTH_TISSU_SUPPLEMENTAL_AVATAR_COLLISION" in backend_source
+    assert 'self._sim.add_mesh_from_arrays("drape-target"' in backend_source
+    assert 'self._sim.add_sphere(' in backend_source
+    assert "CLOTH_TISSU_SIGNED_COLLISION_GUARD: 1" in workflow_source
+    assert "CLOTH_TISSU_SUPPLEMENTAL_AVATAR_COLLISION: 1" in workflow_source
+
+
 def test_tissu_signed_collision_guard_math_and_env_gate():
     from freecad_cloth.simulation.TissuBackend import _signed_collision_guard_correction, _tissu_signed_collision_guard
     import numpy as np
