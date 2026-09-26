@@ -35,7 +35,7 @@ replacements = {
         '        if str(getattr(seam_obj, "EdgeAId", "")) != edge_a_id or str(getattr(seam_obj, "EdgeBId", "")) != edge_b_id: raise RuntimeError("canonical tunic seam %s did not retain authored semantic edge IDs" % seam_id)\n'
         '        seam_records.append((seam_obj, front, back))',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
-    'scene.SolverIterations = 8;': 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-32 iterations-1 substeps-env");',
+    'scene.SolverIterations = 8;': 'scene.ParticleDistance = 32.0; scene.SolverIterations = 2; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-32 iterations-2 substeps-env");',
     '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance',
     '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
@@ -123,8 +123,33 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
 """
 
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", 1)
+def _compile_generated_source(source_text):
+    try:
+        return compile(source_text, str(source_path), "exec")
+    except SyntaxError as error:
+        lines = source_text.splitlines()
+        line_number = int(getattr(error, "lineno", 1) or 1)
+        start = max(1, line_number - 2)
+        end = min(len(lines), line_number + 2)
+        context = "\n".join(
+            "%4d | %s" % (number, lines[number - 1])
+            for number in range(start, end + 1)
+        )
+        raise RuntimeError(
+            "generated tunic audit source failed syntax validation: %s at line %d\n%s"
+            % (error.msg, line_number, context)
+        ) from error
+
+
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
-exec(compile(source, str(source_path), "exec"), globals(), globals())
+compiled_source = _compile_generated_source(source)
+if "--syntax-check" in sys.argv:
+    print(
+        "tunic-audit-source-syntax=passed lines=%d" % len(source.splitlines()),
+        flush=True,
+    )
+    raise SystemExit(0)
+exec(compiled_source, globals(), globals())
 print("tunic-audit-process-exit=success", flush=True)
 os._exit(0)
