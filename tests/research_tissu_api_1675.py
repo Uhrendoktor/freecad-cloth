@@ -83,7 +83,7 @@ def main():
     after_step = np.asarray(sim.positions)
     info["post_step_finite"] = bool(np.isfinite(after_step).all())
     info["post_step_max_displacement_m"] = float(np.max(np.linalg.norm(after_step - before, axis=1)))
-    info["post_step_kinetic_energy"] = float(sim.kinetic_energy)
+    info["post_step_kinetic_energy"] = float(sim.kinetic_energy())
 
     print("TISSU_API_PROBE " + json.dumps(info, sort_keys=True, default=str))
 
