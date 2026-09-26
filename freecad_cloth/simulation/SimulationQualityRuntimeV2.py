@@ -25,6 +25,7 @@ def ensure_quality_properties(scene):
         ("FabricRoughness", "App::PropertyFloat", "Fabric", None, 0.65),
         ("FabricTransparency", "App::PropertyInteger", "Fabric", None, 0),
         ("AvatarSkinOffset", "App::PropertyFloat", "Collision", None, 0.0),
+        ("PinMode", "App::PropertyEnumeration", "Selection", ["None", "Explicit", "Automatic"], "Explicit"),
         ("PinMode", "App::PropertyEnumeration", "Selection", ["Automatic", "Explicit", "None"], "Automatic"),
     )
     for name, type_name, group, values, default in specs:
