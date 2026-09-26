@@ -27,9 +27,10 @@ docker run --rm --security-opt seccomp=unconfined \
     apt-get update -qq
     apt-get install -y --no-install-recommends build-essential cmake git libomp-dev
     python3 -m pip install --no-cache-dir --disable-pip-version-check cmake==3.31.6
-    PYTHON_SCRIPTS_DIR="$(python3 -c 'import sysconfig; print(sysconfig.get_path("scripts"))')"
+    PYTHON_SCRIPTS_DIR=$(python3 -c "import sysconfig; print(sysconfig.get_path('scripts'))")
     export PATH="$PYTHON_SCRIPTS_DIR:$PATH"
-    cmake --version | grep -q '^cmake version 3\\.31\\.6
+    cmake --version | grep -q "^cmake version 3\\.31\\.6$"
+
     rm -rf /tmp/Tissu
     git clone --quiet https://github.com/evanrock520-ciencias/Tissu.git /tmp/Tissu
     cd /tmp/Tissu
