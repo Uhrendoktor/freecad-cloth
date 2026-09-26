@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from heapq import heappop, heappush
-from math import floor, inf, sqrt
+from math import inf, sqrt
 from weakref import WeakKeyDictionary
 
 from freecad_cloth.avatar.AvatarCollision import CollisionSurface
@@ -209,6 +209,16 @@ class AuthoredSurfaceContainment:
         if invalid_edges:
             raise ValueError("authored containment surface must be closed and consistently wound")
 
+        signed_volume6 = 0.0
+        for ia, ib, ic in surface.triangles:
+            a = tuple(float(value) for value in surface.vertices[ia])
+            b = tuple(float(value) for value in surface.vertices[ib])
+            c = tuple(float(value) for value in surface.vertices[ic])
+            signed_volume6 += _dot(a, _cross(b, c))
+        if abs(signed_volume6) <= _TRIANGLE_EPSILON:
+            raise ValueError("authored containment surface has indeterminate winding")
+        outward_sign = 1.0 if signed_volume6 > 0.0 else -1.0
+
         prepared = []
         for index, (ia, ib, ic) in enumerate(surface.triangles):
             a = tuple(float(value) for value in surface.vertices[ia])
@@ -217,6 +227,8 @@ class AuthoredSurfaceContainment:
             normal = _normal(a, b, c)
             if normal is None:
                 raise ValueError("authored containment surface contains a degenerate triangle")
+            if outward_sign < 0.0:
+                normal = _scale(normal, -1.0)
             lower = tuple(min(a[i], b[i], c[i]) for i in range(3))
             upper = tuple(max(a[i], b[i], c[i]) for i in range(3))
             centroid = tuple((a[i] + b[i] + c[i]) / 3.0 for i in range(3))
