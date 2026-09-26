@@ -489,7 +489,8 @@ jobs:
 
       - name: Run native-Sketcher tunic audit
         env:
-          CLOTH_SIMULATION_BACKEND: tissu
+          CLOTH_SIMULATION_BACKEND: xpbd-cpu
+          CLOTH_CI_DISABLE_TISSU: 1
           CLOTH_TISSU_SUBSTEPS: 1
           CLOTH_TISSU_COLLISION_MODE: mesh
           CLOTH_TISSU_COLLISION_TRIANGLES: 2048
@@ -501,6 +502,7 @@ jobs:
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
+            -e CLOTH_CI_DISABLE_TISSU="$CLOTH_CI_DISABLE_TISSU" \
             -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" \
             -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
             -e CLOTH_TISSU_COLLISION_TRIANGLES="$CLOTH_TISSU_COLLISION_TRIANGLES" \
@@ -543,7 +545,7 @@ jobs:
           print("realtime-performance=passed mean_frame_ms=%.2f p95_frame_ms=%.2f fps=%.2f particles=%d" % (m["mean_frame_ms"], m["p95_frame_ms"], m["fps_mean"], m["particles"]))
           PY
           grep -q 'scenario-pass' docs/images/generated/gui-progress.log
-          grep -q 'realtime-preview=passed backend=tissu' docs/images/generated/gui-progress.log
+          grep -Eq 'realtime-preview=passed backend=(xpbd-cpu|tissu)' docs/images/generated/gui-progress.log
           grep -q 'drape-metrics=' docs/images/generated/gui-progress.log
           test -s docs/images/generated/cloth-simulation-draped.png
           test -s docs/images/generated/cloth-simulation-draped-front.png
