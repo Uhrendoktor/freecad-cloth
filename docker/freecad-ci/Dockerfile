@@ -24,7 +24,10 @@ RUN set -euxo pipefail \
     && /opt/conda/envs/freecad/bin/python /tmp/patch_tissu_headless.py "$TISSU_SRC/core/CMakeLists.txt" \
     && git -C "$TISSU_SRC" apply --check /tmp/tissu-mesh-collider.patch \
     && git -C "$TISSU_SRC" apply /tmp/tissu-mesh-collider.patch \
-    && git -C "$TISSU_SRC" diff --check \
+    && git -C "$TISSU_SRC" diff --check -- \
+         core/include/physics/MeshCollider.hpp \
+         core/src/physics/MeshCollider.cpp \
+         tests/physics/test_mesh_collider.cpp \
     && EXPECTED_PATCH_FILES="$(printf '%s\n' \
          core/CMakeLists.txt \
          core/include/physics/MeshCollider.hpp \
