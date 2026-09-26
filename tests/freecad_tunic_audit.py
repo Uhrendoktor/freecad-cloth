@@ -14,9 +14,13 @@ source = source_path.read_text(encoding="utf-8")
 # The canonical tunic audit must use the authoritative DrapeTarget collision
 # surface; do not replace it with the optional torso-envelope approximation.
 os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
+os.environ["CLOTH_TISSU_AUTHORED_CONTAINMENT"] = "1"
 
 replacements = {
     'clearance = max(20.0, 0.08 * body_depth)': 'clearance = max(8.0, 0.025 * body_depth);',
+    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance',
+    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance',
+    'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)': 'front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)',
     '    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):\n'
         '        seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
         '        add_seam(doc, seam)\n'
@@ -81,6 +85,14 @@ timed_anchor = '''    from time import perf_counter
     simulation_started = perf_counter()
     active_backend = scene.Proxy._base_or_restore().backend
     active_collision = getattr(active_backend, "_collision_surface", None)
+    authored_collision = getattr(active_backend, "_source_collision_surface", None)
+    if not bool(getattr(active_backend, "_authored_containment_enabled", False)):
+        raise RuntimeError("authored Tissu containment correction is not enabled in canonical experiment")
+    if authored_collision is None or active_collision is None or len(authored_collision.triangles) <= len(active_collision.triangles):
+        raise RuntimeError("authored containment did not retain the full source alongside the solver collision mesh")
+    log("tunic-authored-containment source_triangles=%d solver_triangles=%d" % (
+        len(authored_collision.triangles), len(active_collision.triangles)
+    ))
     log("tunic-simulation-start particles=%d iterations=%d substeps=%d backend=%s collision_triangles=%d" % (
         int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps),
         str(getattr(active_backend, "name", "")),
