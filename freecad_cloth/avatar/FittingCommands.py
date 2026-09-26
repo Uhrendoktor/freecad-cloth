@@ -302,6 +302,7 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=6
     home_before = tuple(scene.HomePlacements)
     persisted_before = tuple(scene.PiecePlacements)
     status_before = str(getattr(scene, "FitStatus", ""))
+    drape_target_before = getattr(scene, "DrapeTarget", None)
     piece_before = {piece: piece.Placement for piece in selected}
     sketch_before = {
         piece: getattr(getattr(piece, "Sketch", None), "Placement", None)
