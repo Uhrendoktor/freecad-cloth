@@ -67,8 +67,7 @@ if pattern_lifecycle_old not in source:
     raise RuntimeError("pattern lifecycle seam anchor missing")
 source = source.replace(pattern_lifecycle_old, pattern_lifecycle_new, 1)
 
-pattern_lifecycle_anchor = """    activate("ClothSewingWorkbench", "Cloth Sewing", ["ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_Validate"])
-"""
+pattern_lifecycle_anchor = """    panel = SewingTaskPanel(sewing); show_task(panel, "Sewing Workbench", ("Seam", "Alignment", "Validation tolerance", "Stitch samples", "Status")); Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll(); events(); save("cloth-sewing.png", "Sewing Workbench", "native tunic Sketcher boundary and semantic seam"); close_task(); App.closeDocument(doc.Name)"""
 pattern_lifecycle_probe = r'''    from freecad_cloth.sewing.SewingView import refresh_seam_colors, seam_color_map, apply_seam_colors
     semantic_seams = tuple(seam_records)
     seam_ids = tuple(str(item.SeamId) for item in semantic_seams)
@@ -129,7 +128,7 @@ pattern_lifecycle_probe = r'''    from freecad_cloth.sewing.SewingView import re
 '''
 if pattern_lifecycle_anchor not in source:
     raise RuntimeError("pattern lifecycle screenshot anchor missing")
-source = source.replace(pattern_lifecycle_anchor, pattern_lifecycle_probe + "\n" + pattern_lifecycle_anchor, 1)
+source = source.replace(pattern_lifecycle_anchor, "    panel = SewingTaskPanel(sewing); show_task(panel, \"Sewing Workbench\", (\"Seam\", \"Alignment\", \"Validation tolerance\", \"Stitch samples\", \"Status\")); Gui.activeDocument().activeView().viewTop(); Gui.activeDocument().activeView().fitAll(); events(); save(\"cloth-sewing.png\", \"Sewing Workbench\", \"native tunic Sketcher boundary and semantic seam\"); close_task()\n" + pattern_lifecycle_probe + "\n    App.closeDocument(doc.Name)", 1)
 
 preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
     if "ClothRealtimePreview" not in Gui.listCommands():
