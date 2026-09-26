@@ -45,6 +45,22 @@ def test_nearest_projection_fails_closed_on_opposing_ambiguous_normals():
         raise AssertionError("opposing equally-near target normals must fail closed")
 
 
+def test_nearest_projection_allows_explicit_outward_context_without_disabling_default_fail_closed():
+    surface = CollisionSurface(
+        vertices=(
+            (-10.0, -10.0, 0.0), (10.0, -10.0, 0.0), (0.0, 10.0, 0.0),
+            (-10.0, -10.0, 0.0), (0.0, 10.0, 0.0), (10.0, -10.0, 0.0),
+        ),
+        triangles=((0, 1, 2), (3, 4, 5)),
+    )
+    projection = nearest_target_projection(
+        (0.0, 0.0, 5.0),
+        surface,
+        preferred_normal=(0.0, 0.0, 1.0),
+    )
+    assert projection.normal == (0.0, 0.0, 1.0)
+
+
 def test_average_point_is_deterministic():
     assert average_point(((0.0, 0.0, 2.0), (2.0, 4.0, 4.0))) == (1.0, 2.0, 3.0)
 
