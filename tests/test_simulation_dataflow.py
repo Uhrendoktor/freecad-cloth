@@ -185,3 +185,84 @@ def test_quality_proxy_keeps_provenance_explicit_after_backend_handoff():
     proxy._base_or_restore = lambda: replacement
     assert proxy.seam_stitch_pairs == {"seam-2": ((2, 3), (4, 5))}
 
+
+
+def test_simulation_seam_visuals_use_canonical_colors_by_semantic_id():
+    import sys
+    from types import SimpleNamespace
+    from freecad_cloth.sewing.SewingView import seam_color_map
+    from freecad_cloth.simulation.SimulationObjects import _update_seam_visuals
+
+    class Vector:
+        def __init__(self, *values):
+            self.values = tuple(values)
+
+    class PartModule:
+        @staticmethod
+        def makePolygon(points):
+            return ("poly", tuple(point.values for point in points))
+
+        @staticmethod
+        def makeCompound(shapes):
+            return ("compound", tuple(shapes))
+
+        @staticmethod
+        def Shape():
+            return "empty"
+
+    class PropertySink:
+        def __init__(self, target):
+            object.__setattr__(self, "_target", target)
+
+        def __setattr__(self, name, value):
+            if name == "_target":
+                object.__setattr__(self, name, value)
+            else:
+                setattr(self._target, name, value)
+
+    class Visual:
+        def __init__(self):
+            self.ViewObject = SimpleNamespace(LineColor=None, LineWidth=None, Visibility=False)
+            self.Shape = "empty"
+
+        def addProperty(self, _type, name, _group):
+            return PropertySink(self)
+
+    class Document:
+        def __init__(self):
+            self.Objects = []
+
+        def addObject(self, _type, _name):
+            visual = Visual()
+            self.Objects.append(visual)
+            return visual
+
+    previous_freecad = sys.modules.get("FreeCAD")
+    previous_part = sys.modules.get("Part")
+    sys.modules["FreeCAD"] = SimpleNamespace(Vector=Vector)
+    sys.modules["Part"] = PartModule
+    try:
+        doc = Document()
+        pairs = {"seam-b": ((0, 1), (2, 3)), "seam-a": ((3, 2), (1, 0))}
+        positions = (
+            (0.0, 0.0, 0.0), (10.0, 0.0, 0.0),
+            (20.0, 0.0, 0.0), (30.0, 0.0, 0.0),
+        )
+        _update_seam_visuals(doc, pairs, positions)
+        expected = seam_color_map(pairs)
+        assert [obj.SimulationSeamId for obj in doc.Objects] == ["seam-a", "seam-b"]
+        assert [tuple(obj.ViewObject.LineColor) for obj in doc.Objects] == [
+            tuple(expected["seam-a"]), tuple(expected["seam-b"])
+        ]
+        assert all(obj.ViewObject.Visibility for obj in doc.Objects)
+        assert all(obj.ViewObject.LineWidth == 3.0 for obj in doc.Objects)
+        assert len(set(obj.ViewObject.LineColor for obj in doc.Objects)) == 2
+    finally:
+        if previous_freecad is None:
+            sys.modules.pop("FreeCAD", None)
+        else:
+            sys.modules["FreeCAD"] = previous_freecad
+        if previous_part is None:
+            sys.modules.pop("Part", None)
+        else:
+            sys.modules["Part"] = previous_part
