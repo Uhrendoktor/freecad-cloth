@@ -469,6 +469,32 @@ def _world_vertices(piece):
     return tuple(result)
 
 
+def _world_collision_surface(target):
+    """Return the authoritative DrapeTarget collision surface in world coordinates."""
+    import FreeCAD as App
+    from freecad_cloth.avatar.AvatarCollision import CollisionSurface
+    from freecad_cloth.simulation.DrapeTarget import collision_surface
+
+    source = getattr(target, "SourceObject", None)
+    if source is None:
+        raise ValueError("cannot snap to target without its source object")
+    surface = collision_surface(
+        source,
+        float(getattr(target, "CollisionDeflection", 1.0)),
+        float(getattr(target, "CollisionThickness", 0.0)),
+    )
+    placement = getattr(source, "Placement", None)
+    if placement is None:
+        return surface
+    vertices = []
+    for point in surface.vertices:
+        world = placement.multVec(App.Vector(*point))
+        vertices.append((float(world.x), float(world.y), float(world.z)))
+    result = CollisionSurface(tuple(vertices), tuple(surface.triangles), str(surface.region), float(surface.thickness))
+    result.validate()
+    return result
+
+
 def snap_pieces_to_target(pieces=None, target=None, clearance=2.0, max_translation=400.0):
     """Rigidly translate selected PatternPieces to a current DrapeTarget."""
     import FreeCAD as App
@@ -492,20 +518,13 @@ def snap_pieces_to_target(pieces=None, target=None, clearance=2.0, max_translati
     status = target_status(target)
     if status["state"] != "ready":
         raise ValueError("cannot snap to target: %s" % status["message"])
-    scene.DrapeTarget = target
-    source = getattr(target, "SourceObject", None)
-    if source is None:
-        raise ValueError("cannot snap to target without its source object")
-    surface = collision_surface(
-        source,
-        float(getattr(target, "CollisionDeflection", 1.0)),
-        float(getattr(target, "CollisionThickness", 0.0)),
-    )
+    target_before = getattr(scene, "DrapeTarget", None)
     original = {str(piece.PieceId): piece.Placement for piece in selected}
     original_sketch = {str(piece.PieceId): getattr(getattr(piece, "Sketch", None), "Placement", None) for piece in selected}
     persisted_before = tuple(scene.PiecePlacements)
-    target_before = getattr(scene, "DrapeTarget", None)
     fit_status_before = str(getattr(scene, "FitStatus", ""))
+    surface = _world_collision_surface(target)
+    scene.DrapeTarget = target
     vertices_by_piece = {str(piece.PieceId): _world_vertices(piece) for piece in selected}
     all_vertices = tuple(point for vertices in vertices_by_piece.values() for point in vertices)
     anchor = tuple(sum(point[i] for point in all_vertices) / len(all_vertices) for i in range(3))
@@ -580,7 +599,14 @@ def reset_arrangement():
         if piece is None:
             continue
         x, y, z = placement.position
-        piece.Placement = App.Placement(App.Vector(x, y, z), App.Rotation(App.Vector(0, 0, 1), placement.rotation_z))
+        restored = App.Placement(
+            App.Vector(x, y, z),
+            App.Rotation(App.Vector(*placement.rotation_axis), placement.rotation_z),
+        )
+        piece.Placement = restored
+        sketch = getattr(piece, "Sketch", None)
+        if sketch is not None:
+            sketch.Placement = restored
         current[pid] = placement
     scene.PiecePlacements = [current[k].to_string() for k in sorted(current)]
     scene.FitStatus = "Arrangement reset"
