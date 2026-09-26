@@ -16,6 +16,8 @@ For local FreeCAD development, use a FreeCAD build whose embedded Python runtime
 
 `Pattern → Sewing → Arrange/Fit → Simulate → Diagnose → Output`
 
+For avatar fitting, **Snap Pattern Pieces To Target** is a deterministic placement aid; it does not create solver pins. Pins remain an explicit simulation input for cases that need fixed attachment.
+
 FreeCAD/Sketcher owns editable geometry and document persistence; Cloth owns garment semantics; the solver owns physics. Simulation meshes and collision data are derived and rebuildable. A native human mannequin and generic FreeCAD Shape/PartDesign/Body/Mesh are interchangeable providers of the same target-neutral `DrapeTarget` contract.
 
 ## Installation and examples
