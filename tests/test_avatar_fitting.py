@@ -46,6 +46,10 @@ class AvatarFittingTests(unittest.TestCase):
         placement = PiecePlacement("front", (1.5, -2.0, 3.25), 90.0)
         self.assertEqual(PiecePlacement.from_string(placement.to_string()), placement)
 
+    def test_piece_placement_legacy_z_serialization_is_stable(self):
+        placement = PiecePlacement("front", (1.5, -2.0, 3.25), 90.0)
+        self.assertEqual(placement.to_string(), "front|1.5,-2,3.25|90")
+
     def test_piece_placement_preserves_non_z_rotation_axis(self):
         placement = PiecePlacement("front", (1.5, -2.0, 3.25), 90.0, (1.0, 0.0, 0.0))
         self.assertEqual(PiecePlacement.from_string(placement.to_string()), placement)
