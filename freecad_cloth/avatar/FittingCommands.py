@@ -1,6 +1,28 @@
 """FreeCAD-facing body measurement, avatar fitting, and arrangement commands."""
 
 
+def _ensure_fitting_properties(scene):
+    """Migrate a persisted FittingScene to the current fitting-property contract."""
+    if scene is None:
+        return None
+    if "DrapeTarget" not in getattr(scene, "PropertiesList", ()):
+        scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")
+    if getattr(scene, "DrapeTarget", None) is None:
+        target = scene.Document.getObject("DrapeTarget")
+        if target is not None:
+            scene.DrapeTarget = target
+    if "PiecePlacements" not in getattr(scene, "PropertiesList", ()):
+        scene.addProperty("App::PropertyStringList", "PiecePlacements", "Fitting")
+        scene.PiecePlacements = []
+    if "HomePlacements" not in getattr(scene, "PropertiesList", ()):
+        scene.addProperty("App::PropertyStringList", "HomePlacements", "Fitting")
+        scene.HomePlacements = list(scene.PiecePlacements)
+    if "FitStatus" not in getattr(scene, "PropertiesList", ()):
+        scene.addProperty("App::PropertyString", "FitStatus", "Fitting")
+        scene.FitStatus = "Unassigned"
+    return scene
+
+
 def _scene(doc):
     return next((o for o in doc.Objects if getattr(o, "FittingType", "") == "FittingScene"), None)
 
@@ -97,8 +119,11 @@ def create_fitting_scene():
     from freecad_cloth.avatar.AvatarFitting import BodyMeasurements, FittingScene
 
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
-    if _scene(doc) is not None:
-        return _scene(doc)
+    existing = _scene(doc)
+    if existing is not None:
+        _ensure_fitting_properties(existing)
+        doc.recompute()
+        return existing
     obj = doc.addObject("App::FeaturePython", "FittingScene")
     obj.Label = "Avatar Fitting Scene"
     obj.addProperty("App::PropertyString", "FittingType", "Fitting").FittingType = "FittingScene"
@@ -164,6 +189,7 @@ def add_selected_pattern_pieces():
 
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
     scene = _scene(doc) or create_fitting_scene()
+    _ensure_fitting_properties(scene)
     pieces = [o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"]
     if not pieces:
         raise ValueError("select one or more pattern pieces before adding them to the fitting scene")
@@ -391,6 +417,8 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=None, max_translation=7
                 "triangle_index": int(report.projection.triangle_index),
             })
 
+        _ensure_fitting_properties(scene)
+        scene.DrapeTarget = target
         placements = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.PiecePlacements)}
         for piece in selected:
             final = piece.Placement
@@ -444,6 +472,7 @@ def set_arrangement_point(name, x=None, y=None, offset=None, wrap_direction=None
     scene = _scene(doc)
     if scene is None:
         raise ValueError("create a fitting scene first")
+    _ensure_fitting_properties(scene)
     values = {p.name: p for p in (ArrangementPoint.from_string(v) for v in scene.ArrangementPoints)}
     if name not in values:
         raise ValueError("unknown arrangement point: %s" % name)
