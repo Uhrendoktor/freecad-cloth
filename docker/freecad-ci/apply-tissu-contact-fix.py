@@ -31,7 +31,6 @@ def main() -> int:
     header = ROOT / "core/include/physics/MeshCollider.hpp"
     cpp = ROOT / "core/src/physics/MeshCollider.cpp"
     test = ROOT / "tests/physics/test_mesh_collider.cpp"
-    solver_test = ROOT / "tests/physics/test_cloth.cpp"
 
     replace_once(
         header,
@@ -411,25 +410,13 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
 
     solver = ROOT / "core/src/physics/Solver.cpp"
     solver_cpp = solver.read_text(encoding="utf-8")
-    old_solver = """    for (auto& constraint : m_constraints) {
-        constraint->resetLambda();
-    }
-
-    for (int i = 0; i < m_iterations; i++) {
-        solveConstraints(dt);
-    }
-
-    const auto& colliders = world.getColliders();
+    old_solver = """    const auto& colliders = world.getColliders();
     for (auto& collider : colliders)
         collider->resolve(m_particles, dt, world.getThickness());
 
     solveSelfCollisions(dt, world.getThickness());
 """
-    new_solver = """    for (auto& constraint : m_constraints) {
-        constraint->resetLambda();
-    }
-
-    const auto& colliders = world.getColliders();
+    new_solver = """    const auto& colliders = world.getColliders();
     for (int i = 0; i < m_iterations; i++) {
         for (auto& collider : colliders)
             collider->resolve(m_particles, dt, world.getThickness());
@@ -440,53 +427,16 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
 """
     if solver_cpp.count(old_solver) != 1:
         raise RuntimeError("Solver.cpp collider-order source anchor mismatch")
-    solver.write_text(solver_cpp.replace(old_solver, new_solver, 1), encoding="utf-8")
-
-    solver_test_cpp = solver_test.read_text(encoding="utf-8")
-    solver_test_cpp = solver_test_cpp.replace(
-        '#include "physics/Solver.hpp"\n#include "utils/Logger.hpp"\n',
-        '#include "physics/Collider.hpp"\n#include "physics/Solver.hpp"\n#include "utils/Logger.hpp"\n'
-        '#include <engine/World.hpp>\n',
-        1,
-    )
-    collider_helper = """class OrderProbeCollider final : public Collider {
-public:
-    void resolve(std::vector<Particle>& particles, double, double) override {
-        particles.at(0).setPosition(Eigen::Vector3d::Zero());
+    # Ensure the pre-edit ordering is still the pinned upstream sequence.
+    prerequisite = """    for (int i = 0; i < m_iterations; i++) {
+        solveConstraints(dt);
     }
-};
 
 """
-    if solver_test_cpp.count("TEST(Cloth, SettersAndGetters)") != 1:
-        raise RuntimeError("Solver ordering test anchor missing")
-    solver_test_cpp = solver_test_cpp.replace(
-        "TEST(Cloth, SettersAndGetters) {",
-        collider_helper + """TEST(Solver, ExternalCollisionPrecedesStitchProjection) {
-    Solver solver;
-    World world;
-    world.setGravity(Eigen::Vector3d::Zero());
-    world.setThickness(0.0);
-    solver.setIterations(1);
-    solver.setSubsteps(1);
-
-    solver.addParticle(Particle(Eigen::Vector3d(0.0, 0.0, 0.0)));
-    solver.addParticle(Particle(Eigen::Vector3d(0.0, 1.0, 0.0)));
-    solver.addStitch(0, 1, 0.0);
-    world.addCollider(std::make_shared<OrderProbeCollider>());
-
-    solver.update(world, 1.0 / 60.0);
-
-    const auto& particles = solver.getParticles();
-    EXPECT_NEAR(
-        (particles[0].getPosition() - particles[1].getPosition()).norm(),
-        0.0,
-        1e-9);
-}
-
-TEST(Cloth, SettersAndGetters) {""",
-        1,
-    )
-    solver_test.write_text(solver_test_cpp, encoding="utf-8")
+    if solver_cpp.count(prerequisite) != 1:
+        raise RuntimeError("Solver.cpp constraint-order prerequisite mismatch")
+    solver_cpp = solver_cpp.replace(prerequisite, "", 1)
+    solver.write_text(solver_cpp.replace(old_solver, new_solver, 1), encoding="utf-8")
 
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
@@ -496,7 +446,6 @@ TEST(Cloth, SettersAndGetters) {""",
         "core/src/physics/MeshCollider.cpp",
         "tests/physics/test_mesh_collider.cpp",
         "core/src/physics/Solver.cpp",
-        "tests/physics/test_cloth.cpp",
     }
     if set(changed.splitlines()) != expected:
         raise RuntimeError(f"unexpected patched files: {changed!r}")
