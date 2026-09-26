@@ -325,13 +325,19 @@ def pattern_and_sewing():
     second_seam = add_seam(doc, Seam(str(front.PieceId), 6, str(back.PieceId), 6, id="FrontBackShoulder", alignment="endpoints", stitch_group="MainSeam")); doc.recompute()
     if any(str(obj.Status) != "Valid" or obj.Shape.isNull() for obj in (seam, second_seam)):
         raise RuntimeError("sewing fixture contains an invalid seam")
-    from freecad_cloth.sewing.SewingView import seam_color_map, refresh_seam_colors
+    from freecad_cloth.sewing.SewingView import seam_color_map
     seam_objects = (seam, second_seam)
-    refresh_seam_colors(doc)
-    activate("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D", "ClothPattern_CreateFromSketch"])
     expected_colors = seam_color_map(str(obj.SeamId) for obj in seam_objects)
     if len(set(expected_colors.values())) != len(seam_objects):
         raise RuntimeError("canonical sewing fixture did not produce unique seam colors: ids=%r colors=%r" % (tuple(str(obj.SeamId) for obj in seam_objects), expected_colors))
+    # Start with a stale presentation state and verify both real activation
+    # transitions restore the deterministic, SeamId-keyed colors.
+    for obj in seam_objects:
+        obj.ViewObject.LineColor = (0.0, 0.0, 0.0)
+    activate("ClothSewingWorkbench", "Cloth Sewing", ["ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_Validate"])
+    for obj in seam_objects:
+        obj.ViewObject.LineColor = (0.0, 0.0, 0.0)
+    activate("ClothPatternWorkbench", "Cloth Pattern", ["ClothPattern_CreatePieceTask", "ClothPattern_EditPiece", "ClothPattern_Show2D", "ClothPattern_CreateFromSketch"])
     if any(
         not bool(getattr(obj.ViewObject, "Visibility", False))
         or any(abs(actual - expected) > 1e-6 for actual, expected in zip(
