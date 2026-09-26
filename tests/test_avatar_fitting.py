@@ -16,7 +16,7 @@ class AvatarFittingTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
         handler = source.index("def _snap_selected_pieces_to_target():")
-        registry = source.index('"ClothFitting_SnapPiecesToTarget": _snap_selected_pieces_to_target')
+        registry = source.index('"ClothFitting_SnapPiecesToTarget": lambda: _snap_selected_pieces_to_target()')
         self.assertLess(handler, registry)
         self.assertIn("return snap_pattern_pieces_to_target(selected)", source[handler:registry])
 
