@@ -226,6 +226,23 @@ jobs:
           trap cleanup EXIT
           docker cp "$PWD/." "$CID:/workspace/"
           docker start -a "$CID"
+          mkdir -p artifacts
+          docker cp "$CID:/workspace/artifacts/mesh-parity.json" artifacts/mesh-parity.json
+          test -s artifacts/mesh-parity.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("artifacts/mesh-parity.json")
+          data = json.loads(p.read_text(encoding="utf-8"))
+          assert data["same_signed_orientation"], data
+          assert data["triangles"] > 0 and data["vertices"] > 0, data
+          print("mesh-parity=passed source=%.6f tissu=%.6f vertices=%d triangles=%d" % (
+              data["source_signed_volume"],
+              data["tissu_signed_volume"],
+              data["vertices"],
+              data["triangles"],
+          ))
+          PY
 
   gui-sewing-creation:
     name: Sewing staged creation smoke
