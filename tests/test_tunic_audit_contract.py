@@ -108,3 +108,13 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
     assert 'tunic-simulation-start' in source
+
+
+def test_canonical_tunic_uses_validated_fixture_and_containment_gate():
+    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "'            y = min(target_ys) - clearance':" in source
+    assert "'            y = max(target_ys) + clearance':" in source
+    assert 'make_piece("VisualTunicFront", "back", 0.78, 0.18)' in source
+    assert 'make_piece("VisualTunicBack", "front", 0.76, 0.12)' in source
+    assert "authored containment experiment produced no correction telemetry" in source
+    assert "authored containment correction frequency indicates oscillation" in source
