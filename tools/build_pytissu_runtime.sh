@@ -64,5 +64,5 @@ docker run --rm --security-opt seccomp=unconfined \
       echo "cmake=$(cmake --version | head -n 1)"
       echo "compiler=$(c++ --version | head -n 1)"
     } > /out/pytissu-provenance.txt
-rm -rf "$OUT_DIR"/*.whl "$OUT_DIR"/pytissu-provenance.txt.tmp
+rm -rf /var/lib/apt/lists/* /tmp/Tissu
 CONTAINER_SCRIPT
