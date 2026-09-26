@@ -428,6 +428,43 @@ def apply_arrangement_point(piece, point, mirror=None):
     return position_piece(piece, point.x, point.y, point.offset, rotations[point.wrap_direction])
 
 
+def snap_pieces_to_target(clearance=8.0, max_translation=600.0, max_rotation=45.0):
+    """Apply authored target-aware garment anchors to every fitting-scene piece."""
+    import FreeCAD as App
+    doc = App.ActiveDocument
+    if doc is None:
+        raise ValueError("open a document before snapping garment pieces to the target")
+    scene = _scene(doc)
+    if scene is None or not scene.PatternPieces:
+        raise ValueError("create a fitting scene with pattern pieces first")
+    if not getattr(scene, "DrapeTarget", None):
+        raise ValueError("assign an authoritative DrapeTarget before target-aware placement")
+    from freecad_cloth.avatar.AvatarFitting import GarmentAnchor
+    anchors = tuple(GarmentAnchor.from_string(value) for value in getattr(scene, "GarmentAnchors", ()) or ())
+    if not anchors:
+        raise ValueError("target-aware placement requires authored GarmentAnchors in the fitting scene")
+    results = []
+    for piece in sorted(scene.PatternPieces, key=lambda item: str(getattr(item, "PieceId", ""))):
+        piece_anchors = tuple(anchor for anchor in anchors if str(anchor.piece_id) == str(piece.PieceId))
+        if not piece_anchors:
+            continue
+        results.append(
+            target_aware_place_piece(
+                piece,
+                scene.DrapeTarget,
+                piece_anchors,
+                clearance=float(clearance),
+                max_translation=float(max_translation),
+                max_rotation=float(max_rotation),
+            )
+        )
+    if not results:
+        raise ValueError("no fitted pattern piece has an authored garment anchor")
+    scene.FitStatus = "Target-aware placement applied"
+    doc.recompute()
+    return tuple(results)
+
+
 def reset_arrangement():
     """Restore every assigned piece to its saved pre-arrangement placement."""
     import FreeCAD as App
@@ -501,6 +538,7 @@ COMMANDS = [
     "ClothFitting_DeleteBoundingVolume",
     "ClothFitting_SetSymmetry",
     "ClothFitting_ApplyArrangementPoint",
+    "ClothFitting_SnapPiecesToTarget",
     "ClothFitting_ResetArrangement",
     "ClothFitting_CreateSimulation",
 ]
@@ -516,6 +554,7 @@ _COMMAND_HANDLERS = {
     "ClothFitting_DeleteBoundingVolume": lambda: delete_bounding_volume("Volume1"),
     "ClothFitting_SetSymmetry": lambda: set_symmetry_enabled(True),
     "ClothFitting_ApplyArrangementPoint": lambda: _apply_selected_arrangement(),
+    "ClothFitting_SnapPiecesToTarget": snap_pieces_to_target,
     "ClothFitting_ResetArrangement": reset_arrangement,
     "ClothFitting_CreateSimulation": create_simulation_from_fitting,
 }
