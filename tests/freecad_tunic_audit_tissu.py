@@ -1,6 +1,5 @@
 """CI entry point for the tunic visual/simulation audit using Tissu."""
 from pathlib import Path
-import re
 
 source_path = Path(__file__).with_name("freecad_screenshot_source.py")
 source = source_path.read_text(encoding="utf-8")
