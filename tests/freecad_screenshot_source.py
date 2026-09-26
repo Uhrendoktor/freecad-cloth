@@ -369,12 +369,8 @@ def simulation():
         seam_records.append((seam_obj, front, back))
     refresh_drape_target(target); doc.recompute()
     from freecad_cloth.avatar.AvatarFitting import PiecePlacement
-    from freecad_cloth.avatar.FittingCommands import (
-        _piece_world_samples,
-        _world_target_surface,
-        create_fitting_scene,
-        snap_pattern_pieces_to_target,
-    )
+    from freecad_cloth.avatar.FittingCommands import _piece_world_samples, _world_target_surface, create_fitting_scene
+    from freecad_cloth.avatar.TargetPlacement import minimum_signed_clearance
     fitting = create_fitting_scene()
     fitting.AvatarProxy = scene.AvatarProxy
     fitting.DrapeTarget = target
@@ -383,19 +379,24 @@ def simulation():
     for piece in (front, back):
         base = piece.Placement.Base
         axis = piece.Placement.Rotation.Axis
-        placement = PiecePlacement(
-            str(piece.PieceId),
-            (float(base.x), float(base.y), float(base.z)),
-            float(piece.Placement.Rotation.Angle),
-            (float(axis.x), float(axis.y), float(axis.z)),
+        home_values.append(
+            PiecePlacement(
+                str(piece.PieceId),
+                (float(base.x), float(base.y), float(base.z)),
+                float(piece.Placement.Rotation.Angle),
+                (float(axis.x), float(axis.y), float(axis.z)),
+            ).to_string()
         )
-        home_values.append(placement.to_string())
     fitting.PiecePlacements = list(home_values)
     fitting.HomePlacements = list(home_values)
     fitting.FitStatus = "Ready"
     doc.recompute()
-    home_snapshot = tuple(fitting.HomePlacements)
-    placement_result = snap_pattern_pieces_to_target((front, back), clearance=20.0, max_translation=750.0)
+    if "ClothFitting_SnapPiecesToTarget" not in Gui.listCommands():
+        raise RuntimeError("public Snap Pieces to Target command is not registered")
+    Gui.runCommand("ClothFitting_SnapPiecesToTarget", 0)
+    events(); doc.recompute()
+    if str(fitting.FitStatus) != "Target snapped":
+        raise RuntimeError("public Snap Pieces to Target command did not persist the snapped state")
     target_surface = _world_target_surface(target)
     step0_clearance = {
         str(piece.PieceId): minimum_signed_clearance(
@@ -405,9 +406,37 @@ def simulation():
     }
     if any(value + 1e-6 < 20.0 for value in step0_clearance.values()):
         raise RuntimeError("target-aware tunic placement failed step-0 clearance: %r" % step0_clearance)
-    if tuple(fitting.HomePlacements) != home_snapshot:
-        raise RuntimeError("target-aware tunic placement mutated HomePlacements")
-    log("target-placement=passed clearance-mm=%.3f pieces=%d" % (min(step0_clearance.values()), len(step0_clearance)))
+    home_by_id = {PiecePlacement.from_string(value).piece_id: PiecePlacement.from_string(value) for value in home_values}
+    Gui.runCommand("ClothFitting_ResetArrangement", 0)
+    events(); doc.recompute()
+    for piece in (front, back):
+        home = home_by_id[str(piece.PieceId)]
+        base = piece.Placement.Base
+        axis = piece.Placement.Rotation.Axis
+        if (
+            any(abs(float(v) - home.position[i]) > 1e-6 for i, v in enumerate((base.x, base.y, base.z)))
+            or abs(float(piece.Placement.Rotation.Angle) - home.rotation_z) > 1e-6
+            or any(abs(float(v) - home.rotation_axis[i]) > 1e-6 for i, v in enumerate((axis.x, axis.y, axis.z)))
+        ):
+            raise RuntimeError("Reset Arrangement did not restore axis-aware PatternPiece placement for %s" % piece.Label)
+        sketch = piece.Sketch
+        if sketch is None:
+            raise RuntimeError("Reset Arrangement lost linked Sketch for %s" % piece.Label)
+        sk_base = sketch.Placement.Base
+        sk_axis = sketch.Placement.Rotation.Axis
+        if (
+            any(abs(float(v) - home.position[i]) > 1e-6 for i, v in enumerate((sk_base.x, sk_base.y, sk_base.z)))
+            or abs(float(sketch.Placement.Rotation.Angle) - home.rotation_z) > 1e-6
+            or any(abs(float(v) - home.rotation_axis[i]) > 1e-6 for i, v in enumerate((sk_axis.x, sk_axis.y, sk_axis.z)))
+        ):
+            raise RuntimeError("Reset Arrangement did not restore linked Sketch placement for %s" % piece.Label)
+    if tuple(fitting.HomePlacements) != tuple(home_values):
+        raise RuntimeError("Reset Arrangement mutated HomePlacements")
+    Gui.runCommand("ClothFitting_SnapPiecesToTarget", 0)
+    events(); doc.recompute()
+    if str(fitting.FitStatus) != "Target snapped":
+        raise RuntimeError("public target placement failed after Reset Arrangement")
+    log("target-placement=public-command reset-regression=passed step0-clearance-mm=%.3f" % min(step0_clearance.values()))
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.ClothPieces = [front, back]; scene.PinMode = "None"; scene.PinSelection = []
     doc.recompute()
     proxy = scene.Proxy._base_or_restore()
