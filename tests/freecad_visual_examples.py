@@ -246,6 +246,7 @@ def main():
         # QualitySimulationProxy consumes SolverIterations; the legacy Iterations field is ignored for this runtime path.
         scene.ParticleDistance = max(12.0, float(scene.ParticleDistance))
         scene.SolverIterations = 4
+        scene.SolverSubsteps = 1
         scene.FabricColor = (0.14, 0.32, 0.78)
         scene.FabricSpecular = 0.70
         scene.FabricRoughness = 0.20
