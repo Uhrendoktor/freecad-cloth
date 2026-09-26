@@ -34,6 +34,9 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     assert 'scene.PinSelection = [str(i) for i in front_pins]' not in source
     assert 'target_surface = collision_surface(' in source
     assert 'target_source.Mesh.BoundBox' not in source
+    assert 'arrange_pieces_against_target(' in source
+    assert 'fitting.DrapeTarget = target' in source
+    assert 'home-reset=passed exact-axis-angle=true' in source
 
 
 def test_canonical_tunic_uses_validated_authored_mapping():
