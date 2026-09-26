@@ -37,7 +37,7 @@ class AvatarFittingTests(unittest.TestCase):
     def test_scene_metadata_is_deterministic(self):
         scene = FittingScene(BodyMeasurements({"hip": 960, "waist": 760}), "Avatar Collision Proxy", (PiecePlacement("piece-b", (10, 20, 30), 45), PiecePlacement("piece-a")))
         payload = scene.to_json()
-        self.assertEqual(json.loads(payload)["pieces"], ["piece-a|0,0,0|0", "piece-b|10,20,30|45"])
+        self.assertEqual(json.loads(payload)["pieces"], ["piece-a|0,0,0|0|0,0,1", "piece-b|10,20,30|45|0,0,1"])
 
     def test_duplicate_piece_placement_is_rejected(self):
         with self.assertRaises(ValueError): FittingScene(pieces=(PiecePlacement("piece"), PiecePlacement("piece"))).validate()
