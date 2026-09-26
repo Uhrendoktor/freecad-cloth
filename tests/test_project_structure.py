@@ -67,3 +67,18 @@ def test_workbench_benchmark_merge_script_is_checked_in():
     source = script.read_text(encoding="utf-8")
     assert 'names = ["Pattern", "Sewing", "Simulation"]' in source
     assert "benchmark.json" in source
+
+
+def test_target_placement_runtime_contract_is_single_authority():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    target_math = (root / "freecad_cloth" / "avatar" / "TargetPlacement.py").read_text(encoding="utf-8")
+    assert "def snap_piece_to_drape_target(" in source
+    assert "def snap_pattern_pieces_to_target(" in source
+    assert "target_status(target)" in source
+    assert "AutoPinning" not in source
+    assert "scene.HomePlacements" in source
+    assert "scene.PiecePlacements" in source
+    assert "scene.DrapeTarget" in source
+    assert "simulation.DrapeTarget = target" in source
+    assert "import FreeCAD" not in target_math
