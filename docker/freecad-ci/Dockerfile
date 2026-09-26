@@ -12,7 +12,7 @@ LABEL org.opencontainers.image.description="FreeCAD 1.1.0 conda-forge CI image u
 RUN apt-get update -qq \
     && apt-get install -y --no-install-recommends xvfb openbox x11-utils build-essential cmake git libomp-dev \
     && rm -rf /var/lib/apt/lists/* \
-    && mamba create -y -n freecad -c conda-forge python=3.12 pip cmake=3.31.6 freecad=1.1.0 \
+    && mamba create -y -n freecad -c conda-forge python=3.12 pip cmake=3.31.6 freecad=1.1.0 cmake>=3.29,<4 \
     && /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir pytissu==1.1.0 triangle==20250106 pytest \
     && rm -rf /tmp/Tissu \
     && git clone --no-checkout --filter=blob:none https://github.com/evanrock520-ciencias/Tissu.git /tmp/Tissu \
