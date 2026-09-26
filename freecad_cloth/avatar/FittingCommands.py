@@ -305,7 +305,7 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
     from freecad_cloth.avatar.AvatarFitting import GarmentAnchor, PiecePlacement
     from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
     from freecad_cloth.avatar.TargetAwarePlacement import (
-        TargetPlacementError, assert_minimum_surface_clearance, minimum_surface_clearance_sample, require_ready_target_status,
+        TargetPlacementError, assert_minimum_surface_clearance, converge_surface_clearance, minimum_surface_clearance_sample, require_ready_target_status,
         solve_rigid_z, target_surface_anchor, wrap_normal,
     )
     if getattr(piece, "PatternType", "") != "PatternPiece":
@@ -349,47 +349,28 @@ def target_aware_place_piece(piece, target, anchors, clearance=8.0, max_translat
             placed_points.append((float(point.x), float(point.y), float(point.z)))
 
         # Use the complete PatternIR tessellation at the canonical quality-mesh
-        # resolution. Every correction step is driven by the actual worst sample.
+        # resolution. The convergence algorithm itself is solver-neutral; this
+        # callback supplies only the current FreeCAD surface sample.
         sample_spacing = min(32.0, max(8.0, 4.0 * float(clearance)))
-        piece_points = _piece_world_surface_points(piece, spacing=sample_spacing)
-        correction_translation = (0.0, 0.0, 0.0)
-        correction_iterations = 0
-        clearance_sample = minimum_surface_clearance_sample(surface, piece_points)
-        while clearance_sample.clearance < float(clearance) - 1e-6:
-            if correction_iterations >= 64:
-                raise TargetPlacementError("target-aware full-surface clearance correction did not converge")
-            deficit = float(clearance) - float(clearance_sample.clearance)
-            total_translation = tuple(
-                float(delta.translation[i]) + float(correction_translation[i])
-                for i in range(3)
-            )
-            remaining_translation = float(max_translation) - App.Vector(*total_translation).Length
-            if remaining_translation <= 1e-9:
-                raise TargetPlacementError("target-aware clearance correction exceeds the configured translation bound")
-            step = min(deficit + 1e-6, remaining_translation)
-            correction_vector = App.Vector(
-                float(clearance_sample.normal[0]) * step,
-                float(clearance_sample.normal[1]) * step,
-                float(clearance_sample.normal[2]) * step,
-            )
-            next_correction = tuple(
-                float(correction_translation[i]) + float(correction_vector[i])
-                for i in range(3)
-            )
-            next_total_translation = tuple(
-                float(delta.translation[i]) + float(next_correction[i])
-                for i in range(3)
-            )
-            if App.Vector(*next_total_translation).Length > float(max_translation) + 1e-6:
-                raise TargetPlacementError("target-aware clearance correction exceeds the configured translation bound")
-            corrected_base = piece.Placement.Base + correction_vector
+        def _sample_at_translation(correction):
+            corrected_base = piece.Placement.Base + App.Vector(*correction)
             piece.Placement = App.Placement(corrected_base, piece.Placement.Rotation)
             if sketch is not None:
                 sketch.Placement = piece.Placement
-            correction_translation = next_correction
-            correction_iterations += 1
-            piece_points = _piece_world_surface_points(piece, spacing=sample_spacing)
-            clearance_sample = minimum_surface_clearance_sample(surface, piece_points)
+            current_points = _piece_world_surface_points(piece, spacing=sample_spacing)
+            return minimum_surface_clearance_sample(surface, current_points)
+
+        convergence = converge_surface_clearance(
+            _sample_at_translation,
+            float(clearance),
+            initial_translation=tuple(float(v) for v in delta.translation),
+            max_translation=float(max_translation),
+            max_iterations=64,
+        )
+        correction_translation = convergence.translation
+        correction_iterations = convergence.iterations
+        clearance_sample = convergence.sample
+        piece_points = _piece_world_surface_points(piece, spacing=sample_spacing)
 
         placed_points = []
         for anchor in selected:
