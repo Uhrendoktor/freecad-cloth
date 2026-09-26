@@ -24,18 +24,13 @@ Do not replace, duplicate, or casually refactor it. In particular, preserve the 
 
 ### Canonical runner routing
 
-Public pull-request activity enters through the trusted `pull_request_target` workflow definition only to dispatch the canonical workflow from `main` in explicit hosted mode. The broker never checks out or executes PR code and contains no self-hosted runner selection.
+Public pull-request activity enters through the trusted `pull_request_target` workflow definition only to dispatch the canonical workflow from `main` in explicit hosted mode. The broker runs on `ubuntu-latest`, never checks out PR code, and has no self-hosted runner selection.
 
-The dispatched PR validation run checks out `refs/pull/<number>/merge` on GitHub-hosted runners with `persist-credentials: false`. Untrusted PR code therefore cannot modify the workflow that selects its runner, and the PR validation path has no self-hosted fallback.
+The dispatched PR validation run forces `runner_mode=hosted` and checks out `refs/pull/<number>/merge` with `persist-credentials: false`. The trusted workflow source therefore remains on the base branch while the PR merge contents are tested only on GitHub-hosted runners.
 
-Trusted `push`, schedule, and manual `workflow_dispatch` runs remain local-first on the existing `self-hosted/linux/x64/docker` runner. A hosted watchdog waits up to 45 seconds for the local readiness sentinel; if local execution does not start, it dispatches the same canonical workflow in explicit `runner_mode=hosted` and cancels the stalled local attempt.
+Trusted `push`, schedule, and manual `workflow_dispatch` runs retain the existing local-first router. It uses the dedicated `CLOTH_RUNNER_DISCOVERY_TOKEN` rather than `GITHUB_TOKEN` for repository runner discovery, logs API failures instead of treating them as an empty runner list, and falls back to `ubuntu-latest` when the credential is unavailable, the API fails, or no idle matching runner exists.
 
-The design intentionally does not enumerate repository self-hosted runners and does not require a privileged runner-discovery credential.
-
-The canonical FreeCAD test image is Python 3.12-based; a CI run that starts FreeCAD under Python <3.12 is unsupported.
-
-Any UI or workflow-facing change must use the canonical workflow as its acceptance path. Never weaken screenshot assertions to make CI green.
-
+The runner discovery API is not used by the public-PR broker.
 ## Required verification
 
 Choose the smallest evidence set that proves the change:
