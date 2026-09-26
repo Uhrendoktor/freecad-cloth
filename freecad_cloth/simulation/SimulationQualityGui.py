@@ -66,7 +66,7 @@ class SimulationQualityTaskPanel:
         quality = QtWidgets.QGroupBox("Simulation quality"); qform = QtWidgets.QFormLayout(quality)
         self.quality = QtWidgets.QComboBox(); self.quality.addItems(self.QUALITY_NAMES)
         self.pin_mode = QtWidgets.QComboBox(); self.pin_mode.addItems(PIN_MODE_NAMES)
-        self.pin_mode.setToolTip("Automatic preserves legacy behavior; Explicit uses only PinSelection; None creates the simulation with zero solver pins.")
+        self.pin_mode.setToolTip('Automatic preserves legacy behavior; Explicit uses only PinSelection; "None creates the simulation with zero solver pins."')
         self.particle_distance = self._double(0.25, 100.0, 4.0, 2)
         self.iterations = self._spin(1, 200, 8); self.substeps = self._spin(1, 32, 1)
         qform.addRow("Preset", self.quality); qform.addRow("Pinning mode", self.pin_mode); qform.addRow("Particle distance (mm)", self.particle_distance); qform.addRow("Solver iterations", self.iterations); qform.addRow("Solver substeps", self.substeps); root.addWidget(quality)
