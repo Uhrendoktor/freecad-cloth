@@ -64,6 +64,13 @@ class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
         return {"MenuText": self.MenuText, "ToolTip": self.ToolTip, "Icon": self.Icon}
 
     def Activated(self):
+        if Gui is None:
+            return None
+        active = Gui.activeDocument()
+        if active is None:
+            return None
+        from freecad_cloth.sewing.SewingView import refresh_seam_colors
+        refresh_seam_colors(getattr(active, "Document", None))
         return None
 
     def Deactivated(self):
