@@ -94,9 +94,32 @@ def run_acceptance():
         if fast["particles"] <= 0:
             raise RuntimeError("Fast preset did not build a real simulation discretization")
 
+        from freecad_cloth.avatar.FittingCommands import add_selected_pattern_pieces, create_fitting_scene
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(front)
+        Gui.Selection.addSelection(back)
+        create_fitting_scene()
+        add_selected_pattern_pieces()
+        doc.recompute()
+
         panel = SimulationQualityTaskPanel(scene)
         Gui.Control.showDialog(panel)
         _events()
+        if "2 garment piece(s)" not in panel.placement_status.text():
+            raise RuntimeError("simulation task panel did not expose assigned garment pieces")
+        if panel.arrange_button.text() != "Snap assigned pieces to target":
+            raise RuntimeError("simulation task panel did not expose the target-arrangement action")
+        panel.arrange_button.click()
+        _events()
+        if "Snapped to target" not in panel.placement_status.text():
+            raise RuntimeError("simulation task panel did not report target-aware arrangement")
+        if not panel.reset_arrangement_button.isEnabled():
+            raise RuntimeError("simulation task panel did not expose arrangement recovery")
+        panel.reset_arrangement_button.click()
+        _events()
+        if "Pieces assigned" not in panel.placement_status.text():
+            raise RuntimeError("simulation task panel did not report arrangement reset")
+
         panel.quality.setCurrentText("Final")
         _events()
         doc.recompute()
