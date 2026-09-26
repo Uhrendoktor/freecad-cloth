@@ -153,9 +153,9 @@ class AvatarFittingTests(unittest.TestCase):
         from freecad_cloth.avatar.TargetAwarePlacement import AnchorQuery, solve_anchor_translation, surface_clearance
 
         surface = surface_from_triangles(
-            ((-50.0, -10.0, 0.0), (50.0, -10.0, 0.0), (0.0, 40.0, 0.0),
-             (-50.0, -10.0, 100.0), (50.0, -10.0, 100.0), (0.0, 40.0, 100.0)),
-            ((0, 1, 2), (3, 5, 4)),
+            ((-50.0, 0.0, 0.0), (50.0, 0.0, 0.0), (50.0, 0.0, 100.0), (0.0, 0.0, 0.0),
+             (-50.0, 0.0, 100.0), (-50.0, 20.0, 0.0), (50.0, 20.0, 0.0), (50.0, 20.0, 100.0), ( -50.0, 20.0, 100.0)),
+            ((0, 1, 2), (0, 2, 4), (5, 7, 6), (5, 8, 7)),
         )
         anchors = (
             AnchorQuery("left", (0.0, -30.0, 25.0), (-20.0, 0.0, 25.0), "front"),
