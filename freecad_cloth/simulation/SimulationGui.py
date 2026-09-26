@@ -75,11 +75,13 @@ class SimulationTaskPanel:
 
         sewing = QtWidgets.QGroupBox("Sewing & pinning")
         layout = QtWidgets.QFormLayout(sewing)
+        self.automatic_pins = QtWidgets.QCheckBox("Use automatic/default pins")
+        self.automatic_pins.setChecked(bool(getattr(scene, "AutomaticPins", True)))
         self.pins = QtWidgets.QLineEdit(self._join(getattr(scene, "PinSelection", [])))
         self.seams = QtWidgets.QLineEdit(self._join(getattr(scene, "SeamSelection", [])))
-        self.pins.setToolTip("Particle indices separated by commas")
+        self.pins.setToolTip("Particle indices separated by commas; explicit pins override automatic pins")
         self.seams.setToolTip("Particle pairs such as 3-27 separated by semicolons")
-        layout.addRow("Pinned vertices", self.pins); layout.addRow("Seam pairs", self.seams)
+        layout.addRow("Pin policy", self.automatic_pins); layout.addRow("Pinned vertices", self.pins); layout.addRow("Seam pairs", self.seams)
         root.addWidget(sewing)
 
         controls = QtWidgets.QHBoxLayout()
@@ -102,6 +104,7 @@ class SimulationTaskPanel:
         self.reset_button.clicked.connect(self.reset)
         self.cloth.currentIndexChanged.connect(self._selection_changed)
         self.target.currentIndexChanged.connect(self._selection_changed)
+        self.automatic_pins.stateChanged.connect(self._selection_changed)
         self.pins.editingFinished.connect(self._selection_changed); self.seams.editingFinished.connect(self._selection_changed)
         for widget in (self.iterations, self.timestep, self.gravity_x, self.gravity_y, self.gravity_z, self.collision_radius):
             widget.valueChanged.connect(self._parameters_changed)
@@ -128,8 +131,15 @@ class SimulationTaskPanel:
 
     def _load_scene_values(self):
         if self.scene is None: return
-        for name, type_name, default in (("MaterialPreset", "App::PropertyString", "Cotton"), ("StretchCompliance", "App::PropertyFloat", 0.35), ("BendCompliance", "App::PropertyFloat", 0.20), ("ArealDensity", "App::PropertyFloat", 0.01)):
-            self._ensure_property(name, type_name, "Fabric", default)
+        for name, type_name, group, default in (
+            ("MaterialPreset", "App::PropertyString", "Fabric", "Cotton"),
+            ("StretchCompliance", "App::PropertyFloat", "Fabric", 0.35),
+            ("BendCompliance", "App::PropertyFloat", "Fabric", 0.20),
+            ("ArealDensity", "App::PropertyFloat", "Fabric", 0.01),
+            ("AutomaticPins", "App::PropertyBool", "Selection", True),
+        ):
+            self._ensure_property(name, type_name, group, default)
+        self.automatic_pins.setChecked(bool(getattr(self.scene, "AutomaticPins", True)))
         index = self.material.findText(str(getattr(self.scene, "MaterialPreset", "Cotton")))
         self.material.setCurrentIndex(index if index >= 0 else 0)
         self.stretch.setValue(float(getattr(self.scene, "StretchCompliance", 0.35)))
@@ -168,6 +178,8 @@ class SimulationTaskPanel:
         if self.target.currentData():
             obj = self.scene.Document.getObject(self.target.currentData())
             if obj: self.scene.DrapeTarget = obj
+        self._ensure_property("AutomaticPins", "App::PropertyBool", "Selection", True)
+        self.scene.AutomaticPins = bool(self.automatic_pins.isChecked())
         self.scene.PinSelection = [p.strip() for p in self.pins.text().replace(";", ",").split(",") if p.strip()]
         self.scene.SeamSelection = [p.strip() for p in self.seams.text().replace(",", ";").split(";") if p.strip()]
         self.scene.Document.recompute(); self._refresh_status()
