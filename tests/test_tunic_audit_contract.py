@@ -17,11 +17,16 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
-def test_canonical_tunic_pins_only_one_side_of_sewn_shoulders():
+def test_canonical_tunic_starts_arranged_and_unpinned():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    assert "scene.PinSelection = [str(i) for i in front_pins]" in source
-    assert "scene.PinSelection = [str(i) for i in front_pins + back_pins]" not in source
-    assert "the back panel must follow through the" in source
+    assert 'ArrangementPoint.from_string' in source
+    assert 'shoulder_left = arrangement_world("shoulder_left")' in source
+    assert 'hip_point = arrangement_world("hip")' in source
+    assert "scene.AutoPinning = False" in source
+    assert "scene.PinSelection = []" in source
+    assert "authored_shoulder_pins" not in source
+    assert 'pin-map auto=false explicit=[]' in source
+    assert 'collision-mode=%s' in source
 
 
 def test_canonical_tunic_uses_validated_authored_mapping():
