@@ -174,6 +174,29 @@ class AvatarFittingTests(unittest.TestCase):
         points = arrangement_points_from_landmarks(["waist|0,0,900", "waist|0,0,905", "neck|0,0,1150"])
         self.assertEqual(points, ["neck|0,0,1150", "waist|0,0,905"])
 
+    def test_existing_fitting_scene_migrates_target_property(self):
+        try:
+            import FreeCAD as App
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
+        from freecad_cloth.avatar.FittingCommands import create_fitting_scene
+        doc = App.newDocument("FittingSceneMigration")
+        try:
+            scene = create_fitting_scene()
+            scene.removeProperty("DrapeTarget")
+            scene.PiecePlacements = ["legacy-piece|1,2,3|15"]
+            scene.HomePlacements = ["legacy-piece|1,2,3|15"]
+            doc.recompute()
+            restored = create_fitting_scene()
+            self.assertIn("DrapeTarget", restored.PropertiesList)
+            self.assertIn("PiecePlacements", restored.PropertiesList)
+            self.assertIn("HomePlacements", restored.PropertiesList)
+            self.assertEqual(tuple(restored.PiecePlacements), ("legacy-piece|1,2,3|15",))
+            self.assertEqual(tuple(restored.HomePlacements), ("legacy-piece|1,2,3|15",))
+        finally:
+            if doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
+
     def test_freecad_mannequin_rebuild_invalidates_target_until_refreshed(self):
         try:
             import FreeCAD as App
