@@ -382,11 +382,16 @@ def test_target_snap_uses_world_target_placement_and_reset_restores_linked_sketc
         first_piece = _placement_tuple(piece.Placement)
         assert first_piece != home_piece
 
-        from freecad_cloth.simulation.DrapeTarget import collision_surface
-        world_surface = collision_surface(
-            target.SourceObject,
-            float(getattr(target, "CollisionDeflection", 0.5)),
-            float(getattr(target, "CollisionThickness", 0.0)),
+        from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
+        source_shape = FittingCommands._world_shape(target.SourceObject)
+        vertices, triangles = source_shape.tessellate(
+            float(getattr(target, "CollisionDeflection", 0.5))
+        )
+        world_surface = surface_from_triangles(
+            tuple((float(p.x), float(p.y), float(p.z)) for p in vertices),
+            tuple(tuple(int(i) for i in tri) for tri in triangles),
+            region="drapetarget",
+            thickness=float(getattr(target, "CollisionThickness", 0.0)),
         )
         world_points = tuple(
             (float(vertex.Point.x), float(vertex.Point.y), float(vertex.Point.z))
