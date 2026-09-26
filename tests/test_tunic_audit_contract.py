@@ -106,3 +106,9 @@ if __name__ == "__main__":
     test_canonical_tunic_authoritative_gate_is_fail_closed()
     test_simulation_proxy_serializes_only_rebuildable_metadata()
     print("tunic-audit-contract=passed")
+
+
+def test_workflow_runs_generated_source_syntax_gate():
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    tunic = workflow.split("  gui-tunic-visual:", 1)[1].split("  gui-turntables:", 1)[0]
+    assert "python3 tests/freecad_tunic_audit.py --syntax-check" in tunic
