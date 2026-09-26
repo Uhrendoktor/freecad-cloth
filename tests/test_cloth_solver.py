@@ -69,6 +69,12 @@ def test_tissu_collider_friction_env_is_fail_closed_and_mesh_only():
     original = os.environ.pop("CLOTH_TISSU_COLLIDER_FRICTION", None)
     try:
         assert _tissu_collider_friction() == 0.5
+        backend_source = (
+            __import__("pathlib").Path(__file__).resolve().parents[1]
+            / "freecad_cloth" / "simulation" / "TissuBackend.py"
+        ).read_text(encoding="utf-8")
+        assert 'self._sim.add_mesh_from_arrays(' in backend_source
+        assert 'friction=_tissu_collider_friction()' in backend_source
         os.environ["CLOTH_TISSU_COLLIDER_FRICTION"] = "0.85"
         assert _tissu_collider_friction() == 0.85
         os.environ["CLOTH_TISSU_COLLIDER_FRICTION"] = "-0.1"
