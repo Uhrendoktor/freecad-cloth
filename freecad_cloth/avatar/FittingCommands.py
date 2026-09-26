@@ -311,7 +311,7 @@ def _pairwise_distances(points):
     return result
 
 
-def snap_pattern_pieces_to_target(pieces, target, anchors, clearance=8.0, max_translation=600.0, max_rotation=45.0):
+def snap_pattern_pieces_to_target(pieces, target=None, anchors=None, clearance=8.0, max_translation=600.0, max_rotation=45.0):
     """Rigidly place the selected garment pieces as one group against the authoritative DrapeTarget."""
     import FreeCAD as App
     from freecad_cloth.avatar.AvatarFitting import GarmentAnchor, PiecePlacement
@@ -345,8 +345,23 @@ def snap_pattern_pieces_to_target(pieces, target, anchors, clearance=8.0, max_tr
     }
     previous_piece_placements = list(getattr(scene, "PiecePlacements", ()))
     previous_fit_status = str(getattr(scene, "FitStatus", ""))
+    previous_garment_anchors = list(getattr(scene, "GarmentAnchors", ()))
 
     try:
+        if target is None:
+            target = getattr(scene, "DrapeTarget", None)
+        if target is None:
+            raise ValueError("assign a DrapeTarget before target-aware arrangement")
+        if anchors is None:
+            if scene.GarmentAnchors:
+                anchors = tuple(GarmentAnchor.from_string(value) for value in scene.GarmentAnchors)
+            else:
+                anchors = tuple(
+                    anchor
+                    for piece in pieces
+                    for anchor in _default_garment_anchors(piece, target)
+                )
+                scene.GarmentAnchors = [anchor.to_string() for anchor in anchors]
         require_ready_target_status(target_status(target))
         if getattr(scene, "DrapeTarget", None) is not target:
             raise ValueError("target-aware arrangement must use the fitting scene's authoritative DrapeTarget")
@@ -458,6 +473,7 @@ def snap_pattern_pieces_to_target(pieces, target, anchors, clearance=8.0, max_tr
                 sketch.Placement = original_sketch
         scene.PiecePlacements = previous_piece_placements
         scene.FitStatus = previous_fit_status
+        scene.GarmentAnchors = previous_garment_anchors
         try:
             doc.recompute()
         except Exception:
