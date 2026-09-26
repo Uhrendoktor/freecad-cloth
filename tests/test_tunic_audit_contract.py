@@ -132,3 +132,11 @@ def test_tunic_success_path_uses_freecad_native_shutdown():
     success_block = source.split("if exit_code == 0:", 1)[1].split("window = Gui.getMainWindow()", 1)[0]
     assert "App.exit()" in success_block
     assert "os._exit" not in success_block
+
+def test_tunic_start_clearance_fixture_uses_target_extrema_and_authored_orientation():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'VisualTunicFront", "back", 0.78, 0.18' in audit
+    assert 'VisualTunicBack", "front", 0.76, 0.12' in audit
+    assert "'            y = min(target_ys) - clearance': '            y = min(target_ys) - clearance'" in audit
+    assert "'            y = max(target_ys) - clearance': '            y = max(target_ys) - clearance'" not in audit
+    assert "'            y = max(target_ys) + clearance': '            y = max(target_ys) + clearance'" in audit
