@@ -201,5 +201,7 @@ if __name__ == "__main__":
     test_seam_color_is_stable_when_document_subset_changes()
     test_apply_seam_colors_marks_each_seam_pair()
     test_refresh_seam_colors_covers_all_document_seams_deterministically()
+    test_refresh_seam_colors_does_not_assign_colors_to_unidentified_objects()
+    test_pattern_2d_refreshes_seam_colors_before_view_fit()
     test_show_2d_does_not_select_seams_over_their_colors()
     print("sewing Show 2D tests passed")
