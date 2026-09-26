@@ -76,7 +76,7 @@ def _collision_envelope(surface):
     center_x = 0.5 * (min_x + max_x)
     center_y = 0.5 * (min_y + max_y)
 
-    radius = max(120.0, min(240.0, 0.245 * width, 0.70 * depth))
+    radius = max(120.0, min(240.0, 0.270 * width, 0.90 * depth))
     bottom = min_z + 0.38 * height
     top = min_z + 0.76 * height
     samples = (0.0, 0.25, 0.50, 0.75, 1.0)
