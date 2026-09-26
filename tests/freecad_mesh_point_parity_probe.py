@@ -5,7 +5,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import json
 import math
+from pathlib import Path
 
 import FreeCAD as App
 
@@ -37,6 +39,8 @@ def _signed_surface_volume(vertices, triangles):
     return volume6 / 6.0
 
 
+result_path = Path("/workspace/artifacts/mesh-parity.json")
+result_path.parent.mkdir(parents=True, exist_ok=True)
 doc = App.newDocument("MeshParityProbe")
 try:
     print("avatar-parity=build-start", flush=True)
@@ -62,6 +66,15 @@ try:
         raise RuntimeError("avatar signed-volume parity is degenerate")
     if (source_volume > 0.0) != (tissu_volume > 0.0):
         raise RuntimeError("FreeCAD->Tissu transform flips closed-mesh signed orientation")
+    result = {
+        "freecad_version": App.Version()[0],
+        "vertices": len(surface.vertices),
+        "triangles": len(surface.triangles),
+        "source_signed_volume": source_volume,
+        "tissu_signed_volume": tissu_volume,
+        "same_signed_orientation": (source_volume > 0.0) == (tissu_volume > 0.0),
+    }
+    result_path.write_text(json.dumps(result, sort_keys=True) + "\n", encoding="utf-8")
     print("avatar-parity=passed same-signed-orientation", flush=True)
 finally:
     try:
