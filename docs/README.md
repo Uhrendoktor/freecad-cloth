@@ -2,7 +2,8 @@
 
 This directory is intentionally small. Read the documents in this order:
 
-1. **[USER_GUIDE.md](USER_GUIDE.md)** — first-run human workflow, recovery, and visual inspection.
+1. **[GETTING_STARTED.md](GETTING_STARTED.md)** — first 10 minutes: installation, garment fitting, target-aware placement and simulation.
+2. **[USER_GUIDE.md](USER_GUIDE.md)** — first-run human workflow, recovery, and visual inspection.
 2. **WORKBENCH_GUIDE.md** — detailed workflow and UI behavior.
 3. **ARCHITECTURE.md** — authoritative data, dependency and invalidation contracts.
 4. **PROJECT_STRUCTURE.md** — canonical package/module tree and FreeCAD bootstrap layout.
