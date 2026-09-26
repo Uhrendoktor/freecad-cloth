@@ -41,6 +41,24 @@ def _to_tissu_mesh(surface):
     return vertices, triangles
 
 
+def _collision_aabb_planes(surface):
+    """Build six inward-facing planes for an axis-aligned box collision surface."""
+    if surface is None or not surface.vertices:
+        return ()
+    positions = tuple(_to_tissu_position(vertex) for vertex in surface.vertices)
+    mins = tuple(min(point[axis] for point in positions) for axis in range(3))
+    maxs = tuple(max(point[axis] for point in positions) for axis in range(3))
+    center = tuple(0.5 * (mins[axis] + maxs[axis]) for axis in range(3))
+    return (
+        ("drape-box-min-x", (mins[0], center[1], center[2]), (1.0, 0.0, 0.0)),
+        ("drape-box-max-x", (maxs[0], center[1], center[2]), (-1.0, 0.0, 0.0)),
+        ("drape-box-min-y", (center[0], mins[1], center[2]), (0.0, 1.0, 0.0)),
+        ("drape-box-max-y", (center[0], maxs[1], center[2]), (0.0, -1.0, 0.0)),
+        ("drape-box-min-z", (center[0], center[1], mins[2]), (0.0, 0.0, 1.0)),
+        ("drape-box-max-z", (center[0], center[1], maxs[2]), (0.0, 0.0, -1.0)),
+    )
+
+
 def _collision_envelope(surface):
     """Derive a stable torso envelope from the authored avatar collision data."""
     if surface is None or not surface.vertices:
@@ -89,8 +107,10 @@ class TissuBackend(ClothSimulationBackend):
         except ImportError as exc:
             raise RuntimeError("Tissu backend requires the optional 'pytissu' package") from exc
         collision_mode = str(os.environ.get("CLOTH_TISSU_COLLISION_MODE", collision_mode)).strip().lower()
-        if collision_mode not in {"mesh", "torso-envelope"}:
+        if collision_mode not in {"mesh", "torso-envelope", "box-planes"}:
             raise ValueError("unsupported Tissu collision mode")
+        if collision_mode == "box-planes" and (collision_surface is None or not collision_surface.vertices):
+            raise ValueError("box-planes collision mode requires a collision surface")
         self._initial = deepcopy(system)
         self._triangles = tuple(tuple(int(i) for i in tri) for tri in triangles)
         self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins))
@@ -117,6 +137,15 @@ class TissuBackend(ClothSimulationBackend):
                     np.asarray(_to_tissu_position(center), dtype=np.float64),
                     float(radius_mm) / _MM,
                     friction=0.5,
+                )
+            return
+        if self._collision_mode == "box-planes":
+            for name, origin, normal in _collision_aabb_planes(self._collision_surface):
+                self._sim.world.add_plane_collider(
+                    np.asarray(origin, dtype=np.float64),
+                    np.asarray(normal, dtype=np.float64),
+                    0.5,
+                    name,
                 )
             return
         vtx, idx = _to_tissu_mesh(self._collision_surface)
