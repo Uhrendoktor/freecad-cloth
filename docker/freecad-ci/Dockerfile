@@ -8,6 +8,8 @@ LABEL org.opencontainers.image.tissu.source-commit="$TISSU_COMMIT"
 
 COPY tissu-mesh-collider.patch /tmp/tissu-mesh-collider.patch
 
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 RUN set -euxo pipefail \
     && apt-get update -qq \
     && apt-get install -y --no-install-recommends xvfb openbox x11-utils build-essential cmake git libomp-dev \
