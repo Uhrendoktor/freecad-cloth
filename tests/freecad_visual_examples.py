@@ -224,7 +224,7 @@ def main():
         sketch, outline = make_rectangle_sketch(doc, "BlanketSketch", blanket_width, blanket_height)
         piece = adopt_sketch(doc, sketch)
         placement = App.Placement(
-            App.Vector(-blanket_width / 2.0, -blanket_height / 2.0, 150.0),
+            App.Vector(-blanket_width / 2.0, -blanket_height / 2.0, 90.0),
             App.Rotation(),
         )
         piece.Placement = placement
@@ -274,7 +274,7 @@ def main():
         if pin_span < 0.75 * blanket_width:
             raise RuntimeError("blanket pins are not opposite top-edge corners: span=%.3f" % pin_span)
         scene.PinSelection = [str(int(index)) for index in top]
-        log("blanket-pins=passed opposite-corners span=%.3f indices=%s" % (pin_span, top))
+        log("blanket-fixture=passed placement_z=90.0 cube_top_z=60.0 pin_span=%.3f indices=%s" % (pin_span, top))
 
         collision_started = time.perf_counter()
         set_avatar_collision_source(scene, cube, thickness=2.0, deflection=1.0)
