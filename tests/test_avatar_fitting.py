@@ -203,6 +203,35 @@ class AvatarFittingTests(unittest.TestCase):
             if doc.Name in App.listDocuments():
                 App.closeDocument(doc.Name)
 
+    def test_snap_piece_to_drape_target_rolls_back_on_translation_limit(self):
+        try:
+            import FreeCAD as App
+            import Part
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
+        from freecad_cloth.avatar.FittingCommands import snap_piece_to_drape_target
+        from freecad_cloth.simulation.DrapeTarget import create_drape_target
+
+        doc = App.newDocument("FittingSnapRollback")
+        try:
+            target_source = doc.addObject("Part::Feature", "TargetSource")
+            target_source.Shape = Part.makeBox(100.0, 100.0, 100.0)
+            piece = doc.addObject("Part::Feature", "PatternPiece")
+            piece.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
+            piece.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = "rollback-piece"
+            piece.Shape = Part.makeBox(20.0, 20.0, 1.0)
+            piece.Placement.Base = App.Vector(45.0, 45.0, 50.0)
+            original = tuple(float(value) for value in (piece.Placement.Base.x, piece.Placement.Base.y, piece.Placement.Base.z))
+            target = create_drape_target(doc, target_source, "FreeCAD Geometry", 0.5, 0.0)
+            doc.recompute()
+            with self.assertRaisesRegex(RuntimeError, "exceeds"):
+                snap_piece_to_drape_target(piece, target, clearance=5.0, max_translation=1.0)
+            restored = tuple(float(value) for value in (piece.Placement.Base.x, piece.Placement.Base.y, piece.Placement.Base.z))
+            self.assertEqual(restored, original)
+        finally:
+            if doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
+
     def test_snap_piece_to_drape_target_rejects_stale_target(self):
         try:
             import FreeCAD as App
