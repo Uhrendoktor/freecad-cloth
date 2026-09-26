@@ -8,6 +8,7 @@ from typing import Iterable, Sequence, Tuple
 import os
 
 from freecad_cloth.avatar.AvatarCollision import CollisionSurface, coarsen_collision_surface
+from freecad_cloth.simulation.TissuContainment import get_authored_surface_containment
 from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 
@@ -28,6 +29,28 @@ def _tissu_collision_triangle_limit():
     if value < 0:
         raise ValueError("CLOTH_TISSU_COLLISION_TRIANGLES must be >= 0")
     return value
+
+
+def _tissu_authored_containment_enabled():
+    return os.environ.get("CLOTH_TISSU_AUTHORED_CONTAINMENT", "0").strip() == "1"
+
+
+def _apply_authored_containment_correction(sim, containment):
+    import numpy as np
+
+    corrected = 0
+    for particle in sim.solver.get_particles():
+        if float(particle.get_inverse_mass()) <= 0.0:
+            continue
+        position_mm = _from_tissu_position(particle.get_position())
+        corrected_mm = containment.correct(position_mm)
+        if corrected_mm is None:
+            continue
+        corrected_position = np.asarray(_to_tissu_position(corrected_mm), dtype=np.float64)
+        particle.set_position(corrected_position)
+        particle.set_old_position(corrected_position)
+        corrected += 1
+    return corrected
 
 
 def _to_tissu_position(position):
@@ -104,6 +127,13 @@ class TissuBackend(ClothSimulationBackend):
         self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins))
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
         self._source_collision_surface = collision_surface
+        self._authored_containment = None
+        if (
+            _tissu_authored_containment_enabled()
+            and collision_mode == "mesh"
+            and self._source_collision_surface is not None
+        ):
+            self._authored_containment = get_authored_surface_containment(self._source_collision_surface)
         collision_limit = _tissu_collision_triangle_limit()
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
             collision_surface = coarsen_collision_surface(collision_surface, collision_limit)
@@ -175,6 +205,8 @@ class TissuBackend(ClothSimulationBackend):
         _gx, _gy, gz = gravity
         self._sim.gravity = float(gz) / _MM
         self._sim.step(float(dt))
+        if self._authored_containment is not None:
+            _apply_authored_containment_correction(self._sim, self._authored_containment)
         self._iterations = int(iterations)
         self._time += float(dt)
 
