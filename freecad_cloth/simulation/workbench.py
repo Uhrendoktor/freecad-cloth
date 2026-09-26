@@ -18,8 +18,14 @@ class ClothSimulationWorkbench(ClothWorkbenchBase):
         self.Icon = str(Path(__file__).resolve().parents[2] / "resources" / "icons" / "ClothSimulation.svg")
 
     def Activated(self):
+        super().Activated()
+        import FreeCAD as App
         import freecad_cloth.simulation.DrapeCommands as DrapeCommands
         DrapeCommands.register_gui_commands()
+        document = getattr(App, "ActiveDocument", None)
+        if document is not None:
+            from freecad_cloth.sewing.SewingView import apply_seam_colors
+            apply_seam_colors(document.Objects)
 
     def Initialize(self):
         if self.commands:
