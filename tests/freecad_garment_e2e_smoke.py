@@ -590,6 +590,10 @@ def run_acceptance():
 
         _select_objects(scene)
         quality_panel = _open_quality_panel()
+        if not hasattr(quality_panel, "arrange_fit_button") or not hasattr(quality_panel, "snap_to_target_button"):
+            raise RuntimeError("Simulation quality task panel did not expose the Arrange / Fit / target-snap bridge")
+        if not quality_panel.snap_to_target_button.isEnabled():
+            raise RuntimeError("Simulation panel did not expose enabled target-aware placement for a ready target")
         quality_panel.quality.setCurrentText("Fast")
         if not quality_panel.accept():
             raise RuntimeError("public Simulation quality task panel rejected the selected preset")
