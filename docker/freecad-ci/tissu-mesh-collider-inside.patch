@@ -1,9 +1,7 @@
 diff --git a/core/src/physics/MeshCollider.cpp b/core/src/physics/MeshCollider.cpp
 --- a/core/src/physics/MeshCollider.cpp
 +++ b/core/src/physics/MeshCollider.cpp
-@@ -72,9 +72,19 @@
-         double distance = toParticle.norm();
- 
+@@ -74,7 +74,18 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
          if (distance <= thickness) {
 -            Eigen::Vector3d normal = (distance > 1e-6)
 -                                         ? toParticle.normalized()
@@ -27,16 +25,19 @@ diff --git a/core/src/physics/MeshCollider.cpp b/core/src/physics/MeshCollider.c
 diff --git a/tests/physics/test_mesh_collider.cpp b/tests/physics/test_mesh_collider.cpp
 --- a/tests/physics/test_mesh_collider.cpp
 +++ b/tests/physics/test_mesh_collider.cpp
-@@ -1,3 +1,5 @@
+@@ -1,8 +1,10 @@
 +#include <algorithm>
 +#include <limits>
  #include <vector>
  
  #include "Eigen/Dense"
-@@ -7,6 +9,34 @@
+ #include "physics/MeshCollider.hpp"
+ #include "physics/Particle.hpp"
+ #include "gtest/gtest.h"
  
  using namespace Tissu;
- 
+@@ -8,3 +10,30 @@
++ 
 +static double maxOutwardPlaneDistance(const Eigen::Vector3d& point) {
 +    static const Eigen::Vector3d vertices[] = {
 +        {0.0, 0.0, 0.0},
@@ -64,11 +65,10 @@ diff --git a/tests/physics/test_mesh_collider.cpp b/tests/physics/test_mesh_coll
 +    }
 +    return maximum;
 +}
-+
+ 
  static MeshCollider makeTetrahedron(double friction = 0.0) {
-     std::vector<Eigen::Vector3d> vertices = {
-         {0.0, 0.0, 0.0},
-@@ -27,6 +57,7 @@
+@@ -26,12 +53,14 @@
+ TEST(MeshCollider, ParticleInsideMeshMovesOutside) {
      MeshCollider mesh = makeTetrahedron(0.5);
  
      Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
@@ -76,11 +76,9 @@ diff --git a/tests/physics/test_mesh_collider.cpp b/tests/physics/test_mesh_coll
      std::vector<Particle> particles;
      particles.emplace_back(initialPos);
  
-@@ -34,6 +65,7 @@
+     mesh.resolve(particles, 0.016, 1.0);
  
      double distanceMoved = (particles[0].getPosition() - initialPos).norm();
      EXPECT_GT(distanceMoved, 0.0);
 +    EXPECT_GE(maxOutwardPlaneDistance(particles[0].getPosition()), 0.999);
  }
- 
- TEST(MeshCollider, ParticleOutsideMeshDoesNotChangePosition) {
