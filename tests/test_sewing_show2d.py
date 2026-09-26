@@ -6,6 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.sewing.SewingCommands import show_sewing_2d
 from freecad_cloth.sewing.SewingView import apply_seam_colors, pattern_pieces_for_2d, refresh_seam_colors, seam_color_map, seam_visual_markers
+from freecad_cloth.pattern import PatternGui
 
 
 def test_2d_focus_includes_only_authoritative_pattern_pieces_in_document_order():
@@ -71,6 +72,41 @@ def test_refresh_seam_colors_does_not_assign_colors_to_unidentified_objects():
 
     assert colors == {"seam-1": seam.ViewObject.LineColor}
     assert blank.ViewObject.LineColor is None
+
+
+def test_pattern_2d_refreshes_seam_colors_before_view_fit():
+    seam = SimpleNamespace(SeamId="seam-pattern", ViewObject=SimpleNamespace(LineColor=None))
+    document = SimpleNamespace(Objects=[seam])
+
+    class View:
+        def __init__(self):
+            self.top = 0
+            self.fit = 0
+
+        def viewTop(self):
+            self.top += 1
+
+        def fitAll(self):
+            self.fit += 1
+
+    view = View()
+    active = SimpleNamespace(Document=document, activeView=lambda: view)
+    gui = SimpleNamespace(activeDocument=lambda: active)
+    calls = []
+    previous_modules = PatternGui._gui_modules
+    import freecad_cloth.sewing.SewingView as SewingView
+    original_refresh = SewingView.refresh_seam_colors
+    PatternGui._gui_modules = lambda: (SimpleNamespace(), gui, None, None, None)
+    SewingView.refresh_seam_colors = lambda doc: calls.append(doc)
+    try:
+        PatternGui.show_pattern_view()
+    finally:
+        PatternGui._gui_modules = previous_modules
+        SewingView.refresh_seam_colors = original_refresh
+
+    assert calls == [document]
+    assert view.top == 1
+    assert view.fit == 1
 
 
 def test_show_2d_does_not_select_seams_over_their_colors():
