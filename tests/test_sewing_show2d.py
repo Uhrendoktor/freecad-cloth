@@ -5,7 +5,8 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.sewing.SewingCommands import show_sewing_2d
-from freecad_cloth.sewing.SewingView import apply_seam_colors, pattern_pieces_for_2d, seam_color_map, seam_visual_markers
+from freecad_cloth.sewing.SewingView import apply_seam_colors, pattern_pieces_for_2d, refresh_seam_colors, seam_color_map, seam_visual_markers
+from freecad_cloth.pattern import PatternGui
 
 
 def test_2d_focus_includes_only_authoritative_pattern_pieces_in_document_order():
@@ -36,11 +37,13 @@ def test_seam_colors_are_distinct_and_stable_by_seam_id():
     assert len(set(forward.values())) == len(seam_ids)
 
 
-def test_seam_color_surface_contract_carries_identity_to_sewing_operations():
-    source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "sewing" / "SewingObjects.py").read_text(encoding="utf-8")
-    assert '"SeamId", "Sewing"' in source
-    assert 'obj.SeamId = str(getattr(seam, "SeamId", "") or "")' in source
-    assert "apply_seam_colors(doc.Objects)" in source
+def test_seam_color_is_stable_when_document_subset_changes():
+    full = seam_color_map(["seam-a", "seam-b", "seam-c"])
+    subset = seam_color_map(["seam-b", "seam-c"])
+    reordered = seam_color_map(["seam-c", "seam-b"])
+    assert subset["seam-b"] == full["seam-b"]
+    assert subset["seam-c"] == full["seam-c"]
+    assert reordered == subset
 
 
 def test_apply_seam_colors_marks_each_seam_pair():
@@ -50,6 +53,69 @@ def test_apply_seam_colors_marks_each_seam_pair():
     assert first.ViewObject.LineColor == colors["seam-a"]
     assert second.ViewObject.LineColor == colors["seam-b"]
     assert first.ViewObject.LineColor != second.ViewObject.LineColor
+
+
+def test_refresh_seam_colors_covers_all_document_seams_deterministically():
+    seams = [
+        SimpleNamespace(SeamId="seam-c", ViewObject=SimpleNamespace(LineColor=None)),
+        SimpleNamespace(SeamId="seam-a", ViewObject=SimpleNamespace(LineColor=None)),
+        SimpleNamespace(SeamId="seam-b", ViewObject=SimpleNamespace(LineColor=None)),
+    ]
+    unrelated = SimpleNamespace(Name="SewingOperation")
+    document = SimpleNamespace(Objects=[seams[0], unrelated, seams[1], seams[2]])
+
+    colors = refresh_seam_colors(document)
+
+    assert tuple(colors) == ("seam-a", "seam-b", "seam-c")
+    assert len(set(colors.values())) == 3
+    assert [seam.ViewObject.LineColor for seam in seams] == [
+        colors["seam-c"], colors["seam-a"], colors["seam-b"]
+    ]
+
+
+def test_refresh_seam_colors_does_not_assign_colors_to_unidentified_objects():
+    blank = SimpleNamespace(SeamId=" ", ViewObject=SimpleNamespace(LineColor=None))
+    seam = SimpleNamespace(SeamId="seam-1", ViewObject=SimpleNamespace(LineColor=None))
+
+    colors = refresh_seam_colors(SimpleNamespace(Objects=[blank, seam]))
+
+    assert colors == {"seam-1": seam.ViewObject.LineColor}
+    assert blank.ViewObject.LineColor is None
+
+
+def test_pattern_2d_refreshes_seam_colors_before_view_fit():
+    seam = SimpleNamespace(SeamId="seam-pattern", ViewObject=SimpleNamespace(LineColor=None))
+    document = SimpleNamespace(Objects=[seam])
+
+    class View:
+        def __init__(self):
+            self.top = 0
+            self.fit = 0
+
+        def viewTop(self):
+            self.top += 1
+
+        def fitAll(self):
+            self.fit += 1
+
+    view = View()
+    active = SimpleNamespace(Document=document, activeView=lambda: view)
+    gui = SimpleNamespace(activeDocument=lambda: active)
+    calls = []
+    previous_modules = PatternGui._gui_modules
+    import freecad_cloth.sewing.SewingView as SewingView
+    original_refresh = SewingView.refresh_seam_colors
+    PatternGui._gui_modules = lambda: (SimpleNamespace(), gui, None, None, None)
+    SewingView.refresh_seam_colors = lambda doc: calls.append(doc)
+    try:
+        PatternGui.show_pattern_view()
+    finally:
+        PatternGui._gui_modules = previous_modules
+        SewingView.refresh_seam_colors = original_refresh
+
+    assert calls == [document]
+    assert view.top == 1
+    assert view.fit == 1
 
 
 def test_show_2d_does_not_select_seams_over_their_colors():
@@ -132,6 +198,12 @@ if __name__ == "__main__":
     test_2d_focus_includes_only_authoritative_pattern_pieces_in_document_order()
     test_2d_focus_ignores_unrelated_objects_without_freecad_runtime()
     test_seam_colors_are_distinct_and_stable_by_seam_id()
+    test_seam_color_is_stable_when_document_subset_changes()
     test_apply_seam_colors_marks_each_seam_pair()
+    test_refresh_seam_colors_covers_all_document_seams_deterministically()
+    test_refresh_seam_colors_does_not_assign_colors_to_unidentified_objects()
+    test_pattern_2d_refreshes_seam_colors_before_view_fit()
     test_show_2d_does_not_select_seams_over_their_colors()
     print("sewing Show 2D tests passed")
+
+# Keep canonical direct-script execution aligned with the focused seam tests above.
