@@ -174,6 +174,125 @@ class AvatarFittingTests(unittest.TestCase):
         points = arrangement_points_from_landmarks(["waist|0,0,900", "waist|0,0,905", "neck|0,0,1150"])
         self.assertEqual(points, ["neck|0,0,1150", "waist|0,0,905"])
 
+    def _make_target_fit_piece(self, doc, name, x):
+        import FreeCAD as App
+        import Part
+
+        piece = doc.addObject("Part::Feature", name)
+        piece.Shape = Part.makeBox(10.0, 10.0, 2.0)
+        piece.Placement.Base = App.Vector(float(x), 45.0, 45.0)
+        piece.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
+        piece.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = name
+        sketch = doc.addObject("Part::Feature", name + "Sketch")
+        sketch.Shape = Part.makePolygon(
+            [
+                App.Vector(0.0, 0.0, 0.0),
+                App.Vector(10.0, 0.0, 0.0),
+                App.Vector(10.0, 10.0, 0.0),
+            ]
+        )
+        sketch.Placement = piece.Placement
+        piece.addProperty("App::PropertyLink", "Sketch", "Cloth").Sketch = sketch
+        return piece, sketch
+
+    def _make_target_fit_scene(self, doc, pieces):
+        from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+        from freecad_cloth.avatar.FittingCommands import create_fitting_scene
+        from freecad_cloth.simulation.DrapeTarget import create_drape_target
+
+        source = doc.addObject("Part::Feature", "TargetSource")
+        source.Shape = Part.makeBox(100.0, 100.0, 100.0)
+        target = create_drape_target(doc, source, "FreeCAD Geometry", 0.5, 0.0)
+        scene = create_fitting_scene()
+        scene.DrapeTarget = target
+        scene.PatternPieces = list(pieces)
+        placements = []
+        for piece in pieces:
+            base = piece.Placement.Base
+            record = PiecePlacement(
+                str(piece.PieceId),
+                (float(base.x), float(base.y), float(base.z)),
+                float(piece.Placement.Rotation.Angle),
+            )
+            placements.append(record.to_string())
+        scene.PiecePlacements = list(placements)
+        scene.HomePlacements = list(placements)
+        scene.FitStatus = "Ready"
+        doc.recompute()
+        return scene, target
+
+    def test_target_placement_is_reversible_and_syncs_linked_sketch(self):
+        try:
+            import FreeCAD as App
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
+        from freecad_cloth.avatar.FittingCommands import reset_arrangement, snap_pattern_pieces_to_target
+
+        doc = App.newDocument("TargetFitReversible")
+        try:
+            piece, sketch = self._make_target_fit_piece(doc, "PatternPiece", 120.0)
+            scene, _target = self._make_target_fit_scene(doc, [piece])
+            original_piece = piece.Placement
+            original_sketch = sketch.Placement
+            result = snap_pattern_pieces_to_target([piece], clearance=5.0, max_translation=100.0)
+            self.assertEqual(len(result["pieces"]), 1)
+            self.assertGreaterEqual(float(result["pieces"][0]["minimum_signed_clearance_mm"]), 5.0)
+            self.assertNotAlmostEqual(float(piece.Placement.Base.x), float(original_piece.Base.x), delta=0.01)
+            self.assertAlmostEqual(float(sketch.Placement.Base.x), float(piece.Placement.Base.x), delta=0.01)
+            reset_arrangement()
+            self.assertAlmostEqual(float(piece.Placement.Base.x), float(original_piece.Base.x), delta=0.01)
+            self.assertAlmostEqual(float(sketch.Placement.Base.x), float(original_sketch.Base.x), delta=0.01)
+            self.assertEqual(str(scene.FitStatus), "Arrangement reset")
+        finally:
+            if doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
+
+    def test_target_placement_rolls_back_partial_piece_and_sketch_changes(self):
+        try:
+            import FreeCAD as App
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
+        from freecad_cloth.avatar.FittingCommands import snap_pattern_pieces_to_target
+
+        doc = App.newDocument("TargetFitRollback")
+        try:
+            first, first_sketch = self._make_target_fit_piece(doc, "PatternPieceA", 120.0)
+            second, second_sketch = self._make_target_fit_piece(doc, "PatternPieceB", 400.0)
+            scene, _target = self._make_target_fit_scene(doc, [first, second])
+            original = (first.Placement, first_sketch.Placement, second.Placement, second_sketch.Placement, tuple(scene.PiecePlacements), str(scene.FitStatus))
+            with self.assertRaisesRegex(ValueError, "translation guard"):
+                snap_pattern_pieces_to_target([first, second], clearance=5.0, max_translation=100.0)
+            self.assertEqual(first.Placement, original[0])
+            self.assertEqual(first_sketch.Placement, original[1])
+            self.assertEqual(second.Placement, original[2])
+            self.assertEqual(second_sketch.Placement, original[3])
+            self.assertEqual(tuple(scene.PiecePlacements), original[4])
+            self.assertEqual(str(scene.FitStatus), original[5])
+        finally:
+            if doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
+
+    def test_target_placement_rejects_missing_target(self):
+        try:
+            import FreeCAD as App
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
+        from freecad_cloth.avatar.FittingCommands import create_fitting_scene, snap_pattern_pieces_to_target
+
+        doc = App.newDocument("TargetFitMissing")
+        try:
+            piece, _sketch = self._make_target_fit_piece(doc, "PatternPiece", 120.0)
+            scene = create_fitting_scene()
+            scene.PatternPieces = [piece]
+            scene.PiecePlacements = []
+            scene.HomePlacements = []
+            doc.recompute()
+            with self.assertRaisesRegex(ValueError, "DrapeTarget"):
+                snap_pattern_pieces_to_target([piece], clearance=5.0)
+        finally:
+            if doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
+
     def test_freecad_mannequin_rebuild_invalidates_target_until_refreshed(self):
         try:
             import FreeCAD as App
