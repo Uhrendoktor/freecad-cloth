@@ -110,3 +110,22 @@ def test_documentation_separates_capability_boundary():
     for term in ("grading/nesting", "construction hardware", "pressure/fit maps"):
         assert term in user_guide
         assert term in gates
+
+def test_documented_pattern_and_fitting_labels_match_current_registration():
+    docs_text = "\n".join(
+        (ROOT / name).read_text(encoding="utf-8") for name in (
+            "README.md",
+            "docs/README.md",
+            "docs/USER_GUIDE.md",
+            "docs/EXAMPLES.md",
+            "docs/WORKBENCH_GUIDE.md",
+        )
+    )
+    pattern = (ROOT / "freecad_cloth" / "pattern" / "PatternCommands.py").read_text(encoding="utf-8")
+    fitting = (ROOT / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    for function_name, label, source in (
+        ("create_pattern_piece_task", "Create Pattern Piece Task", pattern),
+        ("add_selected_pattern_pieces", "Add Selected Pattern Pieces", fitting),
+    ):
+        assert f"def {function_name}(" in source
+        assert label in docs_text
