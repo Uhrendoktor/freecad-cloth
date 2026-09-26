@@ -1,5 +1,6 @@
 name: Canonical execution
 
+# Issue #1347 exact-head runner-routing verification.
 on:
   push:
     branches: [main]
