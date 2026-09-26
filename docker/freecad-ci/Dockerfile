@@ -1,4 +1,4 @@
-FROM condaforge/miniforge3:25.3.1-0
+FROM ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 
 ARG TISSU_SOURCE_COMMIT=c28a3c7504ddc782bef844ab5bd4cd0bde14b628
 
@@ -12,7 +12,7 @@ LABEL org.opencontainers.image.description="FreeCAD 1.1.0 conda-forge CI image u
 RUN apt-get update -qq \
     && apt-get install -y --no-install-recommends xvfb openbox x11-utils build-essential cmake git libomp-dev \
     && rm -rf /var/lib/apt/lists/* \
-    && mamba create -y -n freecad -c conda-forge python=3.12 pip cmake=3.31.6 freecad=1.1.0 \
+    && mamba install -y -n freecad -c conda-forge --freeze-installed cmake=3.31.6 \
     && /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir pytissu==1.1.0 triangle==20250106 pytest \
     && rm -rf /tmp/Tissu \
     && git clone --no-checkout --filter=blob:none https://github.com/evanrock520-ciencias/Tissu.git /tmp/Tissu \
@@ -40,6 +40,7 @@ RUN apt-get update -qq \
          "tissu-python-package-version=$TISSU_VERSION" \
          "tissu-python-module=$TISSU_MODULE" \
        > /opt/tissu-provenance.txt \
+    && /opt/conda/envs/freecad/bin/python -c "import tissu, triangle, pytest; print('Tissu', tissu.__file__); print('Tissu source', '$TISSU_SOURCE_COMMIT'); print('Triangle', triangle.__file__); print('pytest', pytest.__version__)" \
     && mamba clean --all --yes \
     && mkdir -p /opt/freecad \
     && printf '%s\n' '#!/bin/sh' 'exec /opt/conda/envs/freecad/bin/freecad "$@"' > /opt/freecad/AppRun \
