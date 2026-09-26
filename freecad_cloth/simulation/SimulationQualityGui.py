@@ -143,7 +143,8 @@ class SimulationQualityTaskPanel:
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             self.status.setText("Target-aware arrangement unavailable — %s" % exc)
 
-    def reset_arrangement(self):\n        try:
+    def reset_arrangement(self):
+        try:
             from freecad_cloth.simulation.FittingHandoff import reset_arrangement_from_simulation
             reset_arrangement_from_simulation()
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
