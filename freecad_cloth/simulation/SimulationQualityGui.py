@@ -110,7 +110,7 @@ class SimulationQualityTaskPanel:
     def _load_widgets_only(self):
         if self.scene is None:
             return
-        widgets = [self.quality, self.particle_distance, self.iterations, self.substeps, self.density, self.thickness, self.stretch, self.shear, self.bend, self.friction, self.specular, self.roughness, self.transparency, self.skin_offset, self.collision_radius, self.steps]
+        widgets = [self.quality, self.particle_distance, self.iterations, self.substeps, self.density, self.thickness, self.stretch, self.shear, self.bend, self.friction, self.specular, self.roughness, self.transparency, self.auto_pins, self.skin_offset, self.collision_radius, self.steps]
         for widget in widgets: widget.blockSignals(True)
         try:
             self.quality.setCurrentText(str(self.scene.QualityPreset)); self.particle_distance.setValue(float(self.scene.ParticleDistance)); self.iterations.setValue(int(self.scene.SolverIterations)); self.substeps.setValue(int(self.scene.SolverSubsteps))
