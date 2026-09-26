@@ -94,9 +94,28 @@ def run_acceptance():
         if fast["particles"] <= 0:
             raise RuntimeError("Fast preset did not build a real simulation discretization")
 
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(front)
+        Gui.Selection.addSelection(back)
+        from freecad_cloth.avatar.FittingCommands import add_selected_pattern_pieces, create_arrangement_point, create_fitting_scene
+        create_fitting_scene()
+        add_selected_pattern_pieces()
+        create_arrangement_point("QualityFront", 0.0, 0.0, 5.0, "front")
+        doc.recompute()
+
         panel = SimulationQualityTaskPanel(scene)
         Gui.Control.showDialog(panel)
         _events()
+        if "Arrange/Fit: Pieces assigned" not in panel.placement_status.text():
+            raise RuntimeError("simulation task panel did not expose persisted Arrange/Fit status")
+        if "2 garment piece(s)" not in panel.placement_status.text():
+            raise RuntimeError("simulation task panel did not expose garment piece count")
+        if panel.arrange_button.text() != "Apply selected arrangement":
+            raise RuntimeError("simulation task panel did not expose the existing arrangement action")
+        if not panel.reset_arrangement_button.isEnabled():
+            raise RuntimeError("simulation task panel did not expose arrangement recovery")
+        if panel.refresh_target_button.isEnabled():
+            raise RuntimeError("ready target should not advertise refresh as a required action")
         panel.quality.setCurrentText("Final")
         _events()
         doc.recompute()
@@ -160,6 +179,13 @@ def run_acceptance():
                 raise RuntimeError("stale-target status did not block Step/Run while preserving Reset")
             if "Simulation blocked" not in panel.status.text():
                 raise RuntimeError("stale-target status did not expose a user-facing blocked reason")
+            if not panel.refresh_target_button.isEnabled():
+                raise RuntimeError("stale-target state did not expose target recovery")
+            panel.refresh_target_button.click()
+            _events()
+            status = target_status(target)
+            if status["state"] != "ready" or not panel.step_button.isEnabled() or not panel.run_button.isEnabled():
+                raise RuntimeError("task-panel target refresh did not restore simulation readiness")
             _close_task()
 
             Gui.Selection.clearSelection()
