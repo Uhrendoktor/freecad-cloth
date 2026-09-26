@@ -14,8 +14,6 @@ source = source_path.read_text(encoding="utf-8")
 # Keep the canonical visual fixture's torso-envelope collision scoped to this audit.
 # The screenshot wrapper's historical string replacement targets text that is no
 # longer present in freecad_screenshot_source.py, so patch the executable adapter.
-from freecad_cloth.simulation import TissuBackend as _tissu_backend
-
 # The tunic acceptance must use the authoritative DrapeTarget mesh rather than
 # the optional torso-envelope approximation, so arrangement/collision behavior
 # is judged against the actual avatar surface.
@@ -23,9 +21,9 @@ os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
 
 
 replacements = {
-    'chest = 980.0; hip = 1020.0; ease = 55.0;': 'chest = 860.0; hip = 880.0; ease = 10.0;',
     'clearance = max(20.0, 0.08 * body_depth);': 'clearance = max(8.0, 0.025 * body_depth);',
-    'front_y = box.YMin - clearance; back_y = box.YMax + clearance;': 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
+    '    front_y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance\n    back_y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance':
+        '    front_y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance\n    back_y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance',
     'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", back_y, 0.64, 0.07)':
         'front, front_outline = make_piece("VisualTunicFront", front_y, 0.64, 0.08); back, back_outline = make_piece("VisualTunicBack", back_y, 0.68, 0.08)',
     '    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):\n'
@@ -46,7 +44,6 @@ replacements = {
         '        seam_records.append((seam_obj, front, back))',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
     'scene.SolverIterations = 8;': 'scene.SolverIterations = 64; log("tunic-solver-ab=iterations-64");',
-    'front_y = box.YMin - clearance; back_y = box.YMax + clearance;': 'front_y = box.YMax + clearance; back_y = box.YMin - clearance;',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
 }
 for old, new in replacements.items():
