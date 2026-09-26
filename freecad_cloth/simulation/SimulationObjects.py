@@ -33,6 +33,8 @@ def _update_seam_visuals(doc, seam_stitch_pairs, positions):
     """Render each semantic solver seam as one canonical-color native overlay."""
     if doc is None:
         return ()
+    import FreeCAD as App
+    import Part
     from freecad_cloth.sewing.SewingView import seam_color_map
     seam_ids = tuple(sorted(
         str(seam_id).strip()
