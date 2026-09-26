@@ -389,8 +389,17 @@ def test_target_snap_uses_world_target_placement_and_reset_restores_linked_sketc
         first_piece = _placement_tuple(piece.Placement)
         assert first_piece != home_piece
 
-        world_surface = FittingCommands._world_target_surface(target)
-        report = minimum_signed_clearance(FittingCommands._piece_world_samples(piece), world_surface)
+        from freecad_cloth.simulation.DrapeTarget import collision_surface
+        world_surface = collision_surface(
+            target.SourceObject,
+            float(getattr(target, "CollisionDeflection", 0.5)),
+            float(getattr(target, "CollisionThickness", 0.0)),
+        )
+        world_points = tuple(
+            (float(vertex.Point.x), float(vertex.Point.y), float(vertex.Point.z))
+            for vertex in FittingCommands._world_shape(piece).Vertexes
+        )
+        report = minimum_signed_clearance(world_points, world_surface)
         assert report.minimum_signed_clearance >= 2.0 - 1e-6
 
         FittingCommands.reset_arrangement()
