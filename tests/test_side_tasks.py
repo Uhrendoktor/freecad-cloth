@@ -8,6 +8,7 @@ from freecad_cloth.pattern.PatternDerivedGeometry import Notch, PatternMark, add
 from freecad_cloth.sewing.SewingSemantics import SeamConstraint, validate_seam_graph
 from freecad_cloth.sewing.SewingObjects import _edge_length, _edge_points
 from freecad_cloth.avatar.AvatarCollision import AvatarSpec, CollisionSurface, surface_from_triangles
+from freecad_cloth.common.DrapeVisualSanity import assert_drape_diagnostics
 from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
 from fixtures.garment_fixtures import two_piece_rectangle, mirrored_pair, multi_piece
 
@@ -69,6 +70,29 @@ def test_sewing_edge_points_apply_rotated_piece_placement_once():
         else: sys.modules['FreeCAD'] = old_freecad
     assert (start.x, start.y, start.z) == (10.0, -1.0, 2.2)
     assert (end.x, end.y, end.z) == (7.0, -1.0, 2.2)
+
+
+def test_drape_visual_diagnostics_accept_clean_result():
+    assert_drape_diagnostics((
+        {"panel": "Front", "failure_classification": {"state": "structurally-plausible"}, "diagnostics": []},
+    ))
+
+
+def test_drape_visual_diagnostics_reject_detached_or_collapsed_result():
+    cases = (
+        {"failure_classification": {"state": "detached-candidate"}, "diagnostics": []},
+        {"failure_classification": {"state": "structurally-plausible"}, "diagnostics": ["collapsed-candidate"]},
+        {"failure_classification": {"state": "structurally-plausible"}, "diagnostics": ["below-hem-candidate"]},
+        {"failure_classification": {"state": "structurally-plausible"}, "diagnostics": ["lateral-detached-candidate"]},
+    )
+    for record in cases:
+        try:
+            assert_drape_diagnostics((record,))
+        except RuntimeError as exc:
+            assert "drape visual acceptance failed closed" in str(exc)
+        else:
+            raise AssertionError("fatal drape diagnostics were accepted")
+
 
 if __name__=='__main__':
     for name,fn in globals().copy().items():
