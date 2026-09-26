@@ -75,10 +75,15 @@ class SimulationTaskPanel:
 
         sewing = QtWidgets.QGroupBox("Sewing & pinning")
         layout = QtWidgets.QFormLayout(sewing)
+        self.pin_policy = QtWidgets.QComboBox()
+        self.pin_policy.addItem("Auto (compatibility)", "auto")
+        self.pin_policy.addItem("Explicit pins only", "explicit")
+        self.pin_policy.addItem("None (pinless)", "none")
         self.pins = QtWidgets.QLineEdit(self._join(getattr(scene, "PinSelection", [])))
         self.seams = QtWidgets.QLineEdit(self._join(getattr(scene, "SeamSelection", [])))
         self.pins.setToolTip("Particle indices separated by commas")
         self.seams.setToolTip("Particle pairs such as 3-27 separated by semicolons")
+        layout.addRow("Pin policy", self.pin_policy)
         layout.addRow("Pinned vertices", self.pins); layout.addRow("Seam pairs", self.seams)
         root.addWidget(sewing)
 
@@ -102,6 +107,7 @@ class SimulationTaskPanel:
         self.reset_button.clicked.connect(self.reset)
         self.cloth.currentIndexChanged.connect(self._selection_changed)
         self.target.currentIndexChanged.connect(self._selection_changed)
+        self.pin_policy.currentIndexChanged.connect(self._selection_changed)
         self.pins.editingFinished.connect(self._selection_changed); self.seams.editingFinished.connect(self._selection_changed)
         for widget in (self.iterations, self.timestep, self.gravity_x, self.gravity_y, self.gravity_z, self.collision_radius):
             widget.valueChanged.connect(self._parameters_changed)
@@ -135,6 +141,9 @@ class SimulationTaskPanel:
         self.stretch.setValue(float(getattr(self.scene, "StretchCompliance", 0.35)))
         self.bend.setValue(float(getattr(self.scene, "BendCompliance", 0.20)))
         self.density.setValue(float(getattr(self.scene, "ArealDensity", 0.01)))
+        policy = str(getattr(self.scene, "PinPolicy", "auto")).strip().lower()
+        policy_index = self.pin_policy.findData(policy)
+        self.pin_policy.setCurrentIndex(policy_index if policy_index >= 0 else 0)
         self._refresh_status()
 
     def _populate_selection_lists(self):
@@ -168,6 +177,7 @@ class SimulationTaskPanel:
         if self.target.currentData():
             obj = self.scene.Document.getObject(self.target.currentData())
             if obj: self.scene.DrapeTarget = obj
+        self.scene.PinPolicy = str(self.pin_policy.currentData() or "auto")
         self.scene.PinSelection = [p.strip() for p in self.pins.text().replace(";", ",").split(",") if p.strip()]
         self.scene.SeamSelection = [p.strip() for p in self.seams.text().replace(",", ";").split(";") if p.strip()]
         self.scene.Document.recompute(); self._refresh_status()
