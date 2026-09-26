@@ -11,6 +11,7 @@ if str(ROOT) not in sys.path:
 source_path = Path(__file__).with_name("freecad_screenshot_source.py")
 source = source_path.read_text(encoding="utf-8")
 
+# Fixture recut is the previously validated #1639 harness change; keep it scoped here so shared source consumers remain stable.
 # The canonical tunic audit must use the authoritative DrapeTarget collision
 # surface; do not replace it with the optional torso-envelope approximation.
 os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
