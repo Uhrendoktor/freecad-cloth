@@ -277,7 +277,7 @@ def main():
         scene.GravityY = 0.0
         scene.GravityZ = -9810.0
         scene.StartHeight = 0.0
-        scene.TimeStep = 1.0 / 60.0
+        scene.TimeStep = 1.0 / 120.0
         # QualitySimulationProxy consumes SolverIterations; the legacy Iterations field is ignored for this runtime path.
         scene.ParticleDistance = max(12.0, float(scene.ParticleDistance))
         scene.SolverIterations = 4
