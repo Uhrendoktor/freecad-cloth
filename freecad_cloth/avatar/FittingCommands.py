@@ -405,6 +405,15 @@ def _target_aware_place_piece_impl(piece, target, anchors, clearance=8.0, max_tr
     from freecad_cloth.avatar.TargetAwarePlacement import apply_rigid_delta
     predicted_points = apply_rigid_delta(source_points, delta)
     anchor_clearance = assert_minimum_surface_clearance(surface, predicted_points, float(clearance))
+    original_piece_placement = PiecePlacement(
+        piece_id,
+        (
+            float(piece.Placement.Base.x),
+            float(piece.Placement.Base.y),
+            float(piece.Placement.Base.z),
+        ),
+        float(piece.Placement.Rotation.Angle),
+    )
     delta_rotation = App.Rotation(App.Vector(0, 0, 1), float(delta.rotation_z))
     current = piece.Placement
     new_base = delta_rotation.multVec(current.Base) + App.Vector(*delta.translation)
@@ -441,6 +450,12 @@ def _target_aware_place_piece_impl(piece, target, anchors, clearance=8.0, max_tr
         float(piece.Placement.Rotation.Angle),
     )
     scene.PiecePlacements = [entries[k].to_string() for k in sorted(entries)]
+    home_entries = {
+        p.piece_id: p
+        for p in (PiecePlacement.from_string(v) for v in getattr(scene, "HomePlacements", ()) or ())
+    }
+    home_entries.setdefault(piece_id, original_piece_placement)
+    scene.HomePlacements = [home_entries[k].to_string() for k in sorted(home_entries)]
     anchor_map = {
         (a.piece_id, a.name): a
         for a in (GarmentAnchor.from_string(v) for v in getattr(scene, "GarmentAnchors", ()) or ())
