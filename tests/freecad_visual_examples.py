@@ -20,7 +20,7 @@ except ImportError:
 
 
 # A generic FreeCAD cube requires Tissu's mesh collision path; torso-envelope is for avatar-style targets.
-os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "mesh")
+os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "box-planes")
 
 OUT = Path(os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")) / "blanket-example"
 OUT.mkdir(parents=True, exist_ok=True)
@@ -116,6 +116,7 @@ def render_motion(view, scene, out_dir, checkpoint_steps=(15, 30, 60, 120), fram
     solver_steps = 0
     recomputes = 0
     max_recompute_ms = 0.0
+    total_recompute_ms = 0.0
     for target_step in targets:
         target_step = int(target_step)
         if target_step < previous_step:
@@ -130,6 +131,7 @@ def render_motion(view, scene, out_dir, checkpoint_steps=(15, 30, 60, 120), fram
         recompute_ms = 1000.0 * (time.perf_counter() - recompute_started)
         recomputes += 1
         solver_steps += delta_steps
+        total_recompute_ms += recompute_ms
         max_recompute_ms = max(max_recompute_ms, recompute_ms)
         if not bool(scene.FiniteState):
             raise RuntimeError("blanket simulation became non-finite at step %d" % target_step)
@@ -183,6 +185,7 @@ def render_motion(view, scene, out_dir, checkpoint_steps=(15, 30, 60, 120), fram
         )
     )
     log("motion-frames=passed count=%d final_steps=%d" % (len(motion_steps), final_steps))
+    return elapsed_ms, total_recompute_ms, max_recompute_ms
 
 
 def _load_cloth_modules():
@@ -312,10 +315,13 @@ def main():
         events()
         save_png(view, OUT / "checkpoint-000.png", "blanket initial state")
 
-        initial_points = tuple(tuple(float(value) for value in point) for point in scene.Proxy._base_or_restore().backend.positions())
-        log("blanket-solver-config particle_distance=%.1f iterations=%d particles=%d backend=%s" % (
+        backend = scene.Proxy._base_or_restore().backend
+        initial_points = tuple(tuple(float(value) for value in point) for point in backend.positions())
+        collision_mode = str(getattr(backend, "_collision_mode", os.environ.get("CLOTH_TISSU_COLLISION_MODE", "mesh")))
+        collider_count = len(backend._sim.world.get_colliders()) if hasattr(backend, "_sim") else 0
+        log("blanket-solver-config particle_distance=%.1f iterations=%d particles=%d backend=%s collision_mode=%s colliders=%d" % (
             float(scene.ParticleDistance), int(scene.SolverIterations), int(scene.ParticleCount),
-            getattr(scene.Proxy._base_or_restore().backend, "name", "unknown"),
+            getattr(backend, "name", "unknown"), collision_mode, collider_count,
         ))
 
         first_step_started = time.perf_counter()
@@ -330,7 +336,16 @@ def main():
             first_step_ms, bool(scene.FiniteState), int(scene.Steps)
         ))
 
-        render_motion(view, scene, OUT, frame_count=16, start_step=1, final_steps=120)
+        render_elapsed_ms, post_first_recompute_ms, max_recompute_ms = render_motion(
+            view, scene, OUT, frame_count=16, start_step=1, final_steps=120
+        )
+        total_wall_ms = first_step_ms + render_elapsed_ms
+        total_recompute_ms = first_step_ms + post_first_recompute_ms
+        log(
+            "blanket-120-step-timing final_step=120 first_step_ms=%.1f "
+            "solver_recompute_ms=%.1f wall_ms=%.1f max_recompute_ms=%.1f"
+            % (first_step_ms, total_recompute_ms, total_wall_ms, max_recompute_ms)
+        )
 
         final_points = tuple(tuple(float(value) for value in point) for point in scene.Proxy._base_or_restore().backend.positions())
         if not initial_points or not final_points:
@@ -350,6 +365,10 @@ def main():
             for vertex in cube.Shape.Vertexes
         )
         drape = inspect_drape(vertices, avatar_points, target_height=60.0, target_width=180.0)
+        minimum_z = min(float(point[2]) for point in final_points)
+        cube_top_z = float(cube.Shape.BoundBox.ZMax)
+        signed_clearance = minimum_z - cube_top_z
+        facet_count = int(panel.Mesh.CountFacets)
         if not mesh_result.finite or mesh_result.components != 1 or mesh_result.degenerate_faces:
             raise RuntimeError("blanket mesh failed structural validation: %r" % mesh_result)
         if not shape["finite"] or shape["edge_spike_ratio"] > 4.0 or shape["spike_edge_fraction"] > 0.02:
@@ -366,6 +385,19 @@ def main():
             drape.state, drape.vertical_span_ratio, drape.lateral_span_ratio,
         ))
         log("movement=passed max_displacement_mm=%.3f" % max_displacement)
+        log(
+            "blanket-final-metrics particles=%d facets=%d max_displacement_mm=%.3f "
+            "min_z_mm=%.3f cube_top_z_mm=%.3f signed_clearance_mm=%.3f drape=%s"
+            % (
+                len(final_points),
+                facet_count,
+                max_displacement,
+                minimum_z,
+                cube_top_z,
+                signed_clearance,
+                drape.state,
+            )
+        )
         applied_color = tuple(float(value) for value in panel.ViewObject.ShapeColor[:3])
         expected_color = (0.14, 0.32, 0.78)
         if any(abs(applied_color[index] - expected_color[index]) > 0.02 for index in range(3)):
