@@ -375,27 +375,15 @@ def simulation():
             result.append(index)
             available.remove(index)
         return tuple(result)
-    proxy = scene.Proxy
-    positions = tuple(proxy.backend.positions())
-    pin_panels = list(scene.DrapePanels)
-    panel_indices = proxy.panel_indices
-    front_indices = tuple(panel_indices[pin_panels[0].Name])
-    back_indices = tuple(panel_indices[pin_panels[1].Name])
-    front_pins = authored_shoulder_pins(front, front_indices, positions)
-    back_pins = authored_shoulder_pins(back, back_indices, positions)
-    # The two panels begin on opposite sides of the avatar. Pinning both sewn
-    # shoulder endpoints would freeze each endpoint at its separated start
-    # position, making the zero-rest stitch constraint unsatisfiable. Anchor
-    # only the front shoulder endpoints; the back panel must follow through the
-    # authored shoulder stitches.
-    scene.PinSelection = [str(i) for i in front_pins]
-    if any(
-        int(a) in front_pins and int(b) in front_pins
-        for seam_pairs in getattr(proxy, "seam_stitch_pairs", {}).values()
-        for a, b in seam_pairs
-    ):
-        raise RuntimeError("visual tunic pin contract pins both endpoints of a sewn pair")
-    log("pin-map authored front=%s back-global=%s back-pinned=false" % (front_pins, back_pins)); doc.recompute()
+    scene.PinMode = "None"
+    scene.PinSelection = []
+    doc.recompute()
+    proxy = scene.Proxy._base_or_restore()
+    solver_system = getattr(getattr(proxy, "backend", None), "system", None)
+    active_pins = tuple(getattr(solver_system, "pins", ()) or ())
+    if active_pins:
+        raise RuntimeError("visual tunic no-pin contract unexpectedly activated solver pins: %s" % (active_pins,))
+    log("pinning-mode=none solver-pins=%d" % len(active_pins))
     for source in (doc.getObject("VisualTunicFront"), doc.getObject("VisualTunicBack")):
         if source is not None: source.ViewObject.Visibility = False
         sketch = getattr(source, "Sketch", None) if source is not None else None
