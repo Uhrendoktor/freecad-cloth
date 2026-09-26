@@ -62,6 +62,49 @@ def test_stale_drape_target_recompute_guard_is_safe():
     assert "source, placement" in scene.InvalidationReason
 
 
+def test_invalid_seam_recompute_guard_blocks_without_rethrowing():
+    from types import SimpleNamespace
+    from freecad_cloth.simulation import SimulationStaleGuard
+
+    scene = SimpleNamespace(
+        DrapeTarget=SimpleNamespace(
+            TargetType="FreeCAD Geometry",
+            SourceObject=SimpleNamespace(
+                Name="Body",
+                Label="Body",
+                Shape=SimpleNamespace(isNull=lambda: False, hashCode=lambda: 123),
+                Placement=SimpleNamespace(
+                    Base=SimpleNamespace(x=0.0, y=0.0, z=0.0),
+                    Rotation=SimpleNamespace(
+                        Angle=0.0,
+                        Axis=SimpleNamespace(x=0.0, y=0.0, z=1.0),
+                    ),
+                ),
+            ),
+            CollisionDeflection=1.0,
+            CollisionThickness=0.0,
+            Enabled=True,
+            CollisionVertexCount=3,
+            CollisionTriangleCount=1,
+            SourceSignature=repr(("Body", "Body", ("Shape", 123), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0)),
+        ),
+        SimulationState="READY_FOR_SIMULATION",
+        InvalidationReason="",
+    )
+
+    original = SimulationStaleGuard._ORIGINAL_EXECUTE
+    try:
+        SimulationStaleGuard._ORIGINAL_EXECUTE = lambda _proxy, _obj: (_ for _ in ()).throw(
+            ValueError("cannot simulate invalid seam seam-1: Changed reference")
+        )
+        SimulationStaleGuard._guarded_execute(SimpleNamespace(), scene)
+    finally:
+        SimulationStaleGuard._ORIGINAL_EXECUTE = original
+
+    assert scene.SimulationState == "BLOCKED"
+    assert "seam-1: Changed reference" in scene.InvalidationReason
+
+
 def test_pin_mode_semantics_preserve_automatic_defaults_and_support_no_pins():
     from types import SimpleNamespace
     from freecad_cloth.simulation.SimulationObjects import resolve_pin_indices
