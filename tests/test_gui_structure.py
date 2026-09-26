@@ -19,6 +19,7 @@ commands = (ROOT / "freecad_cloth" / "pattern" / "PatternCommands.py").read_text
 sim_commands = (ROOT / "freecad_cloth" / "simulation" / "SimulationCommands.py").read_text()
 sewing_commands = (ROOT / "freecad_cloth" / "sewing" / "SewingCommands.py").read_text()
 avatar_commands = (ROOT / "freecad_cloth" / "avatar" / "AvatarCommands.py").read_text()
+fitting_commands = (ROOT / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text()
 
 assert "Gui.addWorkbench(ClothPatternWorkbench())" in init_gui
 assert "Gui.addWorkbench(ClothSimulationWorkbench())" in init_gui
@@ -44,6 +45,9 @@ assert '"Collision"' in quality_gui
 assert '"Run"' in quality_gui
 assert '"Pinning mode"' in quality_gui
 assert '"PinMode"' in quality_gui
+assert "ClothFitting_SnapPiecesToTarget" in fitting_commands
+assert '"DrapeTarget", "Fitting"' in fitting_commands
+assert (ROOT / "resources" / "icons" / "ClothFitting_SnapPiecesToTarget.svg").exists()
 assert '"None creates the simulation with zero solver pins."' in quality_gui
 assert "show_simulation_quality_task" in quality_gui
 assert "class SewingTaskPanel" in sewing_gui
