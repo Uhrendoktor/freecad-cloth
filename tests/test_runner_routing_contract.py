@@ -72,6 +72,9 @@ def test_no_privileged_runner_discovery_or_second_workflow():
     assert "runner_heartbeat:" not in source
     assert "sketcher-startup-diagnostic:" not in source
     assert "*/5 * * * *" not in source
+    maintenance = _job_block(source, "maintenance-cleanup")
+    assert "runs-on: ubuntu-latest" in maintenance
+    assert "needs:" not in maintenance
 
 
 def test_pr_checkout_is_credential_free_and_uses_head_sha():
