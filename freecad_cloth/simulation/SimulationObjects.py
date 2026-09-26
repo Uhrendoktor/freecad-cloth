@@ -658,7 +658,8 @@ def create_simulation_scene(doc):
     scene.addProperty("App::PropertyLinkListGlobal", "DrapePanels", "Output")
     scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Selection")
     scene.addProperty("App::PropertyLinkGlobal", "AvatarProxy", "Compatibility")
-    scene.addProperty("App::PropertyEnumeration", "PinMode", "Selection").PinMode = ["Automatic", "Explicit", "None"]
+    scene.addProperty("App::PropertyEnumeration", "PinMode", "Selection")
+    scene.PinMode = ["Automatic", "Explicit", "None"]
     scene.PinMode = "Automatic"
     scene.addProperty("App::PropertyStringList", "PinSelection", "Selection").PinSelection = []
     scene.addProperty("App::PropertyStringList", "SeamSelection", "Selection").SeamSelection = []
