@@ -64,6 +64,14 @@ class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
         return {"MenuText": self.MenuText, "ToolTip": self.ToolTip, "Icon": self.Icon}
 
     def Activated(self):
+        """Refresh semantic seam presentation whenever a Cloth workbench is entered."""
+        if Gui is None:
+            return None
+        active = Gui.activeDocument()
+        document = getattr(active, "Document", None) if active is not None else None
+        if document is not None:
+            from freecad_cloth.sewing.SewingView import refresh_seam_colors
+            refresh_seam_colors(document)
         return None
 
     def Deactivated(self):
