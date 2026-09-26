@@ -1069,7 +1069,7 @@ jobs:
   publish-readme-turntables:
     name: Publish README turntables and example motion
     needs: [local_runner_readiness, gui-tunic-visual, gui-turntables, gui-visual-examples]
-    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '') }}
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '' && inputs.pull_request_number != '') }}
     permissions:
       contents: write
       packages: read

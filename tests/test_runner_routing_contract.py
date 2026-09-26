@@ -94,3 +94,4 @@ def test_hosted_fallback_preserves_main_publication():
     assert "inputs.runner_mode == 'hosted'" in publish
     assert "inputs.fallback_source_run != ''" in publish
     assert "refs/heads/main" in publish
+    assert "inputs.pull_request_number != ''" in publish
