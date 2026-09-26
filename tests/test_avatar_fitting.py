@@ -200,6 +200,11 @@ class AvatarFittingTests(unittest.TestCase):
             piece.Placement = App.Placement(App.Vector(140.0, 45.0, 50.0), App.Rotation(App.Vector(1, 0, 0), 90.0))
             original_rotation = piece.Placement.Rotation
             doc.recompute()
+            sketch = doc.addObject("PartDesign::Feature", "PatternSketch")
+            piece.addProperty("App::PropertyLink", "Sketch", "Cloth").Sketch = sketch
+            sketch.Placement = piece.Placement
+            original_sketch = sketch.Placement
+            doc.recompute()
             self.assertEqual(target_status(target)["state"], "ready")
 
             results = snap_pieces_to_drape_target((piece,), target, clearance=5.0, max_translation=100.0)
@@ -208,6 +213,8 @@ class AvatarFittingTests(unittest.TestCase):
             self.assertAlmostEqual(float(results[0]["distance_after"]), 5.0, delta=1e-5)
             self.assertAlmostEqual(float(results[0]["translation"]), 35.0, delta=1e-5)
             self.assertEqual(piece.Placement.Rotation, original_rotation)
+            self.assertEqual(sketch.Placement, piece.Placement)
+            self.assertNotEqual(sketch.Placement, original_sketch)
         finally:
             if doc.Name in App.listDocuments():
                 App.closeDocument(doc.Name)
