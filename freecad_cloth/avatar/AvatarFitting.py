@@ -54,24 +54,43 @@ class PiecePlacement:
     piece_id: str
     position: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     rotation_z: float = 0.0
+    rotation_axis: Tuple[float, float, float] = (0.0, 0.0, 1.0)
 
     def validate(self) -> None:
         if not self.piece_id.strip():
             raise ValueError("piece id must not be empty")
         if len(self.position) != 3:
             raise ValueError("position must contain three coordinates")
+        if len(self.rotation_axis) != 3:
+            raise ValueError("rotation axis must contain three coordinates")
+        if sum(float(v) * float(v) for v in self.rotation_axis) <= 1e-12:
+            raise ValueError("rotation axis must be non-zero")
 
     def to_string(self) -> str:
         self.validate()
-        return "%s|%.12g,%.12g,%.12g|%.12g" % (
-            self.piece_id, self.position[0], self.position[1], self.position[2], self.rotation_z
+        axis = tuple(float(v) for v in self.rotation_axis)
+        if abs(axis[0]) <= 1e-12 and abs(axis[1]) <= 1e-12 and abs(abs(axis[2]) - 1.0) <= 1e-12:
+            return "%s|%.12g,%.12g,%.12g|%.12g" % (
+                self.piece_id, self.position[0], self.position[1], self.position[2], self.rotation_z
+            )
+        return "%s|%.12g,%.12g,%.12g|%.12g,%.12g,%.12g|%.12g" % (
+            self.piece_id, self.position[0], self.position[1], self.position[2],
+            axis[0], axis[1], axis[2], self.rotation_z
         )
 
     @classmethod
     def from_string(cls, value: str) -> "PiecePlacement":
-        piece_id, position, rotation = str(value).split("|")
+        fields = str(value).split("|")
+        if len(fields) == 3:
+            piece_id, position, rotation = fields
+            axis = (0.0, 0.0, 1.0)
+        elif len(fields) == 4:
+            piece_id, position, axis_value, rotation = fields
+            axis = tuple(float(v) for v in axis_value.split(","))
+        else:
+            raise ValueError("piece placement must contain position and rotation fields")
         coords = tuple(float(v) for v in position.split(","))
-        result = cls(piece_id, coords, float(rotation))
+        result = cls(piece_id, coords, float(rotation), axis)
         result.validate()
         return result
 
