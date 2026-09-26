@@ -97,8 +97,8 @@ def run_acceptance():
         panel = SimulationQualityTaskPanel(scene)
         Gui.Control.showDialog(panel)
         _events()
-        if not hasattr(panel, "arrange_fit_button") or not hasattr(panel, "snap_to_target_button"):
-            raise RuntimeError("simulation panel did not expose the Arrange / Fit / target-snap bridge")
+        if not hasattr(panel, "arrange_fit_button") or not hasattr(panel, "refresh_target_button"):
+            raise RuntimeError("simulation panel did not expose the Arrange / Fit / target-recovery bridge")
         if panel.reset_arrangement_button.isEnabled():
             raise RuntimeError("reset arrangement should be disabled before fitting handoff")
         panel.quality.setCurrentText("Final")
