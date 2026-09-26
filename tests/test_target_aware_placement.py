@@ -75,6 +75,10 @@ def test_target_aware_placement_transaction_contract():
     assert "piece.Placement = original_placement" in source
     assert "scene.HomePlacements = list(home_placements_before)" in source
     assert "scene.GarmentAnchors = list(garment_anchors_before)" in source
+    assert "pattern_pieces_before = tuple(getattr(scene, "PatternPieces", ()) or ())" in source
+    assert "scene.PatternPieces = list(pattern_pieces_before)" in source
+    assert "avatar_proxy_before = getattr(scene, "AvatarProxy", None)" in source
+    assert "scene.AvatarProxy = avatar_proxy_before" in source
 
 
 def test_fitting_simulation_handoff_preserves_authoritative_target():
