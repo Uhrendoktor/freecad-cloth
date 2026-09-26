@@ -392,7 +392,7 @@ def build_simulation_state(doc):
     blanket = create_pattern_piece_from_selected_sketch(name="Blanket", allowance=0.0, grainline=0.0)
     if blanket.Sketch is not sketch:
         raise RuntimeError("pattern piece did not retain native sketch")
-    placement = App.Placement(App.Vector(-BLANKET_SIZE / 2.0, -BLANKET_SIZE / 2.0, 150.0), App.Rotation())
+    placement = App.Placement(App.Vector(-BLANKET_SIZE / 2.0, -BLANKET_SIZE / 2.0, 100.0), App.Rotation())
     blanket.Placement = placement
     blanket.Sketch.Placement = placement
 
