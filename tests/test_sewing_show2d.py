@@ -37,6 +37,15 @@ def test_seam_colors_are_distinct_and_stable_by_seam_id():
     assert len(set(forward.values())) == len(seam_ids)
 
 
+def test_seam_color_is_stable_when_document_subset_changes():
+    full = seam_color_map(["seam-a", "seam-b", "seam-c"])
+    subset = seam_color_map(["seam-b", "seam-c"])
+    reordered = seam_color_map(["seam-c", "seam-b"])
+    assert subset["seam-b"] == full["seam-b"]
+    assert subset["seam-c"] == full["seam-c"]
+    assert reordered == subset
+
+
 def test_apply_seam_colors_marks_each_seam_pair():
     first = SimpleNamespace(SeamId="seam-a", ViewObject=SimpleNamespace(LineColor=None))
     second = SimpleNamespace(SeamId="seam-b", ViewObject=SimpleNamespace(LineColor=None))
@@ -189,6 +198,7 @@ if __name__ == "__main__":
     test_2d_focus_includes_only_authoritative_pattern_pieces_in_document_order()
     test_2d_focus_ignores_unrelated_objects_without_freecad_runtime()
     test_seam_colors_are_distinct_and_stable_by_seam_id()
+    test_seam_color_is_stable_when_document_subset_changes()
     test_apply_seam_colors_marks_each_seam_pair()
     test_refresh_seam_colors_covers_all_document_seams_deterministically()
     test_show_2d_does_not_select_seams_over_their_colors()
