@@ -19,8 +19,7 @@ for name, p in (
     ("boundary", App.Vector(0, 6, 7)),
 ):
     hits = mesh_obj.Mesh.foraminate(
-        (p.x, p.y, p.z),
-        (1.0, 0.0, 0.0),
+        ((p.x, p.y, p.z), (1.0, 0.0, 0.0)),
         3.141592653589793,
     )
     print(name, type(hits).__name__, len(hits), hits[:3])
@@ -30,8 +29,7 @@ start = time.perf_counter()
 count = 0
 for _ in range(1000):
     hits = mesh_obj.Mesh.foraminate(
-        (5.0, 6.0, 7.0),
-        (1.0, 0.0, 0.0),
+        ((5.0, 6.0, 7.0), (1.0, 0.0, 0.0)),
         3.141592653589793,
     )
     count += len(hits)
