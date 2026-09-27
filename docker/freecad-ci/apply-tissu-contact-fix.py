@@ -358,7 +358,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         "    void solve(std::vector<Particle>& particles, double dt) override;\n",
         "    void solve(std::vector<Particle>& particles, double dt) override;\n"
         "    void solveBounded(std::vector<Particle>& particles, double dt,\n"
-        "                      double maxCorrection) ;\n",
+        "                      double maxCorrection);\n",
         1,
     )
     if "void solveBounded" not in stitch_text:
