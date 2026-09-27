@@ -180,10 +180,18 @@ def _target_signature(target):
 
 
 def _screenshot(view, path):
+    _progress("screenshot:set-camera:start")
     view.setCameraType("Orthographic")
+    _progress("screenshot:set-camera:done")
+    _progress("screenshot:fit-all:start")
     view.fitAll()
+    _progress("screenshot:fit-all:done")
+    _progress("screenshot:events:start")
     _events()
+    _progress("screenshot:events:done")
+    _progress("screenshot:save-image:start")
     view.saveImage(str(path), 1280, 720, "White", 1)
+    _progress("screenshot:save-image:done")
     if not path.is_file() or path.stat().st_size <= 0:
         raise RuntimeError("screenshot missing: %s" % path)
 
