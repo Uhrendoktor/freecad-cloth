@@ -56,8 +56,11 @@ def test_tunic_audit_replaces_hard_exit_and_writes_failure_diagnostics():
     assert 'globals()["_TUNIC_SOURCE_FAILURE"] = error' in audit
     assert 'globals()["_TUNIC_SOURCE_FAILURE_TRACEBACK"] = traceback.format_exc()' in audit
     assert "tunic-audit-source-traceback-begin" in audit
+    assert "tunic-audit-source-failure.txt" in audit
+    assert "tunic-audit-source-failure-path=" in audit
     assert "tunic-audit-gui-log-tail-begin" in audit
     assert "docs/images/generated/tunic-audit-diagnostics.txt" in workflow
+    assert "docs/images/generated/tunic-audit-source-failure.txt" in workflow
 
 
 def test_turntable_exports_post_simulation_state_before_validation():
