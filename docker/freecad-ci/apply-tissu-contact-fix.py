@@ -328,8 +328,8 @@ TEST(MeshCollider, OpenConsistentlyWoundSurfaceMovesInteriorParticleOutside) {
     MeshCollider mesh(vertices, triangles, 0.0);
 
     const Eigen::Vector3d faceA = vertices[0];
-    const Eigen::Vector3d faceB = vertices[1];
-    const Eigen::Vector3d faceC = vertices[3];
+    const Eigen::Vector3d faceB = vertices[3];
+    const Eigen::Vector3d faceC = vertices[1];
     Eigen::Vector3d authoredOutwardNormal =
         (faceB - faceA).cross(faceC - faceA).normalized();
     const Eigen::Vector3d faceCenter = (faceA + faceB + faceC) / 3.0;
