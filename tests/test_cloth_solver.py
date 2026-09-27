@@ -96,3 +96,16 @@ if __name__ == "__main__":
         if name.startswith("test_") and callable(test):
             test()
     print("cloth solver tests passed")
+
+
+def test_tissu_attachment_bridge_is_opt_in_and_mesh_authoritative():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    tissu_source = (root / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+
+    assert "attachments: Iterable[Tuple[int, int, float]] = ()" in tissu_source
+    assert "def add_attachments(self, attachments" in tissu_source
+    assert "self._sim.solver.add_attachment(" in tissu_source
+    assert "Tissu attachments require the authoritative mesh collision surface" in tissu_source
+    assert "self._attachments = tuple" in tissu_source
