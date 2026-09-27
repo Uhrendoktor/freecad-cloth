@@ -370,7 +370,7 @@ def _tunic_shoulder_attachment_records(seam_pair_records, positions, collision_s
         for pair in endpoint_pairs:
             for particle_id, piece_name in zip(pair, side_names, strict=False):
                 particle_id = int(particle_id)
-                piece_name = str(piece_name).lower()
+                is_front_piece = side_names[0] == side_names[0] and piece_name == side_names[0]
                 if particle_id in seen_particles:
                     continue
                 if not 0 <= particle_id < len(positions):
@@ -379,7 +379,7 @@ def _tunic_shoulder_attachment_records(seam_pair_records, positions, collision_s
                     )
                 point = positions[particle_id]
                 point_xyz = (float(point[0]), float(point[1]), float(point[2]))
-                desired_y = front_y if "front" in piece_name else back_y if "back" in piece_name else point_xyz[1]
+                desired_y = front_y if is_front_piece else back_y
                 target_vertex_id = min(
                     range(len(surface_vertices)),
                     key=lambda index: (
@@ -398,6 +398,7 @@ def _tunic_shoulder_attachment_records(seam_pair_records, positions, collision_s
                     )
                 records.append((particle_id, anchor, float(rest_length)))
                 seen_particles.add(particle_id)
+    print("tunic-shoulder-attachments=%r" % (tuple(records),), flush=True)
     return tuple(records)
 
 
