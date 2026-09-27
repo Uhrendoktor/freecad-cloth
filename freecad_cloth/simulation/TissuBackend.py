@@ -40,7 +40,7 @@ def _collision_orientation_hint(surface):
             count, winding = edges.get(key, (0, 0))
             edges[key] = (count + 1, winding + (1 if start == key[0] else -1))
     closed = bool(edges) and all(
-        count == 2 and winding == 0 for count, winding in edges.values()
+        count == 2 for count, _winding in edges.values()
     )
     if not closed or not math.isfinite(signed_volume) or abs(signed_volume) <= 1e-12:
         return False, 1.0
