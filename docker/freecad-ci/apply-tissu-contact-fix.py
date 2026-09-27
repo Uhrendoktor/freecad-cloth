@@ -31,6 +31,7 @@ def main() -> int:
     header = ROOT / "core/include/physics/MeshCollider.hpp"
     cpp = ROOT / "core/src/physics/MeshCollider.cpp"
     test = ROOT / "tests/physics/test_mesh_collider.cpp"
+    stitch_test = ROOT / "tests/physics/test_stitch_constraint.cpp"
 
     replace_once(
         header,
@@ -287,6 +288,28 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         raise RuntimeError("MeshCollider regression test body anchor mismatch")
     test_cpp = test_cpp.replace(old, new, 1)
     test.write_text(test_cpp, encoding="utf-8")
+    stitch_cpp = stitch_test.read_text(encoding="utf-8")
+    if "TEST(StitchConstraint, Compliance001ConvergesAcrossResetSteps)" in stitch_cpp:
+        raise RuntimeError("StitchConstraint compliance regression already present before patching")
+    stitch_cpp = stitch_cpp.rstrip() + """
+
+TEST(StitchConstraint, Compliance001ConvergesAcrossResetSteps) {
+    std::vector<Particle> particles;
+    particles.emplace_back(Eigen::Vector3d(-0.164, 0.0, 0.0));
+    particles.emplace_back(Eigen::Vector3d(0.164, 0.0, 0.0));
+    StitchConstraint constraint(0, 1, 0.001);
+
+    for (int step = 0; step < 90; ++step) {
+        constraint.resetLambda();
+        constraint.solve(particles, 1.0 / 120.0);
+    }
+
+    const double distance =
+        (particles[0].getPosition() - particles[1].getPosition()).norm();
+    EXPECT_LT(distance, 0.01);
+}
+"""
+    stitch_test.write_text(stitch_cpp, encoding="utf-8")
 
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
@@ -295,6 +318,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
         "tests/physics/test_mesh_collider.cpp",
+        "tests/physics/test_stitch_constraint.cpp",
     }
     if set(changed.splitlines()) != expected:
         raise RuntimeError(f"unexpected patched files: {changed!r}")
