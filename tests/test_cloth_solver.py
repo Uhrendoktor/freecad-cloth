@@ -153,10 +153,6 @@ def test_tissu_collider_friction_sphere_path_remains_default(monkeypatch):
         lambda _surface: (((0.0, 0.0, 0.0), 10.0),),
     )
     backend._add_collision()
-    assert calls == [("sphere", ("drape-torso-0",), {
-        "friction": 0.5,
-        "radius": 0.01,
-    })] or (
-        calls and calls[0][0] == "sphere"
-        and calls[0][2]["friction"] == 0.5
-    )
+    assert len(calls) == 1
+    assert calls[0][0] == "sphere"
+    assert calls[0][2]["friction"] == 0.5
