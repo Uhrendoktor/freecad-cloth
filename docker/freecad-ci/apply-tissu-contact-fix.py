@@ -418,7 +418,6 @@ TEST(MeshCollider, HintedSparseMeshPreservesOutsideContact) {
 
     EXPECT_LT(particles[0].getPosition().y(), 0.0);
 }
-
 """
     test.write_text(test_cpp, encoding="utf-8")
 
