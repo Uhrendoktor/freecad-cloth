@@ -742,13 +742,15 @@ void StitchConstraint::solveInternal(
     if "correctionScaleAtFirstMeshHit" in stitch_cpp_text:
         raise RuntimeError("StitchConstraint generated implementation retained the old non-entering helper")
     for marker in (
-        "if (direction.dot(enteringNormal) >= -1e-10)",
         "const Eigen::Vector3d clippedPosition =",
         "const double appliedDeltaLambda = deltaLambda * appliedScale;",
         "m_lambda += appliedDeltaLambda;",
     ):
         if marker not in stitch_cpp_text:
-            raise RuntimeError(f"missing entering/lambda semantic marker: {marker}")
+            raise RuntimeError(f"missing stitch/lambda semantic marker: {marker}")
+    mesh_cpp_text = mesh_cpp.read_text(encoding="utf-8")
+    if "if (direction.dot(enteringNormal) >= -1e-10)" not in mesh_cpp_text:
+        raise RuntimeError("missing entering-normal semantic marker")
 
     replace_once(
         ROOT / "core/include/physics/Solver.hpp",
