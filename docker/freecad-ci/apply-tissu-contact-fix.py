@@ -462,6 +462,40 @@ MeshOrientation inferMeshOrientation(
     old = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
     EXPECT_GT(distanceMoved, 0.0);
 }"""
+    deep_tests = r'''
+TEST(MeshCollider, DeepInteriorClosedMeshProjectsOutside) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    constexpr double thickness = 0.05;
+    const Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+    mesh.resolve(particles, 0.016, thickness);
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+    EXPECT_GT((particles[0].getPosition() - initialPos).norm(), thickness);
+}
+
+TEST(MeshCollider, DeepInteriorClosedMeshHandlesReversedWinding) {
+    const std::vector<Eigen::Vector3d> vertices = {
+        {0.0, 0.0, 0.0},
+        {2.0, 0.0, 0.0},
+        {1.0, 0.0, 2.0},
+        {1.0, 2.0, 1.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {
+        {0, 1, 2},
+        {0, 3, 1},
+        {1, 3, 2},
+        {0, 2, 3},
+    };
+    MeshCollider mesh(vertices, triangles, 0.0);
+    const Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+    mesh.resolve(particles, 0.016, 0.05);
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+}
+
+'''
     new = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
     EXPECT_GT(distanceMoved, 0.0);
     EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
