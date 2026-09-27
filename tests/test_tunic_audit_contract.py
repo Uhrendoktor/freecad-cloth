@@ -98,6 +98,13 @@ def test_simulation_proxy_serializes_only_rebuildable_metadata():
     assert proxy.collision_surface is None
 
 
+def test_tunic_delayed_stitch_experiment_contract():
+    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'os.environ["CLOTH_TISSU_STITCH_DELAY_STEPS"] = "15"' in source
+    assert "configured_steps=15 activation_step=16" in source
+    assert "delayed-stitch experiment pre-activation target clearance" in source
+
+
 def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
