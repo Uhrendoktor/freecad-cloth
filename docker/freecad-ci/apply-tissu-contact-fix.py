@@ -302,7 +302,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
 
     bool firstSegmentHit(const Eigen::Vector3d& start,
                          const Eigen::Vector3d& end,
-                         double& hitT,
+                         double& hitT, Eigen::Vector3d& hitNormal,
                          int& hitTriangle) const;""",
         "MeshCollider firstSegmentHit declaration",
     )
@@ -335,7 +335,7 @@ bool segmentTriangleHit(
     const Eigen::Vector3d& a,
     const Eigen::Vector3d& b,
     const Eigen::Vector3d& c,
-    double& hitT) {
+    double& hitT, Eigen::Vector3d& hitNormal) {
     constexpr double kEpsilon = 1.0e-10;
     const Eigen::Vector3d direction = end - start;
     const Eigen::Vector3d edge1 = b - a;
@@ -361,7 +361,14 @@ bool segmentTriangleHit(
     if (t <= kEpsilon || t >= 1.0 - kEpsilon)
         return false;
 
+    Eigen::Vector3d rawNormal = edge1.cross(edge2);
+    const double normalLength = rawNormal.norm();
+    if (normalLength <= kEpsilon)
+        return false;
+    rawNormal /= normalLength;
+
     hitT = t;
+    hitNormal = rawNormal;
     return true;
 }
 
@@ -377,7 +384,7 @@ MeshCollider::MeshCollider""",
         """bool MeshCollider::firstSegmentHit(
     const Eigen::Vector3d& start,
     const Eigen::Vector3d& end,
-    double& hitT,
+    double& hitT, Eigen::Vector3d& hitNormal,
     int& hitTriangle) const {
     const Eigen::Vector3d segment = end - start;
     const double length = segment.norm();
@@ -393,18 +400,19 @@ MeshCollider::MeshCollider""",
 
     double bestT = std::numeric_limits<double>::infinity();
     int bestTriangle = -1;
+    Eigen::Vector3d bestNormal = Eigen::Vector3d::Zero();
     for (const int triIdx : candidates) {
-        if (triIdx < 0 || triIdx >= static_cast<int>(m_triangles.size()))
-            continue;
-        const Triangle& tri = m_triangles[triIdx];
+        const Triangle& tri = m_bvh.getTriangle(triIdx);
         double candidateT = 0.0;
+        Eigen::Vector3d candidateNormal = Eigen::Vector3d::Zero();
         if (!segmentTriangleHit(
                 start,
                 end,
                 m_worldVertices[tri.a],
                 m_worldVertices[tri.b],
                 m_worldVertices[tri.c],
-                candidateT)) {
+                candidateT,
+                candidateNormal)) {
             continue;
         }
         if (candidateT < bestT - 1.0e-12 ||
@@ -412,12 +420,14 @@ MeshCollider::MeshCollider""",
              (bestTriangle == -1 || triIdx < bestTriangle))) {
             bestT = candidateT;
             bestTriangle = triIdx;
+            bestNormal = candidateNormal;
         }
     }
     if (bestTriangle == -1)
         return false;
 
     hitT = bestT;
+    hitNormal = bestNormal;
     hitTriangle = bestTriangle;
     return true;
 }
@@ -502,40 +512,56 @@ void StitchConstraint::solveSwept(
     const Eigen::Vector3d correctionB = -wB * norm * deltaLambda;
     const double safeThickness = std::max(0.0, thickness);
 
-    const auto earliestSafeScale = [&](const Eigen::Vector3d& start,
-                                       const Eigen::Vector3d& correction) {
-        const double correctionLength = correction.norm();
-        if (correctionLength <= 1.0e-12)
-            return 1.0;
+    const auto clipCorrection = [&](const Eigen::Vector3d& start,
+                                    const Eigen::Vector3d& correction) {
+        if (correction.squaredNorm() <= 1.0e-24)
+            return start + correction;
 
         const Eigen::Vector3d end = start + correction;
-        double bestScale = 1.0;
-        for (const MeshCollider* collider : meshColliders) {
+        double bestT = 1.0;
+        int bestColliderIndex = -1;
+        int bestTriangle = -1;
+        Eigen::Vector3d bestNormal = Eigen::Vector3d::Zero();
+
+        for (int colliderIndex = 0;
+             colliderIndex < static_cast<int>(meshColliders.size());
+             ++colliderIndex) {
+            const MeshCollider* collider = meshColliders[colliderIndex];
             if (collider == nullptr)
                 continue;
+
             double hitT = 0.0;
             int hitTriangle = -1;
+            Eigen::Vector3d hitNormal = Eigen::Vector3d::Zero();
             if (!collider->firstSegmentHit(
-                    start, end, hitT, hitTriangle)) {
+                    start, end, hitT, hitNormal, hitTriangle)) {
                 continue;
             }
-            (void)hitTriangle;
-            const double retreatFraction =
-                safeThickness / correctionLength;
-            bestScale = std::min(
-                bestScale, std::max(0.0, hitT - retreatFraction));
+
+            if (hitT < bestT - 1.0e-12 ||
+                (std::abs(hitT - bestT) <= 1.0e-12 &&
+                 (bestColliderIndex < 0 || colliderIndex < bestColliderIndex ||
+                  (colliderIndex == bestColliderIndex &&
+                   hitTriangle < bestTriangle)))) {
+                bestT = hitT;
+                bestColliderIndex = colliderIndex;
+                bestTriangle = hitTriangle;
+                bestNormal = hitNormal;
+            }
         }
-        return bestScale;
+
+        if (bestColliderIndex < 0)
+            return end;
+
+        const Eigen::Vector3d hitPoint = start + correction * bestT;
+        if ((start - hitPoint).dot(bestNormal) < 0.0)
+            bestNormal = -bestNormal;
+        return hitPoint + bestNormal * safeThickness;
     };
 
-    const double scaleA = earliestSafeScale(startA, correctionA);
-    const double scaleB = earliestSafeScale(startB, correctionB);
-    const double scale = std::min(scaleA, scaleB);
-    const double appliedDeltaLambda = deltaLambda * scale;
-
-    m_lambda += appliedDeltaLambda;
-    pA.setPosition(startA + wA * norm * appliedDeltaLambda);
-    pB.setPosition(startB - wB * norm * appliedDeltaLambda);
+    m_lambda += deltaLambda;
+    pA.setPosition(clipCorrection(startA, correctionA));
+    pB.setPosition(clipCorrection(startB, correctionB));
 }
 
 } // namespace Tissu
