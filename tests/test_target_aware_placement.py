@@ -9,6 +9,7 @@ from freecad_cloth.avatar.TargetAwarePlacement import (
     apply_rigid_delta,
     anchor_clearance,
     solve_rigid_z,
+    solve_shared_translation,
     target_surface_anchor,
     wrap_normal,
 )
@@ -96,14 +97,32 @@ def test_garment_anchors_persist_deterministically():
     assert restored.garment_anchors[0].to_string() == "front|shoulder|10,20,0|front"
 
 
+def test_shared_translation_preserves_pairwise_spacing():
+    source = ((-20, 0, 0), (20, 0, 0), (0, 30, 4))
+    target = ((-20, 50, 5), (20, 50, 5), (0, 80, 9))
+    delta = solve_shared_translation(source, target, max_translation=100)
+    transformed = tuple(
+        tuple(float(point[i]) + float(delta.translation[i]) for i in range(3))
+        for point in source
+    )
+    assert delta.rotation_z == pytest.approx(0.0)
+    assert math.dist(source[0], source[1]) == pytest.approx(math.dist(transformed[0], transformed[1]))
+    assert delta.translation == pytest.approx((0.0, 50.0, 5.0))
+
+
+def test_shared_translation_fails_closed_on_bounds():
+    with pytest.raises(TargetPlacementError):
+        solve_shared_translation(((0, 0, 0), (10, 0, 0)), ((1000, 0, 0), (1010, 0, 0)), max_translation=100)
+
+
 def test_target_snap_contract_uses_one_shared_transform():
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]
     source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
     assert "def snap_pieces_to_target" in source
-    assert "solve_rigid_z(" in source
-    assert source.count("piece.Placement = updated") == 1
-    assert "for piece in pieces:" in source
+    assert "solve_shared_translation(" in source
+    assert "nearest_target_projection(" in source
+    assert "piece.Placement = App.Placement(" in source
     assert "scene.FitStatus = \"Target-aware placement applied\"" in source
     assert "except Exception:" in source
     assert "scene.PiecePlacements = previous_piece_placements" in source
