@@ -459,12 +459,17 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
                 sample_errors = []
                 weighted_sample_step = App.Vector(0.0, 0.0, 0.0)
                 sample_weight_total = 0.0
+                preferred_directions = {
+                    piece: tuple(
+                        float(average_point(sample_cache[piece])[index])
+                        - float(surface.center[index])
+                        for index in range(3)
+                    )
+                    for piece in selected
+                }
                 for piece in selected:
+                    preferred_direction = preferred_directions[piece]
                     for point in sample_cache[piece]:
-                        preferred_direction = tuple(
-                            float(point[index]) - float(surface.center[index])
-                            for index in range(3)
-                        )
                         projection = nearest_target_projection(
                             point,
                             surface,
@@ -512,13 +517,10 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
                             continue
                         test_sample_errors = []
                         for piece in selected:
+                            preferred_direction = preferred_directions[piece]
                             for point in sample_cache[piece]:
                                 test_point = tuple(
                                     float(point[index]) + float(step[index])
-                                    for index in range(3)
-                                )
-                                preferred_direction = tuple(
-                                    float(test_point[index]) - float(surface.center[index])
                                     for index in range(3)
                                 )
                                 test_projection = nearest_target_projection(
