@@ -88,6 +88,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          WIKI_OPERATION: ${{ inputs.wiki_operation || 'publish' }}
         run: |
           set -euo pipefail
           grace_seconds=45
@@ -118,7 +119,7 @@ jobs:
             --repo "$REPO" \
             --ref "$ref" \
             -f runner_mode=hosted \
-          -f wiki_operation=publish \
+            -f wiki_operation="$WIKI_OPERATION" \
             -f fallback_source_run="$GITHUB_RUN_ID"
           echo "runner-watchdog=hosted-dispatch ref=$ref source_run=$GITHUB_RUN_ID"
           sleep 2
