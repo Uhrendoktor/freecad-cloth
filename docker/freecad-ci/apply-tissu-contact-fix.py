@@ -406,31 +406,23 @@ bool isDeepInterior(
             Eigen::Vector3d newPosition = cp + normal * thickness;""",
             """        bool deepInterior = false;
         if (m_closedManifold && distance > thickness)
-            deepInterior = isDeepInterior(m_bvh, particle.getPosition(), m_worldVertices);
+            deepInterior = isDeepInterior(
+                m_bvh, particle.getPosition(), m_worldVertices);
 
         if (distance <= thickness || deepInterior) {
-            Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
-            const double faceNormalLength = faceNormalRaw.norm();
-            if (faceNormalLength <= 1e-12)
-                continue;
-            Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
-
-            Eigen::Vector3d normal = faceNormal;
+            Eigen::Vector3d normal;
             if (deepInterior) {
-                normal *= m_outwardNormalSign;
-            } else if (distance > 1e-6) {
-                normal = toParticle / distance;
-                if (m_closedManifold) {
-                    const Eigen::Vector3d outwardNormal =
-                        faceNormal * m_outwardNormalSign;
-                    // A particle on the interior side of a closed, consistently
-                    // oriented surface must be resolved along the outward
-                    // normal; outside contact preserves the existing vector.
-                    if (normal.dot(outwardNormal) < 0.0)
-                        normal = -normal;
-                }
-            } else if (m_closedManifold) {
-                normal *= m_outwardNormalSign;
+                Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
+                const double faceNormalLength = faceNormalRaw.norm();
+                if (faceNormalLength <= 1e-12)
+                    continue;
+                normal =
+                    faceNormalRaw / faceNormalLength * m_outwardNormalSign;
+            } else {
+                // Preserve the exact legacy near-surface contact response.
+                normal = (distance > 1e-6)
+                             ? toParticle.normalized()
+                             : ((b - a).cross(c - a)).normalized();
             }
 
             Eigen::Vector3d newPosition = cp + normal * thickness;""",
