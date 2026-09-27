@@ -58,6 +58,7 @@ def main() -> int:
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <cstdint>
 #include <unordered_map>
 #include <utility>
@@ -426,7 +427,7 @@ StitchConstraint::StitchConstraint(int idA, int idB, double compliance)
 }
 
 void StitchConstraint::solve(std::vector<Particle>& particles, double dt) {
-    solveBounded(particles, dt, -1.0);
+    solveBounded(particles, dt, std::numeric_limits<double>::infinity());
 }
 
 void StitchConstraint::solveBounded(std::vector<Particle>& particles,
@@ -449,10 +450,11 @@ void StitchConstraint::solveBounded(std::vector<Particle>& particles,
     double C = currentLength;
     double alphaHat = m_compliance / (dt * dt);
     double deltaLambda = (-C - alphaHat * m_lambda) / (wSum + alphaHat);
-    if (maxCorrection > 0.0) {
+    if (std::isfinite(maxCorrection)) {
+        const double correctionLimit = maxCorrection < 0.0 ? 0.0 : maxCorrection;
         const double relativeCorrection = std::abs(deltaLambda) * wSum;
-        if (relativeCorrection > maxCorrection)
-            deltaLambda = std::copysign(maxCorrection / wSum, deltaLambda);
+        if (relativeCorrection > correctionLimit)
+            deltaLambda = std::copysign(correctionLimit / wSum, deltaLambda);
     }
     m_lambda += deltaLambda;
 
@@ -496,6 +498,32 @@ TEST(Solver, StitchCorrectionIsBoundedByWorldThickness) {
         (solver.getParticles()[0].getPosition() -
          solver.getParticles()[1].getPosition()).norm(),
         9.0, 1e-9);
+}
+
+TEST(Solver, ZeroOrNegativeWorldThicknessFailsClosed) {
+    for (double thickness : {0.0, -1.0}) {
+        Solver solver;
+        World world;
+        world.setGravity(Eigen::Vector3d::Zero());
+        world.setThickness(thickness);
+        solver.setSubsteps(1);
+        solver.setIterations(1);
+
+        solver.addParticle(Particle(Eigen::Vector3d(0.0, 0.0, 0.0)));
+        solver.addParticle(Particle(Eigen::Vector3d(10.0, 0.0, 0.0)));
+        solver.addStitch(0, 1, 0.0);
+
+        solver.update(world, 0.016);
+
+        EXPECT_NEAR(
+            (solver.getParticles()[0].getPosition() -
+             Eigen::Vector3d(0.0, 0.0, 0.0)).norm(),
+            0.0, 1e-9);
+        EXPECT_NEAR(
+            (solver.getParticles()[1].getPosition() -
+             Eigen::Vector3d(10.0, 0.0, 0.0)).norm(),
+            0.0, 1e-9);
+    }
 }
 
 TEST(Solver, StitchCorrectionWithinThicknessRemainsUnclamped) {
