@@ -73,7 +73,8 @@ assert '"upper_arm": "Upper_Arm"' in avatar_commands
 
 def test_sewing_command_groups_are_unique_and_complete():
     groups = dict(SEWING_COMMAND_GROUPS)
-    assert tuple(groups) == ("Sewing Creation", "Sewing Editing", "Validation & View")
+    assert tuple(groups) == ("Sewing Creation", "Sewing Editing", "Validation & View", "Fitting & Avatar")
+    assert groups["Fitting & Avatar"] == ()
     commands = [command for group in groups.values() for command in group]
     assert len(commands) == len(set(commands))
     assert commands == [
@@ -90,7 +91,9 @@ def test_sewing_toolbar_is_small_and_stable():
     assert len(SEWING_TOOLBAR_COMMANDS) == len(set(SEWING_TOOLBAR_COMMANDS))
 
 
-def test_sewing_registration_uses_native_nested_menu_paths_and_toolbar_subset():
+def test_sewing_registration_uses_native_nested_menu_paths_and_toolbar_subset(monkeypatch):
+    import freecad_cloth.gui as gui_module
+    monkeypatch.setattr(gui_module, "Gui", object())
     workbench = ClothSewingWorkbench()
     calls = []
     workbench.appendToolbar = lambda name, commands: calls.append(("toolbar", name, list(commands)))
@@ -120,7 +123,9 @@ def test_sewing_command_group_validator_rejects_missing_duplicate_or_extra_comma
             raise AssertionError(f"invalid command groups were accepted: {marker}")
 
 
-def test_workbench_group_registration_is_idempotent_and_keeps_flat_context_commands():
+def test_workbench_group_registration_is_idempotent_and_keeps_flat_context_commands(monkeypatch):
+    import freecad_cloth.gui as gui_module
+    monkeypatch.setattr(gui_module, "Gui", object())
     workbench = ClothSewingWorkbench()
     calls = []
     workbench.appendToolbar = lambda name, commands: calls.append(("toolbar", name, list(commands)))
