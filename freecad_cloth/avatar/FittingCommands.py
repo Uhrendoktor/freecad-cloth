@@ -391,7 +391,10 @@ def reset_arrangement():
         if piece is None:
             continue
         x, y, z = placement.position
-        piece.Placement = App.Placement(App.Vector(x, y, z), App.Rotation(App.Vector(0, 0, 1), placement.rotation_z))
+        piece.Placement = App.Placement(
+            App.Vector(x, y, z),
+            App.Rotation(App.Vector(*placement.rotation_axis), placement.rotation_z),
+        )
         current[pid] = placement
     scene.PiecePlacements = [current[k].to_string() for k in sorted(current)]
     scene.FitStatus = "Arrangement reset"
@@ -412,6 +415,9 @@ def create_simulation_from_fitting():
     simulation.ClothPieces = list(scene.PatternPieces)
     if scene.AvatarProxy is not None:
         simulation.AvatarProxy = scene.AvatarProxy
+    _ensure_fitting_runtime_properties(scene)
+    if getattr(scene, "DrapeTarget", None) is not None:
+        simulation.DrapeTarget = scene.DrapeTarget
     doc.recompute()
     return simulation
 
