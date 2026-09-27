@@ -128,6 +128,7 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "OpenMeshRetainsLegacyContactDirection" in script
     assert "HintedSparseMeshResolvesInteriorOutward" in script
     assert "HintedSparseMeshPreservesOutsideContact" in script
+    assert "EXPECT_GT(particles[0].getPosition().y(), initialPos.y())" in script
     assert "set_outward_normal_sign" in script
 
 
