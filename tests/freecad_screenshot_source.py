@@ -396,10 +396,27 @@ def simulation():
     def make_piece(name, side, neckline_ratio, neckline_drop):
         sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(side); piece.Sketch.Placement = piece.Placement; return piece, outline
     front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
-    # Same-side side seams and authored shoulder seams; the neckline remains open.
+    front_edge_ids = tuple(str(value) for value in (getattr(front.Sketch, "SemanticEdgeIds", ()) or ()))
+    back_edge_ids = tuple(str(value) for value in (getattr(back.Sketch, "SemanticEdgeIds", ()) or ()))
+    if len(front_edge_ids) <= 7 or len(back_edge_ids) <= 7:
+        raise RuntimeError("canonical screenshot tunic semantic edge ABI is incomplete")
+    seam_specs = (
+        (front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),
+        (front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"),
+        (front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"),
+        (front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"),
+    )
     seam_records = []
-    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
-        seam = Seam(str(front.PieceId), edge_a, str(back.PieceId), edge_b, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")
+    for edge_a_id, edge_b_id, seam_id in seam_specs:
+        seam = Seam(
+            str(front.PieceId),
+            edge_a_id,
+            str(back.PieceId),
+            edge_b_id,
+            id=seam_id,
+            alignment="uniform",
+            stitch_group="TunicAssembly",
+        )
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
