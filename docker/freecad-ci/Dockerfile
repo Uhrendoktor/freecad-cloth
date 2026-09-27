@@ -39,6 +39,7 @@ RUN apt-get update -qq \
          "tissu-build=cmake-source" \
          "tissu-cpp-regression=MeshCollider.*" \
          "tissu-cpp-regression-result=passed" \
+         "tissu-solver-order=collider-before-each-constraint-iteration" \
          "tissu-python-package-version=$TISSU_VERSION" \
          "tissu-python-module=$TISSU_MODULE" \
        > /opt/tissu-provenance.txt \
