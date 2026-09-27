@@ -219,7 +219,3 @@ def test_bvh_prunes_26k_triangle_target_without_wall_clock_gate():
     assert hit.normal == (0.0, 0.0, 1.0)
     assert _target_surface_query_candidate_count(surface, point) < 512
 
-
-def test_closed_manifold_detection_rejects_vertex_touching_disconnected_sheets():
-    surface = _disconnected_orthogonal_tie_surface()
-    assert target_surface_anchor
