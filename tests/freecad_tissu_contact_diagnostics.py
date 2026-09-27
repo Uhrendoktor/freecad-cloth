@@ -22,8 +22,16 @@ import Part
 
 OUT = Path(os.environ.get("CLOTH_DIAGNOSTIC_DIR", "artifacts/tissu-contact-diagnostics"))
 OUT.mkdir(parents=True, exist_ok=True)
+PROGRESS = OUT / "progress.log"
 STEPS = (0, 1)
 PARTICLE_DISTANCE = 24.0
+
+
+def _progress(message):
+    line = str(message)
+    with PROGRESS.open("a", encoding="utf-8") as handle:
+        handle.write(line + "\n")
+    print(line, flush=True)
 
 
 def _events():
@@ -103,16 +111,27 @@ def _centroid(points):
     return tuple(sum(p[i] for p in points) / n for i in range(3))
 
 
-def _minimum_vertex_distance(source_points, target_points):
+def _nearest_surface_distance(garment_points, surface):
+    if not garment_points or surface is None:
+        return None
+    vertices = tuple(getattr(surface, "vertices", ()) or ())
+    triangles = tuple(getattr(surface, "triangles", ()) or ())
+    if not vertices:
+        return None
+    if triangles:
+        try:
+            from freecad_cloth.common.MeshValidation import nearest_surface_clearance
+            return float(nearest_surface_clearance(garment_points, vertices, triangles))
+        except (ImportError, RuntimeError, ValueError):
+            pass
+    sample = vertices[::max(1, len(vertices) // 4096)]
     best = float("inf")
-    best_pair = None
-    for source in source_points:
-        for target in target_points:
-            d2 = sum((source[i] - target[i]) ** 2 for i in range(3))
+    for source in garment_points:
+        for target in sample:
+            d2 = sum((float(a) - float(b)) ** 2 for a, b in zip(source, target))
             if d2 < best:
                 best = d2
-                best_pair = (source, target)
-    return math.sqrt(best) if math.isfinite(best) else None, best_pair
+    return math.sqrt(best) if math.isfinite(best) else None
 
 
 def _target_signature(target):
@@ -141,21 +160,23 @@ def _screenshot(view, path):
         raise RuntimeError("screenshot missing: %s" % path)
 
 
-def _case_record(case_id, target, cloth_points_before, cloth_points_after, solver_surface_triangles, steps, image_paths):
+def _case_record(case_id, target, cloth_points_before, cloth_points_after, collision_surface, steps, image_paths):
     before_centroid = _centroid(cloth_points_before)
     after_centroid = _centroid(cloth_points_after)
     before_bounds = _bounds(cloth_points_before)
     after_bounds = _bounds(cloth_points_after)
-    target_source = getattr(target, "SourceObject", None)
-    target_points = _mesh_points(target_source)
-    before_distance, before_pair = _minimum_vertex_distance(cloth_points_before, target_points)
-    after_distance, after_pair = _minimum_vertex_distance(cloth_points_after, target_points)
+    before_distance = _nearest_surface_distance(cloth_points_before, collision_surface)
+    after_distance = _nearest_surface_distance(cloth_points_after, collision_surface)
     displacement = math.sqrt(
         sum((after_centroid[i] - before_centroid[i]) ** 2 for i in range(3))
     )
-    if displacement > 0.01 and (after_distance is None or before_distance is None or after_distance >= before_distance):
+    max_vertex_displacement = max(
+        math.sqrt(sum((after[i] - before[i]) ** 2 for i in range(3)))
+        for before, after in zip(cloth_points_before, cloth_points_after)
+    )
+    if max_vertex_displacement > 0.01 and before_distance is not None and after_distance is not None and after_distance >= before_distance:
         contact_state = "projection-or-contact-response-observed"
-    elif displacement <= 0.01:
+    elif max_vertex_displacement <= 0.01:
         contact_state = "no-observable-response"
     else:
         contact_state = "response-toward-target-or-tangential-motion"
@@ -166,17 +187,16 @@ def _case_record(case_id, target, cloth_points_before, cloth_points_after, solve
         "cloth_before": {
             "bounds": before_bounds,
             "centroid": before_centroid,
-            "nearest_target_vertex_distance_mm": before_distance,
-            "nearest_pair": before_pair,
+            "nearest_solver_surface_distance_mm": before_distance,
         },
         "cloth_after": {
             "bounds": after_bounds,
             "centroid": after_centroid,
-            "nearest_target_vertex_distance_mm": after_distance,
-            "nearest_pair": after_pair,
+            "nearest_solver_surface_distance_mm": after_distance,
         },
         "centroid_displacement_mm": displacement,
-        "solver_collision_triangles": int(solver_surface_triangles),
+        "max_vertex_displacement_mm": max_vertex_displacement,
+        "solver_collision_triangles": int(len(getattr(collision_surface, "triangles", ()) or ())),
         "contact_state": contact_state,
         "images": image_paths,
         "target": _target_signature(target),
@@ -206,7 +226,7 @@ def _build_scene(doc):
     return scene
 
 
-def _build_piece(doc, name, placement, width=360.0, height=360.0):
+def _build_piece(doc, name, placement, width=120.0, height=120.0):
     sketch = _add_rectangle_sketch(doc, name + "Source", width, height)
     piece = _adopt_sketch(sketch, name)
     piece.Placement = placement
@@ -218,14 +238,17 @@ def _build_piece(doc, name, placement, width=360.0, height=360.0):
 
 
 def _run_case(case_id, scene, piece, camera):
+    _progress(f"{case_id}: assign-piece")
     scene.ClothPieces = [piece]
     scene.Steps = 0
     scene.touch()
     scene.Document.recompute()
+    _progress(f"{case_id}: scene-ready")
     base = scene.Proxy._base_or_restore()
     backend = getattr(base, "backend", None)
     if backend is None:
         raise RuntimeError("%s did not build a simulation backend" % case_id)
+    _progress(f"{case_id}: backend={getattr(backend, 'name', '')}")
     target = scene.DrapeTarget
     if target is None:
         raise RuntimeError("%s has no DrapeTarget" % case_id)
@@ -236,8 +259,10 @@ def _run_case(case_id, scene, piece, camera):
     if panel is None:
         raise RuntimeError("%s did not create a drape panel" % case_id)
     before = _mesh_points(panel)
+    _progress(f"{case_id}: panel-vertices={len(before)} collision-triangles={len(getattr(getattr(base, 'collision_surface', None), 'triangles', ()) or ())}")
     view = Gui.activeDocument().activeView()
     _screenshot(view, OUT / (case_id + "-step-000.png"))
+    _progress(f"{case_id}: screenshot-000")
     if camera == "front":
         view.viewFront()
     elif camera == "top":
@@ -252,6 +277,7 @@ def _run_case(case_id, scene, piece, camera):
     _events()
     after = _mesh_points(panel)
     _screenshot(view, OUT / (case_id + "-step-001-camera.png"))
+    _progress(f"{case_id}: screenshot-001")
     image_paths = [
         case_id + "-step-000.png",
         case_id + "-step-000-camera.png",
@@ -262,17 +288,17 @@ def _run_case(case_id, scene, piece, camera):
         target,
         before,
         after,
-        len(getattr(base, "collision_surface", None).triangles)
-        if getattr(base, "collision_surface", None) is not None
-        else int(getattr(target, "CollisionTriangleCount", 0)),
+        getattr(base, "collision_surface", None),
         int(scene.Steps),
         image_paths,
     )
     record["backend"] = str(getattr(backend, "name", ""))
+    _progress(f"{case_id}: record-ready")
     return record
 
 
 def _run_control_cube():
+    _progress("control-0-cube: start")
     doc = App.newDocument("TissuContactControlCube")
     try:
         scene = _build_scene(doc)
@@ -297,6 +323,7 @@ def _run_control_cube():
 
 
 def _run_control_avatar():
+    _progress("control-0a-avatar: start")
     doc = App.newDocument("TissuContactControlAvatar")
     try:
         scene = _build_scene(doc)
@@ -318,6 +345,7 @@ def _run_control_avatar():
 
 
 def main():
+    _progress("main: start")
     records = [
         _run_control_cube(),
         _run_control_avatar(),
@@ -338,6 +366,7 @@ def main():
         "release_gate_effect": "none",
     }
     (OUT / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+    _progress("main: manifest-written")
     print(json.dumps(manifest, indent=2, sort_keys=True), flush=True)
 
 
