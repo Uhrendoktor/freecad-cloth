@@ -56,26 +56,70 @@ class AvatarSpec:
             self.collision.validate()
 
 
+def _triangle_is_solver_safe(points, triangle, scale):
+    """Reject zero-area/near-zero-area faces before they reach Tissu BVH queries."""
+    ia, ib, ic = triangle
+    a, b, c = points[ia], points[ib], points[ic]
+    ab = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
+    ac = (c[0] - a[0], c[1] - a[1], c[2] - a[2])
+    cross = (
+        ab[1] * ac[2] - ab[2] * ac[1],
+        ab[2] * ac[0] - ab[0] * ac[2],
+        ab[0] * ac[1] - ab[1] * ac[0],
+    )
+    twice_area_sq = cross[0] * cross[0] + cross[1] * cross[1] + cross[2] * cross[2]
+    linear_epsilon = max(1e-6, float(scale) * 1e-8)
+    return twice_area_sq > linear_epsilon ** 4
+
+
 def coarsen_collision_surface(surface: CollisionSurface, max_triangles: int = 1024) -> CollisionSurface:
     """Derive a spatially covered collision surface from a real authored mesh.
 
     The visible avatar remains the full MakeHuman mesh. The solver does not need
     every render triangle, so this keeps one representative triangle per coarse
-    spatial cell until the requested triangle budget is reached. No proxy object
-    is created and the result remains derived solely from the real avatar mesh.
+    spatial cell until the requested triangle budget is reached. Degenerate or
+    near-zero-area authored faces are excluded before selection because the
+    pinned Tissu BVH closest-point implementation is not defined for them.
     """
     limit = int(max_triangles)
     surface.validate()
     if limit < 1:
         raise ValueError("max_triangles must be positive")
-    if len(surface.triangles) <= limit:
-        return surface
 
     points = surface.vertices
+    if len(surface.triangles) <= limit:
+        safe_triangles = tuple(
+            triangle for triangle in surface.triangles
+            if _triangle_is_solver_safe(points, triangle, max(
+                max(p[i] for p in points) - min(p[i] for p in points)
+                for i in range(3)
+            ))
+        )
+        if len(safe_triangles) == len(surface.triangles):
+            return surface
+        if not safe_triangles:
+            raise ValueError("collision surface contains no solver-safe triangles")
+        result = CollisionSurface(points, safe_triangles, surface.region, surface.thickness)
+        result.validate()
+        return result
+
+    scale = max(
+        max(points[index][axis] for index in range(len(points)))
+        - min(points[index][axis] for index in range(len(points)))
+        for axis in range(3)
+    )
+    valid_indices = [
+        index for index, triangle in enumerate(surface.triangles)
+        if _triangle_is_solver_safe(points, triangle, scale)
+    ]
+    if not valid_indices:
+        raise ValueError("collision surface contains no solver-safe triangles")
+
     centroids = []
     mins = [float("inf")] * 3
     maxs = [float("-inf")] * 3
-    for ia, ib, ic in surface.triangles:
+    for index in valid_indices:
+        ia, ib, ic = surface.triangles[index]
         a, b, c = points[ia], points[ib], points[ic]
         center = tuple((a[i] + b[i] + c[i]) / 3.0 for i in range(3))
         centroids.append(center)
@@ -92,13 +136,13 @@ def coarsen_collision_surface(surface: CollisionSurface, max_triangles: int = 10
         step = max(1, cells_per_axis)
 
     selected = {}
-    for index, center in enumerate(centroids):
+    for position, center in enumerate(centroids):
         if span <= 1e-9:
             key = (0, 0, 0)
         else:
             key = tuple(min(step - 1, max(0, int((center[i] - mins[i]) / cell))) for i in range(3))
         if key not in selected:
-            selected[key] = index
+            selected[key] = valid_indices[position]
 
     indices = list(selected.values())
     if len(indices) > limit:
@@ -108,11 +152,18 @@ def coarsen_collision_surface(surface: CollisionSurface, max_triangles: int = 10
         used = set(indices)
         stride = max(1, len(surface.triangles) // limit)
         for index in range(0, len(surface.triangles), stride):
-            if index not in used:
+            if index not in used and _triangle_is_solver_safe(points, surface.triangles[index], scale):
                 indices.append(index)
                 used.add(index)
                 if len(indices) >= limit:
                     break
+        if len(indices) < limit:
+            for index in valid_indices:
+                if index not in used:
+                    indices.append(index)
+                    used.add(index)
+                    if len(indices) >= limit:
+                        break
 
     triangles = tuple(surface.triangles[index] for index in indices[:limit])
     result = CollisionSurface(surface.vertices, triangles, surface.region, surface.thickness)
