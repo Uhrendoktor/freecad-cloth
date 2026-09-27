@@ -403,7 +403,7 @@ def simulation():
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
-    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.PinMode = "None"; scene.PinSelection = []; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
+    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.PinMode = "Automatic"; scene.PinSelection = []; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
     status = target_status(target)
     if str(status.get("state", "")) != "ready":
         raise RuntimeError("canonical tunic DrapeTarget is not current: %s" % status.get("message", status))
@@ -417,10 +417,10 @@ def simulation():
     if not solver_pins:
         system = getattr(backend, "system", None)
         solver_pins = tuple(sorted(int(i) for i in getattr(system, "pins", {}).keys()))
-    if str(getattr(scene, "PinMode", "")) != "None":
-        raise RuntimeError("canonical tunic must use PinMode=None")
-    if solver_pins:
-        raise RuntimeError("canonical tunic PinMode=None still has solver pins: %s" % (solver_pins,))
+    if str(getattr(scene, "PinMode", "")) != "Automatic":
+        raise RuntimeError("canonical tunic must use PinMode=Automatic")
+    if not solver_pins:
+        raise RuntimeError("canonical tunic PinMode=Automatic did not create solver pins")
     surface = collision_surface(
         target_source,
         float(getattr(target, "CollisionDeflection", 1.0)),
