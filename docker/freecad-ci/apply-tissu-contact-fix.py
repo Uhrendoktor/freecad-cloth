@@ -33,6 +33,8 @@ def main() -> int:
     test = ROOT / "tests/physics/test_mesh_collider.cpp"
     bvh_header = ROOT / "core/include/data-structures/BVH.hpp"
     bvh_cpp = ROOT / "core/src/data-structures/BVH.cpp"
+    solver_cpp = ROOT / "core/src/physics/Solver.cpp"
+    cloth_test = ROOT / "tests/physics/test_cloth.cpp"
 
     replace_once(
         header,
@@ -311,6 +313,27 @@ bool segmentTriangleHit(
         if count != 1:
             raise RuntimeError(f"{label}: expected one source anchor, found {count}")
         cpp = cpp.replace(old, new, 1)
+    replace_once(
+        solver_cpp,
+        """    const auto& colliders = world.getColliders();
+    for (auto& collider : colliders)
+        collider->resolve(m_particles, dt, world.getThickness());
+
+    solveSelfCollisions(dt, world.getThickness());""",
+        """    const auto& colliders = world.getColliders();
+    for (auto& collider : colliders)
+        collider->resolve(m_particles, dt, world.getThickness());
+
+    // Mesh collision may project stitched particles independently. Re-run the
+    // existing constraint solve once so the authored seam rest constraints
+    // survive the contact projection without changing the configured iteration
+    // budget or resetting XPBD lambdas.
+    solveConstraints(dt);
+
+    solveSelfCollisions(dt, world.getThickness());""",
+        "Solver.cpp post-collision constraint pass",
+    )
+
     replace_once(
         bvh_cpp,
         """void BVH::queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
@@ -640,6 +663,53 @@ TEST(MeshCollider, EarliestCrossingIsSelectedDeterministically) {
 }
 
 """
+    test_cpp = test_cpp.replace(
+        "#include <vector>\n",
+        "#include <array>\n#include <vector>\n",
+        1,
+    )
+    replace_once(
+        cloth_test,
+        """TEST(Cloth, ClearFabric) {""",
+        """TEST(Cloth, SolverReinforcesStitchesAfterMeshCollision) {
+    World world;
+    world.setGravity(Eigen::Vector3d::Zero());
+    world.setThickness(0.1);
+
+    auto collider = std::make_shared<MeshCollider>(
+        std::vector<Eigen::Vector3d>{
+            {-2.0, 0.0, -2.0},
+            {0.0, 0.0, 2.0},
+            {2.0, 0.0, -2.0},
+        },
+        std::vector<std::array<int, 3>>{{0, 1, 2}},
+        0.0);
+    world.addCollider(collider);
+
+    Solver solver;
+    const int first = solver.addParticle(
+        Particle(Eigen::Vector3d(0.0, -0.2, 0.0)));
+    const int second = solver.addParticle(
+        Particle(Eigen::Vector3d(0.0, -0.1, 0.0)));
+    solver.addStitch(first, second, 0.0);
+    solver.setIterations(1);
+    solver.setSubsteps(1);
+
+    solver.update(world, 0.016);
+
+    const auto& particles = solver.getParticles();
+    const double seamDistance =
+        (particles[first].getPosition() - particles[second].getPosition()).norm();
+
+    EXPECT_GT(particles[first].getPosition().y(), 0.0);
+    EXPECT_GT(particles[second].getPosition().y(), 0.0);
+    EXPECT_NEAR(seamDistance, 0.1, 1e-6);
+}
+
+TEST(Cloth, ClearFabric) {""",
+        "Solver post-collision seam regression",
+    )
+
     test.write_text(test_cpp, encoding="utf-8")
 
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
@@ -648,8 +718,10 @@ TEST(MeshCollider, EarliestCrossingIsSelectedDeterministically) {
     expected = {
         "core/include/data-structures/BVH.hpp",
         "core/src/data-structures/BVH.cpp",
+        "core/src/physics/Solver.cpp",
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
+        "tests/physics/test_cloth.cpp",
         "tests/physics/test_mesh_collider.cpp",
     }
     if set(changed.splitlines()) != expected:
@@ -680,6 +752,17 @@ TEST(MeshCollider, EarliestCrossingIsSelectedDeterministically) {
     ):
         if anchor not in generated_cpp:
             raise RuntimeError(f"missing continuous-contact anchor: {anchor}")
+    solver_cpp_text = solver_cpp.read_text(encoding="utf-8")
+    cloth_test_text = cloth_test.read_text(encoding="utf-8")
+    for anchor in (
+        "solveConstraints(dt);",
+        "collider->resolve(m_particles, dt, world.getThickness());",
+    ):
+        if anchor not in solver_cpp_text:
+            raise RuntimeError(f"missing Solver.cpp post-collision anchor: {anchor}")
+    if "SolverReinforcesStitchesAfterMeshCollision" not in cloth_test_text:
+        raise RuntimeError("missing post-collision stitch regression test")
+
     print("Tissu contact fix: applied and self-checked")
     print("Tissu continuous body contact: verified")
     return 0
