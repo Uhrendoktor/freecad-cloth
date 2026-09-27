@@ -835,29 +835,7 @@ void StitchConstraint::solveInternal(
     int m_idA;"""
     if stitch_header_text.count(private_helper_shape) != 1:
         raise RuntimeError("StitchConstraint helper visibility anchor mismatch")
-    private_anchor = """private:
-    void solveInternal(
-        std::vector<Particle>& particles, double dt,
-        const std::vector<std::shared_ptr<Collider>>* colliders,
-        double thickness);"""
-    if stitch_header_text.count(private_anchor) != 1:
-        raise RuntimeError("StitchConstraint private helper anchor mismatch")
-    stitch_header_text = stitch_header_text.replace(
-        private_anchor,
-        """private:
-    friend class Solver;
-
-    void solveWithColliders(
-        std::vector<Particle>& particles, double dt,
-        const std::vector<std::shared_ptr<Collider>>& colliders,
-        double thickness);
-
-    void solveInternal(
-        std::vector<Particle>& particles, double dt,
-        const std::vector<std::shared_ptr<Collider>>* colliders,
-        double thickness);""",
-        1,
-    )
+    # The private collision-aware helpers were installed by the first header mutation above.
     stitch_header.write_text(stitch_header_text, encoding="utf-8")
 
     replace_once(
