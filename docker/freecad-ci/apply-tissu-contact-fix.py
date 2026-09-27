@@ -363,12 +363,9 @@ void BVH::queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
         "BVH box query implementation",
     )
 
-    replace_once(
-        ROOT / "core/include/physics/MeshCollider.hpp",
-        """    const std::vector<Triangle>& getTriangles() const { return m_triangles; }
-
-private:""",
-        """    const std::vector<Triangle>& getTriangles() const { return m_triangles; }
+    helper_anchor = """    const std::vector<Triangle>& getTriangles() const { return m_triangles; }"""
+    helper_old = helper_anchor
+    helper_new = helper_anchor + """
 
 private:
     friend class StitchConstraint;
@@ -377,7 +374,11 @@ private:
     bool firstSegmentHit(const Eigen::Vector3d& start,
                          const Eigen::Vector3d& end, double margin,
                          double& hitT, Eigen::Vector3d& hitNormal,
-                         int& triangleIndex) const;""",
+                         int& triangleIndex) const;"""
+    replace_once(
+        ROOT / "core/include/physics/MeshCollider.hpp",
+        helper_old,
+        helper_new,
         "MeshCollider first-segment-hit declaration",
     )
 
