@@ -159,3 +159,14 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     gate = source.index("assert_drape_diagnostics(json.load(handle).get(\"panels\", ()))")
     assert "drape-metrics=" in source[:gate]
     assert "gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]
+
+def test_diagnostic_contact_controls_use_dedicated_pr_only_job_and_review_artifact():
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    diagnostics = (ROOT / "tests" / "freecad_contact_diagnostics.py").read_text(encoding="utf-8")
+    assert "diagnostic-contact-controls:" in workflow
+    assert "startsWith(github.head_ref, 'diagnostic/contact-controls-2484-')" in workflow
+    assert "timeout-minutes: 8" in workflow
+    assert "name: diagnostic-contact-controls" in workflow
+    assert "retention-days: 14" in workflow
+    assert "Human inspection is mandatory before interpreting the contact result." in workflow
+    assert "solver-facing-collision-surface" in diagnostics
