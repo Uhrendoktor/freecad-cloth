@@ -162,7 +162,10 @@ source = source.replace(
     'except BaseException as error:\n    exit_code = 1; print("SCENARIO FAILURE: %r" % (error,), flush=True);',
     'except BaseException as error:\n    globals()["_TUNIC_SOURCE_FAILURE"] = error\n    globals()["_TUNIC_SOURCE_FAILURE_TRACEBACK"] = traceback.format_exc()\n    exit_code = 1; print("SCENARIO FAILURE: %r" % (error,), flush=True);',
 )
-source = source.replace('os._exit(1)', 'raise SystemExit(1)')
+source = source.replace(
+    'os._exit(1)',
+    'raise RuntimeError("tunic audit scenario failed: %r" % globals().get("_TUNIC_SOURCE_FAILURE"))',
+)
 source = source.replace('getattr(os, "_" + "exit")(0)', 'raise SystemExit(0)')
 
 def _diagnostic_report_path():
