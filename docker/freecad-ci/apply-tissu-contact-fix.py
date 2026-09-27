@@ -159,7 +159,9 @@ MeshOrientation inferMeshOrientation(
         return {true, true, signedVolume > 0.0 ? 1.0 : -1.0};
 
     if (volumeKnown && radialKnown && signAgreement)
-        return {false, true, radialSign};
+        // Negative radial sign means authored normals are outward; positive
+        // means authored normals are inward.
+        return {false, true, -radialSign};
 
     return {false, false, 1.0};
 }
