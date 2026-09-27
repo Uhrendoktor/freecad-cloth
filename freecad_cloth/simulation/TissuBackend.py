@@ -185,7 +185,7 @@ class TissuBackend(ClothSimulationBackend):
             self._sim.solver.add_pin(int(index), np.asarray(positions[index], dtype=np.float64), 0.0)
         for a, b in self._stitches:
             self._sim.solver.add_stitch(
-                int(a), int(b), 0.0, self._stitch_compliance
+                int(a), int(b), self._stitch_compliance
             )
         self._add_collision()
 
