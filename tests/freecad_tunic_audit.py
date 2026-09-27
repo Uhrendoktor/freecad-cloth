@@ -14,6 +14,7 @@ source = source_path.read_text(encoding="utf-8")
 # The canonical tunic audit must use the authoritative DrapeTarget collision
 # surface; do not replace it with the optional torso-envelope approximation.
 os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
+os.environ["CLOTH_TISSU_STITCH_DELAY_STEPS"] = "15"
 
 replacements = {
     'clearance = max(20.0, 0.08 * body_depth)': 'clearance = max(8.0, 0.025 * body_depth);',
@@ -89,10 +90,25 @@ timed_anchor = '''    from time import perf_counter
         str(getattr(active_backend, "name", "")),
         0 if active_collision is None else len(active_collision.triangles),
     ))
-    for batch in (15,15,15,15,15,15):
+    for batch_index, batch in enumerate((15,15,15,15,15,15)):
         batch_started = perf_counter()
         simulation_panel.step(batch); doc.recompute(); events()
         log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
+        if batch_index == 0:
+            pre_activation_positions = tuple(scene.Proxy._base_or_restore().backend.positions())
+            try:
+                from freecad_cloth.common.MeshValidation import nearest_target_clearance
+                pre_activation_clearance = nearest_target_clearance(pre_activation_positions, tuple(surface.vertices))
+            except (ImportError, ValueError):
+                pre_activation_clearance = None
+            if pre_activation_clearance is None:
+                raise RuntimeError("delayed-stitch experiment could not measure pre-activation target clearance")
+            log("tunic-stitch-delay-before-activation configured_steps=15 activation_step=16 target-clearance-mm=%.2f" % float(pre_activation_clearance))
+            if float(pre_activation_clearance) < float(clearance):
+                raise RuntimeError(
+                    "delayed-stitch experiment pre-activation target clearance is below configured separation: "
+                    "%.2f mm < %.2f mm" % (float(pre_activation_clearance), float(clearance))
+                )
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
 '''
 source = source.replace(anchor, preview_probe + '\n' + timed_anchor, 1)
