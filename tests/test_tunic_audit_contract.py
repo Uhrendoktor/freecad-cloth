@@ -24,7 +24,7 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     assert 'shoulder_left = arrangement_world("shoulder_left")' in source
     assert 'shoulder_right = arrangement_world("shoulder_right")' in source
     assert 'hip_point = arrangement_world("hip")' in source
-    assert 'os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"' in source
+    assert 'os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"' in audit
     assert 'os.environ["CLOTH_TISSU_COLLIDER_FRICTION"] = "0.85"' in audit
     assert 'status = target_status(target)' in source
     assert 'scene.PinMode = "None"' in source
