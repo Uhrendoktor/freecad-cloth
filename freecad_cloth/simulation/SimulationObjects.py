@@ -354,15 +354,27 @@ def _tunic_shoulder_landmarks(obj):
             continue
         if len(coords) == 3:
             landmarks[name] = coords
-    if set(landmarks) != {"shoulder_left", "shoulder_right"}:
-        raise RuntimeError("canonical tunic shoulder attachment landmarks are missing from the authoritative avatar")
     return landmarks
 
 
 def _tunic_shoulder_attachment_records(seam_pair_records, positions, collision_surface, shoulder_landmarks):
     """Return exactly four deterministic shoulder attachments from authored seam endpoints."""
-    if collision_surface is None or not getattr(collision_surface, "vertices", ()):
+    shoulder_seams = tuple(
+        record
+        for record in seam_pair_records
+        if "tunic" in str(record[0]).lower()
+        and "shoulder" in str(record[0]).lower()
+    )
+    if not shoulder_seams:
         return ()
+    if set(shoulder_landmarks) != {"shoulder_left", "shoulder_right"}:
+        raise RuntimeError(
+            "canonical tunic shoulder attachment landmarks are missing from the authoritative avatar"
+        )
+    if collision_surface is None or not getattr(collision_surface, "vertices", ()):
+        raise RuntimeError(
+            "canonical tunic shoulder attachments require an authoritative DrapeTarget surface"
+        )
     surface_vertices = tuple(
         (float(vertex[0]), float(vertex[1]), float(vertex[2]))
         for vertex in collision_surface.vertices
