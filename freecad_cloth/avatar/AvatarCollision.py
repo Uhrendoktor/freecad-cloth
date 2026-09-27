@@ -79,6 +79,10 @@ def coarsen_collision_surface(
     surfaces use the existing deterministic spatial coverage reduction. A
     closed manifold can opt into fidelity preservation so the solver receives
     the complete authored surface instead of a hole-prone triangle subset.
+
+    The Tissu path deliberately keeps the caller's triangle-budget contract
+    while allowing a verified closed authored surface to exceed that budget:
+    the budget governs representative coarsening, not loss of closed topology.
     """
     limit = int(max_triangles)
     surface.validate()
