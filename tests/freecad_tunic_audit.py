@@ -68,7 +68,7 @@ replacements = {
         '        base = pivot + extra.multVec(base_zero - pivot)\n'
         '        log("open-book side=%s anchor=(%.2f,%.2f,%.2f) pivot=(%.2f,%.2f,%.2f) angle_deg=%.3f shoulder_to_hem_mm=%.2f target_half_depth_mm=%.2f" % (side, launch_anchor.x, launch_anchor.y, launch_anchor.z, pivot.x, pivot.y, pivot.z, signed_angle, shoulder_to_hem, target_half_depth))\n'
         '        return App.Placement(base, App.Rotation(App.Vector(1,0,0), 90.0 + signed_angle))\n',
-    '        piece.Placement = target_relative_piece_placement(side)': '        piece.Placement = open_book_placement(side, outline)',
+    '        piece.Placement = target_relative_piece_placement(side);': '        piece.Placement = open_book_placement(side, outline);',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
     'import json': 'import json\nimport math',
 }
