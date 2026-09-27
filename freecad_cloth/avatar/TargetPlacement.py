@@ -145,15 +145,51 @@ def target_surface_anchor(surface, point, *,
         raise ValueError("target collision surface contains no usable triangle normals")
     candidates.sort(key=lambda hit: (hit.distance, hit.triangle_index))
     best = candidates[0]
-    for other in candidates[1:]:
-        if abs(other.distance - best.distance) > float(ambiguity_tolerance):
-            break
-        if (
-            _dot(other.normal, best.normal) < 0.20
-            and _norm(_sub(other.point, best.point)) > 1e-5
-        ):
-            raise ValueError("target snap anchor is ambiguous across surface normals")
-    return best
+    tied = [
+        hit for hit in candidates
+        if abs(hit.distance - best.distance) <= float(ambiguity_tolerance)
+    ]
+    if len(tied) <= 1:
+        return best
+
+    # A garment centroid can be equally distant from two different regions of a
+    # closed mannequin surface. Resolve that tie only when the target-center to
+    # garment-center direction identifies one region unambiguously. An unresolved
+    # tie remains a hard failure rather than guessing across the body.
+    radial = _sub(point, center)
+    if _norm(radial) <= 1e-12:
+        radial = _sub(best.point, center)
+    if _norm(radial) <= 1e-12:
+        raise ValueError("target snap anchor is ambiguous across distinct surface points")
+    radial = _unit(radial, "target anchor radial direction")
+
+    def _anchor_score(hit):
+        point_direction = _sub(hit.point, center)
+        point_alignment = _dot(
+            _unit(point_direction, "target surface point direction"),
+            radial,
+        ) if _norm(point_direction) > 1e-12 else -1.0
+        normal_alignment = _dot(hit.normal, radial)
+        return normal_alignment, point_alignment
+
+    scored = sorted(
+        ((_anchor_score(hit), hit) for hit in tied),
+        key=lambda item: (-item[0][0], -item[0][1], item[1].triangle_index),
+    )
+    top_score, top = scored[0]
+    if len(scored) == 1:
+        return top
+    second_score, second = scored[1]
+    score_gap = (
+        top_score[0] - second_score[0],
+        top_score[1] - second_score[1],
+    )
+    if score_gap[0] > 1e-6 or score_gap[1] > 1e-6:
+        return top
+    if _norm(_sub(top.point, second.point)) <= 1e-5 and _dot(top.normal, second.normal) >= 0.20:
+        normal = _unit(_add(top.normal, second.normal), "target anchor blended normal")
+        return TargetSurfaceHit(top.triangle_index, top.point, normal, top.distance)
+    raise ValueError("target snap anchor is ambiguous across distinct surface points")
 
 
 def translation_to_target(surface, centroid, *, clearance=DEFAULT_SURFACE_CLEARANCE,
