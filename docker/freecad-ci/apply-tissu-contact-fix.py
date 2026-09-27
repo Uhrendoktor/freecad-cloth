@@ -395,7 +395,7 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
         "MeshCollider first-segment-hit implementation",
     )
 
-    const std::string currentContact = """        if (distance <= thickness) {
+    currentContact = """        if (distance <= thickness) {
             Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
             const double faceNormalLength = faceNormalRaw.norm();
             if (faceNormalLength <= 1e-12)
