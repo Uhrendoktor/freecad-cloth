@@ -104,6 +104,9 @@ def _inside_counts(shape, positions):
     if shape is None or not hasattr(shape, "isInside") or getattr(shape, "isNull", lambda: True)():
         return None
     try:
+        solids = getattr(shape, "Solids", ())
+        if not solids:
+            return None
         return sum(
             1
             for point in positions
@@ -169,6 +172,8 @@ def _prepare_scene(doc, target, piece, gravity=(0.0, 0.0, 0.0)):
 
 
 def _run_case(doc, scene, target, case_id):
+    started_case = time.monotonic()
+    log("case=%s start" % case_id)
     scene.Steps = 0
     doc.recompute()
     backend = scene.Proxy._base_or_restore().backend
@@ -180,18 +185,28 @@ def _run_case(doc, scene, target, case_id):
     target_points = tuple(solver_surface.vertices) if solver_surface is not None else _target_points(target)
     before = tuple(backend.positions())
     finite_before = bool(backend.finite())
+    inside_started = time.monotonic()
     before_inside = _inside_counts(source_shape, before)
+    log("case=%s pre_inside_ms=%.1f" % (case_id, 1000.0 * (time.monotonic() - inside_started)))
+    distance_started = time.monotonic()
     before_distance = _minimum_distance(before, target_points)
+    log("case=%s pre_distance_ms=%.1f target_vertices=%d" % (case_id, 1000.0 * (time.monotonic() - distance_started), len(target_points)))
     started = time.monotonic()
     view = Gui.activeDocument().activeView()
     _save(OUT / ("%s-%s-step-000.png" % (PREFIX, case_id)), view)
 
     scene.Steps = 1
+    step_started = time.monotonic()
     doc.recompute()
     after = tuple(backend.positions())
     finite_after = bool(backend.finite())
+    log("case=%s step_ms=%.1f finite=%s" % (case_id, 1000.0 * (time.monotonic() - step_started), finite_after))
+    inside_started = time.monotonic()
     after_inside = _inside_counts(source_shape, after)
+    log("case=%s post_inside_ms=%.1f" % (case_id, 1000.0 * (time.monotonic() - inside_started)))
+    distance_started = time.monotonic()
     after_distance = _minimum_distance(after, target_points)
+    log("case=%s post_distance_ms=%.1f" % (case_id, 1000.0 * (time.monotonic() - distance_started)))
     _save(OUT / ("%s-%s-step-001.png" % (PREFIX, case_id)), view)
 
     containment_resolved = (
@@ -238,6 +253,7 @@ def _run_case(doc, scene, target, case_id):
         },
         "checkpoint_steps": [0, 1],
         "runtime_ms": 1000.0 * (time.monotonic() - started),
+        "case_total_ms": 1000.0 * (time.monotonic() - started_case),
         "baseline": _scene_baseline(scene),
     }
     return metrics
