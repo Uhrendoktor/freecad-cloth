@@ -1,35 +1,32 @@
 # Tool State
 
 ```yaml
-schema: 19
+schema: 21
 repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
-supervisor_issue: 1017
-continuation_issue: 1098
-validated_release_code: b43b8a2982e4570f25824509674dad9b66a38677
+supervisor_issue: 2492
+experiment_ledger: 2492
 workflow_count: 1
 workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
-validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; inspect_jobs_logs_artifacts; no_second_workflow
-release:
-  p0_closeout: complete
-  timing_fix_pr: 1195
-  timing_fix_pr_merged: true
-  native_sketcher: passed
-  sewing_smoke: passed
-  tunic_visual: passed
-  blanket_visual: passed
-  readme_turntables: passed
-  readme_turntable_timing: passed
-  pattern_export: passed
-  python: passed
-  benchmark: passed
-  publisher: passed
-  docs_assets_published: true
-  publication_provenance: exact_git_blob_equivalence_verified_on_main_run_3990_at_docs_screenshots_commit_f276d1f5f51eb4d3d9ade58aa28c8fffd3fbc7d5
-  final_issue_1017: closed_completed
-  continuation_issue_1098: closed_completed
-  open_prs: 0
-  open_issues: 0
-final_gate: exact_release_code_green; merged_main_green; artifacts_inspected; rendered_output_inspected; docs_published; final_repo_audit
+validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; inspect_jobs_logs_artifacts; mandatory_human_screenshot_review; no_second_workflow
+visual_review_policy:
+  mandatory_human_inspection: true
+  governing_record: issue_or_pr_2492_children
+  inline_screenshots_required: true
+  artifact_link_alone_insufficient: true
+  simulation_checkpoints: step_0_plus_experiment_checkpoints
+  garment_final_views: front_rear_right_left_top_bottom
+  visual_review_retention_days: 14
+  terminal_requires_visual_review_record: true
+recovery:
+  main: e3e66e29938d5c71512eec08bc26b2c5a244aa41
+  production_tissu_fix_merged: false
+  sparse_orientation_status: falsified_and_retired
+  active_ladder_pr: 2481
+  active_process_pr: 2527
+  release_gate_changes: none
+  solver_budget_changes: none
+  workflow_topology_changes: none
+  next_gate: exact_head_ladder_2481_then_first_failure_review
 ```
