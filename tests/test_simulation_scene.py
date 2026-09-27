@@ -264,7 +264,8 @@ def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision():
     proxy.backend = FakeBackend()
     proxy.collision_surface = object()
     proxy.source_signature = _simulation_source_signature(scene, [])
-    proxy.execute(scene)
+    from freecad_cloth.simulation import SimulationStaleGuard
+    SimulationStaleGuard._ORIGINAL_EXECUTE(proxy, scene)
 
     assert proxy.backend.calls == [
         (
