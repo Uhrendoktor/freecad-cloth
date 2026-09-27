@@ -256,6 +256,22 @@ def _inside_outside(points, source):
             return "mixed"
 
     mesh = getattr(source, "Mesh", None)
+    mesh_is_inside = getattr(mesh, "isInside", None) if mesh is not None else None
+    if callable(mesh_is_inside):
+        states = []
+        for point in points[:64]:
+            try:
+                states.append(bool(mesh_is_inside(App.Vector(*point), 1e-6, True)))
+            except (AttributeError, TypeError, ValueError):
+                states = []
+                break
+        if states:
+            if all(states):
+                return "inside"
+            if not any(states):
+                return "outside"
+            return "mixed"
+
     topology = getattr(mesh, "Topology", None) if mesh is not None else None
     if topology is None:
         return "unknown"
