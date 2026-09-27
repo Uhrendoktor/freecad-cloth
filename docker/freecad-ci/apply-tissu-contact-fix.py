@@ -418,6 +418,16 @@ MeshOrientation inferMeshOrientation(
 }"""
     new = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
     EXPECT_GT(distanceMoved, 0.0);
+}
+
+TEST(MeshCollider, DeepInteriorParticleMovesOutsideClosedMesh) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.01);
+
     EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
 }
 
