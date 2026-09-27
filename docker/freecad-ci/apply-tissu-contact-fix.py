@@ -222,10 +222,10 @@ bool segmentTriangleHit(
         Eigen::Vector3d sweptPoint = cp;
         Eigen::Vector3d sweptNormal = Eigen::Vector3d::Zero();
         double sweptT = 1.0;
+        const Eigen::Vector3d oldPosition = particle.getOldPosition();
+        const Eigen::Vector3d segment = particle.getPosition() - oldPosition;
 
         if (distance > thickness) {
-            const Eigen::Vector3d oldPosition = particle.getOldPosition();
-            const Eigen::Vector3d segment = particle.getPosition() - oldPosition;
             const double segmentLength = segment.norm();
             if (segmentLength > thickness) {
                 const Eigen::Vector3d midpoint =
