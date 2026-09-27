@@ -101,9 +101,8 @@ def test_invalid_seam_recompute_guard_blocks_without_rethrowing():
     finally:
         SimulationStaleGuard._ORIGINAL_EXECUTE = original
 
-    assert scene.SimulationState == "STALE"
-    assert scene.InvalidationReason.startswith("source, placement, tessellation or collision thickness changed")
-    assert "seam-1: Changed reference" in scene.InvalidationReason
+    assert scene.SimulationState == "BLOCKED"
+    assert scene.InvalidationReason == "cannot simulate invalid seam seam-1: Changed reference"
 
 
 def test_pin_mode_semantics_preserve_automatic_defaults_and_support_no_pins():
@@ -206,6 +205,9 @@ def test_seam_pair_records_preserve_exact_solver_stitch_provenance():
         "piece-b": {
             "boundary_edges": ((3, 4, 5),),
             "positions": (
+                (0.0, 0.0, 0.0),
+                (10.0, 0.0, 0.0),
+                (20.0, 0.0, 0.0),
                 (0.0, 100.0, 0.0),
                 (10.0, 100.0, 0.0),
                 (20.0, 100.0, 0.0),
