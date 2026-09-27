@@ -613,6 +613,7 @@ jobs:
           cp docs/images/generated/drape-visual-metrics.json artifacts/visual-review/tunic/ 2>/dev/null || true
           cp docs/images/generated/gui-progress.log artifacts/visual-review/tunic/ 2>/dev/null || true
           cp docs/images/generated/gui-screenshot-manifest.txt artifacts/visual-review/tunic/ 2>/dev/null || true
+          cp docs/images/generated/tunic-audit-diagnostics.txt artifacts/visual-review/tunic/ 2>/dev/null || true
           cp artifacts/garment-e2e.log artifacts/visual-review/tunic/ 2>/dev/null || true
           cp artifacts/tissu-provenance.txt artifacts/visual-review/tunic/ 2>/dev/null || true
       - name: Upload tunic visual audit
@@ -626,6 +627,7 @@ jobs:
             docs/images/generated/drape-visual-metrics.json
             docs/images/generated/gui-progress.log
             docs/images/generated/gui-screenshot-manifest.txt
+            docs/images/generated/tunic-audit-diagnostics.txt
             artifacts/garment-e2e.log
             artifacts/tissu-provenance.txt
           if-no-files-found: error
