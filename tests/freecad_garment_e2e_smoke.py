@@ -594,6 +594,21 @@ def run_acceptance():
             raise RuntimeError("Simulation quality task panel did not expose the Arrange / Fit / target-snap bridge")
         if not quality_panel.snap_to_target_button.isEnabled():
             raise RuntimeError("Simulation panel did not expose enabled target-aware placement for a ready target")
+        # Start the acceptance journey from a deterministic, recoverable non-target-aligned state.
+        # The common offset preserves each piece's authored rotation and relative spacing while
+        # forcing Snap-to-target to demonstrate a real placement change.
+        for piece in scene.ClothPieces:
+            base = piece.Placement.Base
+            shifted = App.Placement(
+                App.Vector(float(base.x) + 120.0, float(base.y), float(base.z)),
+                piece.Placement.Rotation,
+            )
+            piece.Placement = shifted
+            sketch = getattr(piece, "Sketch", None)
+            if sketch is not None:
+                sketch.Placement = shifted
+        doc.recompute()
+
         original_fitting_placements = {
             str(piece.PieceId): (
                 float(piece.Placement.Base.x),
