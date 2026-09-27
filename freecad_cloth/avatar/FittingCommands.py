@@ -92,24 +92,37 @@ def _migrate_visual_output_references(scene):
         scene.addProperty("App::PropertyStringList", name, "Arrangement")
         setattr(scene, name, names)
 
+def _ensure_fitting_runtime_properties(scene):
+    import FreeCAD as App
+    if "DrapeTarget" not in getattr(scene, "PropertiesList", ()):
+        scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")
+    if "GarmentAnchors" not in getattr(scene, "PropertiesList", ()):
+        scene.addProperty("App::PropertyStringList", "GarmentAnchors", "Arrangement")
+        scene.GarmentAnchors = []
+    return scene
+
+
 def create_fitting_scene():
     import FreeCAD as App
     from freecad_cloth.avatar.AvatarFitting import BodyMeasurements, FittingScene
 
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
-    if _scene(doc) is not None:
-        return _scene(doc)
+    existing = _scene(doc)
+    if existing is not None:
+        return _ensure_fitting_runtime_properties(existing)
     obj = doc.addObject("App::FeaturePython", "FittingScene")
     obj.Label = "Avatar Fitting Scene"
     obj.addProperty("App::PropertyString", "FittingType", "Fitting").FittingType = "FittingScene"
     obj.addProperty("App::PropertyString", "MeasurementData", "Measurements").MeasurementData = BodyMeasurements().to_json()
     obj.addProperty("App::PropertyString", "MeasurementUnit", "Measurements").MeasurementUnit = "mm"
     obj.addProperty("App::PropertyLink", "AvatarProxy", "Fitting")
+    obj.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")
     obj.addProperty("App::PropertyLinkListGlobal", "PatternPieces", "Fitting")
     obj.addProperty("App::PropertyStringList", "PiecePlacements", "Fitting").PiecePlacements = []
     obj.addProperty("App::PropertyStringList", "HomePlacements", "Fitting").HomePlacements = []
     obj.addProperty("App::PropertyStringList", "ArrangementPoints", "Arrangement").ArrangementPoints = []
     obj.addProperty("App::PropertyStringList", "BoundingVolumes", "Arrangement").BoundingVolumes = []
+    obj.addProperty("App::PropertyStringList", "GarmentAnchors", "Arrangement").GarmentAnchors = []
     obj.addProperty("App::PropertyStringList", "ArrangementPointObjects", "Arrangement").ArrangementPointObjects = []
     obj.addProperty("App::PropertyStringList", "BoundingVolumeObjects", "Arrangement").BoundingVolumeObjects = []
     obj.addProperty("App::PropertyBool", "SymmetryEnabled", "Arrangement").SymmetryEnabled = True
@@ -148,6 +161,13 @@ def assign_avatar_source(source=None):
     avatar = create_avatar_collision(doc) if doc.getObject("AvatarCollision") is None else doc.getObject("AvatarCollision")
     avatar = set_avatar_collision_source(scene, source)
     scene.AvatarProxy = avatar
+    target = getattr(avatar, "Document", None).getObject("DrapeTarget") if getattr(avatar, "Document", None) is not None else None
+    if target is None:
+        target = doc.getObject("DrapeTarget")
+    if target is None:
+        raise RuntimeError("avatar assignment did not create the authoritative DrapeTarget")
+    _ensure_fitting_runtime_properties(scene)
+    scene.DrapeTarget = target
     scene.FitStatus = "Avatar assigned"
     doc.recompute()
     return scene
@@ -170,12 +190,40 @@ def add_selected_pattern_pieces():
     for piece in pieces:
         placement = piece.Placement
         base = placement.Base
-        value = PiecePlacement(str(piece.PieceId), (float(base.x), float(base.y), float(base.z)), float(placement.Rotation.Angle))
+        axis = placement.Rotation.Axis
+        value = PiecePlacement(
+            str(piece.PieceId),
+            (float(base.x), float(base.y), float(base.z)),
+            float(placement.Rotation.Angle),
+            (float(axis.x), float(axis.y), float(axis.z)),
+        )
         by_id[value.piece_id] = value
         home_by_id.setdefault(value.piece_id, value)
     scene.PatternPieces = sorted(set(list(scene.PatternPieces) + pieces), key=lambda o: str(o.PieceId))
     scene.PiecePlacements = [by_id[k].to_string() for k in sorted(by_id)]
     scene.HomePlacements = [home_by_id[k].to_string() for k in sorted(home_by_id)]
+    _ensure_fitting_runtime_properties(scene)
+    existing_anchor_keys = {
+        (str(anchor.split("|", 3)[0]), str(anchor.split("|", 4)[1]))
+        for anchor in (getattr(scene, "GarmentAnchors", ()) or ())
+        if str(anchor).count("|") >= 3
+    }
+    from freecad_cloth.avatar.AvatarFitting import GarmentAnchor
+    defaults = list(getattr(scene, "GarmentAnchors", ()) or ())
+    for piece in pieces:
+        pid = str(piece.PieceId)
+        if any(key[0] == pid for key in existing_anchor_keys):
+            continue
+        width = max(1.0, float(getattr(piece, "Width", 100.0) or 100.0))
+        height = max(1.0, float(getattr(piece, "Height", 100.0) or 100.0))
+        wrap = "back" if "back" in str(getattr(piece, "Label", "") or getattr(piece, "Name", "")).lower() else "front"
+        defaults.extend((
+            GarmentAnchor(pid, "shoulder_left", (0.15 * width, 0.95 * height, 0.0), wrap).to_string(),
+            GarmentAnchor(pid, "shoulder_right", (0.85 * width, 0.95 * height, 0.0), wrap).to_string(),
+        ))
+        existing_anchor_keys.add((pid, "shoulder_left"))
+        existing_anchor_keys.add((pid, "shoulder_right"))
+    scene.GarmentAnchors = sorted(set(defaults))
     FittingScene(BodyMeasurements.from_json(scene.MeasurementData), getattr(scene.AvatarProxy, "Label", "") if scene.AvatarProxy else "", tuple(by_id.values())).validate()
     scene.FitStatus = "Ready" if scene.AvatarProxy else "Pieces assigned"
     doc.recompute()
@@ -368,6 +416,169 @@ def create_simulation_from_fitting():
     return simulation
 
 
+
+def set_garment_anchors(anchors):
+    """Persist explicit garment-local anchors without changing the shared placement authority."""
+    import FreeCAD as App
+    from freecad_cloth.avatar.AvatarFitting import GarmentAnchor
+    doc = App.ActiveDocument or App.newDocument("ClothSewing")
+    scene = _ensure_fitting_runtime_properties(_scene(doc) or create_fitting_scene())
+    parsed = []
+    for anchor in anchors or ():
+        item = anchor if isinstance(anchor, GarmentAnchor) else GarmentAnchor.from_string(anchor)
+        item.validate()
+        parsed.append(item)
+    scene.GarmentAnchors = [item.to_string() for item in sorted(parsed, key=lambda value: (value.piece_id, value.name))]
+    doc.recompute()
+    return scene
+
+
+def _default_anchor_map(scene, pieces):
+    from freecad_cloth.avatar.AvatarFitting import GarmentAnchor
+    values = [GarmentAnchor.from_string(item) for item in (getattr(scene, "GarmentAnchors", ()) or ())]
+    by_piece = {}
+    for anchor in values:
+        by_piece.setdefault(str(anchor.piece_id), []).append(anchor)
+    missing = [str(piece.PieceId) for piece in pieces if str(piece.PieceId) not in by_piece]
+    if missing:
+        raise ValueError("target-aware placement requires persistent garment anchors for: %s" % ",".join(sorted(missing)))
+    return {key: tuple(sorted(items, key=lambda item: item.name)) for key, items in by_piece.items()}
+
+
+def snap_pieces_to_target(pattern_pieces=None, clearance=8.0, max_translation=600.0, max_rotation=45.0):
+    """Apply one shared rigid transform to a set of sewn garment pieces transactionally."""
+    import FreeCAD as App
+    from freecad_cloth.avatar.AvatarCollision import CollisionSurface
+    from freecad_cloth.avatar.TargetAwarePlacement import TargetPlacementError, solve_rigid_z, target_surface_anchor, wrap_normal, minimum_anchor_clearance, apply_rigid_delta
+    from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
+
+    doc = App.ActiveDocument or App.newDocument("ClothSewing")
+    scene = _ensure_fitting_runtime_properties(_scene(doc) or create_fitting_scene())
+    target = getattr(scene, "DrapeTarget", None)
+    status = target_status(target)
+    if status.get("state") != "ready":
+        raise TargetPlacementError(status.get("message", "drape target is not ready"))
+    pieces = tuple(pattern_pieces or getattr(scene, "PatternPieces", ()) or ())
+    if not pieces:
+        raise ValueError("target-aware placement requires at least one pattern piece")
+    piece_ids = {str(piece.PieceId) for piece in pieces}
+    anchors_by_piece = _default_anchor_map(scene, pieces)
+    anchors = [anchor for pid in sorted(anchors_by_piece) for anchor in anchors_by_piece[pid] if pid in piece_ids]
+    if len(anchors) < 2:
+        raise TargetPlacementError("target-aware placement requires at least two persistent anchors")
+    surface = collision_surface(
+        target.SourceObject,
+        float(getattr(target, "CollisionDeflection", 1.0)),
+        float(getattr(target, "CollisionThickness", 0.0)),
+    )
+    source_points = []
+    target_points = []
+    normals = []
+    index = range(len(surface.triangles))
+    for anchor in anchors:
+        piece = next(piece for piece in pieces if str(piece.PieceId) == str(anchor.piece_id))
+        source = piece.Placement.multVec(App.Vector(*anchor.position))
+        normal = wrap_normal(anchor.wrap_direction)
+        hit = target_surface_anchor(surface, (source.x, source.y, source.z), normal, index=index)
+        desired = tuple(hit.point[i] + hit.normal[i] * (float(getattr(surface, "thickness", 0.0)) + float(clearance)) for i in range(3))
+        source_points.append((float(source.x), float(source.y), float(source.z)))
+        target_points.append(desired)
+        normals.append(normal)
+    delta = solve_rigid_z(
+        source_points,
+        target_points,
+        max_translation=float(max_translation),
+        max_rotation=float(max_rotation),
+    )
+    if delta.residual_max > max(float(clearance) * 2.5, 20.0):
+        raise TargetPlacementError(
+            "shared rigid target fit residual %.3f mm exceeds the bounded placement tolerance" % delta.residual_max
+        )
+
+    snapshots = []
+    previous_piece_placements = list(getattr(scene, "PiecePlacements", ()) or ())
+    previous_fit_status = str(getattr(scene, "FitStatus", ""))
+    try:
+        rotation = App.Rotation(App.Vector(0, 0, 1), float(delta.rotation_z))
+        translation = App.Vector(*delta.translation)
+        for piece in pieces:
+            placement = piece.Placement
+            sketch = getattr(piece, "Sketch", None)
+            snapshots.append((piece, App.Placement(placement), None if sketch is None else App.Placement(sketch.Placement)))
+            base = rotation.multVec(placement.Base) + translation
+            updated = App.Placement(base, rotation.multiply(placement.Rotation))
+            piece.Placement = updated
+            if sketch is not None:
+                sketch.Placement = updated
+        doc.recompute()
+
+        for anchor in anchors:
+            piece = next(piece for piece in pieces if str(piece.PieceId) == str(anchor.piece_id))
+            point = piece.Placement.multVec(App.Vector(*anchor.position))
+            if float(minimum_anchor_clearance(surface, [((float(point.x), float(point.y), float(point.z))), wrap_normal(anchor.wrap_direction)])) < float(clearance) - 1e-6:
+                raise TargetPlacementError("shared rigid placement did not establish the required target clearance")
+        placement_values = []
+        for piece in sorted(pieces, key=lambda item: str(item.PieceId)):
+            base = piece.Placement.Base
+            rotation_state = piece.Placement.Rotation
+            axis = rotation_state.Axis
+            from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+            placement_values.append(
+                PiecePlacement(
+                    str(piece.PieceId),
+                    (float(base.x), float(base.y), float(base.z)),
+                    float(rotation_state.Angle),
+                    (float(axis.x), float(axis.y), float(axis.z)),
+                ).to_string()
+            )
+        existing = {str(value.split("|", 1)[0]): value for value in getattr(scene, "PiecePlacements", ()) or ()}
+        for value in placement_values:
+            existing[value.split("|", 1)[0]] = value
+        scene.PiecePlacements = [existing[key] for key in sorted(existing)]
+        scene.FitStatus = "Target-aware placement applied"
+        doc.recompute()
+        return {
+            "piece_count": len(pieces),
+            "anchor_count": len(anchors),
+            "translation": tuple(round(float(v), 6) for v in delta.translation),
+            "rotation_z": round(float(delta.rotation_z), 6),
+            "anchor_residual": round(float(delta.residual_max), 6),
+            "clearance": round(float(minimum_anchor_clearance(surface, [
+                (
+                    tuple(float(value) for value in (
+                        piece.Placement.multVec(App.Vector(*anchor.position)).x,
+                        piece.Placement.multVec(App.Vector(*anchor.position)).y,
+                        piece.Placement.multVec(App.Vector(*anchor.position)).z,
+                    )),
+                    wrap_normal(anchor.wrap_direction),
+                )
+            ] for anchor in anchors)), 6),
+        }
+    except Exception:
+        for piece, placement, sketch_placement in snapshots:
+            piece.Placement = placement
+            sketch = getattr(piece, "Sketch", None)
+            if sketch is not None and sketch_placement is not None:
+                sketch.Placement = sketch_placement
+        scene.PiecePlacements = previous_piece_placements
+        scene.FitStatus = previous_fit_status
+        doc.recompute()
+        raise
+
+
+def snap_pattern_pieces_to_target(pattern_pieces=None):
+    """Public adapter used by the Simulation workbench target-snap button."""
+    pieces = tuple(pattern_pieces or ())
+    doc = App.ActiveDocument
+    scene = _scene(doc) if doc is not None else None
+    if scene is None:
+        raise ValueError("create a fitting scene before snapping pieces to target")
+    _ensure_fitting_runtime_properties(scene)
+    if pieces:
+        scene.PatternPieces = sorted(set(tuple(scene.PatternPieces) + pieces), key=lambda item: str(item.PieceId))
+    return snap_pieces_to_target(pieces or scene.PatternPieces)
+
+
 class _FittingProxy:
     Type = "ClothFittingScene"
 
@@ -396,6 +607,7 @@ COMMANDS = [
     "ClothFitting_ApplyArrangementPoint",
     "ClothFitting_ResetArrangement",
     "ClothFitting_CreateSimulation",
+    "ClothFitting_SnapPiecesToTarget",
 ]
 _COMMAND_HANDLERS = {
     "ClothFitting_CreateScene": create_fitting_scene,
@@ -411,6 +623,7 @@ _COMMAND_HANDLERS = {
     "ClothFitting_ApplyArrangementPoint": lambda: _apply_selected_arrangement(),
     "ClothFitting_ResetArrangement": reset_arrangement,
     "ClothFitting_CreateSimulation": create_simulation_from_fitting,
+    "ClothFitting_SnapPiecesToTarget": lambda: snap_pattern_pieces_to_target(),
 }
 
 
