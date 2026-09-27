@@ -263,7 +263,7 @@ def _piece_placement_record(piece):
 
 
 def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=600.0):
-    """Apply one bounded rigid translation toward the persistent DrapeTarget."""
+    """Apply a bounded rigid translation to each selected piece toward the persistent DrapeTarget."""
     import FreeCAD as App
     from freecad_cloth.simulation.DrapeTarget import target_status
     from freecad_cloth.avatar.TargetPlacement import (
@@ -299,18 +299,25 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
         raise ValueError("all snapped PatternPieces must belong to the fitting scene")
 
     vertices_by_piece = {str(piece.PieceId): _world_piece_vertices(piece) for piece in selected}
-    all_vertices = tuple(point for values in vertices_by_piece.values() for point in values)
-    centroid = tuple(
-        sum(point[axis] for point in all_vertices) / float(len(all_vertices))
-        for axis in range(3)
-    )
+    centroids_by_piece = {
+        piece_id: tuple(
+            sum(point[axis] for point in vertices) / float(len(vertices))
+            for axis in range(3)
+        )
+        for piece_id, vertices in vertices_by_piece.items()
+    }
     surface = _world_target_surface(target)
-    delta, _hit = translation_to_target(
-        surface,
-        centroid,
-        clearance=float(clearance),
-        max_translation=float(max_translation),
-    )
+    translations_by_piece = {}
+    hits_by_piece = {}
+    for piece_id, centroid in centroids_by_piece.items():
+        delta, hit = translation_to_target(
+            surface,
+            centroid,
+            clearance=float(clearance),
+            max_translation=float(max_translation),
+        )
+        translations_by_piece[piece_id] = tuple(float(value) for value in delta)
+        hits_by_piece[piece_id] = hit
 
     previous_placements = {piece: piece.Placement for piece in selected}
     previous_sketch_placements = {
@@ -322,6 +329,8 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
 
     try:
         for piece in selected:
+            piece_id = str(piece.PieceId)
+            delta = translations_by_piece[piece_id]
             placement = piece.Placement
             base = placement.Base
             updated = App.Placement(
@@ -334,43 +343,40 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
                 sketch.Placement = updated
         doc.recompute()
 
-        # Keep the exact all-vertex unsigned clearance gate, but do not require
-        # every local vertex to have the same triangle-normal sign. A broad rigid
-        # pattern piece may legitimately straddle local normals on a curved target.
-        # Closed-surface side proof is applied to the placed garment centroid below.
-        placed_vertices = tuple(
-            (float(point[0]) + delta[0], float(point[1]) + delta[1], float(point[2]) + delta[2])
-            for values in vertices_by_piece.values()
-            for point in values
-        )
-        minimum_clearance = nearest_surface_distance(surface, placed_vertices)
-        if minimum_clearance < float(clearance) - 1e-6:
-            raise ValueError(
-                "target snap could not prove the requested %.3f mm collision-surface clearance (%.3f mm observed)"
-                % (float(clearance), float(minimum_clearance))
+        minimum_clearance = float("inf")
+        for piece in selected:
+            piece_id = str(piece.PieceId)
+            delta = translations_by_piece[piece_id]
+            placed_vertices = tuple(
+                (float(point[0]) + delta[0], float(point[1]) + delta[1], float(point[2]) + delta[2])
+                for point in vertices_by_piece[piece_id]
             )
-        placed_centroid = (
-            centroid[0] + delta[0],
-            centroid[1] + delta[1],
-            centroid[2] + delta[2],
-        )
-        if point_inside_closed_surface(surface, placed_centroid):
-            raise ValueError("target snap placed the garment centroid inside the closed DrapeTarget")
-        _delta_check, hit = translation_to_target(
-            surface,
-            placed_centroid,
-            clearance=float(clearance),
-            max_translation=float(max_translation),
-        )
-        outward_signed = sum(
-            (float(placed_centroid[i]) - float(hit.point[i])) * float(hit.normal[i])
-            for i in range(3)
-        )
-        if outward_signed < float(clearance) - 1e-6:
-            raise ValueError(
-                "target snap outside proof failed: %.3f mm outward clearance < %.3f mm"
-                % (float(outward_signed), float(clearance))
+            piece_clearance = nearest_surface_distance(surface, placed_vertices)
+            minimum_clearance = min(minimum_clearance, piece_clearance)
+            if piece_clearance < float(clearance) - 1e-6:
+                raise ValueError(
+                    "target snap could not prove the requested %.3f mm collision-surface clearance for %s (%.3f mm observed)"
+                    % (float(clearance), piece_id, float(piece_clearance))
+                )
+
+            centroid = centroids_by_piece[piece_id]
+            placed_centroid = tuple(
+                centroid[axis] + delta[axis]
+                for axis in range(3)
             )
+            if point_inside_closed_surface(surface, placed_centroid):
+                raise ValueError("target snap placed %s centroid inside the closed DrapeTarget" % piece_id)
+
+            hit = hits_by_piece[piece_id]
+            outward_signed = sum(
+                (float(placed_centroid[i]) - float(hit.point[i])) * float(hit.normal[i])
+                for i in range(3)
+            )
+            if outward_signed < float(clearance) - 1e-6:
+                raise ValueError(
+                    "target snap outside proof failed for %s: %.3f mm outward clearance < %.3f mm"
+                    % (piece_id, float(outward_signed), float(clearance))
+                )
 
         current = {
             placement.piece_id: placement
@@ -396,8 +402,8 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
         doc.recompute()
         raise
     return {
-        "translation": tuple(float(value) for value in delta),
-        "clearance_mm": float(minimum_clearance),
+        "translations": {piece_id: translations_by_piece[piece_id] for piece_id in sorted(translations_by_piece)},
+        "minimum_clearance_mm": float(minimum_clearance),
         "piece_ids": tuple(str(piece.PieceId) for piece in selected),
     }
 
