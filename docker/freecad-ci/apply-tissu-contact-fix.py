@@ -717,7 +717,7 @@ TEST(StitchConstraint, SolverChoosesEarliestEnteringCrossingAcrossMeshes) {
 }
 
 """
-    stitch_test.write_text(stitch_test_text, encoding="utf-8")
+    stitch_test.write_text(stitch_test_text.rstrip() + "\n", encoding="utf-8")
 
     stitch_cpp_text = stitch_cpp.read_text(encoding="utf-8")
     for marker in (
