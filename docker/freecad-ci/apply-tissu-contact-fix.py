@@ -672,7 +672,7 @@ TEST(MeshCollider, EarliestCrossingIsSelectedDeterministically) {
         if implementation_anchor not in bvh_cpp_text:
             raise RuntimeError(f"missing BVH implementation anchor: {implementation_anchor}")
     for anchor in (
-        "bool MeshCollider::firstSegmentHit(",
+        "MeshCollider::firstSegmentHit(",
         "m_bvh.query(queryBox, candidates);",
         "if (distance <= thickness || sweptContact)",
     ):
