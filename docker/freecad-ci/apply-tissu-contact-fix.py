@@ -400,7 +400,7 @@ private:
         ROOT / "core/src/physics/MeshCollider.cpp",
         """MeshCollider::MeshCollider(const std::string& meshPath, double friction)
     : m_meshPath(meshPath) {""",
-        """namespace Tissu {
+        """namespace {
 
 bool segmentTriangleHit(const Eigen::Vector3d& start,
                         const Eigen::Vector3d& end,
@@ -730,136 +730,19 @@ void StitchConstraint::solveInternal(
         "StitchConstraint collision-aware solve implementation",
     )
 
-    # Reconcile the generated stitch implementation with the numerical and
-    # integration contract: one scalar lambda must match the correction actually applied.
     stitch_cpp_text = stitch_cpp.read_text(encoding="utf-8")
-    sweep_start = "namespace {\n\nEigen::Vector3d clipCorrectionAtFirstMeshHit("
-    sweep_end = "\nvoid StitchConstraint::solve(std::vector<Particle>& particles, double dt) {"
-    if stitch_cpp_text.count(sweep_start) != 1 or stitch_cpp_text.count(sweep_end) != 1:
-        raise RuntimeError("StitchConstraint sweep repair anchors mismatch")
-    helper = """namespace {
-
-double correctionScaleAtFirstMeshHit(
-    const Eigen::Vector3d& start, const Eigen::Vector3d& correction,
-    const std::vector<std::shared_ptr<Collider>>& colliders, double thickness) {
-    if (correction.squaredNorm() <= 1e-18)
-        return 1.0;
-
-    double scale = 1.0;
-    const Eigen::Vector3d end = start + correction;
-    for (const auto& collider : colliders) {
-        const auto* mesh = dynamic_cast<const MeshCollider*>(collider.get());
-        if (mesh == nullptr)
-            continue;
-
-        double hitT = 1.0;
-        Eigen::Vector3d hitNormal = Eigen::Vector3d::Zero();
-        int hitTriangle = -1;
-        if (mesh->firstSegmentHit(start, end, thickness, hitT, hitNormal,
-                                  hitTriangle)) {
-            scale = std::min(scale, std::max(0.0, std::min(1.0, hitT)));
-        }
-    }
-    return scale;
-}
-
-} // namespace
-"""
-    stitch_cpp_text = stitch_cpp_text[:stitch_cpp_text.index(sweep_start)] + helper + stitch_cpp_text[stitch_cpp_text.index(sweep_end):]
-
-    solve_start = "void StitchConstraint::solve(std::vector<Particle>& particles, double dt) {"
-    solve_close = "\n} // namespace Tissu"
-    if stitch_cpp_text.count(solve_start) != 1 or stitch_cpp_text.count(solve_close) != 1:
-        raise RuntimeError("StitchConstraint solve body anchors mismatch")
-    new_tail = """void StitchConstraint::solve(std::vector<Particle>& particles, double dt) {
-    solveInternal(particles, dt, nullptr, 0.0);
-}
-
-void StitchConstraint::solveWithColliders(
-    std::vector<Particle>& particles, double dt,
-    const std::vector<std::shared_ptr<Collider>>& colliders, double thickness) {
-    solveInternal(particles, dt, &colliders, thickness);
-}
-
-void StitchConstraint::solveInternal(
-    std::vector<Particle>& particles, double dt,
-    const std::vector<std::shared_ptr<Collider>>* colliders, double thickness) {
-    Particle& pA = particles[m_idA];
-    Particle& pB = particles[m_idB];
-
-    Eigen::Vector3d delta = pA.getPosition() - pB.getPosition();
-    double currentLength = delta.norm();
-    if (currentLength < 1e-6)
-        return;
-
-    double wA = pA.getInverseMass();
-    double wB = pB.getInverseMass();
-    double wSum = wA + wB;
-    if (wSum == 0.0)
-        return;
-
-    Eigen::Vector3d norm = delta / currentLength;
-    double C = currentLength;
-    double alphaHat = m_compliance / (dt * dt);
-    double deltaLambda = (-C - alphaHat * m_lambda) / (wSum + alphaHat);
-
-    const Eigen::Vector3d correctionA = wA * norm * deltaLambda;
-    const Eigen::Vector3d correctionB = -wB * norm * deltaLambda;
-
-    double correctionScale = 1.0;
-    if (colliders != nullptr && !colliders->empty()) {
-        correctionScale = std::min(
-            correctionScale,
-            correctionScaleAtFirstMeshHit(
-                pA.getPosition(), correctionA, *colliders, thickness));
-        correctionScale = std::min(
-            correctionScale,
-            correctionScaleAtFirstMeshHit(
-                pB.getPosition(), correctionB, *colliders, thickness));
-    }
-
-    const double appliedDeltaLambda = deltaLambda * correctionScale;
-    m_lambda += appliedDeltaLambda;
-    pA.setPosition(pA.getPosition() + wA * norm * appliedDeltaLambda);
-    pB.setPosition(pB.getPosition() - wB * norm * appliedDeltaLambda);
-}"""
-    stitch_cpp_text = stitch_cpp_text[:stitch_cpp_text.index(solve_start)] + new_tail + stitch_cpp_text[stitch_cpp_text.index(solve_close):]
-    stitch_cpp.write_text(stitch_cpp_text, encoding="utf-8")
-
-    stitch_header_text = stitch_header.read_text(encoding="utf-8")
-    public_helper = """    void solveWithColliders(
-        std::vector<Particle>& particles, double dt,
-        const std::vector<std::shared_ptr<Collider>>& colliders,
-        double thickness);
-
-    std::vector<int>"""
-    if stitch_header_text.count(public_helper) != 1:
-        raise RuntimeError("StitchConstraint helper visibility anchor mismatch")
-    stitch_header_text = stitch_header_text.replace(public_helper, "    std::vector<int>", 1)
-    private_anchor = """private:
-    void solveInternal(
-        std::vector<Particle>& particles, double dt,
-        const std::vector<std::shared_ptr<Collider>>* colliders,
-        double thickness);"""
-    if stitch_header_text.count(private_anchor) != 1:
-        raise RuntimeError("StitchConstraint private helper anchor mismatch")
-    stitch_header_text = stitch_header_text.replace(
-        private_anchor,
-        """private:
-    friend class Solver;
-
-    void solveWithColliders(
-        std::vector<Particle>& particles, double dt,
-        const std::vector<std::shared_ptr<Collider>>& colliders,
-        double thickness);
-
-    void solveInternal(
-        std::vector<Particle>& particles, double dt,
-        const std::vector<std::shared_ptr<Collider>>* colliders,
-        double thickness);""",
-        1,
+    required_markers = (
+        "void StitchConstraint::solveWithColliders(",
+        "void StitchConstraint::solveInternal(",
+        "clipCorrectionAtFirstMeshHit(",
+        "m_lambda += deltaLambda * appliedScale;",
     )
-    stitch_header.write_text(stitch_header_text, encoding="utf-8")
+    missing = [marker for marker in required_markers if marker not in stitch_cpp_text]
+    if missing:
+        raise RuntimeError(
+            "StitchConstraint generated swept implementation missing markers: "
+            + ", ".join(missing)
+        )
 
     replace_once(
         ROOT / "core/include/physics/Solver.hpp",
