@@ -31,7 +31,7 @@ def main() -> int:
     header = ROOT / "core/include/physics/MeshCollider.hpp"
     cpp = ROOT / "core/src/physics/MeshCollider.cpp"
     test = ROOT / "tests/physics/test_mesh_collider.cpp"
-    bindings = ROOT / "python/src/bindings.cpp"
+    bindings = ROOT / "python/src/bindings_headless.cpp"
     engine = ROOT / "python/tissu/engine.py"
     replace_once(
         header,
@@ -329,7 +329,7 @@ bool intersectSegmentTriangle(
         .def("set_swept_contact_enabled",
              &MeshCollider::setSweptContactEnabled,
              py::arg("enabled"));'''
-    replace_once(bindings, binding_old, binding_new, "Tissu pybind MeshCollider swept-contact ABI")
+    replace_once(bindings, binding_old, binding_new, "Tissu headless pybind MeshCollider swept-contact ABI")
 
     engine_old = '''    def add_mesh_from_arrays(
         self,
