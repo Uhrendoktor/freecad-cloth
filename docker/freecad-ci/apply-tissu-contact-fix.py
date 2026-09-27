@@ -173,30 +173,153 @@ MeshOrientation inferMeshOrientation(
                                          : ((b - a).cross(c - a)).normalized();
 
             Eigen::Vector3d newPosition = cp + normal * thickness;""",
-            """        if (distance <= thickness) {
-            Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
+            """        bool shouldResolve = false;
+        Eigen::Vector3d normal =
+            ((b - a).cross(c - a)).normalized();
+        Eigen::Vector3d contactPoint = cp;
+
+        if (distance <= thickness) {
+            const Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
             const double faceNormalLength = faceNormalRaw.norm();
             if (faceNormalLength <= 1e-12)
                 continue;
-            Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
+            const Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
+            normal = faceNormal;
 
-            Eigen::Vector3d normal = faceNormal;
             if (distance > 1e-6) {
                 normal = toParticle / distance;
                 if (m_closedManifold) {
                     const Eigen::Vector3d outwardNormal =
                         faceNormal * m_outwardNormalSign;
-                    // A particle on the interior side of a closed, consistently
-                    // oriented surface must be resolved along the outward
-                    // normal; outside contact preserves the existing vector.
                     if (normal.dot(outwardNormal) < 0.0)
                         normal = -normal;
                 }
             } else if (m_closedManifold) {
                 normal *= m_outwardNormalSign;
             }
+            shouldResolve = true;
+        } else if (m_closedManifold && distance > thickness + 1.0e-9) {
+            const double tieTolerance =
+                1.0e-6 * std::max(1.0, distance);
+            const double signTolerance =
+                1.0e-7 * std::max(1.0, distance);
+            std::vector<int> candidateTriangles;
+            m_bvh.query(cp, tieTolerance, candidateTriangles);
 
-            Eigen::Vector3d newPosition = cp + normal * thickness;""",
+            std::vector<int> nearestCandidates;
+            nearestCandidates.reserve(candidateTriangles.size());
+            for (const int candidateIndex : candidateTriangles) {
+                if (candidateIndex < 0 ||
+                    candidateIndex >= static_cast<int>(m_triangles.size()))
+                    continue;
+                const Triangle& candidate = m_triangles[candidateIndex];
+                const Eigen::Vector3d& candidateA =
+                    m_worldVertices[candidate.a];
+                const Eigen::Vector3d& candidateB =
+                    m_worldVertices[candidate.b];
+                const Eigen::Vector3d& candidateC =
+                    m_worldVertices[candidate.c];
+                const Eigen::Vector3d candidatePoint =
+                    closestPointOnTriangle(
+                        particle.getPosition(), candidateA, candidateB,
+                        candidateC);
+                const double candidateDistance =
+                    (particle.getPosition() - candidatePoint).norm();
+                if (std::abs(candidateDistance - distance) <= tieTolerance)
+                    nearestCandidates.push_back(candidateIndex);
+            }
+            if (nearestCandidates.empty())
+                nearestCandidates.push_back(triIdx);
+
+            std::vector<int> connected = {nearestCandidates.front()};
+            bool changed = true;
+            while (changed) {
+                changed = false;
+                for (const int candidateIndex : nearestCandidates) {
+                    if (std::find(connected.begin(), connected.end(),
+                                  candidateIndex) != connected.end())
+                        continue;
+                    const Triangle& candidate = m_triangles[candidateIndex];
+                    bool sharesVertex = false;
+                    for (const int connectedIndex : connected) {
+                        const Triangle& connectedTriangle =
+                            m_triangles[connectedIndex];
+                        const int candidateVertices[3] = {
+                            candidate.a, candidate.b, candidate.c};
+                        const int connectedVertices[3] = {
+                            connectedTriangle.a, connectedTriangle.b,
+                            connectedTriangle.c};
+                        for (const int candidateVertex : candidateVertices) {
+                            for (const int connectedVertex : connectedVertices) {
+                                if (candidateVertex == connectedVertex) {
+                                    sharesVertex = true;
+                                    break;
+                                }
+                            }
+                            if (sharesVertex)
+                                break;
+                        }
+                        if (sharesVertex)
+                            break;
+                    }
+                    if (sharesVertex) {
+                        connected.push_back(candidateIndex);
+                        changed = true;
+                    }
+                }
+            }
+
+            bool localFan = connected.size() == nearestCandidates.size();
+            if (localFan) {
+                bool clearlyInterior = true;
+                for (const int candidateIndex : nearestCandidates) {
+                    const Triangle& candidate = m_triangles[candidateIndex];
+                    const Eigen::Vector3d& candidateA =
+                        m_worldVertices[candidate.a];
+                    const Eigen::Vector3d& candidateB =
+                        m_worldVertices[candidate.b];
+                    const Eigen::Vector3d& candidateC =
+                        m_worldVertices[candidate.c];
+                    const Eigen::Vector3d rawNormal =
+                        (candidateB - candidateA).cross(
+                            candidateC - candidateA);
+                    const double normalLength = rawNormal.norm();
+                    if (normalLength <= 1.0e-12) {
+                        clearlyInterior = false;
+                        break;
+                    }
+                    const Eigen::Vector3d outwardNormal =
+                        (rawNormal / normalLength) * m_outwardNormalSign;
+                    const Eigen::Vector3d candidatePoint =
+                        closestPointOnTriangle(
+                            particle.getPosition(), candidateA, candidateB,
+                            candidateC);
+                    const double signedDistance =
+                        (particle.getPosition() - candidatePoint)
+                            .dot(outwardNormal);
+                    if (signedDistance >= -signTolerance) {
+                        clearlyInterior = false;
+                        break;
+                    }
+                }
+
+                if (clearlyInterior) {
+                    const Eigen::Vector3d faceNormalRaw =
+                        (b - a).cross(c - a);
+                    const double faceNormalLength = faceNormalRaw.norm();
+                    if (faceNormalLength > 1.0e-12) {
+                        normal =
+                            (faceNormalRaw / faceNormalLength) *
+                            m_outwardNormalSign;
+                        shouldResolve = true;
+                    }
+                }
+            }
+        }
+
+        if (shouldResolve) {
+            Eigen::Vector3d newPosition =
+                contactPoint + normal * thickness;""",
             "MeshCollider.cpp contact response",
         ),
     ]
@@ -239,7 +362,27 @@ MeshOrientation inferMeshOrientation(
     return true;
 }
 
-"""
+static MeshCollider makeConcaveShell(double friction = 0.0) {
+    const std::vector<Eigen::Vector3d> vertices = {
+        {-1.0, -1.0, 0.0}, {1.0, -1.0, 0.0},
+        {1.0, 1.0, 0.0}, {-1.0, 1.0, 0.0},
+        {-1.0, -1.0, 2.0}, {1.0, -1.0, 2.0},
+        {1.0, 1.0, 2.0}, {-1.0, 1.0, 2.0},
+        {0.0, 0.0, 1.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {
+        {0, 3, 2}, {0, 2, 1},
+        {0, 1, 5}, {0, 5, 4},
+        {1, 2, 6}, {1, 6, 5},
+        {2, 3, 7}, {2, 7, 6},
+        {3, 0, 4}, {3, 4, 7},
+        {4, 5, 8}, {5, 6, 8},
+        {6, 7, 8}, {7, 4, 8},
+    };
+    return MeshCollider(vertices, triangles, friction);
+}
+
+
     if test_cpp.count("TEST(MeshCollider, ParticleInsideMeshMovesOutside)") != 1:
         raise RuntimeError("MeshCollider test anchor missing")
     test_cpp = test_cpp.replace(
@@ -247,9 +390,95 @@ MeshOrientation inferMeshOrientation(
         helper + "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
         1,
     )
-    old = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
+    new = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
     EXPECT_GT(distanceMoved, 0.0);
-}"""
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+}
+
+TEST(MeshCollider, DeepParticleInsideClosedMeshMovesOutside) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+
+    Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.01);
+
+    EXPECT_GT((particles[0].getPosition() - initialPos).norm(), 0.0);
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+}
+
+TEST(MeshCollider, ConcaveClosedShellInteriorMovesOutside) {
+    MeshCollider mesh = makeConcaveShell(0.0);
+
+    Eigen::Vector3d initialPos(0.0, 0.0, 0.7);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.01);
+
+    EXPECT_GT((particles[0].getPosition() - initialPos).norm(), 0.0);
+}
+
+TEST(MeshCollider, ConcaveClosedShellVoidDoesNotMove) {
+    MeshCollider mesh = makeConcaveShell(0.0);
+
+    Eigen::Vector3d initialPos(0.0, 0.0, 1.2);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.01);
+
+    EXPECT_EQ(particles[0].getPosition(), initialPos);
+}
+
+TEST(MeshCollider, OutsideSharedVertexTieDoesNotMove) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+
+    Eigen::Vector3d initialPos(-0.01, -0.01, -0.01);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.01);
+
+    EXPECT_EQ(particles[0].getPosition(), initialPos);
+}
+
+TEST(MeshCollider, NonManifoldDeepParticleKeepsLegacyBehavior) {
+    const std::vector<Eigen::Vector3d> vertices = {
+        {0.0, 0.0, 0.0}, {2.0, 0.0, 0.0},
+        {1.0, 0.0, 2.0}, {1.0, 2.0, 1.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {
+        {0, 2, 1}, {0, 1, 3}, {1, 2, 3},
+        {0, 3, 2}, {0, 2, 1},
+    };
+    MeshCollider mesh(vertices, triangles, 0.0);
+    Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.01);
+
+    EXPECT_EQ(particles[0].getPosition(), initialPos);
+}
+
+TEST(MeshCollider, OpenMeshDeepParticleKeepsLegacyBehavior) {
+    const std::vector<Eigen::Vector3d> vertices = {
+        {0.0, 0.0, 0.0}, {2.0, 0.0, 0.0}, {0.0, 0.0, 2.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {{0, 1, 2}};
+    MeshCollider mesh(vertices, triangles, 0.0);
+    Eigen::Vector3d initialPos(0.5, 0.5, 0.5);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.01);
+
+    EXPECT_EQ(particles[0].getPosition(), initialPos);
+}
+
+TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
     new = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
     EXPECT_GT(distanceMoved, 0.0);
     EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
