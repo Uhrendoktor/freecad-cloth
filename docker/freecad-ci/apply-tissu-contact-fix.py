@@ -210,6 +210,67 @@ namespace Tissu {"""
     return (intersections % 2) == 1;
 }
 
+bool MeshCollider::findSweptContact(
+    const Eigen::Vector3d& start, const Eigen::Vector3d& end, double radius,
+    int& outTriangle, double& outT) const {
+    outTriangle = -1;
+    outT = 0.0;
+    if (!m_closedManifold)
+        return false;
+
+    const Eigen::Vector3d segment = end - start;
+    const double length = segment.norm();
+    if (length <= 1e-12)
+        return false;
+
+    const Eigen::Vector3d midpoint = (start + end) * 0.5;
+    std::vector<int> candidates;
+    m_bvh.query(midpoint, 0.5 * length + radius, candidates);
+
+    constexpr double epsilon = 1e-10;
+    double bestT = std::numeric_limits<double>::infinity();
+
+    for (int triIdx : candidates) {
+        const Triangle& tri = m_bvh.getTriangle(triIdx);
+        const Eigen::Vector3d& a = m_worldVertices[tri.a];
+        const Eigen::Vector3d& b = m_worldVertices[tri.b];
+        const Eigen::Vector3d& c = m_worldVertices[tri.c];
+
+        const Eigen::Vector3d edge1 = b - a;
+        const Eigen::Vector3d edge2 = c - a;
+        const Eigen::Vector3d pvec = segment.cross(edge2);
+        const double determinant = edge1.dot(pvec);
+        if (std::abs(determinant) <= epsilon)
+            continue;
+
+        const double inverseDeterminant = 1.0 / determinant;
+        const Eigen::Vector3d tvec = start - a;
+        const double u = tvec.dot(pvec) * inverseDeterminant;
+        if (u < -epsilon || u > 1.0 + epsilon)
+            continue;
+
+        const Eigen::Vector3d qvec = tvec.cross(edge1);
+        const double v = segment.dot(qvec) * inverseDeterminant;
+        if (v < -epsilon || u + v > 1.0 + epsilon)
+            continue;
+
+        const double t = edge2.dot(qvec) * inverseDeterminant;
+        if (t < -epsilon || t > 1.0 + epsilon)
+            continue;
+
+        if (t < bestT) {
+            bestT = std::clamp(t, 0.0, 1.0);
+            outTriangle = triIdx;
+        }
+    }
+
+    if (outTriangle == -1)
+        return false;
+
+    outT = bestT;
+    return true;
+}
+
 void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
                            double thickness) {"""
 
