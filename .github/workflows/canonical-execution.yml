@@ -929,6 +929,7 @@ jobs:
             docs/images/generated/blanket-example/blanket-motion.gif
             docs/images/generated/blanket-example/blanket-visual.log
           if-no-files-found: error
+          retention-days: 14
           compression-level: 1
   publish-readme-turntables:
     name: Publish README turntables and example motion
