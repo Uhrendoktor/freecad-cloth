@@ -553,6 +553,11 @@ class StitchConstraint""",
     int m_idA;""",
         """private:
     friend class Solver;
+    static double correctionScaleAtFirstMeshHit(
+        const Eigen::Vector3d& start,
+        const Eigen::Vector3d& correction,
+        const std::vector<std::shared_ptr<Collider>>& colliders,
+        double thickness);
     void solveWithColliders(
         std::vector<Particle>& particles, double dt,
         const std::vector<std::shared_ptr<Collider>>& colliders,
@@ -694,6 +699,28 @@ void StitchConstraint::solveInternal(
     pB.setPosition(pB.getPosition() - wB * norm * appliedDeltaLambda);
 }""",
         "StitchConstraint collision-aware solve implementation",
+    )
+    replace_once(
+        ROOT / "core/src/physics/StitchConstraint.cpp",
+        """namespace {
+
+double correctionScaleAtFirstMeshHit(""",
+        """double StitchConstraint::correctionScaleAtFirstMeshHit(""",
+        "StitchConstraint private collision-scale helper",
+    )
+    replace_once(
+        ROOT / "core/src/physics/StitchConstraint.cpp",
+        """    return scale;
+}
+
+} // namespace
+
+void StitchConstraint::solve(""",
+        """    return scale;
+}
+
+void StitchConstraint::solve(""",
+        "StitchConstraint helper namespace closure",
     )
 
     stitch_cpp_text = stitch_cpp.read_text(encoding="utf-8")
