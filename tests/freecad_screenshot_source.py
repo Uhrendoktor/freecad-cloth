@@ -269,6 +269,7 @@ def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=No
         "hem_z": hem_z,
         "panels": records,
         "seam_coherence": _seam_coherence(panels, seam_records, proxy=proxy),
+        "initial_containment_probe": initial_containment_probe,
     }
     with open(METRICS, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, sort_keys=True)
@@ -409,6 +410,33 @@ def simulation():
         raise RuntimeError("canonical tunic DrapeTarget is not current: %s" % status.get("message", status))
     proxy = scene.Proxy
     backend = getattr(proxy, "backend", None)
+
+    initial_containment_probe = None
+    if os.environ.get("CLOTH_TISSU_INITIAL_CONTAINMENT_PROBE") == "1":
+        import numpy as np
+        import trimesh
+
+        source_mesh = trimesh.Trimesh(
+            vertices=np.asarray(target_surface.vertices, dtype=float),
+            faces=np.asarray(target_surface.triangles, dtype=int),
+            process=False,
+        )
+        points = np.asarray(tuple(backend.positions()), dtype=float)
+        _closest, distances, _triangle_ids = source_mesh.nearest.on_surface(points)
+        inside = source_mesh.contains(points)
+        signed = np.where(inside, -distances, distances)
+        initial_containment_probe = {
+            "particle_count": int(len(points)),
+            "inside_count": int(inside.sum()),
+            "outside_count": int((~inside).sum()),
+            "inside_percent": float(100.0 * inside.mean()) if len(points) else 0.0,
+            "max_inside_depth_mm": float(-np.min(signed[inside])) if bool(inside.any()) else 0.0,
+            "min_signed_distance_mm": float(np.min(signed)) if len(signed) else float("inf"),
+            "max_signed_distance_mm": float(np.max(signed)) if len(signed) else float("-inf"),
+            "mean_signed_distance_mm": float(np.mean(signed)) if len(signed) else 0.0,
+            "source_triangle_count": int(len(target_surface.triangles)),
+        }
+        log("tunic-initial-containment-probe=%s" % json.dumps(initial_containment_probe, sort_keys=True))
     if backend is None:
         raise RuntimeError("canonical tunic did not build a simulation backend")
     if list(getattr(scene, "PinSelection", ())) != []:
