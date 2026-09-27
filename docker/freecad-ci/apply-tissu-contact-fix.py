@@ -31,6 +31,8 @@ def main() -> int:
     header = ROOT / "core/include/physics/MeshCollider.hpp"
     cpp = ROOT / "core/src/physics/MeshCollider.cpp"
     test = ROOT / "tests/physics/test_mesh_collider.cpp"
+    bvh_header = ROOT / "core/include/data-structures/BVH.hpp"
+    bvh_cpp = ROOT / "core/src/data-structures/BVH.cpp"
 
     replace_once(
         header,
@@ -43,7 +45,13 @@ def main() -> int:
     std::vector<Triangle> m_triangles;
     bool m_closedManifold = false;
     double m_outwardNormalSign = 1.0;
-    BVH m_bvh;""",
+    BVH m_bvh;
+
+    bool firstSegmentHit(const Eigen::Vector3d& start,
+                         const Eigen::Vector3d& end,
+                         double& hitT,
+                         Eigen::Vector3d& hitNormal,
+                         int& triangleIndex) const;""",
         "MeshCollider.hpp member layout",
     )
 
