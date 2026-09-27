@@ -146,6 +146,15 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert 'docker run --rm "$FREECAD_TUNIC_IMAGE" bash -lc' in workflow
     assert 'artifacts/tissu-provenance.txt' in workflow
 
+def test_tissu_contact_fix_preserves_legacy_near_surface_response():
+    script = (ROOT / "docker" / "freecad-ci" / "apply-tissu-contact-fix.py").read_text(encoding="utf-8")
+    assert '"""        if (distance <= thickness) {' not in script
+    assert "// Preserve the exact legacy near-surface contact response." in script
+    assert 'normal = (distance > 1e-6)\n                             ? toParticle.normalized()\n                             : ((b - a).cross(c - a)).normalized();' in script
+    assert "else if (distance > 1e-6)" not in script
+    assert "normal.dot(outwardNormal)" not in script
+
+
 def test_canonical_tunic_fixture_matches_validated_start_geometry():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert 'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)' in audit
