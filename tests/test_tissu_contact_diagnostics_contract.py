@@ -41,4 +41,7 @@ def test_canonical_workflow_uses_single_opt_in_dispatch_job():
     assert "diagnostic_controls:" in WORKFLOW
     assert "diagnostic-tissu-contact:" in WORKFLOW
     assert "github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls" in WORKFLOW
-    assert "diagnostic-tissu-contact" not in WORKFLOW.split("jobs:", 1)[1].split("gui-tunic-visual:", 1)[0] or True
+    job = WORKFLOW.split("diagnostic-tissu-contact:", 1)[1].split("\n  ", 1)[0]
+    assert "needs: [local_runner_readiness]" in WORKFLOW
+    assert "needs: [diagnostic-tissu-contact]" not in WORKFLOW
+    assert "release_gate_effect" not in job
