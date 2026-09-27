@@ -31,7 +31,7 @@ os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "mesh")
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 BLANKET_SIZE = 200.0  # Validated 200 mm release fixture; keep pins/placement derived from this value.
 BLANKET_PARTICLE_DISTANCE = 12.0  # Match the validated blanket-over-cube release fixture; contract requires >= 12 mm.
-BLANKET_START_Z = 95.0  # Validated fixture recut: keep the authored 200 mm square close enough to reach the cube.
+BLANKET_START_Z = 90.0  # Validated inset-pin fixture; keep the authored 200 mm square close enough to reach the cube.
 # The README fixture uses the same pinned Tissu mesh-collision runtime as the
 # canonical turntable job and the validated 200 mm blanket visual example.
 os.environ["CLOTH_SIMULATION_BACKEND"] = "tissu"
@@ -306,13 +306,14 @@ def _opposite_top_edge_pins(piece, positions, panel_indices):
     top_edge = tuple(index for index in boundary_vertices if abs(float(mesh_positions[index][1]) - top_y) <= 1e-9)
     if len(top_edge) < 2:
         raise RuntimeError("blanket top edge has fewer than two boundary vertices")
+    target_x = 0.375 * BLANKET_SIZE
     top = (
-        min(top_edge, key=lambda index: float(mesh_positions[index][0])),
-        max(top_edge, key=lambda index: float(mesh_positions[index][0])),
+        min(top_edge, key=lambda index: abs(float(mesh_positions[index][0]) + target_x)),
+        min(top_edge, key=lambda index: abs(float(mesh_positions[index][0]) - target_x)),
     )
     span = abs(float(mesh_positions[top[1]][0]) - float(mesh_positions[top[0]][0]))
     if span < 0.75 * BLANKET_SIZE:
-        raise RuntimeError("blanket pins are not opposite top-edge corners: span=%.3f" % span)
+        raise RuntimeError("blanket pins are not opposite inset top-edge anchors: span=%.3f" % span)
     return tuple(int(panel_indices[top_index]) for top_index in top), span
 
 
@@ -445,7 +446,7 @@ def build_simulation_state(doc):
     panel_indices = tuple(proxy.panel_indices[panel.Name])
     pins, span = _opposite_top_edge_pins(blanket, positions, panel_indices)
     scene.PinSelection = [str(index) for index in pins]
-    log("blanket-pins=passed opposite-corners span=%.3f indices=%s" % (span, pins))
+    log("blanket-pins=passed opposite-inset-top-edge span=%.3f indices=%s start_z=90.0" % (span, pins))
     doc.recompute()
 
     sketch.ViewObject.Visibility = False
