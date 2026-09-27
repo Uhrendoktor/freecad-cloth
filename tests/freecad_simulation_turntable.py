@@ -443,9 +443,25 @@ def build_simulation_state(doc):
     proxy = scene.Proxy._base_or_restore()
     positions = tuple(proxy.backend.positions())
     panel_indices = tuple(proxy.panel_indices[panel.Name])
-    pins, span = _opposite_top_edge_pins(blanket, positions, panel_indices)
+    pin_targets = (
+        App.Vector(-0.40 * BLANKET_SIZE, 0.0, BLANKET_START_Z),
+        App.Vector(0.40 * BLANKET_SIZE, 0.0, BLANKET_START_Z),
+    )
+    pins = _nearest_pin_indices(panel_indices, positions, pin_targets)
+    span = abs(float(positions[pins[1]][0]) - float(positions[pins[0]][0]))
+    if span < 0.75 * BLANKET_SIZE:
+        raise RuntimeError("blanket interior pins do not span the required width: span=%.3f" % span)
+    if any(abs(float(positions[index][1])) > 0.20 * BLANKET_SIZE for index in pins):
+        raise RuntimeError(
+            "blanket interior pins are outside the cube-overlap anchor plane: y=%s"
+            % tuple(round(float(positions[index][1]), 3) for index in pins)
+        )
     scene.PinSelection = [str(index) for index in pins]
-    log("blanket-pins=passed opposite-corners span=%.3f indices=%s" % (span, pins))
+    log("blanket-pins=passed interior span=%.3f y=%s indices=%s" % (
+        span,
+        tuple(round(float(positions[index][1]), 3) for index in pins),
+        pins,
+    ))
     doc.recompute()
 
     sketch.ViewObject.Visibility = False
