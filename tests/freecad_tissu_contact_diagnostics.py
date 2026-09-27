@@ -693,8 +693,11 @@ def _run_control_avatar():
             % (float(center.x), float(center.y), float(center.z))
         )
 
+        # _build_piece seeds the panel at local z=120 mm; +90° X rotation
+        # maps that seed to world y=-120 mm, so offset the placement by +120 mm
+        # to keep the chosen interior seed at the panel center.
         placement = App.Placement(
-            App.Vector(float(center.x) - 36.0, float(center.y), float(center.z) - 36.0),
+            App.Vector(float(center.x) - 36.0, float(center.y) + 120.0, float(center.z) - 36.0),
             App.Rotation(App.Vector(1.0, 0.0, 0.0), 90.0),
         )
         piece = _build_piece(doc, "AvatarCloth", placement, width=72.0, height=72.0)
