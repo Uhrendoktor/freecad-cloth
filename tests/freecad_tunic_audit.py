@@ -75,7 +75,12 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
     log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
 '''
-anchor = '''    initial_backend = scene.Proxy._base_or_restore().backend
+anchor = '''    for batch in (15,15,15,15,15,15):
+        simulation_panel.step(batch); doc.recompute(); events()
+'''
+if anchor not in source:
+    raise RuntimeError("simulation batch anchor missing")
+timed_anchor = '''    initial_backend = scene.Proxy._base_or_restore().backend
     initial_positions = tuple(initial_backend.positions())
     initial_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
     if not initial_pairs_by_seam:
@@ -102,12 +107,7 @@ anchor = '''    initial_backend = scene.Proxy._base_or_restore().backend
         raise RuntimeError("initial seam-span probe produced no solver pairs")
     log("initial-stitch-spans-mm=%s" % json.dumps(initial_summary, sort_keys=True))
     log("initial-stitch-span-global-min-mm=%.3f max-mm=%.3f mean-mm=%.3f" % (min(initial_all), max(initial_all), sum(initial_all)/len(initial_all)))
-    for batch in (15,15,15,15,15,15):
-        simulation_panel.step(batch); doc.recompute(); events()
-'''
-if anchor not in source:
-    raise RuntimeError("simulation batch anchor missing")
-timed_anchor = '''    from time import perf_counter
+    from time import perf_counter
     simulation_started = perf_counter()
     active_backend = scene.Proxy._base_or_restore().backend
     active_collision = getattr(active_backend, "_collision_surface", None)
