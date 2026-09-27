@@ -30,3 +30,4 @@ After pattern, seam-source or drape-target changes, rebuild or repair dependent 
 
 For debugging, compare local results with the FreeCAD/Triangle/Tissu versions recorded by the canonical workflow and attach the relevant CI artifact/log rather than editing generated evidence manually.
 <!-- CI validation branch marker: no product behavior. -->
+<!-- watchdog fallback validation -->
