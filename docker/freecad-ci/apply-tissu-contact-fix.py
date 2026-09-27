@@ -511,7 +511,7 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
         collider->resolve(m_particles, dt, world.getThickness());
 
     solveSelfCollisions(dt, world.getThickness());"""
-    solver_new = """    for (auto& collider in colliders)
+    solver_new = """    for (auto& collider : colliders)
         collider->resolve(m_particles, dt, world.getThickness());
 
     // Collision projection runs after the main constraint iterations.
