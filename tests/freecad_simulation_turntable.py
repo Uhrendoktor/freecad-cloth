@@ -354,11 +354,12 @@ def validate_blanket_drape(panel, cube):
     )
     mesh_result = validate_mesh(points, faces, prefer_trimesh=False)
     shape = mesh_shape_sanity(points, faces)
+    target_mesh_vertices, _target_mesh_faces = cube.Mesh.Topology
     target_points = tuple(
-        (float(vertex.Point.x), float(vertex.Point.y), float(vertex.Point.z))
-        for vertex in cube.Shape.Vertexes
+        (float(vertex.x), float(vertex.y), float(vertex.z))
+        for vertex in target_mesh_vertices
     )
-    target_box = cube.Shape.BoundBox
+    target_box = cube.Mesh.BoundBox
     drape = inspect_drape(
         points,
         target_points,
@@ -412,12 +413,17 @@ def build_simulation_state(doc):
     blanket.Placement = placement
     blanket.Sketch.Placement = placement
 
-    cube = doc.addObject("Part::Feature", "BlanketTargetCube")
+    import Mesh
+    cube_shape = __import__("Part").makeBox(180.0, 180.0, 60.0, App.Vector(-90.0, -90.0, 0.0))
+    cube = doc.addObject("Mesh::Feature", "BlanketTargetCube")
     cube.Label = "Collision Target — Cube"
-    cube.Shape = __import__("Part").makeBox(180.0, 180.0, 60.0, App.Vector(-90.0, -90.0, 0.0))
+    cube_vertices, cube_triangles = cube_shape.tessellate(1.0)
+    cube.Mesh = Mesh.Mesh([[cube_vertices[index] for index in triangle] for triangle in cube_triangles])
     doc.recompute()
 
     scene = create_simulation_scene(doc)
+    source_vertices, source_triangles = cube.Mesh.Topology
+    log("collision-source=Mesh::Feature vertices=%d triangles=%d" % (len(source_vertices), len(source_triangles)))
     set_avatar_collision_source(scene, cube, thickness=2.0, deflection=1.0)
     ensure_quality_properties(scene)
     scene.Proxy = QualitySimulationProxy()
@@ -526,7 +532,7 @@ def main():
         final_z = _center_z(final_positions)
         displacement = abs(final_z - initial_z)
         minimum_z = min(float(position[2]) for position in final_positions)
-        cube_top = float(cube.Shape.BoundBox.ZMax)
+        cube_top = float(cube.Mesh.BoundBox.ZMax)
         log("blanket-motion-diagnostic max_centroid_displacement_mm=%.2f final_centroid_z_mm=%.2f min_z_mm=%.2f cube_top_z_mm=%.2f" % (
             displacement, final_z, minimum_z, cube_top,
         ))
