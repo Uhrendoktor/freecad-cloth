@@ -330,9 +330,13 @@ TEST(MeshCollider, OpenConsistentlyWoundSurfaceMovesInteriorParticleOutside) {
     const Eigen::Vector3d faceA = vertices[0];
     const Eigen::Vector3d faceB = vertices[1];
     const Eigen::Vector3d faceC = vertices[3];
-    const Eigen::Vector3d authoredOutwardNormal =
+    Eigen::Vector3d authoredOutwardNormal =
         (faceB - faceA).cross(faceC - faceA).normalized();
     const Eigen::Vector3d faceCenter = (faceA + faceB + faceC) / 3.0;
+    const Eigen::Vector3d tetraCenter =
+        (vertices[0] + vertices[1] + vertices[2] + vertices[3]) / 4.0;
+    const Eigen::Vector3d geometricOutward = faceCenter - tetraCenter;
+    ASSERT_GT(geometricOutward.dot(authoredOutwardNormal), 0.0);
     const Eigen::Vector3d initialPos =
         faceCenter - authoredOutwardNormal * 0.05;
     const double initialSignedDistance =
