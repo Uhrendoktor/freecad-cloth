@@ -511,13 +511,18 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
         collider->resolve(m_particles, dt, world.getThickness());
 
     solveSelfCollisions(dt, world.getThickness());"""
-    solver_new = """    for (auto& collider : colliders)
+    solver_new = """    for (auto& collider in colliders)
         collider->resolve(m_particles, dt, world.getThickness());
 
     // Collision projection runs after the main constraint iterations.
     // Re-enforce the same existing constraints once so zero-rest stitches
     // are not left separated by the final collision correction.
     solveConstraints(dt);
+
+    // Reproject the mesh after stitch enforcement so the post-collision
+    // constraint correction cannot leave particles inside the collider.
+    for (auto& collider : colliders)
+        collider->resolve(m_particles, dt, world.getThickness());
 
     solveSelfCollisions(dt, world.getThickness());"""
     if solver_text.count(solver_old) != 1:
@@ -548,6 +553,29 @@ public:
     }
 };
 
+class TwoStageProjectionCollider final : public Collider {
+public:
+    void resolve(std::vector<Particle>& particles, double, double) override {
+        ++m_resolveCount;
+        if (particles.size() < 2)
+            return;
+
+        if (m_resolveCount == 1) {
+            particles[0].setPosition(Eigen::Vector3d(-1.0, 0.0, 0.0));
+            particles[1].setPosition(Eigen::Vector3d(1.0, 0.0, 0.0));
+            return;
+        }
+
+        particles[0].setPosition(Eigen::Vector3d(0.5, 0.0, 0.0));
+        particles[1].setPosition(Eigen::Vector3d(0.5, 0.0, 0.0));
+    }
+
+    int resolveCount() const { return m_resolveCount; }
+
+private:
+    int m_resolveCount = 0;
+};
+
 TEST(Solver, ReenforcesStitchesAfterColliderProjection) {
     Solver solver;
     const int particleA =
@@ -573,6 +601,34 @@ TEST(Solver, ReenforcesStitchesAfterColliderProjection) {
         1e-9);
 }
 
+TEST(Solver, ReprojectsAfterPostCollisionConstraintPass) {
+    Solver solver;
+    const int particleA =
+        solver.addParticle(Particle(Eigen::Vector3d::Zero()));
+    const int particleB =
+        solver.addParticle(Particle(Eigen::Vector3d::Zero()));
+    solver.addStitch(particleA, particleB, 0.0);
+    solver.setSubsteps(1);
+    solver.setIterations(1);
+
+    World world;
+    world.setGravity(Eigen::Vector3d::Zero());
+    auto collider = std::make_shared<TwoStageProjectionCollider>();
+    world.addCollider(collider);
+
+    solver.update(world, 1.0 / 60.0);
+
+    const auto& particles = solver.getParticles();
+    EXPECT_EQ(collider->resolveCount(), 2);
+    EXPECT_NEAR(
+        (particles[particleA].getPosition() -
+         particles[particleB].getPosition())
+            .norm(),
+        0.0,
+        1e-9);
+    EXPECT_NEAR(particles[particleA].getPosition().x(), 0.5, 1e-9);
+}
+
 """
     if cloth_test_cpp.count("TEST(Cloth, ClearFabric)") != 1:
         raise RuntimeError("Cloth test anchor missing")
@@ -586,6 +642,8 @@ TEST(Solver, ReenforcesStitchesAfterColliderProjection) {
     cloth_regression_text = cloth_test.read_text(encoding="utf-8")
     if "TEST(Solver, ReenforcesStitchesAfterColliderProjection)" not in cloth_regression_text:
         raise RuntimeError("missing solver-order regression test anchor")
+    if "TEST(Solver, ReprojectsAfterPostCollisionConstraintPass)" not in cloth_regression_text:
+        raise RuntimeError("missing second collision-projection regression test anchor")
 
     test_cpp = test.read_text(encoding="utf-8")
     test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
