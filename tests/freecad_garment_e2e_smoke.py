@@ -584,9 +584,57 @@ def run_acceptance():
         )
         Gui.runCommand("ClothDrape_CreateMannequinTarget", 0)
         _events()
-        target = doc.getObject("DrapeTarget")
-        if target is None or scene.DrapeTarget != target or target.SourceObject != avatar:
+        mannequin_target = doc.getObject("DrapeTarget")
+        if mannequin_target is None or scene.DrapeTarget != mannequin_target or mannequin_target.SourceObject != avatar:
             raise RuntimeError("public mannequin DrapeTarget command did not attach the canonical human target to simulation")
+
+        # Use an explicit ordinary-geometry target for the shared-rigid acceptance.
+        # The mannequin target is already validated above and is restored before
+        # later diagnostics/simulation checks. The fixture must itself satisfy the
+        # shared-rigid invariant instead of relying on a disconnected arbitrary layout.
+        box = doc.addObject("Part::Box", "TargetSnapFixture")
+        box.Label = "Target Snap Fixture"
+        box.Length = 400.0
+        box.Width = 400.0
+        box.Height = 400.0
+        box.Placement.Base = App.Vector(-200.0, -200.0, 0.0)
+        _select_objects(box)
+        Gui.runCommand("ClothDrape_CreateTarget", 0)
+        _events()
+        target = doc.getObject("DrapeTarget")
+        if target is None or target.SourceObject != box:
+            raise RuntimeError("public geometry DrapeTarget command did not attach the deterministic target fixture")
+        scene.DrapeTarget = target
+
+        from freecad_cloth.avatar.AvatarFitting import GarmentAnchor
+        from freecad_cloth.avatar.FittingCommands import set_garment_anchors
+        anchor_specs = (
+            (front, "front"),
+            (back, "back"),
+            (sleeve_a, "right"),
+            (sleeve_b, "left"),
+        )
+        set_garment_anchors([
+            GarmentAnchor(str(piece.PieceId), "snap_center", (50.0, 30.0, 0.0), wrap)
+            for piece, wrap in anchor_specs
+        ])
+        prefit_bases = (
+            (front, (-50.0, 170.0, 100.0)),
+            (back, (-50.0, -230.0, 100.0)),
+            (sleeve_a, (150.0, -30.0, 100.0)),
+            (sleeve_b, (-250.0, -30.0, 100.0)),
+        )
+        common_rotation = App.Rotation(App.Vector(0, 0, 1), 5.0)
+        common_translation = App.Vector(20.0, 10.0, 5.0)
+        for piece, base_values in prefit_bases:
+            nominal = App.Vector(*base_values)
+            placement_base = common_rotation.multVec(nominal) + common_translation
+            placement = App.Placement(placement_base, common_rotation)
+            piece.Placement = placement
+            sketch = getattr(piece, "Sketch", None)
+            if sketch is not None:
+                sketch.Placement = App.Placement(placement)
+        doc.recompute()
 
         _select_objects(scene)
         quality_panel = _open_quality_panel()
