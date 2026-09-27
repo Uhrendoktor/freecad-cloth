@@ -384,15 +384,27 @@ def simulation():
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
-    rot = App.Rotation(App.Vector(1,0,0), 90.0)
+    from math import acos, degrees
+    target_min_y = min(target_ys)
+    target_max_y = max(target_ys)
+    wrap_cos = min(0.35, 0.5 * max(0.0, target_max_y - target_min_y) / max(1.0, garment_height))
+    front_angle = degrees(acos(wrap_cos))
+    back_angle = 180.0 - front_angle
+    front_y = target_min_y - clearance - garment_height * wrap_cos
+    back_y = target_max_y + clearance + garment_height * wrap_cos
+    front_rot = App.Rotation(App.Vector(1,0,0), front_angle)
+    back_rot = App.Rotation(App.Vector(1,0,0), back_angle)
+    log("arrangement=clearance-preserving-wrap front-angle=%.3f back-angle=%.3f front-y=%.3f back-y=%.3f clearance=%.3f" % (front_angle, back_angle, front_y, back_y, clearance))
     def target_relative_piece_placement(side):
         if side == "front":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
+            y = front_y
+            rotation = front_rot
         elif side == "back":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
+            y = back_y
+            rotation = back_rot
         else:
             raise ValueError("tunic target-relative side must be front or back")
-        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
+        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rotation)
     def make_piece(name, side, neckline_ratio, neckline_drop):
         sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(side); piece.Sketch.Placement = piece.Placement; return piece, outline
     front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
