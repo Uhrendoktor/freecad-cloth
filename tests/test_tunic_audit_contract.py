@@ -130,7 +130,7 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "OpenMeshRetainsLegacyContactDirection" in script
     patch = (ROOT / "docker" / "freecad-ci" / "apply-tissu-contact-fix.py").read_text(encoding="utf-8")
     solver_order_anchor = (
-        "solveConstraints(dt);\n\n    for (auto& collider in colliders)"
+        "    solveConstraints(dt);\n\n    for (auto& collider in colliders)"
     )
     assert solver_order_anchor in patch
     assert patch.count("solveConstraints(dt);") == 1
