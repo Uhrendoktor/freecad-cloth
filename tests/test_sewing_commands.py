@@ -34,6 +34,9 @@ def test_all_registered_sewing_commands_have_stable_user_facing_labels():
         "ClothSewing_Validate": "Validate Sewing",
         "ClothSewing_RepairSeam": "Repair Seam",
         "ClothSewing_Show2D": "Show Sewing 2D",
+        "ClothSewing_FocusSeam3D": "Focus Seam in 3D",
+        "ClothSewing_EditSeamSideA": "Edit Seam Side A in Sketcher",
+        "ClothSewing_EditSeamSideB": "Edit Seam Side B in Sketcher",
     }
     assert _MENU_TEXT == expected
 
@@ -116,8 +119,11 @@ def _repair_test_modules(monkeypatch, edge_length, pieces=()):
     sewing_objects = SimpleNamespace(_edge_length=edge_length)
     monkeypatch.setitem(sys.modules, "FreeCADGui", gui)
     monkeypatch.setitem(sys.modules, "FreeCAD", app)
-    monkeypatch.setitem(sys.modules, "SewingGui", sewing_gui)
-    monkeypatch.setitem(sys.modules, "SewingObjects", sewing_objects)
+    import freecad_cloth.sewing.SewingGui as sewing_gui_module
+    import freecad_cloth.sewing.SewingObjects as sewing_objects_module
+    monkeypatch.setattr(sewing_gui_module, "correspondence_report", sewing_gui.correspondence_report)
+    monkeypatch.setattr(sewing_gui_module, "repair_correspondence_settings", sewing_gui.repair_correspondence_settings)
+    monkeypatch.setattr(sewing_objects_module, "_edge_length", edge_length)
     return seam, doc
 
 
