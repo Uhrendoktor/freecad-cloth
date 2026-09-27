@@ -413,8 +413,7 @@ void StitchConstraint::solve(std::vector<Particle>& particles, double dt) {
     pB.setPosition(pB.getPosition() - wB * norm * deltaLambda);
 }
 
-} // namespace Tissu
-"""
+} // namespace Tissu"""
     new_stitch = """#include "physics/StitchConstraint.hpp"
 
 #include <cmath>
