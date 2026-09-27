@@ -411,16 +411,40 @@ def simulation():
     backend = getattr(proxy, "backend", None)
     if backend is None:
         raise RuntimeError("canonical tunic did not build a simulation backend")
-    if list(getattr(scene, "PinSelection", ())) != []:
-        raise RuntimeError("canonical tunic PinMode=None retained explicit PinSelection values")
+    initial_shoulder_pairs = proxy.seam_stitch_pairs
+    right_shoulder = tuple(initial_shoulder_pairs.get("TunicRightShoulder", ()))
+    left_shoulder = tuple(initial_shoulder_pairs.get("TunicLeftShoulder", ()))
+    if len(right_shoulder) < 2 or len(left_shoulder) < 2:
+        raise RuntimeError("canonical tunic shoulder seams do not expose enough stitch endpoints")
+    shoulder_pin_provenance = (
+        ("TunicRightShoulder", "front", "outer", int(right_shoulder[0][0])),
+        ("TunicRightShoulder", "back", "outer", int(right_shoulder[-1][1])),
+        ("TunicLeftShoulder", "front", "outer", int(left_shoulder[-1][0])),
+        ("TunicLeftShoulder", "back", "outer", int(left_shoulder[0][1])),
+    )
+    shoulder_pin_indices = tuple(sorted(record[3] for record in shoulder_pin_provenance))
+    if len(shoulder_pin_indices) != 4 or len(set(shoulder_pin_indices)) != 4:
+        raise RuntimeError("canonical tunic expected four unique symmetric outer-shoulder pins, got %s" % (shoulder_pin_indices,))
+    scene.PinMode = "Explicit"
+    scene.PinSelection = [str(index) for index in shoulder_pin_indices]
+    doc.recompute()
+    status = target_status(target)
+    if str(status.get("state", "")) != "ready":
+        raise RuntimeError("canonical tunic DrapeTarget is not current: %s" % status.get("message", status))
+    proxy = scene.Proxy
+    backend = getattr(proxy, "backend", None)
+    expected_pins = tuple(sorted(int(index) for index in shoulder_pin_indices))
+    actual_selection = tuple(sorted(int(index) for index in getattr(scene, "PinSelection", ())))
     solver_pins = tuple(int(i) for i in getattr(backend, "_pin_indices", ()))
     if not solver_pins:
         system = getattr(backend, "system", None)
         solver_pins = tuple(sorted(int(i) for i in getattr(system, "pins", {}).keys()))
-    if str(getattr(scene, "PinMode", "")) != "None":
-        raise RuntimeError("canonical tunic must use PinMode=None")
-    if solver_pins:
-        raise RuntimeError("canonical tunic PinMode=None still has solver pins: %s" % (solver_pins,))
+    if str(getattr(scene, "PinMode", "")) != "Explicit":
+        raise RuntimeError("canonical tunic must use PinMode=Explicit")
+    if actual_selection != expected_pins:
+        raise RuntimeError("canonical tunic explicit PinSelection mismatch: %s != %s" % (actual_selection, expected_pins))
+    if solver_pins != expected_pins:
+        raise RuntimeError("canonical tunic explicit outer-shoulder pins not applied: %s" % (solver_pins,))
     surface = collision_surface(
         target_source,
         float(getattr(target, "CollisionDeflection", 1.0)),
@@ -437,7 +461,19 @@ def simulation():
             "canonical tunic step-0 target clearance is below configured separation: "
             "%.2f mm < %.2f mm" % (float(initial_clearance or 0.0), float(clearance))
         )
-    log("pin-mode=None solver-pins=0")
+    pin_clearances = []
+    for _label, _panel, _role, particle_id in shoulder_pin_provenance:
+        position = tuple(float(v) for v in backend.positions()[particle_id])
+        nearest = min(
+            sum((position[i] - float(vertex[i])) ** 2 for i in range(3)) ** 0.5
+            for vertex in surface.vertices
+        )
+        pin_clearances.append((f"{_panel}:{_label}:particle={particle_id}", round(float(nearest), 6)))
+    log("pin-mode=explicit solver-pins=%s outer-shoulder=%s initial-clearances-mm=%s" % (
+        ",".join(str(i) for i in solver_pins),
+        tuple(shoulder_pin_provenance),
+        tuple(pin_clearances),
+    ))
     log("target-collision-mode=mesh")
     log("step0-target-vertex-clearance-mm=%.2f required-mm=%.2f" % (float(initial_clearance), float(clearance)))
     for source in (doc.getObject("VisualTunicFront"), doc.getObject("VisualTunicBack")):
