@@ -392,15 +392,25 @@ namespace Tissu {""",
     pA.setPosition(pA.getPosition() + wA * norm * deltaLambda);
     pB.setPosition(pB.getPosition() - wB * norm * deltaLambda);
 }""",
-        """double StitchConstraint::correctionScaleForEnteringHit(
+        """namespace {
+
+struct AppliedCorrection {
+    Eigen::Vector3d correction = Eigen::Vector3d::Zero();
+    double scale = 1.0;
+};
+
+AppliedCorrection clipCorrectionAtFirstEnteringMeshHit(
     const Eigen::Vector3d& start,
     const Eigen::Vector3d& correction,
     const std::vector<std::shared_ptr<Collider>>& colliders,
     double thickness) {
     if (correction.squaredNorm() <= 1e-18)
-        return 1.0;
+        return {correction, 1.0};
 
-    double scale = 1.0;
+    double bestT = 1.0;
+    Eigen::Vector3d bestNormal = Eigen::Vector3d::Zero();
+    bool foundHit = false;
+
     for (const auto& collider : colliders) {
         const auto* mesh = dynamic_cast<const MeshCollider*>(collider.get());
         if (mesh == nullptr)
@@ -412,14 +422,27 @@ namespace Tissu {""",
                 start, start + correction, hitT, outwardNormal))
             continue;
 
-        const Eigen::Vector3d hitPoint = start + correction * hitT;
-        const Eigen::Vector3d clipped =
-            hitPoint + outwardNormal * std::max(0.0, thickness);
-        const double candidateScale =
-            (clipped - start).dot(correction) / correction.squaredNorm();
-        scale = std::max(0.0, std::min(1.0, std::min(scale, candidateScale)));
+        if (!foundHit || hitT < bestT - 1e-12) {
+            bestT = hitT;
+            bestNormal = outwardNormal;
+            foundHit = true;
+        }
     }
-    return scale;
+
+    if (!foundHit)
+        return {correction, 1.0};
+
+    const Eigen::Vector3d hitPoint = start + correction * bestT;
+    const Eigen::Vector3d clippedPosition =
+        hitPoint + bestNormal * std::max(0.0, thickness);
+    const Eigen::Vector3d appliedCorrection = clippedPosition - start;
+    const double correctionNorm2 = correction.squaredNorm();
+    double scale =
+        appliedCorrection.dot(correction) / correctionNorm2;
+    scale = std::max(0.0, std::min(1.0, scale));
+    return {appliedCorrection, scale};
+}
+
 }
 
 void StitchConstraint::solve(std::vector<Particle>& particles, double dt) {
@@ -465,17 +488,17 @@ void StitchConstraint::solveInternal(
     const Eigen::Vector3d correctionA = wA * norm * deltaLambda;
     const Eigen::Vector3d correctionB = -wB * norm * deltaLambda;
 
-    double scaleA = 1.0;
-    double scaleB = 1.0;
+    AppliedCorrection appliedA{correctionA, 1.0};
+    AppliedCorrection appliedB{correctionB, 1.0};
     if (colliders != nullptr && !colliders->empty()) {
-        scaleA = correctionScaleForEnteringHit(
+        appliedA = clipCorrectionAtFirstEnteringMeshHit(
             startA, correctionA, *colliders, thickness);
-        scaleB = correctionScaleForEnteringHit(
+        appliedB = clipCorrectionAtFirstEnteringMeshHit(
             startB, correctionB, *colliders, thickness);
     }
 
-    const Eigen::Vector3d appliedA = correctionA * scaleA;
-    const Eigen::Vector3d appliedB = correctionB * scaleB;
+    const Eigen::Vector3d appliedA = appliedA.correction;
+    const Eigen::Vector3d appliedB = appliedB.correction;
     const double proposedMagnitude =
         std::sqrt(correctionA.squaredNorm() + correctionB.squaredNorm());
     const double appliedMagnitude =
@@ -700,7 +723,7 @@ TEST(StitchConstraint, SolverChoosesEarliestEnteringCrossingAcrossMeshes) {
     for marker in (
         "const double previousLambda = m_lambda;",
         "m_lambda = previousLambda + deltaLambda * lambdaScale;",
-        "correctionScaleForEnteringHit(",
+        "clipCorrectionAtFirstEnteringMeshHit(",
     ):
         if marker not in stitch_cpp_text:
             raise RuntimeError(f"missing stitch crossing marker: {marker}")
