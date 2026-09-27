@@ -211,6 +211,8 @@ MeshOrientation inferMeshOrientation(
 
     test_cpp = test.read_text(encoding="utf-8")
     test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
+    # The native regressions cover convex deep-interior recovery, near-surface/outside behavior,
+    # open-mesh legacy semantics, and a concave closed-shell void to catch false inward projection.
     helper = """static bool tetrahedronContains(const Eigen::Vector3d& point) {
     const std::vector<Eigen::Vector3d> vertices = {
         {0.0, 0.0, 0.0},
