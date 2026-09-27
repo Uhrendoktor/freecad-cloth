@@ -722,7 +722,9 @@ void StitchConstraint::solveInternal(
 
     pA.setPosition(pA.getPosition() + appliedA.correction);
     pB.setPosition(pB.getPosition() + appliedB.correction);
-}
+}""",
+        "StitchConstraint collision-aware solve",
+    )
     stitch_cpp_text = stitch_cpp.read_text(encoding="utf-8")
     required_markers = (
         "void StitchConstraint::solveWithColliders(",
