@@ -175,9 +175,9 @@ def _run_case(doc, scene, target, case_id):
     if getattr(backend, "name", "") != "tissu":
         raise RuntimeError("diagnostic case %s did not select Tissu backend" % case_id)
     source_shape = getattr(target, "Shape", None)
-    target_points = _target_points(target)
     source_surface = getattr(backend, "_source_collision_surface", None)
     solver_surface = getattr(backend, "solver_collision_surface", None)
+    target_points = tuple(solver_surface.vertices) if solver_surface is not None else _target_points(target)
     before = tuple(backend.positions())
     finite_before = bool(backend.finite())
     before_inside = _inside_counts(source_shape, before)
@@ -232,7 +232,8 @@ def _run_case(doc, scene, target, case_id):
         "collision_mode": os.environ.get("CLOTH_TISSU_COLLISION_MODE", "mesh"),
         "collision_triangle_budget": int(os.environ.get("CLOTH_TISSU_COLLISION_TRIANGLES", "2048")),
         "target_topology_summary": {
-            "vertices": len(target_points),
+            "distance_query_surface": "solver-facing-collision-surface",
+            "vertices_used_for_distance": len(target_points),
             "solver_triangles": len(solver_surface.triangles) if solver_surface is not None else None,
         },
         "checkpoint_steps": [0, 1],
