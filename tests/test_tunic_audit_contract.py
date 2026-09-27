@@ -171,4 +171,7 @@ def test_canonical_tunic_experiment_enables_only_existing_automatic_pins():
     assert 'tunic-pin-mode=automatic' in audit
     assert 'solver-pins' in source
     assert 'solver_pins = tuple(int(i) for i in getattr(backend, "_pin_indices", ()))' in source
+    assert 'panel_boundary_edges' in audit
+    assert 'expected_auto_pins' in audit
+    assert 'tunic-pin-provenance' in audit
     assert 'scene.SolverIterations = 1' not in source
