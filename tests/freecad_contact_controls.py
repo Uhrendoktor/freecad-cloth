@@ -443,6 +443,20 @@ def main():
             Gui.updateGui()
         except Exception:
             pass
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
+        try:
+            app = QtWidgets.QApplication.instance()
+            if app is not None:
+                app.quit()
+        except Exception:
+            pass
+        try:
+            App.exit()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
