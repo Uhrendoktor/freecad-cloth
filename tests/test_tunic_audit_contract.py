@@ -120,6 +120,18 @@ def test_tissu_collision_reduction_preserves_manifold_and_budget():
     assert "coarsen_collision_surface(collision_surface, collision_limit)" not in source
 
 
+def test_tissu_stitch_diagnostics_are_aggregate_and_sparse():
+    script = (ROOT / "docker" / "freecad-ci" / "apply-tissu-contact-fix.py").read_text(encoding="utf-8")
+    assert "g_stitch_solve_count" in script
+    assert "g_stitch_clip_endpoint_count" in script
+    assert "g_stitch_clip_scale_sum_micro" in script
+    assert 'solveIndex % 500 != 0' in script
+    assert "tissu-stitch-diagnostics" in script
+    assert "lambda_scale_min=" in script
+    assert "lambda_scale_mean=" in script
+    assert "lambda_scale_max=" in script
+
+
 def test_tissu_ci_image_is_pinned_and_self_regressing():
     dockerfile = (ROOT / "docker" / "freecad-ci" / "Dockerfile").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
