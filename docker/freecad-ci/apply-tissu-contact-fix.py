@@ -531,9 +531,6 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,""",
         ROOT / "core/include/physics/StitchConstraint.hpp",
         """namespace Tissu {
 
-class Collider;
-class Solver;
-
 class StitchConstraint""",
         """namespace Tissu {
 
