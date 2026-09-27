@@ -668,8 +668,9 @@ TEST(MeshCollider, EarliestCrossingIsSelectedDeterministically) {
     ):
         if anchor not in bvh_header_text:
             raise RuntimeError(f"missing BVH header anchor: {anchor}")
-        if anchor not in bvh_cpp_text:
-            raise RuntimeError(f"missing BVH implementation anchor: {anchor}")
+        implementation_anchor = anchor.replace("void query(", "void BVH::query(").replace("void queryBoxRecursive(", "void BVH::queryBoxRecursive(")
+        if implementation_anchor not in bvh_cpp_text:
+            raise RuntimeError(f"missing BVH implementation anchor: {implementation_anchor}")
     for anchor in (
         "bool MeshCollider::firstSegmentHit(",
         "m_bvh.query(queryBox, candidates);",
