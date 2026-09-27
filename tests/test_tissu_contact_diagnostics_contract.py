@@ -50,6 +50,10 @@ def test_canonical_workflow_uses_single_opt_in_dispatch_job():
 def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert 'CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=1' in WORKFLOW
     assert 'os.environ.get("CLOTH_CONTACT_DIAGNOSTICS_EXECUTE") == "1"' in SOURCE
+    assert "view.saveImage(str(path), 1280, 720, \"White\")" in SOURCE
+    assert 'view.saveImage(str(path), 1280, 720, "White", 1)' not in SOURCE
+    assert "app.quit()" in SOURCE
+    assert "App.exit()" in SOURCE
     assert "faulthandler.dump_traceback_later(30.0, repeat=True" in SOURCE
     assert "entrypoint __name__=" in SOURCE
     assert "setsid /opt/freecad/AppRun /workspace/tests/freecad_tissu_contact_diagnostics.py" in WORKFLOW
