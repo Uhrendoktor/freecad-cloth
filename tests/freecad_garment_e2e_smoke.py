@@ -614,6 +614,21 @@ def run_acceptance():
                 )
             return tuple(signature)
 
+        def _relative_rotation_signature():
+            pieces = sorted(tuple(getattr(scene, "ClothPieces", ()) or ()), key=lambda item: str(item.PieceId))
+            signature = {}
+            for index, left in enumerate(pieces):
+                for right in pieces[index + 1:]:
+                    relative = left.Placement.Rotation.inverse().multiply(right.Placement.Rotation)
+                    axis = relative.Axis
+                    signature[(str(left.PieceId), str(right.PieceId))] = (
+                        round(float(relative.Angle), 9),
+                        round(float(axis.x), 9),
+                        round(float(axis.y), 9),
+                        round(float(axis.z), 9),
+                    )
+            return signature
+
         def _pairwise_centers():
             pieces = sorted(tuple(getattr(scene, "ClothPieces", ()) or ()), key=lambda item: str(item.PieceId))
             centers = []
@@ -628,6 +643,7 @@ def run_acceptance():
 
         home_pose = _piece_pose_signature()
         home_pairwise = _pairwise_centers()
+        home_relative_rotations = _relative_rotation_signature()
         quality_panel.snap_to_target_button.click()
         _events()
         doc.recompute()
@@ -638,11 +654,19 @@ def run_acceptance():
         if len(anchors) < 4:
             raise RuntimeError("target snap did not persist the garment-local anchor set")
         snapped_pairwise = _pairwise_centers()
+        snapped_relative_rotations = _relative_rotation_signature()
         if set(home_pairwise) != set(snapped_pairwise):
             raise RuntimeError("target snap changed the authored piece set")
         for key in home_pairwise:
             if abs(float(home_pairwise[key]) - float(snapped_pairwise[key])) > 1e-6:
                 raise RuntimeError("target snap changed pairwise piece spacing; placement was not shared-rigid")
+        if set(home_relative_rotations) != set(snapped_relative_rotations):
+            raise RuntimeError("target snap changed the authored piece rotation relationships")
+        for key in home_relative_rotations:
+            before = home_relative_rotations[key]
+            after = snapped_relative_rotations[key]
+            if any(abs(float(before[index]) - float(after[index])) > 1e-6 for index in range(4)):
+                raise RuntimeError("target snap changed relative piece rotation; placement was not shared-rigid")
         if "persistent DrapeTarget" not in str(quality_panel.status.text()):
             raise RuntimeError("target snap did not report a successful public UI status")
         if not quality_panel.reset_arrangement_button.isEnabled():
