@@ -518,16 +518,23 @@ void StitchConstraint::solveSwept(
     const Eigen::Vector3d norm = delta / currentLength;
     const double C = currentLength;
     const double alphaHat = m_compliance / (dt * dt);
-    const double deltaLambda = (-C - alphaHat * m_lambda) / (wSum + alphaHat);
+    const double deltaLambda =
+        (-C - alphaHat * m_lambda) / (wSum + alphaHat);
 
     const Eigen::Vector3d correctionA = wA * norm * deltaLambda;
     const Eigen::Vector3d correctionB = -wB * norm * deltaLambda;
     const double safeThickness = std::max(0.0, thickness);
 
-    const auto clipCorrection = [&](const Eigen::Vector3d& start,
-                                    const Eigen::Vector3d& correction) {
+    struct ClipResult {
+        Eigen::Vector3d position;
+        double appliedFraction = 1.0;
+    };
+
+    const auto clipEnteringCorrection =
+        [&](const Eigen::Vector3d& start,
+            const Eigen::Vector3d& correction) -> ClipResult {
         if (correction.squaredNorm() <= 1.0e-24)
-            return start + correction;
+            return {start + correction, 1.0};
 
         const Eigen::Vector3d end = start + correction;
         double bestT = 1.0;
@@ -544,15 +551,23 @@ void StitchConstraint::solveSwept(
 
             double hitT = 0.0;
             int hitTriangle = -1;
+            bool hitEntering = false;
             Eigen::Vector3d hitNormal = Eigen::Vector3d::Zero();
             if (!collider->firstSegmentHit(
-                    start, end, hitT, hitNormal, hitTriangle)) {
+                    start,
+                    end,
+                    hitT,
+                    hitNormal,
+                    hitTriangle,
+                    hitEntering) ||
+                !hitEntering) {
                 continue;
             }
 
             if (hitT < bestT - 1.0e-12 ||
                 (std::abs(hitT - bestT) <= 1.0e-12 &&
-                 (bestColliderIndex < 0 || colliderIndex < bestColliderIndex ||
+                 (bestColliderIndex < 0 ||
+                  colliderIndex < bestColliderIndex ||
                   (colliderIndex == bestColliderIndex &&
                    hitTriangle < bestTriangle)))) {
                 bestT = hitT;
@@ -563,22 +578,38 @@ void StitchConstraint::solveSwept(
         }
 
         if (bestColliderIndex < 0)
-            return end;
+            return {end, 1.0};
 
         const Eigen::Vector3d hitPoint = start + correction * bestT;
-        if ((start - hitPoint).dot(bestNormal) < 0.0)
-            bestNormal = -bestNormal;
-        return hitPoint + bestNormal * safeThickness;
+        const Eigen::Vector3d clipped =
+            hitPoint + bestNormal * safeThickness;
+        const double correctionSquared = correction.squaredNorm();
+        const double appliedFraction = std::clamp(
+            (clipped - start).dot(correction) / correctionSquared,
+            0.0,
+            1.0);
+        return {clipped, appliedFraction};
     };
 
-    m_lambda += deltaLambda;
-    pA.setPosition(clipCorrection(startA, correctionA));
-    pB.setPosition(clipCorrection(startB, correctionB));
+    const ClipResult resultA =
+        clipEnteringCorrection(startA, correctionA);
+    const ClipResult resultB =
+        clipEnteringCorrection(startB, correctionB);
+
+    // XPBD lambda tracks the generalized correction actually applied. Clipping
+    // only reduces delta-lambda by the mass-weighted applied correction ratio.
+    const double lambdaScale =
+        (wA * resultA.appliedFraction +
+         wB * resultB.appliedFraction) / wSum;
+    m_lambda += deltaLambda * lambdaScale;
+
+    pA.setPosition(resultA.position);
+    pB.setPosition(resultB.position);
 }
 
 } // namespace Tissu
 """,
-        "StitchConstraint solveSwept implementation",
+
     )
     replace_once(
         solver_header,
