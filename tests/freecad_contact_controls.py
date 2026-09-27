@@ -148,7 +148,7 @@ def _run_backend(surface, face_center, normal, offset, label):
     initial = tuple(backend.positions())
     backend.step(
         dt=1.0 / 120.0,
-        iterations=8,
+        iterations=1,
         gravity=(0.0, 0.0, 0.0),
         surface=backend.solver_collision_surface,
     )
@@ -280,7 +280,7 @@ def _avatar_control():
     if not candidates:
         raise RuntimeError("no suitable torso triangle survived the 2048-triangle collision coarsening")
     _, triangle = max(candidates, key=lambda item: item[0])
-    face_center, normal = _oriented_probe(full, triangle)
+    face_center, normal = _oriented_probe(solver_surface, triangle)
     inside = _run_backend(solver_surface, face_center, normal, -PENETRATION_MM, "avatar_inside")
     outside = _run_backend(solver_surface, face_center, normal, PENETRATION_MM, "avatar_outside")
 
