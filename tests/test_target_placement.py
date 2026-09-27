@@ -1,5 +1,8 @@
 from freecad_cloth.avatar.AvatarCollision import CollisionSurface
 from freecad_cloth.avatar.TargetPlacement import (
+    _closest_point_on_triangle,
+    _outward_normal,
+    _target_surface_query_candidate_count,
     nearest_surface_distance,
     point_inside_closed_surface,
     target_surface_anchor,
@@ -96,3 +99,57 @@ def test_minimum_outward_clearance_rejects_inward_points():
 def test_coplanar_adjacent_triangles_at_shared_edge_are_not_ambiguous():
     hit = target_surface_anchor(_plane(), (0.0, 0.0, 25.0))
     assert hit.normal == (0.0, 0.0, 1.0)
+
+
+def _reference_anchor(surface, point):
+    center = surface.center
+    candidates = []
+    for triangle_index, triangle in enumerate(surface.triangles):
+        a, b, c = (surface.vertices[index] for index in triangle)
+        try:
+            normal = _outward_normal(a, b, c, center)
+        except ValueError:
+            continue
+        closest = _closest_point_on_triangle(point, a, b, c)
+        distance = sum((float(point[axis]) - float(closest[axis])) ** 2 for axis in range(3)) ** 0.5
+        candidates.append((distance, triangle_index, closest, normal))
+    return min(candidates, key=lambda value: (value[0], value[1]))
+
+
+def _large_grid_surface(cells=114):
+    vertices = tuple(
+        (float(x), float(y), 0.0)
+        for y in range(cells + 1)
+        for x in range(cells + 1)
+    )
+    triangles = []
+    stride = cells + 1
+    for y in range(cells):
+        for x in range(cells):
+            i = y * stride + x
+            triangles.append((i, i + 1, i + stride + 1))
+            triangles.append((i, i + stride + 1, i + stride))
+    surface = CollisionSurface(tuple(vertices), tuple(triangles), "target")
+    surface.validate()
+    assert len(surface.triangles) == 25992
+    return surface
+
+
+def test_bvh_anchor_matches_exact_reference():
+    for point in ((0.0, 0.0, 25.0), (7.5, -3.0, 12.25)):
+        surface = _plane()
+        expected = _reference_anchor(surface, point)
+        actual = target_surface_anchor(surface, point)
+        assert actual.triangle_index == expected[1]
+        assert actual.point == expected[2]
+        assert actual.normal == expected[3]
+        assert actual.distance == expected[0]
+
+
+def test_bvh_prunes_26k_triangle_target_without_wall_clock_gate():
+    surface = _large_grid_surface()
+    point = (57.25, 57.25, 25.0)
+    hit = target_surface_anchor(surface, point)
+    assert hit.distance == 25.0
+    assert hit.normal == (0.0, 0.0, 1.0)
+    assert _target_surface_query_candidate_count(surface, point) < 512
