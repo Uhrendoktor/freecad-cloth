@@ -404,6 +404,25 @@ def simulation():
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
     scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.PinMode = "None"; scene.PinSelection = []; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
+    proxy = scene.Proxy
+    initial_shoulder_pairs = getattr(proxy, "seam_stitch_pairs", {})
+    right_pairs = tuple(initial_shoulder_pairs.get("TunicRightShoulder", ()))
+    left_pairs = tuple(initial_shoulder_pairs.get("TunicLeftShoulder", ()))
+    if len(right_pairs) < 2 or len(left_pairs) < 2:
+        raise RuntimeError("canonical tunic shoulder seam stitch provenance is incomplete")
+    shoulder_pin_indices = (
+        int(right_pairs[0][0]),
+        int(right_pairs[-1][1]),
+        int(left_pairs[-1][0]),
+        int(left_pairs[0][1]),
+    )
+    shoulder_pin_indices = sorted(set(shoulder_pin_indices))
+    if len(shoulder_pin_indices) != 4:
+        raise RuntimeError("canonical tunic expected four unique outer shoulder pins, got %s" % (shoulder_pin_indices,))
+    scene.PinMode = "Explicit"; scene.PinSelection = [str(index) for index in shoulder_pin_indices]; doc.recompute()
+    log("tunic-outer-shoulder-pins right-front=%d right-back=%d left-front=%d left-back=%d" % (
+        int(right_pairs[0][0]), int(right_pairs[-1][1]), int(left_pairs[-1][0]), int(left_pairs[0][1]),
+    ))
     status = target_status(target)
     if str(status.get("state", "")) != "ready":
         raise RuntimeError("canonical tunic DrapeTarget is not current: %s" % status.get("message", status))
@@ -411,16 +430,19 @@ def simulation():
     backend = getattr(proxy, "backend", None)
     if backend is None:
         raise RuntimeError("canonical tunic did not build a simulation backend")
-    if list(getattr(scene, "PinSelection", ())) != []:
-        raise RuntimeError("canonical tunic PinMode=None retained explicit PinSelection values")
+    expected_pins = tuple(sorted(int(index) for index in shoulder_pin_indices))
+    actual_selection = tuple(sorted(int(index) for index in getattr(scene, "PinSelection", ())))
+    if actual_selection != expected_pins:
+        raise RuntimeError("canonical tunic explicit PinSelection mismatch: %s != %s" % (actual_selection, expected_pins))
     solver_pins = tuple(int(i) for i in getattr(backend, "_pin_indices", ()))
     if not solver_pins:
         system = getattr(backend, "system", None)
         solver_pins = tuple(sorted(int(i) for i in getattr(system, "pins", {}).keys()))
-    if str(getattr(scene, "PinMode", "")) != "None":
-        raise RuntimeError("canonical tunic must use PinMode=None")
-    if solver_pins:
-        raise RuntimeError("canonical tunic PinMode=None still has solver pins: %s" % (solver_pins,))
+    if str(getattr(scene, "PinMode", "")) != "Explicit":
+        raise RuntimeError("canonical tunic must use PinMode=Explicit")
+    if solver_pins != expected_pins:
+        raise RuntimeError("canonical tunic explicit shoulder pins not applied: %s != %s" % (solver_pins, expected_pins))
+    log("pin-mode=explicit solver-pins=%s" % (",".join(str(i) for i in solver_pins),))
     surface = collision_surface(
         target_source,
         float(getattr(target, "CollisionDeflection", 1.0)),
