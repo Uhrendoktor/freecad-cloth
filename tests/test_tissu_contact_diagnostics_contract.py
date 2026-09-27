@@ -20,6 +20,23 @@ def test_diagnostic_controls_are_static_and_one_step():
     assert "scene.GravityZ = 0.0" in SOURCE
 
 
+def test_cube_complexity_ladder_is_single_harness_and_schema_preserving():
+    assert 'CLOTH_COMPLEXITY_LADDER' in SOURCE
+    assert 'CHECKPOINT_STEPS = (0, 1, 5, 15, 45, 90)' in SOURCE
+    assert 'LADDER_CASES = (' in SOURCE
+    assert '"rung-1-cube-pinned"' in SOURCE
+    assert '"rung-2-cube-unpinned"' in SOURCE
+    assert '"rung-3-cube-two-pieces-no-seam"' in SOURCE
+    assert '"rung-4-cube-two-pieces-small-seam"' in SOURCE
+    assert '"rung-5-cube-two-pieces-large-seam"' in SOURCE
+    assert 'from freecad_cloth.pattern.PatternModel import Seam' in SOURCE
+    assert 'from freecad_cloth.pattern.PatternObjects import add_seam' in SOURCE
+    assert 'scene.Proxy.seam_stitch_pairs' in SOURCE
+    assert '"checkpoint_image_paths": images' in SOURCE
+    assert 'App.Vector(4.0, -60.0, 120.0)' in SOURCE
+    assert 'App.Vector(60.0, -60.0, 120.0)' in SOURCE
+
+
 def test_diagnostic_manifest_contains_shared_schema_fields():
     for needle in (
         '"schema": 1',
