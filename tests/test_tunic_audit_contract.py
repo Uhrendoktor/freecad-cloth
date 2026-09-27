@@ -126,6 +126,14 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "tetrahedronContains" in script
     assert "ClosedMeshKeepsOutsideContactOutside" in script
     assert "OpenMeshRetainsLegacyContactDirection" in script
+    assert "ClosedMeshSweptContactPreventsTunneling" in script
+    assert "intersectSegmentTriangle" in script
+    assert "m_bvh.query" in script
+    assert "setSweptContactEnabled" in script
+    assert "set_swept_contact_enabled" in script
+    assert "Solver.cpp ordering anchor mismatch" in script
+    assert "tissu-swept-contact=opt-in-mesh-capability" in dockerfile
+    assert "tissu-solver-order=collider-before-each-constraint-iteration" in dockerfile
 
     tunic = workflow[workflow.index("  gui-tunic-visual:") : workflow.index("\n  gui-", workflow.index("  gui-tunic-visual:") + 5)]
     assert "FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix" in tunic
@@ -136,6 +144,12 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert 'tissu-cpp-regression-result=passed' in dockerfile
     assert 'docker run --rm "$FREECAD_TUNIC_IMAGE" cat /opt/tissu-provenance.txt' in workflow
     assert 'artifacts/tissu-provenance.txt' in workflow
+
+def test_tissu_backend_enables_swept_mesh_contact_explicitly():
+    source = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    assert "swept_contact=True" in source
+    assert "cloth-tissu-collision swept_contact=true" in source
+
 
 def test_canonical_tunic_fixture_matches_validated_start_geometry():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
