@@ -626,11 +626,12 @@ def _run_control_avatar():
         scene = _build_scene(doc)
         avatar = scene.AvatarProxy.SourceObject
         shape = getattr(avatar, "Shape", None)
-        if shape is None or getattr(shape, "isNull", lambda: True)():
-            raise RuntimeError("control-0a-avatar requires the production avatar shape")
-        center = getattr(shape, "CenterOfMass", None)
+        center = getattr(shape, "CenterOfMass", None) if shape is not None and not getattr(shape, "isNull", lambda: True)() else None
         if center is None:
-            box = avatar.Mesh.BoundBox
+            mesh = getattr(avatar, "Mesh", None)
+            box = getattr(mesh, "BoundBox", None)
+            if box is None:
+                raise RuntimeError("control-0a-avatar requires mesh collision geometry")
             center = App.Vector(
                 0.5 * (float(box.XMin) + float(box.XMax)),
                 0.5 * (float(box.YMin) + float(box.YMax)),
