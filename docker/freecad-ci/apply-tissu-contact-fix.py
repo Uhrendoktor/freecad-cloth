@@ -45,14 +45,24 @@ def main() -> int:
     std::vector<Triangle> m_triangles;
     bool m_closedManifold = false;
     double m_outwardNormalSign = 1.0;
-    BVH m_bvh;
+    BVH m_bvh;""",
+        "MeshCollider.hpp member layout",
+    )
 
+    replace_once(
+        header,
+        """    const std::vector<Triangle>& getTriangles() const { return m_triangles; }
+
+private:""",
+        """    const std::vector<Triangle>& getTriangles() const { return m_triangles; }
+
+private:
     bool firstSegmentHit(const Eigen::Vector3d& start,
                          const Eigen::Vector3d& end,
                          double& hitT,
                          Eigen::Vector3d& hitNormal,
                          int& triangleIndex) const;""",
-        "MeshCollider.hpp member layout",
+        "MeshCollider.hpp private first-segment-hit declaration",
     )
 
     cpp = cpp.read_text(encoding="utf-8")
@@ -187,8 +197,6 @@ bool segmentTriangleHit(const Eigen::Vector3d& start,
     int closestTriangle(const Eigen::Vector3d& point,
                         const std::vector<Eigen::Vector3d>& vertices) const;""",
         """    void query(const Eigen::Vector3d& point, double radius,
-               std::vector<int>& outTriangles) const;
-    void query(const Eigen::AlignedBox3d& box,
                std::vector<int>& outTriangles) const;
     int closestTriangle(const Eigen::Vector3d& point,
                         const std::vector<Eigen::Vector3d>& vertices) const;""",
