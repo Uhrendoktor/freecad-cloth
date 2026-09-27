@@ -162,7 +162,9 @@ def arc_length_vertex_indices(values, points, count, start=0.0, end=1.0):
     """Select existing edge vertices by physical arc length over a normalized range."""
     if int(count) < 2:
         raise ValueError("at least two correspondence samples are required")
-    if not _range_is_valid(float(start), float(end)):
+    start = float(start)
+    end = float(end)
+    if not _range_is_valid(start, end):
         raise ValueError("seam parameter ranges must satisfy 0 <= start < end <= 1")
 
     values = tuple(values)
@@ -180,31 +182,47 @@ def arc_length_vertex_indices(values, points, count, start=0.0, end=1.0):
     cumulative = [0.0]
     for first, second in zip(points, points[1:]):
         cumulative.append(
-            cumulative[-1] + math.sqrt(sum((a - b) ** 2 for a, b in zip(first, second)))
+            cumulative[-1]
+            + math.sqrt(sum((a - b) ** 2 for a, b in zip(first, second)))
         )
     total = cumulative[-1]
     if total <= 0.0:
         raise ValueError("arc-length sampling needs a positive total length")
 
     sample_count = min(int(count), len(values))
-    last = len(points) - 1
-    start_vertex = float(start) * last
-    end_vertex = float(end) * last
+    last = len(values) - 1
+    start_distance = start * total
+    end_distance = end * total
 
-    def _fractional_cumulative(position):
-        lower = int(math.floor(position))
-        upper = min(last, lower + 1)
-        if upper == lower:
-            return cumulative[lower]
-        fraction = position - lower
-        return cumulative[lower] + (cumulative[upper] - cumulative[lower]) * fraction
+    def nearest_index(distance):
+        right = bisect.bisect_left(cumulative, distance)
+        if right <= 0:
+            return 0
+        if right >= len(cumulative):
+            return last
+        left = right - 1
+        if distance - cumulative[left] <= cumulative[right] - distance:
+            return left
+        return right
 
-    start_distance = _fractional_cumulative(start_vertex)
-    end_distance = _fractional_cumulative(end_vertex)
-    first_index = max(0, min(last, int(math.floor(start_vertex))))
-    last_index = max(first_index, min(last, int(math.ceil(end_vertex))))
+    first_index = nearest_index(start_distance)
+    last_index = nearest_index(end_distance)
+
+    # A selected seam range can be shorter than the requested M:N sample count
+    # in terms of existing vertices. Expand the usable vertex window deterministically
+    # so we never invent topology or silently drop requested correspondence samples.
+    if last_index < first_index:
+        first_index, last_index = last_index, first_index
+    span = last_index - first_index + 1
+    if span < sample_count:
+        deficit = sample_count - span
+        shift_left = min(first_index, deficit)
+        first_index -= shift_left
+        deficit -= shift_left
+        last_index = min(last, last_index + deficit)
+
     if last_index - first_index + 1 < sample_count:
-        raise ValueError("arc-length sampling range does not contain enough distinct vertices")
+        raise ValueError("arc-length sampling needs more distinct edge vertices")
 
     result = []
     for sample in range(sample_count):
@@ -212,21 +230,29 @@ def arc_length_vertex_indices(values, points, count, start=0.0, end=1.0):
         target = start_distance + (end_distance - start_distance) * local
         lower_bound = max(first_index, result[-1] + 1 if result else first_index)
         upper_bound = last_index - (sample_count - sample - 1)
+
         right = bisect.bisect_left(cumulative, target)
         candidates = []
         for index in (right - 1, right, right + 1):
             if lower_bound <= index <= upper_bound:
                 candidates.append(index)
-        if not candidates:
-            candidates = [lower_bound, upper_bound]
-        index = min(
-            candidates,
-            key=lambda candidate: (abs(cumulative[candidate] - target), candidate),
-        )
+
+        if candidates:
+            index = min(
+                candidates,
+                key=lambda candidate: (abs(cumulative[candidate] - target), candidate),
+            )
+        else:
+            # The monotone topology window constrains the best match.  Choose
+            # the nearer feasible endpoint while reserving one vertex per sample.
+            candidate_pair = (lower_bound, upper_bound)
+            index = min(
+                candidate_pair,
+                key=lambda candidate: (abs(cumulative[candidate] - target), candidate),
+            )
         result.append(index)
 
     return tuple(values[index] for index in result)
-
 def map_parameter(
     parameter_a: float,
     start_a: float = 0.0,
