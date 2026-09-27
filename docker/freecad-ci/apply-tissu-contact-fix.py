@@ -323,9 +323,9 @@ TEST(MeshCollider, OpenConsistentlyWoundSurfaceMovesInteriorParticleOutside) {
     // This is the closed tetrahedron with the outward-facing base omitted;
     // the remaining three authored faces retain the source exterior winding.
     const std::vector<std::array<int, 3>> triangles = {
-        {0, 1, 3},
-        {1, 2, 3},
-        {0, 3, 2},
+        {0, 3, 1},
+        {1, 3, 2},
+        {0, 2, 3},
     };
     MeshCollider mesh(vertices, triangles, 0.0);
 
