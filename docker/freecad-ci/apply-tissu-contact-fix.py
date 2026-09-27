@@ -39,6 +39,19 @@ def main() -> int:
 
     replace_once(
         header,
+        """namespace Tissu {
+
+class MeshCollider""",
+        """namespace Tissu {
+
+class StitchConstraint;
+
+class MeshCollider""",
+        "MeshCollider StitchConstraint forward declaration",
+    )
+
+    replace_once(
+        header,
         """    std::vector<Eigen::Vector3d> m_localVertices;
     std::vector<Eigen::Vector3d> m_worldVertices;
     std::vector<Triangle> m_triangles;
