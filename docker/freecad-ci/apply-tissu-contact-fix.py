@@ -535,7 +535,15 @@ void StitchConstraint::solveWithColliders(
                 m_constraints[idx]->solve(m_particles, dt);
             }
         }
-    }""",
+    }
+
+    for (const auto& pin : m_transientPins) {
+        pin->solve(m_particles, dt);
+    }
+    for (const auto& attach : m_attachments) {
+        attach->solve(m_particles, dt);
+    }
+}""",
         """void Solver::solveConstraints(World& world, double dt) {
     ZoneScopedN("Solve Constraints");
     const auto& colliders = world.getColliders();
