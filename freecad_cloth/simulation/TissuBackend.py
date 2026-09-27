@@ -106,13 +106,18 @@ class TissuBackend(ClothSimulationBackend):
         self._source_collision_surface = collision_surface
         collision_limit = _tissu_collision_triangle_limit()
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
-            collision_surface = coarsen_collision_surface(collision_surface, collision_limit)
+            collision_surface = coarsen_collision_surface(
+                collision_surface,
+                collision_limit,
+                preserve_closed=True,
+            )
             print(
-                "cloth-tissu-collision source_triangles=%d solver_triangles=%d limit=%d"
+                "cloth-tissu-collision source_triangles=%d solver_triangles=%d limit=%d closed_surface_preserved=%s"
                 % (
                     len(self._source_collision_surface.triangles),
                     len(collision_surface.triangles),
                     collision_limit,
+                    str(len(collision_surface.triangles) > collision_limit).lower(),
                 ),
                 flush=True,
             )
