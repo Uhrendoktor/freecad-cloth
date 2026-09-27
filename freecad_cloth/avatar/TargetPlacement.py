@@ -5,7 +5,9 @@ CollisionSurface contract already used by the fitting and simulation layers.
 """
 
 from dataclasses import dataclass
+from heapq import heappop, heappush
 from math import sqrt
+import weakref
 
 
 DEFAULT_SURFACE_CLEARANCE = 8.0
@@ -120,6 +122,196 @@ def _outward_normal(a, b, c, center):
     return normal
 
 
+@dataclass(frozen=True)
+class _TriangleRecord:
+    triangle_index: int
+    a: tuple[float, float, float]
+    b: tuple[float, float, float]
+    c: tuple[float, float, float]
+    normal: tuple[float, float, float]
+    minimum: tuple[float, float, float]
+    maximum: tuple[float, float, float]
+    centroid: tuple[float, float, float]
+
+
+@dataclass(frozen=True)
+class _BvhNode:
+    minimum: tuple[float, float, float]
+    maximum: tuple[float, float, float]
+    left: int | None
+    right: int | None
+    triangles: tuple[int, ...]
+
+
+class _SurfaceIndex:
+    """Exact immutable BVH over one CollisionSurface geometry."""
+
+    _LEAF_SIZE = 16
+
+    def __init__(self, surface):
+        vertices, triangles, center = _surface_triangle_data(surface)
+        self._records = []
+        for triangle_index, triangle in enumerate(triangles):
+            a, b, c = vertices[triangle[0]], vertices[triangle[1]], vertices[triangle[2]]
+            try:
+                normal = _outward_normal(a, b, c, center)
+            except ValueError:
+                continue
+            self._records.append(
+                _TriangleRecord(
+                    triangle_index,
+                    a,
+                    b,
+                    c,
+                    normal,
+                    tuple(min(a[i], b[i], c[i]) for i in range(3)),
+                    tuple(max(a[i], b[i], c[i]) for i in range(3)),
+                    tuple((a[i] + b[i] + c[i]) / 3.0 for i in range(3)),
+                )
+            )
+        if not self._records:
+            raise ValueError("target collision surface contains no usable triangle normals")
+        self._nodes = []
+        self._root = self._build(tuple(range(len(self._records))))
+
+    def _build(self, indices):
+        node_id = len(self._nodes)
+        self._nodes.append(None)
+        minimum = tuple(
+            min(self._records[index].minimum[axis] for index in indices)
+            for axis in range(3)
+        )
+        maximum = tuple(
+            max(self._records[index].maximum[axis] for index in indices)
+            for axis in range(3)
+        )
+        if len(indices) <= self._LEAF_SIZE:
+            self._nodes[node_id] = _BvhNode(minimum, maximum, None, None, tuple(indices))
+            return node_id
+
+        spans = tuple(maximum[axis] - minimum[axis] for axis in range(3))
+        axis = max(range(3), key=lambda value: (spans[value], -value))
+        ordered = sorted(
+            indices,
+            key=lambda index: (
+                self._records[index].centroid[axis],
+                self._records[index].triangle_index,
+            ),
+        )
+        midpoint = len(ordered) // 2
+        left = self._build(tuple(ordered[:midpoint]))
+        right = self._build(tuple(ordered[midpoint:]))
+        self._nodes[node_id] = _BvhNode(minimum, maximum, left, right, ())
+        return node_id
+
+    @staticmethod
+    def _point_box_distance_sq(point, minimum, maximum):
+        total = 0.0
+        for axis in range(3):
+            value = float(point[axis])
+            if value < minimum[axis]:
+                delta = minimum[axis] - value
+                total += delta * delta
+            elif value > maximum[axis]:
+                delta = value - maximum[axis]
+                total += delta * delta
+        return total
+
+    def nearest_hit(self, point, *, ambiguity_tolerance=DEFAULT_AMBIGUITY_TOLERANCE):
+        point = tuple(float(value) for value in point)
+        tolerance = float(ambiguity_tolerance)
+        queue = [(0.0, self._root)]
+        best = None
+        near_equal = []
+        candidate_count = 0
+
+        while queue:
+            lower_bound_sq, node_id = heappop(queue)
+            if best is not None and lower_bound_sq > (best.distance + tolerance) ** 2:
+                break
+            node = self._nodes[node_id]
+            if node.left is None:
+                for record_index in node.triangles:
+                    record = self._records[record_index]
+                    closest = _closest_point_on_triangle(point, record.a, record.b, record.c)
+                    distance = _norm(_sub(point, closest))
+                    candidate_count += 1
+                    hit = TargetSurfaceHit(record.triangle_index, closest, record.normal, distance)
+                    if (
+                        best is None
+                        or distance < best.distance
+                        or (distance == best.distance and hit.triangle_index < best.triangle_index)
+                    ):
+                        best = hit
+                        near_equal = [hit]
+                    elif abs(distance - best.distance) <= tolerance:
+                        near_equal.append(hit)
+                continue
+
+            left = self._nodes[node.left]
+            right = self._nodes[node.right]
+            heappush(queue, (self._point_box_distance_sq(point, left.minimum, left.maximum), node.left))
+            heappush(queue, (self._point_box_distance_sq(point, right.minimum, right.maximum), node.right))
+
+        if best is None:
+            raise ValueError("target collision surface contains no usable triangle normals")
+        for other in near_equal:
+            if other.triangle_index == best.triangle_index:
+                continue
+            if _dot(other.normal, best.normal) < 0.20:
+                raise ValueError("target snap anchor is ambiguous across surface normals")
+        return best, candidate_count
+
+    def minimum_distance(self, point):
+        point = tuple(float(value) for value in point)
+        queue = [(0.0, self._root)]
+        best_distance_sq = float("inf")
+        while queue:
+            lower_bound_sq, node_id = heappop(queue)
+            if lower_bound_sq > best_distance_sq:
+                break
+            node = self._nodes[node_id]
+            if node.left is None:
+                for record_index in node.triangles:
+                    record = self._records[record_index]
+                    closest = _closest_point_on_triangle(point, record.a, record.b, record.c)
+                    delta = _sub(point, closest)
+                    best_distance_sq = min(best_distance_sq, _dot(delta, delta))
+                continue
+            left = self._nodes[node.left]
+            right = self._nodes[node.right]
+            heappush(queue, (self._point_box_distance_sq(point, left.minimum, left.maximum), node.left))
+            heappush(queue, (self._point_box_distance_sq(point, right.minimum, right.maximum), node.right))
+        if best_distance_sq == float("inf"):
+            raise ValueError("target collision surface has no usable triangles")
+        return sqrt(max(0.0, best_distance_sq))
+
+
+_SURFACE_INDEX_CACHE = {}
+
+
+def _surface_index(surface):
+    key = id(surface)
+    cached = _SURFACE_INDEX_CACHE.get(key)
+    if cached is not None and cached[0]() is surface:
+        return cached[1]
+    index = _SurfaceIndex(surface)
+
+    def _cleanup(ref, cache_key=key):
+        current = _SURFACE_INDEX_CACHE.get(cache_key)
+        if current is not None and current[0] is ref:
+            _SURFACE_INDEX_CACHE.pop(cache_key, None)
+
+    reference = weakref.ref(surface, _cleanup)
+    _SURFACE_INDEX_CACHE[key] = (reference, index)
+    return index
+
+
+def _target_surface_query_candidate_count(surface, point):
+    """Testing hook exposing deterministic BVH pruning without wall-clock gates."""
+    return _surface_index(surface).nearest_hit(point)[1]
+
+
 def target_surface_anchor(surface, point, *,
                            ambiguity_tolerance=DEFAULT_AMBIGUITY_TOLERANCE):
     """Return the nearest outward-facing surface point and normal.
@@ -127,30 +319,10 @@ def target_surface_anchor(surface, point, *,
     A near-tie with materially different/opposing normals is rejected rather
     than selecting an arbitrary triangle at a fold or self-intersection.
     """
-    vertices, triangles, center = _surface_triangle_data(surface)
-    point = tuple(float(value) for value in point)
-    candidates = []
-    for triangle_index, triangle in enumerate(triangles):
-        a, b, c = (vertices[triangle[0]], vertices[triangle[1]], vertices[triangle[2]])
-        try:
-            normal = _outward_normal(a, b, c, center)
-        except ValueError:
-            continue
-        closest = _closest_point_on_triangle(point, a, b, c)
-        distance = _norm(_sub(point, closest))
-        candidates.append(
-            TargetSurfaceHit(triangle_index, closest, normal, distance)
-        )
-    if not candidates:
-        raise ValueError("target collision surface contains no usable triangle normals")
-    candidates.sort(key=lambda hit: (hit.distance, hit.triangle_index))
-    best = candidates[0]
-    for other in candidates[1:]:
-        if abs(other.distance - best.distance) > float(ambiguity_tolerance):
-            break
-        if _dot(other.normal, best.normal) < 0.20:
-            raise ValueError("target snap anchor is ambiguous across surface normals")
-    return best
+    return _surface_index(surface).nearest_hit(
+        point,
+        ambiguity_tolerance=ambiguity_tolerance,
+    )[0]
 
 
 def translation_to_target(surface, centroid, *, clearance=DEFAULT_SURFACE_CLEARANCE,
@@ -242,15 +414,10 @@ def point_inside_closed_surface(surface, point):
 
 def nearest_surface_distance(surface, points):
     """Return the minimum unsigned point-to-surface distance."""
-    vertices, triangles, _center = _surface_triangle_data(surface)
+    index = _surface_index(surface)
     minimum = float("inf")
     for point in points:
-        point = tuple(float(value) for value in point)
-        for triangle in triangles:
-            closest = _closest_point_on_triangle(
-                point, vertices[triangle[0]], vertices[triangle[1]], vertices[triangle[2]]
-            )
-            minimum = min(minimum, _norm(_sub(point, closest)))
+        minimum = min(minimum, index.minimum_distance(point))
     return minimum
 
 
@@ -260,9 +427,10 @@ def minimum_outward_clearance(surface, points, *, tolerance=1e-6):
     Positive values mean points lie on the outward side of their nearest
     local surface triangle; negative values are evidence of penetration.
     """
+    index = _surface_index(surface)
     minimum = float("inf")
     for point in points:
-        hit = target_surface_anchor(surface, point)
+        hit = index.nearest_hit(point)[0]
         signed = _dot(_sub(tuple(float(value) for value in point), hit.point), hit.normal)
         minimum = min(minimum, signed)
     if minimum < -float(tolerance):
