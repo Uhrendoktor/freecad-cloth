@@ -34,10 +34,23 @@ replacements = {
         '        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)\n'
         '        if str(getattr(seam_obj, "EdgeAId", "")) != edge_a_id or str(getattr(seam_obj, "EdgeBId", "")) != edge_b_id: raise RuntimeError("canonical tunic seam %s did not retain authored semantic edge IDs" % seam_id)\n'
         '        seam_records.append((seam_obj, front, back))',
+    '    rot = App.Rotation(App.Vector(1,0,0), 90.0)': '    from math import acos, degrees\\n'
+        '    target_min_y = min(target_ys)\\n'
+        '    target_max_y = max(target_ys)\\n'
+        '    wrap_cos = min(0.35, 0.5 * max(0.0, target_max_y - target_min_y) / max(1.0, garment_height))\\n'
+        '    front_angle = degrees(acos(wrap_cos))\\n'
+        '    back_wrap_angle = front_angle - 90.0\\n'
+        '    front_rot = App.Rotation(App.Vector(1,0,0), front_angle)\\n'
+        '    upright_back = App.Rotation(App.Vector(0,1,1), 180.0)\\n'
+        '    back_rot = upright_back.multiply(App.Rotation(App.Vector(1,0,0), back_wrap_angle))\\n'
+        '    log("compound-transform front=Rx(%.3f) back=Raxis(0,1,1,180)*Rx(%.3f) wrap_cos=%.6f" % (front_angle, back_wrap_angle, wrap_cos))',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
     'scene.SolverIterations = 8;': 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-32 iterations-1 substeps-env");',
+    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = target_min_y - clearance - garment_height * wrap_cos; rotation = front_rot; log("compound-placement side=front xyz=(%.3f,%.3f,%.3f) rotation=Rx(%.3f)" % (x_mid - hem_width / 2.0, y, hem_z, front_angle))',
+    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = target_max_y + clearance + garment_height * wrap_cos; rotation = back_rot; log("compound-placement side=back xyz=(%.3f,%.3f,%.3f) rotation=Raxis(0,1,1,180)*Rx(%.3f)" % (x_mid - hem_width / 2.0, y, hem_z, back_wrap_angle))',
     '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance',
     '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance',
+    '        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)': '        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rotation)',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
 }
 for old, new in replacements.items():
@@ -80,7 +93,22 @@ anchor = '''    for batch in (15,15,15,15,15,15):
 '''
 if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
-timed_anchor = '''    from time import perf_counter
+timed_anchor = '''    from time import perf_counter, sqrt
+    stitch_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
+    initial_positions = tuple(scene.Proxy._base_or_restore().backend.positions())
+    if not initial_positions or not stitch_pairs_by_seam:
+        raise RuntimeError("initial tunic stitch-span diagnostic lacks solver provenance")
+    for seam, _piece_a, _piece_b in seam_records:
+        pairs = tuple(stitch_pairs_by_seam.get(str(seam.SeamId), ()))
+        if not pairs:
+            raise RuntimeError("initial tunic stitch-span diagnostic cannot resolve %s" % seam.SeamId)
+        gaps = [
+            sqrt(sum((float(initial_positions[int(a_idx)][i]) - float(initial_positions[int(b_idx)][i])) ** 2 for i in range(3)))
+            for a_idx, b_idx in pairs
+        ]
+        log("initial-stitch-span seam=%s min=%.3f max=%.3f mean=%.3f samples=%d" % (
+            seam.SeamId, min(gaps), max(gaps), sum(gaps) / len(gaps), len(gaps)
+        ))
     simulation_started = perf_counter()
     active_backend = scene.Proxy._base_or_restore().backend
     active_collision = getattr(active_backend, "_collision_surface", None)
