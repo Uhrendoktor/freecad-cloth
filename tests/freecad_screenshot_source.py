@@ -386,8 +386,8 @@ def simulation():
     clearance = max(20.0, 0.08 * body_depth)
     from freecad_cloth.avatar.AvatarArrangement import wrapped_panel_angles
     box = avatar.Mesh.BoundBox
-    front_y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
-    back_y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
+    front_y = box.YMin - clearance
+    back_y = box.YMax + clearance
     target_y = (min(target_ys) + max(target_ys)) / 2.0
     front_angle, back_angle = wrapped_panel_angles(front_y, back_y, target_y, 0.92 * garment_height)
     front_rot = App.Rotation(App.Vector(1,0,0), front_angle)
