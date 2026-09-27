@@ -36,6 +36,15 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     assert 'target_source.Mesh.BoundBox' not in source
 
 
+def test_canonical_tunic_uses_signed_wrap_from_authoritative_target_bounds():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert 'target_y = (min(target_ys) + max(target_ys)) / 2.0' in source
+    assert 'wrap_seam_height = max(1.0, 0.92 * garment_height)' in source
+    assert 'angle = _signed_wrap_panel_angle(y, target_y, wrap_seam_height, "front")' in source
+    assert 'angle = _signed_wrap_panel_angle(y, target_y, wrap_seam_height, "back")' in source
+    assert 'return (180.0 - base) if side == "front" else base' in source
+
+
 def test_canonical_tunic_uses_validated_authored_mapping():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "required_indices = (1, 2, 6, 7)" in audit
