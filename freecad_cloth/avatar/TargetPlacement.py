@@ -122,9 +122,53 @@ def _outward_normal(a, b, c, center):
     return normal
 
 
+def _surface_is_closed_manifold(triangles):
+    """Return whether the triangle topology is a closed 2-manifold.
+
+    Each undirected edge must belong to exactly two triangles, and the
+    incident triangle fan at every vertex must be connected through those
+    shared edges. This rejects disconnected sheets that merely touch at a
+    vertex and self-intersecting/non-manifold seams from using corner tie
+    resolution.
+    """
+    edge_to_triangles = {}
+    vertex_to_triangles = {}
+    for triangle_index, triangle in enumerate(triangles):
+        indices = tuple(int(index) for index in triangle)
+        for vertex in indices:
+            vertex_to_triangles.setdefault(vertex, set()).add(triangle_index)
+        for index_a, index_b in ((indices[0], indices[1]), (indices[1], indices[2]), (indices[2], indices[0])):
+            edge = tuple(sorted((index_a, index_b)))
+            edge_to_triangles.setdefault(edge, set()).add(triangle_index)
+
+    if not edge_to_triangles or any(len(items) != 2 for items in edge_to_triangles.values()):
+        return False
+
+    for vertex, incident in vertex_to_triangles.items():
+        seed = next(iter(incident))
+        connected = {seed}
+        pending = [seed]
+        while pending:
+            triangle_index = pending.pop()
+            triangle = triangles[triangle_index]
+            for index_a, index_b in ((triangle[0], triangle[1]), (triangle[1], triangle[2]), (triangle[2], triangle[0])):
+                if vertex not in (index_a, index_b):
+                    continue
+                neighbours = edge_to_triangles.get(tuple(sorted((int(index_a), int(index_b)))), ())
+                for neighbour in neighbours:
+                    if neighbour not in connected:
+                        connected.add(neighbour)
+                        pending.append(neighbour)
+        if connected != incident:
+            return False
+
+    return True
+
+
 @dataclass(frozen=True)
 class _TriangleRecord:
     triangle_index: int
+    vertices: tuple[int, int, int]
     a: tuple[float, float, float]
     b: tuple[float, float, float]
     c: tuple[float, float, float]
@@ -150,6 +194,8 @@ class _SurfaceIndex:
 
     def __init__(self, surface):
         vertices, triangles, center = _surface_triangle_data(surface)
+        self._center = center
+        self._closed_manifold = _surface_is_closed_manifold(triangles)
         self._records = []
         for triangle_index, triangle in enumerate(triangles):
             a, b, c = vertices[triangle[0]], vertices[triangle[1]], vertices[triangle[2]]
@@ -160,6 +206,7 @@ class _SurfaceIndex:
             self._records.append(
                 _TriangleRecord(
                     triangle_index,
+                    (int(triangle[0]), int(triangle[1]), int(triangle[2])),
                     a,
                     b,
                     c,
@@ -217,12 +264,29 @@ class _SurfaceIndex:
                 total += delta * delta
         return total
 
+    @staticmethod
+    def _near_equal_triangles_are_local(candidates):
+        if len(candidates) <= 1:
+            return True
+        connected = {0}
+        pending = [0]
+        vertex_sets = [set(candidate.vertices) for candidate in candidates]
+        while pending:
+            index = pending.pop()
+            for other in range(len(candidates)):
+                if other in connected:
+                    continue
+                if vertex_sets[index].intersection(vertex_sets[other]):
+                    connected.add(other)
+                    pending.append(other)
+        return len(connected) == len(candidates)
+
     def nearest_hit(self, point, *, ambiguity_tolerance=DEFAULT_AMBIGUITY_TOLERANCE):
         point = tuple(float(value) for value in point)
         tolerance = float(ambiguity_tolerance)
         queue = [(0.0, self._root)]
         best = None
-        near_equal = []
+        evaluated = []
         candidate_count = 0
 
         while queue:
@@ -237,15 +301,13 @@ class _SurfaceIndex:
                     distance = _norm(_sub(point, closest))
                     candidate_count += 1
                     hit = TargetSurfaceHit(record.triangle_index, closest, record.normal, distance)
+                    evaluated.append((hit, record.vertices))
                     if (
                         best is None
                         or distance < best.distance
                         or (distance == best.distance and hit.triangle_index < best.triangle_index)
                     ):
                         best = hit
-                        near_equal = [hit]
-                    elif abs(distance - best.distance) <= tolerance:
-                        near_equal.append(hit)
                 continue
 
             left = self._nodes[node.left]
@@ -255,12 +317,40 @@ class _SurfaceIndex:
 
         if best is None:
             raise ValueError("target collision surface contains no usable triangle normals")
-        for other in near_equal:
-            if other.triangle_index == best.triangle_index:
-                continue
-            if _dot(other.normal, best.normal) < 0.20:
-                raise ValueError("target snap anchor is ambiguous across surface normals")
-        return best, candidate_count
+
+        near_equal = [
+            (hit, vertices)
+            for hit, vertices in evaluated
+            if abs(hit.distance - best.distance) <= tolerance
+        ]
+        conflicts = [
+            hit
+            for hit, _vertices in near_equal
+            if hit.triangle_index != best.triangle_index and _dot(hit.normal, best.normal) < -0.20
+        ]
+        if conflicts:
+            raise ValueError("target snap anchor is ambiguous across surface normals")
+        if len(near_equal) <= 1:
+            return best, candidate_count
+
+        candidates = [hit for hit, _vertices in near_equal]
+        if not self._closed_manifold or not self._near_equal_triangles_are_local(
+            candidates
+        ):
+            raise ValueError("target snap anchor is ambiguous across surface normals")
+
+        radial = _sub(point, self._center)
+        if _norm(radial) > 1e-12:
+            radial = _unit(radial, "target query direction")
+            return min(
+                candidates,
+                key=lambda hit: (
+                    -_dot(hit.normal, radial),
+                    hit.triangle_index,
+                ),
+            ), candidate_count
+
+        return min(candidates, key=lambda hit: hit.triangle_index), candidate_count
 
     def minimum_distance(self, point):
         point = tuple(float(value) for value in point)
