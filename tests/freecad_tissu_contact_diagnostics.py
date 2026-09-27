@@ -178,21 +178,48 @@ def _nearest_surface_observation(garment_points, surface):
 
 def _inside_outside(points, source):
     shape = getattr(source, "Shape", None)
-    if shape is None or getattr(shape, "isNull", lambda: True)():
+    if shape is not None and not getattr(shape, "isNull", lambda: True)():
+        states = []
+        for point in points[:64]:
+            try:
+                states.append(bool(shape.isInside(App.Vector(*point), 1e-6, True)))
+            except (AttributeError, TypeError, ValueError):
+                states = []
+                break
+        if states:
+            if all(states):
+                return "inside"
+            if not any(states):
+                return "outside"
+            return "mixed"
+
+    mesh = getattr(source, "Mesh", None)
+    topology = getattr(mesh, "Topology", None) if mesh is not None else None
+    if topology is None:
         return "unknown"
-    states = []
-    for point in points[:64]:
-        try:
-            states.append(bool(shape.isInside(App.Vector(*point), 1e-6, True)))
-        except (AttributeError, TypeError, ValueError):
+    try:
+        import numpy as np
+        import trimesh
+        raw_vertices, raw_faces = topology
+        vertices = tuple((float(v.x), float(v.y), float(v.z)) for v in raw_vertices)
+        faces = tuple(tuple(int(i) for i in face) for face in raw_faces)
+        target_mesh = trimesh.Trimesh(
+            vertices=np.asarray(vertices, dtype=float),
+            faces=np.asarray(faces, dtype=int),
+            process=False,
+        )
+        if not target_mesh.is_watertight:
             return "unknown"
-    if not states:
+        states = [bool(value) for value in target_mesh.contains(np.asarray(points[:64], dtype=float))]
+        if not states:
+            return "unknown"
+        if all(states):
+            return "inside"
+        if not any(states):
+            return "outside"
+        return "mixed"
+    except (ImportError, TypeError, ValueError, RuntimeError):
         return "unknown"
-    if all(states):
-        return "inside"
-    if not any(states):
-        return "outside"
-    return "mixed"
 
 
 def _bounds(points):
@@ -443,7 +470,13 @@ def _run_case(case_id, rung, scene, piece, camera):
     if panel is None:
         raise RuntimeError("%s did not create a drape panel" % case_id)
     before, panel_triangles = _mesh_geometry(panel)
-    _progress(f"{case_id}: panel-vertices={len(before)} collision-triangles={len(getattr(getattr(base, 'collision_surface', None), 'triangles', ()) or ())}")
+    solver_collision_surface = getattr(
+        getattr(base, "backend", None),
+        "solver_collision_surface",
+        getattr(base, "collision_surface", None),
+    )
+    solver_triangle_count = len(getattr(solver_collision_surface, "triangles", ()) or ())
+    _progress(f"{case_id}: panel-vertices={len(before)} collision-triangles={solver_triangle_count}")
     view = Gui.activeDocument().activeView()
     if view is None:
         raise RuntimeError("%s has no active FreeCAD view" % case_id)
@@ -480,7 +513,7 @@ def _run_case(case_id, rung, scene, piece, camera):
         before,
         after,
         panel_triangles,
-        getattr(base, "collision_surface", None),
+        solver_collision_surface,
         int(scene.Steps),
         image_paths,
         (time.perf_counter() - started) * 1000.0,
@@ -524,8 +557,9 @@ def _run_control_avatar():
         center_y = (float(box.YMin) + float(box.YMax)) / 2.0
         center_z = float(box.ZMin) + 0.67 * float(box.ZMax - box.ZMin)
         center_x = (float(box.XMin) + float(box.XMax)) / 2.0
+        penetration_shift_mm = 16.0
         placement = App.Placement(
-            App.Vector(center_x - 180.0, center_y, center_z - 180.0),
+            App.Vector(center_x - 180.0, center_y, center_z - 180.0 + penetration_shift_mm),
             App.Rotation(App.Vector(1.0, 0.0, 0.0), 90.0),
         )
         piece = _build_piece(doc, "AvatarCloth", placement)
@@ -594,10 +628,7 @@ def _shutdown_gui():
             app.quit()
     except Exception as exc:
         _progress("qt-quit-failed=%r" % (exc,))
-    try:
-        App.exit()
-    except Exception as exc:
-        _progress("app-exit-failed=%r" % (exc,))
+    _progress("gui-shutdown-requested")
 
 
 def _scheduled_main():
