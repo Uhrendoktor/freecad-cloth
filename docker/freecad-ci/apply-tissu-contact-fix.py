@@ -516,8 +516,13 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
 
     // Collision projection runs after the main constraint iterations.
     // Re-enforce the same existing constraints once so zero-rest stitches
-    // are not left separated by the final collision correction.
+    // are not left separated by the first collision correction.
     solveConstraints(dt);
+
+    // Project body contact again after stitch enforcement. This preserves
+    // the existing collision model without changing solver iteration count.
+    for (auto& collider : colliders)
+        collider->resolve(m_particles, dt, world.getThickness());
 
     solveSelfCollisions(dt, world.getThickness());"""
     if solver_text.count(solver_old) != 1:
@@ -536,19 +541,26 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
         "#include <gtest/gtest.h>\n#include <memory>\n",
         1,
     )
-    post_collision_test = """class DisplacingCollider final : public Collider {
+    post_collision_test = """class DisplacingOnceCollider final : public Collider {
 public:
     void resolve(std::vector<Particle>& particles, double, double) override {
-        if (particles.size() < 2)
+        ++resolveCalls;
+        if (resolved || particles.size() < 2)
             return;
+        resolved = true;
         particles[0].setPosition(
             particles[0].getPosition() + Eigen::Vector3d(-1.0, 0.0, 0.0));
         particles[1].setPosition(
             particles[1].getPosition() + Eigen::Vector3d(1.0, 0.0, 0.0));
     }
+
+    int resolveCalls = 0;
+
+private:
+    bool resolved = false;
 };
 
-TEST(Solver, ReenforcesStitchesAfterColliderProjection) {
+TEST(Solver, AlternatesCollisionAndStitchProjection) {
     Solver solver;
     const int particleA =
         solver.addParticle(Particle(Eigen::Vector3d::Zero()));
@@ -560,7 +572,8 @@ TEST(Solver, ReenforcesStitchesAfterColliderProjection) {
 
     World world;
     world.setGravity(Eigen::Vector3d::Zero());
-    world.addCollider(std::make_shared<DisplacingCollider>());
+    auto collider = std::make_shared<DisplacingOnceCollider>();
+    world.addCollider(collider);
 
     solver.update(world, 1.0 / 60.0);
 
@@ -571,6 +584,7 @@ TEST(Solver, ReenforcesStitchesAfterColliderProjection) {
             .norm(),
         0.0,
         1e-9);
+    EXPECT_EQ(collider->resolveCalls, 2);
 }
 
 """
