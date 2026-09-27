@@ -34,6 +34,23 @@ def main() -> int:
 
     replace_once(
         header,
+        """    void transform(const Eigen::Vector3d& position,
+                   const Eigen::Quaterniond& rotation) override;
+
+    const std::string& getMeshPath() const { return m_meshPath; }
+""",
+        """    void transform(const Eigen::Vector3d& position,
+                   const Eigen::Quaterniond& rotation) override;
+
+    void setOutwardNormalSign(double sign);
+
+    const std::string& getMeshPath() const { return m_meshPath; }
+""",
+        "MeshCollider.hpp orientation setter",
+    )
+
+    replace_once(
+        header,
         """    std::vector<Eigen::Vector3d> m_localVertices;
     std::vector<Eigen::Vector3d> m_worldVertices;
     std::vector<Triangle> m_triangles;
@@ -42,6 +59,7 @@ def main() -> int:
     std::vector<Eigen::Vector3d> m_worldVertices;
     std::vector<Triangle> m_triangles;
     bool m_closedManifold = false;
+    bool m_hasOutwardNormalHint = false;
     double m_outwardNormalSign = 1.0;
     BVH m_bvh;""",
         "MeshCollider.hpp member layout",
@@ -56,6 +74,7 @@ def main() -> int:
 #include <cstdint>
 #include <unordered_map>
 #include <utility>
+#include <stdexcept>
 
 namespace Tissu {
 
@@ -127,6 +146,28 @@ MeshOrientation inferMeshOrientation(
         raise RuntimeError("MeshCollider.cpp include anchor mismatch")
     cpp = cpp.replace(include_old, include_new, 1)
 
+    setter_anchor = """    m_bvh.build(m_worldVertices, m_triangles);
+}
+
+void MeshCollider::transform""";
+    if cpp.count(setter_anchor) != 1:
+        raise RuntimeError("MeshCollider.cpp orientation setter anchor mismatch")
+    cpp = cpp.replace(
+        setter_anchor,
+        """    m_bvh.build(m_worldVertices, m_triangles);
+}
+
+void MeshCollider::setOutwardNormalSign(double sign) {
+    if (!std::isfinite(sign) || std::abs(std::abs(sign) - 1.0) > 1.0e-9)
+        throw std::invalid_argument("MeshCollider outward normal sign must be +1 or -1");
+    m_outwardNormalSign = sign;
+    m_hasOutwardNormalHint = true;
+}
+
+void MeshCollider::transform""",
+        1,
+    )
+
     replace_cpp = [
         (
             """    m_triangles.reserve(indices.size() / 3);
@@ -183,7 +224,7 @@ MeshOrientation inferMeshOrientation(
             Eigen::Vector3d normal = faceNormal;
             if (distance > 1e-6) {
                 normal = toParticle / distance;
-                if (m_closedManifold) {
+                if (m_closedManifold || m_hasOutwardNormalHint) {
                     const Eigen::Vector3d outwardNormal =
                         faceNormal * m_outwardNormalSign;
                     // A particle on the interior side of a closed, consistently
@@ -192,7 +233,7 @@ MeshOrientation inferMeshOrientation(
                     if (normal.dot(outwardNormal) < 0.0)
                         normal = -normal;
                 }
-            } else if (m_closedManifold) {
+            } else if (m_closedManifold || m_hasOutwardNormalHint) {
                 normal *= m_outwardNormalSign;
             }
 
@@ -206,6 +247,49 @@ MeshOrientation inferMeshOrientation(
             raise RuntimeError(f"{label}: expected one source anchor, found {count}")
         cpp = cpp.replace(old, new, 1)
     Path(cpp_path := ROOT / "core/src/physics/MeshCollider.cpp").write_text(cpp, encoding="utf-8")
+
+    binding_old = """        .def("get_mesh_path", &MeshCollider::getMeshPath)
+        .def("get_world_vertices", &MeshCollider::getWorldVertices);"""
+    binding_new = """        .def("get_mesh_path", &MeshCollider::getMeshPath)
+        .def("get_world_vertices", &MeshCollider::getWorldVertices)
+        .def("set_outward_normal_sign", &MeshCollider::setOutwardNormalSign,
+             py::arg("sign"));"""
+    for binding_path in (
+        ROOT / "python/src/bindings.cpp",
+        ROOT / "python/src/bindings_headless.cpp",
+    ):
+        replace_once(binding_path, binding_old, binding_new, f"{binding_path.name} MeshCollider binding")
+
+    engine = ROOT / "python/tissu/engine.py"
+    replace_once(
+        engine,
+        """    def add_mesh_from_arrays(
+        self,
+        name: str,
+        vertices: np.ndarray,
+        triangles: np.ndarray,
+        friction: float = 0.5,
+    ):
+        collider = sdk.MeshCollider(vertices, triangles, float(friction))
+        collider.set_name(name)
+        self.world.add_collider(collider)
+""",
+        """    def add_mesh_from_arrays(
+        self,
+        name: str,
+        vertices: np.ndarray,
+        triangles: np.ndarray,
+        friction: float = 0.5,
+        outward_normal_sign: float | None = None,
+    ):
+        collider = sdk.MeshCollider(vertices, triangles, float(friction))
+        if outward_normal_sign is not None:
+            collider.set_outward_normal_sign(float(outward_normal_sign))
+        collider.set_name(name)
+        self.world.add_collider(collider)
+""",
+        "Simulation.add_mesh_from_arrays orientation provenance",
+    )
 
     test_cpp = test.read_text(encoding="utf-8")
     test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
@@ -286,6 +370,57 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     if test_cpp.count(old) != 1:
         raise RuntimeError("MeshCollider regression test body anchor mismatch")
     test_cpp = test_cpp.replace(old, new, 1)
+    test_cpp += """
+    
+TEST(MeshCollider, HintedSparseMeshResolvesInteriorOutward) {
+    const std::vector<Eigen::Vector3d> vertices = {
+        {0.0, 0.0, 0.0},
+        {2.0, 0.0, 0.0},
+        {1.0, 0.0, 2.0},
+        {1.0, 2.0, 1.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {
+        {0, 2, 1},
+        {0, 1, 3},
+        {1, 2, 3},
+    };
+    MeshCollider mesh(vertices, triangles, 0.0);
+    mesh.setOutwardNormalSign(-1.0);
+
+    Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 1.0);
+
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+}
+
+TEST(MeshCollider, HintedSparseMeshPreservesOutsideContact) {
+    const std::vector<Eigen::Vector3d> vertices = {
+        {0.0, 0.0, 0.0},
+        {2.0, 0.0, 0.0},
+        {1.0, 0.0, 2.0},
+        {1.0, 2.0, 1.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {
+        {0, 2, 1},
+        {0, 1, 3},
+        {1, 2, 3},
+    };
+    MeshCollider mesh(vertices, triangles, 0.0);
+    mesh.setOutwardNormalSign(-1.0);
+
+    Eigen::Vector3d initialPos(1.0, -0.01, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_LT(particles[0].getPosition().y(), 0.0);
+}
+
+"""
     test.write_text(test_cpp, encoding="utf-8")
 
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
@@ -295,6 +430,9 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
         "tests/physics/test_mesh_collider.cpp",
+        "python/src/bindings.cpp",
+        "python/src/bindings_headless.cpp",
+        "python/tissu/engine.py",
     }
     if set(changed.splitlines()) != expected:
         raise RuntimeError(f"unexpected patched files: {changed!r}")
