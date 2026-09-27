@@ -610,6 +610,318 @@ def _run_case(case_id, rung, scene, piece, camera):
     return record
 
 
+
+CHECKPOINT_STEPS = (0, 1, 5, 15, 45, 90)
+LADDER_CASES = (
+    "rung-1-cube-pinned",
+    "rung-2-cube-unpinned",
+    "rung-3-cube-two-pieces-no-seam",
+    "rung-4-cube-two-pieces-small-seam",
+    "rung-5-cube-two-pieces-large-seam",
+)
+
+
+def _build_cube_ladder_scene(doc, cube, pin_mode):
+    from freecad_cloth.simulation.SimulationObjects import set_avatar_collision_source, create_simulation_scene
+    from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, ensure_quality_properties
+
+    scene = create_simulation_scene(doc, build=False)
+    ensure_quality_properties(scene)
+    scene.Proxy = QualitySimulationProxy()
+    scene.QualityPreset = "Fast"
+    scene.ParticleDistance = max(12.0, float(scene.ParticleDistance))
+    scene.SolverIterations = 4
+    scene.SolverSubsteps = 1
+    scene.TimeStep = 1.0 / 240.0
+    scene.GravityX = 0.0
+    scene.GravityY = 0.0
+    scene.GravityZ = -9810.0
+    scene.FabricFriction = 0.75
+    scene.FabricTransparency = 0
+    scene.PinMode = pin_mode
+    scene.PinSelection = []
+    set_avatar_collision_source(scene, cube, thickness=2.0, deflection=1.0)
+    avatar = getattr(scene.AvatarProxy, "SourceObject", None)
+    if avatar is not None and hasattr(avatar, "ViewObject"):
+        avatar.ViewObject.Visibility = False
+    return scene
+
+
+def _cube_target_vertices_and_bounds(cube):
+    vertices = tuple(
+        (float(vertex.Point.x), float(vertex.Point.y), float(vertex.Point.z))
+        for vertex in cube.Shape.Vertexes
+    )
+    return vertices, list(_bounds(vertices))
+
+
+def _ladder_seam_metrics(scene, positions):
+    base = scene.Proxy._base_or_restore()
+    by_seam = getattr(base, "seam_stitch_pairs", {}) or {}
+    records = []
+    for seam_id, stitch_pairs in sorted(by_seam.items()):
+        pair_records = []
+        for ordinal, pair in enumerate(stitch_pairs):
+            a, b = (int(pair[0]), int(pair[1]))
+            endpoint_a = list(positions[a])
+            endpoint_b = list(positions[b])
+            pair_records.append(
+                {
+                    "pair": ordinal,
+                    "endpoint_a": endpoint_a,
+                    "endpoint_b": endpoint_b,
+                    "span_mm": round(math.dist(endpoint_a, endpoint_b), 6),
+                }
+            )
+        if not pair_records:
+            continue
+        spans = [float(item["span_mm"]) for item in pair_records]
+        records.append(
+            {
+                "seam": str(seam_id),
+                "span_mm": round(sum(spans) / len(spans), 6),
+                "min_span_mm": round(min(spans), 6),
+                "max_span_mm": round(max(spans), 6),
+                "pairs": pair_records,
+            }
+        )
+    return records
+
+
+def _ladder_checkpoint(scene, positions, cube, panel_triangles, step, image_name):
+    base = scene.Proxy._base_or_restore()
+    surface = getattr(
+        base.backend,
+        "solver_collision_surface",
+        getattr(base, "collision_surface", None),
+    )
+    points = [tuple(float(value) for value in point) for point in positions]
+    inside = _inside_outside(points, cube)
+    unsigned = _nearest_surface_distance(points, surface)
+    signed = None
+    if unsigned is not None:
+        signed = -float(unsigned) if inside in {"inside", "mixed"} else float(unsigned)
+    seam_records = _ladder_seam_metrics(scene, positions)
+    seam_gap = max((float(record["max_span_mm"]) for record in seam_records), default=0.0)
+    components = _connected_components(points, tuple(panel_triangles))
+    bounds = list(_bounds(points))
+    finite = all(math.isfinite(float(c)) for point in points for c in point)
+    pin_values = tuple(
+        int(index)
+        for index in (
+            getattr(base.backend, "_pins", ())
+            or getattr(base.backend, "_pin_indices", ())
+            or tuple(getattr(getattr(base.backend, "system", None), "pins", {}).keys())
+        )
+    )
+    return {
+        "step": int(step),
+        "image": str(image_name),
+        "finite": finite,
+        "components": components,
+        "max_seam_gap_mm": round(float(seam_gap), 6),
+        "target_clearance_mm": signed,
+        "unsigned_min_distance_mm": unsigned,
+        "contact_state": (
+            "interior-or-contact"
+            if inside in {"inside", "mixed"} or (unsigned is not None and unsigned <= 2.5)
+            else "outside-target"
+        ),
+        "inside_outside": inside,
+        "bounds": bounds,
+        "seam_world_spans_mm": [float(record["span_mm"]) for record in seam_records],
+        "seams": seam_records,
+        "pin_count": len(pin_values),
+    }
+
+
+def _run_ladder_rung(case_id, predecessor_case_id, pin_mode, placements, seam_enabled):
+    started = time.perf_counter()
+    doc = App.newDocument("TissuComplexity_" + case_id.replace("-", "_"))
+    try:
+        cube = doc.addObject("Part::Feature", "DiagnosticCube")
+        cube.Label = "Diagnostic Collision Cube — " + case_id
+        cube.Shape = Part.makeBox(180.0, 180.0, 60.0, App.Vector(-90.0, -90.0, 0.0))
+        doc.recompute()
+        scene = _build_cube_ladder_scene(doc, cube, pin_mode)
+
+        pieces = []
+        for index, placement in enumerate(placements):
+            piece = _build_piece(doc, "RungPiece" + str(index + 1), placement, width=120.0, height=120.0)
+            pieces.append(piece)
+
+        seam_obj = None
+        if seam_enabled:
+            from freecad_cloth.pattern.PatternModel import Seam
+            from freecad_cloth.pattern.PatternObjects import add_seam
+            seam_obj = add_seam(
+                doc,
+                Seam(pieces[0].PieceId, 1, pieces[1].PieceId, 3, id="cube-rung-seam"),
+            )
+
+        scene.ClothPieces = pieces
+        cube.ViewObject.Visibility = True
+        for piece in pieces:
+            piece.ViewObject.Visibility = False
+            piece.Sketch.ViewObject.Visibility = False
+        if seam_obj is not None:
+            seam_obj.ViewObject.Visibility = True
+        doc.recompute()
+
+        base = scene.Proxy._base_or_restore()
+        backend = getattr(base, "backend", None)
+        if backend is None or getattr(backend, "name", "") != "tissu":
+            raise RuntimeError("%s did not build the Tissu backend" % case_id)
+        if seam_enabled and not getattr(base, "seam_stitch_pairs", {}):
+            raise RuntimeError("%s semantic seam did not reach exact solver stitch provenance" % case_id)
+
+        target_vertices, target_bounds = _cube_target_vertices_and_bounds(cube)
+        initial_positions = tuple(tuple(float(v) for v in point) for point in backend.positions())
+        panel_triangles = tuple(
+            triangle
+            for panel in scene.DrapePanels
+            for triangle in base.panel_triangles.get(panel.Name, ())
+        )
+        pre_step_seams = _ladder_seam_metrics(scene, initial_positions)
+        pre_step_pairs = [
+            {
+                "seam": str(record["seam"]),
+                "endpoint_a": list(pair["endpoint_a"]),
+                "endpoint_b": list(pair["endpoint_b"]),
+                "span_mm": float(pair["span_mm"]),
+            }
+            for record in pre_step_seams
+            for pair in record["pairs"]
+        ]
+
+        view = Gui.activeDocument().activeView()
+        if view is None:
+            raise RuntimeError("%s has no active view" % case_id)
+        view.viewAxonometric()
+        _events()
+
+        checkpoints = []
+        images = []
+        for step in CHECKPOINT_STEPS:
+            scene.Steps = int(step)
+            doc.recompute()
+            _events()
+            positions = tuple(tuple(float(v) for v in point) for point in backend.positions())
+            image_path = OUT / ("%s-step-%03d.png" % (case_id, step))
+            _screenshot(view, image_path)
+            images.append(image_path.name)
+            checkpoints.append(_ladder_checkpoint(scene, positions, cube, panel_triangles, step, image_path.name))
+            _progress(
+                "%s: checkpoint=%d finite=%s clearance=%s seam_max=%s pins=%d"
+                % (case_id, step, checkpoints[-1]["finite"], checkpoints[-1]["target_clearance_mm"], checkpoints[-1]["max_seam_gap_mm"], checkpoints[-1]["pin_count"])
+            )
+
+        first_contact_step = next(
+            (int(checkpoint["step"]) for checkpoint in checkpoints if checkpoint["contact_state"] == "interior-or-contact"),
+            None,
+        )
+        final = checkpoints[-1]
+        solver_surface = getattr(backend, "solver_collision_surface", getattr(base, "collision_surface", None))
+        solver_triangles = len(getattr(solver_surface, "triangles", ()) or ())
+        piece_bounds = []
+        for panel in scene.DrapePanels:
+            indices = base.panel_indices.get(panel.Name, ())
+            piece_bounds.append(
+                list(
+                    _bounds(
+                        tuple(
+                            tuple(float(v) for v in initial_positions[index])
+                            for index in indices
+                        )
+                    )
+                )
+            )
+
+        record = {
+            "case_id": case_id,
+            "predecessor_case_id": predecessor_case_id,
+            "case": {
+                "rung": int(case_id.split("-", 2)[1]),
+                "id": case_id,
+                "target": "cube",
+                "piece_count": len(pieces),
+                "pin_mode": str(pin_mode),
+                "seam_mode": "semantic" if seam_enabled else "none",
+                "seam_world_spans_mm": [float(record["span_mm"]) for record in pre_step_seams],
+            },
+            "solver": {
+                "backend": str(getattr(backend, "name", "")),
+                "particle_distance_mm": float(scene.ParticleDistance),
+                "iterations": int(scene.SolverIterations),
+                "substeps": int(scene.SolverSubsteps),
+                "timestep_s": float(scene.TimeStep),
+                "gravity_z_mm_s2": float(scene.GravityZ),
+            },
+            "collision": {
+                "source_signature": {
+                    "target_type": "cube",
+                    "source_name": str(cube.Name),
+                    "source_label": str(cube.Label),
+                    "source_vertices": len(target_vertices),
+                    "source_triangles": len(target_vertices),
+                },
+                "source_triangles": len(target_vertices),
+                "solver_triangles": solver_triangles,
+                "target_bounds": target_bounds,
+                "target_topology_summary": {
+                    "vertices": len(target_vertices),
+                    "triangles": solver_triangles,
+                    "solver_triangles": solver_triangles,
+                },
+            },
+            "pre_step": {
+                "piece_bounds": piece_bounds,
+                
+                "unsigned_clearance_mm": checkpoints[0]["unsigned_min_distance_mm"],
+                "signed_clearance_mm": checkpoints[0]["target_clearance_mm"],
+                "seam_pairs": pre_step_pairs,
+                "seam_world_spans_mm": checkpoints[0]["seam_world_spans_mm"],
+            },
+            "checkpoints": checkpoints,
+            "finite": bool(final["finite"]),
+            "connected_components": int(final["components"]),
+            "max_seam_gap_mm": float(final["max_seam_gap_mm"]),
+            "final_clearance_mm": final["target_clearance_mm"],
+            "runtime_ms": round((time.perf_counter() - started) * 1000.0, 3),
+            "first_contact_step": first_contact_step,
+            "contact_mode": final["contact_state"],
+            "images": images,
+            "checkpoint_image_paths": images,
+            "target_bounds_world_mm": target_bounds,
+            "notes": "diagnostic-only cube ladder; adjacent rungs are interpreted sequentially and rungs 4/5 differ only in second-piece X placement",
+        }
+        _progress("%s: complete runtime_ms=%.1f" % (case_id, record["runtime_ms"]))
+        return record
+    finally:
+        App.closeDocument(doc.Name)
+
+
+def _run_cube_ladder():
+    specs = (
+        ("rung-1-cube-pinned", None, "Automatic",
+         (App.Placement(App.Vector(-60.0, -60.0, 120.0), App.Rotation()),), False),
+        ("rung-2-cube-unpinned", "rung-1-cube-pinned", "None",
+         (App.Placement(App.Vector(-60.0, -60.0, 120.0), App.Rotation()),), False),
+        ("rung-3-cube-two-pieces-no-seam", "rung-2-cube-unpinned", "None",
+         (App.Placement(App.Vector(-120.0, -60.0, 120.0), App.Rotation()),
+          App.Placement(App.Vector(0.0, -60.0, 120.0), App.Rotation())), False),
+        ("rung-4-cube-two-pieces-small-seam", "rung-3-cube-two-pieces-no-seam", "None",
+         (App.Placement(App.Vector(-120.0, -60.0, 120.0), App.Rotation()),
+          App.Placement(App.Vector(4.0, -60.0, 120.0), App.Rotation())), True),
+        ("rung-5-cube-two-pieces-large-seam", "rung-4-cube-two-pieces-small-seam", "None",
+         (App.Placement(App.Vector(-120.0, -60.0, 120.0), App.Rotation()),
+          App.Placement(App.Vector(60.0, -60.0, 120.0), App.Rotation())), True),
+    )
+    return [
+        _run_ladder_rung(case_id, predecessor, pin_mode, placements, seam_enabled)
+        for case_id, predecessor, pin_mode, placements, seam_enabled in specs
+    ]
+
 def _run_control_cube():
     _progress("control-0-cube: start")
     doc = App.newDocument("TissuContactControlCube")
@@ -760,6 +1072,9 @@ def main():
         _run_control_cube(),
         _run_control_avatar(),
     ]
+    if os.environ.get("CLOTH_COMPLEXITY_LADDER") == "1":
+        _progress("main: cube complexity ladder enabled")
+        records.extend(_run_cube_ladder())
     manifest = {
         "schema": 1,
         "purpose": "diagnostic-only-contact-controls",
