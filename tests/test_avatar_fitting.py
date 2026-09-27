@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from freecad_cloth.avatar.AvatarFitting import ArrangementPoint, BodyMeasurements, BoundingVolume, FittingScene, PiecePlacement
+from freecad_cloth.avatar.AvatarFitting import ArrangementPoint, BodyMeasurements, BoundingVolume, FittingScene, GarmentAnchor, PiecePlacement
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose, generate_mesh
 from freecad_cloth.avatar.AvatarService import AvatarService
 from freecad_cloth.avatar.AvatarArrangement import ARRANGEMENT_POINT_NAMES, arrangement_point_map, arrangement_points_from_landmarks
@@ -37,7 +37,7 @@ class AvatarFittingTests(unittest.TestCase):
     def test_scene_metadata_is_deterministic(self):
         scene = FittingScene(BodyMeasurements({"hip": 960, "waist": 760}), "Avatar Collision Proxy", (PiecePlacement("piece-b", (10, 20, 30), 45), PiecePlacement("piece-a")))
         payload = scene.to_json()
-        self.assertEqual(json.loads(payload)["pieces"], ["piece-a|0,0,0|0", "piece-b|10,20,30|45"])
+        self.assertEqual(json.loads(payload)["pieces"], ["piece-a|0,0,0|0|0,0,1", "piece-b|10,20,30|45|0,0,1"])
 
     def test_duplicate_piece_placement_is_rejected(self):
         with self.assertRaises(ValueError): FittingScene(pieces=(PiecePlacement("piece"), PiecePlacement("piece"))).validate()
@@ -45,6 +45,17 @@ class AvatarFittingTests(unittest.TestCase):
     def test_piece_placement_round_trip(self):
         placement = PiecePlacement("front", (1.5, -2.0, 3.25), 90.0)
         self.assertEqual(PiecePlacement.from_string(placement.to_string()), placement)
+
+    def test_piece_placement_preserves_rotation_axis(self):
+        placement = PiecePlacement("front", (1.5, -2.0, 3.25), 90.0, (1.0, 0.0, 0.0))
+        self.assertEqual(PiecePlacement.from_string(placement.to_string()), placement)
+
+    def test_garment_anchor_round_trip_and_scene_persistence(self):
+        anchor = GarmentAnchor("front", "shoulder", (10.0, 20.0, 0.0), "front")
+        self.assertEqual(GarmentAnchor.from_string(anchor.to_string()), anchor)
+        scene = FittingScene(garment_anchors=(anchor,))
+        restored = FittingScene.from_json(scene.to_json())
+        self.assertEqual(restored, scene)
 
     def test_arrangement_point_round_trip_and_mirror(self):
         point = ArrangementPoint("shoulder-left", 120, 80, 15, "left", 10, "shoulders")
