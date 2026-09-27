@@ -202,6 +202,20 @@ def _save_probe_view(name, avatar=None, target_box=None, probe=None):
     view.saveImage(str(OUT / name), 1200, 900, "Current", 1)
 
 
+
+def _write_manifest(results, error=None):
+    payload = {
+        "schema": 1,
+        "suite": "tissu-contact-controls",
+        "backend": "tissu",
+        "solver": {"dt_s": 1.0 / 120.0, "iterations": 8, "substeps": 1, "gravity_mm_s2": [0.0, 0.0, 0.0]},
+        "surface": {"thickness_mm": THICKNESS_MM, "triangle_limit": 2048},
+        "results": results,
+    }
+    if error is not None:
+        payload["error"] = repr(error)
+    (OUT / "manifest.json").write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
 def _cube_control():
     doc = App.newDocument("TissuContactControlCube")
     cube = doc.addObject("Part::Feature", "TargetCube")
@@ -290,15 +304,15 @@ def _avatar_control():
     _set_probe_shape(probe, inside["final_positions"])
     _save_probe_view("avatar-inside-step-1.png", avatar=source, probe=probe)
 
-    source_metrics = validate_mesh(full.vertices, full.triangles, prefer_trimesh=False)
     solver_metrics = validate_mesh(solver_surface.vertices, solver_surface.triangles, prefer_trimesh=False)
     doc.close()
     return {
         "rung": "0a",
         "target": "production_avatar",
+        "source_vertices": len(full.vertices),
         "source_triangles": len(full.triangles),
         "solver_triangles": len(solver_surface.triangles),
-        "target_topology": source_metrics.__dict__,
+        "target_topology": {"kind": "authored_full_surface", "vertices": len(full.vertices), "faces": len(full.triangles)},
         "solver_topology": solver_metrics.__dict__,
         "probe_triangle": list(triangle),
         "probe_face_center": face_center,
@@ -313,16 +327,9 @@ def main():
     results = []
     try:
         results.append(_cube_control())
+        _write_manifest(results)
         results.append(_avatar_control())
-        manifest = {
-            "schema": 1,
-            "suite": "tissu-contact-controls",
-            "backend": "tissu",
-            "solver": {"dt_s": 1.0 / 120.0, "iterations": 8, "substeps": 1, "gravity_mm_s2": [0.0, 0.0, 0.0]},
-            "surface": {"thickness_mm": THICKNESS_MM, "triangle_limit": 2048},
-            "results": results,
-        }
-        (OUT / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+        _write_manifest(results)
         failures = []
         for result in results:
             for key in ("inside", "outside"):
@@ -356,11 +363,7 @@ def main():
         return 0
     except Exception as exc:
         try:
-            if 'manifest' not in locals():
-                (OUT / "manifest.json").write_text(
-                    json.dumps({"schema": 1, "suite": "tissu-contact-controls", "error": repr(exc), "partial_results": results}, indent=2, sort_keys=True),
-                    encoding="utf-8",
-                )
+            _write_manifest(results, error=exc)
         except Exception:
             pass
         raise
