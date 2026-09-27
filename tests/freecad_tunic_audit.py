@@ -85,6 +85,10 @@ if anchor not in source:
 timed_anchor = '''    from time import perf_counter
     simulation_started = perf_counter()
     active_backend = scene.Proxy._base_or_restore().backend
+    active_compliance = float(getattr(active_backend, "stitch_compliance", 0.0))
+    if abs(active_compliance - 0.001) > 1.0e-12:
+        raise RuntimeError("canonical Tissu stitch compliance plumbing failed: %.12g" % active_compliance)
+    log("tunic-stitch-compliance=%.9g" % active_compliance)
     active_collision = getattr(active_backend, "_collision_surface", None)
     log("tunic-simulation-start particles=%d iterations=%d substeps=%d backend=%s collision_triangles=%d" % (
         int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps),
