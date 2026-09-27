@@ -11,6 +11,13 @@ validated_release_code: b43b8a2982e4570f25824509674dad9b66a38677
 workflow_count: 1
 workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; inspect_jobs_logs_artifacts; no_second_workflow
+visual_review_policy:
+  mandatory_human_inspection: true
+  required_artifact_location: github_actions_visual_review_artifact
+  intermediate_simulation_exports: step_15_30_45_60_75_90
+  turntable_exports: full_frame_sequences
+  acceptance_requires_issue_pr_review_record: true
+  visual_review_retention_days: 14
 release:
   p0_closeout: complete
   timing_fix_pr: 1195
