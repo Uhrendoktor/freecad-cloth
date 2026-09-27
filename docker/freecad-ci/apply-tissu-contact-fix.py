@@ -40,6 +40,17 @@ def main() -> int:
 
     replace_once(
         header,
+        """#include <array>
+#include <vector>""",
+        """#include <array>
+#include <vector>
+
+#include <Eigen/Geometry>""",
+        "MeshCollider.hpp Eigen geometry include",
+    )
+
+    replace_once(
+        header,
         """    std::vector<Eigen::Vector3d> m_localVertices;
     std::vector<Eigen::Vector3d> m_worldVertices;
     std::vector<Triangle> m_triangles;
@@ -49,7 +60,11 @@ def main() -> int:
     std::vector<Triangle> m_triangles;
     bool m_closedManifold = false;
     double m_outwardNormalSign = 1.0;
-    BVH m_bvh;""",
+    bool m_containmentBootstrapped = false;
+    Eigen::AlignedBox3d m_worldBounds;
+    BVH m_bvh;
+
+    bool pointInsideClosedMesh(const Eigen::Vector3d& point) const;""",
         "MeshCollider.hpp member layout",
     )
     header_text = header.read_text(encoding="utf-8")
@@ -70,6 +85,7 @@ def main() -> int:
 namespace Tissu {"""
     include_new = """#include "physics/Particle.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 
@@ -105,6 +121,9 @@ namespace Tissu {"""
     m_friction = friction;
     m_closedManifold = closedManifold;
     m_outwardNormalSign = outwardNormalSign;
+    m_worldBounds.setEmpty();
+    for (const auto& vertex : m_worldVertices)
+        m_worldBounds.extend(vertex);
 
     m_triangles.reserve(triangles.size());
     for (const auto& tri : triangles) {
