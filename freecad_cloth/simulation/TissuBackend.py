@@ -89,6 +89,7 @@ class TissuBackend(ClothSimulationBackend):
         triangles: Sequence[Tuple[int, int, int]],
         pins: Iterable[int] = (),
         stitches: Iterable[Tuple[int, int]] = (),
+        attachments: Iterable[Tuple[int, int, float]] = (),
         collision_surface: CollisionSurface | None = None,
         collision_mode: str = "torso-envelope",
     ):
@@ -103,6 +104,10 @@ class TissuBackend(ClothSimulationBackend):
         self._triangles = tuple(tuple(int(i) for i in tri) for tri in triangles)
         self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins))
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
+        self._attachments = tuple(
+            (int(particle_id), int(target_vertex_id), float(rest_length))
+            for particle_id, target_vertex_id, rest_length in attachments
+        )
         self._source_collision_surface = collision_surface
         collision_limit = _tissu_collision_triangle_limit()
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
@@ -163,6 +168,18 @@ class TissuBackend(ClothSimulationBackend):
         for a, b in self._stitches:
             self._sim.solver.add_stitch(int(a), int(b), 0.0)
         self._add_collision()
+        if self._attachments:
+            if self._collision_mode != "mesh" or self._collision_surface is None:
+                raise RuntimeError("Tissu attachments require the mesh collision surface")
+            for particle_id, target_vertex_id, rest_length in self._attachments:
+                self._sim.add_attachment(
+                    self._fabric,
+                    "drape-target",
+                    [int(particle_id)],
+                    [int(target_vertex_id)],
+                    compliance=0.0,
+                    rest_length=float(rest_length) / _MM,
+                )
 
     def step(self, dt=1.0 / 60.0, iterations=8, gravity=(0.0, 0.0, -9810.0), sphere=None, surface=None):
         if dt <= 0 or iterations < 1:
