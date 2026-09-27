@@ -14,6 +14,7 @@ from freecad_cloth.simulation.ClothSolver import ClothSystem
 _MM = 1000.0
 _TISSU_SUBSTEPS_DEFAULT = 1
 _TISSU_COLLISION_TRIANGLES_DEFAULT = 0
+_TISSU_STITCH_DELAY_STEPS_DEFAULT = 0
 
 
 def _tissu_substeps():
@@ -27,6 +28,12 @@ def _tissu_collision_triangle_limit():
     value = int(os.environ.get("CLOTH_TISSU_COLLISION_TRIANGLES", str(_TISSU_COLLISION_TRIANGLES_DEFAULT)))
     if value < 0:
         raise ValueError("CLOTH_TISSU_COLLISION_TRIANGLES must be >= 0")
+    return value
+
+def _tissu_stitch_delay_steps():
+    value = int(os.environ.get("CLOTH_TISSU_STITCH_DELAY_STEPS", str(_TISSU_STITCH_DELAY_STEPS_DEFAULT)))
+    if value < 0:
+        raise ValueError("CLOTH_TISSU_STITCH_DELAY_STEPS must be >= 0")
     return value
 
 
@@ -121,6 +128,9 @@ class TissuBackend(ClothSimulationBackend):
         self._time = 0.0
         self._iterations = 8
         self._substeps = _tissu_substeps()
+        self._stitch_delay_steps = _tissu_stitch_delay_steps()
+        self._backend_steps = 0
+        self._stitches_activated = False
         self._build(Simulation)
 
     @property
@@ -160,9 +170,20 @@ class TissuBackend(ClothSimulationBackend):
             raise RuntimeError("Tissu did not preserve cloth particle ordering")
         for index in self._pin_indices:
             self._sim.solver.add_pin(int(index), np.asarray(positions[index], dtype=np.float64), 0.0)
-        for a, b in self._stitches:
-            self._sim.solver.add_stitch(int(a), int(b), 0.0)
         self._add_collision()
+        if self._stitch_delay_steps == 0:
+            self._activate_stitches()
+
+    def _activate_stitches(self):
+        if self._stitches_activated:
+            return
+        self.set_stitches(self._stitches, compliance=0.0)
+        self._stitches_activated = True
+        print(
+            "cloth-tissu-stitches-activated step=%d pairs=%d delay_steps=%d"
+            % (self._backend_steps, len(self._stitches), self._stitch_delay_steps),
+            flush=True,
+        )
 
     def step(self, dt=1.0 / 60.0, iterations=8, gravity=(0.0, 0.0, -9810.0), sphere=None, surface=None):
         if dt <= 0 or iterations < 1:
@@ -171,16 +192,25 @@ class TissuBackend(ClothSimulationBackend):
             raise RuntimeError("TissuBackend collision surface is immutable after construction")
         if sphere is not None:
             raise RuntimeError("TissuBackend does not support sphere fallback collision")
+        if (
+            not self._stitches_activated
+            and self._stitch_delay_steps > 0
+            and self._backend_steps >= self._stitch_delay_steps * self._substeps
+        ):
+            self._activate_stitches()
         self._sim.solver.set_iterations(max(1, int(iterations)))
         _gx, _gy, gz = gravity
         self._sim.gravity = float(gz) / _MM
         self._sim.step(float(dt))
         self._iterations = int(iterations)
         self._time += float(dt)
+        self._backend_steps += 1
 
     def reset(self):
         from tissu import Simulation
         self._time = 0.0
+        self._backend_steps = 0
+        self._stitches_activated = False
         self._build(Simulation)
 
     def pin(self, indices: Iterable[int]):
