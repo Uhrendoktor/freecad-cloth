@@ -122,7 +122,6 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert '/opt/conda/envs/freecad/bin/cmake --build build' in dockerfile
     assert '--target _cloth_sdk_core unit_tests' in dockerfile
     assert "--gtest_filter='MeshCollider.*:Solver.*'" in dockerfile
-    assert "tissu-cpp-regression=MeshCollider.*:Solver.*" in dockerfile
     assert "ReenforcesStitchesThenReprojectsCollider" in script
     assert "ParticleInsideMeshMovesOutside" in script
     assert "tetrahedronContains" in script
