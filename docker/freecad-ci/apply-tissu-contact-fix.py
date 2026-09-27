@@ -173,13 +173,13 @@ MeshOrientation inferMeshOrientation(
     m_bvh.build(m_worldVertices, m_triangles);""",
             "MeshCollider.cpp vector constructor",
         ),
+        (
             """        if (distance <= thickness) {
             Eigen::Vector3d normal = (distance > 1e-6)
                                          ? toParticle.normalized()
                                          : ((b - a).cross(c - a)).normalized();
 
             Eigen::Vector3d newPosition = cp + normal * thickness;""",
-        (
             """        Eigen::Vector3d contactPoint = cp;
         Eigen::Vector3d sweptNormal = Eigen::Vector3d::Zero();
         Eigen::Vector3d sweptFaceNormal = Eigen::Vector3d::Zero();
