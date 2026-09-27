@@ -272,7 +272,7 @@ def _save_probe_view(doc, name, avatar=None, target_box=None, probe=None):
     view.viewFront()
     view.fitAll()
     _events()
-    view.saveImage(str(OUT / name), 1200, 900, "Current", 1)
+    view.saveImage(str(OUT / name), 1200, 900, "Current")
 
 
 def _cube_control():
