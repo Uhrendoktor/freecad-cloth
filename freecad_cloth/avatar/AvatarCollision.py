@@ -4,7 +4,7 @@ The model layer deliberately does not import FreeCAD.  ``surface_from_freecad``
 is the small GUI/runtime bridge used by the document workbench.
 """
 from dataclasses import dataclass
-from math import ceil
+from math import ceil, isfinite
 from typing import Tuple
 
 
@@ -17,7 +17,6 @@ def _closed_surface_outward_normal_sign(
         return None
 
     edge_records = {}
-    triangle_edges = []
     signed_volume = 0.0
     for tri_index, tri in enumerate(triangles):
         if len(tri) != 3:
@@ -31,15 +30,12 @@ def _closed_surface_outward_normal_sign(
             - float(a[1]) * (float(b[0]) * float(c[2]) - float(b[2]) * float(c[0]))
             + float(a[2]) * (float(b[0]) * float(c[1]) - float(b[1]) * float(c[0]))
         ) / 6.0
-        edge_ids = []
         for edge_index in range(3):
             start = int(tri[edge_index])
             end = int(tri[(edge_index + 1) % 3])
             key = (min(start, end), max(start, end))
             direction = 1 if start == key[0] else -1
             edge_records.setdefault(key, []).append((tri_index, direction))
-            edge_ids.append(key)
-        triangle_edges.append(edge_ids)
 
     if not edge_records or any(len(items) != 2 or items[0][1] == items[1][1] for items in edge_records.values()):
         return None
@@ -101,7 +97,7 @@ class CollisionSurface:
             raise ValueError("collision thickness must not be negative")
         if self.source_outward_normal_sign is not None:
             sign = float(self.source_outward_normal_sign)
-            if abs(abs(sign) - 1.0) > 1e-9:
+            if not isfinite(sign) or abs(abs(sign) - 1.0) > 1e-9:
                 raise ValueError("source outward-normal sign must be +1, -1, or None")
         for tri in self.triangles:
             if len(tri) != 3 or any(i < 0 or i >= n for i in tri):
