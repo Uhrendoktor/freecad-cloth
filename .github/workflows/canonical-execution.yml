@@ -214,15 +214,15 @@ jobs:
           data = json.loads(Path("artifacts/tissu-contact-diagnostics/manifest.json").read_text(encoding="utf-8"))
           assert data["schema"] == 1, data
           assert data["release_gate_effect"] == "none", data
-          expected_ids = {
-              "control-0-cube",
-              "control-0a-avatar",
+          control_ids = {"control-0-cube", "control-0a-avatar"}
+          ladder_ids = {
               "rung-1-auto-pin",
               "rung-2-no-pin",
               "rung-3-no-seam",
               "rung-4-small-seam-gap",
               "rung-5-large-seam-gap",
           }
+          expected_ids = control_ids | ladder_ids
           assert {case["case"]["id"] for case in data["cases"]} == expected_ids, data
           for case in data["cases"]:
               assert case["solver"]["backend"] == "tissu", case
@@ -231,11 +231,21 @@ jobs:
               assert case["solver"]["gravity_z_mm_s2"] == 0.0, case
               assert case["collision"]["source_triangles"] > 0, case
               assert case["collision"]["solver_triangles"] > 0, case
-              assert len(case["checkpoints"]) == 2, case
-              assert [checkpoint["step"] for checkpoint in case["checkpoints"]] == [0, 1], case
               assert case["finite"], case
+              if case["case"]["id"] in control_ids:
+                  assert len(case["checkpoints"]) == 2, case
+                  assert [checkpoint["step"] for checkpoint in case["checkpoints"]] == [0, 1], case
+              else:
+                  assert case["case"]["rung"] in {1, 2, 3, 4, 5}, case
+                  assert len(case["checkpoints"]) == 6, case
+                  assert [checkpoint["step"] for checkpoint in case["checkpoints"]] == [0, 1, 5, 15, 45, 90], case
+                  assert case["solver"]["collision_triangle_budget"] == 2048, case
+                  if int(case["case"]["rung"]) >= 4:
+                      spans = case["pre_step"]["seam_world_spans_mm"]
+                      assert spans, case
+                      assert all(int(item["pair_count"]) > 0 for item in spans), case
               assert case["checkpoints"][0]["finite"], case
-              assert case["checkpoints"][1]["finite"], case
+              assert case["checkpoints"][-1]["finite"], case
               for image in case["images"]:
                   assert Path("artifacts/tissu-contact-diagnostics", image).is_file(), image
           print("diagnostic-contact-artifact=passed")
