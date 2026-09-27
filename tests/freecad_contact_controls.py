@@ -8,6 +8,7 @@ import json
 import math
 import os
 import sys
+import time
 from pathlib import Path
 
 import FreeCAD as App
@@ -155,6 +156,7 @@ def _signed_plane(point, face_center, normal):
 
 
 def _run_backend(surface, face_center, normal, offset, label):
+    started = time.perf_counter()
     system, triangles = _make_probe_system(face_center, normal, offset)
     backend = TissuBackend(
         system,
@@ -172,6 +174,7 @@ def _run_backend(surface, face_center, normal, offset, label):
         surface=backend.solver_collision_surface,
     )
     final = tuple(backend.positions())
+    runtime_ms = (time.perf_counter() - started) * 1000.0
     initial_signed = min(_signed_plane(p, face_center, normal) for p in initial)
     final_signed = min(_signed_plane(p, face_center, normal) for p in final)
     delta = final_signed - initial_signed
@@ -202,6 +205,7 @@ def _run_backend(surface, face_center, normal, offset, label):
         "state": state,
         "finite": bool(backend.finite()),
         "solver_triangles": len(getattr(backend.solver_collision_surface, "triangles", ())),
+        "runtime_ms": runtime_ms,
     }
 
 
@@ -284,7 +288,7 @@ def _cube_control():
         "connected_components": 1,
         "max_seam_gap_mm": 0.0,
         "final_clearance_mm": inside["final_signed_plane_mm"],
-        "runtime_ms": 0.0,
+        "runtime_ms": inside["runtime_ms"] + outside["runtime_ms"],
         "first_contact_step": 1 if inside["state"] == "resolved_outward" else None,
         "contact_mode": "one_step_mesh_probe",
         "inside": {k: v for k, v in inside.items() if k not in {"initial_positions", "final_positions"}},
