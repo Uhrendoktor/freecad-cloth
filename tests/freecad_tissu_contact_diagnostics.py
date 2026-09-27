@@ -194,23 +194,6 @@ def _ray_intersection_x(point, a, b, c):
 
 
 def _point_inside_mesh(point, vertices, triangles):
-    """Classify a point by majority vote across three deterministic ray directions."""
-    rays = (
-        lambda p, a, b, c: _ray_intersection_x(p, a, b, c),
-        lambda p, a, b, c: _ray_intersection_x((p[1], p[2], p[0]), (a[1], a[2], a[0]), (b[1], b[2], b[0]), (c[1], c[2], c[0])),
-        lambda p, a, b, c: _ray_intersection_x((p[2], p[0], p[1]), (a[2], a[0], a[1]), (b[2], b[0], b[1]), (c[2], c[0], c[1])),
-    )
-    votes = []
-    for ray in rays:
-        intersections = 0
-        for ia, ib, ic in triangles:
-            if ray(point, vertices[ia], vertices[ib], vertices[ic]):
-                intersections += 1
-        votes.append(bool(intersections % 2))
-    return sum(votes) >= 2
-
-
-def _point_inside_mesh(point, vertices, triangles):
     ray = (1.0, 0.3713906763541037, 0.1932424973120743)
     origin = (float(point[0]), float(point[1]), float(point[2]))
     hits = 0
@@ -254,7 +237,6 @@ def _point_inside_mesh(point, vertices, triangles):
         if distance > epsilon:
             hits += 1
     return bool(hits % 2)
-
 
 def _inside_outside(points, source):
     shape = getattr(source, "Shape", None)

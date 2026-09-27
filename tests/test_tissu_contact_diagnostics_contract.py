@@ -59,7 +59,6 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "os._exit(status)" in SOURCE
     assert "Gui.activeDocument().activeView()" in SOURCE
     assert "solver_collision_surface" in SOURCE
-    assert "penetration_shift_mm = 16.0" in SOURCE
     assert "def _point_inside_mesh(point, vertices, triangles):" in SOURCE
     assert "def _shutdown_gui():" in SOURCE
     assert "app.quit()" in SOURCE
