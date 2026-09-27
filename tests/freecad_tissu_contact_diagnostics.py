@@ -459,7 +459,7 @@ def _case_record(case_id, rung, target, source, cloth_points_before, cloth_point
             "seam_pairs": [],
             "seam_world_spans_mm": [],
         },
-        "checkpoints": [checkpoint, checkpoint_after],
+        "checkpoints": checkpoints,
         "finite": finite,
         "connected_components": after_components,
         "max_seam_gap_mm": 0.0,
@@ -656,7 +656,7 @@ def _seam_metrics(seam_pairs_by_id, positions):
     return metrics
 
 
-def _ladder_record(case_id, rung, target, source, before, after, triangles, panel_indices, collision_surface, steps, image_paths, runtime_ms, pin_mode, seam_mode, seam_before, seam_after):
+def _ladder_record(case_id, rung, target, source, before, after, triangles, panel_indices, collision_surface, steps, image_paths, runtime_ms, pin_mode, seam_mode, seam_before, seam_after, pin_count, checkpoints):
     before_distance = _nearest_surface_distance(before, collision_surface)
     after_distance = _nearest_surface_distance(after, collision_surface)
     _, before_nearest_point = _nearest_surface_observation(before, collision_surface)
@@ -689,33 +689,10 @@ def _ladder_record(case_id, rung, target, source, before, after, triangles, pane
         and (len(panel_indices) in {1, 2})
         and (len(panel_indices) == (1 if rung in {1, 2} else 2))
         and (pin_mode in {"Automatic", "None"})
+        and ((pin_mode == "Automatic" and pin_count > 0) or (pin_mode == "None" and pin_count == 0))
         and (seam_count == required_seams)
         and all(item.get("pair_count", 0) > 0 for item in seam_before)
     )
-    checkpoint = {
-        "step": 0,
-        "image": image_paths[0],
-        "finite": before_finite,
-        "components": _connected_components(before, triangles),
-        "max_seam_gap_mm": max((item.get("max_gap_mm") or 0.0) for item in seam_before) if seam_before else 0.0,
-        "target_clearance_mm": signed_before,
-        "contact_state": "static-intersection-probe",
-        "inside_outside": before_inside,
-        "nearest_target_point": before_nearest_point,
-        "seam_metrics": seam_before,
-    }
-    checkpoint_after = {
-        "step": int(steps),
-        "image": image_paths[-1],
-        "finite": after_finite,
-        "components": _connected_components(after, triangles),
-        "max_seam_gap_mm": max((item.get("max_gap_mm") or 0.0) for item in seam_after) if seam_after else 0.0,
-        "target_clearance_mm": signed_after,
-        "contact_state": contact_state,
-        "inside_outside": after_inside,
-        "nearest_target_point": after_nearest_point,
-        "seam_metrics": seam_after,
-    }
     return {
         "case_id": case_id,
         "predecessor_case_id": None,
@@ -774,6 +751,7 @@ def _ladder_record(case_id, rung, target, source, before, after, triangles, pane
             "one_step_projection_delta_mm": max_displacement,
             "centroid_displacement_mm": displacement,
             "fixture_contract_pass": fixture_contract_pass,
+            "pin_count": int(pin_count),
             "human_review_required": True,
         },
         "images": image_paths,
@@ -837,11 +815,21 @@ def _run_ladder_case(case_id, rung, piece_specs, pin_mode, seam_mode, camera="ax
         expected_seam_count = 0 if seam_mode == "none" else 1
         if len(seam_before) != expected_seam_count:
             raise RuntimeError("%s expected %d seams, observed %d" % (case_id, expected_seam_count, len(seam_before)))
+        pin_count = len(getattr(base.backend, "_pin_indices", ()) or ())
+        if pin_mode == "Automatic" and pin_count <= 0:
+            raise RuntimeError("%s requested Automatic pins but backend has none" % case_id)
+        if pin_mode == "None" and pin_count != 0:
+            raise RuntimeError("%s requested no pins but backend has %d" % (case_id, pin_count))
 
         view = Gui.activeDocument().activeView()
         if view is None:
             raise RuntimeError("%s has no active FreeCAD view" % case_id)
+        checkpoint_steps = (0, 1, 5, 15, 45, 90)
+        snapshots = []
+        image_paths = []
+
         _screenshot(view, OUT / (case_id + "-step-000.png"))
+        image_paths.append(case_id + "-step-000.png")
         if camera == "front":
             view.viewFront()
         elif camera == "top":
@@ -850,18 +838,41 @@ def _run_ladder_case(case_id, rung, piece_specs, pin_mode, seam_mode, camera="ax
             view.viewAxonometric()
         _events()
         _screenshot(view, OUT / (case_id + "-step-000-camera.png"))
+        image_paths.append(case_id + "-step-000-camera.png")
+        snapshots.append((0, before, seam_before, image_paths[-1]))
 
-        scene.Steps = 1
-        doc.recompute()
-        _events()
-        after, _triangles_after, _panel_indices_after = _global_scene_geometry(base)
-        seam_after = _seam_metrics(getattr(base, "seam_stitch_pairs", {}), after)
-        _screenshot(view, OUT / (case_id + "-step-001-camera.png"))
-        image_paths = [
-            case_id + "-step-000.png",
-            case_id + "-step-000-camera.png",
-            case_id + "-step-001-camera.png",
-        ]
+        for step in checkpoint_steps[1:]:
+            scene.Steps = step
+            doc.recompute()
+            _events()
+            positions, _tris_now, _indices_now = _global_scene_geometry(base)
+            seam_now = _seam_metrics(getattr(base, "seam_stitch_pairs", {}), positions)
+            image_name = case_id + "-step-%03d-camera.png" % int(step)
+            _screenshot(view, OUT / image_name)
+            image_paths.append(image_name)
+            snapshots.append((step, positions, seam_now, image_name))
+
+        after = snapshots[-1][1]
+        seam_after = snapshots[-1][2]
+        checkpoint_records = []
+        for step, positions, seam_metrics, image_name in snapshots:
+            distance = _nearest_surface_distance(positions, collision_surface)
+            _, nearest = _nearest_surface_observation(positions, collision_surface)
+            inside = _inside_outside(positions, source)
+            finite = all(math.isfinite(float(component)) for point in positions for component in point)
+            checkpoint_records.append({
+                "step": int(step),
+                "image": image_name,
+                "finite": finite,
+                "components": _connected_components(positions, triangles),
+                "max_seam_gap_mm": max((item.get("max_gap_mm") or 0.0) for item in seam_metrics) if seam_metrics else 0.0,
+                "target_clearance_mm": None if distance is None else (-distance if inside in {"inside", "mixed"} else distance),
+                "contact_state": "static-intersection-probe" if step == 0 else "checkpoint-observation",
+                "inside_outside": inside,
+                "nearest_target_point": nearest,
+                "seam_metrics": seam_metrics,
+            })
+
         record = _ladder_record(
             case_id,
             rung,
@@ -879,8 +890,11 @@ def _run_ladder_case(case_id, rung, piece_specs, pin_mode, seam_mode, camera="ax
             seam_mode,
             seam_before,
             seam_after,
+            pin_count,
+            checkpoint_records,
         )
-        _progress("%s: ladder-record fixture_contract_pass=%s" % (case_id, record["control"]["fixture_contract_pass"]))
+        record["control"]["checkpoint_steps"] = list(checkpoint_steps)
+        _progress("%s: ladder-record fixture_contract_pass=%s pin_count=%d" % (case_id, record["control"]["fixture_contract_pass"], pin_count))
         return record
     finally:
         App.closeDocument(doc.Name)
