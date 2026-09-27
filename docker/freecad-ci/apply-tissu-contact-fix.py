@@ -418,11 +418,10 @@ void StitchConstraint::solveBounded(std::vector<Particle>& particles,
     double C = currentLength;
     double alphaHat = m_compliance / (dt * dt);
     double deltaLambda = (-C - alphaHat * m_lambda) / (wSum + alphaHat);
-    if (std::isfinite(maxCorrection)) {
-        const double correctionLimit = maxCorrection < 0.0 ? 0.0 : maxCorrection;
+    if (maxCorrection >= 0.0) {
         const double relativeCorrection = std::abs(deltaLambda) * wSum;
-        if (relativeCorrection > correctionLimit)
-            deltaLambda = std::copysign(correctionLimit / wSum, deltaLambda);
+        if (relativeCorrection > maxCorrection)
+            deltaLambda = std::copysign(maxCorrection / wSum, deltaLambda);
     }
     m_lambda += deltaLambda;
 
