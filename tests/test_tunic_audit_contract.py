@@ -70,6 +70,7 @@ def test_canonical_tunic_uses_nonzero_stitch_compliance_diagnostic_only():
     backend = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
     objects = (ROOT / "freecad_cloth" / "simulation" / "SimulationObjects.py").read_text(encoding="utf-8")
     assert 'os.environ["CLOTH_TISSU_STITCH_COMPLIANCE"] = "0.001"' in canonical
+    assert 'tissu-stitch-compliance=%s canonical-only default=0.0' in canonical
     assert 'stitch_compliance: float = 0.0' in backend
     assert "self._stitch_compliance = float(stitch_compliance)" in backend
     assert "self._sim.solver.add_stitch(" in backend
