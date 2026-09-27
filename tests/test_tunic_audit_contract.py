@@ -24,6 +24,7 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     assert 'shoulder_right = arrangement_world("shoulder_right")' in source
     assert 'hip_point = arrangement_world("hip")' in source
     assert 'os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"' in source
+    assert 'os.environ["CLOTH_TISSU_STITCH_COMPLIANCE"] = "0.001"' in source
     assert 'status = target_status(target)' in source
     assert 'scene.PinMode = "None"' in source
     assert 'scene.PinSelection = []' in source
@@ -120,8 +121,9 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert 'cmake=3.31.6' in dockerfile
     assert '/opt/conda/envs/freecad/bin/cmake -S . -B build' in dockerfile
     assert '/opt/conda/envs/freecad/bin/cmake --build build' in dockerfile
+    assert 'CLOTH_TISSU_STITCH_COMPLIANCE' in (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
     assert '--target _cloth_sdk_core unit_tests' in dockerfile
-    assert "--gtest_filter='MeshCollider.*'" in dockerfile
+    assert "--gtest_filter='MeshCollider.*:StitchConstraint.*'" in dockerfile
     assert "ParticleInsideMeshMovesOutside" in script
     assert "tetrahedronContains" in script
     assert "ClosedMeshKeepsOutsideContactOutside" in script
@@ -133,6 +135,7 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert 'docker run --rm --init' in tunic
     assert '"$FREECAD_TUNIC_IMAGE" bash -lc' in tunic
     assert 'TISSU_FIX_SHA256=' in dockerfile
+    assert 'tissu-cpp-regression=MeshCollider.*:StitchConstraint.*' in dockerfile
     assert 'tissu-cpp-regression-result=passed' in dockerfile
     assert 'docker run --rm "$FREECAD_TUNIC_IMAGE" bash -lc' in workflow
     assert 'artifacts/tissu-provenance.txt' in workflow
