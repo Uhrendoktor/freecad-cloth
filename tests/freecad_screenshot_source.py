@@ -337,6 +337,84 @@ def style_mesh(obj, label):
         pass
 
 
+def _tunic_collision_probe(surface, positions, neighborhood_mm):
+    """Return read-only per-particle signed-side diagnostics for the solver surface.
+
+    The triangle normal is oriented using the same center-facing convention as the
+    deterministic CPU surface path. This is diagnostic evidence only; it does not
+    feed solver decisions or acceptance thresholds.
+    """
+    from math import sqrt
+    from freecad_cloth.simulation.ClothSolver import _closest_point_triangle
+
+    center = surface.center
+    triangles = tuple(surface.triangles)
+    vertices = surface.vertices
+    signed = []
+    distances = []
+    nearest_indices = []
+    for point in positions:
+        best = None
+        for triangle_index, (ia, ib, ic) in enumerate(triangles):
+            a, b, c = vertices[ia], vertices[ib], vertices[ic]
+            closest = _closest_point_triangle(point, a, b, c)
+            delta = tuple(float(point[i]) - float(closest[i]) for i in range(3))
+            distance_sq = sum(value * value for value in delta)
+            ab = tuple(float(b[i]) - float(a[i]) for i in range(3))
+            ac = tuple(float(c[i]) - float(a[i]) for i in range(3))
+            normal = (
+                ab[1] * ac[2] - ab[2] * ac[1],
+                ab[2] * ac[0] - ab[0] * ac[2],
+                ab[0] * ac[1] - ab[1] * ac[0],
+            )
+            normal_length = sqrt(sum(value * value for value in normal))
+            if normal_length <= 1e-12:
+                continue
+            normal = tuple(value / normal_length for value in normal)
+            face_center = tuple((a[i] + b[i] + c[i]) / 3.0 for i in range(3))
+            toward_center = tuple(float(center[i]) - face_center[i] for i in range(3))
+            if sum(normal[i] * toward_center[i] for i in range(3)) > 0.0:
+                normal = tuple(-value for value in normal)
+            side = sum(delta[i] * normal[i] for i in range(3))
+            candidate = (distance_sq, triangle_index, side)
+            if best is None or candidate[:2] < best[:2]:
+                best = candidate
+        if best is None:
+            signed.append(None)
+            distances.append(None)
+            nearest_indices.append(None)
+        else:
+            distance = sqrt(max(0.0, best[0]))
+            signed.append(float(best[2]))
+            distances.append(distance)
+            nearest_indices.append(int(best[1]))
+
+    finite_distances = [value for value in distances if value is not None]
+    epsilon = 1e-6
+    inside = tuple(index for index, value in enumerate(signed) if value is not None and value < -epsilon)
+    outside = tuple(index for index, value in enumerate(signed) if value > epsilon)
+    ambiguous = tuple(index for index, value in enumerate(signed) if value is not None and abs(value) <= epsilon)
+    no_near = tuple(index for index, value in enumerate(distances) if value is None or value > float(neighborhood_mm))
+    bounds = []
+    if positions:
+        bounds = [
+            tuple(float(min(point[i] for point in positions)), float(max(point[i] for point in positions)))
+            for i in range(3)
+        ]
+    return {
+        "particle_count": len(positions),
+        "inside_count": len(inside),
+        "outside_count": len(outside),
+        "ambiguous_count": len(ambiguous),
+        "no_nearby_triangle_count": len(no_near),
+        "minimum_clearance_mm": min(finite_distances) if finite_distances else None,
+        "maximum_clearance_mm": max(finite_distances) if finite_distances else None,
+        "bounds": bounds,
+        "signed_distances": tuple(signed),
+        "nearest_triangle_indices": tuple(nearest_indices),
+    }
+
+
 def simulation():
     import os
     os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
