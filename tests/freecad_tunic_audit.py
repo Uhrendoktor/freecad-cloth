@@ -25,9 +25,9 @@ replacements = {
         '        seam_records.append((seam_obj, front, back))':
         '    front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())\n'
         '    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())\n'
-        '    required_indices = (1, 2, 6, 7)\n'
+        '    required_indices = (1, 2, 5, 7)\n'
         '    if len(front_edge_ids) < 8 or len(back_edge_ids) < 8 or any(not front_edge_ids[index] or not back_edge_ids[index] for index in required_indices): raise RuntimeError("canonical tunic fixture is missing authored semantic edge IDs")\n'
-        '    seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"),(front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"),(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"))\n'
+        '    seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"),(front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"),(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"))\n'
         '    for edge_a_id, edge_b_id, seam_id in seam_specs:\n'
         '        seam = Seam(str(front.PieceId), edge_a_id, str(back.PieceId), edge_b_id, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
         '        add_seam(doc, seam)\n'
@@ -75,7 +75,34 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
     log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
 '''
-anchor = '''    for batch in (15,15,15,15,15,15):
+anchor = '''    initial_backend = scene.Proxy._base_or_restore().backend
+    initial_positions = tuple(initial_backend.positions())
+    initial_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
+    if not initial_pairs_by_seam:
+        raise RuntimeError("initial seam-span probe has no solver stitch provenance")
+    initial_summary = {}
+    initial_all = []
+    for seam, _piece_a, _piece_b in seam_records:
+        pairs = tuple(initial_pairs_by_seam.get(str(seam.SeamId), ()))
+        if not pairs:
+            raise RuntimeError("initial seam-span probe cannot resolve %s" % seam.SeamId)
+        spans = []
+        for ga, gb in pairs:
+            a = initial_positions[int(ga)]
+            b = initial_positions[int(gb)]
+            spans.append(((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2)**0.5)
+        initial_summary[str(seam.SeamId)] = {
+            "count": len(spans),
+            "min_mm": min(spans),
+            "max_mm": max(spans),
+            "mean_mm": sum(spans) / len(spans),
+        }
+        initial_all.extend(spans)
+    if not initial_all:
+        raise RuntimeError("initial seam-span probe produced no solver pairs")
+    log("initial-stitch-spans-mm=%s" % json.dumps(initial_summary, sort_keys=True))
+    log("initial-stitch-span-global-min-mm=%.3f max-mm=%.3f mean-mm=%.3f" % (min(initial_all), max(initial_all), sum(initial_all)/len(initial_all)))
+    for batch in (15,15,15,15,15,15):
         simulation_panel.step(batch); doc.recompute(); events()
 '''
 if anchor not in source:
