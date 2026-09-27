@@ -7,7 +7,7 @@ from freecad_cloth.pattern.PatternExport import from_dxf_metadata, to_dxf, to_sv
 from freecad_cloth.pattern.PatternDerivedGeometry import Notch, PatternMark, add_marks, add_notches, derive_cut_boundary, notch_point
 from freecad_cloth.sewing.SewingSemantics import SeamConstraint, validate_seam_graph
 from freecad_cloth.sewing.SewingObjects import _edge_length, _edge_points
-from freecad_cloth.avatar.AvatarCollision import AvatarSpec, CollisionSurface, surface_from_triangles
+from freecad_cloth.avatar.AvatarCollision import AvatarSpec, CollisionSurface, coarsen_collision_surface, surface_from_triangles
 from freecad_cloth.common.DrapeVisualSanity import assert_drape_diagnostics
 from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
 from fixtures.garment_fixtures import two_piece_rectangle, mirrored_pair, multi_piece
@@ -100,3 +100,46 @@ def test_drape_visual_diagnostics_reject_detached_collapsed_or_below_hem():
             assert "drape visual acceptance failed closed" in str(exc)
         else:
             raise AssertionError("fatal drape diagnostics were accepted")
+
+
+def _closed_box_surface():
+    h = 10.0
+    vertices = (
+        (-h, -h, -h), (h, -h, -h), (h, h, -h), (-h, h, -h),
+        (-h, -h, h), (h, -h, h), (h, h, h), (-h, h, h),
+    )
+    triangles = (
+        (0, 2, 1), (0, 3, 2),
+        (4, 5, 6), (4, 6, 7),
+        (0, 1, 5), (0, 5, 4),
+        (1, 2, 6), (1, 6, 5),
+        (2, 3, 7), (2, 7, 6),
+        (3, 0, 4), (3, 4, 7),
+    )
+    return surface_from_triangles(vertices, triangles, thickness=1.0)
+
+
+def _boundary_edge_count(surface):
+    counts = {}
+    for triangle in surface.triangles:
+        for a, b in ((triangle[0], triangle[1]), (triangle[1], triangle[2]), (triangle[2], triangle[0])):
+            edge = tuple(sorted((int(a), int(b))))
+            counts[edge] = counts.get(edge, 0) + 1
+    return sum(1 for count in counts.values() if count == 1)
+
+
+def test_closed_collision_shell_is_not_lossily_coarsened_for_tissu():
+    surface = _closed_box_surface()
+    reduced = coarsen_collision_surface(surface, 4, preserve_closed_shell=True)
+    assert reduced.triangles == surface.triangles
+    assert _boundary_edge_count(reduced) == 0
+
+
+def test_open_collision_surface_remains_bounded_when_closed_shell_protection_is_enabled():
+    surface = surface_from_triangles(
+        ((-10, -10, 0), (10, -10, 0), (10, 10, 0), (-10, 10, 0)),
+        ((0, 1, 2), (0, 2, 3)),
+        thickness=1.0,
+    )
+    reduced = coarsen_collision_surface(surface, 1, preserve_closed_shell=True)
+    assert len(reduced.triangles) == 1
