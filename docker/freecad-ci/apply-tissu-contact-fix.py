@@ -367,16 +367,14 @@ void BVH::queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
         ROOT / "core/include/physics/MeshCollider.hpp",
         """    const std::vector<Triangle>& getTriangles() const { return m_triangles; }
 
-private:""",
-        """    const std::vector<Triangle>& getTriangles() const { return m_triangles; }
+private:
+    friend class StitchConstraint;
 
-    // Returns the earliest proper segment/triangle crossing in [start, end].
+    // Internal stitch-collision helper; not part of MeshCollider's public API.
     bool firstSegmentHit(const Eigen::Vector3d& start,
                          const Eigen::Vector3d& end, double margin,
                          double& hitT, Eigen::Vector3d& hitNormal,
-                         int& triangleIndex) const;
-
-private:""",
+                         int& triangleIndex) const;""",
         "MeshCollider first-segment-hit declaration",
     )
 
