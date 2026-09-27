@@ -365,7 +365,7 @@ def _avatar_control():
         "connected_components": 1,
         "max_seam_gap_mm": 0.0,
         "final_clearance_mm": inside["final_signed_plane_mm"],
-        "runtime_ms": 0.0,
+        "runtime_ms": inside["runtime_ms"] + outside["runtime_ms"],
         "first_contact_step": 1 if inside["state"] == "resolved_outward" else None,
         "contact_mode": "one_step_mesh_probe",
         "probe_triangle": list(triangle),
@@ -396,13 +396,13 @@ def main():
             for key in ("inside", "outside"):
                 payload = result[key]
                 if not payload["finite"]:
-                    failures.append("%s/%s/nonfinite" % (result["rung"], key))
-            if result["rung"] == "0":
+                    failures.append("%s/%s/nonfinite" % (result["case_id"], key))
+            if result["case_id"] == "0-cube-contact":
                 if result["inside"]["state"] != "resolved_outward":
                     failures.append("0/inside/%s" % result["inside"]["state"])
                 if result["outside"]["state"] != "outside_preserved":
                     failures.append("0/outside/%s" % result["outside"]["state"])
-            if result["rung"] == "0a":
+            if result["case_id"] == "0a-avatar-contact":
                 if result["inside"]["state"] != "resolved_outward":
                     failures.append("0a/inside/%s" % result["inside"]["state"])
                 if result["outside"]["state"] != "outside_preserved":
@@ -412,13 +412,13 @@ def main():
         print("contact-controls=passed")
         for result in results:
             print(
-                "contact-control rung=%s target=%s inside=%s outside=%s solver_triangles=%s"
+                "contact-control case=%s target=%s inside=%s outside=%s solver_triangles=%s"
                 % (
-                    result["rung"],
-                    result["target"],
+                    result["case_id"],
+                    result["target_kind"],
                     result["inside"]["state"],
                     result["outside"]["state"],
-                    result["solver_triangles"],
+                    result["solver_collision_triangle_count"],
                 )
             )
         return 0
