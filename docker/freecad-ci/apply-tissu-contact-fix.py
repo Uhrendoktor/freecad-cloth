@@ -545,8 +545,11 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
     )
     post_collision_test = """class DisplacingCollider final : public Collider {
 public:
+    int calls = 0;
+
     void resolve(std::vector<Particle>& particles, double, double) override {
-        if (particles.size() < 2)
+        ++calls;
+        if (calls != 1 || particles.size() < 2)
             return;
         particles[0].setPosition(
             particles[0].getPosition() + Eigen::Vector3d(-1.0, 0.0, 0.0));
