@@ -7,7 +7,7 @@ from freecad_cloth.pattern.PatternExport import from_dxf_metadata, to_dxf, to_sv
 from freecad_cloth.pattern.PatternDerivedGeometry import Notch, PatternMark, add_marks, add_notches, derive_cut_boundary, notch_point
 from freecad_cloth.sewing.SewingSemantics import SeamConstraint, validate_seam_graph
 from freecad_cloth.sewing.SewingObjects import _edge_length, _edge_points
-from freecad_cloth.avatar.AvatarCollision import AvatarSpec, CollisionSurface, surface_from_triangles
+from freecad_cloth.avatar.AvatarCollision import AvatarSpec, CollisionSurface, coarsen_collision_surface, surface_from_triangles
 from freecad_cloth.common.DrapeVisualSanity import assert_drape_diagnostics
 from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
 from fixtures.garment_fixtures import two_piece_rectangle, mirrored_pair, multi_piece
@@ -24,6 +24,24 @@ def test_avatar_contract():
 
 def test_triangle_surface_collision():
     surface=surface_from_triangles(((-10,-10,0),(10,-10,0),(10,10,0),(-10,10,0)),((0,1,2),(0,2,3)),thickness=1.0); system=ClothSystem([Particle(0,0,-0.25)]); system.step(dt=1/60,iterations=1,gravity=(0,0,0),surface=surface); assert system.particles[0].z>=0.99
+
+def test_closed_collision_surface_preserves_authored_topology_when_requested():
+    tetra = surface_from_triangles(
+        ((0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)),
+        ((0, 2, 1), (0, 1, 3), (0, 3, 2), (1, 2, 3)),
+    )
+    preserved = coarsen_collision_surface(tetra, max_triangles=2, preserve_closed=True)
+    assert preserved is tetra
+    assert len(preserved.triangles) == 4
+
+
+def test_open_collision_surface_still_obeys_triangle_budget():
+    surface = surface_from_triangles(
+        ((-1, -1, 0), (1, -1, 0), (1, 1, 0), (-1, 1, 0)),
+        ((0, 1, 2), (0, 2, 3)),
+    )
+    reduced = coarsen_collision_surface(surface, max_triangles=1, preserve_closed=True)
+    assert len(reduced.triangles) == 1
 
 def test_golden_fixtures_are_deterministic():
     assert two_piece_rectangle()['pieces'][0].sampled_outline()==two_piece_rectangle()['pieces'][0].sampled_outline(); assert mirrored_pair()['mirrored'] is True; assert multi_piece()['seams']==3
