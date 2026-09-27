@@ -453,7 +453,8 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
                     break
 
             if accepted_step is None:
-                # The panel-center objective can stall when front/back projections
+                # The panel-center objective can stall when front/back projections;
+                # keep each panel on its authored normal side while sampling target geometry.
                 # disagree locally. Solve the same single rigid translation from
                 # the cached PatternMesh samples instead of introducing per-piece motion.
                 sample_errors = []
