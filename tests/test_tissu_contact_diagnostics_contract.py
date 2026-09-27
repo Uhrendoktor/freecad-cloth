@@ -90,3 +90,11 @@ def test_workflow_validator_matches_shared_manifest():
     assert 'case["checkpoints"]' in WORKFLOW
     assert "proximity_mesh.nearest.on_surface" in SOURCE
     assert "trimesh.Trimesh(" in SOURCE
+
+
+def test_cube_ladder_caches_collision_proximity_mesh():
+    source = (ROOT / "tests" / "freecad_tissu_cube_ladder.py").read_text(encoding="utf-8")
+    assert "proximity_mesh = trimesh.Trimesh(" in source
+    assert "proximity_mesh.nearest.on_surface" in source
+    assert "_surface_signed_clearance(positions, source_shape, collision_surface, proximity_mesh)" in source
+    assert "simulation_panel.step(step - current_step)" in source
