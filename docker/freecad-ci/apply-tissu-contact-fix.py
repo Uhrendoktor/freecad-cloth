@@ -707,13 +707,9 @@ TEST(MeshCollider, DeepInteriorParityIsDeterministic) {
 }
 
 """
-    if test_cpp.count("TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection)") != 1:
-        raise RuntimeError("open-mesh regression anchor missing")
-    test_cpp = test_cpp.replace(
-        "TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection)",
-        extra_tests + "TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection)",
-        1,
-    )
+    if "TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection)" in test_cpp:
+        raise RuntimeError("open-mesh regression already present in pinned source")
+    test_cpp = test_cpp.rstrip() + "\n\n" + extra_tests.strip("\r\n") + "\n"
     test.write_text(test_cpp, encoding="utf-8")
 
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
