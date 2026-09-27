@@ -333,20 +333,8 @@ class StitchConstraint""",
         const std::vector<std::shared_ptr<Collider>>& colliders,
         double thickness);
 
-    void solveInternal(
-        std::vector<Particle>& particles,
-        double dt,
-        const std::vector<std::shared_ptr<Collider>>* colliders,
-        double thickness);
-
-    static double correctionScaleForEnteringHit(
-        const Eigen::Vector3d& start,
-        const Eigen::Vector3d& correction,
-        const std::vector<std::shared_ptr<Collider>>& colliders,
-        double thickness);
-
     int m_idA;""",
-        "StitchConstraint private collider helpers",
+        "StitchConstraint private collider helper",
     )
 
     replace_once(
@@ -446,7 +434,28 @@ AppliedCorrection clipCorrectionAtFirstEnteringMeshHit(
 }
 
 void StitchConstraint::solve(std::vector<Particle>& particles, double dt) {
-    solveInternal(particles, dt, nullptr, 0.0);
+    Particle& pA = particles[m_idA];
+    Particle& pB = particles[m_idB];
+
+    Eigen::Vector3d delta = pA.getPosition() - pB.getPosition();
+    double currentLength = delta.norm();
+    if (currentLength < 1e-6)
+        return;
+
+    double wA = pA.getInverseMass();
+    double wB = pB.getInverseMass();
+    double wSum = wA + wB;
+    if (wSum == 0.0)
+        return;
+
+    Eigen::Vector3d norm = delta / currentLength;
+    double C = currentLength;
+    double alphaHat = m_compliance / (dt * dt);
+    double deltaLambda = (-C - alphaHat * m_lambda) / (wSum + alphaHat);
+    m_lambda += deltaLambda;
+
+    pA.setPosition(pA.getPosition() + wA * norm * deltaLambda);
+    pB.setPosition(pB.getPosition() - wB * norm * deltaLambda);
 }
 
 void StitchConstraint::solveWithColliders(
@@ -454,66 +463,46 @@ void StitchConstraint::solveWithColliders(
     double dt,
     const std::vector<std::shared_ptr<Collider>>& colliders,
     double thickness) {
-    solveInternal(particles, dt, &colliders, thickness);
-}
-
-void StitchConstraint::solveInternal(
-    std::vector<Particle>& particles,
-    double dt,
-    const std::vector<std::shared_ptr<Collider>>* colliders,
-    double thickness) {
     Particle& pA = particles[m_idA];
     Particle& pB = particles[m_idB];
-
     const Eigen::Vector3d startA = pA.getPosition();
     const Eigen::Vector3d startB = pB.getPosition();
-    const Eigen::Vector3d delta = startA - startB;
-    const double currentLength = delta.norm();
-    if (currentLength < 1e-6)
-        return;
-
-    const double wA = pA.getInverseMass();
-    const double wB = pB.getInverseMass();
-    const double wSum = wA + wB;
-    if (wSum == 0.0)
-        return;
-
-    const Eigen::Vector3d norm = delta / currentLength;
-    const double C = currentLength;
-    const double alphaHat = m_compliance / (dt * dt);
     const double previousLambda = m_lambda;
-    const double deltaLambda =
-        (-C - alphaHat * previousLambda) / (wSum + alphaHat);
 
-    const Eigen::Vector3d correctionA = wA * norm * deltaLambda;
-    const Eigen::Vector3d correctionB = -wB * norm * deltaLambda;
+    // Preserve the authoritative XPBD solve and invoke it exactly once.
+    solve(particles, dt);
 
-    AppliedCorrection appliedA{correctionA, 1.0};
-    AppliedCorrection appliedB{correctionB, 1.0};
-    if (colliders != nullptr && !colliders->empty()) {
-        appliedA = clipCorrectionAtFirstEnteringMeshHit(
-            startA, correctionA, *colliders, thickness);
-        appliedB = clipCorrectionAtFirstEnteringMeshHit(
-            startB, correctionB, *colliders, thickness);
-    }
+    const Eigen::Vector3d proposedA = pA.getPosition() - startA;
+    const Eigen::Vector3d proposedB = pB.getPosition() - startB;
 
-    const Eigen::Vector3d appliedPositionA = appliedA.correction;
-    const Eigen::Vector3d appliedPositionB = appliedB.correction;
+    const AppliedCorrection appliedA =
+        clipCorrectionAtFirstEnteringMeshHit(
+            startA, proposedA, colliders, thickness);
+    const AppliedCorrection appliedB =
+        clipCorrectionAtFirstEnteringMeshHit(
+            startB, proposedB, colliders, thickness);
+
+    pA.setPosition(startA + appliedA.correction);
+    pB.setPosition(startB + appliedB.correction);
+
     const double proposedMagnitude =
-        std::sqrt(correctionA.squaredNorm() + correctionB.squaredNorm());
+        std::sqrt(proposedA.squaredNorm() + proposedB.squaredNorm());
     const double appliedMagnitude =
-        std::sqrt(appliedPositionA.squaredNorm() + appliedPositionB.squaredNorm());
+        std::sqrt(
+            appliedA.correction.squaredNorm() +
+            appliedB.correction.squaredNorm());
     const double lambdaScale =
         proposedMagnitude > 1e-12
             ? std::max(0.0, std::min(1.0,
                 appliedMagnitude / proposedMagnitude))
             : 1.0;
+    const double proposedDeltaLambda = m_lambda - previousLambda;
 
-    m_lambda = previousLambda + deltaLambda * lambdaScale;
-    pA.setPosition(startA + appliedPositionA);
-    pB.setPosition(startB + appliedPositionB);
+    // Keep lambda consistent with the correction that was actually applied.
+    m_lambda = previousLambda +
+        proposedDeltaLambda * lambdaScale;
 }""",
-        "StitchConstraint collision-clipped solve",
+        "StitchConstraint collision-aware solve",
     )
 
     replace_once(
