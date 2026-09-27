@@ -318,56 +318,86 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
 
     stitch_text = stitch_test.read_text(encoding="utf-8")
     stitch_text = stitch_text.replace(
+        '#include <vector>\n',
+        '#include <array>\n#include <vector>\n',
+        1,
+    )
+    stitch_text = stitch_text.replace(
         '#include "physics/Particle.hpp"\n',
-        '#include "engine/World.hpp"\n#include "physics/Collider.hpp"\n#include "physics/Particle.hpp"\n',
+        '#include "engine/World.hpp"\n#include "physics/MeshCollider.hpp"\n#include "physics/Particle.hpp"\n',
         1,
     )
     if "TEST(StitchConstraint, SolverReprojectsAfterPostConstraintStitchPass)" in stitch_text:
         raise RuntimeError("StitchConstraint regression already present in pinned source")
 
     stitch_regression = r'''
-class PostStitchOrderingProbeCollider final : public Collider {
-public:
-    int resolveCalls = 0;
-    double secondCallStitchGap = -1.0;
+static bool regressionTetrahedronContains(const Eigen::Vector3d& point) {
+    const std::vector<Eigen::Vector3d> vertices = {
+        {0.0, 0.0, 0.0},
+        {2.0, 0.0, 0.0},
+        {1.0, 0.0, 2.0},
+        {1.0, 2.0, 1.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {
+        {0, 2, 1},
+        {0, 1, 3},
+        {1, 2, 3},
+        {0, 3, 2},
+    };
+    const Eigen::Vector3d center =
+        (vertices[0] + vertices[1] + vertices[2] + vertices[3]) / 4.0;
+    constexpr double epsilon = 1e-9;
 
-    void resolve(std::vector<Particle>& particles, double, double) override {
-        ++resolveCalls;
-        if (resolveCalls == 1) {
-            particles[1].setPosition(
-                particles[1].getPosition() + Eigen::Vector3d(1.0, 0.0, 0.0));
-            return;
-        }
-
-        if (resolveCalls == 2) {
-            secondCallStitchGap =
-                (particles[0].getPosition() - particles[1].getPosition()).norm();
-        }
+    for (const auto& tri : triangles) {
+        const auto& a = vertices[tri[0]];
+        const auto& b = vertices[tri[1]];
+        const auto& c = vertices[tri[2]];
+        Eigen::Vector3d normal = (b - a).cross(c - a).normalized();
+        if ((center - a).dot(normal) > 0.0)
+            normal = -normal;
+        if ((point - a).dot(normal) > epsilon)
+            return false;
     }
-};
+    return true;
+}
 
 TEST(StitchConstraint, SolverReprojectsAfterPostConstraintStitchPass) {
     World world;
     world.setGravity(Eigen::Vector3d::Zero());
     world.setThickness(0.05);
 
-    auto probe = std::make_shared<PostStitchOrderingProbeCollider>();
-    world.addCollider(probe);
+    const std::vector<Eigen::Vector3d> vertices = {
+        {0.0, 0.0, 0.0},
+        {2.0, 0.0, 0.0},
+        {1.0, 0.0, 2.0},
+        {1.0, 2.0, 1.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {
+        {0, 2, 1},
+        {0, 1, 3},
+        {1, 2, 3},
+        {0, 3, 2},
+    };
+    world.addCollider(std::make_shared<MeshCollider>(vertices, triangles, 0.0));
 
     Solver solver;
     solver.setSubsteps(1);
     solver.setIterations(1);
 
-    const int first = solver.addParticle(
-        Particle(Eigen::Vector3d(-1.0, 0.0, 0.0)));
-    const int second = solver.addParticle(
-        Particle(Eigen::Vector3d(1.0, 0.0, 0.0)));
-    solver.addStitch(first, second, 0.0);
+    const int moving = solver.addParticle(
+        Particle(Eigen::Vector3d(3.0, 0.02, 0.75)));
+    const int anchor = solver.addParticle(
+        Particle(Eigen::Vector3d(1.0, 0.02, 0.75)));
+    solver.setParticleInverseMass(anchor, 0.0);
+    solver.addStitch(moving, anchor, 0.0);
 
     solver.update(world, 0.016);
 
-    ASSERT_EQ(probe->resolveCalls, 2);
-    EXPECT_NEAR(probe->secondCallStitchGap, 0.0, 1e-6);
+    const auto position = solver.getParticles()[moving].getPosition();
+    EXPECT_FALSE(regressionTetrahedronContains(position));
+    EXPECT_GT(
+        (position - Eigen::Vector3d(1.0, 0.02, 0.75)).norm(),
+        0.05);
 }
 
 TEST(StitchConstraint, SolverStillConvergesFreeSpaceAfterPostConstraintPass) {
