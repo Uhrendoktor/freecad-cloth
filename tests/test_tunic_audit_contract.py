@@ -17,6 +17,13 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
+def test_canonical_tunic_applies_pre_solve_step0_clearance_correction():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "step0-clearance-correction panel=%s attempts=%d final_mm=%.2f required_mm=%.2f" in audit
+    assert "nearest_target_clearance(points, tuple(target_surface.vertices))" in audit
+    assert "shift = float(clearance) - current + 0.5" in audit
+    assert "for attempt in range(8)" in audit
+    assert "panel_sides = ((front, +1.0), (back, -1.0))" in audit
 def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert 'ArrangementPoint.from_string' in source
