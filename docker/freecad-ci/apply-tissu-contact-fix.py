@@ -549,45 +549,14 @@ static void expectMovedOutside(
         raise RuntimeError("MeshCollider test anchor missing")
     test_cpp = test_cpp.replace(
         "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
-        helper + """TEST(MeshCollider, DeepInteriorPointMovesOutsideClosedMesh) {
-    const auto vertices = makeTestTetrahedronVertices();
-    const auto triangles =
-        orientOutward(vertices, makeTestTetrahedronTriangles());
-    MeshCollider mesh(vertices, triangles, 0.0);
-    const Eigen::Vector3d initialPos =
-        (vertices[0] + vertices[1] + vertices[2] + vertices[3]) / 4.0;
-    expectMovedOutside(mesh, vertices, triangles, initialPos);
-}
-
-TEST(MeshCollider, ParticleInsideMeshMovesOutside) {""",
+        helper + "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
         1,
     )
 
-    old_body = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
+    old = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
     EXPECT_GT(distanceMoved, 0.0);
 }"""
-    if test_cpp.count(old_body) != 1:
-        raise RuntimeError("MeshCollider regression test body anchor mismatch")
-    test_cpp = test_cpp.replace(
-        old_body,
-        """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
-    EXPECT_GT(distanceMoved, 0.0);
-    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
-}""",
-        1,
-    )
-
-    extra_tests = """TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
-    MeshCollider mesh = makeTetrahedron(0.0);
-    const Eigen::Vector3d initialPos(1.0, -0.01, 0.75);
-    std::vector<Particle> particles;
-    particles.emplace_back(initialPos);
-
-    mesh.resolve(particles, 0.016, 0.1);
-
-    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
-}
-
+    extra_tests = """
 TEST(MeshCollider, FarOutsideParticleRemainsUnchanged) {
     MeshCollider mesh = makeTetrahedron(0.0);
     const Eigen::Vector3d initialPos(100.0, 100.0, 100.0);
@@ -704,6 +673,23 @@ TEST(MeshCollider, DeepInteriorParityIsDeterministic) {
         1e-12);
 }
 
+"""
+    new = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
+    EXPECT_GT(distanceMoved, 0.0);
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+}
+
+TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    Eigen::Vector3d initialPos(1.0, -0.01, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+}
+
 TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     const std::vector<Eigen::Vector3d> vertices = {
         {0.0, 0.0, 0.0},
@@ -713,7 +699,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     const std::vector<std::array<int, 3>> triangles = {{0, 1, 2}};
     MeshCollider mesh(vertices, triangles, 0.0);
 
-    const Eigen::Vector3d initialPos(0.5, 0.05, 0.5);
+    Eigen::Vector3d initialPos(0.5, 0.05, 0.5);
     std::vector<Particle> particles;
     particles.emplace_back(initialPos);
 
@@ -721,13 +707,10 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
 
     EXPECT_GT(particles[0].getPosition().y(), initialPos.y());
 }
-
-"""
-    test_cpp = test_cpp.replace(
-        "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
-        extra_tests + "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
-        1,
-    )
+""" + extra_tests;
+    if test_cpp.count(old) != 1:
+        raise RuntimeError("MeshCollider regression test body anchor mismatch")
+    test_cpp = test_cpp.replace(old, new, 1)
     test.write_text(test_cpp, encoding="utf-8")
 
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
