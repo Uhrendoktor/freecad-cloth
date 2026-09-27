@@ -56,18 +56,27 @@ class AvatarSpec:
             self.collision.validate()
 
 
-def coarsen_collision_surface(surface: CollisionSurface, max_triangles: int = 1024) -> CollisionSurface:
+def coarsen_collision_surface(surface: CollisionSurface, max_triangles: int = 1024, *, preserve_closed_shell: bool = False) -> CollisionSurface:
     """Derive a spatially covered collision surface from a real authored mesh.
 
-    The visible avatar remains the full MakeHuman mesh. The solver does not need
-    every render triangle, so this keeps one representative triangle per coarse
-    spatial cell until the requested triangle budget is reached. No proxy object
-    is created and the result remains derived solely from the real avatar mesh.
+    The visible avatar remains the full MakeHuman mesh. For open/general surfaces,
+    the solver keeps one representative triangle per coarse spatial cell until the
+    requested triangle budget is reached. A closed shell can opt out of lossy
+    reduction because representative-triangle sampling destroys the collision shell.
+    No proxy object is created and the result remains derived solely from the real avatar mesh.
     """
     limit = int(max_triangles)
     surface.validate()
     if limit < 1:
         raise ValueError("max_triangles must be positive")
+    if preserve_closed_shell:
+        edge_counts = {}
+        for triangle in surface.triangles:
+            for index_a, index_b in ((triangle[0], triangle[1]), (triangle[1], triangle[2]), (triangle[2], triangle[0])):
+                edge = tuple(sorted((int(index_a), int(index_b))))
+                edge_counts[edge] = edge_counts.get(edge, 0) + 1
+        if edge_counts and all(count == 2 for count in edge_counts.values()):
+            return surface
     if len(surface.triangles) <= limit:
         return surface
 
