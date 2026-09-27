@@ -167,6 +167,12 @@ MeshOrientation inferMeshOrientation(
             "MeshCollider.cpp vector constructor",
         ),
         (
+            """        if (distance <= thickness) {
+            Eigen::Vector3d normal = (distance > 1e-6)
+                                         ? toParticle.normalized()
+                                         : ((b - a).cross(c - a)).normalized();
+
+            Eigen::Vector3d newPosition = cp + normal * thickness;""",
             """        Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
         const double faceNormalLength = faceNormalRaw.norm();
         if (faceNormalLength <= 1e-12)
@@ -181,6 +187,8 @@ MeshOrientation inferMeshOrientation(
         if (distance <= thickness || deeplyInsideClosedMesh) {
             Eigen::Vector3d normal = faceNormal;
             if (deeplyInsideClosedMesh) {
+                // Prevent large constraint corrections from tunneling through
+                // a verified, closed manifold with a known outward normal.
                 normal = outwardNormal;
             } else if (distance > 1e-6) {
                 normal = toParticle / distance;
@@ -188,30 +196,6 @@ MeshOrientation inferMeshOrientation(
                     normal = outwardNormal;
             } else if (m_closedManifold) {
                 normal = outwardNormal;
-            }
-
-            Eigen::Vector3d newPosition = cp + normal * thickness;""",
-            """        if (distance <= thickness) {
-            Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
-            const double faceNormalLength = faceNormalRaw.norm();
-            if (faceNormalLength <= 1e-12)
-                continue;
-            Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
-
-            Eigen::Vector3d normal = faceNormal;
-            if (distance > 1e-6) {
-                normal = toParticle / distance;
-                if (m_closedManifold) {
-                    const Eigen::Vector3d outwardNormal =
-                        faceNormal * m_outwardNormalSign;
-                    // A particle on the interior side of a closed, consistently
-                    // oriented surface must be resolved along the outward
-                    // normal; outside contact preserves the existing vector.
-                    if (normal.dot(outwardNormal) < 0.0)
-                        normal = -normal;
-                }
-            } else if (m_closedManifold) {
-                normal *= m_outwardNormalSign;
             }
 
             Eigen::Vector3d newPosition = cp + normal * thickness;""",
