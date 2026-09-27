@@ -15,6 +15,10 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"' in source
     assert 'front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"' in source
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
+    audit_source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    tissu_audit_source = (ROOT / "tests" / "freecad_tunic_audit_tissu.py").read_text(encoding="utf-8")
+    assert '((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"))' not in audit_source
+    assert '((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder"))' not in tissu_audit_source
 
 
 def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
