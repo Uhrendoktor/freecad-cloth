@@ -388,11 +388,13 @@ def simulation():
     box = avatar.Mesh.BoundBox
     front_y = box.YMin - clearance
     back_y = box.YMax + clearance
-    target_y = (min(target_ys) + max(target_ys)) / 2.0
-    front_angle, back_angle = wrapped_panel_angles(front_y, back_y, target_y, 0.92 * garment_height)
+    front_target_y = min(target_ys) + clearance
+    back_target_y = max(target_ys) - clearance
+    front_angle = wrapped_panel_angles(front_y, back_y, front_target_y, 0.92 * garment_height)[0]
+    back_angle = wrapped_panel_angles(front_y, back_y, back_target_y, 0.92 * garment_height)[1]
     front_rot = App.Rotation(App.Vector(1,0,0), front_angle)
     back_rot = App.Rotation(App.Vector(1,0,0), back_angle)
-    log("arrangement=avatar-wrap front-angle=%.3f back-angle=%.3f pins=0" % (front_angle, back_angle))
+    log("arrangement=avatar-wrap front-angle=%.3f back-angle=%.3f target-y=%.3f..%.3f pins=0" % (front_angle, back_angle, front_target_y, back_target_y))
 
     def target_relative_piece_placement(side):
         if side == "front":
