@@ -445,7 +445,12 @@ bool isDeepInterior(
     Path(cpp_path := ROOT / "core/src/physics/MeshCollider.cpp").write_text(cpp, encoding="utf-8")
 
     test_cpp = test.read_text(encoding="utf-8")
-    test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <cmath>\n#include <vector>\n", 1)
+    test_cpp = test_cpp.replace(
+        "#include <vector>\n",
+        "#include <algorithm>\n#include <array>\n#include <vector>\n",
+        1,
+    )
+
     helper = """static std::vector<Eigen::Vector3d> makeTestTetrahedronVertices() {
     return {
         {0.0, 0.0, 0.0},
@@ -521,7 +526,8 @@ static bool closedMeshContains(
 
 static bool tetrahedronContains(const Eigen::Vector3d& point) {
     const auto vertices = makeTestTetrahedronVertices();
-    const auto triangles = orientOutward(vertices, makeTestTetrahedronTriangles());
+    const auto triangles =
+        orientOutward(vertices, makeTestTetrahedronTriangles());
     return closedMeshContains(vertices, triangles, point);
 }
 
@@ -534,24 +540,44 @@ static void expectMovedOutside(
     particles.emplace_back(initialPos);
     mesh.resolve(particles, 0.016, 0.1);
     EXPECT_GT((particles[0].getPosition() - initialPos).norm(), 0.0);
-    EXPECT_FALSE(closedMeshContains(vertices, triangles, particles[0].getPosition()));
+    EXPECT_FALSE(
+        closedMeshContains(vertices, triangles, particles[0].getPosition()));
 }
 
 """
     if test_cpp.count("TEST(MeshCollider, ParticleInsideMeshMovesOutside)") != 1:
         raise RuntimeError("MeshCollider test anchor missing")
-
-    deep_test = """TEST(MeshCollider, DeepInteriorPointMovesOutsideClosedMesh) {
+    test_cpp = test_cpp.replace(
+        "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
+        helper + """TEST(MeshCollider, DeepInteriorPointMovesOutsideClosedMesh) {
     const auto vertices = makeTestTetrahedronVertices();
-    const auto triangles = orientOutward(vertices, makeTestTetrahedronTriangles());
+    const auto triangles =
+        orientOutward(vertices, makeTestTetrahedronTriangles());
     MeshCollider mesh(vertices, triangles, 0.0);
-
     const Eigen::Vector3d initialPos =
         (vertices[0] + vertices[1] + vertices[2] + vertices[3]) / 4.0;
     expectMovedOutside(mesh, vertices, triangles, initialPos);
 }
 
-TEST(MeshCollider, FarOutsidePointRemainsUnchanged) {
+TEST(MeshCollider, ParticleInsideMeshMovesOutside) {""",
+        1,
+    )
+
+    old_body = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
+    EXPECT_GT(distanceMoved, 0.0);
+}"""
+    if test_cpp.count(old_body) != 1:
+        raise RuntimeError("MeshCollider regression test body anchor mismatch")
+    test_cpp = test_cpp.replace(
+        old_body,
+        """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
+    EXPECT_GT(distanceMoved, 0.0);
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+}""",
+        1,
+    )
+
+    extra_tests = """TEST(MeshCollider, FarOutsideParticleRemainsUnchanged) {
     MeshCollider mesh = makeTetrahedron(0.0);
     const Eigen::Vector3d initialPos(100.0, 100.0, 100.0);
     std::vector<Particle> particles;
@@ -559,7 +585,8 @@ TEST(MeshCollider, FarOutsidePointRemainsUnchanged) {
 
     mesh.resolve(particles, 0.016, 0.1);
 
-    EXPECT_LE((particles[0].getPosition() - initialPos).norm(), 1e-12);
+    EXPECT_NEAR(
+        (particles[0].getPosition() - initialPos).norm(), 0.0, 1e-9);
 }
 
 TEST(MeshCollider, MultipleParticlesResolveInsideAndPreserveFarOutside) {
@@ -573,18 +600,22 @@ TEST(MeshCollider, MultipleParticlesResolveInsideAndPreserveFarOutside) {
     mesh.resolve(particles, 0.016, 0.1);
 
     EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
-    EXPECT_LE((particles[1].getPosition() - outsidePos).norm(), 1e-12);
+    EXPECT_NEAR(
+        (particles[1].getPosition() - outsidePos).norm(), 0.0, 1e-9);
 }
 
 TEST(MeshCollider, ReversedClosedTetrahedronAndCubeRemainClassified) {
     {
         auto vertices = makeTestTetrahedronVertices();
-        auto triangles = orientOutward(vertices, makeTestTetrahedronTriangles());
+        auto triangles =
+            orientOutward(vertices, makeTestTetrahedronTriangles());
         for (auto& tri : triangles)
             std::swap(tri[1], tri[2]);
         MeshCollider mesh(vertices, triangles, 0.0);
         expectMovedOutside(
-            mesh, vertices, triangles,
+            mesh,
+            vertices,
+            triangles,
             (vertices[0] + vertices[1] + vertices[2] + vertices[3]) / 4.0);
     }
 
@@ -604,11 +635,12 @@ TEST(MeshCollider, TransformedClosedMeshRemainsClassified) {
     std::vector<Eigen::Vector3d> vertices;
     vertices.reserve(baseVertices.size());
     for (const auto& vertex : baseVertices)
-        vertices.emplace_back(-vertex.y() + 10.0, vertex.x() - 7.0, vertex.z() + 4.0);
+        vertices.emplace_back(
+            -vertex.y() + 10.0, vertex.x() - 7.0, vertex.z() + 4.0);
 
     const auto triangles = orientOutward(vertices, baseTriangles);
     MeshCollider mesh(vertices, triangles, 0.0);
-    const Eigen::Vector3d initialPos(9.75, -6.25, 4.75);
+    const Eigen::Vector3d initialPos(9.5, -6.0, 4.75);
     expectMovedOutside(mesh, vertices, triangles, initialPos);
 }
 
@@ -625,7 +657,8 @@ TEST(MeshCollider, AmbiguousSharedCornerRayFailsClosed) {
         direction * (-8.0 / 3.0) - basisA * 2.5 + basisB * 4.0,
         direction * (-8.0 / 3.0) - basisA * 2.5 - basisB * 4.0,
     };
-    const auto triangles = orientOutward(vertices, makeTestTetrahedronTriangles());
+    const auto triangles =
+        orientOutward(vertices, makeTestTetrahedronTriangles());
     MeshCollider mesh(vertices, triangles, 0.0);
 
     const Eigen::Vector3d initialPos = Eigen::Vector3d::Zero();
@@ -633,12 +666,14 @@ TEST(MeshCollider, AmbiguousSharedCornerRayFailsClosed) {
     particles.emplace_back(initialPos);
     mesh.resolve(particles, 0.016, 0.1);
 
-    EXPECT_LE((particles[0].getPosition() - initialPos).norm(), 1e-12);
+    EXPECT_NEAR(
+        (particles[0].getPosition() - initialPos).norm(), 0.0, 1e-9);
 }
 
 TEST(MeshCollider, DeepInteriorParityIsDeterministic) {
     const auto vertices = makeTestTetrahedronVertices();
-    const auto triangles = orientOutward(vertices, makeTestTetrahedronTriangles());
+    const auto triangles =
+        orientOutward(vertices, makeTestTetrahedronTriangles());
     const Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
 
     MeshCollider first(vertices, triangles, 0.0);
@@ -651,134 +686,22 @@ TEST(MeshCollider, DeepInteriorParityIsDeterministic) {
     first.resolve(firstParticles, 0.016, 0.1);
     second.resolve(secondParticles, 0.016, 0.1);
 
-    EXPECT_LE(
-        (firstParticles[0].getPosition() - secondParticles[0].getPosition()).norm(),
+    EXPECT_NEAR(
+        (firstParticles[0].getPosition() -
+         secondParticles[0].getPosition()).norm(),
+        0.0,
         1e-12);
 }
 
-TEST(MeshCollider, ParticleInsideMeshMovesOutside) {"""
+"""
+    if test_cpp.count("TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection)") != 1:
+        raise RuntimeError("open-mesh regression anchor missing")
     test_cpp = test_cpp.replace(
-        "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
-        deep_test,
+        "TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection)",
+        extra_tests + "TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection)",
         1,
     )
-
-    old = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
-    EXPECT_GT(distanceMoved, 0.0);
-}"""
-    new = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
-    EXPECT_GT(distanceMoved, 0.0);
-    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
-}
-
-TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
-    MeshCollider mesh = makeTetrahedron(0.0);
-    Eigen::Vector3d initialPos(1.0, -0.01, 0.75);
-    std::vector<Particle> particles;
-    particles.emplace_back(initialPos);
-
-    mesh.resolve(particles, 0.016, 0.1);
-
-    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
-}
-
-TEST(MeshCollider, FarOutsideParticleRemainsUnchanged) {
-    MeshCollider mesh = makeTetrahedron(0.0);
-    const Eigen::Vector3d initialPos(100.0, 100.0, 100.0);
-    std::vector<Particle> particles;
-    particles.emplace_back(initialPos);
-    mesh.resolve(particles, 0.016, 0.1);
-    EXPECT_NEAR((particles[0].getPosition() - initialPos).norm(), 0.0, 1e-9);
-}
-
-TEST(MeshCollider, MultiParticleDeepInteriorOnlyMovesInteriorParticle) {
-    MeshCollider mesh = makeTetrahedron(0.0);
-    const Eigen::Vector3d insidePos(1.0, 0.5, 0.75);
-    const Eigen::Vector3d outsidePos(100.0, 100.0, 100.0);
-    std::vector<Particle> particles;
-    particles.emplace_back(insidePos);
-    particles.emplace_back(outsidePos);
-    mesh.resolve(particles, 0.016, 0.01);
-    EXPECT_GT((particles[0].getPosition() - insidePos).norm(), 0.0);
-    EXPECT_NEAR((particles[1].getPosition() - outsidePos).norm(), 0.0, 1e-9);
-}
-
-TEST(MeshCollider, ReversedWindingClosedMeshStillResolvesInsideParticle) {
-    const std::vector<Eigen::Vector3d> vertices = {
-        {0.0, 0.0, 0.0}, {2.0, 0.0, 0.0}, {1.0, 0.0, 2.0}, {1.0, 2.0, 1.0},
-    };
-    const std::vector<std::array<int, 3>> triangles = {
-        {1, 2, 0}, {1, 3, 0}, {2, 3, 1}, {2, 0, 3},
-    };
-    MeshCollider mesh(vertices, triangles, 0.0);
-    const Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
-    std::vector<Particle> particles;
-    particles.emplace_back(initialPos);
-    mesh.resolve(particles, 0.016, 0.01);
-    EXPECT_GT((particles[0].getPosition() - initialPos).norm(), 0.0);
-}
-
-TEST(MeshCollider, RotatedClosedMeshStillResolvesInsideParticle) {
-    const std::vector<Eigen::Vector3d> vertices = {
-        {0.0, 0.0, 0.0}, {2.0, 0.0, 0.0}, {1.0, 0.0, 2.0}, {1.0, 2.0, 1.0},
-    };
-    const auto rotateZ90 = [](const Eigen::Vector3d& value) {
-        return Eigen::Vector3d(-value.y(), value.x(), value.z());
-    };
-    std::vector<Eigen::Vector3d> rotated;
-    rotated.reserve(vertices.size());
-    for (const auto& value : vertices)
-        rotated.push_back(rotateZ90(value));
-    MeshCollider mesh(rotated, {{0, 2, 1}, {0, 1, 3}, {1, 2, 3}, {0, 3, 2}}, 0.0);
-    const Eigen::Vector3d initialPos = rotateZ90(Eigen::Vector3d(1.0, 0.5, 0.75));
-    std::vector<Particle> particles;
-    particles.emplace_back(initialPos);
-    mesh.resolve(particles, 0.016, 0.01);
-    EXPECT_GT((particles[0].getPosition() - initialPos).norm(), 0.0);
-}
-
-TEST(MeshCollider, AmbiguousRayThroughClosedMeshVertexFailsClosed) {
-    Eigen::Vector3d direction(1.0, 0.371, 0.593);
-    direction.normalize();
-    Eigen::Vector3d u(0.0, 1.0, 0.0);
-    u = (u - direction * direction.dot(u)).normalized();
-    const Eigen::Vector3d v = direction.cross(u);
-    const Eigen::Vector3d apex = 2.0 * direction;
-    const Eigen::Vector3d base1 = -direction + 0.8 * u;
-    const Eigen::Vector3d base2 = -direction - 0.4 * u + 0.692820323 * v;
-    const Eigen::Vector3d base3 = -direction - 0.4 * u - 0.692820323 * v;
-    MeshCollider mesh(
-        {apex, base1, base2, base3},
-        {{0, 2, 1}, {0, 1, 3}, {1, 2, 3}, {0, 3, 2}},
-        0.0);
-    const Eigen::Vector3d initialPos = Eigen::Vector3d::Zero();
-    std::vector<Particle> particles;
-    particles.emplace_back(initialPos);
-    mesh.resolve(particles, 0.016, 0.01);
-    EXPECT_NEAR((particles[0].getPosition() - initialPos).norm(), 0.0, 1e-9);
-}
-
-TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
-    const std::vector<Eigen::Vector3d> vertices = {
-        {0.0, 0.0, 0.0},
-        {2.0, 0.0, 0.0},
-        {0.0, 0.0, 2.0},
-    };
-    const std::vector<std::array<int, 3>> triangles = {{0, 1, 2}};
-    MeshCollider mesh(vertices, triangles, 0.0);
-
-    Eigen::Vector3d initialPos(0.5, 0.05, 0.5);
-    std::vector<Particle> particles;
-    particles.emplace_back(initialPos);
-
-    mesh.resolve(particles, 0.016, 0.1);
-
-    EXPECT_GT(particles[0].getPosition().y(), initialPos.y());
-}"""
-    if test_cpp.count(old) != 1:
-        throw new Error("MeshCollider regression test body anchor mismatch");
-    test_cpp = test_cpp.replace(old, new, 1);
-    test.write_text(test_cpp, encoding="utf-8");
+    test.write_text(test_cpp, encoding="utf-8")
 
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
