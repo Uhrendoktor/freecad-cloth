@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply the pinned Tissu contact-response fix with fail-closed source anchors."""
+"""Apply the pinned Tissu contact-response fix with explicit topology metadata hints."""
 from __future__ import annotations
 
 import hashlib
@@ -29,7 +29,13 @@ def main() -> int:
         raise RuntimeError("Tissu source commit does not match the pinned revision")
 
     header = ROOT / "core/include/physics/MeshCollider.hpp"
-    cpp = ROOT / "core/src/physics/MeshCollider.cpp"
+    cpp_path = ROOT / "core/src/physics/MeshCollider.cpp"
+    bindings = [
+        ROOT / "python/src/bindings.cpp",
+        ROOT / "python/src/bindings_headless.cpp",
+    ]
+    engine_py = ROOT / "python/tissu/engine.py"
+    stub_py = ROOT / "python/tissu/_cloth_sdk_core.pyi"
     test = ROOT / "tests/physics/test_mesh_collider.cpp"
 
     replace_once(
@@ -46,169 +52,174 @@ def main() -> int:
     BVH m_bvh;""",
         "MeshCollider.hpp member layout",
     )
+    header_text = header.read_text(encoding="utf-8")
+    old_signature = """    MeshCollider(const std::vector<Eigen::Vector3d>& vertices,
+                 const std::vector<std::array<int, 3>>& triangles,
+                 double friction);"""
+    new_signature = """    MeshCollider(const std::vector<Eigen::Vector3d>& vertices,
+                 const std::vector<std::array<int, 3>>& triangles,
+                 double friction, bool closedManifold = false,
+                 double outwardNormalSign = 1.0);"""
+    if header_text.count(old_signature) != 1:
+        raise RuntimeError("MeshCollider.hpp constructor anchor mismatch")
+    header.write_text(header_text.replace(old_signature, new_signature, 1), encoding="utf-8")
 
-    cpp = cpp.read_text(encoding="utf-8")
-    include_old = '#include "physics/Particle.hpp"\n\nnamespace Tissu {'
+    cpp = cpp_path.read_text(encoding="utf-8")
+    include_old = """#include "physics/Particle.hpp"
+
+namespace Tissu {"""
     include_new = """#include "physics/Particle.hpp"
 
-#include <algorithm>
 #include <cmath>
-#include <cstdint>
-#include <unordered_map>
-#include <utility>
+#include <stdexcept>
 
-namespace Tissu {
-
-namespace {
-
-struct MeshOrientation {
-    bool closedManifold = false;
-    double outwardNormalSign = 1.0;
-};
-
-std::uint64_t edgeKey(int a, int b) {
-    const auto low = static_cast<std::uint32_t>(std::min(a, b));
-    const auto high = static_cast<std::uint32_t>(std::max(a, b));
-    return (static_cast<std::uint64_t>(low) << 32) |
-           static_cast<std::uint64_t>(high);
-}
-
-MeshOrientation inferMeshOrientation(
-    const std::vector<Eigen::Vector3d>& vertices,
-    const std::vector<Triangle>& triangles) {
-    if (triangles.empty())
-        return {};
-
-    std::unordered_map<std::uint64_t, std::pair<int, int>> edges;
-    edges.reserve(triangles.size() * 3);
-
-    double signedVolume = 0.0;
-    for (const auto& tri : triangles) {
-        const int ids[3] = {tri.a, tri.b, tri.c};
-        signedVolume +=
-            ids[0] < static_cast<int>(vertices.size()) &&
-                    ids[1] < static_cast<int>(vertices.size()) &&
-                    ids[2] < static_cast<int>(vertices.size())
-                ? vertices[ids[0]].dot(
-                      vertices[ids[1]].cross(vertices[ids[2]])) /
-                      6.0
-                : 0.0;
-
-        for (int edgeIndex = 0; edgeIndex < 3; ++edgeIndex) {
-            const int from = ids[edgeIndex];
-            const int to = ids[(edgeIndex + 1) % 3];
-            if (from < 0 || to < 0 ||
-                from >= static_cast<int>(vertices.size()) ||
-                to >= static_cast<int>(vertices.size())) {
-                return {};
-            }
-            const auto key = edgeKey(from, to);
-            auto& edge = edges[key];
-            ++edge.first;
-            edge.second +=
-                from == std::min(from, to) ? 1 : -1;
-        }
-    }
-
-    for (const auto& [key, edge] : edges) {
-        (void)key;
-        if (edge.first != 2 || edge.second != 0)
-            return {};
-    }
-    if (std::abs(signedVolume) <= 1.0e-12)
-        return {};
-
-    return {true, signedVolume > 0.0 ? 1.0 : -1.0};
-}
-
-} // namespace
-"""
+namespace Tissu {"""
     if cpp.count(include_old) != 1:
         raise RuntimeError("MeshCollider.cpp include anchor mismatch")
     cpp = cpp.replace(include_old, include_new, 1)
 
-    replace_cpp = [
-        (
-            """    m_triangles.reserve(indices.size() / 3);
-    for (size_t i = 0; i + 2 < indices.size(); i += 3)
-        m_triangles.emplace_back(indices[i], indices[i + 1], indices[i + 2]);
+    ctor_old = """MeshCollider::MeshCollider(const std::vector<Eigen::Vector3d>& vertices,
+                           const std::vector<std::array<int, 3>>& triangles,
+                           double friction)
+    : m_localVertices(vertices), m_worldVertices(vertices) {
+    m_friction = friction;
 
-    m_bvh.build(m_worldVertices, m_triangles);""",
-            """    m_triangles.reserve(indices.size() / 3);
-    for (size_t i = 0; i + 2 < indices.size(); i += 3)
-        m_triangles.emplace_back(indices[i], indices[i + 1], indices[i + 2]);
-
-    const MeshOrientation orientation =
-        inferMeshOrientation(m_worldVertices, m_triangles);
-    m_closedManifold = orientation.closedManifold;
-    m_outwardNormalSign = orientation.outwardNormalSign;
-
-    m_bvh.build(m_worldVertices, m_triangles);""",
-            "MeshCollider.cpp file constructor",
-        ),
-        (
-            """    m_triangles.reserve(triangles.size());
+    m_triangles.reserve(triangles.size());
     for (const auto& tri : triangles) {
         m_triangles.emplace_back(tri[0], tri[1], tri[2]);
     }
 
-    m_bvh.build(m_worldVertices, m_triangles);""",
-            """    m_triangles.reserve(triangles.size());
+    m_bvh.build(m_worldVertices, m_triangles);
+}"""
+    ctor_new = """MeshCollider::MeshCollider(const std::vector<Eigen::Vector3d>& vertices,
+                           const std::vector<std::array<int, 3>>& triangles,
+                           double friction, bool closedManifold,
+                           double outwardNormalSign)
+    : m_localVertices(vertices), m_worldVertices(vertices) {
+    if (!std::isfinite(outwardNormalSign) ||
+        std::abs(std::abs(outwardNormalSign) - 1.0) > 1.0e-12) {
+        throw std::invalid_argument(
+            "MeshCollider outwardNormalSign must be +1 or -1");
+    }
+
+    m_friction = friction;
+    m_closedManifold = closedManifold;
+    m_outwardNormalSign = outwardNormalSign;
+
+    m_triangles.reserve(triangles.size());
     for (const auto& tri : triangles) {
         m_triangles.emplace_back(tri[0], tri[1], tri[2]);
     }
 
-    const MeshOrientation orientation =
-        inferMeshOrientation(m_worldVertices, m_triangles);
-    m_closedManifold = orientation.closedManifold;
-    m_outwardNormalSign = orientation.outwardNormalSign;
+    m_bvh.build(m_worldVertices, m_triangles);
+}"""
+    if cpp.count(ctor_old) != 1:
+        raise RuntimeError("MeshCollider.cpp array-constructor anchor mismatch")
+    cpp = cpp.replace(ctor_old, ctor_new, 1)
 
-    m_bvh.build(m_worldVertices, m_triangles);""",
-            "MeshCollider.cpp vector constructor",
-        ),
-        (
-            """        if (distance <= thickness) {
+    contact_old = """        if (distance <= thickness) {
             Eigen::Vector3d normal = (distance > 1e-6)
                                          ? toParticle.normalized()
                                          : ((b - a).cross(c - a)).normalized();
 
-            Eigen::Vector3d newPosition = cp + normal * thickness;""",
-            """        if (distance <= thickness) {
+            Eigen::Vector3d newPosition = cp + normal * thickness;"""
+    contact_new = """        if (distance <= thickness) {
             Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
             const double faceNormalLength = faceNormalRaw.norm();
             if (faceNormalLength <= 1e-12)
                 continue;
-            Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
 
-            Eigen::Vector3d normal = faceNormal;
+            Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
+            Eigen::Vector3d outwardNormal = faceNormal * m_outwardNormalSign;
+            Eigen::Vector3d normal = outwardNormal;
+
             if (distance > 1e-6) {
                 normal = toParticle / distance;
-                if (m_closedManifold) {
-                    const Eigen::Vector3d outwardNormal =
-                        faceNormal * m_outwardNormalSign;
-                    // A particle on the interior side of a closed, consistently
-                    // oriented surface must be resolved along the outward
-                    // normal; outside contact preserves the existing vector.
-                    if (normal.dot(outwardNormal) < 0.0)
-                        normal = -normal;
-                }
-            } else if (m_closedManifold) {
-                normal *= m_outwardNormalSign;
+                if (m_closedManifold && normal.dot(outwardNormal) < 0.0)
+                    normal = -normal;
             }
 
-            Eigen::Vector3d newPosition = cp + normal * thickness;""",
-            "MeshCollider.cpp contact response",
-        ),
-    ]
-    for old, new, label in replace_cpp:
-        count = cpp.count(old)
-        if count != 1:
-            raise RuntimeError(f"{label}: expected one source anchor, found {count}")
-        cpp = cpp.replace(old, new, 1)
-    Path(cpp_path := ROOT / "core/src/physics/MeshCollider.cpp").write_text(cpp, encoding="utf-8")
+            Eigen::Vector3d newPosition = cp + normal * thickness;"""
+    if cpp.count(contact_old) != 1:
+        raise RuntimeError("MeshCollider.cpp contact-response anchor mismatch")
+    cpp_path.write_text(cpp.replace(contact_old, contact_new, 1), encoding="utf-8")
+
+    binding_old = """        .def(py::init<const std::vector<Eigen::Vector3d>&,
+                      const std::vector<std::array<int, 3>>&, double>(),
+             py::arg("vertices"), py::arg("triangles"), py::arg("friction"))"""
+    binding_new = """        .def(py::init<const std::vector<Eigen::Vector3d>&,
+                      const std::vector<std::array<int, 3>>&, double, bool, double>(),
+             py::arg("vertices"), py::arg("triangles"), py::arg("friction"),
+             py::arg("closed_manifold") = false,
+             py::arg("outward_normal_sign") = 1.0)"""
+    for binding_path in bindings:
+        binding_text = binding_path.read_text(encoding="utf-8")
+        if binding_text.count(binding_old) != 1:
+            raise RuntimeError(f"{binding_path}: MeshCollider binding anchor mismatch")
+        binding_path.write_text(
+            binding_text.replace(binding_old, binding_new, 1), encoding="utf-8"
+        )
+
+    engine_text = engine_py.read_text(encoding="utf-8")
+    engine_old = """    def add_mesh_from_arrays(
+        self,
+        name: str,
+        vertices: np.ndarray,
+        triangles: np.ndarray,
+        friction: float = 0.5,
+    ):
+        collider = sdk.MeshCollider(vertices, triangles, float(friction))"""
+    engine_new = """    def add_mesh_from_arrays(
+        self,
+        name: str,
+        vertices: np.ndarray,
+        triangles: np.ndarray,
+        friction: float = 0.5,
+        closed_manifold: bool = False,
+        outward_normal_sign: float = 1.0,
+    ):
+        collider = sdk.MeshCollider(
+            vertices,
+            triangles,
+            float(friction),
+            bool(closed_manifold),
+            float(outward_normal_sign),
+        )"""
+    if engine_text.count(engine_old) != 1:
+        raise RuntimeError("python/tissu/engine.py add_mesh_from_arrays anchor mismatch")
+    engine_py.write_text(engine_text.replace(engine_old, engine_new, 1), encoding="utf-8")
+
+    stub_text = stub_py.read_text(encoding="utf-8")
+    stub_old = """    @overload
+    def __init__(self, vertices: list[numpy.ndarray[numpy.float64[3, 1]]], triangles, friction: float) -> None: ..."""
+    stub_new = """    @overload
+    def __init__(self, vertices: list[numpy.ndarray[numpy.float64[3, 1]]], triangles, friction: float) -> None: ...
+    @overload
+    def __init__(
+        self,
+        vertices: list[numpy.ndarray[numpy.float64[3, 1]]],
+        triangles,
+        friction: float,
+        closed_manifold: bool,
+        outward_normal_sign: float,
+    ) -> None: ..."""
+    if stub_text.count(stub_old) != 1:
+        raise RuntimeError("MeshCollider stub anchor mismatch")
+    stub_py.write_text(stub_text.replace(stub_old, stub_new, 1), encoding="utf-8")
 
     test_cpp = test.read_text(encoding="utf-8")
-    test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
+    if "#include <array>" not in test_cpp:
+        test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
+
+    tetra_ctor = "    return MeshCollider(vertices, triangles, friction);"
+    if test_cpp.count(tetra_ctor) != 1:
+        raise RuntimeError("MeshCollider test tetrahedron constructor anchor mismatch")
+    test_cpp = test_cpp.replace(
+        tetra_ctor,
+        "    return MeshCollider(vertices, triangles, friction, true, -1.0);",
+        1,
+    )
+
     helper = """static bool tetrahedronContains(const Eigen::Vector3d& point) {
     const std::vector<Eigen::Vector3d> vertices = {
         {0.0, 0.0, 0.0},
@@ -240,22 +251,24 @@ MeshOrientation inferMeshOrientation(
 }
 
 """
-    if test_cpp.count("TEST(MeshCollider, ParticleInsideMeshMovesOutside)") != 1:
-        raise RuntimeError("MeshCollider test anchor missing")
-    test_cpp = test_cpp.replace(
-        "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
-        helper + "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
-        1,
-    )
-    old = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
+    if "static bool tetrahedronContains" not in test_cpp:
+        anchor = "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {"
+        if test_cpp.count(anchor) != 1:
+            raise RuntimeError("MeshCollider test first regression anchor missing")
+        test_cpp = test_cpp.replace(anchor, helper + anchor, 1)
+
+    first_old = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
     EXPECT_GT(distanceMoved, 0.0);
 }"""
-    new = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
+    first_new = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
     EXPECT_GT(distanceMoved, 0.0);
     EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
-}
+}"""
+    if test_cpp.count(first_old) != 1:
+        raise RuntimeError("MeshCollider first regression body anchor mismatch")
+    test_cpp = test_cpp.replace(first_old, first_new, 1)
 
-TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
+    closed_test = """TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
     MeshCollider mesh = makeTetrahedron(0.0);
     Eigen::Vector3d initialPos(1.0, -0.01, 0.75);
     std::vector<Particle> particles;
@@ -266,7 +279,14 @@ TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
     EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
 }
 
-TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
+"""
+    if "TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside)" not in test_cpp:
+        anchor = "TEST(MeshCollider, ParticleOutsideMeshDoesNotChangePosition) {"
+        if test_cpp.count(anchor) != 1:
+            raise RuntimeError("MeshCollider closed-mesh regression insertion anchor missing")
+        test_cpp = test_cpp.replace(anchor, closed_test + anchor, 1)
+
+    open_test = """TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     const std::vector<Eigen::Vector3d> vertices = {
         {0.0, 0.0, 0.0},
         {2.0, 0.0, 0.0},
@@ -282,22 +302,61 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     mesh.resolve(particles, 0.016, 0.1);
 
     EXPECT_GT(particles[0].getPosition().y(), initialPos.y());
-}"""
-    if test_cpp.count(old) != 1:
-        raise RuntimeError("MeshCollider regression test body anchor mismatch")
-    test_cpp = test_cpp.replace(old, new, 1)
+}
+
+"""
+    if "TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection)" not in test_cpp:
+        anchor = "TEST(MeshCollider, ParticleOutsideMeshDoesNotChangePosition) {"
+        if test_cpp.count(anchor) != 1:
+            raise RuntimeError("MeshCollider open-mesh regression insertion anchor missing")
+        test_cpp = test_cpp.replace(anchor, open_test + anchor, 1)
+
+    nonwatertight_test = """TEST(MeshCollider, NonWatertightMeshHonorsExplicitClosedHint) {
+    const std::vector<Eigen::Vector3d> vertices = {
+        {0.0, 0.0, 0.0},
+        {2.0, 0.0, 0.0},
+        {1.0, 0.0, 2.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {{0, 1, 2}};
+    MeshCollider mesh(vertices, triangles, 0.0, true, -1.0);
+
+    const Eigen::Vector3d initialPos(1.0, 0.05, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_LT(particles[0].getPosition().y(), 0.0);
+}
+
+"""
+    if "TEST(MeshCollider, NonWatertightMeshHonorsExplicitClosedHint)" not in test_cpp:
+        anchor = "TEST(MeshCollider, ParticleOutsideMeshDoesNotChangePosition) {"
+        if test_cpp.count(anchor) != 1:
+            raise RuntimeError("MeshCollider non-watertight regression insertion anchor missing")
+        test_cpp = test_cpp.replace(anchor, nonwatertight_test + anchor, 1)
+
     test.write_text(test_cpp, encoding="utf-8")
 
-    if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
-        raise RuntimeError("patched Tissu tree failed git diff --check")
-    changed = run("git", "diff", "--name-only")
+    diff = run("git", "diff", "--name-only")
     expected = {
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
+        "python/src/bindings.cpp",
+        "python/src/bindings_headless.cpp",
+        "python/tissu/engine.py",
+        "python/tissu/_cloth_sdk_core.pyi",
         "tests/physics/test_mesh_collider.cpp",
     }
-    if set(changed.splitlines()) != expected:
-        raise RuntimeError(f"unexpected patched files: {changed!r}")
+    if set(diff.splitlines()) != expected:
+        raise RuntimeError(f"unexpected patched files: {diff!r}")
+
+    full_diff = run("git", "diff")
+    if "inferMeshOrientation" in full_diff or "std::unordered_map" in full_diff:
+        raise RuntimeError("MeshCollider patch must not infer closure from solver geometry")
+
+    if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
+        raise RuntimeError("patched Tissu tree failed git diff --check")
 
     script_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     print(f"Tissu source commit: {EXPECTED_COMMIT}")
