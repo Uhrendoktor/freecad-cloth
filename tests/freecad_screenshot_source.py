@@ -384,15 +384,33 @@ def simulation():
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
-    rot = App.Rotation(App.Vector(1,0,0), 90.0)
+    from freecad_cloth.avatar.AvatarArrangement import wrapped_panel_angles
+    target_min_y = min(target_ys)
+    target_max_y = max(target_ys)
+    target_y = (target_min_y + target_max_y) / 2.0
+    front_y = target_min_y - clearance
+    back_y = target_max_y + clearance
+    front_angle, back_angle = wrapped_panel_angles(
+        front_y, back_y, target_y, 0.92 * garment_height
+    )
+    front_rot = App.Rotation(App.Vector(1, 0, 0), front_angle)
+    back_rot = App.Rotation(App.Vector(1, 0, 0), back_angle)
+    log(
+        "arrangement=drape-target-wrap front-angle=%.3f back-angle=%.3f pins=0"
+        % (front_angle, back_angle)
+    )
     def target_relative_piece_placement(side):
         if side == "front":
             y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
+            rotation = front_rot
         elif side == "back":
             y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
+            rotation = back_rot
         else:
             raise ValueError("tunic target-relative side must be front or back")
-        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
+        return App.Placement(
+            App.Vector(x_mid - hem_width / 2.0, y, hem_z), rotation
+        )
     def make_piece(name, side, neckline_ratio, neckline_drop):
         sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(side); piece.Sketch.Placement = piece.Placement; return piece, outline
     front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
