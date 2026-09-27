@@ -36,7 +36,7 @@ replacements = {
         '        seam_records.append((seam_obj, front, back))',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
     'scene.SolverIterations = 8;': 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-32 iterations-1 substeps-env");',
-    '    scene.PinMode = "None"; scene.PinSelection = []': '    scene.PinMode = "Automatic"; scene.PinSelection = []; log("tunic-pin-mode=automatic")',
+    '    scene.PinMode = "Automatic"; scene.PinSelection = []; log("tunic-pin-mode=automatic")': '    scene.PinMode = "Automatic"; scene.PinSelection = []; log("tunic-pin-mode=automatic")',
     '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance',
     '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
