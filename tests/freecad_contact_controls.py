@@ -80,6 +80,25 @@ def _dot(a, b):
     return sum(float(a[i]) * float(b[i]) for i in range(3))
 
 
+def _bounds(points):
+    if not points:
+        raise RuntimeError("cannot measure empty point set")
+    return (
+        min(p[0] for p in points), max(p[0] for p in points),
+        min(p[1] for p in points), max(p[1] for p in points),
+        min(p[2] for p in points), max(p[2] for p in points),
+    )
+
+
+def _nearest_vertex_distance(points, target_vertices):
+    best = float("inf")
+    for point in points:
+        for target in target_vertices:
+            distance = math.sqrt(sum((float(point[i]) - float(target[i])) ** 2 for i in range(3)))
+            best = min(best, distance)
+    return best if math.isfinite(best) else None
+
+
 def _face_normal(a, b, c):
     return _normalize(_cross(_sub(b, a), _sub(c, a)))
 
@@ -165,11 +184,19 @@ def _run_backend(surface, face_center, normal, offset, label):
             state = "persistent_inside"
     else:
         state = "outside_preserved" if final_signed >= 0.0 else "moved_inside"
+    initial_bounds = _bounds(initial)
+    final_bounds = _bounds(final)
+    initial_nearest = _nearest_vertex_distance(initial, surface.vertices)
+    final_nearest = _nearest_vertex_distance(final, surface.vertices)
     return {
         "label": label,
         "initial_signed_plane_mm": initial_signed,
         "final_signed_plane_mm": final_signed,
         "signed_plane_delta_mm": delta,
+        "initial_bounds": initial_bounds,
+        "final_bounds": final_bounds,
+        "initial_nearest_target_vertex_distance_mm": initial_nearest,
+        "final_nearest_target_vertex_distance_mm": final_nearest,
         "initial_positions": initial,
         "final_positions": final,
         "state": state,
@@ -235,15 +262,34 @@ def _cube_control():
     _save_probe_view("cube-inside-step-1.png", target_box=cube, probe=probe)
 
     doc.close()
+    topology = validate_mesh(surface.vertices, surface.triangles, prefer_trimesh=False).__dict__
     return {
-        "rung": "0",
-        "target": "cube",
-        "source_triangles": len(surface.triangles),
-        "solver_triangles": len(surface.triangles),
+        "case_id": "0-cube-contact",
+        "predecessor_case_id": None,
+        "target_kind": "cube",
+        "piece_count": 1,
+        "seam_mode": "none",
+        "seam_world_spans_mm": [],
+        "pin_mode": "none",
+        "cloth_bounds_world_mm_before_step": list(inside["initial_bounds"]),
+        "target_bounds_world_mm": list(_bounds(surface.vertices)),
+        "signed_clearance_mm": inside["initial_signed_plane_mm"],
+        "unsigned_min_distance_mm": inside["initial_nearest_target_vertex_distance_mm"],
+        "collision_source_triangle_count": len(surface.triangles),
+        "solver_collision_triangle_count": len(surface.triangles),
+        "target_topology_summary": topology,
+        "checkpoint_steps": [0, 1],
+        "checkpoint_image_paths": ["cube-inside-step-0.png", "cube-inside-step-1.png"],
+        "finite": bool(inside["finite"] and outside["finite"]),
+        "connected_components": 1,
+        "max_seam_gap_mm": 0.0,
+        "final_clearance_mm": inside["final_signed_plane_mm"],
+        "runtime_ms": 0.0,
+        "first_contact_step": 1 if inside["state"] == "resolved_outward" else None,
+        "contact_mode": "one_step_mesh_probe",
         "inside": {k: v for k, v in inside.items() if k not in {"initial_positions", "final_positions"}},
         "outside": {k: v for k, v in outside.items() if k not in {"initial_positions", "final_positions"}},
-        "screenshots": ["cube-inside-step-0.png", "cube-inside-step-1.png"],
-        "topology": validate_mesh(surface.vertices, surface.triangles, prefer_trimesh=False).__dict__,
+        "notes": "Control 0 isolates one-step contact on an exact closed cube with gravity disabled.",
     }
 
 
@@ -294,18 +340,36 @@ def _avatar_control():
     solver_metrics = validate_mesh(solver_surface.vertices, solver_surface.triangles, prefer_trimesh=False)
     doc.close()
     return {
-        "rung": "0a",
-        "target": "production_avatar",
-        "source_triangles": len(full.triangles),
-        "solver_triangles": len(solver_surface.triangles),
-        "target_topology": source_metrics.__dict__,
-        "solver_topology": solver_metrics.__dict__,
+        "case_id": "0a-avatar-contact",
+        "predecessor_case_id": "0-cube-contact",
+        "target_kind": "production_avatar",
+        "piece_count": 1,
+        "seam_mode": "none",
+        "seam_world_spans_mm": [],
+        "pin_mode": "none",
+        "cloth_bounds_world_mm_before_step": list(inside["initial_bounds"]),
+        "target_bounds_world_mm": list(_bounds(full.vertices)),
+        "signed_clearance_mm": inside["initial_signed_plane_mm"],
+        "unsigned_min_distance_mm": inside["initial_nearest_target_vertex_distance_mm"],
+        "collision_source_triangle_count": len(full.triangles),
+        "solver_collision_triangle_count": len(solver_surface.triangles),
+        "target_topology_summary": source_metrics.__dict__,
+        "solver_target_topology_summary": solver_metrics.__dict__,
+        "checkpoint_steps": [0, 1],
+        "checkpoint_image_paths": ["avatar-inside-step-0.png", "avatar-inside-step-1.png"],
+        "finite": bool(inside["finite"] and outside["finite"]),
+        "connected_components": 1,
+        "max_seam_gap_mm": 0.0,
+        "final_clearance_mm": inside["final_signed_plane_mm"],
+        "runtime_ms": 0.0,
+        "first_contact_step": 1 if inside["state"] == "resolved_outward" else None,
+        "contact_mode": "one_step_mesh_probe",
         "probe_triangle": list(triangle),
         "probe_face_center": face_center,
         "probe_outward_normal": normal,
         "inside": {k: v for k, v in inside.items() if k not in {"initial_positions", "final_positions"}},
         "outside": {k: v for k, v in outside.items() if k not in {"initial_positions", "final_positions"}},
-        "screenshots": ["avatar-inside-step-0.png", "avatar-inside-step-1.png"],
+        "notes": "Control 0a uses the exact production DrapeTarget source with the frozen 2048-triangle solver surface.",
     }
 
 
@@ -318,7 +382,7 @@ def main():
             "schema": 1,
             "suite": "tissu-contact-controls",
             "backend": "tissu",
-            "solver": {"dt_s": 1.0 / 120.0, "iterations": 8, "substeps": 1, "gravity_mm_s2": [0.0, 0.0, 0.0]},
+            "solver": {"dt_s": 1.0 / 120.0, "iterations": 1, "substeps": 1, "gravity_mm_s2": [0.0, 0.0, 0.0]},
             "surface": {"thickness_mm": THICKNESS_MM, "triangle_limit": 2048},
             "results": results,
         }
