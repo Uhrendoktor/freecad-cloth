@@ -381,6 +381,8 @@ void BVH::queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
                      candidates.end());
 
     constexpr double epsilon = 1e-12;
+    if ((end - start).squaredNorm() <= epsilon * epsilon)
+        return false;
     double bestT = std::numeric_limits<double>::infinity();
     int bestTriangle = -1;
     Eigen::Vector3d bestNormal = Eigen::Vector3d::Zero();
