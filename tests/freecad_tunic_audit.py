@@ -97,6 +97,31 @@ timed_anchor = '''    from time import perf_counter
 '''
 source = source.replace(anchor, preview_probe + '\n' + timed_anchor, 1)
 
+containment_probe = """    if os.environ.get("CLOTH_TISSU_INITIAL_CONTAINMENT_PROBE") == "1":
+        import Part
+        authoritative_shape = getattr(target_source, "Shape", None)
+        if authoritative_shape is None or authoritative_shape.isNull():
+            raise RuntimeError("initial containment probe requires the authoritative mannequin Shape")
+        signed_distances = []
+        for position in tuple(backend.positions()):
+            point = App.Vector(float(position[0]), float(position[1]), float(position[2]))
+            distance = float(authoritative_shape.distToShape(Part.makeVertex(point))[0])
+            inside = bool(authoritative_shape.isInside(point, 1.0e-7, True))
+            signed_distances.append(-distance if inside else distance)
+        if not signed_distances:
+            raise RuntimeError("initial containment probe found no solver particles")
+        inside_values = [value for value in signed_distances if value < -1.0e-9]
+        inside_count = len(inside_values)
+        max_inside_depth = max((-value for value in inside_values), default=0.0)
+        mean_signed = sum(signed_distances) / len(signed_distances)
+        log("initial-containment-probe=passed particles=%d inside_count=%d percent_inside=%.2f max_inside_depth_mm=%.4f min_signed_distance_mm=%.4f max_signed_distance_mm=%.4f mean_signed_distance_mm=%.4f" % (len(signed_distances), inside_count, 100.0 * inside_count / len(signed_distances), max_inside_depth, min(signed_distances), max(signed_distances), mean_signed))
+"""
+if os.environ.get("CLOTH_TISSU_INITIAL_CONTAINMENT_PROBE") == "1":
+    containment_anchor = '    log("step0-target-vertex-clearance-mm=%.2f required-mm=%.2f" % (float(initial_clearance), float(clearance)))\n'
+    if containment_anchor not in source:
+        raise RuntimeError("initial containment probe anchor missing from canonical GUI source")
+    source = source.replace(containment_anchor, containment_anchor + containment_probe, 1)
+
 seam_check = """    backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
     if not simulated_positions: raise RuntimeError("Tissu backend returned no simulated particle positions")
