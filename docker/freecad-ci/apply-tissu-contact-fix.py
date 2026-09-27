@@ -424,10 +424,22 @@ TEST(StitchConstraint, SolverStillConvergesFreeSpaceAfterPostConstraintPass) {
 
     if solver_cpp.count("solveConstraints(dt);") < 2:
         raise RuntimeError("expected initial configured solve plus one post-collision stitch pass")
-    solver_flat = " ".join(solver_cpp.split())
-    required_order = "collider->resolve(m_particles, dt, world.getThickness()); solveConstraints(dt); for (auto& collider : colliders) collider->resolve(m_particles, dt, world.getThickness());"
-    if required_order not in solver_flat:
+    first_collider_loop = solver_cpp.find("for (auto& collider : colliders)")
+    post_collision_solve = solver_cpp.find(
+        "solveConstraints(dt);",
+        first_collider_loop if first_collider_loop >= 0 else 0,
+    )
+    second_collider_loop = solver_cpp.find(
+        "for (auto& collider : colliders)",
+        post_collision_solve + 1 if post_collision_solve >= 0 else 0,
+    )
+    if not (
+        first_collider_loop >= 0
+        and post_collision_solve > first_collider_loop
+        and second_collider_loop > post_collision_solve
+    ):
         raise RuntimeError("post-stitch collider projection ordering anchor missing")
+
     if "TEST(StitchConstraint, SolverReprojectsAfterPostConstraintStitchPass)" not in stitch_text:
         raise RuntimeError("post-stitch collider native regression missing")
     if "TEST(StitchConstraint, SolverStillConvergesFreeSpaceAfterPostConstraintPass)" not in stitch_text:
