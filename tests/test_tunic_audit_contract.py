@@ -159,3 +159,17 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     gate = source.index("assert_drape_diagnostics(json.load(handle).get(\"panels\", ()))")
     assert "drape-metrics=" in source[:gate]
     assert "gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]
+
+
+def test_canonical_tunic_uses_exactly_four_shoulder_attachments_without_pins():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    backend = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    assert '("TunicRightShoulder", "front", -1)' in source
+    assert '("TunicRightShoulder", "back", -1)' in source
+    assert '("TunicLeftShoulder", "front", -1)' in source
+    assert '("TunicLeftShoulder", "back", -1)' in source
+    assert 'if len(attachment_records) != 4 or len({record[0] for record in attachment_records}) != 4:' in source
+    assert 'backend.add_attachments(tuple((particle_id, target_vertex_id, rest_length)' in source
+    assert 'tunic-attachments=count=%d collider=drape-target' in source
+    assert 'canonical tunic attachment experiment must retain zero solver pins' in source
+    assert 'def add_attachments(self, attachments' in backend
