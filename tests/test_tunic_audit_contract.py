@@ -148,12 +148,14 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
 
 def test_tissu_contact_fix_preserves_legacy_near_surface_response():
     script = (ROOT / "docker" / "freecad-ci" / "apply-tissu-contact-fix.py").read_text(encoding="utf-8")
-    assert '"""        if (distance <= thickness) {' not in script
-    assert "// Preserve the exact legacy near-surface contact response." in script
-    assert 'normal = (distance > 1e-6)\n                             ? toParticle.normalized()\n                             : ((b - a).cross(c - a)).normalized();' in script
-    assert "else if (distance > 1e-6)" not in script
-    assert "normal.dot(outwardNormal)" not in script
-
+    assert '"""        bool deepInterior = false' in script
+    assert 'Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);' in script
+    assert 'normal = toParticle / distance;' in script
+    assert 'const Eigen::Vector3d outwardNormal =' in script
+    assert 'if (normal.dot(outwardNormal) < 0.0)' in script
+    assert 'else if (m_closedManifold)' in script
+    assert 'normal *= m_outwardNormalSign;' in script
+    assert 'deepInterior = isDeepInterior(' in script
 
 def test_canonical_tunic_fixture_matches_validated_start_geometry():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
