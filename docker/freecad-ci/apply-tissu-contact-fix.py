@@ -178,7 +178,7 @@ MeshOrientation inferMeshOrientation(
     if (std::abs(signedVolume) <= 1.0e-12)
         return {};
 
-    return {true, signedVolume > 0.0 ? 1.0 : -1.0};
+    return {true, signedVolume < 0.0 ? 1.0 : -1.0};
 }
 
 } // namespace
