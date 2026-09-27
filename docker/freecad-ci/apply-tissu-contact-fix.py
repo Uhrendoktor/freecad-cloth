@@ -31,6 +31,7 @@ def main() -> int:
     header = ROOT / "core/include/physics/MeshCollider.hpp"
     cpp = ROOT / "core/src/physics/MeshCollider.cpp"
     test = ROOT / "tests/physics/test_mesh_collider.cpp"
+    solver = ROOT / "core/src/physics/Solver.cpp"
 
     replace_once(
         header,
@@ -207,6 +208,50 @@ MeshOrientation inferMeshOrientation(
         cpp = cpp.replace(old, new, 1)
     Path(cpp_path := ROOT / "core/src/physics/MeshCollider.cpp").write_text(cpp, encoding="utf-8")
 
+
+    solver_cpp = solver.read_text(encoding="utf-8")
+    old_solver = """    const double substepDt = deltaTime / static_cast<double>(m_substeps);
+
+    for (int i = 0; i < m_substeps; i++)
+        step(world, substepDt);
+
+"""
+    new_solver = old_solver
+    old_step = """    predictPositions(dt);
+
+    for (auto& constraint : m_constraints) {
+        constraint->resetLambda();
+    }
+
+    for (int i = 0; i < m_iterations; i++) {
+        solveConstraints(dt);
+    }
+
+    const auto& colliders = world.getColliders();
+    for (auto& collider : colliders)
+        collider->resolve(m_particles, dt, world.getThickness());
+
+    solveSelfCollisions(dt, world.getThickness());
+"""
+    new_step = """    predictPositions(dt);
+
+    for (auto& constraint : m_constraints) {
+        constraint->resetLambda();
+    }
+
+    const auto& colliders = world.getColliders();
+    for (int i = 0; i < m_iterations; i++) {
+        solveConstraints(dt);
+        for (auto& collider : colliders)
+            collider->resolve(m_particles, dt, world.getThickness());
+    }
+
+    solveSelfCollisions(dt, world.getThickness());
+"""
+    if solver_cpp.count(old_step) != 1:
+        raise RuntimeError("Solver.cpp collision-order anchor mismatch")
+    solver.write_text(solver_cpp.replace(old_step, new_step), encoding="utf-8")
+
     test_cpp = test.read_text(encoding="utf-8")
     test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
     helper = """static bool tetrahedronContains(const Eigen::Vector3d& point) {
@@ -294,6 +339,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     expected = {
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
+        "core/src/physics/Solver.cpp",
         "tests/physics/test_mesh_collider.cpp",
     }
     if set(changed.splitlines()) != expected:
