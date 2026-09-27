@@ -439,6 +439,8 @@ def _case_record(case_id, rung, target, source, cloth_points_before, cloth_point
         "timestep_s": 1.0 / 120.0,
         "gravity_z_mm_s2": 0.0,
     }
+    motion_steps = [int(checkpoint["step"]) for checkpoint in checkpoints if int(checkpoint["step"]) > 0 and float(checkpoint.get("max_displacement_from_initial_mm", 0.0)) > 0.01]
+    first_observable_step = motion_steps[0] if motion_steps else None
     return {
         "case_id": case_id,
         "predecessor_case_id": None,
@@ -739,7 +741,7 @@ def _ladder_record(case_id, rung, target, source, before, after, triangles, pane
         "max_seam_gap_mm": max((item.get("max_gap_mm") or 0.0) for item in seam_after) if seam_after else 0.0,
         "final_clearance_mm": signed_after,
         "runtime_ms": round(float(runtime_ms), 3),
-        "first_contact_step": int(steps) if max_displacement > 0.01 else None,
+        "first_contact_step": first_observable_step,
         "contact_mode": contact_state,
         "control": {
             "nearest_target_point_before": before_nearest_point,
@@ -755,7 +757,7 @@ def _ladder_record(case_id, rung, target, source, before, after, triangles, pane
             "human_review_required": True,
         },
         "images": image_paths,
-        "notes": "diagnostic-only; one unchanged Tissu step; release gate unaffected; human visual review required",
+        "notes": "diagnostic-only; frozen solver settings; cumulative checkpoints 0/1/5/15/45/90; release gate unaffected; human visual review required",
     }
 
 
@@ -866,6 +868,7 @@ def _run_ladder_case(case_id, rung, piece_specs, pin_mode, seam_mode, camera="ax
                 "finite": finite,
                 "components": _connected_components(positions, triangles),
                 "max_seam_gap_mm": max((item.get("max_gap_mm") or 0.0) for item in seam_metrics) if seam_metrics else 0.0,
+                "max_displacement_from_initial_mm": max(_distance(left, right) for left, right in zip(before, positions)),
                 "target_clearance_mm": None if distance is None else (-distance if inside in {"inside", "mixed"} else distance),
                 "contact_state": "static-intersection-probe" if step == 0 else "checkpoint-observation",
                 "inside_outside": inside,
