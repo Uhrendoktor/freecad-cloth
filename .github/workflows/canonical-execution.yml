@@ -719,6 +719,29 @@ jobs:
           grep -q 'determinism-signature=passed' artifacts/garment-e2e.log
           grep -q 'pattern-export=passed formats=SVG,DXF' artifacts/garment-e2e.log
           grep -q 'canonical garment end-to-end acceptance passed' artifacts/garment-e2e.log
+      - name: Prepare human visual review bundle
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/visual-review/tunic
+          {
+            echo "# Tunic visual review bundle"
+            echo
+            echo "Run: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "Human inspection is mandatory before acceptance/merge."
+            echo "Inspect simulation checkpoints and all six final views."
+            echo "Automated image/metric validation does not substitute for human inspection."
+          } > artifacts/visual-review/tunic/README.md
+          cp docs/images/generated/cloth-simulation-draped-step-*.png artifacts/visual-review/tunic/ 2>/dev/null || true
+          cp docs/images/generated/cloth-simulation-draped*.png artifacts/visual-review/tunic/ 2>/dev/null || true
+          cp docs/images/generated/drape-visual-metrics.json artifacts/visual-review/tunic/ 2>/dev/null || true
+          cp docs/images/generated/gui-progress.log artifacts/visual-review/tunic/ 2>/dev/null || true
+          cp docs/images/generated/gui-screenshot-manifest.txt artifacts/visual-review/tunic/ 2>/dev/null || true
+          cp docs/images/generated/tunic-audit-diagnostics.txt artifacts/visual-review/tunic/ 2>/dev/null || true
+          cp docs/images/generated/tunic-audit-source-failure.txt artifacts/visual-review/tunic/ 2>/dev/null || true
+          cp artifacts/garment-e2e.log artifacts/visual-review/tunic/ 2>/dev/null || true
+          cp artifacts/tissu-provenance.txt artifacts/visual-review/tunic/ 2>/dev/null || true
+
       - name: Upload tunic visual audit
         if: always()
         uses: actions/upload-artifact@v6
@@ -731,6 +754,7 @@ jobs:
             docs/images/generated/gui-screenshot-manifest.txt
             artifacts/garment-e2e.log
             artifacts/tissu-provenance.txt
+          retention-days: 14
           if-no-files-found: error
           compression-level: 1
 
