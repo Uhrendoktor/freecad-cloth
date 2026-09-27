@@ -36,8 +36,6 @@ replacements = {
         '        seam_records.append((seam_obj, front, back))',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
     'scene.SolverIterations = 8;': 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-32 iterations-1 substeps-env");',
-    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance',
-    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
 }
 for old, new in replacements.items():
@@ -75,7 +73,34 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
     log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
 '''
-anchor = '''    for batch in (15,15,15,15,15,15):
+anchor = '''    initial_backend = scene.Proxy._base_or_restore().backend
+    initial_positions = tuple(initial_backend.positions())
+    initial_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
+    if not initial_pairs_by_seam:
+        raise RuntimeError("initial seam-span probe has no solver stitch provenance")
+    initial_summary = {}
+    initial_all = []
+    for seam, _piece_a, _piece_b in seam_records:
+        pairs = tuple(initial_pairs_by_seam.get(str(seam.SeamId), ()))
+        if not pairs:
+            raise RuntimeError("initial seam-span probe cannot resolve %s" % seam.SeamId)
+        spans = []
+        for ga, gb in pairs:
+            a = initial_positions[int(ga)]
+            b = initial_positions[int(gb)]
+            spans.append(((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2)**0.5)
+        initial_summary[str(seam.SeamId)] = {
+            "count": len(spans),
+            "min_mm": min(spans),
+            "max_mm": max(spans),
+            "mean_mm": sum(spans) / len(spans),
+        }
+        initial_all.extend(spans)
+    initial_max_span = max(initial_all)
+    log("initial-stitch-spans-mm=%s" % json.dumps(initial_summary, sort_keys=True))
+    if initial_max_span > 35.0:
+        raise RuntimeError("initial tunic stitch spans remain incompatible: max %.3f mm" % initial_max_span)
+    for batch in (15,15,15,15,15,15):
         simulation_panel.step(batch); doc.recompute(); events()
 '''
 if anchor not in source:
