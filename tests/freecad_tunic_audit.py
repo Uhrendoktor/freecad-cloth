@@ -16,6 +16,8 @@ source = source_path.read_text(encoding="utf-8")
 os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
 os.environ["CLOTH_TISSU_STITCHLESS_PROBE"] = "1"
 
+# Diagnostic probe only: CLOTH_TISSU_STITCHLESS_PROBE disables authored seams for #2022.
+
 replacements = {
     'clearance = max(20.0, 0.08 * body_depth)': 'clearance = max(8.0, 0.025 * body_depth);',
     'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)': 'front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)',
