@@ -1,4 +1,25 @@
 from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
+from freecad_cloth.simulation.TissuBackend import _resolve_tissu_friction
+
+
+def test_tissu_friction_accepts_authored_range_and_defaults_only_when_unset():
+    assert _resolve_tissu_friction(0.85) == 0.85
+    assert _resolve_tissu_friction(0.0) == 0.0
+    assert _resolve_tissu_friction(1.0) == 1.0
+    assert _resolve_tissu_friction(None) == 0.5
+    try:
+        _resolve_tissu_friction(1.01)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("out-of-range Tissu friction must fail closed")
+
+
+def test_tissu_ci_hook_passes_authored_friction():
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parents[1] / "sitecustomize.py").read_text(encoding="utf-8")
+    assert "collision_friction=float(getattr(obj, \"FabricFriction\", 0.5))" in source
 
 
 def test_deterministic_step_and_pins():
