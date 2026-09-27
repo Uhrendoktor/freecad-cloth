@@ -31,6 +31,7 @@ def main() -> int:
     header = ROOT / "core/include/physics/MeshCollider.hpp"
     cpp = ROOT / "core/src/physics/MeshCollider.cpp"
     test = ROOT / "tests/physics/test_mesh_collider.cpp"
+    stitch_test = ROOT / "tests/physics/test_stitch_constraint.cpp"
 
     replace_once(
         header,
@@ -209,6 +210,16 @@ MeshOrientation inferMeshOrientation(
 
     test_cpp = test.read_text(encoding="utf-8")
     test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
+
+    stitch_cpp = stitch_test.read_text(encoding="utf-8")
+    if "TEST(StitchConstraint, SolverAddStitchCarriesCompliance)" in stitch_cpp:
+        raise RuntimeError("StitchConstraint compliance regression already present")
+    if '#include "engine/World.hpp"\n' not in stitch_cpp:
+        stitch_cpp = stitch_cpp.replace(
+            '#include "physics/Particle.hpp"\n',
+            '#include "engine/World.hpp"\n#include "physics/Particle.hpp"\n',
+            1,
+        )
     helper = """static bool tetrahedronContains(const Eigen::Vector3d& point) {
     const std::vector<Eigen::Vector3d> vertices = {
         {0.0, 0.0, 0.0},
@@ -286,6 +297,47 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     if test_cpp.count(old) != 1:
         raise RuntimeError("MeshCollider regression test body anchor mismatch")
     test_cpp = test_cpp.replace(old, new, 1)
+    compliance_test = """\n\nTEST(StitchConstraint, SolverAddStitchCarriesCompliance) {
+    World world;
+    world.setGravity(Eigen::Vector3d::Zero());
+
+    Solver strict_solver;
+    strict_solver.setSubsteps(1);
+    strict_solver.setIterations(1);
+    const int strict_a =
+        strict_solver.addParticle(Particle(Eigen::Vector3d(-1.0, 0.0, 0.0)));
+    const int strict_b =
+        strict_solver.addParticle(Particle(Eigen::Vector3d(1.0, 0.0, 0.0)));
+    strict_solver.addStitch(strict_a, strict_b, 0.0);
+
+    Solver soft_solver;
+    soft_solver.setSubsteps(1);
+    soft_solver.setIterations(1);
+    const int soft_a =
+        soft_solver.addParticle(Particle(Eigen::Vector3d(-1.0, 0.0, 0.0)));
+    const int soft_b =
+        soft_solver.addParticle(Particle(Eigen::Vector3d(1.0, 0.0, 0.0)));
+    soft_solver.addStitch(soft_a, soft_b, 0.001);
+
+    constexpr double dt = 1.0 / 120.0;
+    strict_solver.update(world, dt);
+    soft_solver.update(world, dt);
+
+    const double strict_distance =
+        (strict_solver.getParticles()[strict_a].getPosition() -
+         strict_solver.getParticles()[strict_b].getPosition())
+            .norm();
+    const double soft_distance =
+        (soft_solver.getParticles()[soft_a].getPosition() -
+         soft_solver.getParticles()[soft_b].getPosition())
+            .norm();
+
+    EXPECT_NEAR(strict_distance, 0.0, 1e-9);
+    EXPECT_GT(soft_distance, 1.0);
+}
+"""
+    stitch_cpp += compliance_test
+    stitch_test.write_text(stitch_cpp, encoding="utf-8")
     test.write_text(test_cpp, encoding="utf-8")
 
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
@@ -295,6 +347,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
         "tests/physics/test_mesh_collider.cpp",
+        "tests/physics/test_stitch_constraint.cpp",
     }
     if set(changed.splitlines()) != expected:
         raise RuntimeError(f"unexpected patched files: {changed!r}")
@@ -303,6 +356,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     print(f"Tissu source commit: {EXPECTED_COMMIT}")
     print(f"Tissu contact fix script sha256: {script_sha}")
     print("Tissu contact fix: applied and self-checked")
+    print("Tissu stitch compliance regression: applied and self-checked")
     return 0
 
 
