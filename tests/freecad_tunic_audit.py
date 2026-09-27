@@ -43,8 +43,7 @@ replacements = {
         '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance\n'
         '        else:\n'
         '            raise ValueError("tunic target-relative side must be front or back")\n'
-        '        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)\n'
-        '    def make_piece(name, side, neckline_ratio, neckline_drop):':
+        '        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)':
         '    def open_book_placement(side, outline):\n'
         '        target_centroid = App.Vector(sum(float(vertex[0]) for vertex in target_surface.vertices) / len(target_surface.vertices), sum(float(vertex[1]) for vertex in target_surface.vertices) / len(target_surface.vertices), sum(float(vertex[2]) for vertex in target_surface.vertices) / len(target_surface.vertices))\n'
         '        shoulder_mid_world = App.Vector(x_mid, (shoulder_left.y + shoulder_right.y) / 2.0, shoulder_z)\n'
