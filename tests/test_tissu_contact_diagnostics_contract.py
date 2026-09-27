@@ -67,7 +67,7 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "faulthandler.dump_traceback_later(30.0, repeat=True" in SOURCE
     assert "entrypoint __name__=" in SOURCE
     assert "setsid /opt/freecad/AppRun /workspace/tests/freecad_tissu_contact_diagnostics.py" in WORKFLOW
-    assert "Shape.CenterOfMass" in SOURCE
+    assert 'getattr(shape, "CenterOfMass", None)' in SOURCE
     assert "width=72.0" in SOURCE
     assert 'did not create a true interior pre-step state' in SOURCE
     assert 'tissu-env: collision_mode=' in SOURCE
