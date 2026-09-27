@@ -365,12 +365,73 @@ namespace Tissu {""",
         """#include "physics/StitchConstraint.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
+#include <cstdint>
+#include <iostream>
 
 #include "physics/Collider.hpp"
 #include "physics/MeshCollider.hpp"
 
-namespace Tissu {""",
+namespace Tissu {
+
+namespace {
+std::atomic<std::uint64_t> g_stitch_solve_count{0};
+std::atomic<std::uint64_t> g_stitch_clip_endpoint_count{0};
+std::atomic<std::uint64_t> g_stitch_clip_solve_count{0};
+std::atomic<std::uint64_t> g_stitch_clip_scale_sum_micro{0};
+std::atomic<std::uint64_t> g_stitch_clip_scale_min_micro{1000001};
+std::atomic<std::uint64_t> g_stitch_clip_scale_max_micro{0};
+
+void recordStitchClipDiagnostics(
+    std::uint64_t& solveIndex,
+    std::uint64_t endpointHits,
+    double lambdaScale) {
+    solveIndex = g_stitch_solve_count.fetch_add(1) + 1;
+    if (endpointHits != 0) {
+        g_stitch_clip_endpoint_count.fetch_add(endpointHits);
+        g_stitch_clip_solve_count.fetch_add(1);
+        const auto scaleMicro = static_cast<std::uint64_t>(
+            std::llround(std::max(0.0, std::min(1.0, lambdaScale)) * 1000000.0));
+        g_stitch_clip_scale_sum_micro.fetch_add(scaleMicro);
+
+        auto minValue = g_stitch_clip_scale_min_micro.load();
+        while (scaleMicro < minValue &&
+               !g_stitch_clip_scale_min_micro.compare_exchange_weak(minValue, scaleMicro)) {
+        }
+        auto maxValue = g_stitch_clip_scale_max_micro.load();
+        while (scaleMicro > maxValue &&
+               !g_stitch_clip_scale_max_micro.compare_exchange_weak(maxValue, scaleMicro)) {
+        }
+    }
+
+    if (solveIndex == 1 || solveIndex % 500 != 0)
+        return;
+
+    const auto clippedSolves = g_stitch_clip_solve_count.load();
+    const auto clippedEndpoints = g_stitch_clip_endpoint_count.load();
+    const auto scaleSum = g_stitch_clip_scale_sum_micro.load();
+    const double meanScale = clippedSolves
+        ? static_cast<double>(scaleSum) / 1000000.0 / static_cast<double>(clippedSolves)
+        : 1.0;
+    const double minScale = clippedSolves
+        ? static_cast<double>(g_stitch_clip_scale_min_micro.load()) / 1000000.0
+        : 1.0;
+    const double maxScale = clippedSolves
+        ? static_cast<double>(g_stitch_clip_scale_max_micro.load()) / 1000000.0
+        : 1.0;
+    std::cerr
+        << "tissu-stitch-diagnostics solves=" << solveIndex
+        << " clipped_solves=" << clippedSolves
+        << " clipped_endpoints=" << clippedEndpoints
+        << " lambda_scale_min=" << minScale
+        << " lambda_scale_mean=" << meanScale
+        << " lambda_scale_max=" << maxScale
+        << std::endl;
+}
+}
+
+""",
         "StitchConstraint collision includes",
     )
 
@@ -489,10 +550,13 @@ void StitchConstraint::solveWithColliders(
 
     Eigen::Vector3d appliedA = proposedA;
     Eigen::Vector3d appliedB = proposedB;
-    clipCorrectionAtFirstEnteringMeshHit(
+    const double scaleA = clipCorrectionAtFirstEnteringMeshHit(
         startA, proposedA, colliders, thickness, appliedA);
-    clipCorrectionAtFirstEnteringMeshHit(
+    const double scaleB = clipCorrectionAtFirstEnteringMeshHit(
         startB, proposedB, colliders, thickness, appliedB);
+    const std::uint64_t endpointHits =
+        (scaleA < 1.0 - 1e-9 ? 1 : 0) +
+        (scaleB < 1.0 - 1e-9 ? 1 : 0);
 
     pA.setPosition(startA + appliedA);
     pB.setPosition(startB + appliedB);
@@ -507,6 +571,8 @@ void StitchConstraint::solveWithColliders(
                 appliedMagnitude / proposedMagnitude))
             : 1.0;
     const double proposedDeltaLambda = m_lambda - previousLambda;
+    std::uint64_t solveIndex = 0;
+    recordStitchClipDiagnostics(solveIndex, endpointHits, lambdaScale);
 
     // Keep lambda consistent with the correction that was actually applied.
     m_lambda = previousLambda +
