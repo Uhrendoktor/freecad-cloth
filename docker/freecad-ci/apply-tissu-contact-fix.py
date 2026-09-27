@@ -453,7 +453,8 @@ bool segmentTriangleHit(const Eigen::Vector3d& start,
 
 } // namespace
 
-MeshCollider::MeshCollider(const std::string& meshPath, double friction) {""",
+MeshCollider::MeshCollider(const std::string& meshPath, double friction)
+    : m_meshPath(meshPath) {""",
         "MeshCollider first-segment-hit helper",
     )
 
