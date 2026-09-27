@@ -704,12 +704,28 @@ TEST(MeshCollider, DeepInteriorParityIsDeterministic) {
         1e-12);
 }
 
+TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
+    const std::vector<Eigen::Vector3d> vertices = {
+        {0.0, 0.0, 0.0},
+        {2.0, 0.0, 0.0},
+        {0.0, 0.0, 2.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {{0, 1, 2}};
+    MeshCollider mesh(vertices, triangles, 0.0);
+
+    const Eigen::Vector3d initialPos(0.5, 0.05, 0.5);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_GT(particles[0].getPosition().y(), initialPos.y());
+}
+
 """
-    if test_cpp.count("TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection)") != 1:
-        raise RuntimeError("open-mesh regression anchor missing")
     test_cpp = test_cpp.replace(
-        "TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection)",
-        extra_tests + "TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection)",
+        "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
+        extra_tests + "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
         1,
     )
     test.write_text(test_cpp, encoding="utf-8")
