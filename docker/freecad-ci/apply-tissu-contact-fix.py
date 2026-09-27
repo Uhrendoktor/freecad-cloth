@@ -34,6 +34,16 @@ def main() -> int:
 
     replace_once(
         header,
+        """#include <array>
+#include <vector>""",
+        """#include <array>
+#include <vector>
+
+#include <Eigen/Geometry>""",
+        "MeshCollider.hpp Eigen geometry include",
+    )
+    replace_once(
+        header,
         """    std::vector<Eigen::Vector3d> m_localVertices;
     std::vector<Eigen::Vector3d> m_worldVertices;
     std::vector<Triangle> m_triangles;
@@ -43,7 +53,11 @@ def main() -> int:
     std::vector<Triangle> m_triangles;
     bool m_closedManifold = false;
     double m_outwardNormalSign = 1.0;
-    BVH m_bvh;""",
+    bool m_containmentBootstrapped = false;
+    Eigen::AlignedBox3d m_worldBounds;
+    BVH m_bvh;
+
+    bool pointInsideClosedMesh(const Eigen::Vector3d& point) const;""",
         "MeshCollider.hpp member layout",
     )
 
@@ -112,7 +126,11 @@ MeshOrientation inferMeshOrientation(
 
     for (const auto& [key, edge] : edges) {
         (void)key;
-        if (edge.first != 2 || edge.second != 0)
+        // Closed-manifold detection only requires two incident faces per
+        // undirected edge. Production tessellations can contain locally
+        // inconsistent winding; signed volume below still supplies the global
+        // outward normal direction for the resolved contact.
+        if (edge.first != 2)
             return {};
     }
     if (std::abs(signedVolume) <= 1.0e-12)
@@ -126,6 +144,33 @@ MeshOrientation inferMeshOrientation(
     if cpp.count(include_old) != 1:
         raise RuntimeError("MeshCollider.cpp include anchor mismatch")
     cpp = cpp.replace(include_old, include_new, 1)
+
+    transform_old = """void MeshCollider::transform(const Eigen::Vector3d& position,
+                             const Eigen::Quaterniond& rotation) {
+    Collider::transform(position, rotation);
+
+    for (size_t i = 0; i < m_localVertices.size(); ++i)
+        m_worldVertices[i] = rotation * m_localVertices[i] + position;
+
+    m_bvh.build(m_worldVertices, m_triangles);
+}"""
+    transform_new = """void MeshCollider::transform(const Eigen::Vector3d& position,
+                             const Eigen::Quaterniond& rotation) {
+    Collider::transform(position, rotation);
+
+    for (size_t i = 0; i < m_localVertices.size(); ++i)
+        m_worldVertices[i] = rotation * m_localVertices[i] + position;
+
+    m_worldBounds.setEmpty();
+    for (const auto& vertex : m_worldVertices)
+        m_worldBounds.extend(vertex);
+    m_containmentBootstrapped = false;
+
+    m_bvh.build(m_worldVertices, m_triangles);
+}"""
+    if cpp.count(transform_old) != 1:
+        raise RuntimeError("MeshCollider.cpp transform anchor missing")
+    cpp = cpp.replace(transform_old, transform_new, 1)
 
     replace_cpp = [
         (
@@ -142,6 +187,9 @@ MeshOrientation inferMeshOrientation(
         inferMeshOrientation(m_worldVertices, m_triangles);
     m_closedManifold = orientation.closedManifold;
     m_outwardNormalSign = orientation.outwardNormalSign;
+    m_worldBounds.setEmpty();
+    for (const auto& vertex : m_worldVertices)
+        m_worldBounds.extend(vertex);
 
     m_bvh.build(m_worldVertices, m_triangles);""",
             "MeshCollider.cpp file constructor",
@@ -162,6 +210,9 @@ MeshOrientation inferMeshOrientation(
         inferMeshOrientation(m_worldVertices, m_triangles);
     m_closedManifold = orientation.closedManifold;
     m_outwardNormalSign = orientation.outwardNormalSign;
+    m_worldBounds.setEmpty();
+    for (const auto& vertex : m_worldVertices)
+        m_worldBounds.extend(vertex);
 
     m_bvh.build(m_worldVertices, m_triangles);""",
             "MeshCollider.cpp vector constructor",
@@ -173,31 +224,116 @@ MeshOrientation inferMeshOrientation(
                                          : ((b - a).cross(c - a)).normalized();
 
             Eigen::Vector3d newPosition = cp + normal * thickness;""",
-            """        if (distance <= thickness) {
+            """        if (distance <= thickness || insideClosedMesh) {
             Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
             const double faceNormalLength = faceNormalRaw.norm();
             if (faceNormalLength <= 1e-12)
                 continue;
             Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
 
-            Eigen::Vector3d normal = faceNormal;
-            if (distance > 1e-6) {
-                normal = toParticle / distance;
-                if (m_closedManifold) {
-                    const Eigen::Vector3d outwardNormal =
-                        faceNormal * m_outwardNormalSign;
-                    // A particle on the interior side of a closed, consistently
-                    // oriented surface must be resolved along the outward
-                    // normal; outside contact preserves the existing vector.
-                    if (normal.dot(outwardNormal) < 0.0)
-                        normal = -normal;
+            Eigen::Vector3d normal;
+            if (insideClosedMesh) {
+                normal = faceNormal * m_outwardNormalSign;
+            } else {
+                normal = faceNormal;
+                if (distance > 1e-6) {
+                    normal = toParticle / distance;
+                    if (m_closedManifold) {
+                        const Eigen::Vector3d outwardNormal =
+                            faceNormal * m_outwardNormalSign;
+                        if (normal.dot(outwardNormal) < 0.0)
+                            normal = -normal;
+                    }
+                } else if (m_closedManifold) {
+                    normal *= m_outwardNormalSign;
                 }
-            } else if (m_closedManifold) {
-                normal *= m_outwardNormalSign;
             }
 
             Eigen::Vector3d newPosition = cp + normal * thickness;""",
             "MeshCollider.cpp contact response",
+        ),
+        (
+            """void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
+                           double thickness) {""",
+            """bool MeshCollider::pointInsideClosedMesh(
+    const Eigen::Vector3d& point) const {
+    if (!m_closedManifold || m_worldBounds.isEmpty() ||
+        !m_worldBounds.contains(point))
+        return false;
+
+    const Eigen::Vector3d direction =
+        Eigen::Vector3d(1.0, 0.3713906763541037, 0.6123724356957945)
+            .normalized();
+    const double scale = std::max(1.0, point.norm());
+    const Eigen::Vector3d jitter =
+        direction.cross(Eigen::Vector3d::UnitX()) * (1e-9 * scale);
+    const Eigen::Vector3d origin = point + jitter;
+
+    int intersections = 0;
+    constexpr double epsilon = 1e-10;
+    for (const auto& tri : m_triangles) {
+        const Eigen::Vector3d& a = m_worldVertices[tri.a];
+        const Eigen::Vector3d& b = m_worldVertices[tri.b];
+        const Eigen::Vector3d& c = m_worldVertices[tri.c];
+        const Eigen::Vector3d edge1 = b - a;
+        const Eigen::Vector3d edge2 = c - a;
+        const Eigen::Vector3d pvec = direction.cross(edge2);
+        const double determinant = edge1.dot(pvec);
+        if (std::abs(determinant) <= epsilon)
+            continue;
+        const double inverseDeterminant = 1.0 / determinant;
+        const Eigen::Vector3d tvec = origin - a;
+        const double u = tvec.dot(pvec) * inverseDeterminant;
+        if (u < -epsilon || u > 1.0 + epsilon)
+            continue;
+        const Eigen::Vector3d qvec = tvec.cross(edge1);
+        const double v = direction.dot(qvec) * inverseDeterminant;
+        if (v < -epsilon || u + v > 1.0 + epsilon)
+            continue;
+        const double rayDistance = edge2.dot(qvec) * inverseDeterminant;
+        if (rayDistance > epsilon)
+            ++intersections;
+    }
+    return (intersections % 2) == 1;
+}
+
+void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
+                           double thickness) {""",
+            "MeshCollider.cpp closed-mesh containment helper",
+        ),
+        (
+            """        double distance = toParticle.norm();
+
+        if (distance <= thickness || insideClosedMesh) {""",
+            """        double distance = toParticle.norm();
+
+        bool insideClosedMesh = false;
+        if (m_closedManifold && distance > thickness) {
+            const double displacement =
+                (particle.getPosition() - particle.getOldPosition()).norm();
+            const bool containmentProbe =
+                !m_containmentBootstrapped ||
+                displacement + 1e-9 >= distance;
+            if (containmentProbe)
+                insideClosedMesh = pointInsideClosedMesh(particle.getPosition());
+        }
+
+        if (distance <= thickness || insideClosedMesh) {""",
+            "MeshCollider.cpp closed-mesh containment probe",
+        ),
+        (
+            """        }
+    }
+}
+
+} // namespace Tissu""",
+            """        }
+    }
+    m_containmentBootstrapped = true;
+}
+
+} // namespace Tissu""",
+            "MeshCollider.cpp closed-mesh containment bootstrap",
         ),
     ]
     for old, new, label in replace_cpp:
@@ -247,6 +383,26 @@ MeshOrientation inferMeshOrientation(
         helper + "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
         1,
     )
+    first_test_old = """TEST(MeshCollider, ParticleInsideMeshMovesOutside) {
+    MeshCollider mesh = makeTetrahedron(0.5);
+
+    Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 1.0);"""
+    first_test_new = """TEST(MeshCollider, ParticleInsideMeshMovesOutside) {
+    MeshCollider mesh = makeTetrahedron(0.5);
+
+    Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.1);"""
+    if test_cpp.count(first_test_old) != 1:
+        raise RuntimeError("MeshCollider deep-containment test anchor missing")
+    test_cpp = test_cpp.replace(first_test_old, first_test_new, 1)
+
     old = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
     EXPECT_GT(distanceMoved, 0.0);
 }"""
