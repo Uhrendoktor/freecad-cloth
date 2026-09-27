@@ -143,7 +143,8 @@ def test_staged_tissu_stitch_experiment_is_single_bounded_variable():
     assert 'os.environ["CLOTH_TISSU_STITCH_DELAY_STEPS"] = "15"' in audit
     assert '_TISSU_STITCH_DELAY_STEPS_DEFAULT = 0' in backend
     assert '_TISSU_STITCH_DELAY_STEPS_MAX = 90' in backend
-    assert 'add_stitch(int(a), int(b), 0.0)' in backend
+    assert 'tuple((a, b, 0.0) for a, b in self._stitches)' in backend
+    assert 'add_stitch(int(a), int(b), float(compliance))' in backend
     assert 'self._sim.step(float(dt))' in backend
     assert 'self._stitch_step += 1' in backend
     assert 'if self._pending_stitches and self._stitch_step >= self._stitch_delay_steps:' in backend
