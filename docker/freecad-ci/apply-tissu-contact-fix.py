@@ -74,22 +74,23 @@ private:
                std::vector<int>& outTriangles) const;
     int closestTriangle(const Eigen::Vector3d& point,
                         const std::vector<Eigen::Vector3d>& vertices) const;""",
-        "BVH box query declaration",
+        "BVH public query preservation",
     )
 
     replace_once(
         bvh_header,
         """private:
-    void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
-                        double squaredRadius,
-                        std::vector<int>& outTriangles) const;""",
+    int buildRecursive(std::vector<Triangle>& tempTriangles,
+                       const std::vector<Eigen::Vector3d>& vertices, int start,
+                       int end);""",
         """private:
     friend class MeshCollider;
     void query(const Eigen::AlignedBox3d& box,
                std::vector<int>& outTriangles) const;
-    void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
-                        double squaredRadius,
-                        std::vector<int>& outTriangles) const;""",
+
+    int buildRecursive(std::vector<Triangle>& tempTriangles,
+                       const std::vector<Eigen::Vector3d>& vertices, int start,
+                       int end);""",
         "BVH private box query declaration",
     )
 
@@ -98,6 +99,15 @@ private:
         """    void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
                         double squaredRadius,
                         std::vector<int>& outTriangles) const;""",
+        """    void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
+                        double squaredRadius,
+                        std::vector<int>& outTriangles) const;
+    void queryBoxRecursive(int nodeIdx, const Eigen::AlignedBox3d& box,
+                           std::vector<int>& outTriangles) const;""",
+        "BVH box query recursive declaration",
+    )
+
+
     cpp = cpp.read_text(encoding="utf-8")
     include_old = '#include "physics/Particle.hpp"\n\nnamespace Tissu {'
     include_new = """#include "physics/Particle.hpp"
