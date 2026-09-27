@@ -310,7 +310,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     }
 """
     step_call_replacement = """    for (int i = 0; i < m_iterations; i++) {
-        solveConstraints(dt, world.getThickness());
+        solveConstraints(dt, std::max(0.0, world.getThickness()));
     }
 """
     if solver_source.count(step_call) != 1:
