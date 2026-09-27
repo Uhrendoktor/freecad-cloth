@@ -395,9 +395,7 @@ private:
 
     replace_once(
         ROOT / "core/src/physics/MeshCollider.cpp",
-        """}
-
-MeshCollider::MeshCollider(const std::string& meshPath, double friction) {""",
+        """MeshCollider::MeshCollider(const std::string& meshPath, double friction) {""",
         """}
 
 namespace {
