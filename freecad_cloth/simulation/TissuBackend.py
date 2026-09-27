@@ -173,7 +173,7 @@ class TissuBackend(ClothSimulationBackend):
             raise RuntimeError("Tissu did not preserve cloth particle ordering")
         for index in self._pin_indices:
             self._sim.solver.add_pin(int(index), np.asarray(positions[index], dtype=np.float64), 0.0)
-        self._pending_stitches = tuple(self._stitches) if self._stitch_delay_steps else ()
+        self._pending_stitches = tuple(self._stitches)
         if not self._stitch_delay_steps:
             self._activate_stitches()
         self._add_collision()
