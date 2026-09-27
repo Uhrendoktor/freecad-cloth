@@ -30,6 +30,8 @@ def main() -> int:
 
     header = ROOT / "core/include/physics/MeshCollider.hpp"
     cpp = ROOT / "core/src/physics/MeshCollider.cpp"
+    bvh_header = ROOT / "core/include/data-structures/BVH.hpp"
+    bvh_cpp = ROOT / "core/src/data-structures/BVH.cpp"
     test = ROOT / "tests/physics/test_mesh_collider.cpp"
 
     replace_once(
@@ -47,6 +49,172 @@ def main() -> int:
         "MeshCollider.hpp member layout",
     )
 
+    bvh_header_text = bvh_header.read_text(encoding="utf-8")
+    bvh_header_text = bvh_header_text.replace(
+        """    int closestTriangle(const Eigen::Vector3d& point,
+                         const std::vector<Eigen::Vector3d>& vertices) const;""",
+        """    int closestTriangle(const Eigen::Vector3d& point,
+                         const std::vector<Eigen::Vector3d>& vertices) const;
+    int rayIntersectionCount(
+        const Eigen::Vector3d& origin, const Eigen::Vector3d& direction,
+        const std::vector<Eigen::Vector3d>& vertices,
+        bool& ambiguous) const;""",
+        1,
+    )
+    if "rayIntersectionCount(" not in bvh_header_text:
+        raise RuntimeError("BVH.hpp ray-count declaration missing")
+    bvh_header_text = bvh_header_text.replace(
+        """    int closestRecursive(int nodeIdx, const Eigen::Vector3d& point,
+                         const std::vector<Eigen::Vector3d>& vertices,
+                         double& bestDistSq) const;""",
+        """    int closestRecursive(int nodeIdx, const Eigen::Vector3d& point,
+                         const std::vector<Eigen::Vector3d>& vertices,
+                         double& bestDistSq) const;
+    int rayIntersectionRecursive(
+        int nodeIdx, const Eigen::Vector3d& origin,
+        const Eigen::Vector3d& direction,
+        const std::vector<Eigen::Vector3d>& vertices,
+        bool& ambiguous) const;""",
+        1,
+    )
+    if "rayIntersectionRecursive(" not in bvh_header_text:
+        raise RuntimeError("BVH.hpp private ray-count declaration missing")
+    bvh_header.write_text(bvh_header_text, encoding="utf-8")
+
+    bvh_cpp_text = bvh_cpp.read_text(encoding="utf-8")
+    bvh_include_anchor = '#include "data-structures/BVH.hpp"\n\nnamespace Tissu {'
+    bvh_include_replacement = """#include "data-structures/BVH.hpp"
+
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
+namespace {
+
+constexpr double kRayEpsilon = 1.0e-10;
+constexpr double kRayEdgeEpsilon = 1.0e-9;
+
+bool rayAabbHit(
+    const Eigen::Vector3d& origin, const Eigen::Vector3d& direction,
+    const Eigen::AlignedBox3d& box) {
+    double tMin = 0.0;
+    double tMax = std::numeric_limits<double>::infinity();
+    for (int axis = 0; axis < 3; ++axis) {
+        const double d = direction[axis];
+        const double minValue = box.min()[axis];
+        const double maxValue = box.max()[axis];
+        if (std::abs(d) <= kRayEpsilon) {
+            if (origin[axis] < minValue || origin[axis] > maxValue)
+                return false;
+            continue;
+        }
+        double t0 = (minValue - origin[axis]) / d;
+        double t1 = (maxValue - origin[axis]) / d;
+        if (t0 > t1)
+            std::swap(t0, t1);
+        tMin = std::max(tMin, t0);
+        tMax = std::min(tMax, t1);
+        if (tMax < tMin)
+            return false;
+    }
+    return tMax > kRayEpsilon;
+}
+
+bool rayTriangleHit(
+    const Eigen::Vector3d& origin, const Eigen::Vector3d& direction,
+    const Eigen::Vector3d& a, const Eigen::Vector3d& b,
+    const Eigen::Vector3d& c, double& t, bool& ambiguous) {
+    const Eigen::Vector3d e1 = b - a;
+    const Eigen::Vector3d e2 = c - a;
+    const Eigen::Vector3d p = direction.cross(e2);
+    const double det = e1.dot(p);
+    if (std::abs(det) <= kRayEpsilon)
+        return false;
+
+    const double invDet = 1.0 / det;
+    const Eigen::Vector3d tv = origin - a;
+    const double u = tv.dot(p) * invDet;
+    if (u < -kRayEdgeEpsilon || u > 1.0 + kRayEdgeEpsilon)
+        return false;
+
+    const Eigen::Vector3d q = tv.cross(e1);
+    const double v = direction.dot(q) * invDet;
+    if (v < -kRayEdgeEpsilon || u + v > 1.0 + kRayEdgeEpsilon)
+        return false;
+
+    t = e2.dot(q) * invDet;
+    if (t <= kRayEpsilon)
+        return false;
+
+    const double w = 1.0 - u - v;
+    if (std::abs(u) <= kRayEdgeEpsilon ||
+        std::abs(v) <= kRayEdgeEpsilon ||
+        std::abs(w) <= kRayEdgeEpsilon) {
+        ambiguous = true;
+        return false;
+    }
+    return true;
+}
+
+} // namespace
+
+namespace Tissu {"""
+    if bvh_cpp_text.count(bvh_include_anchor) != 1:
+        raise RuntimeError("BVH.cpp include anchor mismatch")
+    bvh_cpp_text = bvh_cpp_text.replace(bvh_include_anchor,bvh_include_replacement,1)
+    bvh_cpp_text = bvh_cpp_text.replace(
+        """int BVH::closestTriangle(const Eigen::Vector3d& point,
+                         const std::vector<Eigen::Vector3d>& vertices) const {""",
+        """int BVH::rayIntersectionCount(
+    const Eigen::Vector3d& origin, const Eigen::Vector3d& direction,
+    const std::vector<Eigen::Vector3d>& vertices,
+    bool& ambiguous) const {
+    ambiguous = false;
+    if (m_rootIndex == -1 || m_nodes.empty())
+        return 0;
+    return rayIntersectionRecursive(
+        m_rootIndex, origin, direction, vertices, ambiguous);
+}
+
+int BVH::rayIntersectionRecursive(
+    int nodeIdx, const Eigen::Vector3d& origin,
+    const Eigen::Vector3d& direction,
+    const std::vector<Eigen::Vector3d>& vertices,
+    bool& ambiguous) const {
+    const BVHNode& node = m_nodes[nodeIdx];
+    if (!rayAabbHit(origin, direction, node.bbox))
+        return 0;
+
+    if (node.isLeaf()) {
+        int count = 0;
+        for (int i = 0; i < node.primitiveCount; ++i) {
+            const int triIdx = node.triangleIndex + i;
+            const Triangle& tri = m_triangles[triIdx];
+            double t = 0.0;
+            if (rayTriangleHit(
+                    origin, direction,
+                    vertices[tri.a], vertices[tri.b], vertices[tri.c],
+                    t, ambiguous)) {
+                ++count;
+            }
+        }
+        return count;
+    }
+
+    return rayIntersectionRecursive(
+               node.left, origin, direction, vertices, ambiguous) +
+           rayIntersectionRecursive(
+               node.right, origin, direction, vertices, ambiguous);
+}
+
+int BVH::closestTriangle(const Eigen::Vector3d& point,
+                         const std::vector<Eigen::Vector3d>& vertices) const {""",
+        1,
+    )
+    if "rayIntersectionCount(" not in bvh_cpp_text:
+        raise RuntimeError("BVH.cpp ray-count implementation missing")
+    bvh_cpp.write_text(bvh_cpp_text, encoding="utf-8")
+
     cpp = cpp.read_text(encoding="utf-8")
     include_old = '#include "physics/Particle.hpp"\n\nnamespace Tissu {'
     include_new = """#include "physics/Particle.hpp"
@@ -60,6 +228,42 @@ def main() -> int:
 namespace Tissu {
 
 namespace {
+
+enum class ContainmentState {
+    Outside,
+    Inside,
+    Ambiguous,
+};
+
+ContainmentState classifyClosedMeshPoint(
+    const BVH& bvh,
+    const Eigen::Vector3d& point,
+    const std::vector<Eigen::Vector3d>& vertices) {
+    static const std::array<Eigen::Vector3d, 3> directions = {
+        Eigen::Vector3d(1.0, 0.3713906764, 0.1591549431).normalized(),
+        Eigen::Vector3d(-0.2113248654, 1.0, 0.5773502692).normalized(),
+        Eigen::Vector3d(0.4472135955, -0.8017837257, 1.0).normalized(),
+    };
+    int insideVotes = 0;
+    int outsideVotes = 0;
+    for (const auto& direction : directions) {
+        bool ambiguous = false;
+        const Eigen::Vector3d origin = point + direction * 1.0e-8;
+        const int intersections =
+            bvh.rayIntersectionCount(origin, direction, vertices, ambiguous);
+        if (ambiguous)
+            continue;
+        if (intersections & 1)
+            ++insideVotes;
+        else
+            ++outsideVotes;
+        if (insideVotes >= 2)
+            return ContainmentState::Inside;
+        if (outsideVotes >= 2)
+            return ContainmentState::Outside;
+    }
+    return ContainmentState::Ambiguous;
+}
 
 struct MeshOrientation {
     bool closedManifold = false;
@@ -173,7 +377,13 @@ MeshOrientation inferMeshOrientation(
                                          : ((b - a).cross(c - a)).normalized();
 
             Eigen::Vector3d newPosition = cp + normal * thickness;""",
-            """        if (distance <= thickness) {
+            """        const bool deepInterior =
+            m_closedManifold && distance > thickness &&
+            classifyClosedMeshPoint(
+                m_bvh, particle.getPosition(), m_worldVertices) ==
+                ContainmentState::Inside;
+
+        if (distance <= thickness || deepInterior) {
             Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
             const double faceNormalLength = faceNormalRaw.norm();
             if (faceNormalLength <= 1e-12)
@@ -181,7 +391,9 @@ MeshOrientation inferMeshOrientation(
             Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
 
             Eigen::Vector3d normal = faceNormal;
-            if (distance > 1e-6) {
+            if (deepInterior) {
+                normal = faceNormal * m_outwardNormalSign;
+            } else if (distance > 1e-6) {
                 normal = toParticle / distance;
                 if (m_closedManifold) {
                     const Eigen::Vector3d outwardNormal =
@@ -288,11 +500,52 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     test_cpp = test_cpp.replace(old, new, 1)
     test.write_text(test_cpp, encoding="utf-8")
 
+    deep_test = r'''
+TEST(MeshCollider, DeepInteriorClosedMeshProjectsOutside) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    constexpr double thickness = 0.05;
+    const Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+    mesh.resolve(particles, 0.016, thickness);
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+    EXPECT_GT((particles[0].getPosition() - initialPos).norm(), thickness);
+}
+
+TEST(MeshCollider, DeepInteriorClosedMeshHandlesReversedWinding) {
+    const std::vector<Eigen::Vector3d> vertices = {
+        {0.0, 0.0, 0.0},
+        {2.0, 0.0, 0.0},
+        {1.0, 0.0, 2.0},
+        {1.0, 2.0, 1.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {
+        {0, 1, 2},
+        {0, 3, 1},
+        {1, 3, 2},
+        {0, 2, 3},
+    };
+    MeshCollider mesh(vertices, triangles, 0.0);
+    const Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+    mesh.resolve(particles, 0.016, 0.05);
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+}
+
+'''
+    test_anchor = "TEST(MeshCollider, ParticleOutsideMeshDoesNotChangePosition) {"
+    if test_cpp.count(test_anchor) != 1:
+        raise RuntimeError("deep-interior regression insertion anchor mismatch")
+    test_cpp = test_cpp.replace(test_anchor, deep_test + test_anchor, 1)
+
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
     changed = run("git", "diff", "--name-only")
     expected = {
+        "core/include/data-structures/BVH.hpp",
         "core/include/physics/MeshCollider.hpp",
+        "core/src/data-structures/BVH.cpp",
         "core/src/physics/MeshCollider.cpp",
         "tests/physics/test_mesh_collider.cpp",
     }
