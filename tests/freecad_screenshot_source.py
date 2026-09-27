@@ -426,6 +426,40 @@ def simulation():
         float(getattr(target, "CollisionDeflection", 1.0)),
         float(getattr(target, "CollisionThickness", 0.0)),
     )
+    shoulder_attachment_specs = (
+        ("TunicRightShoulder", "front", -1),
+        ("TunicRightShoulder", "back", -1),
+        ("TunicLeftShoulder", "front", -1),
+        ("TunicLeftShoulder", "back", -1),
+    )
+    target_vertices = tuple(surface.vertices)
+    initial_positions = tuple(backend.positions())
+    attachment_records = []
+    for seam_id, panel_side, sample_index in shoulder_attachment_specs:
+        stitch_pairs = tuple(getattr(proxy, "seam_stitch_pairs", {}).get(seam_id, ()))
+        if len(stitch_pairs) < 1:
+            raise RuntimeError("canonical tunic shoulder attachment seam has no solver stitch samples: %s" % seam_id)
+        pair = stitch_pairs[sample_index]
+        particle_id = int(pair[0] if panel_side == "front" else pair[1])
+        position = initial_positions[particle_id]
+        target_vertex_id, target_vertex = min(
+            enumerate(target_vertices),
+            key=lambda item: sum((float(position[i]) - float(item[1][i])) ** 2 for i in range(3)),
+        )
+        distance = sum((float(position[i]) - float(target_vertex[i])) ** 2 for i in range(3)) ** 0.5
+        attachment_records.append((particle_id, int(target_vertex_id), float(distance), seam_id, panel_side))
+    if len(attachment_records) != 4 or len({record[0] for record in attachment_records}) != 4:
+        raise RuntimeError("canonical tunic shoulder attachment selection did not produce four unique panel anchors")
+    if not hasattr(backend, "add_attachments"):
+        raise RuntimeError("Tissu backend lacks canonical mesh attachment support")
+    backend.add_attachments(tuple((particle_id, target_vertex_id, rest_length) for particle_id, target_vertex_id, rest_length, _seam_id, _panel_side in attachment_records))
+    if len(tuple(getattr(backend, "attachment_records", ()))) != 4:
+        raise RuntimeError("canonical tunic did not register exactly four Tissu attachments")
+    attachment_payload = [
+        {"particle_id": particle_id, "target_vertex_id": target_vertex_id, "rest_length_mm": round(rest_length, 6), "seam": seam_id, "panel": panel_side}
+        for particle_id, target_vertex_id, rest_length, seam_id, panel_side in attachment_records
+    ]
+    log("tunic-attachments=count=%d collider=drape-target records=%s" % (len(attachment_payload), attachment_payload))
     initial_clearance = None
     try:
         from freecad_cloth.common.MeshValidation import nearest_target_clearance
@@ -438,6 +472,8 @@ def simulation():
             "%.2f mm < %.2f mm" % (float(initial_clearance or 0.0), float(clearance))
         )
     log("pin-mode=None solver-pins=0")
+    if tuple(getattr(backend, "_pin_indices", ())) or tuple(getattr(getattr(backend, "system", None), "pins", {}).keys()):
+        raise RuntimeError("canonical tunic attachment experiment must retain zero solver pins")
     log("target-collision-mode=mesh")
     log("step0-target-vertex-clearance-mm=%.2f required-mm=%.2f" % (float(initial_clearance), float(clearance)))
     for source in (doc.getObject("VisualTunicFront"), doc.getObject("VisualTunicBack")):
