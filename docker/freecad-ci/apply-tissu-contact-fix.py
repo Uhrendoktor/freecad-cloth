@@ -380,6 +380,14 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     stitch_header.write_text(stitch_text, encoding="utf-8")
 
     stitch_source = stitch_cpp.read_text(encoding="utf-8")
+    stitch_include = '#include "physics/StitchConstraint.hpp"\n'
+    if stitch_source.count(stitch_include) != 1:
+        raise RuntimeError("StitchConstraint.cpp include anchor mismatch")
+    stitch_source = stitch_source.replace(
+        stitch_include,
+        '#include "physics/StitchConstraint.hpp"\n\n#include <cmath>\n#include <limits>\n',
+        1,
+    )
     stitch_start_marker = "void StitchConstraint::solve(std::vector<Particle>& particles, double dt) {"
     stitch_end_marker = "\n} // namespace Tissu"
     if stitch_source.count(stitch_start_marker) != 1 or stitch_source.count(stitch_end_marker) != 1:
