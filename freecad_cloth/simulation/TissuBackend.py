@@ -89,7 +89,7 @@ class TissuBackend(ClothSimulationBackend):
         triangles: Sequence[Tuple[int, int, int]],
         pins: Iterable[int] = (),
         stitches: Iterable[Tuple[int, int]] = (),
-        attachments: Iterable[Tuple[int, int, float]] = (),
+        attachments: Iterable[Tuple[int, Tuple[float, float, float], float]] = (),
         collision_surface: CollisionSurface | None = None,
         collision_mode: str = "torso-envelope",
     ):
@@ -105,8 +105,12 @@ class TissuBackend(ClothSimulationBackend):
         self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins))
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
         self._attachments = tuple(
-            (int(particle_id), int(target_vertex_id), float(rest_length))
-            for particle_id, target_vertex_id, rest_length in attachments
+            (
+                int(particle_id),
+                tuple(float(value) for value in anchor),
+                float(rest_length),
+            )
+            for particle_id, anchor, rest_length in attachments
         )
         self._source_collision_surface = collision_surface
         collision_limit = _tissu_collision_triangle_limit()
@@ -171,12 +175,12 @@ class TissuBackend(ClothSimulationBackend):
         if self._attachments:
             if self._collision_mode != "mesh" or self._collision_surface is None:
                 raise RuntimeError("Tissu attachments require the mesh collision surface")
-            for particle_id, target_vertex_id, rest_length in self._attachments:
+            for particle_id, anchor, rest_length in self._attachments:
                 self._sim.add_attachment(
                     self._fabric,
                     "drape-target",
                     [int(particle_id)],
-                    [int(target_vertex_id)],
+                    local_anchors=[np.asarray(_to_tissu_position(anchor), dtype=np.float64)],
                     compliance=0.0,
                     rest_length=float(rest_length) / _MM,
                 )
