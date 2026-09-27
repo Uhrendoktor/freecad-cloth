@@ -81,7 +81,7 @@ def test_true_mn_arc_length_mapping_reversal_is_explicit():
     value.add_seam(Seam("left", 1, "right", 3, id="mn-reverse", reversed_b=True, stitch_group="mn-reverse"))
     edges = {("left", 1): (10, 11, 12, 13), ("right", 3): (20, 21, 22, 23)}
     points = {("left", 1): ((0.0, 0.0), (1.0, 0.0), (3.0, 0.0), (10.0, 0.0)), ("right", 3): ((0.0, 0.0), (5.0, 0.0), (10.0, 0.0), (12.0, 0.0))}
-    assert value.stitch_pairs(edges, edge_points=points) == ((10, 23), (12, 22), (13, 20))
+    assert value.stitch_pairs(edges, edge_points=points) == ((10, 23), (11, 22), (12, 21), (13, 20))
 
 
 def test_missing_mesh_edge_vertices_is_rejected():
