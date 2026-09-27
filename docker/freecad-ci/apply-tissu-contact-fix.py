@@ -401,7 +401,7 @@ private:""",
 
     replace_once(
         ROOT / "core/src/physics/MeshCollider.cpp",
-        """}
+        """namespace Tissu {
 
 MeshCollider::MeshCollider(const std::string& meshPath, double friction) {""",
         """}
