@@ -620,10 +620,10 @@ void StitchConstraint::solveSwept(
     replace_once(
         solver_cpp,
         """#include "physics/StitchConstraint.hpp"
-#include "physics/VolumeConstraint.hpp"""",
+#include "physics/VolumeConstraint.hpp""",
         """#include "physics/StitchConstraint.hpp"
 #include "physics/VolumeConstraint.hpp"
-#include "physics/MeshCollider.hpp"""",
+#include "physics/MeshCollider.hpp""",
         "Solver MeshCollider include",
     )
     replace_once(
