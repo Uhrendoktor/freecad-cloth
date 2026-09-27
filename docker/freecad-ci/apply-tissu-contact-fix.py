@@ -410,6 +410,10 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
                            double thickness) {""",
         "MeshCollider first-segment-hit implementation",
     )
+    # The helper above is written directly to disk; refresh the in-memory
+    # source before applying the resolve-body replacement below so we do not
+    # overwrite firstSegmentHit with the pre-edit contents.
+    cpp = cpp_path.read_text(encoding="utf-8")
 
     current_contact = """        if (distance <= thickness) {
             Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
