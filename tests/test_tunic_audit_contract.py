@@ -38,10 +38,10 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
 
 def test_canonical_tunic_uses_validated_authored_mapping():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert "required_indices = (1, 2, 6, 7)" in audit
+    assert "required_indices = (1, 2, 5, 7)" in audit
     assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in audit
-    assert 'front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"' in audit
-    assert 'front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"' in audit
+    assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in audit
+    assert 'front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"' in audit
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in audit
     assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' not in audit
 
@@ -107,6 +107,8 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
     assert 'tunic-simulation-start' in source
+    assert "initial-stitch-spans-mm=" in source
+    assert "initial-stitch-span-global-min-mm=" in source
 
 
 def test_tissu_ci_image_is_pinned_and_self_regressing():
