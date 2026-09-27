@@ -109,6 +109,7 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'tunic-simulation-start' in source
 
 
+# Keep this contract aligned with the transient pinned-Tissu native regression set; changing the generated test anchors must be deliberate.
 def test_tissu_ci_image_is_pinned_and_self_regressing():
     dockerfile = (ROOT / "docker" / "freecad-ci" / "Dockerfile").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
