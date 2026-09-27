@@ -137,6 +137,18 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert 'docker run --rm "$FREECAD_TUNIC_IMAGE" cat /opt/tissu-provenance.txt' in workflow
     assert 'artifacts/tissu-provenance.txt' in workflow
 
+def test_staged_tissu_stitch_experiment_is_single_bounded_variable():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    backend = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    assert 'os.environ["CLOTH_TISSU_STITCH_DELAY_STEPS"] = "15"' in audit
+    assert '_TISSU_STITCH_DELAY_STEPS_DEFAULT = 0' in backend
+    assert '_TISSU_STITCH_DELAY_STEPS_MAX = 90' in backend
+    assert 'add_stitch(int(a), int(b), 0.0)' in backend
+    assert 'self._sim.step(float(dt))' in backend
+    assert 'self._stitch_step += 1' in backend
+    assert 'if self._pending_stitches and self._stitch_step >= self._stitch_delay_steps:' in backend
+
+
 def test_canonical_tunic_fixture_matches_validated_start_geometry():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert '"front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)"' in audit
