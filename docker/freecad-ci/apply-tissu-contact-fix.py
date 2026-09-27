@@ -755,7 +755,7 @@ TEST(Solver, ZeroRestStitchExitMotionIsNotClipped) {
         raise RuntimeError(f"unexpected patched files: {changed!r}")
 
     solver_cpp_text = solver_cpp.read_text(encoding="utf-8")
-    mesh_cpp_text = mesh_cpp.read_text(encoding="utf-8")
+    mesh_cpp_text = cpp_path.read_text(encoding="utf-8")
     mesh_header_text = header.read_text(encoding="utf-8")
     for anchor, source in (
         ("dynamic_cast<StitchConstraint*>(&constraint)", solver_cpp_text),
