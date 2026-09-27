@@ -308,6 +308,20 @@ MeshOrientation inferMeshOrientation(
     )
     replace_once(
         stitch_header,
+        """namespace Tissu {
+
+class StitchConstraint""",
+        """namespace Tissu {
+
+class Collider;
+class Solver;
+
+class StitchConstraint""",
+        "StitchConstraint forward declarations",
+    )
+
+    replace_once(
+        stitch_header,
         """private:
     int m_idA;""",
         """private:
