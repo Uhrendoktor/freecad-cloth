@@ -533,6 +533,7 @@ class Collider;
 class StitchConstraint""",
         "StitchConstraint collider forward declaration",
     )
+    # Stable pinned Tissu header anchor: insert the private collider hooks immediately after the class name.
     replace_once(
         ROOT / "core/include/physics/StitchConstraint.hpp",
         """    void solve(std::vector<Particle>& particles, double dt) override;
