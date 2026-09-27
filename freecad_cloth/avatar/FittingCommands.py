@@ -238,12 +238,22 @@ def add_selected_pattern_pieces():
             continue
         width = max(1.0, float(getattr(piece, "Width", 100.0) or 100.0))
         height = max(1.0, float(getattr(piece, "Height", 100.0) or 100.0))
-        defaults.append(
-            GarmentAnchor(pid, "fitting_origin", (0.5 * width, 0.5 * height, 0.0), "front").to_string()
-        )
-        existing_anchor_keys.add((pid, "fitting_origin"))
+        defaults.extend((
+            GarmentAnchor(pid, "shoulder_left", (0.15 * width, 0.92 * height, 0.0), "front").to_string(),
+            GarmentAnchor(pid, "shoulder_right", (0.85 * width, 0.92 * height, 0.0), "front").to_string(),
+        ))
+        existing_anchor_keys.add((pid, "shoulder_left"))
+        existing_anchor_keys.add((pid, "shoulder_right"))
     scene.GarmentAnchors = sorted(set(defaults))
-    FittingScene(BodyMeasurements.from_json(scene.MeasurementData), getattr(scene.AvatarProxy, "Label", "") if scene.AvatarProxy else "", tuple(by_id.values())).validate()
+    FittingScene(
+        BodyMeasurements.from_json(scene.MeasurementData),
+        getattr(scene.AvatarProxy, "Label", "") if scene.AvatarProxy else "",
+        tuple(by_id.values()),
+        garment_anchors=tuple(
+            GarmentAnchor.from_string(value)
+            for value in scene.GarmentAnchors
+        ),
+    ).validate()
     scene.FitStatus = "Ready" if scene.AvatarProxy else "Pieces assigned"
     doc.recompute()
     return scene
