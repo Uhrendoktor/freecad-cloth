@@ -384,8 +384,12 @@ bool isDeepInterior(
 
             Eigen::Vector3d newPosition = cp + normal * thickness;""",
             """        bool deepInterior = false;
-        if (m_closedManifold && distance > thickness)
-            deepInterior = isDeepInterior(m_bvh, particle.getPosition(), m_worldVertices);
+        // Deep classification is fail-closed: only a proven closed manifold and
+        // agreeing non-degenerate parity rays can move a particle from deep inside.
+        if (m_closedManifold && distance > thickness) {
+            deepInterior =
+                isDeepInterior(m_bvh, particle.getPosition(), m_worldVertices);
+        }
 
         if (distance <= thickness || deepInterior) {
             Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
