@@ -1,6 +1,6 @@
 """Deterministic, solver-neutral rigid garment placement against a persistent target surface."""
 from dataclasses import dataclass
-from math import atan2, cos, degrees, sqrt, sin, radians
+from math import atan2, cos, degrees, isfinite, sqrt, sin, radians
 
 
 class TargetPlacementError(ValueError):
@@ -174,6 +174,64 @@ def solve_rigid_z(source_points, target_points, *, max_translation=600.0, max_ro
     residual = max(_norm(_sub(a, b)) for a, b in zip(transformed, target))
     return RigidDelta(translation, degrees(angle), residual)
 
+
+
+def nearest_target_projection(surface, point):
+    """Return the nearest deterministic outward projection without imposing a guessed wrap axis."""
+    candidates = []
+    for triangle_index in range(len(surface.triangles)):
+        normal = _triangle_normal(surface, triangle_index)
+        ia, ib, ic = surface.triangles[triangle_index]
+        closest = _closest_point_on_triangle(
+            point, surface.vertices[ia], surface.vertices[ib], surface.vertices[ic]
+        )
+        distance = _norm(_sub(point, closest))
+        candidates.append(SurfaceHit(triangle_index, closest, normal, distance))
+    if not candidates:
+        raise TargetPlacementError("target surface has no triangles")
+    candidates.sort(key=lambda hit: (round(hit.distance, 12), hit.triangle_index))
+    best = candidates[0]
+    for candidate in candidates[1:]:
+        if abs(candidate.distance - best.distance) > 1e-9:
+            break
+        if _dot(best.normal, candidate.normal) < 0.20:
+            raise TargetPlacementError("target projection is ambiguous across opposing surface normals")
+    return best
+
+
+def solve_shared_translation(source_points, target_points, *, max_translation=600.0):
+    """Solve one bounded rigid translation; pairwise garment spacing and rotations are unchanged."""
+    source = tuple(tuple(float(v) for v in p) for p in source_points)
+    target = tuple(tuple(float(v) for v in p) for p in target_points)
+    if not source or len(source) != len(target):
+        raise TargetPlacementError("shared translation requires equally sized non-empty anchors")
+    translation = tuple(
+        sum(target[i][axis] - source[i][axis] for i in range(len(source))) / len(source)
+        for axis in range(3)
+    )
+    if _norm(translation) > float(max_translation):
+        raise TargetPlacementError("target-aware translation exceeds the configured bound")
+    residual = max(
+        _norm(_sub(_add(source_point, translation), target_point))
+        for source_point, target_point in zip(source, target)
+    )
+    return RigidDelta(translation, 0.0, residual)
+
+
+def minimum_surface_clearance(surface, points):
+    """Return the minimum signed clearance of world-space garment samples from the target."""
+    if not points:
+        raise TargetPlacementError("at least one garment sample point is required")
+    best = None
+    for index, point in enumerate(points):
+        hit = nearest_target_projection(surface, point)
+        signed = _dot(_sub(point, hit.point), hit.normal)
+        if not isfinite(signed):
+            raise TargetPlacementError("target clearance became non-finite")
+        record = (float(signed), index, hit)
+        if best is None or record[0] < best[0]:
+            best = record
+    return float(best[0])
 
 def apply_rigid_delta(points, delta):
     angle = radians(float(delta.rotation_z))
