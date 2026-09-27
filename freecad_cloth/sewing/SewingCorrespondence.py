@@ -164,6 +164,7 @@ def arc_length_vertex_indices(values, points, count, start=0.0, end=1.0):
         raise ValueError("at least two correspondence samples are required")
     if not _range_is_valid(float(start), float(end)):
         raise ValueError("seam parameter ranges must satisfy 0 <= start < end <= 1")
+
     values = tuple(values)
     points = tuple(tuple(float(x) for x in point) for point in points)
     if len(values) != len(points):
@@ -175,33 +176,55 @@ def arc_length_vertex_indices(values, points, count, start=0.0, end=1.0):
         raise ValueError("arc-length sampling points must have matching dimensions")
     if any(any(not math.isfinite(value) for value in point) for point in points):
         raise ValueError("arc-length sampling points must be finite")
+
     cumulative = [0.0]
     for first, second in zip(points, points[1:]):
-        cumulative.append(cumulative[-1] + math.sqrt(sum((a - b) ** 2 for a, b in zip(first, second))))
+        cumulative.append(
+            cumulative[-1] + math.sqrt(sum((a - b) ** 2 for a, b in zip(first, second)))
+        )
     total = cumulative[-1]
     if total <= 0.0:
         raise ValueError("arc-length sampling needs a positive total length")
+
     sample_count = min(int(count), len(values))
     last = len(points) - 1
+    start_vertex = float(start) * last
+    end_vertex = float(end) * last
+
+    def _fractional_cumulative(position):
+        lower = int(math.floor(position))
+        upper = min(last, lower + 1)
+        if upper == lower:
+            return cumulative[lower]
+        fraction = position - lower
+        return cumulative[lower] + (cumulative[upper] - cumulative[lower]) * fraction
+
+    start_distance = _fractional_cumulative(start_vertex)
+    end_distance = _fractional_cumulative(end_vertex)
+    first_index = max(0, min(last, int(math.floor(start_vertex))))
+    last_index = max(first_index, min(last, int(math.ceil(end_vertex))))
+    if last_index - first_index + 1 < sample_count:
+        raise ValueError("arc-length sampling range does not contain enough distinct vertices")
+
     result = []
     for sample in range(sample_count):
-        local = float(start) + (float(end) - float(start)) * sample / float(sample_count - 1)
-        target = local * total
+        local = sample / float(sample_count - 1)
+        target = start_distance + (end_distance - start_distance) * local
+        lower_bound = max(first_index, result[-1] + 1 if result else first_index)
+        upper_bound = last_index - (sample_count - sample - 1)
         right = bisect.bisect_left(cumulative, target)
-        if right <= 0:
-            index = 0
-        elif right >= len(cumulative):
-            index = last
-        else:
-            left = right - 1
-            index = left if target - cumulative[left] < cumulative[right] - target else right
-        if result and index <= result[-1]:
-            index = result[-1] + 1
-        if index > last:
-            raise ValueError("arc-length sampling cannot preserve distinct monotone vertices")
+        candidates = []
+        for index in (right - 1, right, right + 1):
+            if lower_bound <= index <= upper_bound:
+                candidates.append(index)
+        if not candidates:
+            candidates = [lower_bound, upper_bound]
+        index = min(
+            candidates,
+            key=lambda candidate: (abs(cumulative[candidate] - target), candidate),
+        )
         result.append(index)
-    if result[-1] == last and result[0] == 0:
-        return tuple(values[index] for index in result)
+
     return tuple(values[index] for index in result)
 
 def map_parameter(
