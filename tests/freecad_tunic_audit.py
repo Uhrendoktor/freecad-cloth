@@ -16,6 +16,8 @@ source = source_path.read_text(encoding="utf-8")
 os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
 
 replacements = {
+    'rot = App.Rotation(App.Vector(1,0,0), 90.0)': '    front_rot = App.Rotation(App.Vector(1,0,0), 90.0); back_rot = App.Rotation(App.Vector(0,1,1), 180.0)',
+    '        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)': '        rotation = front_rot if side == "front" else back_rot; return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rotation)',
     'clearance = max(20.0, 0.08 * body_depth)': 'clearance = max(8.0, 0.025 * body_depth);',
     'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)': 'front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)',
     '    for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):\n'
