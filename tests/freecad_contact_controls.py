@@ -253,7 +253,7 @@ def _set_probe_shape(obj, positions):
     obj.Shape = Part.Face(Part.makePolygon(p + [p[0]]))
 
 
-def _save_probe_view(name, avatar=None, target_box=None, probe=None):
+def _save_probe_view(doc, name, avatar=None, target_box=None, probe=None):
     if avatar is not None:
         avatar.ViewObject.Transparency = 72
         avatar.ViewObject.Visibility = True
@@ -264,7 +264,10 @@ def _save_probe_view(name, avatar=None, target_box=None, probe=None):
         probe.ViewObject.LineColor = (0.15, 0.02, 0.01)
         probe.ViewObject.LineWidth = 3.0
         probe.ViewObject.Visibility = True
-    view = Gui.activeDocument().activeView()
+    gui_doc = Gui.getDocument(doc.Name)
+    if gui_doc is None:
+        raise RuntimeError("no GUI document for %s" % doc.Name)
+    view = gui_doc.activeView()
     view.setCameraType("Orthographic")
     view.viewFront()
     view.fitAll()
@@ -311,9 +314,9 @@ def _cube_control():
     _progress("cube control: export step-0/step-1 images")
     probe = doc.addObject("Part::Feature", "ProbeCloth")
     _set_probe_shape(probe, inside["initial_positions"])
-    _save_probe_view("cube-inside-step-0.png", target_box=cube, probe=probe)
+    _save_probe_view(doc, "cube-inside-step-0.png", target_box=cube, probe=probe)
     _set_probe_shape(probe, inside["final_positions"])
-    _save_probe_view("cube-inside-step-1.png", target_box=cube, probe=probe)
+    _save_probe_view(doc, "cube-inside-step-1.png", target_box=cube, probe=probe)
 
     doc.close()
     topology = validate_mesh(surface.vertices, surface.triangles, prefer_trimesh=False).__dict__
@@ -395,9 +398,9 @@ def _avatar_control():
 
     probe = doc.addObject("Part::Feature", "ProbeCloth")
     _set_probe_shape(probe, inside["initial_positions"])
-    _save_probe_view("avatar-inside-step-0.png", avatar=source, probe=probe)
+    _save_probe_view(doc, "avatar-inside-step-0.png", avatar=source, probe=probe)
     _set_probe_shape(probe, inside["final_positions"])
-    _save_probe_view("avatar-inside-step-1.png", avatar=source, probe=probe)
+    _save_probe_view(doc, "avatar-inside-step-1.png", avatar=source, probe=probe)
 
     _progress("avatar control: export step-0/step-1 images")
     source_metrics = validate_mesh(full.vertices, full.triangles, prefer_trimesh=False)
@@ -530,6 +533,9 @@ def main():
             pass
 
 
-# FreeCAD AppRun does not provide a reliable __main__ namespace for script arguments.
-# Invoke the standalone diagnostic unconditionally; main() owns App/Qt shutdown.
-main()
+# FreeCAD AppRun may evaluate the script in more than one namespace. The
+# environment latch guarantees the diagnostic suite runs exactly once per
+# process while remaining independent of __name__.
+if os.environ.get("CLOTH_CONTACT_CONTROLS_EXECUTE") == "1" and os.environ.get("_CLOTH_CONTACT_CONTROLS_RAN") != "1":
+    os.environ["_CLOTH_CONTACT_CONTROLS_RAN"] = "1"
+    main()
