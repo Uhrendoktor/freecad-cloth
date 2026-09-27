@@ -250,7 +250,8 @@ def test_group_fit_sample_projection_preserves_panel_side_context():
     end = source.index("\ndef position_piece", start)
     body = source[start:end]
     directions = body.index("preferred_directions = {")
-    assert "average_point(sample_cache[piece])" in body[directions:directions + 600]
+    assert "piece.Placement.Rotation.multVec" in body[directions:directions + 1200]
+    assert "authored_normal.dot(radial)" in body[directions:directions + 1600]
     assert body.index("preferred_direction = preferred_directions[piece]", directions) < body.index(
         "test_projection = nearest_target_projection(", directions
     )
