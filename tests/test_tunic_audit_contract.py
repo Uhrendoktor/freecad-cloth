@@ -17,7 +17,7 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
-def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
+def test_canonical_tunic_uses_arrangement_points_target_collision_and_explicit_outer_shoulder_pins():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert 'ArrangementPoint.from_string' in source
     assert 'shoulder_left = arrangement_world("shoulder_left")' in source
@@ -25,13 +25,18 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     assert 'hip_point = arrangement_world("hip")' in source
     assert 'os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"' in source
     assert 'status = target_status(target)' in source
-    assert 'scene.PinMode = "None"' in source
-    assert 'scene.PinSelection = []' in source
-    assert 'if solver_pins:' in source
+    assert 'initial_shoulder_pairs = proxy.seam_stitch_pairs' in source
+    assert '("TunicRightShoulder", "front", "outer", int(right_shoulder[0][0]))' in source
+    assert '("TunicRightShoulder", "back", "outer", int(right_shoulder[-1][1]))' in source
+    assert '("TunicLeftShoulder", "front", "outer", int(left_shoulder[-1][0]))' in source
+    assert '("TunicLeftShoulder", "back", "outer", int(left_shoulder[0][1]))' in source
+    assert 'if len(shoulder_pin_indices) != 4 or len(set(shoulder_pin_indices)) != 4:' in source
+    assert 'scene.PinMode = "Explicit"' in source
+    assert 'scene.PinSelection = [str(index) for index in shoulder_pin_indices]' in source
+    assert 'canonical tunic explicit outer-shoulder pins not applied' in source
     assert 'nearest_target_clearance' in source
     assert 'step0-target-vertex-clearance-mm=' in source
     assert 'authored_shoulder_pins' not in source
-    assert 'scene.PinSelection = [str(i) for i in front_pins]' not in source
     assert 'target_surface = collision_surface(' in source
     assert 'target_source.Mesh.BoundBox' not in source
 
