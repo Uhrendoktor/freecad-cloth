@@ -332,6 +332,25 @@ def _nearest_pin_indices(panel_indices, positions, targets):
         available.remove(index)
     return tuple(result)
 
+def _interior_top_face_pins(panel_indices, positions):
+    """Pin two opposite blanket particles over the cube footprint."""
+    targets = (
+        App.Vector(-0.375 * BLANKET_SIZE, 0.0, BLANKET_START_Z),
+        App.Vector(0.375 * BLANKET_SIZE, 0.0, BLANKET_START_Z),
+    )
+    pins = _nearest_pin_indices(panel_indices, positions, targets)
+    span = abs(float(positions[pins[1]][0]) - float(positions[pins[0]][0]))
+    if span < 0.75 * BLANKET_SIZE:
+        raise RuntimeError(
+            "blanket interior pins do not span the authored width: span=%.3f" % span
+        )
+    if any(abs(float(positions[index][1])) > 0.20 * BLANKET_SIZE for index in pins):
+        raise RuntimeError(
+            "blanket interior pins left the cube-overlap anchor plane: y=%s"
+            % tuple(round(float(positions[index][1]), 3) for index in pins)
+        )
+    return pins, span
+
 
 def _center_z(points):
     if not points:
@@ -443,7 +462,7 @@ def build_simulation_state(doc):
     proxy = scene.Proxy._base_or_restore()
     positions = tuple(proxy.backend.positions())
     panel_indices = tuple(proxy.panel_indices[panel.Name])
-    pins, span = _opposite_top_edge_pins(blanket, positions, panel_indices)
+    pins, span = _interior_top_face_pins(panel_indices, positions)
     scene.PinSelection = [str(index) for index in pins]
     log("blanket-pins=passed opposite-corners span=%.3f indices=%s" % (span, pins))
     doc.recompute()
