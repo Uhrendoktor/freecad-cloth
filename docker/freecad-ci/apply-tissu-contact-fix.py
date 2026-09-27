@@ -317,6 +317,8 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         """    void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
                         double squaredRadius,
                         std::vector<int>& outTriangles) const;
+    void queryBoxRecursive(int nodeIdx, const Eigen::AlignedBox3d& box,
+                           std::vector<int>& outTriangles) const;
     int closestRecursive(int nodeIdx, const Eigen::Vector3d& point,
                          const std::vector<Eigen::Vector3d>& vertices,
                          double& bestDistSq) const;""",
@@ -615,17 +617,22 @@ namespace Tissu {""",
 }""",
         """namespace {
 
-Eigen::Vector3d clipCorrectionAtFirstMeshHit(
+struct ClippedCorrection {
+    Eigen::Vector3d position;
+    double scale;
+};
+
+ClippedCorrection clipCorrectionAtFirstMeshHit(
     const Eigen::Vector3d& start, const Eigen::Vector3d& correction,
     const std::vector<std::shared_ptr<Collider>>& colliders, double thickness) {
     if (correction.squaredNorm() <= 1e-18)
-        return start + correction;
+        return {start + correction, 1.0};
 
     const Eigen::Vector3d end = start + correction;
-    double bestT = std::numeric_limits<double>::infinity();
+    double bestT = 1.0;
     int bestCollider = -1;
     int bestTriangle = -1;
-    Eigen::Vector3d bestPoint = Eigen::Vector3d::Zero();
+    Eigen::Vector3d bestPoint = end;
     Eigen::Vector3d bestNormal = Eigen::Vector3d::Zero();
 
     for (int colliderIndex = 0;
@@ -655,12 +662,15 @@ Eigen::Vector3d clipCorrectionAtFirstMeshHit(
     }
 
     if (bestCollider < 0)
-        return end;
+        return {end, 1.0};
 
     if ((start - bestPoint).dot(bestNormal) < 0.0)
         bestNormal = -bestNormal;
 
-    return bestPoint + bestNormal * std::max(0.0, thickness);
+    return {
+        bestPoint + bestNormal * std::max(0.0, thickness),
+        bestT,
+    };
 }
 
 } // namespace
@@ -696,19 +706,27 @@ void StitchConstraint::solveInternal(
     double C = currentLength;
     double alphaHat = m_compliance / (dt * dt);
     double deltaLambda = (-C - alphaHat * m_lambda) / (wSum + alphaHat);
-    m_lambda += deltaLambda;
-
     const Eigen::Vector3d correctionA = wA * norm * deltaLambda;
     const Eigen::Vector3d correctionB = -wB * norm * deltaLambda;
 
     if (colliders != nullptr && !colliders->empty()) {
-        pA.setPosition(clipCorrectionAtFirstMeshHit(
-            pA.getPosition(), correctionA, *colliders, thickness));
-        pB.setPosition(clipCorrectionAtFirstMeshHit(
-            pB.getPosition(), correctionB, *colliders, thickness));
+        const ClippedCorrection clippedA = clipCorrectionAtFirstMeshHit(
+            pA.getPosition(), correctionA, *colliders, thickness);
+        const ClippedCorrection clippedB = clipCorrectionAtFirstMeshHit(
+            pB.getPosition(), correctionB, *colliders, thickness);
+
+        // Lambda tracks the stitch-normal component actually applied before
+        // collision-thickness offsets, so repeated iterations remain coherent
+        // even when the two endpoints hit different barriers.
+        const double appliedScale =
+            (wA * clippedA.scale + wB * clippedB.scale) / wSum;
+        m_lambda += deltaLambda * appliedScale;
+        pA.setPosition(clippedA.position);
+        pB.setPosition(clippedB.position);
         return;
     }
 
+    m_lambda += deltaLambda;
     pA.setPosition(pA.getPosition() + correctionA);
     pB.setPosition(pB.getPosition() + correctionB);
 }""",
@@ -881,6 +899,29 @@ TEST(StitchConstraint, SolverDoesNotClipTangentCorrection) {
 
     EXPECT_NEAR(solver.getParticles()[moving].getPosition().x(), 0.0, 1e-9);
     EXPECT_NEAR(solver.getParticles()[moving].getPosition().y(), 250.0, 1e-9);
+}
+
+TEST(StitchConstraint, SolverMultipleIterationsKeepSweptEndpointBounded) {
+    World world;
+    world.setGravity(Eigen::Vector3d::Zero());
+    world.setThickness(0.5);
+    world.addCollider(makeWall(0.0));
+
+    Solver solver;
+    solver.setSubsteps(1);
+    solver.setIterations(3);
+    const int moving =
+        solver.addParticle(Particle(Eigen::Vector3d(-250.0, 0.0, 0.0)));
+    const int anchor =
+        solver.addParticle(Particle(Eigen::Vector3d(250.0, 0.0, 0.0)));
+    solver.setParticleInverseMass(anchor, 0.0);
+    solver.addStitch(moving, anchor, 0.0);
+
+    solver.update(world, 0.016);
+
+    const double x = solver.getParticles()[moving].getPosition().x();
+    EXPECT_LT(x, -0.49);
+    EXPECT_GT(x, -1.01);
 }
 
 TEST(StitchConstraint, SolverChoosesEarliestCrossingAcrossMultipleMeshes) {
