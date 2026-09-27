@@ -16,11 +16,6 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import FreeCAD as App
-import FreeCADGui as Gui
-import Part
-
-
 OUT = Path(os.environ.get("CLOTH_DIAGNOSTIC_DIR", "artifacts/tissu-contact-diagnostics"))
 OUT.mkdir(parents=True, exist_ok=True)
 PROGRESS = OUT / "progress.log"
@@ -30,6 +25,23 @@ _PROGRESS_HANDLE.write("\n=== diagnostic contact controls start ===\n")
 _PROGRESS_HANDLE.write("entrypoint __name__=%r\n" % __name__)
 _PROGRESS_HANDLE.flush()
 faulthandler.dump_traceback_later(30.0, repeat=True, file=_PROGRESS_HANDLE)
+
+def _import_progress(label):
+    line = "import: " + str(label)
+    with PROGRESS.open("a", encoding="utf-8") as handle:
+        handle.write(line + "\n")
+    print(line, flush=True)
+
+_import_progress("FreeCAD begin")
+import FreeCAD as App
+_import_progress("FreeCAD complete")
+_import_progress("FreeCADGui begin")
+import FreeCADGui as Gui
+_import_progress("FreeCADGui complete")
+_import_progress("Part begin")
+import Part
+_import_progress("Part complete")
+
 STEPS = (0, 1)
 PARTICLE_DISTANCE = 24.0
 
@@ -50,6 +62,15 @@ def _events():
     app = QtWidgets.QApplication.instance()
     if app is not None:
         app.processEvents()
+    Gui.updateGui()
+
+
+def _ensure_gui_ready():
+    window = Gui.getMainWindow()
+    if window is None or not window.isVisible():
+        raise RuntimeError("FreeCAD GUI did not launch")
+    window.show()
+    _events()
 
 
 def _add_rectangle_sketch(doc, name, width, height):
@@ -278,7 +299,10 @@ def _run_case(case_id, scene, piece, camera):
         raise RuntimeError("%s did not create a drape panel" % case_id)
     before = _mesh_points(panel)
     _progress(f"{case_id}: panel-vertices={len(before)} collision-triangles={len(getattr(getattr(base, 'collision_surface', None), 'triangles', ()) or ())}")
-    view = Gui.activeDocument().activeView()
+    gui_doc = Gui.getDocument(scene.Document.Name)
+    if gui_doc is None:
+        raise RuntimeError("%s has no GUI document" % case_id)
+    view = gui_doc.activeView()
     _screenshot(view, OUT / (case_id + "-step-000.png"))
     _progress(f"{case_id}: screenshot-000")
     if camera == "front":
@@ -364,6 +388,8 @@ def _run_control_avatar():
 
 def main():
     _progress("main: start")
+    _ensure_gui_ready()
+    _progress("main: GUI ready")
     records = [
         _run_control_cube(),
         _run_control_avatar(),
