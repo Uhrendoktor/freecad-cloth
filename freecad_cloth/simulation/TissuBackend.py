@@ -30,6 +30,14 @@ def _tissu_collision_triangle_limit():
     return value
 
 
+def _tissu_collision_thickness(surface):
+    """Return the authoritative collision margin in Tissu metres."""
+    thickness_mm = 0.0 if surface is None else float(getattr(surface, "thickness", 0.0))
+    if thickness_mm <= 0.0:
+        return 0.002
+    return max(0.001, thickness_mm / _MM)
+
+
 def _to_tissu_position(position):
     x, y, z = position
     return (float(x) / _MM, float(z) / _MM, float(y) / _MM)
@@ -158,7 +166,18 @@ class TissuBackend(ClothSimulationBackend):
         positions = [_to_tissu_position(p.position()) for p in self._initial.particles]
         triangles = np.asarray(self._triangles, dtype=np.int32)
         vertices = np.asarray(positions, dtype=np.float64)
-        self._sim = Simulation(substeps=self._substeps, iterations=self._iterations, gravity=-9.81, thickness=0.002)
+        thickness = _tissu_collision_thickness(self._collision_surface)
+        print(
+            "cloth-tissu-collision-thickness mm=%.3f"
+            % (thickness * _MM),
+            flush=True,
+        )
+        self._sim = Simulation(
+            substeps=self._substeps,
+            iterations=self._iterations,
+            gravity=-9.81,
+            thickness=thickness,
+        )
         self._fabric = self._sim.create_from_arrays("cloth", vertices, triangles, material="cotton")
         global_ids = np.asarray(self._fabric.instance.get_particle_indices(), dtype=np.int32)
         if len(global_ids) != len(positions) or not np.array_equal(global_ids, np.arange(len(positions))):
