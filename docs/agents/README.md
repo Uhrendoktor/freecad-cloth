@@ -39,12 +39,12 @@ Before changing documentation:
 
 wiki/ is the canonical source for the GitHub Wiki.
 
-The bridge is implemented in tools/wiki_bridge.py and executed as a job inside the single canonical workflow:
+The bridge is implemented in `tools/wiki_bridge.py`. Publishing runs in the separate `.github/workflows/wiki-sync.yml` workflow, which is deliberately path-scoped to `wiki/**` on `main`:
 
-- Publish: repository wiki/ to the GitHub Wiki Git repository.
-- Import: GitHub Wiki to repository wiki/, followed by a normal pull request.
+- Publish: repository `wiki/` to the GitHub Wiki Git repository.
+- Import: GitHub Wiki to repository `wiki/`, performed deliberately and reviewed before becoming canonical.
 
-Agents should normally modify wiki/*.md in the repository. A merge to main publishes those pages automatically, provided WIKI_SYNC_TOKEN is configured.
+Agents should normally modify wiki/*.md in the repository. A merge to main publishes those pages automatically when the commit changes `wiki/**`, provided `WIKI_SYNC_TOKEN` is configured. Wiki-only publishing does not run the engineering CI workflow.
 
 Direct edits in the GitHub Wiki are treated as an external change. Use the manual import operation to pull them into a branch and review them before they are preserved.
 
