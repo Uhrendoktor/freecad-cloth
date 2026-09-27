@@ -459,14 +459,26 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
                 sample_errors = []
                 weighted_sample_step = App.Vector(0.0, 0.0, 0.0)
                 sample_weight_total = 0.0
-                preferred_directions = {
-                    piece: tuple(
-                        float(average_point(sample_cache[piece])[index])
-                        - float(surface.center[index])
-                        for index in range(3)
+                preferred_directions = {}
+                for piece in selected:
+                    piece_center = average_point(sample_cache[piece])
+                    radial = App.Vector(
+                        float(piece_center[0]) - float(surface.center[0]),
+                        float(piece_center[1]) - float(surface.center[1]),
+                        float(piece_center[2]) - float(surface.center[2]),
                     )
-                    for piece in selected
-                }
+                    authored_normal = piece.Placement.Rotation.multVec(
+                        App.Vector(0.0, 0.0, 1.0)
+                    )
+                    if authored_normal.dot(radial) < 0.0:
+                        authored_normal = authored_normal.negative()
+                    if authored_normal.Length <= 1e-12:
+                        raise ValueError("selected fitting piece has no usable authored normal")
+                    preferred_directions[piece] = (
+                        float(authored_normal.x),
+                        float(authored_normal.y),
+                        float(authored_normal.z),
+                    )
                 for piece in selected:
                     preferred_direction = preferred_directions[piece]
                     for point in sample_cache[piece]:
