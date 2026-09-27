@@ -84,27 +84,6 @@ timed_anchor = '''    from time import perf_counter
     simulation_started = perf_counter()
     active_backend = scene.Proxy._base_or_restore().backend
     active_collision = getattr(active_backend, "_collision_surface", None)
-    initial_positions = tuple(active_backend.positions())
-    stitch_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
-    if not initial_positions or not stitch_pairs_by_seam:
-        raise RuntimeError("canonical tunic stitch-span diagnostic has no solver provenance")
-    initial_span_values = []
-    initial_span_by_seam = {}
-    for seam_id, pairs in stitch_pairs_by_seam.items():
-        values = []
-        for ga, gb in pairs:
-            a = initial_positions[int(ga)]
-            b = initial_positions[int(gb)]
-            values.append(((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2)**0.5)
-        if values:
-            initial_span_by_seam[str(seam_id)] = (min(values), max(values), sum(values) / len(values), len(values))
-            initial_span_values.extend(values)
-    if not initial_span_values:
-        raise RuntimeError("canonical tunic stitch-span diagnostic found no stitch distances")
-    for seam_id in sorted(initial_span_by_seam):
-        lo, hi, mean, count = initial_span_by_seam[seam_id]
-        log("initial-stitch-span-mm seam=%s min=%.3f max=%.3f mean=%.3f count=%d" % (seam_id, lo, hi, mean, count))
-    log("initial-stitch-span-global-mm min=%.3f max=%.3f mean=%.3f count=%d" % (min(initial_span_values), max(initial_span_values), sum(initial_span_values) / len(initial_span_values), len(initial_span_values)))
     log("tunic-simulation-start particles=%d iterations=%d substeps=%d backend=%s collision_triangles=%d" % (
         int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps),
         str(getattr(active_backend, "name", "")),
