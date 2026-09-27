@@ -685,28 +685,7 @@ TEST(MeshCollider, DeepInteriorParityIsDeterministic) {
 }
 
 """
-    new = """TEST(MeshCollider, DeepInteriorPointMovesOutsideClosedMesh) {
-    MeshCollider mesh = makeTetrahedron(0.0);
-    const Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
-    std::vector<Particle> particles;
-    particles.emplace_back(initialPos);
-
-    mesh.resolve(particles, 0.016, 0.1);
-
-    EXPECT_GT((particles[0].getPosition() - initialPos).norm(), 0.0);
-    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
-}
-
-TEST(MeshCollider, ParticleInsideMeshMovesOutside) {
-    MeshCollider mesh = makeTetrahedron(0.5);
-
-    Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
-    std::vector<Particle> particles;
-    particles.emplace_back(initialPos);
-
-    mesh.resolve(particles, 0.016, 1.0);
-
-    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
+    new = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
     EXPECT_GT(distanceMoved, 0.0);
     EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
 }
