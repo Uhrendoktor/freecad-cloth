@@ -711,7 +711,7 @@ TEST(StitchConstraint, SolverChoosesEarliestEnteringCrossingAcrossMeshes) {
     stitch_cpp_text = stitch_cpp.read_text(encoding="utf-8")
     for marker in (
         "const double previousLambda = m_lambda;",
-        "m_lambda = previousLambda + deltaLambda * lambdaScale;",
+        "m_lambda = previousLambda + proposedDeltaLambda * lambdaScale;",
         "clipCorrectionAtFirstEnteringMeshHit(",
     ):
         if marker not in stitch_cpp_text:
