@@ -577,7 +577,18 @@ TEST(MeshCollider, ParticleInsideMeshMovesOutside) {""",
         1,
     )
 
-    extra_tests = """TEST(MeshCollider, FarOutsideParticleRemainsUnchanged) {
+    extra_tests = """TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    const Eigen::Vector3d initialPos(1.0, -0.01, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+}
+
+TEST(MeshCollider, FarOutsideParticleRemainsUnchanged) {
     MeshCollider mesh = makeTetrahedron(0.0);
     const Eigen::Vector3d initialPos(100.0, 100.0, 100.0);
     std::vector<Particle> particles;
