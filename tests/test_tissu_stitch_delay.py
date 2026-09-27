@@ -1,4 +1,3 @@
-import os
 from types import SimpleNamespace
 
 from freecad_cloth.simulation.TissuBackend import (
@@ -83,3 +82,17 @@ def test_tissu_stitch_delay_set_stitches_defers_solver_mutation():
     backend._step_count = 15
     backend._maybe_activate_stitches()
     assert calls == [(1, 4, 0.0)]
+
+
+def test_tissu_stitch_delay_default_build_keeps_zero_delay_stitches():
+    from pathlib import Path
+
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "freecad_cloth"
+        / "simulation"
+        / "TissuBackend.py"
+    ).read_text(encoding="utf-8")
+    assert "self._stitches_active = self._stitch_delay_steps == 0" in source
+    assert "if self._stitches_active:\n            self._add_stitches_to_solver()" in source
+    assert "for a, b in self._stitches:\n            self._sim.solver.add_stitch(int(a), int(b), 0.0)" in source
