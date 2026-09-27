@@ -58,9 +58,12 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "QtCore.QTimer.singleShot(0, _scheduled_main)" in SOURCE
     assert "os._exit(status)" in SOURCE
     assert "Gui.activeDocument().activeView()" in SOURCE
+    assert "solver_collision_surface" in SOURCE
+    assert "penetration_shift_mm = 16.0" in SOURCE
     assert "def _shutdown_gui():" in SOURCE
     assert "app.quit()" in SOURCE
-    assert "App.exit()" in SOURCE
+    assert "App.exit()" not in SOURCE
+    assert "gui-shutdown-requested" in SOURCE
     assert "faulthandler.dump_traceback_later(30.0, repeat=True" in SOURCE
     assert "entrypoint __name__=" in SOURCE
     assert "setsid /opt/freecad/AppRun /workspace/tests/freecad_tissu_contact_diagnostics.py" in WORKFLOW
