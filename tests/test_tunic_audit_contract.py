@@ -1,8 +1,6 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
-
 
 # The canonical native-Sketcher outline uses edges 3/5 as the shoulder seams.
 # Keep front/back semantic edge IDs independent; never fall back to one piece's IDs.
@@ -15,7 +13,6 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"' in source
     assert 'front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"' in source
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
-
 
 def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
@@ -35,7 +32,6 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     assert 'target_surface = collision_surface(' in source
     assert 'target_source.Mesh.BoundBox' not in source
 
-
 def test_canonical_tunic_uses_validated_authored_mapping():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "required_indices = (1, 2, 6, 7)" in audit
@@ -44,7 +40,6 @@ def test_canonical_tunic_uses_validated_authored_mapping():
     assert 'front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"' in audit
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in audit
     assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' not in audit
-
 
 def test_canonical_tunic_source_rewrite_compiles():
     import subprocess
@@ -97,7 +92,6 @@ def test_simulation_proxy_serializes_only_rebuildable_metadata():
     assert proxy.last_steps == 0
     assert proxy.collision_surface is None
 
-
 def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
@@ -107,7 +101,6 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
     assert 'tunic-simulation-start' in source
-
 
 def test_tissu_ci_image_is_pinned_and_self_regressing():
     dockerfile = (ROOT / "docker" / "freecad-ci" / "Dockerfile").read_text(encoding="utf-8")
@@ -131,7 +124,15 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "EXPECT_GT(particles[0].getPosition().y(), initialPos.y())" in script
     assert "set_outward_normal_sign" in script
 
-
+    tunic = workflow[workflow.index("  gui-tunic-visual:") : workflow.index("\n  gui-", workflow.index("  gui-tunic-visual:") + 5)]
+    assert "FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix" in tunic
+    assert "docker build --pull --progress=plain" in tunic
+    assert 'docker run --rm --init' in tunic
+    assert '"$FREECAD_TUNIC_IMAGE" bash -lc' in tunic
+    assert 'TISSU_FIX_SHA256=' in dockerfile
+    assert 'tissu-cpp-regression-result=passed' in dockerfile
+    assert 'docker run --rm "$FREECAD_TUNIC_IMAGE" bash -lc' in workflow
+    assert 'artifacts/tissu-provenance.txt' in workflow
 def test_tissu_orientation_provenance_is_explicit_and_fail_closed():
     avatar = (ROOT / "freecad_cloth" / "avatar" / "AvatarCollision.py").read_text(encoding="utf-8")
     backend = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
@@ -146,18 +147,6 @@ def test_tissu_orientation_provenance_is_explicit_and_fail_closed():
     assert "Simulation.add_mesh_from_arrays orientation provenance" in patch
     assert "python/src/bindings_headless.cpp" in patch
 
-
-
-    tunic = workflow[workflow.index("  gui-tunic-visual:") : workflow.index("\n  gui-", workflow.index("  gui-tunic-visual:") + 5)]
-    assert "FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix" in tunic
-    assert "docker build --pull --progress=plain" in tunic
-    assert 'docker run --rm --init' in tunic
-    assert '"$FREECAD_TUNIC_IMAGE" bash -lc' in tunic
-    assert 'TISSU_FIX_SHA256=' in dockerfile
-    assert 'tissu-cpp-regression-result=passed' in dockerfile
-    assert 'docker run --rm "$FREECAD_TUNIC_IMAGE" bash -lc' in workflow
-    assert 'artifacts/tissu-provenance.txt' in workflow
-
 def test_canonical_tunic_fixture_matches_validated_start_geometry():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert 'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)' in audit
@@ -166,14 +155,12 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance'," in audit
     assert "'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))'," in audit
 
-
 def test_tunic_visual_diagnostics_are_authoritative_after_persistence():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     metrics_write = source.index('json.dump(payload, handle, indent=2, sort_keys=True)')
     gate = source.index("assert_drape_diagnostics(json.load(handle).get(\"panels\", ()))")
     screenshot = source.index('"cloth-simulation-draped-%s.png" % direction')
     assert metrics_write < screenshot < gate
-
 
 def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
