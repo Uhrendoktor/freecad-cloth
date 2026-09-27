@@ -92,19 +92,38 @@ def _migrate_visual_output_references(scene):
         scene.addProperty("App::PropertyStringList", name, "Arrangement")
         setattr(scene, name, names)
 
+def _ensure_fitting_properties(scene):
+    """Migrate fitting scenes to the persistent DrapeTarget contract."""
+    if scene is None:
+        return None
+    properties = set(getattr(scene, "PropertiesList", ()) or ())
+    if "DrapeTarget" not in properties:
+        scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")
+    target = getattr(scene, "DrapeTarget", None)
+    if target is None:
+        target = scene.Document.getObject("DrapeTarget")
+        if target is not None:
+            scene.DrapeTarget = target
+    return scene
+
+
 def create_fitting_scene():
     import FreeCAD as App
     from freecad_cloth.avatar.AvatarFitting import BodyMeasurements, FittingScene
 
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
-    if _scene(doc) is not None:
-        return _scene(doc)
+    existing = _scene(doc)
+    if existing is not None:
+        _ensure_fitting_properties(existing)
+        doc.recompute()
+        return existing
     obj = doc.addObject("App::FeaturePython", "FittingScene")
     obj.Label = "Avatar Fitting Scene"
     obj.addProperty("App::PropertyString", "FittingType", "Fitting").FittingType = "FittingScene"
     obj.addProperty("App::PropertyString", "MeasurementData", "Measurements").MeasurementData = BodyMeasurements().to_json()
     obj.addProperty("App::PropertyString", "MeasurementUnit", "Measurements").MeasurementUnit = "mm"
     obj.addProperty("App::PropertyLink", "AvatarProxy", "Fitting")
+    obj.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")
     obj.addProperty("App::PropertyLinkListGlobal", "PatternPieces", "Fitting")
     obj.addProperty("App::PropertyStringList", "PiecePlacements", "Fitting").PiecePlacements = []
     obj.addProperty("App::PropertyStringList", "HomePlacements", "Fitting").HomePlacements = []
@@ -141,6 +160,7 @@ def assign_avatar_source(source=None):
 
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
     scene = _scene(doc) or create_fitting_scene()
+    _ensure_fitting_properties(scene)
     if source is None:
         source = next((o for o in Gui.Selection.getSelection() if hasattr(o, "Shape") or hasattr(o, "Mesh")), None)
     if source is None:
@@ -148,6 +168,9 @@ def assign_avatar_source(source=None):
     avatar = create_avatar_collision(doc) if doc.getObject("AvatarCollision") is None else doc.getObject("AvatarCollision")
     avatar = set_avatar_collision_source(scene, source)
     scene.AvatarProxy = avatar
+    target = doc.getObject("DrapeTarget")
+    if target is not None:
+        scene.DrapeTarget = target
     scene.FitStatus = "Avatar assigned"
     doc.recompute()
     return scene
@@ -160,6 +183,7 @@ def add_selected_pattern_pieces():
 
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
     scene = _scene(doc) or create_fitting_scene()
+    _ensure_fitting_properties(scene)
     pieces = [o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"]
     if not pieces:
         raise ValueError("select one or more pattern pieces before adding them to the fitting scene")
@@ -170,7 +194,13 @@ def add_selected_pattern_pieces():
     for piece in pieces:
         placement = piece.Placement
         base = placement.Base
-        value = PiecePlacement(str(piece.PieceId), (float(base.x), float(base.y), float(base.z)), float(placement.Rotation.Angle))
+        axis = placement.Rotation.Axis
+        value = PiecePlacement(
+            str(piece.PieceId),
+            (float(base.x), float(base.y), float(base.z)),
+            float(placement.Rotation.Angle),
+            (float(axis.x), float(axis.y), float(axis.z)),
+        )
         by_id[value.piece_id] = value
         home_by_id.setdefault(value.piece_id, value)
     scene.PatternPieces = sorted(set(list(scene.PatternPieces) + pieces), key=lambda o: str(o.PieceId))
@@ -181,6 +211,594 @@ def add_selected_pattern_pieces():
     doc.recompute()
     return scene
 
+
+def _fitting_target(scene):
+    target = getattr(scene, "DrapeTarget", None) or scene.Document.getObject("DrapeTarget")
+    if target is None:
+        raise ValueError("create or select a DrapeTarget before arranging garment pieces")
+    from freecad_cloth.simulation.DrapeTarget import target_status
+    status = target_status(target)
+    if status.get("state") != "ready":
+        raise ValueError(status.get("message") or "DrapeTarget is not ready")
+    scene.DrapeTarget = target
+    return target
+
+
+def _world_target_surface(target):
+    import FreeCAD as App
+    from freecad_cloth.avatar.AvatarCollision import CollisionSurface
+    from freecad_cloth.simulation.DrapeTarget import collision_surface
+
+    source = getattr(target, "SourceObject", None)
+    if source is None:
+        raise ValueError("DrapeTarget has no source object")
+    local = collision_surface(
+        source,
+        float(getattr(target, "CollisionDeflection", 1.0)),
+        float(getattr(target, "CollisionThickness", 0.0)),
+    )
+    placement = getattr(source, "Placement", None)
+    if placement is None:
+        return local
+    world_vertices = []
+    for point in local.vertices:
+        value = placement.multVec(App.Vector(*point))
+        world_vertices.append((float(value.x), float(value.y), float(value.z)))
+    surface = CollisionSurface(tuple(world_vertices), tuple(local.triangles), str(local.region), float(local.thickness))
+    surface.validate()
+    return surface
+
+
+def _piece_world_samples(piece, deflection=1.0):
+    """Sample the exact PatternMesh geometry consumed by simulation."""
+    import FreeCAD as App
+    from freecad_cloth.common.PatternSimulationAdapter import geometry_from_piece_ir, resolve_piece_ir
+    from freecad_cloth.pattern.PatternMesh import triangulate
+
+    placement = getattr(piece, "Placement", None)
+    if placement is None:
+        raise ValueError("pattern piece has no persistent placement")
+    piece_ir = resolve_piece_ir(piece)
+    mesh = triangulate(geometry_from_piece_ir(piece_ir))
+    if not mesh.vertices:
+        raise ValueError("PatternMesh sampling produced no points")
+    return tuple(
+        tuple(
+            float(value)
+            for value in placement.multVec(
+                App.Vector(float(local_x), float(local_y), 0.0)
+            )
+        )
+        for local_x, local_y in mesh.vertices
+    )
+
+
+def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=600.0, sample_deflection=1.0):
+    """Apply one shared rigid translation to all selected pieces.
+
+    The target operation solves two coupled invariants without changing solver
+    physics: move the assembled group toward its nearest authoritative target
+    projections, then prove the exact PatternMesh remains outside the target by
+    at least the requested clearance. A group translation is the only allowed
+    transform, so authored pairwise spacing and rotation are preserved.
+    """
+    import FreeCAD as App
+    from freecad_cloth.avatar.TargetPlacement import (
+        average_point,
+        minimum_signed_clearance,
+        nearest_target_projection,
+    )
+
+    doc = App.ActiveDocument
+    if doc is None:
+        raise ValueError("open a document before arranging garment pieces")
+    scene = _scene(doc)
+    if scene is None:
+        raise ValueError("create a fitting scene first")
+    _ensure_fitting_properties(scene)
+    target = _fitting_target(scene)
+    required = float(clearance)
+    if required < 0.0:
+        raise ValueError("clearance must be non-negative")
+
+    selected = tuple(
+        sorted(
+            (
+                piece
+                for piece in (pieces or scene.PatternPieces)
+                if getattr(piece, "PatternType", "") == "PatternPiece"
+            ),
+            key=lambda item: str(getattr(item, "PieceId", getattr(item, "Name", ""))),
+        )
+    )
+    if not selected:
+        raise ValueError("no PatternPiece objects were supplied")
+    if any(piece not in tuple(scene.PatternPieces) for piece in selected):
+        raise ValueError("all target-arranged pieces must belong to the fitting scene")
+
+    home_before = tuple(scene.HomePlacements)
+    persisted_before = tuple(scene.PiecePlacements)
+    status_before = str(getattr(scene, "FitStatus", ""))
+    target_before = getattr(scene, "DrapeTarget", None)
+    piece_before = {piece: piece.Placement for piece in selected}
+    sketch_before = {
+        piece: getattr(getattr(piece, "Sketch", None), "Placement", None)
+        for piece in selected
+    }
+
+    try:
+        surface = _world_target_surface(target)
+        total_translation = App.Vector(0.0, 0.0, 0.0)
+        previous_proximity_error = None
+
+        # PatternMesh geometry is rigid during this operation: sample each piece once and
+        # translate the cached world points instead of re-triangulating on every iteration.
+        sample_cache = {
+            piece: tuple(_piece_world_samples(piece, sample_deflection))
+            for piece in selected
+        }
+
+        for _iteration in range(16):
+            centers = []
+            projections = []
+            proximity_errors = []
+
+            for piece in selected:
+                samples = sample_cache[piece]
+                center = average_point(samples)
+                preferred_direction = tuple(
+                    float(center[index]) - float(surface.center[index])
+                    for index in range(3)
+                )
+                projection = nearest_target_projection(
+                    center,
+                    surface,
+                    preferred_normal=preferred_direction,
+                )
+                target_point = tuple(
+                    float(projection.point[index]) + float(projection.normal[index]) * required
+                    for index in range(3)
+                )
+                error_vector = tuple(
+                    target_point[index] - center[index]
+                    for index in range(3)
+                )
+                error_norm = sum(value * value for value in error_vector) ** 0.5
+                centers.append(center)
+                projections.append(projection)
+                proximity_errors.append(error_norm)
+
+            proximity_error = sum(value * value for value in proximity_errors) ** 0.5
+            if proximity_error <= 1e-6:
+                break
+
+            # Use the shared translation suggested by all pieces, then backtrack
+            # deterministically if projection changes make the full step non-monotone.
+            weighted_step = App.Vector(0.0, 0.0, 0.0)
+            weight_total = 0.0
+            for center, projection, error_norm in zip(
+                centers, projections, proximity_errors
+            ):
+                if error_norm <= 1e-9:
+                    continue
+                weight = max(error_norm, 1e-6)
+                desired = App.Vector(
+                    float(projection.point[0]) + float(projection.normal[0]) * required,
+                    float(projection.point[1]) + float(projection.normal[1]) * required,
+                    float(projection.point[2]) + float(projection.normal[2]) * required,
+                )
+                weighted_step += (desired - App.Vector(*center)) * weight
+                weight_total += weight
+
+            if weight_total <= 0.0:
+                raise ValueError(
+                    "target-aware group correction has no usable target projection"
+                )
+
+            candidate_step = weighted_step * (1.0 / weight_total)
+            if candidate_step.Length <= 1e-6:
+                raise ValueError(
+                    "target-aware group placement stalled before reaching the target"
+                )
+
+            accepted_step = None
+            accepted_proximity_error = None
+            for scale in (
+                1.0,
+                0.5,
+                0.25,
+                0.125,
+                0.0625,
+                0.03125,
+                0.015625,
+                0.0078125,
+            ):
+                step = candidate_step * scale
+                proposed = total_translation + step
+                if proposed.Length > float(max_translation) + 1e-9:
+                    continue
+                test_errors = []
+                for center in centers:
+                    test_center = tuple(
+                        float(center[index]) + float(step[index])
+                        for index in range(3)
+                    )
+                    preferred_direction = tuple(
+                        float(test_center[index]) - float(surface.center[index])
+                        for index in range(3)
+                    )
+                    test_projection = nearest_target_projection(
+                        test_center,
+                        surface,
+                        preferred_normal=preferred_direction,
+                    )
+                    target_point = tuple(
+                        float(test_projection.point[index])
+                        + float(test_projection.normal[index]) * required
+                        for index in range(3)
+                    )
+                    test_vector = tuple(
+                        target_point[index] - test_center[index]
+                        for index in range(3)
+                    )
+                    test_errors.append(
+                        sum(value * value for value in test_vector) ** 0.5
+                    )
+                test_proximity_error = (
+                    sum(value * value for value in test_errors) ** 0.5
+                )
+                if test_proximity_error < proximity_error - 1e-6:
+                    accepted_step = step
+                    accepted_proximity_error = test_proximity_error
+                    break
+
+            if accepted_step is None:
+                # The panel-center objective can stall when front/back projections;
+                # keep each panel on its authored normal side while sampling target geometry.
+                # disagree locally. Solve the same single rigid translation from
+                # the cached PatternMesh samples instead of introducing per-piece motion.
+                sample_errors = []
+                weighted_sample_step = App.Vector(0.0, 0.0, 0.0)
+                sample_weight_total = 0.0
+                preferred_directions = {}
+                for piece in selected:
+                    piece_center = average_point(sample_cache[piece])
+                    radial = App.Vector(
+                        float(piece_center[0]) - float(surface.center[0]),
+                        float(piece_center[1]) - float(surface.center[1]),
+                        float(piece_center[2]) - float(surface.center[2]),
+                    )
+                    authored_normal = piece.Placement.Rotation.multVec(
+                        App.Vector(0.0, 0.0, 1.0)
+                    )
+                    if authored_normal.dot(radial) < 0.0:
+                        authored_normal = authored_normal.negative()
+                    if authored_normal.Length <= 1e-12:
+                        raise ValueError("selected fitting piece has no usable authored normal")
+                    preferred_directions[piece] = (
+                        float(authored_normal.x),
+                        float(authored_normal.y),
+                        float(authored_normal.z),
+                    )
+                for piece in selected:
+                    preferred_direction = preferred_directions[piece]
+                    for point in sample_cache[piece]:
+                        projection = nearest_target_projection(
+                            point,
+                            surface,
+                            preferred_normal=preferred_direction,
+                        )
+                        target_point = tuple(
+                            float(projection.point[index])
+                            + float(projection.normal[index]) * required
+                            for index in range(3)
+                        )
+                        error_vector = tuple(
+                            target_point[index] - float(point[index])
+                            for index in range(3)
+                        )
+                        error_norm = sum(value * value for value in error_vector) ** 0.5
+                        sample_errors.append(error_norm)
+                        if error_norm <= 1e-9:
+                            continue
+                        weight = max(error_norm, 1e-6)
+                        weighted_sample_step += App.Vector(
+                            error_vector[0] * weight,
+                            error_vector[1] * weight,
+                            error_vector[2] * weight,
+                        )
+                        sample_weight_total += weight
+
+                sample_proximity_error = (
+                    sum(value * value for value in sample_errors) ** 0.5
+                )
+                if sample_weight_total > 0.0:
+                    sample_step = weighted_sample_step * (1.0 / sample_weight_total)
+                    for scale in (
+                        1.0,
+                        0.5,
+                        0.25,
+                        0.125,
+                        0.0625,
+                        0.03125,
+                        0.015625,
+                        0.0078125,
+                    ):
+                        step = sample_step * scale
+                        proposed = total_translation + step
+                        if proposed.Length > float(max_translation) + 1e-9:
+                            continue
+                        test_sample_errors = []
+                        for piece in selected:
+                            preferred_direction = preferred_directions[piece]
+                            for point in sample_cache[piece]:
+                                test_point = tuple(
+                                    float(point[index]) + float(step[index])
+                                    for index in range(3)
+                                )
+                                test_projection = nearest_target_projection(
+                                    test_point,
+                                    surface,
+                                    preferred_normal=preferred_direction,
+                                )
+                                test_target = tuple(
+                                    float(test_projection.point[index])
+                                    + float(test_projection.normal[index]) * required
+                                    for index in range(3)
+                                )
+                                test_sample_errors.append(
+                                    sum(
+                                        (test_target[index] - test_point[index]) ** 2
+                                        for index in range(3)
+                                    )
+                                    ** 0.5
+                                )
+                        test_sample_proximity_error = (
+                            sum(value * value for value in test_sample_errors) ** 0.5
+                        )
+                        if test_sample_proximity_error >= sample_proximity_error - 1e-6:
+                            continue
+                        candidate_clearances = []
+                        for piece in selected:
+                            translated_samples = tuple(
+                                tuple(
+                                    float(point[index]) + float(step[index])
+                                    for index in range(3)
+                                )
+                                for point in sample_cache[piece]
+                            )
+                            candidate_clearances.append(
+                                minimum_signed_clearance(
+                                    translated_samples,
+                                    surface,
+                                ).minimum_signed_clearance
+                            )
+                        if any(
+                            value < required - 1e-6
+                            for value in candidate_clearances
+                        ):
+                            continue
+                        accepted_step = step
+                        accepted_proximity_error = test_sample_proximity_error
+                        break
+
+            if accepted_step is None:
+                # A common rigid transform has one shared translation. When the
+                # per-panel nearest-surface projections disagree locally, solve
+                # that rigid degree of freedom from the aggregate garment
+                # centroid, then retain the exact per-point clearance proof below.
+                group_points = tuple(
+                    point
+                    for piece in selected
+                    for point in sample_cache[piece]
+                )
+                group_center = average_point(group_points)
+                group_direction = tuple(
+                    float(group_center[index]) - float(surface.center[index])
+                    for index in range(3)
+                )
+                group_projection = nearest_target_projection(
+                    group_center,
+                    surface,
+                    preferred_normal=group_direction,
+                )
+                group_target = App.Vector(
+                    float(group_projection.point[0]) + float(group_projection.normal[0]) * required,
+                    float(group_projection.point[1]) + float(group_projection.normal[1]) * required,
+                    float(group_projection.point[2]) + float(group_projection.normal[2]) * required,
+                )
+                group_step = group_target - App.Vector(*group_center)
+                if group_step.Length <= 1e-6:
+                    raise ValueError(
+                        "target-aware group placement stalled before reaching the target"
+                    )
+                for scale in (
+                    1.0,
+                    0.5,
+                    0.25,
+                    0.125,
+                    0.0625,
+                    0.03125,
+                    0.015625,
+                    0.0078125,
+                ):
+                    step = group_step * scale
+                    proposed = total_translation + step
+                    if proposed.Length > float(max_translation) + 1e-9:
+                        continue
+                    test_center = tuple(
+                        float(group_center[index]) + float(step[index])
+                        for index in range(3)
+                    )
+                    test_projection = nearest_target_projection(
+                        test_center,
+                        surface,
+                        preferred_normal=group_direction,
+                    )
+                    test_target = tuple(
+                        float(test_projection.point[index])
+                        + float(test_projection.normal[index]) * required
+                        for index in range(3)
+                    )
+                    group_error = sum(
+                        (test_target[index] - test_center[index]) ** 2
+                        for index in range(3)
+                    ) ** 0.5
+                    current_group_error = sum(
+                        (float(group_target[index]) - float(group_center[index])) ** 2
+                        for index in range(3)
+                    ) ** 0.5
+                    if group_error >= current_group_error - 1e-6:
+                        continue
+                    # The fallback is only a candidate proximity step. Before accepting it,
+                    # prove the translated PatternMesh still satisfies the exact clearance
+                    # contract; this avoids taking a centroid-improving step through the target.
+                    candidate_clearances = []
+                    for piece in selected:
+                        translated_samples = tuple(
+                            tuple(
+                                float(point[index]) + float(step[index])
+                                for index in range(3)
+                            )
+                            for point in sample_cache[piece]
+                        )
+                        candidate_clearances.append(
+                            minimum_signed_clearance(
+                                translated_samples,
+                                surface,
+                            ).minimum_signed_clearance
+                        )
+                    if any(
+                        value < required - 1e-6
+                        for value in candidate_clearances
+                    ):
+                        continue
+                    accepted_step = step
+                    accepted_proximity_error = group_error
+                    break
+
+            if accepted_step is None:
+                raise ValueError(
+                    "target-aware group placement did not reduce target proximity error "
+                    "(current=%.3f step=%.3f)"
+                    % (proximity_error, candidate_step.Length)
+                )
+
+            for piece in selected:
+                placement = piece.Placement
+                piece.Placement = App.Placement(
+                    placement.Base + accepted_step,
+                    placement.Rotation,
+                )
+                sample_cache[piece] = tuple(
+                    tuple(
+                        float(point[index]) + float(accepted_step[index])
+                        for index in range(3)
+                    )
+                    for point in sample_cache[piece]
+                )
+                sketch = getattr(piece, "Sketch", None)
+                if sketch is not None:
+                    sketch.Placement = piece.Placement
+
+            doc.recompute()
+            total_translation = total_translation + accepted_step
+            if accepted_proximity_error <= 1e-6:
+                break
+
+        # Perform the authoritative exact PatternMesh clearance proof once, after
+        # convergence. Repeating this O(samples × target-triangles) scan per iteration
+        # was the observed 300 s tunic-audit timeout mechanism.
+        final_reports = [
+            minimum_signed_clearance(sample_cache[piece], surface)
+            for piece in selected
+        ]
+        if any(
+            report.minimum_signed_clearance < required - 1e-6
+            for report in final_reports
+        ):
+            worst = min(
+                final_reports,
+                key=lambda report: report.minimum_signed_clearance,
+            )
+            raise ValueError(
+                "target-aware group placement left %.3f mm signed clearance; required %.3f mm"
+                % (worst.minimum_signed_clearance, required)
+            )
+
+        final_proximity_error = 0.0
+        for piece in selected:
+            center = average_point(sample_cache[piece])
+            projection = nearest_target_projection(center, surface)
+            error_vector = tuple(
+                float(projection.point[index]) + float(projection.normal[index]) * required - center[index]
+                for index in range(3)
+            )
+            final_proximity_error += sum(value * value for value in error_vector)
+        final_proximity_error = final_proximity_error ** 0.5
+        if final_proximity_error > 1e-3:
+            raise ValueError(
+                "target-aware group placement stopped %.3f mm from target alignment"
+                % final_proximity_error
+            )
+
+        from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+
+        placements = {
+            item.piece_id: item
+            for item in (
+                PiecePlacement.from_string(value)
+                for value in scene.PiecePlacements
+            )
+        }
+        for piece in selected:
+            placement = piece.Placement
+            axis = placement.Rotation.Axis
+            placements[str(piece.PieceId)] = PiecePlacement(
+                str(piece.PieceId),
+                (
+                    float(placement.Base.x),
+                    float(placement.Base.y),
+                    float(placement.Base.z),
+                ),
+                float(placement.Rotation.Angle),
+                (float(axis.x), float(axis.y), float(axis.z)),
+            )
+        scene.PiecePlacements = [
+            placements[key].to_string() for key in sorted(placements)
+        ]
+        if tuple(scene.HomePlacements) != home_before:
+            raise RuntimeError("target-aware group placement mutated HomePlacements")
+        scene.FitStatus = "Target snapped"
+        doc.recompute()
+        return {
+            "target": str(getattr(target, "Name", "DrapeTarget")),
+            "clearance_mm": required,
+            "translation_mm": float(total_translation.Length),
+            "proximity_error_mm": float(final_proximity_error),
+            "pieces": tuple(
+                (
+                    str(piece.PieceId),
+                    float(report.minimum_signed_clearance),
+                )
+                for piece, report in zip(selected, final_reports)
+            ),
+            "iterations": _iteration + 1,
+        }
+    except BaseException:
+        for piece, original in piece_before.items():
+            piece.Placement = original
+            sketch = getattr(piece, "Sketch", None)
+            original_sketch = sketch_before.get(piece)
+            if sketch is not None and original_sketch is not None:
+                sketch.Placement = original_sketch
+        scene.PiecePlacements = list(persisted_before)
+        scene.FitStatus = status_before
+        if tuple(scene.HomePlacements) != home_before:
+            scene.HomePlacements = list(home_before)
+        scene.DrapeTarget = target_before
+        doc.recompute()
+        raise
 
 def position_piece(piece, x, y, z=0.0, rotation_z=0.0):
     from freecad_cloth.avatar.AvatarFitting import PiecePlacement
@@ -343,7 +961,11 @@ def reset_arrangement():
         if piece is None:
             continue
         x, y, z = placement.position
-        piece.Placement = App.Placement(App.Vector(x, y, z), App.Rotation(App.Vector(0, 0, 1), placement.rotation_z))
+        axis = placement.rotation_axis
+        piece.Placement = App.Placement(App.Vector(x, y, z), App.Rotation(App.Vector(*axis), placement.rotation_z))
+        sketch = getattr(piece, "Sketch", None)
+        if sketch is not None:
+            sketch.Placement = piece.Placement
         current[pid] = placement
     scene.PiecePlacements = [current[k].to_string() for k in sorted(current)]
     scene.FitStatus = "Arrangement reset"
@@ -364,6 +986,11 @@ def create_simulation_from_fitting():
     simulation.ClothPieces = list(scene.PatternPieces)
     if scene.AvatarProxy is not None:
         simulation.AvatarProxy = scene.AvatarProxy
+    target = getattr(scene, "DrapeTarget", None) or doc.getObject("DrapeTarget")
+    if target is not None:
+        _ensure_fitting_properties(scene)
+        scene.DrapeTarget = target
+        simulation.DrapeTarget = target
     doc.recompute()
     return simulation
 
@@ -382,6 +1009,22 @@ class _FittingProxy:
         FittingScene(measurements, avatar_name, placements, points, volumes, bool(obj.SymmetryEnabled)).validate()
 
 
+def _snap_selected_pieces_to_target():
+    import FreeCADGui as Gui
+    active = Gui.activeDocument()
+    if active is None:
+        raise ValueError("open a document before snapping pattern pieces")
+    scene = _scene(active.Document)
+    if scene is None:
+        raise ValueError("create a fitting scene first")
+    selected = [
+        obj for obj in Gui.Selection.getSelection()
+        if getattr(obj, "PatternType", "") == "PatternPiece"
+    ]
+    if not selected:
+        selected = list(scene.PatternPieces)
+    return snap_pattern_pieces_to_target(selected)
+
 COMMANDS = [
     "ClothFitting_CreateScene",
     "ClothFitting_SetMeasurements",
@@ -394,6 +1037,7 @@ COMMANDS = [
     "ClothFitting_DeleteBoundingVolume",
     "ClothFitting_SetSymmetry",
     "ClothFitting_ApplyArrangementPoint",
+    "ClothFitting_SnapPiecesToTarget",
     "ClothFitting_ResetArrangement",
     "ClothFitting_CreateSimulation",
 ]
@@ -409,6 +1053,7 @@ _COMMAND_HANDLERS = {
     "ClothFitting_DeleteBoundingVolume": lambda: delete_bounding_volume("Volume1"),
     "ClothFitting_SetSymmetry": lambda: set_symmetry_enabled(True),
     "ClothFitting_ApplyArrangementPoint": lambda: _apply_selected_arrangement(),
+    "ClothFitting_SnapPiecesToTarget": _snap_selected_pieces_to_target,
     "ClothFitting_ResetArrangement": reset_arrangement,
     "ClothFitting_CreateSimulation": create_simulation_from_fitting,
 }
