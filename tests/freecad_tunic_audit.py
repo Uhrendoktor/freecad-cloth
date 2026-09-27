@@ -158,6 +158,10 @@ def _compile_generated_source(source_text):
 # discard buffered diagnostics and leave CI with only a bare exit code. For this
 # wrapper, convert those terminal exits to SystemExit so the supervisor can emit
 # a full traceback and a durable failure report.
+source = source.replace(
+    'except BaseException as error:\n    exit_code = 1; print("SCENARIO FAILURE: %r" % (error,), flush=True);',
+    'except BaseException as error:\n    globals()["_TUNIC_SOURCE_FAILURE"] = error\n    globals()["_TUNIC_SOURCE_FAILURE_TRACEBACK"] = traceback.format_exc()\n    exit_code = 1; print("SCENARIO FAILURE: %r" % (error,), flush=True);',
+)
 source = source.replace('os._exit(1)', 'raise SystemExit(1)')
 source = source.replace('getattr(os, "_" + "exit")(0)', 'raise SystemExit(0)')
 
@@ -185,13 +189,20 @@ def _write_failure_report(error):
         "tissu_collision_triangles=%s" % os.environ.get("CLOTH_TISSU_COLLISION_TRIANGLES", ""),
         "exception_type=%s" % type(error).__name__,
         "exception=%r" % (error,),
+        "source_exception_type=%s" % type(globals().get("_TUNIC_SOURCE_FAILURE", error)).__name__,
+        "source_exception=%r" % (globals().get("_TUNIC_SOURCE_FAILURE", error),),
         "",
         "traceback:",
-        traceback.format_exc(),
+        str(globals().get("_TUNIC_SOURCE_FAILURE_TRACEBACK") or traceback.format_exc()),
     ]
     path.write_text("\n".join(lines), encoding="utf-8")
     print("tunic-audit-diagnostics-path=%s" % path, flush=True)
-    print("tunic-audit-diagnostics-exception=%s: %r" % (type(error).__name__, error), flush=True)
+    source_failure = globals().get("_TUNIC_SOURCE_FAILURE", error)
+    print("tunic-audit-diagnostics-exception=%s: %r" % (type(source_failure).__name__, source_failure), flush=True)
+    if "_TUNIC_SOURCE_FAILURE_TRACEBACK" in globals():
+        print("tunic-audit-source-traceback-begin", flush=True)
+        print(globals()["_TUNIC_SOURCE_FAILURE_TRACEBACK"], flush=True)
+        print("tunic-audit-source-traceback-end", flush=True)
     try:
         log_path = ROOT / "docs" / "images" / "generated" / "gui-progress.log"
         if log_path.is_file():
