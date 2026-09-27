@@ -235,8 +235,6 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
             }
 
             Eigen::Vector3d newPosition = cp + normal * thickness;"""
-    if cpp.count(contact_old) != 1:
-        raise RuntimeError("MeshCollider.cpp contact-response anchor mismatch")
     probe_old = """        double distance = toParticle.norm();
 
         if (distance <= thickness) {"""
@@ -271,6 +269,8 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
 } // namespace Tissu"""
     if cpp.count(resolve_tail_old) != 1:
         raise RuntimeError("MeshCollider.cpp resolve tail anchor mismatch")
+    if cpp.count(contact_old) != 1:
+        raise RuntimeError("MeshCollider.cpp contact-response anchor mismatch")
     cpp = cpp.replace(resolve_tail_old, resolve_tail_new, 1)
 
     cpp_path.write_text(cpp.replace(contact_old, contact_new, 1), encoding="utf-8")
