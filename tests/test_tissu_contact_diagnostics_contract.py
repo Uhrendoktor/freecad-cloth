@@ -45,3 +45,15 @@ def test_canonical_workflow_uses_single_opt_in_dispatch_job():
     assert "needs: [local_runner_readiness]" in WORKFLOW
     assert "needs: [diagnostic-tissu-contact]" not in WORKFLOW
     assert "release_gate_effect" not in job
+
+
+def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
+    assert 'CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=1' in WORKFLOW
+    assert 'os.environ.get("CLOTH_CONTACT_DIAGNOSTICS_EXECUTE") == "1"' in SOURCE
+    assert "faulthandler.dump_traceback_later(30.0, repeat=True" in SOURCE
+    assert "entrypoint __name__=" in SOURCE
+    assert "setsid /opt/freecad/AppRun /workspace/tests/freecad_tissu_contact_diagnostics.py" in WORKFLOW
+    assert "diagnostic-contact-supervisor=timeout" in WORKFLOW
+    assert "artifacts/tissu-contact-diagnostics/app-run.log" in WORKFLOW
+    assert "if-no-files-found: warn" in WORKFLOW
+    assert "retention-days: 14" in WORKFLOW
