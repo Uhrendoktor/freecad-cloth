@@ -170,3 +170,5 @@ def test_diagnostic_contact_controls_use_dedicated_pr_only_job_and_review_artifa
     assert "retention-days: 14" in workflow
     assert "Human inspection is mandatory before interpreting the contact result." in workflow
     assert "solver-facing-collision-surface" in diagnostics
+    assert "run()\n" in diagnostics
+    assert "if __name__ == \"__main__\"" not in diagnostics
