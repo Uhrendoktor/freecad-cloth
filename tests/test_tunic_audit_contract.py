@@ -4,7 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-# The canonical native-Sketcher outline uses edges 3/5 as the shoulder seams.
+# The canonical native-Sketcher outline uses authored shoulder edges 2/5.
 # Keep front/back semantic edge IDs independent; never fall back to one piece's IDs.
 
 def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
@@ -12,8 +12,8 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())' in source
     assert 'back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())' in source
     assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in source
-    assert 'front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"' in source
-    assert 'front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"' in source
+    assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in source
+    assert 'front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"' in source
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
