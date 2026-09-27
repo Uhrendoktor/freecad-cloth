@@ -617,13 +617,13 @@ def run_acceptance():
         # corresponding nearest garment point, so the expected successful shared-rigid
         # transform is identity (zero translation/rotation) with exact 8 mm clearance.
         wall_specs = (
-            ("front", (front, 140.7516834580786, "y+")),
-            ("back", (back, -189.23893961834912, "y-")),
-            ("right", (sleeve_a, 119.61946980917456, "x+")),
-            ("left", (sleeve_b, -174.0095950534896, "x-")),
+            ("front", 140.7516834580786, "y+"),
+            ("back", -189.23893961834912, "y-"),
+            ("right", 119.61946980917456, "x+"),
+            ("left", -174.0095950534896, "x-"),
         )
         walls = []
-        for name, _piece, plane, axis in wall_specs:
+        for name, plane, axis in wall_specs:
             if axis == "y+":
                 walls.append(Part.makeBox(180.0, 2.0, 200.0, App.Vector(-130.0, plane - 10.0, 0.0)))
             elif axis == "y-":
