@@ -160,7 +160,26 @@ def _compile_generated_source(source_text):
 # a full traceback and a durable failure report.
 source = source.replace(
     'except BaseException as error:\n    exit_code = 1; print("SCENARIO FAILURE: %r" % (error,), flush=True);',
-    'except BaseException as error:\n    globals()["_TUNIC_SOURCE_FAILURE"] = error\n    globals()["_TUNIC_SOURCE_FAILURE_TRACEBACK"] = traceback.format_exc()\n    exit_code = 1; print("SCENARIO FAILURE: %r" % (error,), flush=True);',
+    '''except BaseException as error:
+    globals()["_TUNIC_SOURCE_FAILURE"] = error
+    globals()["_TUNIC_SOURCE_FAILURE_TRACEBACK"] = traceback.format_exc()
+    try:
+        failure_report_path = os.path.join(OUT, "tunic-audit-source-failure.txt")
+        failure_payload = {
+            "type": type(error).__name__,
+            "message": repr(error),
+            "traceback": traceback.format_exc(),
+            "log_path": LOG,
+            "diagnostics": [],
+        }
+        if os.path.isfile(LOG):
+            failure_payload["log_tail"] = open(LOG, "r", encoding="utf-8", errors="replace").read().splitlines()[-120:]
+        with open(failure_report_path, "w", encoding="utf-8") as failure_handle:
+            json.dump(failure_payload, failure_handle, indent=2, sort_keys=True)
+        print("tunic-audit-source-failure-path=%s" % failure_report_path, flush=True)
+    except Exception as failure_report_error:
+        print("tunic-audit-source-failure-report-error=%r" % (failure_report_error,), flush=True)
+    exit_code = 1; print("SCENARIO FAILURE: %r" % (error,), flush=True);''',
 )
 source = source.replace(
     'os._exit(1)',
