@@ -15,6 +15,7 @@ sim_gui = (ROOT / "freecad_cloth" / "simulation" / "SimulationGui.py").read_text
 quality_gui = (ROOT / "freecad_cloth" / "simulation" / "SimulationQualityGui.py").read_text()
 sewing_gui = (ROOT / "freecad_cloth" / "sewing" / "SewingGui.py").read_text()
 avatar_gui = (ROOT / "freecad_cloth" / "avatar" / "AvatarGui.py").read_text()
+target_placement = (ROOT / "freecad_cloth" / "avatar" / "TargetPlacement.py").read_text()
 commands = (ROOT / "freecad_cloth" / "pattern" / "PatternCommands.py").read_text()
 sim_commands = (ROOT / "freecad_cloth" / "simulation" / "SimulationCommands.py").read_text()
 sewing_commands = (ROOT / "freecad_cloth" / "sewing" / "SewingCommands.py").read_text()
@@ -216,3 +217,7 @@ def test_fitting_command_registers_target_snap_and_persists_target_bridge():
     assert 'PropertyLinkGlobal", "DrapeTarget", "Fitting"' in fitting
     assert 'simulation.DrapeTarget = scene.DrapeTarget' in fitting
     assert 'fitting.DrapeTarget = target' in handoff
+    assert 'if status["state"] != "ready":' in fitting
+    assert "all snapped PatternPieces must belong to the fitting scene" in fitting
+    assert "select or assign at least one PatternPiece before snapping to a target" in fitting
+    assert "target snap exceeds the configured translation bound" in target_placement
