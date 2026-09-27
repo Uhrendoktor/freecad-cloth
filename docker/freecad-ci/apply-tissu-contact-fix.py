@@ -37,10 +37,6 @@ def main() -> int:
         """    std::vector<Eigen::Vector3d> m_localVertices;
     std::vector<Eigen::Vector3d> m_worldVertices;
     std::vector<Triangle> m_triangles;
-    BVH m_bvh;""",
-        """    std::vector<Eigen::Vector3d> m_localVertices;
-    std::vector<Eigen::Vector3d> m_worldVertices;
-    std::vector<Triangle> m_triangles;
     bool m_closedManifold = false;
     double m_outwardNormalSign = 1.0;
     bool m_containmentBootstrapped = false;
@@ -48,6 +44,12 @@ def main() -> int:
     BVH m_bvh;
 
     bool pointInsideClosedMesh(const Eigen::Vector3d& point) const;""",
+        """    std::vector<Eigen::Vector3d> m_localVertices;
+    std::vector<Eigen::Vector3d> m_worldVertices;
+    std::vector<Triangle> m_triangles;
+    bool m_closedManifold = false;
+    double m_outwardNormalSign = 1.0;
+    BVH m_bvh;""",
         "MeshCollider.hpp member layout",
     )
 
@@ -248,39 +250,6 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
             "MeshCollider.cpp exact closed-mesh containment helper",
         ),
         (
-            """        if (distance <= thickness) {
-            Eigen::Vector3d normal = (distance > 1e-6)
-                                         ? toParticle.normalized()
-                                         : ((b - a).cross(c - a)).normalized();
-
-            Eigen::Vector3d newPosition = cp + normal * thickness;""",
-            """        if (distance <= thickness || insideClosedMesh) {
-            Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
-            const double faceNormalLength = faceNormalRaw.norm();
-            if (faceNormalLength <= 1e-12)
-                continue;
-            Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
-
-            Eigen::Vector3d normal = faceNormal;
-            if (distance > 1e-6) {
-                normal = toParticle / distance;
-                if (m_closedManifold) {
-                    const Eigen::Vector3d outwardNormal =
-                        faceNormal * m_outwardNormalSign;
-                    // A particle on the interior side of a closed, consistently
-                    // oriented surface must be resolved along the outward
-                    // normal; outside contact preserves the existing vector.
-                    if (normal.dot(outwardNormal) < 0.0)
-                        normal = -normal;
-                }
-            } else if (m_closedManifold) {
-                normal *= m_outwardNormalSign;
-            }
-
-            Eigen::Vector3d newPosition = cp + normal * thickness;""",
-            "MeshCollider.cpp contact response",
-        ),
-        (
             """        double distance = toParticle.norm();
 
         if (distance <= thickness) {""",
@@ -297,26 +266,14 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
                 insideClosedMesh = pointInsideClosedMesh(particle.getPosition());
         }
 
-        if (distance <= thickness || insideClosedMesh) {""",
-            "MeshCollider.cpp containment probe",
-        ),
-        (
-            """            Eigen::Vector3d normal = faceNormal;
-            if (distance > 1e-6) {
-                normal = toParticle / distance;
-                if (m_closedManifold) {
-                    const Eigen::Vector3d outwardNormal =
-                        faceNormal * m_outwardNormalSign;
-                    // A particle on the interior side of a closed, consistently
-                    // oriented surface must be resolved along the outward
-                    // normal; outside contact preserves the existing vector.
-                    if (normal.dot(outwardNormal) < 0.0)
-                        normal = -normal;
-                }
-            } else if (m_closedManifold) {
-                normal *= m_outwardNormalSign;
-            }""",
-            """            Eigen::Vector3d normal;
+        if (distance <= thickness || insideClosedMesh) {
+            Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
+            const double faceNormalLength = faceNormalRaw.norm();
+            if (faceNormalLength <= 1e-12)
+                continue;
+            Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
+
+            Eigen::Vector3d normal;
             if (insideClosedMesh) {
                 normal = faceNormal * m_outwardNormalSign;
             } else {
@@ -332,8 +289,10 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
                 } else if (m_closedManifold) {
                     normal *= m_outwardNormalSign;
                 }
-            }""",
-            "MeshCollider.cpp containment normal",
+            }
+
+            Eigen::Vector3d newPosition = cp + normal * thickness;""",
+            "MeshCollider.cpp contact response with containment",
         ),
         (
             """        }
@@ -349,6 +308,8 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
 } // namespace Tissu""",
             "MeshCollider.cpp containment bootstrap",
         ),
+    ]
+   ]
     ]
     for old, new, label in replace_cpp:
         count = cpp.count(old)
@@ -399,7 +360,7 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
     )
 
     if test_cpp.count("mesh.resolve(particles, 0.016, 1.0);") != 1:
-        raise RuntimeError("expected one deep-containment test resolve call")
+        raise RuntimeError("expected one deep-containment resolve call")
     test_cpp = test_cpp.replace(
         "mesh.resolve(particles, 0.016, 1.0);",
         "mesh.resolve(particles, 0.016, 0.1);",
