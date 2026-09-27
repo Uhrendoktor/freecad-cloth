@@ -88,3 +88,19 @@ def test_workflow_validator_matches_shared_manifest():
     assert 'case["solver"]["backend"]' in WORKFLOW
     assert 'case["collision"]["solver_triangles"]' in WORKFLOW
     assert 'case["checkpoints"]' in WORKFLOW
+
+def test_cube_ladder_rungs_are_explicit_and_use_real_seams():
+    for needle in (
+        '"rung-1-auto-pin"',
+        '"rung-2-no-pin"',
+        '"rung-3-no-seam"',
+        '"rung-4-small-seam-gap"',
+        '"rung-5-large-seam-gap"',
+        'checkpoint_steps=(0, 1, 5, 15, 45, 90)',
+        'from freecad_cloth.pattern.PatternModel import Seam',
+        'from freecad_cloth.pattern.PatternObjects import add_seam',
+        '"collision_triangle_budget"',
+        '"seam_world_spans_mm"',
+        '"interpret adjacent rungs until first failing rung"',
+    ):
+        assert needle in SOURCE
