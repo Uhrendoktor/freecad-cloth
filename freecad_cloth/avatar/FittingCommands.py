@@ -234,16 +234,18 @@ def add_selected_pattern_pieces():
     defaults = list(getattr(scene, "GarmentAnchors", ()) or ())
     for piece in pieces:
         pid = str(piece.PieceId)
-        if any(key[0] == pid for key in existing_anchor_keys):
-            continue
         width = max(1.0, float(getattr(piece, "Width", 100.0) or 100.0))
         height = max(1.0, float(getattr(piece, "Height", 100.0) or 100.0))
-        defaults.extend((
-            GarmentAnchor(pid, "shoulder_left", (0.15 * width, 0.92 * height, 0.0), "front").to_string(),
-            GarmentAnchor(pid, "shoulder_right", (0.85 * width, 0.92 * height, 0.0), "front").to_string(),
-        ))
-        existing_anchor_keys.add((pid, "shoulder_left"))
-        existing_anchor_keys.add((pid, "shoulder_right"))
+        if (pid, "shoulder_left") not in existing_anchor_keys:
+            defaults.append(GarmentAnchor(
+                pid, "shoulder_left", (0.15 * width, 0.92 * height, 0.0), "front"
+            ).to_string())
+            existing_anchor_keys.add((pid, "shoulder_left"))
+        if (pid, "shoulder_right") not in existing_anchor_keys:
+            defaults.append(GarmentAnchor(
+                pid, "shoulder_right", (0.85 * width, 0.92 * height, 0.0), "front"
+            ).to_string())
+            existing_anchor_keys.add((pid, "shoulder_right"))
     scene.GarmentAnchors = sorted(set(defaults))
     FittingScene(
         BodyMeasurements.from_json(scene.MeasurementData),
