@@ -277,6 +277,35 @@ def _inside_outside(points, source):
                 states = []
                 break
 
+    topology = getattr(mesh, "Topology", None) if mesh is not None else None
+    if topology is None:
+        return "unknown"
+    raw_vertices, raw_faces = topology
+    vertices = tuple((float(v.x), float(v.y), float(v.z)) for v in raw_vertices)
+    triangles = tuple(tuple(int(i) for i in face) for face in raw_faces)
+    if not vertices or not triangles:
+        return "unknown"
+    try:
+        import numpy as np
+        import trimesh
+        target_mesh = trimesh.Trimesh(
+            vertices=np.asarray(vertices, dtype=float),
+            faces=np.asarray(triangles, dtype=int),
+            process=False,
+        )
+        if not target_mesh.is_watertight:
+            raise RuntimeError("target mesh is not watertight")
+        states = [bool(value) for value in target_mesh.contains(np.asarray(local_points, dtype=float))]
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        states = [_point_inside_mesh(point, vertices, triangles) for point in local_points]
+    if not states:
+        return "unknown"
+    if all(states):
+        return "inside"
+    if not any(states):
+        return "outside"
+    return "mixed"
+
 def _bounds(points):
     if not points:
         raise RuntimeError("cannot measure empty point set")
