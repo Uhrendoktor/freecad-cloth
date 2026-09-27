@@ -171,6 +171,75 @@ def translation_to_target(surface, centroid, *, clearance=DEFAULT_SURFACE_CLEARA
     return delta, hit
 
 
+def _ray_intersects_triangle(origin, direction, a, b, c, epsilon=1e-9):
+    edge1 = _sub(b, a)
+    edge2 = _sub(c, a)
+    h = (
+        direction[1] * edge2[2] - direction[2] * edge2[1],
+        direction[2] * edge2[0] - direction[0] * edge2[2],
+        direction[0] * edge2[1] - direction[1] * edge2[0],
+    )
+    determinant = _dot(edge1, h)
+    if abs(determinant) <= epsilon:
+        return False
+    inverse = 1.0 / determinant
+    s = _sub(origin, a)
+    u = inverse * _dot(s, h)
+    if u < -epsilon or u > 1.0 + epsilon:
+        return False
+    q = (
+        s[1] * edge1[2] - s[2] * edge1[1],
+        s[2] * edge1[0] - s[0] * edge1[2],
+        s[0] * edge1[1] - s[1] * edge1[0],
+    )
+    v = inverse * _dot(direction, q)
+    if v < -epsilon or u + v > 1.0 + epsilon:
+        return False
+    distance = inverse * _dot(edge2, q)
+    return distance > epsilon
+
+
+def _surface_is_closed(triangles):
+    edges = {}
+    for triangle in triangles:
+        for index_a, index_b in ((triangle[0], triangle[1]), (triangle[1], triangle[2]), (triangle[2], triangle[0])):
+            edge = tuple(sorted((int(index_a), int(index_b))))
+            edges[edge] = edges.get(edge, 0) + 1
+    return bool(edges) and all(count == 2 for count in edges.values())
+
+
+def point_inside_closed_surface(surface, point):
+    """Classify one point against a closed collision surface.
+
+    Uses three deterministic oblique rays and majority parity, avoiding the
+    O(particles * triangles) containment path that stalled the earlier probe.
+    """
+    vertices, triangles, _center = _surface_triangle_data(surface)
+    if not _surface_is_closed(triangles):
+        raise ValueError("target collision surface is not closed")
+    point = tuple(float(value) for value in point)
+    raw_directions = (
+        (1.0, 0.371, 0.173),
+        (0.271, 1.0, 0.411),
+        (0.193, 0.311, 1.0),
+    )
+    classifications = []
+    for raw in raw_directions:
+        direction = _unit(raw, "ray direction")
+        intersections = 0
+        for triangle in triangles:
+            if _ray_intersects_triangle(
+                point,
+                direction,
+                vertices[triangle[0]],
+                vertices[triangle[1]],
+                vertices[triangle[2]],
+            ):
+                intersections += 1
+        classifications.append(bool(intersections % 2))
+    return sum(1 for value in classifications if value) >= 2
+
+
 def nearest_surface_distance(surface, points):
     """Return the minimum unsigned point-to-surface distance."""
     vertices, triangles, _center = _surface_triangle_data(surface)
