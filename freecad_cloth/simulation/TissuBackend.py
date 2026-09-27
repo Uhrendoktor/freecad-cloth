@@ -146,7 +146,8 @@ class TissuBackend(ClothSimulationBackend):
                 )
             return
         vtx, idx = _to_tissu_mesh(self._collision_surface)
-        self._sim.add_mesh_from_arrays("drape-target", vtx, idx, friction=0.5)
+        collider_name = "drape-target-authoritative" if self._source_collision_surface.region == "Cloth Human Avatar" else "drape-target"
+        self._sim.add_mesh_from_arrays(collider_name, vtx, idx, friction=0.5)
 
     def _build(self, Simulation):
         import numpy as np
