@@ -327,13 +327,27 @@ TEST(MeshCollider, OpenConsistentlyWoundSurfaceMovesInteriorParticleOutside) {
     };
     MeshCollider mesh(vertices, triangles, 0.0);
 
-    const Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
+    const Eigen::Vector3d faceA = vertices[0];
+    const Eigen::Vector3d faceB = vertices[1];
+    const Eigen::Vector3d faceC = vertices[3];
+    const Eigen::Vector3d authoredOutwardNormal =
+        (faceB - faceA).cross(faceC - faceA).normalized();
+    const Eigen::Vector3d faceCenter = (faceA + faceB + faceC) / 3.0;
+    const Eigen::Vector3d initialPos =
+        faceCenter - authoredOutwardNormal * 0.05;
+    const double initialSignedDistance =
+        (initialPos - faceA).dot(authoredOutwardNormal);
+    ASSERT_NEAR(initialSignedDistance, -0.05, 1e-9);
+
     std::vector<Particle> particles;
     particles.emplace_back(initialPos);
 
     mesh.resolve(particles, 0.016, 0.1);
 
-    EXPECT_GT((particles[0].getPosition() - initialPos).norm(), 0.0);
+    const double finalSignedDistance =
+        (particles[0].getPosition() - faceA).dot(authoredOutwardNormal);
+    EXPECT_GT(finalSignedDistance, 0.0);
+    EXPECT_GT(finalSignedDistance, initialSignedDistance);
     EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
 }
 
