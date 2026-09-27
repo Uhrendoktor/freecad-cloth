@@ -530,5 +530,6 @@ def main():
             pass
 
 
-if __name__ == "__main__" or os.environ.get("CLOTH_CONTACT_CONTROLS_EXECUTE") == "1":
-    raise SystemExit(main())
+# FreeCAD AppRun does not provide a reliable __main__ namespace for script arguments.
+# Invoke the standalone diagnostic unconditionally; main() owns App/Qt shutdown.
+main()
