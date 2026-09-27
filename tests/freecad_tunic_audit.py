@@ -14,6 +14,7 @@ source = source_path.read_text(encoding="utf-8")
 # The canonical tunic audit must use the authoritative DrapeTarget collision
 # surface; do not replace it with the optional torso-envelope approximation.
 os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
+os.environ["CLOTH_TISSU_INITIAL_CONTAINMENT_PROBE"] = "1"
 
 replacements = {
     'clearance = max(20.0, 0.08 * body_depth)': 'clearance = max(8.0, 0.025 * body_depth);',
@@ -38,7 +39,23 @@ replacements = {
     'scene.SolverIterations = 8;': 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-32 iterations-1 substeps-env");',
     '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance',
     '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance',
-    'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
+    'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',,'    log("step0-target-vertex-clearance-mm=%.2f required-mm=%.2f" % (float(initial_clearance), float(clearance)))': '    log("step0-target-vertex-clearance-mm=%.2f required-mm=%.2f" % (float(initial_clearance), float(clearance)))\\n'
+        '    if os.environ.get("CLOTH_TISSU_INITIAL_CONTAINMENT_PROBE") == "1":\\n'
+        '        import Part\\n'
+        '        authoritative_shape = getattr(target_source, "Shape", None)\\n'
+        '        if authoritative_shape is None or authoritative_shape.isNull(): raise RuntimeError("initial containment probe requires the authoritative mannequin Shape")\\n'
+        '        signed_distances = []\\n'
+        '        for position in tuple(backend.positions()):\\n'
+        '            point = App.Vector(float(position[0]), float(position[1]), float(position[2]))\\n'
+        '            distance = float(authoritative_shape.distToShape(Part.makeVertex(point))[0])\\n'
+        '            inside = bool(authoritative_shape.isInside(point, 1.0e-7, True))\\n'
+        '            signed_distances.append(-distance if inside else distance)\\n'
+        '        if not signed_distances: raise RuntimeError("initial containment probe found no solver particles")\\n'
+        '        inside_values = [value for value in signed_distances if value < -1.0e-9]\\n'
+        '        inside_count = len(inside_values)\\n'
+        '        max_inside_depth = max((-value for value in inside_values), default=0.0)\\n'
+        '        mean_signed = sum(signed_distances) / len(signed_distances)\\n'
+        '        log("initial-containment-probe=passed particles=%d inside_count=%d percent_inside=%.2f max_inside_depth_mm=%.4f min_signed_distance_mm=%.4f max_signed_distance_mm=%.4f mean_signed_distance_mm=%.4f" % (len(signed_distances), inside_count, 100.0 * inside_count / len(signed_distances), max_inside_depth, min(signed_distances), max(signed_distances), mean_signed))',
 }
 for old, new in replacements.items():
     if old not in source:
