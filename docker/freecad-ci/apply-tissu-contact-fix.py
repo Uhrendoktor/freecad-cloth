@@ -355,10 +355,13 @@ MeshOrientation inferMeshOrientation(
             } else if (distance > 1e-6) {
                 // Preserve the pinned legacy outside-contact response exactly.
                 normal = toParticle / distance;
-            }
-
-            if (!deeplyInsideClosedMesh && distance <= 1e-6 &&
-                m_closedManifold) {
+                if (m_closedManifold) {
+                    const Eigen::Vector3d outwardNormal =
+                        faceNormal * m_outwardNormalSign;
+                    if (normal.dot(outwardNormal) < 0.0)
+                        normal = -normal;
+                }
+            } else if (m_closedManifold) {
                 normal *= m_outwardNormalSign;
             }
 
