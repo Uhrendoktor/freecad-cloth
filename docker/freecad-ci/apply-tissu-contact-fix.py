@@ -392,6 +392,7 @@ TEST(MeshCollider, HintedSparseMeshResolvesInteriorOutward) {
 
     mesh.resolve(particles, 0.016, 1.0);
 
+    EXPECT_GT(particles[0].getPosition().y(), initialPos.y());
     EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
 }
 
@@ -419,7 +420,7 @@ TEST(MeshCollider, HintedSparseMeshPreservesOutsideContact) {
     EXPECT_LT(particles[0].getPosition().y(), 0.0);
 }
 """
-    test.write_text(test_cpp, encoding="utf-8")
+    test.write_text(test_cpp.rstrip() + "\n", encoding="utf-8")
 
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
