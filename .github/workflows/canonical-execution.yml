@@ -473,9 +473,10 @@ jobs:
 
   diagnostic-contact-controls:
     name: Diagnostic contact controls (manual only)
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_diagnostics == 'contact' }}
+    # Temporary supervisor validation: this branch-only path is removed after artifact capture.
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_diagnostics == 'contact') || (github.event_name == 'pull_request' && github.head_ref == 'agent/contact-controls-2484-supervisor-20260927') }}
     needs: [local_runner_readiness]
-    runs-on: ${{ inputs.runner_mode == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 12
     env:
       FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix
