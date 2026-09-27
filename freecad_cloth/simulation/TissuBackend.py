@@ -6,6 +6,7 @@ so installations without the optional wheel keep the existing backend usable.
 from copy import deepcopy
 from typing import Iterable, Sequence, Tuple
 import os
+from math import isfinite
 
 from freecad_cloth.avatar.AvatarCollision import CollisionSurface, coarsen_collision_surface, surface_from_triangles
 from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
@@ -55,8 +56,7 @@ def _mesh_topology_metrics(vertices, triangles):
     triangles = tuple(tuple(int(i) for i in tri) for tri in triangles)
     if len(vertices) < 3 or not triangles:
         raise ValueError("collision mesh is empty")
-    if any(not all(isfinite(c) for c in point) for point in vertices for c in (point,)):
-        # Defensive branch retained for malformed native bridge data.
+    if any(not isfinite(float(coordinate)) for point in vertices for coordinate in point):
         raise ValueError("collision mesh contains non-finite vertices")
     edge_faces = {}
     adjacency = [set() for _ in triangles]
