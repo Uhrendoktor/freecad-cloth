@@ -610,6 +610,304 @@ def _run_case(case_id, rung, scene, piece, camera):
     return record
 
 
+def _global_scene_geometry(base):
+    """Return solver-global positions, triangles and per-panel index ranges."""
+    positions = tuple(
+        tuple(float(component) for component in point)
+        for point in base.backend.positions()
+    )
+    triangles = tuple(
+        triangle
+        for panel_triangles in getattr(base, "panel_triangles", {}).values()
+        for triangle in panel_triangles
+    )
+    panel_indices = tuple(
+        tuple(int(index) for index in indices)
+        for panel_name, indices in getattr(base, "panel_indices", {}).items()
+    )
+    return positions, triangles, panel_indices
+
+
+def _distance(left, right):
+    return math.sqrt(sum((float(left[i]) - float(right[i])) ** 2 for i in range(3)))
+
+
+def _seam_metrics(seam_pairs_by_id, positions):
+    metrics = []
+    for seam_id, pairs in sorted(seam_pairs_by_id.items()):
+        pairs = tuple(pairs)
+        if not pairs:
+            metrics.append({"seam_id": str(seam_id), "pair_count": 0, "max_gap_mm": None, "mean_gap_mm": None, "span_mm": None})
+            continue
+        gaps = [_distance(positions[a], positions[b]) for a, b in pairs]
+        a0, b0 = pairs[0]
+        a1, b1 = pairs[-1]
+        span_a = _distance(positions[a0], positions[a1])
+        span_b = _distance(positions[b0], positions[b1])
+        metrics.append({
+            "seam_id": str(seam_id),
+            "pair_count": len(pairs),
+            "max_gap_mm": max(gaps),
+            "mean_gap_mm": sum(gaps) / float(len(gaps)),
+            "span_a_mm": span_a,
+            "span_b_mm": span_b,
+            "span_mm": 0.5 * (span_a + span_b),
+        })
+    return metrics
+
+
+def _ladder_record(case_id, rung, target, source, before, after, triangles, panel_indices, collision_surface, steps, image_paths, runtime_ms, pin_mode, seam_mode, seam_before, seam_after):
+    before_distance = _nearest_surface_distance(before, collision_surface)
+    after_distance = _nearest_surface_distance(after, collision_surface)
+    _, before_nearest_point = _nearest_surface_observation(before, collision_surface)
+    _, after_nearest_point = _nearest_surface_observation(after, collision_surface)
+    before_inside = _inside_outside(before, source)
+    after_inside = _inside_outside(after, source)
+    max_displacement = max(_distance(left, right) for left, right in zip(before, after))
+    displacement = _distance(_centroid(before), _centroid(after))
+    if max_displacement > 0.01 and before_distance is not None and after_distance is not None and after_distance >= before_distance:
+        contact_state = "projection-or-contact-response-observed"
+    elif max_displacement <= 0.01:
+        contact_state = "no-observable-response"
+    else:
+        contact_state = "response-toward-target-or-tangential-motion"
+    source_points, source_triangles = _mesh_geometry(source)
+    target_sig = _target_signature(target)
+    target_surface_triangles = int(len(getattr(collision_surface, "triangles", ()) or ()))
+    signed_before = None if before_distance is None else (-before_distance if before_inside in {"inside", "mixed"} else before_distance)
+    signed_after = None if after_distance is None else (-after_distance if after_inside in {"inside", "mixed"} else after_distance)
+    piece_bounds = []
+    for indices in panel_indices:
+        piece_bounds.append(list(_bounds(tuple(before[index] for index in indices))))
+    before_finite = all(math.isfinite(float(component)) for point in before for component in point)
+    after_finite = all(math.isfinite(float(component)) for point in after for component in point)
+    seam_count = len(seam_before)
+    required_seams = 1 if seam_mode != "none" else 0
+    fixture_contract_pass = (
+        before_finite
+        and after_finite
+        and (len(panel_indices) in {1, 2})
+        and (len(panel_indices) == (1 if rung in {1, 2} else 2))
+        and (pin_mode in {"Automatic", "None"})
+        and (seam_count == required_seams)
+        and all(item.get("pair_count", 0) > 0 for item in seam_before)
+    )
+    checkpoint = {
+        "step": 0,
+        "image": image_paths[0],
+        "finite": before_finite,
+        "components": _connected_components(before, triangles),
+        "max_seam_gap_mm": max((item.get("max_gap_mm") or 0.0) for item in seam_before) if seam_before else 0.0,
+        "target_clearance_mm": signed_before,
+        "contact_state": "static-intersection-probe",
+        "inside_outside": before_inside,
+        "nearest_target_point": before_nearest_point,
+        "seam_metrics": seam_before,
+    }
+    checkpoint_after = {
+        "step": int(steps),
+        "image": image_paths[-1],
+        "finite": after_finite,
+        "components": _connected_components(after, triangles),
+        "max_seam_gap_mm": max((item.get("max_gap_mm") or 0.0) for item in seam_after) if seam_after else 0.0,
+        "target_clearance_mm": signed_after,
+        "contact_state": contact_state,
+        "inside_outside": after_inside,
+        "nearest_target_point": after_nearest_point,
+        "seam_metrics": seam_after,
+    }
+    return {
+        "case_id": case_id,
+        "predecessor_case_id": None,
+        "case": {
+            "rung": int(rung),
+            "id": case_id,
+            "target": str(target_sig["target_type"]).lower().replace(" ", "-"),
+            "piece_count": len(panel_indices),
+            "pin_mode": str(pin_mode),
+            "seam_mode": str(seam_mode),
+        },
+        "solver": {
+            "backend": "tissu",
+            "particle_distance_mm": PARTICLE_DISTANCE,
+            "iterations": 1,
+            "substeps": 1,
+            "timestep_s": 1.0 / 120.0,
+            "gravity_z_mm_s2": 0.0,
+        },
+        "collision": {
+            "source_signature": target_sig,
+            "source_triangles": len(source_triangles),
+            "solver_triangles": target_surface_triangles,
+            "target_bounds": _bounds(source_points),
+            "target_topology_summary": {
+                "vertices": len(source_points),
+                "triangles": len(source_triangles),
+                "solver_triangles": target_surface_triangles,
+            },
+        },
+        "pre_step": {
+            "piece_bounds": piece_bounds,
+            "unsigned_clearance_mm": before_distance,
+            "signed_clearance_mm": signed_before,
+            "seam_pairs": seam_before,
+            "seam_world_spans_mm": [
+                {"seam_id": item["seam_id"], "span_mm": item.get("span_mm"), "span_a_mm": item.get("span_a_mm"), "span_b_mm": item.get("span_b_mm")}
+                for item in seam_before
+            ],
+        },
+        "checkpoints": [checkpoint, checkpoint_after],
+        "finite": after_finite,
+        "connected_components": _connected_components(after, triangles),
+        "max_seam_gap_mm": max((item.get("max_gap_mm") or 0.0) for item in seam_after) if seam_after else 0.0,
+        "final_clearance_mm": signed_after,
+        "runtime_ms": round(float(runtime_ms), 3),
+        "first_contact_step": int(steps) if max_displacement > 0.01 else None,
+        "contact_mode": contact_state,
+        "control": {
+            "nearest_target_point_before": before_nearest_point,
+            "nearest_target_point_after": after_nearest_point,
+            "nearest_target_distance_before_mm": before_distance,
+            "nearest_target_distance_after_mm": after_distance,
+            "inside_outside_before": before_inside,
+            "inside_outside_after": after_inside,
+            "one_step_projection_delta_mm": max_displacement,
+            "centroid_displacement_mm": displacement,
+            "fixture_contract_pass": fixture_contract_pass,
+            "human_review_required": True,
+        },
+        "images": image_paths,
+        "notes": "diagnostic-only; one unchanged Tissu step; release gate unaffected; human visual review required",
+    }
+
+
+def _run_ladder_case(case_id, rung, piece_specs, pin_mode, seam_mode, camera="axonometric"):
+    started = time.perf_counter()
+    doc = App.newDocument("TissuCubeLadderRung%d" % int(rung))
+    try:
+        scene = _build_scene(doc)
+        cube = doc.addObject("Part::Feature", "DiagnosticCube")
+        cube.Label = "Cube Ladder Collision"
+        cube.Shape = Part.makeBox(180.0, 180.0, 60.0, App.Vector(-90.0, -90.0, 0.0))
+        doc.recompute()
+        from freecad_cloth.simulation.SimulationObjects import set_avatar_collision_source
+        set_avatar_collision_source(scene, cube, thickness=2.0, deflection=1.0)
+        if scene.AvatarProxy.SourceObject is not None and hasattr(scene.AvatarProxy.SourceObject, "ViewObject"):
+            scene.AvatarProxy.SourceObject.ViewObject.Visibility = False
+
+        pieces = []
+        for name, placement in piece_specs:
+            pieces.append(_build_piece(doc, name, placement))
+        seam_id = None
+        if seam_mode != "none":
+            from freecad_cloth.pattern.PatternModel import Seam
+            from freecad_cloth.pattern.PatternObjects import add_seam
+            if len(pieces) != 2:
+                raise RuntimeError("%s requires exactly two pieces for a seam" % case_id)
+            seam_id = "cube-ladder-%s" % case_id
+            seam = Seam(str(pieces[0].PieceId), 1, str(pieces[1].PieceId), 3, id=seam_id, alignment="endpoints", stitch_group=seam_id)
+            seam_obj = add_seam(doc, seam)
+            doc.recompute()
+            if str(getattr(seam_obj, "Status", "")) != "Valid":
+                raise RuntimeError("%s seam did not validate: %s" % (case_id, getattr(seam_obj, "Status", "")))
+
+        scene.ClothPieces = pieces
+        scene.PinMode = pin_mode
+        scene.PinSelection = []
+        scene.Steps = 0
+        scene.touch()
+        doc.recompute()
+        base = scene.Proxy._base_or_restore()
+        if getattr(base.backend, "name", "") != "tissu":
+            raise RuntimeError("%s did not use the Tissu backend" % case_id)
+        target = scene.DrapeTarget
+        if target is None or getattr(target, "SourceObject", None) is None:
+            raise RuntimeError("%s lacks a collision target" % case_id)
+        source = target.SourceObject
+        status = __import__("freecad_cloth.simulation.DrapeTarget", fromlist=["target_status"]).target_status(target)
+        if status["state"] != "ready":
+            raise RuntimeError("%s collision target is not ready: %s" % (case_id, status))
+        before, triangles, panel_indices = _global_scene_geometry(base)
+        collision_surface = getattr(base.backend, "solver_collision_surface", getattr(base, "collision_surface", None))
+        if collision_surface is None:
+            raise RuntimeError("%s missing solver collision surface" % case_id)
+        if len(getattr(collision_surface, "triangles", ()) or ()) <= 0:
+            raise RuntimeError("%s missing solver collision triangles" % case_id)
+        seam_before = _seam_metrics(getattr(base, "seam_stitch_pairs", {}), before)
+        expected_seam_count = 0 if seam_mode == "none" else 1
+        if len(seam_before) != expected_seam_count:
+            raise RuntimeError("%s expected %d seams, observed %d" % (case_id, expected_seam_count, len(seam_before)))
+
+        view = Gui.activeDocument().activeView()
+        if view is None:
+            raise RuntimeError("%s has no active FreeCAD view" % case_id)
+        _screenshot(view, OUT / (case_id + "-step-000.png"))
+        if camera == "front":
+            view.viewFront()
+        elif camera == "top":
+            view.viewTop()
+        else:
+            view.viewAxonometric()
+        _events()
+        _screenshot(view, OUT / (case_id + "-step-000-camera.png"))
+
+        scene.Steps = 1
+        doc.recompute()
+        _events()
+        after, _triangles_after, _panel_indices_after = _global_scene_geometry(base)
+        seam_after = _seam_metrics(getattr(base, "seam_stitch_pairs", {}), after)
+        _screenshot(view, OUT / (case_id + "-step-001-camera.png"))
+        image_paths = [
+            case_id + "-step-000.png",
+            case_id + "-step-000-camera.png",
+            case_id + "-step-001-camera.png",
+        ]
+        record = _ladder_record(
+            case_id,
+            rung,
+            target,
+            source,
+            before,
+            after,
+            triangles,
+            panel_indices,
+            collision_surface,
+            int(scene.Steps),
+            image_paths,
+            (time.perf_counter() - started) * 1000.0,
+            pin_mode,
+            seam_mode,
+            seam_before,
+            seam_after,
+        )
+        _progress("%s: ladder-record fixture_contract_pass=%s" % (case_id, record["control"]["fixture_contract_pass"]))
+        return record
+    finally:
+        App.closeDocument(doc.Name)
+
+
+def _run_cube_ladder():
+    """Run the typed cube complexity ladder; stop at the first structural failure."""
+    base_a = App.Placement(App.Vector(-60.0, -60.0, 58.5), App.Rotation())
+    base_b_small = App.Placement(App.Vector(68.0, -60.0, 58.5), App.Rotation())
+    base_b_large = App.Placement(App.Vector(100.0, -60.0, 58.5), App.Rotation())
+    specs = (
+        (1, "rung-1-cube-pinned", (("Rung1Piece", base_a),), "Automatic", "none"),
+        (2, "rung-2-cube-unpinned", (("Rung2Piece", base_a),), "None", "none"),
+        (3, "rung-3-cube-two-piece-no-seam", (("Rung3PieceA", base_a), ("Rung3PieceB", base_b_small)), "None", "none"),
+        (4, "rung-4-cube-small-span-seam", (("Rung4PieceA", base_a), ("Rung4PieceB", base_b_small)), "None", "one-full-span-seam"),
+        (5, "rung-5-cube-large-span-seam", (("Rung5PieceA", base_a), ("Rung5PieceB", base_b_large)), "None", "one-full-span-seam"),
+    )
+    records = []
+    for rung, case_id, piece_specs, pin_mode, seam_mode in specs:
+        record = _run_ladder_case(case_id, rung, piece_specs, pin_mode, seam_mode)
+        if not record["control"]["fixture_contract_pass"]:
+            _progress("cube-ladder: stopping after first structural failure at rung=%d" % rung)
+            break
+        records.append(record)
+    return records
+
+
 def _run_control_cube():
     _progress("control-0-cube: start")
     doc = App.newDocument("TissuContactControlCube")
@@ -760,10 +1058,15 @@ def main():
         _run_control_cube(),
         _run_control_avatar(),
     ]
+    ladder_enabled = os.environ.get("CLOTH_DIAGNOSTIC_LADDER") == "1"
+    if ladder_enabled:
+        records.extend(_run_cube_ladder())
     manifest = {
         "schema": 1,
         "purpose": "diagnostic-only-contact-controls",
         "cases": records,
+        "ladder_enabled": ladder_enabled,
+        "ladder_case_ids": [record["case_id"] for record in records if int(record["case"]["rung"]) in {1, 2, 3, 4, 5}],
         "release_gate_effect": "none",
         "solver_settings_frozen": {
             "backend_requested": os.environ.get("CLOTH_SIMULATION_BACKEND", "auto"),
