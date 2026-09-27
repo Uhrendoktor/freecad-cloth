@@ -380,9 +380,9 @@ TEST(StitchConstraint, SolverReprojectsAfterPostConstraintStitchPass) {
     solver.setIterations(1);
 
     const int moving = solver.addParticle(
-        Particle(Eigen::Vector3d(3.0, 0.5, 0.75)));
+        Particle(Eigen::Vector3d(3.0, 0.02, 0.75)));
     const int anchor = solver.addParticle(
-        Particle(Eigen::Vector3d(1.0, 0.5, 0.75)));
+        Particle(Eigen::Vector3d(1.0, 0.02, 0.75)));
     solver.setParticleInverseMass(anchor, 0.0);
     solver.addStitch(moving, anchor, 0.0);
 
@@ -391,7 +391,7 @@ TEST(StitchConstraint, SolverReprojectsAfterPostConstraintStitchPass) {
     const auto position = solver.getParticles()[moving].getPosition();
     EXPECT_FALSE(regressionTetrahedronContains(position));
     EXPECT_GT(
-        (position - Eigen::Vector3d(1.0, 0.5, 0.75)).norm(),
+        (position - Eigen::Vector3d(1.0, 0.02, 0.75)).norm(),
         0.05);
 }
 
