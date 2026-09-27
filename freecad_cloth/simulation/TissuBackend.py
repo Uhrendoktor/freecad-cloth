@@ -89,6 +89,7 @@ class TissuBackend(ClothSimulationBackend):
         triangles: Sequence[Tuple[int, int, int]],
         pins: Iterable[int] = (),
         stitches: Iterable[Tuple[int, int]] = (),
+        stitch_compliance: float = 0.0,
         collision_surface: CollisionSurface | None = None,
         collision_mode: str = "torso-envelope",
     ):
@@ -103,6 +104,9 @@ class TissuBackend(ClothSimulationBackend):
         self._triangles = tuple(tuple(int(i) for i in tri) for tri in triangles)
         self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins))
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
+        self._stitch_compliance = float(stitch_compliance)
+        if self._stitch_compliance < 0.0:
+            raise ValueError("Tissu stitch compliance must be non-negative")
         self._source_collision_surface = collision_surface
         collision_limit = _tissu_collision_triangle_limit()
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
@@ -161,7 +165,7 @@ class TissuBackend(ClothSimulationBackend):
         for index in self._pin_indices:
             self._sim.solver.add_pin(int(index), np.asarray(positions[index], dtype=np.float64), 0.0)
         for a, b in self._stitches:
-            self._sim.solver.add_stitch(int(a), int(b), 0.0)
+            self._sim.solver.add_stitch(int(a), int(b), self._stitch_compliance)
         self._add_collision()
 
     def step(self, dt=1.0 / 60.0, iterations=8, gravity=(0.0, 0.0, -9810.0), sphere=None, surface=None):
@@ -192,8 +196,11 @@ class TissuBackend(ClothSimulationBackend):
 
     def set_stitches(self, pairs: Iterable[Tuple[int, int]], compliance=0.0):
         self._stitches = tuple((int(a), int(b)) for a, b in pairs)
+        self._stitch_compliance = float(compliance)
+        if self._stitch_compliance < 0.0:
+            raise ValueError("Tissu stitch compliance must be non-negative")
         for a, b in self._stitches:
-            self._sim.solver.add_stitch(int(a), int(b), float(compliance))
+            self._sim.solver.add_stitch(int(a), int(b), self._stitch_compliance)
 
     def positions(self):
         return tuple(_from_tissu_position(p) for p in self._sim.positions)
