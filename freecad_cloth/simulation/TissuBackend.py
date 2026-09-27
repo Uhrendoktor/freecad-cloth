@@ -45,7 +45,7 @@ def _to_tissu_mesh(surface):
     import numpy as np
 
     vertices = [np.asarray(_to_tissu_position(v), dtype=np.float64) for v in surface.vertices]
-    triangles = [[int(a), int(c), int(b)] for a, b, c in surface.triangles]
+    triangles = [[int(a), int(b), int(c)] for a, b, c in surface.triangles]
     return vertices, triangles
 
 
