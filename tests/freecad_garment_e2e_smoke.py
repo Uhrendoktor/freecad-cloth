@@ -592,17 +592,55 @@ def run_acceptance():
         # The mannequin target is already validated above and is restored before
         # later diagnostics/simulation checks. The fixture must itself satisfy the
         # shared-rigid invariant instead of relying on a disconnected arbitrary layout.
-        box = doc.addObject("Part::Box", "TargetSnapFixture")
-        box.Label = "Target Snap Fixture"
-        box.Length = 400.0
-        box.Width = 400.0
-        box.Height = 400.0
-        box.Placement.Base = App.Vector(-200.0, -200.0, 0.0)
+        # Build a deterministic four-wall ordinary-geometry target. A single cube
+        # would require four independently different radial moves, which conflicts
+        # with the production invariant that target snapping is one shared rigid delta.
+        # The wall planes are authored from the exact prefit extrema so identity is
+        # already a valid rigid solution with the required 8 mm clearance.
+        import Part
+        anchor_specs = (
+            (front, "front", (-50.0, -30.0, 0.0)),
+            (back, "back", (50.0, 30.0, 0.0)),
+            (sleeve_a, "right", (-50.0, 30.0, 0.0)),
+            (sleeve_b, "left", (50.0, -30.0, 0.0)),
+        )
+        from freecad_cloth.avatar.AvatarFitting import GarmentAnchor
+        from freecad_cloth.avatar.FittingCommands import set_garment_anchors
+        set_garment_anchors([
+            GarmentAnchor(str(piece.PieceId), "snap_center", local_point, wrap)
+            for piece, wrap, local_point in anchor_specs
+        ])
+        doc.recompute()
+
+        # World-space prefit anchor extrema under the authored common 5 degree rotation.
+        # Each target wall's outward-facing plane is exactly 8 mm inward from its
+        # corresponding nearest garment point, so the expected successful shared-rigid
+        # transform is identity (zero translation/rotation) with exact 8 mm clearance.
+        wall_specs = (
+            ("front", (front, 140.7516834580786, "y+")),
+            ("back", (back, -189.23893961834912, "y-")),
+            ("right", (sleeve_a, 119.61946980917456, "x+")),
+            ("left", (sleeve_b, -174.0095950534896, "x-")),
+        )
+        walls = []
+        for name, _piece, plane, axis in wall_specs:
+            if axis == "y+":
+                walls.append(Part.makeBox(180.0, 2.0, 200.0, App.Vector(-130.0, plane - 10.0, 0.0)))
+            elif axis == "y-":
+                walls.append(Part.makeBox(180.0, 2.0, 200.0, App.Vector(-130.0, plane + 8.0, 0.0)))
+            elif axis == "x+":
+                walls.append(Part.makeBox(2.0, 180.0, 200.0, App.Vector(plane - 10.0, -110.0, 0.0)))
+            else:
+                walls.append(Part.makeBox(2.0, 180.0, 200.0, App.Vector(plane + 8.0, -110.0, 0.0)))
+        box = doc.addObject("Part::Feature", "TargetSnapFixture")
+        box.Label = "Target Snap Fixture — Four Walls"
+        box.Shape = Part.makeCompound(walls)
         from freecad_cloth.common.GarmentDocument import garment_group, link_garment_object
         link_garment_object(box, "Avatar", doc)
         avatar_group = garment_group(doc, "Avatar")
         if avatar_group is None or box not in tuple(getattr(avatar_group, "Group", ()) or ()):
             raise RuntimeError("target snap fixture did not join the native Avatar collision group")
+        doc.recompute()
         _select_objects(box)
         Gui.runCommand("ClothDrape_CreateTarget", 0)
         _events()
@@ -610,19 +648,6 @@ def run_acceptance():
         if target is None or target.SourceObject != box:
             raise RuntimeError("public geometry DrapeTarget command did not attach the deterministic target fixture")
         scene.DrapeTarget = target
-
-        from freecad_cloth.avatar.AvatarFitting import GarmentAnchor
-        from freecad_cloth.avatar.FittingCommands import set_garment_anchors
-        anchor_specs = (
-            (front, "front"),
-            (back, "back"),
-            (sleeve_a, "right"),
-            (sleeve_b, "left"),
-        )
-        set_garment_anchors([
-            GarmentAnchor(str(piece.PieceId), "snap_center", (50.0, 30.0, 0.0), wrap)
-            for piece, wrap in anchor_specs
-        ])
         prefit_bases = (
             (front, (-50.0, 170.0, 100.0)),
             (back, (-50.0, -230.0, 100.0)),
