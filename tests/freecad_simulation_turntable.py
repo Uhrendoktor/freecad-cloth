@@ -297,6 +297,40 @@ def _style_mesh(obj):
     obj.ViewObject.LineWidth = 1.0
 
 
+def _four_corner_pins(piece, positions, panel_indices):
+    mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, BLANKET_PARTICLE_DISTANCE)
+    boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
+    if len(boundary_vertices) < 4:
+        raise RuntimeError("blanket boundary has fewer than four vertices")
+    xs = [float(mesh_positions[index][0]) for index in boundary_vertices]
+    ys = [float(mesh_positions[index][1]) for index in boundary_vertices]
+    min_x, max_x = min(xs), max(xs)
+    min_y, max_y = min(ys), max(ys)
+    targets = (
+        (min_x, min_y),
+        (max_x, min_y),
+        (max_x, max_y),
+        (min_x, max_y),
+    )
+    selected = []
+    for target_x, target_y in targets:
+        index = min(
+            (candidate for candidate in boundary_vertices if candidate not in selected),
+            key=lambda candidate: (
+                (float(mesh_positions[candidate][0]) - target_x) ** 2
+                + (float(mesh_positions[candidate][1]) - target_y) ** 2,
+                candidate,
+            ),
+        )
+        selected.append(index)
+    spans = (
+        abs(float(mesh_positions[selected[1]][0]) - float(mesh_positions[selected[0]][0])),
+        abs(float(mesh_positions[selected[3]][1]) - float(mesh_positions[selected[0]][1])),
+    )
+    if min(spans) < 0.75 * BLANKET_SIZE:
+        raise RuntimeError("blanket pins are not four opposite corners: spans=%s" % (spans,))
+    return tuple(int(panel_indices[index]) for index in selected), spans
+
 def _opposite_top_edge_pins(piece, positions, panel_indices):
     mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, BLANKET_PARTICLE_DISTANCE)
     boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
@@ -314,6 +348,7 @@ def _opposite_top_edge_pins(piece, positions, panel_indices):
     if span < 0.75 * BLANKET_SIZE:
         raise RuntimeError("blanket pins are not opposite top-edge corners: span=%.3f" % span)
     return tuple(int(panel_indices[top_index]) for top_index in top), span
+
 
 
 def _nearest_pin_indices(panel_indices, positions, targets):
@@ -443,9 +478,9 @@ def build_simulation_state(doc):
     proxy = scene.Proxy._base_or_restore()
     positions = tuple(proxy.backend.positions())
     panel_indices = tuple(proxy.panel_indices[panel.Name])
-    pins, span = _opposite_top_edge_pins(blanket, positions, panel_indices)
+    pins, spans = _four_corner_pins(blanket, positions, panel_indices)
     scene.PinSelection = [str(index) for index in pins]
-    log("blanket-pins=passed opposite-corners span=%.3f indices=%s" % (span, pins))
+    log("blanket-pins=passed four-corners spans_x=%.3f spans_y=%.3f indices=%s" % (spans[0], spans[1], pins))
     doc.recompute()
 
     sketch.ViewObject.Visibility = False
