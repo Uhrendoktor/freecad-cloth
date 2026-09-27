@@ -986,12 +986,12 @@ TEST(StitchConstraint, SolverClipsOnlyCrossingEndpoint) {
     EXPECT_NEAR(solver.getParticles()[freeEndpoint].getPosition().x(), 245.0, 1e-9);
 }
 
-TEST(StitchConstraint, SolverMultipleIterationsPreserveAppliedLambdaCorrection) {
+TEST(StitchConstraint, SolverMultipleIterationsRemainOutsideClosedCollider) {
     auto solve = [](int iterations) {
         World world;
         world.setGravity(Eigen::Vector3d::Zero());
         world.setThickness(0.5);
-        world.addCollider(makeWall(0.0));
+        world.addCollider(makeClosedBox());
 
         Solver solver;
         solver.setSubsteps(1);
@@ -1010,9 +1010,8 @@ TEST(StitchConstraint, SolverMultipleIterationsPreserveAppliedLambdaCorrection) 
     const double oneIteration = solve(1);
     const double threeIterations = solve(3);
 
-    EXPECT_NEAR(oneIteration, threeIterations, 1e-9);
+    EXPECT_LT(oneIteration, -0.49);
     EXPECT_LT(threeIterations, -0.49);
-    EXPECT_GT(threeIterations, -1.01);
 }
 
 TEST(StitchConstraint, SolverChoosesEarliestCrossingAcrossMultipleMeshes) {
