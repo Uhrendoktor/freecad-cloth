@@ -158,8 +158,6 @@ def target_surface_anchor(surface, point, *,
     # tie remains a hard failure rather than guessing across the body.
     radial = _sub(point, center)
     if _norm(radial) <= 1e-12:
-        radial = _sub(best.point, center)
-    if _norm(radial) <= 1e-12:
         raise ValueError("target snap anchor is ambiguous across distinct surface points")
     radial = _unit(radial, "target anchor radial direction")
 
