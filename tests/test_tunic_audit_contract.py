@@ -137,6 +137,14 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert 'docker run --rm "$FREECAD_TUNIC_IMAGE" bash -lc' in workflow
     assert 'artifacts/tissu-provenance.txt' in workflow
 
+def test_tissu_contact_fix_rejects_out_of_triangle_barycentric_hits():
+    script = (ROOT / "docker" / "freecad-ci" / "apply-tissu-contact-fix.py").read_text(encoding="utf-8")
+    assert "const double w = 1.0 - u - v;" in script
+    assert "if (w < -1.0e-9 || w > 1.0 + 1.0e-9)" in script
+    assert "if (t < -kRayEpsilon)" in script
+    assert "if (std::abs(t) <= kRayEpsilon)" in script
+
+
 def test_canonical_tunic_fixture_matches_validated_start_geometry():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert 'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)' in audit
