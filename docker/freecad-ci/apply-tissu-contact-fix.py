@@ -48,7 +48,15 @@ def main() -> int:
     std::vector<Triangle> m_triangles;
     bool m_closedManifold = false;
     double m_outwardNormalSign = 1.0;
-    BVH m_bvh;""",
+    BVH m_bvh;
+
+    friend class StitchConstraint;
+
+    bool firstEnteringSegmentHit(
+        const Eigen::Vector3d& start,
+        const Eigen::Vector3d& end,
+        double& hitT,
+        Eigen::Vector3d& hitNormal) const;""",
         "MeshCollider.hpp member layout",
     )
 
