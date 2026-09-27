@@ -600,7 +600,7 @@ def run_acceptance():
         for piece in scene.ClothPieces:
             base = piece.Placement.Base
             shifted = App.Placement(
-                App.Vector(float(base.x) + 120.0, float(base.y), float(base.z)),
+                App.Vector(float(base.x) + 300.0, float(base.y), float(base.z)),
                 piece.Placement.Rotation,
             )
             piece.Placement = shifted
@@ -621,6 +621,14 @@ def run_acceptance():
             )
             for piece in scene.ClothPieces
         }
+        from freecad_cloth.avatar.FittingCommands import _world_piece_vertices, _world_target_surface
+        from freecad_cloth.avatar.TargetPlacement import translation_to_target
+        snap_surface = _world_target_surface(fitting_scene.DrapeTarget)
+        snap_vertices = tuple(point for piece in scene.ClothPieces for point in _world_piece_vertices(piece))
+        snap_centroid = tuple(sum(point[axis] for point in snap_vertices) / float(len(snap_vertices)) for axis in range(3))
+        snap_delta, _snap_hit = translation_to_target(snap_surface, snap_centroid, clearance=8.0, max_translation=600.0)
+        if sum(float(value) * float(value) for value in snap_delta) <= 1e-6:
+            raise RuntimeError("target-snap acceptance fixture is not actually off-target")
         original_native_sketch_placements = {
             str(piece.PieceId): (
                 getattr(getattr(piece, "Sketch", None), "Placement", None)
