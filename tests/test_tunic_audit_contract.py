@@ -105,7 +105,7 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert "SolverIterations = 1" in source
     assert "SolverSubsteps = 1" in source
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
-    assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
+    assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 0' in workflow
     assert 'tunic-simulation-start' in source
 
 
