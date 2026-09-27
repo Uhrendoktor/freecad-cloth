@@ -55,6 +55,7 @@ def main() -> int:
 #include <cmath>
 #include <cstdint>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 namespace Tissu {
@@ -79,11 +80,22 @@ MeshOrientation inferMeshOrientation(
     if (triangles.empty())
         return {};
 
-    std::unordered_map<std::uint64_t, std::pair<int, int>> edges;
+    struct EdgeInfo {
+        int count = 0;
+        int direction = 0;
+        int firstTriangle = -1;
+        int secondTriangle = -1;
+    };
+
+    std::unordered_map<std::uint64_t, EdgeInfo> edges;
+    std::unordered_map<int, std::vector<int>> vertexTriangles;
     edges.reserve(triangles.size() * 3);
+    vertexTriangles.reserve(vertices.size());
 
     double signedVolume = 0.0;
-    for (const auto& tri : triangles) {
+    for (size_t triangleIndex = 0; triangleIndex < triangles.size();
+         ++triangleIndex) {
+        const auto& tri = triangles[triangleIndex];
         const int ids[3] = {tri.a, tri.b, tri.c};
         signedVolume +=
             ids[0] < static_cast<int>(vertices.size()) &&
@@ -94,27 +106,75 @@ MeshOrientation inferMeshOrientation(
                       6.0
                 : 0.0;
 
+        for (const int vertex : ids) {
+            if (vertex < 0 ||
+                vertex >= static_cast<int>(vertices.size())) {
+                return {};
+            }
+            vertexTriangles[vertex].push_back(
+                static_cast<int>(triangleIndex));
+        }
+
         for (int edgeIndex = 0; edgeIndex < 3; ++edgeIndex) {
             const int from = ids[edgeIndex];
             const int to = ids[(edgeIndex + 1) % 3];
-            if (from < 0 || to < 0 ||
-                from >= static_cast<int>(vertices.size()) ||
-                to >= static_cast<int>(vertices.size())) {
-                return {};
-            }
             const auto key = edgeKey(from, to);
             auto& edge = edges[key];
-            ++edge.first;
-            edge.second +=
+            ++edge.count;
+            edge.direction +=
                 from == std::min(from, to) ? 1 : -1;
+            if (edge.firstTriangle == -1)
+                edge.firstTriangle = static_cast<int>(triangleIndex);
+            else if (edge.secondTriangle == -1)
+                edge.secondTriangle = static_cast<int>(triangleIndex);
         }
     }
 
     for (const auto& [key, edge] : edges) {
         (void)key;
-        if (edge.first != 2 || edge.second != 0)
+        if (edge.count != 2 || edge.direction != 0 ||
+            edge.firstTriangle < 0 || edge.secondTriangle < 0)
             return {};
     }
+
+    // A vertex fan must be connected through shared edges. Two closed shells
+    // that merely touch at one vertex are not a single manifold surface.
+    for (const auto& [vertex, incident] : vertexTriangles) {
+        (void)vertex;
+        if (incident.empty())
+            return {};
+        std::unordered_set<int> incidentSet(incident.begin(), incident.end());
+        std::unordered_set<int> connected;
+        std::vector<int> pending{incident.front()};
+        connected.insert(incident.front());
+
+        while (!pending.empty()) {
+            const int triangleIndex = pending.back();
+            pending.pop_back();
+            const auto& tri = triangles[triangleIndex];
+            const int ids[3] = {tri.a, tri.b, tri.c};
+            for (int edgeIndex = 0; edgeIndex < 3; ++edgeIndex) {
+                const int from = ids[edgeIndex];
+                const int to = ids[(edgeIndex + 1) % 3];
+                if (from != vertex && to != vertex)
+                    continue;
+                const auto& edge = edges.at(edgeKey(from, to));
+                const int otherTriangle =
+                    edge.firstTriangle == triangleIndex
+                        ? edge.secondTriangle
+                        : edge.firstTriangle;
+                if (otherTriangle >= 0 &&
+                    incidentSet.count(otherTriangle) > 0 &&
+                    connected.insert(otherTriangle).second) {
+                    pending.push_back(otherTriangle);
+                }
+            }
+        }
+
+        if (connected.size() != incidentSet.size())
+            return {};
+    }
+
     if (std::abs(signedVolume) <= 1.0e-12)
         return {};
 
@@ -224,8 +284,10 @@ MeshOrientation inferMeshOrientation(
                             (cb - ca).cross(cc - ca);
                         const double candidateNormalLength =
                             candidateNormalRaw.norm();
-                        if (candidateNormalLength <= 1e-12)
-                            continue;
+                        if (candidateNormalLength <= 1e-12) {
+                            allCandidatesInterior = false;
+                            break;
+                        }
                         const Eigen::Vector3d candidateOutward =
                             (candidateNormalRaw / candidateNormalLength) *
                             m_outwardNormalSign;
@@ -368,6 +430,35 @@ TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
     mesh.resolve(particles, 0.016, 0.1);
 
     EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+}
+
+TEST(MeshCollider, VertexTouchingClosedShellsDoNotEnableDeepContact) {
+    const auto first = makeTetrahedron(0.0);
+    const std::vector<Eigen::Vector3d> vertices = {
+        {0.0, 0.0, 0.0},
+        {2.0, 0.0, 0.0},
+        {1.0, 0.0, 2.0},
+        {1.0, 2.0, 1.0},
+        {0.0, 2.0, 3.0},
+        {-1.0, 2.0, 2.0},
+        {-1.0, 4.0, 2.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {
+        {0, 2, 1}, {0, 1, 3}, {1, 2, 3}, {0, 3, 2},
+        {0, 4, 5}, {0, 5, 6}, {4, 6, 5}, {0, 6, 4},
+    };
+    MeshCollider mesh(vertices, triangles, 0.0);
+    (void)first;
+
+    Eigen::Vector3d initialPos(-0.2, 2.2, 2.0);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.01);
+
+    EXPECT_NEAR(
+        (particles[0].getPosition() - initialPos).norm(),
+        0.0, 1e-9);
 }
 
 TEST(MeshCollider, ClosedMeshSharedVertexOutsideTieDoesNotMove) {
