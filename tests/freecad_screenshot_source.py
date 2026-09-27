@@ -385,11 +385,30 @@ def simulation():
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
     rot = App.Rotation(App.Vector(1,0,0), 90.0)
+    target_band = [
+        vertex
+        for vertex in target_surface.vertices
+        if abs(float(vertex[2]) - float(shoulder_z)) <= 120.0
+        and abs(float(vertex[0]) - float(x_mid)) <= hem_width / 2.0
+    ]
+    if len(target_band) < 16:
+        raise RuntimeError("tunic target torso band is under-resolved for placement")
+    target_front_y = min(float(vertex[1]) for vertex in target_band)
+    target_back_y = max(float(vertex[1]) for vertex in target_band)
+    target_standoff = 8.5
+    front_panel_y = target_front_y - target_standoff
+    back_panel_y = target_back_y + target_standoff
+    print(
+        "tunic-target-band-y=%.3f..%.3f panel-y=%.3f..%.3f standoff-mm=%.1f"
+        % (target_front_y, target_back_y, front_panel_y, back_panel_y, target_standoff),
+        flush=True,
+    )
+
     def target_relative_piece_placement(side):
         if side == "front":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
+            y = front_panel_y
         elif side == "back":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
+            y = back_panel_y
         else:
             raise ValueError("tunic target-relative side must be front or back")
         return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
