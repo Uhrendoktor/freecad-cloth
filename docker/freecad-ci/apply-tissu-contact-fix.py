@@ -976,7 +976,8 @@ TEST(StitchConstraint, SolverChoosesEarliestEnteringCrossingAcrossColliders) {
     EXPECT_LT(solver.getParticles()[moving].getPosition().x(), -1.49);
     EXPECT_GT(solver.getParticles()[moving].getPosition().x(), -1.51);
 }
-
+"""
+    )
 
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
