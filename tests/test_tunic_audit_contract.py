@@ -109,6 +109,15 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'tunic-simulation-start' in source
 
 
+def test_canonical_tunic_supplies_only_the_selected_stitch_compliance_override():
+    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    backend = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    assert 'os.environ["CLOTH_TISSU_STITCH_COMPLIANCE"] = "0.001"' in source
+    assert 'os.environ.get("CLOTH_TISSU_STITCH_COMPLIANCE", "0.0")' in backend
+    assert 'self.set_stitches(self._stitches, compliance=stitch_compliance)' in backend
+    assert 'add_stitch(int(a), int(b), float(compliance))' in backend
+
+
 def test_tissu_ci_image_is_pinned_and_self_regressing():
     dockerfile = (ROOT / "docker" / "freecad-ci" / "Dockerfile").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
