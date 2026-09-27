@@ -297,25 +297,6 @@ def _style_mesh(obj):
     obj.ViewObject.LineWidth = 1.0
 
 
-def _opposite_top_edge_pins(piece, positions, panel_indices):
-    mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, BLANKET_PARTICLE_DISTANCE)
-    boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
-    if not boundary_vertices:
-        raise RuntimeError("blanket quality mesh has no boundary vertices")
-    top_y = max(float(mesh_positions[index][1]) for index in boundary_vertices)
-    top_edge = tuple(index for index in boundary_vertices if abs(float(mesh_positions[index][1]) - top_y) <= 1e-9)
-    if len(top_edge) < 2:
-        raise RuntimeError("blanket top edge has fewer than two boundary vertices")
-    top = (
-        min(top_edge, key=lambda index: float(mesh_positions[index][0])),
-        max(top_edge, key=lambda index: float(mesh_positions[index][0])),
-    )
-    span = abs(float(mesh_positions[top[1]][0]) - float(mesh_positions[top[0]][0]))
-    if span < 0.75 * BLANKET_SIZE:
-        raise RuntimeError("blanket pins are not opposite top-edge corners: span=%.3f" % span)
-    return tuple(int(panel_indices[top_index]) for top_index in top), span
-
-
 def _nearest_pin_indices(panel_indices, positions, targets):
     available = list(panel_indices)
     result = []
@@ -331,6 +312,21 @@ def _nearest_pin_indices(panel_indices, positions, targets):
         result.append(index)
         available.remove(index)
     return tuple(result)
+
+
+def _interior_anchor_pins(panel_indices, positions):
+    """Pin two opposite particles nearest deterministic interior blanket targets."""
+    targets = (
+        App.Vector(-75.0, 0.0, 95.0),
+        App.Vector(75.0, 0.0, 95.0),
+    )
+    pins = _nearest_pin_indices(panel_indices, positions, targets)
+    span = abs(float(positions[pins[1]][0]) - float(positions[pins[0]][0]))
+    if span < 0.75 * BLANKET_SIZE:
+        raise RuntimeError(
+            "blanket interior pins do not span the authored width: span=%.3f" % span
+        )
+    return pins, span
 
 
 def _center_z(points):
@@ -443,9 +439,9 @@ def build_simulation_state(doc):
     proxy = scene.Proxy._base_or_restore()
     positions = tuple(proxy.backend.positions())
     panel_indices = tuple(proxy.panel_indices[panel.Name])
-    pins, span = _opposite_top_edge_pins(blanket, positions, panel_indices)
+    pins, span = _interior_anchor_pins(panel_indices, positions)
     scene.PinSelection = [str(index) for index in pins]
-    log("blanket-pins=passed opposite-corners span=%.3f indices=%s" % (span, pins))
+    log("blanket-pins=passed interior-targets targets=((-75.0, 0.0, 95.0), (75.0, 0.0, 95.0)) span=%.3f indices=%s coordinates=%s" % (span, pins, tuple(tuple(round(float(value), 3) for value in positions[index]) for index in pins)))
     doc.recompute()
 
     sketch.ViewObject.Visibility = False

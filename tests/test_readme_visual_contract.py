@@ -79,3 +79,17 @@ def test_blanket_visual_fixture_uses_authoritative_quality_solver_budget():
     assert 'scene.SolverIterations = 4' in source
     assert 'scene.SolverSubsteps = 1' in source
     assert 'motion-frames=passed count=%d final_steps=%d' in source
+
+
+def test_readme_turntable_reanchors_pins_inside_cube_footprint_without_weakening_span_gate():
+    source = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
+    assert "_interior_anchor_pins(panel_indices, positions)" in source
+    assert "App.Vector(-75.0, 0.0, 95.0)" in source
+    assert "App.Vector(75.0, 0.0, 95.0)" in source
+    assert "if span < 0.75 * BLANKET_SIZE:" in source
+    assert "blanket pins are not opposite top-edge corners" not in source
+    assert "BLANKET_PARTICLE_DISTANCE = 16.0" in source
+    assert "scene.SolverIterations = 4" in source
+    assert "scene.SolverSubsteps = 1" in source
+    assert "scene.Steps = steps" in source
+    assert "steps = int(os.environ.get(\"CLOTH_BLANKET_STEPS\", \"120\"))" in source
