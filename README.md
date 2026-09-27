@@ -68,6 +68,10 @@ The repository does not claim full commercial garment-suite parity. Advanced cap
 
 This project is licensed under the GNU Lesser General Public License v2.1 or later; see [LICENSE](LICENSE).
 
+## Documentation
+
+Human-facing usage documentation is published to the [GitHub Wiki](https://github.com/Uhrendoktor/freecad-cloth/wiki) from the repository `wiki/` source tree. Development and agent-oriented documentation is kept in [docs/agents/](docs/agents/), with the wiki bridge contract documented there.
+
 ## Development
 
 There is one canonical GitHub Actions workflow: `.github/workflows/canonical-execution.yml`. It runs Python/core checks, real FreeCAD/Xvfb GUI coverage, the basic blanket visual fixture, semantic seam/mesh sanity checks, 360° turntables and actual step-by-step simulation motion GIFs.

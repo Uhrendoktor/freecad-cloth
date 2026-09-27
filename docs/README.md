@@ -23,6 +23,12 @@ This directory is intentionally small. Read the documents in this order:
 
 Prefer updating an existing canonical document over adding a new note. Dated audit material belongs in the relevant issue/PR or in the compact supervisor state, not as another permanent document. If a new document is genuinely necessary, link it here and explain why it cannot fit an existing contract.
 
+## Documentation split
+
+- **Human-facing usage documentation:** the [GitHub Wiki](https://github.com/Uhrendoktor/freecad-cloth/wiki) is published from the repository `wiki/` tree and optimized for first-time users.
+- **Development and agent documentation:** [docs/agents/](agents/) contains machine-oriented contracts, execution rules, and the wiki bridge protocol.
+- `docs/` remains the authoritative engineering reference. Human-facing wiki prose should reflect implemented behavior here rather than invent unsupported capabilities.
+
 ## Workbench model
 
 ```text

@@ -81,6 +81,14 @@ Simulation presents target validity before Run/Step. `Run` is primary, `Step` is
 
 **Production:** add higher-fidelity replaceable human providers, richer target/subelement selection, fit/stress/strain/pressure diagnostics, grading/nesting/manufacturing validation, advanced construction and optional solver benchmarks.
 
+## Documentation bridge
+
+Human-facing documentation is maintained under `wiki/` and published to the GitHub Wiki by the canonical workflow. Development and agent-specific guidance lives under `docs/agents/`.
+
+Agents should edit `wiki/*.md` through the repository so the existing GitHub MCP can read and write the source normally. Do not make direct Wiki UI edits unless they are deliberately imported with the manual **import** wiki operation; the import creates a normal pull request so the repository stays canonical.
+
+The bridge requires the repository Actions secret `WIKI_SYNC_TOKEN` with permission to clone and push `Uhrendoktor/freecad-cloth.wiki.git`. The canonical workflow keeps the project-wide single-workflow contract; wiki publishing and importing are jobs inside `.github/workflows/canonical-execution.yml`.
+
 ## Agent state
 
 Keep `AGENT_STATUS.md` and `TOOL_STATE.md` compact. They are the durable coordination records; do not create a new status document for every session.
