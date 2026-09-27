@@ -128,12 +128,14 @@ def run_canonical_acceptance():
         "tests/freecad_avatar_acceptance.py", "freecad_avatar_acceptance", "avatar-provider-acceptance"),
         ("tests/freecad_garment_e2e_smoke.py", "freecad_garment_e2e_smoke", "canonical-garment-e2e"),
         ("tests/freecad_simulation_quality_acceptance.py", "freecad_simulation_quality_acceptance", "simulation-quality-acceptance")):
+        print("canonical-phase-start=%s" % name, flush=True)
         if name == "freecad_garment_e2e_smoke":
             with open(GARMENT_E2E_LOG, "a", encoding="utf-8") as handle:
                 with contextlib.redirect_stdout(handle):
                     load_and_run(os.path.join(ROOT, path), name)
         else:
             load_and_run(os.path.join(ROOT, path), name)
+        print("canonical-phase-passed=%s" % name, flush=True)
         log(marker + "=passed")
 
 
