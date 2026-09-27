@@ -459,6 +459,65 @@ def simulation():
         raise RuntimeError("visual fixture does not contain a real humanoid mesh")
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
     simulation_panel = SimulationQualityTaskPanel(scene); task_dock = show_task(simulation_panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset")); view = Gui.activeDocument().activeView(); view.setCameraType("Orthographic"); view.viewFront(); view.fitAll(); events(); task_dock.hide(); events(); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical sewn tunic generated from native Sketcher pattern sources on production mannequin"); task_dock.show(); task_dock.raise_(); events()
+    # Real target-aware UI journey: invoke the production Simulation task-panel action,
+    # verify persistent fitting state and shared-rigid behavior, exercise Reset, then re-snap.
+    import copy
+    from freecad_cloth.avatar import FittingCommands
+    fitting_before = FittingCommands.create_fitting_scene()
+    fitting_before.DrapeTarget = target
+    fitting_before.PatternPieces = [front, back]
+    doc.recompute()
+    pre_piece_placements = {str(piece.PieceId): copy.deepcopy(piece.Placement) for piece in (front, back)}
+    pre_sketch_placements = {str(piece.PieceId): copy.deepcopy(piece.Sketch.Placement) for piece in (front, back)}
+    def _anchor_worlds():
+        anchors = tuple(
+            FittingCommands._default_anchor_map(FittingCommands._scene(doc), (front, back))[str(front.PieceId)]
+            + FittingCommands._default_anchor_map(FittingCommands._scene(doc), (front, back))[str(back.PieceId)]
+        )
+        by_id = {str(piece.PieceId): piece for piece in (front, back)}
+        return tuple(
+            by_id[str(anchor.piece_id)].Placement.multVec(App.Vector(*anchor.position))
+            for anchor in sorted(anchors, key=lambda item: (item.piece_id, item.name))
+        )
+    if not simulation_panel.snap_to_target_button.isEnabled():
+        raise RuntimeError("Snap pieces to target action was not enabled for a ready DrapeTarget")
+    before_anchors = _anchor_worlds()
+    simulation_panel.snap_to_target()
+    events(); doc.recompute()
+    fitting = FittingCommands._scene(doc)
+    if fitting is None or fitting.DrapeTarget != target:
+        raise RuntimeError("Snap-to-target lost the persistent simulation DrapeTarget")
+    if str(getattr(fitting, "FitStatus", "")) != "Target-aware placement applied":
+        raise RuntimeError("Snap-to-target did not persist its fitting success state")
+    anchors = tuple(getattr(fitting, "GarmentAnchors", ()) or ())
+    if len(anchors) < 4:
+        raise RuntimeError("Snap-to-target persisted fewer than four garment anchors")
+    after_anchors = _anchor_worlds()
+    if abs(before_anchors[0].sub(before_anchors[1]).Length - after_anchors[0].sub(after_anchors[1]).Length) > 1.0e-6:
+        raise RuntimeError("Snap-to-target altered the front shared-rigid anchor separation")
+    if abs(before_anchors[-2].sub(before_anchors[-1]).Length - after_anchors[-2].sub(after_anchors[-1]).Length) > 1.0e-6:
+        raise RuntimeError("Snap-to-target altered the back shared-rigid anchor separation")
+    post_piece_placements = {str(piece.PieceId): copy.deepcopy(piece.Placement) for piece in (front, back)}
+    if all(post_piece_placements[k] == pre_piece_placements[k] for k in pre_piece_placements):
+        raise RuntimeError("Snap-to-target did not change the garment arrangement")
+    log("target-snap-ui=passed target-persisted=true anchors=%d shared-rigid=true" % len(anchors))
+    simulation_panel.reset_arrangement()
+    events(); doc.recompute()
+    fitting = FittingCommands._scene(doc)
+    if fitting is None or str(getattr(fitting, "FitStatus", "")) != "Arrangement reset":
+        raise RuntimeError("Reset arrangement did not report the saved home state")
+    for piece in (front, back):
+        if piece.Placement != pre_piece_placements[str(piece.PieceId)]:
+            raise RuntimeError("Reset arrangement did not restore exact piece placement")
+        if piece.Sketch is None or piece.Sketch.Placement != pre_sketch_placements[str(piece.PieceId)]:
+            raise RuntimeError("Reset arrangement did not restore exact native sketch placement")
+    log("target-snap-reset=passed exact-piece-and-sketch-state=true")
+    simulation_panel.snap_to_target()
+    events(); doc.recompute()
+    fitting = FittingCommands._scene(doc)
+    if fitting is None or str(getattr(fitting, "FitStatus", "")) != "Target-aware placement applied":
+        raise RuntimeError("second Snap-to-target did not restore the ready fitted state")
+    target.Info if False else None
     for batch in (15,15,15,15,15,15):
         simulation_panel.step(batch); doc.recompute(); events()
     if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
