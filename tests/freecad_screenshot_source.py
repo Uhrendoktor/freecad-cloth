@@ -272,6 +272,7 @@ def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=No
     }
     with open(METRICS, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, sort_keys=True)
+    return payload
 
 def _make_tunic_sketch(doc, name, panel_width, garment_height, hem_width, neckline_ratio, neckline_drop=0.08):
     import Part, Sketcher
@@ -497,7 +498,7 @@ def simulation():
     )
     for diagnostic in diagnostic_maps:
         diagnostic.ViewObject.Visibility = False
-    write_drape_metrics(
+    payload = write_drape_metrics(
         panels,
         avatar,
         x_mid,
@@ -505,7 +506,25 @@ def simulation():
         hem_z=hem_z,
         seam_records=seam_records,
         proxy=proxy,
-    ); bounds = []
+    )
+    fatal_records = []
+    for panel_record in payload["panels"]:
+        diagnostics = tuple(str(value) for value in panel_record.get("diagnostics", ()))
+        classification = panel_record.get("failure_classification", {})
+        state = str(classification.get("state", ""))
+        if diagnostics or state != "structurally-plausible":
+            fatal_records.append({
+                "panel": panel_record.get("panel", ""),
+                "state": state,
+                "diagnostics": list(diagnostics),
+                "reasons": list(classification.get("reasons", ())),
+            })
+    if fatal_records:
+        raise RuntimeError(
+            "visual-diagnostics-fail-closed=%s"
+            % json.dumps(fatal_records, sort_keys=True)
+        )
+    bounds = []
     for panel in scene.DrapePanels:
         b = panel.Mesh.BoundBox; bounds.append((b.XMin,b.XMax,b.YMin,b.YMax,b.ZMin,b.ZMax))
     log("drape-bounds=%s" % (bounds,)); task_dock.hide(); events()
