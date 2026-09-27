@@ -131,6 +131,7 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "closed_manifold" in script
     assert "outward_normal_sign" in script
     assert "inferMeshOrientation" not in script
+    assert "pointInsideClosedMesh" in script
     assert "tetrahedronContains" in script
     assert "ClosedMeshKeepsOutsideContactOutside" in script
     assert "OpenMeshRetainsLegacyContactDirection" in script
