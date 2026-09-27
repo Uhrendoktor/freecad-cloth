@@ -4,6 +4,7 @@ This is intentionally diagnostic-only. It never changes canonical release gates.
 """
 from __future__ import annotations
 
+import faulthandler
 import json
 import math
 import os
@@ -33,9 +34,24 @@ from freecad_cloth.simulation.TissuBackend import TissuBackend
 
 OUT = Path(os.environ.get("CLOTH_CONTACT_CONTROLS_DIR", "artifacts/contact-controls"))
 OUT.mkdir(parents=True, exist_ok=True)
+PROGRESS_LOG = OUT / "contact-controls-progress.log"
+_PROGRESS_HANDLE = PROGRESS_LOG.open("a", encoding="utf-8", buffering=1)
+faulthandler.enable(file=_PROGRESS_HANDLE)
+
 THICKNESS_MM = 0.5
 PROBE_HALF_SIZE_MM = 1.5
 PENETRATION_MM = 0.75
+
+
+def _progress(message):
+    line = "contact-controls: " + str(message)
+    print(line, flush=True)
+    _PROGRESS_HANDLE.write(line + "\n")
+    _PROGRESS_HANDLE.flush()
+
+_PROGRESS_HANDLE.write("\n=== contact controls start ===\n")
+_PROGRESS_HANDLE.flush()
+faulthandler.dump_traceback_later(30.0, repeat=True, file=_PROGRESS_HANDLE)
 
 
 def _events():
@@ -157,7 +173,9 @@ def _signed_plane(point, face_center, normal):
 
 def _run_backend(surface, face_center, normal, offset, label):
     started = time.perf_counter()
+    _progress("%s: build probe system offset=%s" % (label, offset))
     system, triangles = _make_probe_system(face_center, normal, offset)
+    _progress("%s: construct TissuBackend triangles=%d" % (label, len(surface.triangles)))
     backend = TissuBackend(
         system,
         triangles=triangles,
@@ -166,15 +184,19 @@ def _run_backend(surface, face_center, normal, offset, label):
         collision_surface=surface.with_thickness(THICKNESS_MM),
         collision_mode="mesh",
     )
+    _progress("%s: backend constructed; reading initial positions" % label)
     initial = tuple(backend.positions())
+    _progress("%s: calling one-step backend.step" % label)
     backend.step(
         dt=1.0 / 120.0,
         iterations=1,
         gravity=(0.0, 0.0, 0.0),
         surface=backend.solver_collision_surface,
     )
+    _progress("%s: backend.step returned" % label)
     final = tuple(backend.positions())
     runtime_ms = (time.perf_counter() - started) * 1000.0
+    _progress("%s: measured step runtime_ms=%.3f finite=%s" % (label, runtime_ms, bool(backend.finite())))
     initial_signed = min(_signed_plane(p, face_center, normal) for p in initial)
     final_signed = min(_signed_plane(p, face_center, normal) for p in final)
     delta = final_signed - initial_signed
@@ -234,6 +256,7 @@ def _save_probe_view(name, avatar=None, target_box=None, probe=None):
 
 
 def _cube_control():
+    _progress("cube control: create document")
     doc = App.newDocument("TissuContactControlCube")
     cube = doc.addObject("Part::Feature", "TargetCube")
     cube.Shape = Part.makeBox(100.0, 100.0, 100.0, App.Vector(-50.0, -50.0, -50.0))
@@ -254,11 +277,15 @@ def _cube_control():
         0.0,
     )
     surface.validate()
+    _progress("cube control: surface validated triangles=%d" % len(surface.triangles))
     face_center = (0.0, 0.0, 50.0)
     normal = (0.0, 0.0, 1.0)
+    _progress("cube control: start inside probe")
     inside = _run_backend(surface, face_center, normal, -PENETRATION_MM, "cube_inside")
+    _progress("cube control: start outside probe")
     outside = _run_backend(surface, face_center, normal, PENETRATION_MM, "cube_outside")
 
+    _progress("cube control: export step-0/step-1 images")
     probe = doc.addObject("Part::Feature", "ProbeCloth")
     _set_probe_shape(probe, inside["initial_positions"])
     _save_probe_view("cube-inside-step-0.png", target_box=cube, probe=probe)
@@ -298,6 +325,7 @@ def _cube_control():
 
 
 def _avatar_control():
+    _progress("avatar control: create production DrapeTarget scene")
     doc = App.newDocument("TissuContactControlAvatar")
     scene = create_quality_simulation_scene(doc)
     target = scene.DrapeTarget
@@ -310,16 +338,19 @@ def _avatar_control():
         status = target_status(target)
     if str(status.get("state", "")) != "ready":
         raise RuntimeError("production DrapeTarget is not ready: %s" % status)
+    _progress("avatar control: authoritative DrapeTarget ready")
     full = collision_surface(
         source,
         float(getattr(target, "CollisionDeflection", 1.0)),
         float(getattr(target, "CollisionThickness", 0.0)),
     )
+    _progress("avatar control: coarsen solver collision surface to 2048 triangles")
     solver_surface = coarsen_collision_surface(full, 2048)
     if len(solver_surface.triangles) != 2048:
         raise RuntimeError("expected exactly 2048 solver collision triangles, got %d" % len(solver_surface.triangles))
     # Prefer a sizeable, torso-height triangle so the local tangent probe is
     # genuinely on the production torso rather than an extremity.
+    _progress("avatar control: select torso triangle from solver surface")
     candidates = []
     for triangle in solver_surface.triangles:
         a, b, c = (solver_surface.vertices[i] for i in triangle)
@@ -331,7 +362,9 @@ def _avatar_control():
         raise RuntimeError("no suitable torso triangle survived the 2048-triangle collision coarsening")
     _, triangle = max(candidates, key=lambda item: item[0])
     face_center, normal = _oriented_probe(solver_surface, triangle)
+    _progress("avatar control: start inside probe")
     inside = _run_backend(solver_surface, face_center, normal, -PENETRATION_MM, "avatar_inside")
+    _progress("avatar control: start outside probe")
     outside = _run_backend(solver_surface, face_center, normal, PENETRATION_MM, "avatar_outside")
 
     probe = doc.addObject("Part::Feature", "ProbeCloth")
@@ -340,6 +373,7 @@ def _avatar_control():
     _set_probe_shape(probe, inside["final_positions"])
     _save_probe_view("avatar-inside-step-1.png", avatar=source, probe=probe)
 
+    _progress("avatar control: export step-0/step-1 images")
     source_metrics = validate_mesh(full.vertices, full.triangles, prefer_trimesh=False)
     solver_metrics = validate_mesh(solver_surface.vertices, solver_surface.triangles, prefer_trimesh=False)
     doc.close()
@@ -439,8 +473,14 @@ def main():
                 App.closeDocument(app.Name)
         except Exception:
             pass
+        faulthandler.cancel_dump_traceback_later()
         try:
             Gui.updateGui()
+        except Exception:
+            pass
+        try:
+            _PROGRESS_HANDLE.flush()
+            _PROGRESS_HANDLE.close()
         except Exception:
             pass
         try:
