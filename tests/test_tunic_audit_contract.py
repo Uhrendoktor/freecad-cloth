@@ -165,3 +165,15 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     backend_source = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
     assert 'CLOTH_TISSU_COLLIDER_FRICTION' in backend_source
     assert 'friction=self._collider_friction' in backend_source
+
+
+def test_tissu_collider_friction_experiment_is_mesh_only_and_fail_closed():
+    backend = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    tests = (ROOT / "tests" / "test_cloth_solver.py").read_text(encoding="utf-8")
+    assert 'self._collider_friction = _tissu_collider_friction() if collision_mode == "mesh" else 0.5' in backend
+    assert 'friction=0.5' in backend
+    assert 'friction=self._collider_friction' in backend
+    assert 'test_tissu_collider_friction_accepts_bounded_values' in tests
+    assert 'test_tissu_collider_friction_fails_closed' in tests
+    assert 'test_tissu_collider_friction_sphere_path_remains_default' in tests
+    assert 'test_tissu_collider_friction_mesh_path_forwards_explicit_value' in tests
