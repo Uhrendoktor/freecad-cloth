@@ -391,7 +391,7 @@ private:""",
 #include <cmath>
 #include <limits>
 
-#include "io/OBJLoader.hpp"""",
+#include "io/OBJLoader.hpp""",
         "MeshCollider first-segment-hit includes",
     )
 
@@ -516,10 +516,10 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,""",
     replace_once(
         ROOT / "core/include/physics/StitchConstraint.hpp",
         """#pragma once
-#include "physics/Constraint.hpp"""",
+#include "physics/Constraint.hpp""",
         """#pragma once
 #include <memory>
-#include "physics/Constraint.hpp"""",
+#include "physics/Constraint.hpp""",
         "StitchConstraint memory include",
     )
     replace_once(
