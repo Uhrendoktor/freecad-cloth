@@ -176,7 +176,7 @@ class TissuBackend(ClothSimulationBackend):
             if self._collision_mode != "mesh" or self._collision_surface is None:
                 raise RuntimeError("Tissu attachments require the mesh collision surface")
             for particle_id, anchor, rest_length in self._attachments:
-                self._sim.add_attachment(
+                self._sim.attach(
                     self._fabric,
                     "drape-target",
                     [int(particle_id)],
