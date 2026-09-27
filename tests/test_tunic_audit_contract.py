@@ -98,6 +98,16 @@ def test_simulation_proxy_serializes_only_rebuildable_metadata():
     assert proxy.collision_surface is None
 
 
+def test_one_step_stitch_delay_is_explicit_and_fail_closed():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    backend = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    assert 'CLOTH_TISSU_STITCH_DELAY_STEPS"] = "1"' in audit
+    assert "tunic-stitch-delay-before-activation configured_steps=1 activation_step=2" in audit
+    assert "tunic-stitch-delay-activation configured_steps=1 activation_step=%d" in audit
+    assert "_TISSU_STITCH_DELAY_STEPS_DEFAULT = 0" in backend
+    assert "_activate_stitches" in backend
+    assert "stitch_activation_step" in backend
+
 def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
