@@ -238,69 +238,44 @@ def _point_inside_mesh(point, vertices, triangles):
             hits += 1
     return bool(hits % 2)
 
+def _source_local_point(point, source):
+    placement = getattr(source, "Placement", None)
+    if placement is None:
+        return tuple(float(value) for value in point)
+    local = placement.inverse().multVec(App.Vector(*point))
+    return (float(local.x), float(local.y), float(local.z))
+
+
+def _source_local_points(points, source):
+    return tuple(_source_local_point(point, source) for point in points)
+
+
 def _inside_outside(points, source):
+    # FreeCAD Shape/Mesh topology is expressed in the source object's local frame.
+    # Diagnostic panel vertices are world-space, so transform only the classifier
+    # inputs; fixture placement and recorded bounds remain world-space evidence.
+    local_points = _source_local_points(points[:64], source)
+
     shape = getattr(source, "Shape", None)
     if shape is not None and not getattr(shape, "isNull", lambda: True)():
         states = []
-        for point in points[:64]:
+        for point in local_points:
             try:
                 states.append(bool(shape.isInside(App.Vector(*point), 1e-6, True)))
             except (AttributeError, TypeError, ValueError):
                 states = []
                 break
-        if states:
-            if all(states):
-                return "inside"
-            if not any(states):
-                return "outside"
-            return "mixed"
 
     mesh = getattr(source, "Mesh", None)
     mesh_is_inside = getattr(mesh, "isInside", None) if mesh is not None else None
     if callable(mesh_is_inside):
         states = []
-        for point in points[:64]:
+        for point in local_points:
             try:
                 states.append(bool(mesh_is_inside(App.Vector(*point), 1e-6, True)))
             except (AttributeError, TypeError, ValueError):
                 states = []
                 break
-        if states:
-            if all(states):
-                return "inside"
-            if not any(states):
-                return "outside"
-            return "mixed"
-
-    topology = getattr(mesh, "Topology", None) if mesh is not None else None
-    if topology is None:
-        return "unknown"
-    raw_vertices, raw_faces = topology
-    vertices = tuple((float(v.x), float(v.y), float(v.z)) for v in raw_vertices)
-    triangles = tuple(tuple(int(i) for i in face) for face in raw_faces)
-    if not vertices or not triangles:
-        return "unknown"
-    try:
-        import numpy as np
-        import trimesh
-        target_mesh = trimesh.Trimesh(
-            vertices=np.asarray(vertices, dtype=float),
-            faces=np.asarray(triangles, dtype=int),
-            process=False,
-        )
-        if not target_mesh.is_watertight:
-            raise RuntimeError("target mesh is not watertight")
-        states = [bool(value) for value in target_mesh.contains(np.asarray(points[:64], dtype=float))]
-    except (ImportError, RuntimeError, TypeError, ValueError):
-        states = [_point_inside_mesh(point, vertices, triangles) for point in points[:64]]
-    if not states:
-        return "unknown"
-    if all(states):
-        return "inside"
-    if not any(states):
-        return "outside"
-    return "mixed"
-
 
 def _bounds(points):
     if not points:
@@ -730,6 +705,16 @@ def _run_control_avatar():
             )
         record["control"]["interior_probe"] = True
         record["control"]["interior_seed_source"] = "avatar-arrangement-points-with-mesh-inside-search"
+        record["control"]["interior_seed_world"] = [
+            float(center.x), float(center.y), float(center.z)
+        ]
+        record["control"]["interior_seed_local"] = list(_source_local_point(
+            (float(center.x), float(center.y), float(center.z)), avatar
+        ))
+        record["control"]["interior_seed_classification"] = _inside_outside(
+            ((float(center.x), float(center.y), float(center.z)),), avatar
+        )
+        record["control"]["inside_test_coordinate_space"] = "source-local-via-source-placement-inverse"
         return record
     finally:
         App.closeDocument(doc.Name)
