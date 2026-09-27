@@ -43,8 +43,12 @@ replacements = {
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
 }
 for old, new in replacements.items():
-    if old not in source:
-        raise RuntimeError(f"audit replacement did not match source: {old}")
+    occurrences = source.count(old)
+    if occurrences != 1:
+        raise RuntimeError(
+            "audit replacement must match exactly once (got %d): %s"
+            % (occurrences, old)
+        )
     source = source.replace(old, new, 1)
 
 
