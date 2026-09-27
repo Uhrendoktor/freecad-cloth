@@ -594,6 +594,28 @@ jobs:
           grep -q 'determinism-signature=passed' artifacts/garment-e2e.log
           grep -q 'pattern-export=passed formats=SVG,DXF' artifacts/garment-e2e.log
           grep -q 'canonical garment end-to-end acceptance passed' artifacts/garment-e2e.log
+      - name: Prepare human visual review bundle
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/visual-review/tunic
+          {
+            echo "# Tunic visual review bundle"
+            echo
+            echo "Run: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "Human inspection is mandatory before acceptance/merge."
+            echo "Inspect simulation checkpoints and all six final views."
+            echo "Automated image/metric validation does not substitute for human inspection."
+          } > artifacts/visual-review/tunic/README.md
+          cp docs/images/generated/cloth-simulation-draped-step-*.png artifacts/visual-review/tunic/ 2>/dev/null || true
+          cp docs/images/generated/cloth-simulation-draped*.png artifacts/visual-review/tunic/ 2>/dev/null || true
+          cp docs/images/generated/drape-visual-metrics.json artifacts/visual-review/tunic/ 2>/dev/null || true
+          cp docs/images/generated/gui-progress.log artifacts/visual-review/tunic/ 2>/dev/null || true
+          cp docs/images/generated/gui-screenshot-manifest.txt artifacts/visual-review/tunic/ 2>/dev/null || true
+          cp docs/images/generated/tunic-audit-diagnostics.txt artifacts/visual-review/tunic/ 2>/dev/null || true
+          cp docs/images/generated/tunic-audit-source-failure.txt artifacts/visual-review/tunic/ 2>/dev/null || true
+          cp artifacts/garment-e2e.log artifacts/visual-review/tunic/ 2>/dev/null || true
+          cp artifacts/tissu-provenance.txt artifacts/visual-review/tunic/ 2>/dev/null || true
       - name: Upload tunic visual audit
         if: always()
         uses: actions/upload-artifact@v6
@@ -603,10 +625,14 @@ jobs:
             docs/images/generated/cloth-simulation-draped*.png
             docs/images/generated/drape-visual-metrics.json
             docs/images/generated/gui-progress.log
+            artifacts/visual-review/tunic/**
             docs/images/generated/gui-screenshot-manifest.txt
+            docs/images/generated/tunic-audit-diagnostics.txt
+            docs/images/generated/tunic-audit-source-failure.txt
             artifacts/garment-e2e.log
             artifacts/tissu-provenance.txt
           if-no-files-found: error
+          retention-days: 14
           compression-level: 1
 
   gui-turntables:
@@ -762,30 +788,39 @@ jobs:
             docs/images/generated/cloth-simulation-draped-turntable.gif; do
             identify -format '%n\n' "$gif" | head -n 1 | grep -qx '73'
           done
+      - name: Prepare turntable human review bundle
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/visual-review/turntables
+          {
+            echo "# Turntable visual review bundle"
+            echo
+            echo "Run: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "Human inspection is mandatory before acceptance/merge."
+            echo "The artifact retains the full exported PNG frame sequences."
+          } > artifacts/visual-review/turntables/README.md
+          cp docs/images/generated/*turntable.gif artifacts/visual-review/turntables/ 2>/dev/null || true
+          cp docs/images/generated/*turntable-frames/frame-*.png artifacts/visual-review/turntables/ 2>/dev/null || true
+          cp docs/images/generated/avatar-gui-progress.log artifacts/visual-review/turntables/ 2>/dev/null || true
+          cp docs/images/generated/simulation-turntable-progress.log artifacts/visual-review/turntables/ 2>/dev/null || true
       - name: Upload README turntable evidence
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: readme-turntables
           path: |
+            artifacts/visual-review/turntables/**
             docs/images/generated/cloth-avatar-turntable.gif
             docs/images/generated/cloth-simulation-arranged-turntable.gif
             docs/images/generated/cloth-simulation-draped-turntable.gif
-            docs/images/generated/cloth-avatar-turntable-frames/frame-000.png
-            docs/images/generated/cloth-avatar-turntable-frames/frame-018.png
-            docs/images/generated/cloth-avatar-turntable-frames/frame-036.png
-            docs/images/generated/cloth-avatar-turntable-frames/frame-054.png
-            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-000.png
-            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-018.png
-            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-036.png
-            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-054.png
-            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-000.png
-            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-018.png
-            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-036.png
-            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-054.png
+            docs/images/generated/cloth-avatar-turntable-frames/frame-*.png
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-*.png
+            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-*.png
             docs/images/generated/avatar-gui-progress.log
             docs/images/generated/simulation-turntable-progress.log
           if-no-files-found: ignore
+          retention-days: 14
           compression-level: 1
 
 
@@ -899,6 +934,7 @@ jobs:
             docs/images/generated/blanket-example/blanket-motion.gif
             docs/images/generated/blanket-example/blanket-visual.log
           if-no-files-found: error
+          retention-days: 14
           compression-level: 1
   publish-readme-turntables:
     name: Publish README turntables and example motion
