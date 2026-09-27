@@ -594,6 +594,62 @@ def run_acceptance():
             raise RuntimeError("Simulation quality task panel did not expose the Arrange / Fit / target-snap bridge")
         if not quality_panel.snap_to_target_button.isEnabled():
             raise RuntimeError("Simulation panel did not expose enabled target-aware placement for a ready target")
+        original_fitting_placements = {
+            str(piece.PieceId): (
+                float(piece.Placement.Base.x),
+                float(piece.Placement.Base.y),
+                float(piece.Placement.Base.z),
+                float(piece.Placement.Rotation.Angle),
+                float(piece.Placement.Rotation.Axis.x),
+                float(piece.Placement.Rotation.Axis.y),
+                float(piece.Placement.Rotation.Axis.z),
+            )
+            for piece in scene.ClothPieces
+        }
+        quality_panel.snap_to_target_button.click()
+        _events()
+        doc.recompute()
+        fitting_scene = next(
+            (obj for obj in doc.Objects if getattr(obj, "FittingType", "") == "FittingScene"),
+            None,
+        )
+        if fitting_scene is None or not bool(tuple(getattr(fitting_scene, "HomePlacements", ()) or ())):
+            raise RuntimeError("target snap did not create a recoverable fitting arrangement state")
+        snapped = {
+            str(piece.PieceId): (
+                float(piece.Placement.Base.x),
+                float(piece.Placement.Base.y),
+                float(piece.Placement.Base.z),
+                float(piece.Placement.Rotation.Angle),
+                float(piece.Placement.Rotation.Axis.x),
+                float(piece.Placement.Rotation.Axis.y),
+                float(piece.Placement.Rotation.Axis.z),
+            )
+            for piece in scene.ClothPieces
+        }
+        if snapped == original_fitting_placements:
+            raise RuntimeError("target snap did not change any fitting piece placement")
+        if not quality_panel.reset_arrangement_button.isEnabled():
+            raise RuntimeError("target snap did not enable Reset arrangement")
+        quality_panel.reset_arrangement_button.click()
+        _events()
+        doc.recompute()
+        restored_fitting_placements = {
+            str(piece.PieceId): (
+                float(piece.Placement.Base.x),
+                float(piece.Placement.Base.y),
+                float(piece.Placement.Base.z),
+                float(piece.Placement.Rotation.Angle),
+                float(piece.Placement.Rotation.Axis.x),
+                float(piece.Placement.Rotation.Axis.y),
+                float(piece.Placement.Rotation.Axis.z),
+            )
+            for piece in scene.ClothPieces
+        }
+        if restored_fitting_placements != original_fitting_placements:
+            raise RuntimeError("Reset arrangement did not restore the exact pre-snap placements")
+        _close_task()
+        _wait_task_close()
         quality_panel.quality.setCurrentText("Fast")
         if not quality_panel.accept():
             raise RuntimeError("public Simulation quality task panel rejected the selected preset")
