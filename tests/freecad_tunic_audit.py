@@ -36,8 +36,12 @@ replacements = {
         '        seam_records.append((seam_obj, front, back))',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
     'scene.SolverIterations = 8;': 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-32 iterations-1 substeps-env");',
-    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance',
-    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance',
+    'target_ys = [float(vertex[1]) for vertex in target_surface.vertices]': 'target_ys = [float(vertex[1]) for vertex in target_surface.vertices]\n'
+        '    garment_target_ys = [float(vertex[1]) for vertex in target_surface.vertices if float(hem_z) <= float(vertex[2]) <= float(shoulder_z)]\n'
+        '    if not garment_target_ys: raise RuntimeError("canonical tunic target has no collision vertices in the garment Z band")\n'
+        '    log("garment-band-target-bounds y=%.1f..%.1f z=%.1f..%.1f vertices=%d" % (min(garment_target_ys), max(garment_target_ys), float(hem_z), float(shoulder_z), len(garment_target_ys)))',
+    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(garment_target_ys) - clearance',
+    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(garment_target_ys) + clearance',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
 }
 for old, new in replacements.items():
