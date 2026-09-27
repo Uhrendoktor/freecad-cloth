@@ -149,7 +149,7 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     assert "target_ys) + clearance" not in audit
     assert "initial_span_probe" in audit
     assert "initial tunic stitch spans remain incompatible" in audit
-    assert "'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))'," in audit || "upper_margin = 0.17" in audit
+    assert "'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))'," in audit
 def test_tunic_visual_diagnostics_are_authoritative_after_persistence():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     metrics_write = source.index('json.dump(payload, handle, indent=2, sort_keys=True)')
