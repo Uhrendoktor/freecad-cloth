@@ -735,6 +735,15 @@ def run_acceptance():
             raise RuntimeError("target snap/reset cycle mutated existing pinning state")
         print("target-snap-ui=passed anchors=%d shared-rigid=true reset=true pins-unchanged=true" % len(anchors), flush=True)
 
+        # Return the authoritative mannequin target before the downstream simulation
+        # quality, diagnostics, and save/reload assertions.
+        _select_objects(mannequin_target)
+        Gui.runCommand("ClothDrape_CreateMannequinTarget", 0)
+        _events()
+        target = doc.getObject("DrapeTarget")
+        if target is None or target != mannequin_target or scene.DrapeTarget != mannequin_target or target.SourceObject != avatar:
+            raise RuntimeError("target snap acceptance did not restore the canonical mannequin DrapeTarget")
+
         quality_panel.quality.setCurrentText("Fast")
         if not quality_panel.accept():
             raise RuntimeError("public Simulation quality task panel rejected the selected preset")
