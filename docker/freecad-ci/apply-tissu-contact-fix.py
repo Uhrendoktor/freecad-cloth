@@ -405,7 +405,7 @@ private:""",
 
 MeshCollider::MeshCollider(const std::string& meshPath, double friction)
     : m_meshPath(meshPath) {""",
-        """}
+        """namespace Tissu {
 
 namespace {
 
