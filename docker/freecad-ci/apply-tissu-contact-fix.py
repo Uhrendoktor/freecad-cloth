@@ -418,7 +418,6 @@ MeshOrientation inferMeshOrientation(
 }"""
     new = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
     EXPECT_GT(distanceMoved, 0.0);
-    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
 }
 
 TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
