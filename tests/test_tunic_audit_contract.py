@@ -158,3 +158,11 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     gate = source.index("assert_drape_diagnostics(json.load(handle).get(\"panels\", ()))")
     assert "drape-metrics=" in source[:gate]
     assert "gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]
+
+
+def test_tunic_audit_exercises_target_snap_before_simulation():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "simulation_panel.snap_to_target()" in source
+    assert "tunic-target-snap=passed" in source
+    assert "tunic-target-reset=passed" in source
+    assert "tunic-target-resnap=passed" in source
