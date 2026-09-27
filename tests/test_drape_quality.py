@@ -110,3 +110,9 @@ def test_canonical_tunic_fixture_uses_narrow_panel_ease():
 def test_canonical_tunic_fixture_uses_experimental_clearance_profile():
     fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "clearance = max(8.0, 0.025 * body_depth);" in fixture
+
+
+def test_canonical_tunic_fixture_uses_opposite_back_panel_orientation():
+    fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "front_rot = App.Rotation(App.Vector(1,0,0), 90.0); back_rot = App.Rotation(App.Vector(1,0,0), -90.0)" in fixture
+    assert 'rot = front_rot if side == "back" else back_rot' in fixture
