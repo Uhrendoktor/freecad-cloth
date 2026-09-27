@@ -23,13 +23,13 @@ def test_diagnostic_controls_are_static_and_one_step():
 def test_diagnostic_manifest_contains_shared_schema_fields():
     for needle in (
         '"schema": 1',
-        '"solver_settings_frozen"',
-        '"particle_distance_mm"',
-        '"iterations"',
-        '"substeps"',
-        '"timestep_s"',
-        '"gravity_mm_s2"',
         '"cases"',
+        '"case_id"',
+        '"predecessor_case_id"',
+        '"solver"',
+        '"collision"',
+        '"pre_step"',
+        '"checkpoints"',
         '"contact_state"',
         '"images"',
         '"release_gate_effect"',
@@ -56,6 +56,10 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "App.exit()" in SOURCE
     assert "faulthandler.dump_traceback_later(30.0, repeat=True" in SOURCE
     assert "entrypoint __name__=" in SOURCE
+    assert '"CLOTH_CONTACT_DIAGNOSTICS_SCHEDULED"' in SOURCE
+    assert "QtCore.QTimer.singleShot(0, _scheduled_main)" in SOURCE
+    assert "os._exit(status)" in SOURCE
+    assert "Gui.activeDocument().activeView()" in SOURCE
     assert "setsid /opt/freecad/AppRun /workspace/tests/freecad_tissu_contact_diagnostics.py" in WORKFLOW
     assert "diagnostic-contact-supervisor=timeout" in WORKFLOW
     assert "artifacts/tissu-contact-diagnostics/app-run.log" in WORKFLOW
