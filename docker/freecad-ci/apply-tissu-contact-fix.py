@@ -566,16 +566,11 @@ TEST(MeshCollider, AmbiguousVertexRayFailsClosed) {
 """
     test_cpp = test_cpp.replace(
         "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
-        deep_test + "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
+        helper + deep_test + "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
         1,
     )
     if test_cpp.count("TEST(MeshCollider, ParticleInsideMeshMovesOutside)") != 1:
         raise RuntimeError("MeshCollider test anchor missing")
-    test_cpp = test_cpp.replace(
-        "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
-        helper + "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
-        1,
-    )
     old = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
     EXPECT_GT(distanceMoved, 0.0);
 }"""
