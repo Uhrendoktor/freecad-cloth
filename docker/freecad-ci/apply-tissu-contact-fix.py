@@ -393,21 +393,20 @@ private:""",
         "MeshCollider first-segment-hit includes",
     )
 
-    replace_once(
-        ROOT / "core/src/physics/MeshCollider.cpp",
-        """}
+    mesh_cpp_text = (ROOT / "core/src/physics/MeshCollider.cpp").read_text(encoding="utf-8")
+    ctor_anchor = """MeshCollider::MeshCollider(const std::string& meshPath, double friction)
+"""
+    if mesh_cpp_text.count(ctor_anchor) != 1:
+        raise RuntimeError("MeshCollider first-segment-hit helper: expected one constructor anchor")
+    mesh_cpp_text = mesh_cpp_text.replace(
+        ctor_anchor,
+        """namespace {
 
-MeshCollider::MeshCollider(const std::string& meshPath, double friction) {""",
-        """}
-
-namespace {
-
-bool segmentTriangleHit(const Eigen::Vector3d& start,
-                        const Eigen::Vector3d& end,
-                        const Eigen::Vector3d& a,
-                        const Eigen::Vector3d& b,
-                        const Eigen::Vector3d& c, double epsilon,
-                        double& t, Eigen::Vector3d& normal) {
+bool segmentTriangleHit(
+    const Eigen::Vector3d& start, const Eigen::Vector3d& end,
+    const Eigen::Vector3d& a, const Eigen::Vector3d& b,
+    const Eigen::Vector3d& c, double epsilon, double& t,
+    Eigen::Vector3d& normal) {
     const Eigen::Vector3d direction = end - start;
     const Eigen::Vector3d edge1 = b - a;
     const Eigen::Vector3d edge2 = c - a;
@@ -438,8 +437,6 @@ bool segmentTriangleHit(const Eigen::Vector3d& start,
         return false;
 
     rawNormal /= normalLength;
-    // Reject grazing/tangent contact: a stitch correction must actually cross
-    // the triangle plane rather than merely touch or run along it.
     if (std::abs(direction.normalized().dot(rawNormal)) <= 1e-10)
         return false;
 
@@ -451,9 +448,10 @@ bool segmentTriangleHit(const Eigen::Vector3d& start,
 
 } // namespace
 
-MeshCollider::MeshCollider(const std::string& meshPath, double friction) {""",
-        "MeshCollider first-segment-hit helper",
+""" + ctor_anchor,
+        1,
     )
+    mesh_cpp.write_text(mesh_cpp_text, encoding="utf-8")
 
     replace_once(
         ROOT / "core/src/physics/MeshCollider.cpp",
