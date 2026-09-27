@@ -14,6 +14,8 @@ source = source_path.read_text(encoding="utf-8")
 # The canonical tunic audit must use the authoritative DrapeTarget collision
 # surface; do not replace it with the optional torso-envelope approximation.
 os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
+# Bounded launch-order discriminator: one collision-only Tissu step before zero-rest stitch activation.
+os.environ["CLOTH_TISSU_STITCH_DELAY_STEPS"] = "1"
 
 replacements = {
     'clearance = max(20.0, 0.08 * body_depth)': 'clearance = max(8.0, 0.025 * body_depth);',
@@ -89,10 +91,28 @@ timed_anchor = '''    from time import perf_counter
         str(getattr(active_backend, "name", "")),
         0 if active_collision is None else len(active_collision.triangles),
     ))
-    for batch in (15,15,15,15,15,15):
+    for batch_index, batch in enumerate((1,14,15,15,15,15,15)):
         batch_started = perf_counter()
         simulation_panel.step(batch); doc.recompute(); events()
-        log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
+        log("tunic-simulation-batch index=%d steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch_index, batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
+        if batch_index == 0:
+            backend_now = scene.Proxy._base_or_restore().backend
+            if getattr(backend_now, "stitch_activation_step", None) is not None:
+                raise RuntimeError("Tissu stitches activated before the required one-step preactivation boundary")
+            if not bool(backend_now.finite()):
+                raise RuntimeError("Tissu one-step collision-only preactivation state is not finite")
+            from freecad_cloth.common.MeshValidation import nearest_target_clearance
+            pre_activation_clearance = nearest_target_clearance(tuple(backend_now.positions()), tuple(target_surface.vertices))
+            pair_count = sum(len(pairs) for pairs in getattr(scene.Proxy, "seam_stitch_pairs", {}).values())
+            log("tunic-stitch-delay-before-activation configured_steps=1 activation_step=2 pairs=%d target-clearance-mm=%.2f" % (pair_count, float(pre_activation_clearance)))
+            if float(pre_activation_clearance) < float(clearance):
+                raise RuntimeError("one-step delayed-stitch pre-activation target clearance is below configured separation: %.2f mm < %.2f mm" % (float(pre_activation_clearance), float(clearance)))
+        elif batch_index == 1:
+            backend_now = scene.Proxy._base_or_restore().backend
+            if int(getattr(backend_now, "stitch_activation_step", -1)) != 2:
+                raise RuntimeError("Tissu one-step delayed stitches activated at wrong boundary: expected step 2, got %s" % getattr(backend_now, "stitch_activation_step", None))
+            pair_count = sum(len(pairs) for pairs in getattr(scene.Proxy, "seam_stitch_pairs", {}).values())
+            log("tunic-stitch-delay-activation configured_steps=1 activation_step=%d pairs=%d" % (int(backend_now.stitch_activation_step), pair_count))
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
 '''
 source = source.replace(anchor, preview_probe + '\n' + timed_anchor, 1)
