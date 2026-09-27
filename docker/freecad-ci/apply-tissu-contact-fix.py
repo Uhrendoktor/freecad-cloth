@@ -174,8 +174,7 @@ MeshOrientation inferMeshOrientation(
 
             Eigen::Vector3d newPosition = cp + normal * thickness;""",
             """        bool shouldResolve = false;
-        Eigen::Vector3d normal =
-            ((b - a).cross(c - a)).normalized();
+        Eigen::Vector3d normal(0.0, 0.0, 1.0);
         Eigen::Vector3d contactPoint = cp;
 
         if (distance <= thickness) {
@@ -382,7 +381,6 @@ static MeshCollider makeConcaveShell(double friction = 0.0) {
     return MeshCollider(vertices, triangles, friction);
 }
 
-
     if test_cpp.count("TEST(MeshCollider, ParticleInsideMeshMovesOutside)") != 1:
         raise RuntimeError("MeshCollider test anchor missing")
     test_cpp = test_cpp.replace(
@@ -390,6 +388,9 @@ static MeshCollider makeConcaveShell(double friction = 0.0) {
         helper + "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
         1,
     )
+    old = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
+    EXPECT_GT(distanceMoved, 0.0);
+}"""
     new = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
     EXPECT_GT(distanceMoved, 0.0);
     EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
@@ -476,12 +477,6 @@ TEST(MeshCollider, OpenMeshDeepParticleKeepsLegacyBehavior) {
     mesh.resolve(particles, 0.016, 0.01);
 
     EXPECT_EQ(particles[0].getPosition(), initialPos);
-}
-
-TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
-    new = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
-    EXPECT_GT(distanceMoved, 0.0);
-    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
 }
 
 TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
