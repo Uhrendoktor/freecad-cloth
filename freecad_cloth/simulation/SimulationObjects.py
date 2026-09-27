@@ -515,11 +515,15 @@ class SimulationProxy:
         backend_name = preferred_backend_name(registry)
         backend_kwargs = {}
         if backend_name == "tissu":
+            import os
             backend_kwargs = {
                 "triangles": tuple(triangles_global),
                 "pins": pins,
                 "stitches": seam_pairs,
                 "collision_surface": collision_surface,
+                "stitch_compliance": float(
+                    os.environ.get("CLOTH_TISSU_STITCH_COMPLIANCE", "0.0")
+                ),
             }
         self.backend = registry.create(backend_name, system, **backend_kwargs)
         self.panel_indices = {}
