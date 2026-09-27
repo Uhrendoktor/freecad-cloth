@@ -404,6 +404,7 @@ def _case_record(case_id, rung, target, source, cloth_points_before, cloth_point
         "finite": all(math.isfinite(float(c)) for point in cloth_points_before for c in point),
         "components": _connected_components(cloth_points_before, panel_triangles),
         "max_seam_gap_mm": 0.0,
+        "max_displacement_from_initial_mm": 0.0,
         "target_clearance_mm": signed_before,
         "contact_state": "static-intersection-probe",
         "inside_outside": before_inside,
@@ -415,11 +416,13 @@ def _case_record(case_id, rung, target, source, cloth_points_before, cloth_point
         "finite": finite,
         "components": after_components,
         "max_seam_gap_mm": 0.0,
+        "max_displacement_from_initial_mm": max_vertex_displacement,
         "target_clearance_mm": signed_after,
         "contact_state": contact_state,
         "inside_outside": after_inside,
         "nearest_target_point": after_nearest_point,
     }
+    checkpoints = [checkpoint, checkpoint_after]
     collision = {
         "source_signature": target_sig,
         "source_triangles": len(target_triangles),
