@@ -4,8 +4,63 @@ The model layer deliberately does not import FreeCAD.  ``surface_from_freecad``
 is the small GUI/runtime bridge used by the document workbench.
 """
 from dataclasses import dataclass
-from math import ceil
 from typing import Tuple
+
+
+def _farthest_point_indices(centroids, limit):
+    """Select deterministic spatial representatives using normalized Farthest Point Sampling.
+
+    Centroids are normalized independently along each non-degenerate axis so an
+    anisotropic humanoid does not spend most of the collision budget on its
+    longest axis. NumPy is already present in the FreeCAD runtime; a small pure
+    Python fallback keeps the model-layer helper usable without a new dependency.
+    """
+    count = len(centroids)
+    if limit >= count:
+        return list(range(count))
+    if limit <= 0:
+        return []
+
+    mins = [min(point[axis] for point in centroids) for axis in range(3)]
+    maxs = [max(point[axis] for point in centroids) for axis in range(3)]
+    spans = [maxs[axis] - mins[axis] for axis in range(3)]
+
+    try:
+        import numpy as np
+    except ImportError:
+        normalized = [
+            tuple(
+                0.0 if spans[axis] <= 1e-12 else (point[axis] - mins[axis]) / spans[axis]
+                for axis in range(3)
+            )
+            for point in centroids
+        ]
+        selected = [min(range(count), key=lambda i: normalized[i])]
+        nearest = [
+            sum((normalized[index][axis] - normalized[selected[0]][axis]) ** 2 for axis in range(3))
+            for index in range(count)
+        ]
+        while len(selected) < limit:
+            next_index = max(range(count), key=nearest.__getitem__)
+            selected.append(next_index)
+            reference = normalized[next_index]
+            for index, point in enumerate(normalized):
+                distance = sum((point[axis] - reference[axis]) ** 2 for axis in range(3))
+                if distance < nearest[index]:
+                    nearest[index] = distance
+        return selected
+
+    points = np.asarray(centroids, dtype=float)
+    scale = np.asarray([span if span > 1e-12 else 1.0 for span in spans], dtype=float)
+    normalized = (points - np.asarray(mins, dtype=float)) / scale
+    selected = [int(np.argmin(np.sum(normalized * normalized, axis=1)))]
+    nearest = np.sum((normalized - normalized[selected[0]]) ** 2, axis=1)
+    for _ in range(1, limit):
+        next_index = int(np.argmax(nearest))
+        selected.append(next_index)
+        distances = np.sum((normalized - normalized[next_index]) ** 2, axis=1)
+        nearest = np.minimum(nearest, distances)
+    return selected
 
 
 @dataclass(frozen=True)
@@ -83,37 +138,7 @@ def coarsen_collision_surface(surface: CollisionSurface, max_triangles: int = 10
             mins[i] = min(mins[i], center[i])
             maxs[i] = max(maxs[i], center[i])
 
-    span = max(maxs[i] - mins[i] for i in range(3))
-    if span <= 1e-9:
-        step = 1
-    else:
-        cells_per_axis = max(1, int(ceil(limit ** (1.0 / 3.0))))
-        cell = span / cells_per_axis
-        step = max(1, cells_per_axis)
-
-    selected = {}
-    for index, center in enumerate(centroids):
-        if span <= 1e-9:
-            key = (0, 0, 0)
-        else:
-            key = tuple(min(step - 1, max(0, int((center[i] - mins[i]) / cell))) for i in range(3))
-        if key not in selected:
-            selected[key] = index
-
-    indices = list(selected.values())
-    if len(indices) > limit:
-        stride = max(1, int(ceil(len(indices) / float(limit))))
-        indices = indices[::stride][:limit]
-    elif len(indices) < limit:
-        used = set(indices)
-        stride = max(1, len(surface.triangles) // limit)
-        for index in range(0, len(surface.triangles), stride):
-            if index not in used:
-                indices.append(index)
-                used.add(index)
-                if len(indices) >= limit:
-                    break
-
+    indices = _farthest_point_indices(centroids, limit)
     triangles = tuple(surface.triangles[index] for index in indices[:limit])
     result = CollisionSurface(surface.vertices, triangles, surface.region, surface.thickness)
     result.validate()
