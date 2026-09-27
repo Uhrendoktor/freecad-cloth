@@ -167,105 +167,12 @@ target_snap_probe = r'''    # Target-aware fitting acceptance on the same native
         raise RuntimeError("canonical tunic Snap/Reset cycle mutated existing pinning state")
     log("tunic-target-resnap=passed")
 '''
-source = source.replace(anchor, target_snap_probe + "\n" + anchor, 1)
-
 anchor = '''    for batch in (15,15,15,15,15,15):
         simulation_panel.step(batch); doc.recompute(); events()
 '''
 if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
-target_snap_probe = r'''    # Target-aware fitting acceptance on the same native tunic fixture used below.
-    import math
-    from freecad_cloth.avatar import FittingCommands
-    fitting = FittingCommands._scene(doc)
-    if fitting is None or target is None or fitting.DrapeTarget != target:
-        raise RuntimeError("canonical tunic fixture did not retain the authoritative DrapeTarget in FittingScene")
-    if not hasattr(simulation_panel, "snap_to_target_button") or not simulation_panel.snap_to_target_button.isEnabled():
-        raise RuntimeError("canonical tunic fixture did not expose an enabled target-snap action")
-    pieces = tuple(getattr(scene, "ClothPieces", ()) or ())
-    if len(pieces) < 2:
-        raise RuntimeError("canonical tunic fixture did not expose the sewn garment pieces")
-
-    def _pose_signature():
-        values = []
-        for piece in sorted(pieces, key=lambda item: str(item.PieceId)):
-            base = piece.Placement.Base
-            axis = piece.Placement.Rotation.Axis
-            values.append((
-                str(piece.PieceId),
-                round(float(base.x), 9), round(float(base.y), 9), round(float(base.z), 9),
-                round(float(piece.Placement.Rotation.Angle), 9),
-                round(float(axis.x), 9), round(float(axis.y), 9), round(float(axis.z), 9),
-            ))
-        return tuple(values)
-
-    def _pairwise_centers():
-        centers = []
-        for piece in sorted(pieces, key=lambda item: str(item.PieceId)):
-            base = piece.Placement.Base
-            centers.append((str(piece.PieceId), float(base.x), float(base.y), float(base.z)))
-        distances = {}
-        for index, left in enumerate(centers):
-            for right in centers[index + 1:]:
-                distances[(left[0], right[0])] = math.dist(left[1:], right[1:])
-        return distances
-
-    def _relative_rotations():
-        values = []
-        ordered = sorted(pieces, key=lambda item: str(item.PieceId))
-        for index, left in enumerate(ordered):
-            left_q = tuple(float(value) for value in left.Placement.Rotation.Q)
-            left_norm = math.sqrt(sum(value * value for value in left_q))
-            for right in ordered[index + 1:]:
-                right_q = tuple(float(value) for value in right.Placement.Rotation.Q)
-                right_norm = math.sqrt(sum(value * value for value in right_q))
-                dot = sum(a * b for a, b in zip(left_q, right_q, strict=True)) / max(left_norm * right_norm, 1e-15)
-                values.append(((str(left.PieceId), str(right.PieceId)), round(abs(float(dot)), 9)))
-        return tuple(values)
-
-    home_pose = _pose_signature()
-    home_pairwise = _pairwise_centers()
-    home_relative = _relative_rotations()
-    home_pin_mode = str(getattr(scene, "PinMode", ""))
-    home_pin_selection = tuple(str(value) for value in (getattr(scene, "PinSelection", ()) or ()))
-
-    simulation_panel.snap_to_target()
-    doc.recompute(); events()
-    fitting = FittingCommands._scene(doc)
-    anchors = tuple(getattr(fitting, "GarmentAnchors", ()) or ()) if fitting is not None else ()
-    if fitting is None or fitting.DrapeTarget != target:
-        raise RuntimeError("canonical tunic Snap-to-target lost persistent DrapeTarget identity")
-    if len(anchors) < 4:
-        raise RuntimeError("canonical tunic Snap-to-target did not persist four garment anchors")
-    snapped_pairwise = _pairwise_centers()
-    snapped_relative = _relative_rotations()
-    if set(home_pairwise) != set(snapped_pairwise):
-        raise RuntimeError("canonical tunic Snap-to-target changed the authored piece set")
-    for key in home_pairwise:
-        if abs(float(home_pairwise[key]) - float(snapped_pairwise[key])) > 1e-6:
-            raise RuntimeError("canonical tunic Snap-to-target changed pairwise sewn-piece spacing")
-    if dict(home_relative) != dict(snapped_relative):
-        raise RuntimeError("canonical tunic Snap-to-target changed relative piece rotations")
-    if str(getattr(scene, "PinMode", "")) != home_pin_mode or tuple(str(value) for value in (getattr(scene, "PinSelection", ()) or ())) != home_pin_selection:
-        raise RuntimeError("canonical tunic Snap-to-target mutated existing pinning state")
-    if _pose_signature() == home_pose:
-        raise RuntimeError("canonical tunic Snap-to-target did not change the authored arrangement")
-    log("tunic-target-snap=passed persistent_target=true anchors=%d shared-rigid=true pins-unchanged=true" % len(anchors))
-
-    simulation_panel.reset_arrangement()
-    doc.recompute(); events()
-    if _pose_signature() != home_pose:
-        raise RuntimeError("canonical tunic Reset arrangement did not restore the exact pre-snap placement")
-    log("tunic-target-reset=passed exact_piece_restore=true")
-
-    simulation_panel.snap_to_target()
-    doc.recompute(); events()
-    if _pose_signature() == home_pose:
-        raise RuntimeError("canonical tunic second Snap-to-target did not reapply the fitted arrangement")
-    if str(getattr(scene, "PinMode", "")) != home_pin_mode or tuple(str(value) for value in (getattr(scene, "PinSelection", ()) or ())) != home_pin_selection:
-        raise RuntimeError("canonical tunic Snap/Reset cycle mutated existing pinning state")
-    log("tunic-target-resnap=passed")
-'''
+source = source.replace(anchor, target_snap_probe + "\n" + anchor, 1)
 timed_anchor = '''    from time import perf_counter
     simulation_started = perf_counter()
     active_backend = scene.Proxy._base_or_restore().backend
