@@ -173,6 +173,7 @@ MeshOrientation inferMeshOrientation(
     const MeshOrientation orientation =
         inferMeshOrientation(m_worldVertices, m_triangles);
     m_closedManifold = orientation.closedManifold;
+    m_windingSignal = orientation.windingSignal;
     m_outwardNormalSign = orientation.outwardNormalSign;
 
     m_bvh.build(m_worldVertices, m_triangles);""",
