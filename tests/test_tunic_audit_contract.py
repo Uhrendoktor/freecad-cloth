@@ -142,7 +142,9 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     assert 'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)' in audit
     assert 'front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)' in audit
     assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance'," not in audit
+    assert "y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance" in audit
     assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance'," not in audit
+    assert "y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance" in audit
     assert "'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))'," in audit
 
 
