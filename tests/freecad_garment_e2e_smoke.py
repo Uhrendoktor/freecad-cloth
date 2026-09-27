@@ -715,7 +715,7 @@ def run_acceptance():
         doc.recompute()
         screenshot = str(Path(os.environ.get("CLOTH_SCREENSHOT_DIR", "/workspace/docs/images/generated")) / "cloth-simulation-draped-target-snap-applied.png")
         Gui.activeDocument().activeView().fitAll()
-        # FreeCAD 1.1.x uses the four-argument saveImage(path, width, height, background) API.
+        # FreeCAD 1.1.x uses the four-argument saveImage(path, width, height, background) API; keep this render in the existing tunic artifact glob.
         Gui.activeDocument().activeView().saveImage(screenshot, 1280, 720, "White")
         if not os.path.exists(screenshot) or os.path.getsize(screenshot) <= 0:
             raise RuntimeError("target snap rendered evidence was not written")
