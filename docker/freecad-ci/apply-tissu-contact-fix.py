@@ -398,7 +398,8 @@ private:
 
     replace_once(
         ROOT / "core/src/physics/MeshCollider.cpp",
-        """MeshCollider::MeshCollider(const std::string& meshPath, double friction) {""",
+        """MeshCollider::MeshCollider(const std::string& meshPath, double friction)
+    : m_meshPath(meshPath) {""",
         """}
 
 namespace {
@@ -531,9 +532,6 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,""",
     replace_once(
         ROOT / "core/include/physics/StitchConstraint.hpp",
         """namespace Tissu {
-
-class Collider;
-class Solver;
 
 class StitchConstraint""",
         """namespace Tissu {
