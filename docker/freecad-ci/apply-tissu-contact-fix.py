@@ -64,7 +64,10 @@ def main() -> int:
     Eigen::AlignedBox3d m_worldBounds;
     BVH m_bvh;
 
-    bool pointInsideClosedMesh(const Eigen::Vector3d& point) const;""",
+    bool pointInsideClosedMesh(const Eigen::Vector3d& point) const;
+    bool findSweptContact(const Eigen::Vector3d& start,
+                          const Eigen::Vector3d& end, double radius,
+                          int& outTriangle, double& outT) const;""",
         "MeshCollider.hpp member layout",
     )
     header_text = header.read_text(encoding="utf-8")
