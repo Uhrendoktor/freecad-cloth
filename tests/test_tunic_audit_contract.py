@@ -158,3 +158,19 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     gate = source.index("assert_drape_diagnostics(json.load(handle).get(\"panels\", ()))")
     assert "drape-metrics=" in source[:gate]
     assert "gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]
+
+
+def test_target_snap_ui_abi_is_registered_and_exercised():
+    commands = (ROOT / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    gui = (ROOT / "freecad_cloth" / "simulation" / "SimulationQualityGui.py").read_text(encoding="utf-8")
+    screenshot = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    icon = ROOT / "resources" / "icons" / "ClothFitting_SnapPiecesToTarget.svg"
+    assert "def snap_pattern_pieces_to_target(" in commands
+    assert '"ClothFitting_SnapPiecesToTarget"' in commands
+    assert '"ClothFitting_SnapPiecesToTarget": snap_pieces_to_target' in commands
+    assert "from freecad_cloth.avatar.FittingCommands import snap_pattern_pieces_to_target" in gui
+    assert "simulation_panel.snap_to_target_button.click()" in screenshot
+    assert "ui-snap-to-target=passed" in screenshot
+    assert "ui-reset-arrangement=passed" in screenshot
+    assert "ui-disabled-target-recovery=passed" in screenshot
+    assert icon.exists()
