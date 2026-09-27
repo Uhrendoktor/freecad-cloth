@@ -618,15 +618,13 @@ def run_acceptance():
             pieces = sorted(tuple(getattr(scene, "ClothPieces", ()) or ()), key=lambda item: str(item.PieceId))
             signature = {}
             for index, left in enumerate(pieces):
+                left_q = tuple(float(value) for value in left.Placement.Rotation.Q)
+                left_norm = math.sqrt(sum(value * value for value in left_q))
                 for right in pieces[index + 1:]:
-                    relative = left.Placement.Rotation.inverted().multiply(right.Placement.Rotation)
-                    axis = relative.Axis
-                    signature[(str(left.PieceId), str(right.PieceId))] = (
-                        round(float(relative.Angle), 9),
-                        round(float(axis.x), 9),
-                        round(float(axis.y), 9),
-                        round(float(axis.z), 9),
-                    )
+                    right_q = tuple(float(value) for value in right.Placement.Rotation.Q)
+                    right_norm = math.sqrt(sum(value * value for value in right_q))
+                    dot = sum(a * b for a, b in zip(left_q, right_q, strict=True)) / max(left_norm * right_norm, 1e-15)
+                    signature[(str(left.PieceId), str(right.PieceId))] = round(abs(float(dot)), 9)
             return signature
 
         def _pairwise_centers():
@@ -644,6 +642,8 @@ def run_acceptance():
         home_pose = _piece_pose_signature()
         home_pairwise = _pairwise_centers()
         home_relative_rotations = _relative_rotation_signature()
+        home_pin_mode = str(getattr(scene, "PinMode", ""))
+        home_pin_selection = tuple(str(value) for value in (getattr(scene, "PinSelection", ()) or ()))
         quality_panel.snap_to_target_button.click()
         _events()
         doc.recompute()
@@ -655,6 +655,8 @@ def run_acceptance():
             raise RuntimeError("target snap did not persist the garment-local anchor set")
         snapped_pairwise = _pairwise_centers()
         snapped_relative_rotations = _relative_rotation_signature()
+        if str(getattr(scene, "PinMode", "")) != home_pin_mode or tuple(str(value) for value in (getattr(scene, "PinSelection", ()) or ())) != home_pin_selection:
+            raise RuntimeError("target snap mutated existing pinning state")
         if set(home_pairwise) != set(snapped_pairwise):
             raise RuntimeError("target snap changed the authored piece set")
         for key in home_pairwise:
@@ -681,7 +683,9 @@ def run_acceptance():
         doc.recompute()
         if _piece_pose_signature() == home_pose:
             raise RuntimeError("second target snap did not change the authored arrangement")
-        print("target-snap-ui=passed anchors=%d shared-rigid=true reset=true" % len(anchors), flush=True)
+        if str(getattr(scene, "PinMode", "")) != home_pin_mode or tuple(str(value) for value in (getattr(scene, "PinSelection", ()) or ())) != home_pin_selection:
+            raise RuntimeError("target snap/reset cycle mutated existing pinning state")
+        print("target-snap-ui=passed anchors=%d shared-rigid=true reset=true pins-unchanged=true" % len(anchors), flush=True)
 
         quality_panel.quality.setCurrentText("Fast")
         if not quality_panel.accept():
