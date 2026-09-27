@@ -207,7 +207,7 @@ jobs:
                 tests/test_tunic_audit_contract.py \
                 tests/test_readme_visual_contract.py \
                 tests/test_sketcher_bootstrap_contract.py \
-                tests/test_canonical_python_validation_contract.py
+                tests/test_canonical_python_validation_contract.py \
                 tests/test_contact_control_contract.py
             ')"
           cleanup() {
@@ -472,8 +472,8 @@ jobs:
           compression-level: 1
 
   diagnostic-contact-controls:
-    name: Diagnostic contact controls (manual only)
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.number == 2491 }}
+    name: Diagnostic contact controls (PR #2491 / manual)
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_diagnostics == 'contact') || (github.event_name == 'pull_request' && github.event.pull_request.number == 2491) }}
     needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 12
