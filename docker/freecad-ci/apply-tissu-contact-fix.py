@@ -564,13 +564,10 @@ TEST(MeshCollider, AmbiguousVertexRayFailsClosed) {
 }
 
 """
-    test_cpp = test_cpp.replace(
-        "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
-        helper + deep_test + "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
-        1,
-    )
-    if test_cpp.count("TEST(MeshCollider, ParticleInsideMeshMovesOutside)") != 1:
-        raise RuntimeError("MeshCollider test anchor missing")
+    test_anchor = "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {"
+    if test_cpp.count(test_anchor) != 1:
+        raise RuntimeError("MeshCollider test insertion anchor mismatch")
+
     old = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
     EXPECT_GT(distanceMoved, 0.0);
 }"""
@@ -581,6 +578,7 @@ TEST(MeshCollider, AmbiguousVertexRayFailsClosed) {
     if test_cpp.count(old) != 1:
         raise RuntimeError("MeshCollider regression test body anchor mismatch")
     test_cpp = test_cpp.replace(old, new, 1)
+
     extra = """TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
     MeshCollider mesh = makeTetrahedron(0.0);
     Eigen::Vector3d initialPos(1.0, -0.01, 0.75);
@@ -611,8 +609,8 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
 
 """
     test_cpp = test_cpp.replace(
-        "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
-        extra + "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
+        test_anchor,
+        helper + deep_test + extra + test_anchor,
         1,
     )
     test.write_text(test_cpp, encoding="utf-8")
