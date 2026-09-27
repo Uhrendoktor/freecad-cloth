@@ -151,15 +151,22 @@ def run_acceptance():
 
         with tempfile.TemporaryDirectory() as directory:
             path = os.path.join(directory, "simulation-quality-acceptance.FCStd")
+            front_piece_id = str(front.PieceId)
+            back_piece_id = str(back.PieceId)
             doc.saveAs(path)
             App.closeDocument(doc.Name)
             doc = None
             reloaded = App.openDocument(path)
             scene = reloaded.getObject("ClothSimulation")
+            reloaded_pieces = {str(piece.PieceId): piece for piece in _find_pieces(reloaded)}
+            front = reloaded_pieces.get(front_piece_id)
+            back = reloaded_pieces.get(back_piece_id)
             target = reloaded.getObject("DrapeTarget")
             target_body = reloaded.getObject("QualityAcceptanceTarget")
             if scene is None or target is None or target_body is None:
                 raise RuntimeError("quality simulation did not survive save/reload")
+            if front is None or back is None:
+                raise RuntimeError("saved PatternPieces did not survive save/reload")
             persisted = (str(scene.QualityPreset), float(scene.FabricDensity), float(scene.FabricThickness), float(scene.AvatarSkinOffset), float(scene.FabricFriction), float(scene.ParticleDistance), int(scene.SolverIterations), int(scene.SolverSubsteps))
             expected = ("Final", 225.0, 0.75, 2.5, 0.65, float(final.particle_distance), int(final.solver_iterations), int(final.substeps))
             if persisted != expected:
