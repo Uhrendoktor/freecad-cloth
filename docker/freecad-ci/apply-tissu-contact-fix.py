@@ -426,7 +426,7 @@ void StitchConstraint::solveBounded(std::vector<Particle>& particles,
         raise RuntimeError("StitchConstraint.cpp bounded solve replacement failed")
     if stitch_source.count("void StitchConstraint::solve(std::vector<Particle>& particles, double dt)") != 1:
         raise RuntimeError("StitchConstraint.cpp solve function preservation check failed")
-    stitch_cpp.write_text(stitch_source.replace(old_stitch, new_stitch), encoding="utf-8")
+    stitch_cpp.write_text(stitch_source, encoding="utf-8")
 
     stitch_test_text = stitch_test.read_text(encoding="utf-8")
     if '#include "engine/World.hpp"\n' not in stitch_test_text:
