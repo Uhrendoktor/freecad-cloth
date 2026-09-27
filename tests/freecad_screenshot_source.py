@@ -369,8 +369,9 @@ def simulation():
     winding_probe = None
     if os.environ.get("CLOTH_TISSU_WINDING_PROBE") == "1":
         edge_counts = {}
+        edge_to_triangles = {}
         signed_volume = 0.0
-        for triangle in target_surface.triangles:
+        for triangle_index, triangle in enumerate(target_surface.triangles):
             a, b, c = (target_surface.vertices[index] for index in triangle)
             signed_volume += (
                 float(a[0]) * (float(b[1]) * float(c[2]) - float(b[2]) * float(c[1]))
@@ -383,6 +384,24 @@ def simulation():
                 sign = 1 if int(ia) == lo else -1
                 count, balance = edge_counts.get(key, (0, 0))
                 edge_counts[key] = (count + 1, balance + sign)
+                edge_to_triangles.setdefault(key, []).append(triangle_index)
+        triangle_neighbors = [set() for _ in target_surface.triangles]
+        for members in edge_to_triangles.values():
+            for left in members:
+                triangle_neighbors[left].update(
+                    other for other in members if other != left
+                )
+        connected_components = 0
+        remaining = set(range(len(target_surface.triangles)))
+        while remaining:
+            connected_components += 1
+            stack = [remaining.pop()]
+            while stack:
+                current = stack.pop()
+                for neighbor in triangle_neighbors[current]:
+                    if neighbor in remaining:
+                        remaining.remove(neighbor)
+                        stack.append(neighbor)
         winding_probe = {
             "triangle_count": int(len(target_surface.triangles)),
             "unique_edge_count": int(len(edge_counts)),
@@ -390,6 +409,7 @@ def simulation():
             "nonmanifold_edge_count": int(sum(1 for count, _balance in edge_counts.values() if count > 2)),
             "oriented_edge_imbalance_count": int(sum(1 for count, balance in edge_counts.values() if count == 2 and balance != 0)),
             "signed_volume_abs": abs(float(signed_volume)),
+            "connected_triangle_components": int(connected_components),
         }
         log("tunic-winding-probe=%s" % json.dumps(winding_probe, sort_keys=True))
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
