@@ -267,7 +267,7 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
     import FreeCAD as App
     from freecad_cloth.simulation.DrapeTarget import target_status
     from freecad_cloth.avatar.TargetPlacement import (
-        nearest_surface_distance,
+        minimum_outward_clearance,
         point_inside_closed_surface,
         translation_to_target,
     )
@@ -339,7 +339,6 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
             for values in vertices_by_piece.values()
             for point in values
         )
-        from freecad_cloth.avatar.TargetPlacement import minimum_outward_clearance
         minimum_clearance = minimum_outward_clearance(surface, placed_vertices)
         if minimum_clearance < float(clearance) - 1e-6:
             raise ValueError(
