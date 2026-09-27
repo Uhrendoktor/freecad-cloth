@@ -294,7 +294,7 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
         (
             """        double distance = toParticle.norm();
 
-        if (distance <= thickness) {""",
+        if (distance <= thickness || insideClosedMesh) {""",
             """        double distance = toParticle.norm();
 
         bool insideClosedMesh = false;
