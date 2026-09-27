@@ -190,7 +190,7 @@ def _screenshot(view, path):
     _events()
     _progress("screenshot:events:done")
     _progress("screenshot:save-image:start")
-    view.saveImage(str(path), 1280, 720, "White", 1)
+    view.saveImage(str(path), 1280, 720, "White")
     _progress("screenshot:save-image:done")
     if not path.is_file() or path.stat().st_size <= 0:
         raise RuntimeError("screenshot missing: %s" % path)
@@ -394,6 +394,23 @@ def _run_control_avatar():
         App.closeDocument(doc.Name)
 
 
+def close_gui():
+    try:
+        import FreeCADGui as Gui
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
+    except ImportError:
+        return
+    window = Gui.getMainWindow()
+    if window is not None:
+        window.close()
+    app = QtWidgets.QApplication.instance()
+    if app is not None:
+        app.quit()
+
+
 def main():
     _progress("main: start")
     _ensure_gui_ready()
@@ -422,5 +439,16 @@ def main():
     print(json.dumps(manifest, indent=2, sort_keys=True), flush=True)
 
 
+def _run_from_freecad_event_loop():
+    try:
+        main()
+    finally:
+        close_gui()
+
+
 if __name__ == "__main__" or os.environ.get("CLOTH_CONTACT_DIAGNOSTICS_EXECUTE") == "1":
-    raise SystemExit(main())
+    try:
+        from PySide import QtCore
+    except ImportError:
+        from PySide2 import QtCore
+    QtCore.QTimer.singleShot(0, _run_from_freecad_event_loop)
