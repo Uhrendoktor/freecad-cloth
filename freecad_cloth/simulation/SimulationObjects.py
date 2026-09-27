@@ -336,6 +336,72 @@ def _seam_pair_records(pattern, panel_data, seam_samples=8):
     return tuple(dict.fromkeys(pairs)), tuple(records)
 
 
+def _tunic_shoulder_attachment_records(seam_pair_records, positions, collision_surface):
+    """Return deterministic shoulder-region attachment anchors for tunic seam endpoints."""
+    if collision_surface is None or not getattr(collision_surface, "vertices", ()):
+        return ()
+    surface_vertices = tuple(
+        (float(vertex[0]), float(vertex[1]), float(vertex[2]))
+        for vertex in collision_surface.vertices
+    )
+    min_z = min(vertex[2] for vertex in surface_vertices)
+    max_z = max(vertex[2] for vertex in surface_vertices)
+    min_y = min(vertex[1] for vertex in surface_vertices)
+    max_y = max(vertex[1] for vertex in surface_vertices)
+    shoulder_z = min_z + 0.77 * max(1.0, max_z - min_z)
+    band = max(100.0, 0.10 * max(1.0, max_z - min_z))
+    band_vertices = tuple(
+        vertex
+        for vertex in surface_vertices
+        if abs(vertex[2] - shoulder_z) <= band
+    ) or surface_vertices
+    front_y = min(vertex[1] for vertex in band_vertices)
+    back_y = max(vertex[1] for vertex in band_vertices)
+    records = []
+    seen_particles = set()
+    for seam_id, piece_a_name, piece_b_name, stitch_pairs in seam_pair_records:
+        seam_key = str(seam_id).lower()
+        if "tunic" not in seam_key or "shoulder" not in seam_key:
+            continue
+        side_names = (str(piece_a_name).lower(), str(piece_b_name).lower())
+        if len(stitch_pairs) < 2:
+            continue
+        endpoint_pairs = (stitch_pairs[0], stitch_pairs[-1])
+        for pair in endpoint_pairs:
+            for particle_id, piece_name in zip(pair, side_names, strict=False):
+                particle_id = int(particle_id)
+                is_front_piece = piece_name == side_names[0]
+                if particle_id in seen_particles:
+                    continue
+                if not 0 <= particle_id < len(positions):
+                    raise RuntimeError(
+                        "tunic shoulder attachment particle is outside the simulation mesh"
+                    )
+                point = positions[particle_id]
+                point_xyz = (float(point[0]), float(point[1]), float(point[2]))
+                desired_y = front_y if is_front_piece else back_y
+                target_vertex_id = min(
+                    range(len(surface_vertices)),
+                    key=lambda index: (
+                        ((surface_vertices[index][0] - point_xyz[0]) ** 2)
+                        + ((surface_vertices[index][2] - shoulder_z) ** 2)
+                        + (100.0 * (surface_vertices[index][1] - desired_y)) ** 2
+                    ),
+                )
+                anchor = surface_vertices[target_vertex_id]
+                rest_length = sum(
+                    (point_xyz[axis] - anchor[axis]) ** 2 for axis in range(3)
+                ) ** 0.5
+                if rest_length <= 0.0:
+                    raise RuntimeError(
+                        "tunic shoulder attachment anchor has zero initial rest length"
+                    )
+                records.append((particle_id, anchor, float(rest_length)))
+                seen_particles.add(particle_id)
+    print("tunic-shoulder-attachments=%r" % (tuple(records),), flush=True)
+    return tuple(records)
+
+
 def _boundary_vertices(piece_ir, edge_id, panel_data):
     for boundary, values in zip(piece_ir.boundaries, panel_data["boundary_edges"]):
         if str(boundary.id) == str(edge_id):
@@ -498,6 +564,12 @@ class SimulationProxy:
             int(getattr(obj, "StitchSamples", 8)),
         )
         system.add_stitches(seam_pairs)
+        collision_surface = _collision_for_scene(obj)
+        attachments = _tunic_shoulder_attachment_records(
+            seam_pair_records,
+            positions,
+            collision_surface,
+        )
         first = panel_data[str(pieces[0].PieceId)] if pieces else None
         boundary = (
             tuple(dict.fromkeys(i for edge in first["boundary_edges"] for i in edge))
@@ -510,7 +582,6 @@ class SimulationProxy:
         )
         if pins:
             system.pin(pins)
-        collision_surface = _collision_for_scene(obj)
         registry = default_backend_registry()
         backend_name = preferred_backend_name(registry)
         backend_kwargs = {}
@@ -519,6 +590,7 @@ class SimulationProxy:
                 "triangles": tuple(triangles_global),
                 "pins": pins,
                 "stitches": seam_pairs,
+                "attachments": attachments,
                 "collision_surface": collision_surface,
             }
         self.backend = registry.create(backend_name, system, **backend_kwargs)
