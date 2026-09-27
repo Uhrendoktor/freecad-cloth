@@ -152,6 +152,7 @@ class TissuBackend(ClothSimulationBackend):
         self._sim.add_mesh_from_arrays("drape-target", vtx, idx, friction=0.5)
 
     def _build(self, Simulation):
+        self._attachment_collider = None
         import numpy as np
         positions = [_to_tissu_position(p.position()) for p in self._initial.particles]
         triangles = np.asarray(self._triangles, dtype=np.int32)
@@ -194,7 +195,7 @@ class TissuBackend(ClothSimulationBackend):
                 self._attachment_collider,
                 target_vertex_id,
                 0.0,
-                rest_length,
+                float(rest_length) / _MM,
             )
 
     @property
