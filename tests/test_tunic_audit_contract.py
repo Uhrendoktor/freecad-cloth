@@ -30,7 +30,6 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     assert 'if solver_pins:' in source
     assert 'nearest_target_clearance' in source
     assert 'step0-target-vertex-clearance-mm=' in source
-    assert "initial-stitch-spans=" in source
     assert 'authored_shoulder_pins' not in source
     assert 'scene.PinSelection = [str(i) for i in front_pins]' not in source
     assert 'target_surface = collision_surface(' in source
@@ -46,6 +45,7 @@ def test_canonical_tunic_uses_validated_authored_mapping():
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in audit
     assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' not in audit
     assert 'front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"' not in audit
+    assert "initial-stitch-spans=" in audit
 
 
 def test_canonical_tunic_source_rewrite_compiles():
