@@ -56,6 +56,7 @@ def main() -> int:
 #include <cstdint>
 #include <unordered_map>
 #include <utility>
+#include <iostream>
 
 namespace Tissu {
 
@@ -143,7 +144,10 @@ MeshOrientation inferMeshOrientation(
     m_closedManifold = orientation.closedManifold;
     m_outwardNormalSign = orientation.outwardNormalSign;
 
-    m_bvh.build(m_worldVertices, m_triangles);""",
+    m_bvh.build(m_worldVertices, m_triangles);
+    std::cout << \"tissu-collision-manifold triangles=\" << m_triangles.size()
+              << \" closed_manifold=\" << (m_closedManifold ? 1 : 0)
+              << \" outward_normal_sign=\" << m_outwardNormalSign << std::endl;""",
             "MeshCollider.cpp file constructor",
         ),
         (
