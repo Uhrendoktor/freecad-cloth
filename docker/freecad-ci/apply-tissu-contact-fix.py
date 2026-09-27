@@ -312,26 +312,18 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         "BVH box query declaration",
     )
 
-    replace_once(
-        bvh_header,
-        """    void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
-                        double squaredRadius,
-                        std::vector<int>& outTriangles) const;
-    void queryBoxRecursive(int nodeIdx, const Eigen::AlignedBox3d& box,
+    bvh_header_text = bvh_header.read_text(encoding="utf-8")
+    recursive_anchor = """    void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,"""
+    if bvh_header_text.count(recursive_anchor) != 1:
+        raise RuntimeError("BVH box helper declaration: expected one stable source anchor")
+    bvh_header_text = bvh_header_text.replace(
+        recursive_anchor,
+        """    void queryBoxRecursive(int nodeIdx, const Eigen::AlignedBox3d& box,
                            std::vector<int>& outTriangles) const;
-    int closestRecursive(int nodeIdx, const Eigen::Vector3d& point,
-                         const std::vector<Eigen::Vector3d>& vertices,
-                         double& bestDistSq) const;""",
-        """    void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
-                        double squaredRadius,
-                        std::vector<int>& outTriangles) const;
-    void queryBoxRecursive(int nodeIdx, const Eigen::AlignedBox3d& box,
-                           std::vector<int>& outTriangles) const;
-    int closestRecursive(int nodeIdx, const Eigen::Vector3d& point,
-                         const std::vector<Eigen::Vector3d>& vertices,
-                         double& bestDistSq) const;""",
-        "BVH box helper declaration",
+""" + recursive_anchor,
+        1,
     )
+    bvh_header.write_text(bvh_header_text, encoding="utf-8")
 
     bvh_cpp_text = bvh_cpp.read_text(encoding="utf-8")
     replace_once(
