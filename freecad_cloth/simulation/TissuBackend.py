@@ -103,6 +103,7 @@ class TissuBackend(ClothSimulationBackend):
         self._triangles = tuple(tuple(int(i) for i in tri) for tri in triangles)
         self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins))
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
+        self._attachments = ()
         self._source_collision_surface = collision_surface
         collision_limit = _tissu_collision_triangle_limit()
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
@@ -163,6 +164,47 @@ class TissuBackend(ClothSimulationBackend):
         for a, b in self._stitches:
             self._sim.solver.add_stitch(int(a), int(b), 0.0)
         self._add_collision()
+        self._apply_attachments()
+
+    @property
+    def attachments(self):
+        return self._attachments
+
+    def attach_to_collision_surface(self, local_particle_ids, target_vertex_ids, compliance=0.0, rest_length=0.0):
+        """Attach cloth particles to deterministic vertices on the registered mesh collider."""
+        if self._collision_mode != "mesh" or self._collision_surface is None:
+            raise RuntimeError("Tissu attachment targets require mesh collision mode")
+        particle_ids = tuple(int(i) for i in local_particle_ids)
+        vertex_ids = tuple(int(i) for i in target_vertex_ids)
+        if len(particle_ids) != len(vertex_ids):
+            raise ValueError("attachment particle/vertex counts must match")
+        if len(set(particle_ids)) != len(particle_ids):
+            raise ValueError("attachment particle ids must be unique")
+        if len(set(vertex_ids)) != len(vertex_ids):
+            raise ValueError("attachment target vertex ids must be unique")
+        particle_count = len(self._initial.particles)
+        vertex_count = len(self._collision_surface.vertices)
+        if any(i < 0 or i >= particle_count for i in particle_ids):
+            raise IndexError("attachment particle id out of range")
+        if any(i < 0 or i >= vertex_count for i in vertex_ids):
+            raise IndexError("attachment target vertex id out of range")
+        specs = tuple(zip(particle_ids, vertex_ids))
+        self._attachments = specs
+        self._apply_attachments(compliance=float(compliance), rest_length=float(rest_length))
+
+    def _apply_attachments(self, compliance=0.0, rest_length=0.0):
+        if not self._attachments:
+            return
+        local_ids = [particle_id for particle_id, _vertex_id in self._attachments]
+        target_vertex_ids = [vertex_id for _particle_id, vertex_id in self._attachments]
+        self._sim.attach(
+            self._fabric,
+            "drape-target",
+            local_ids,
+            target_vertex_ids=target_vertex_ids,
+            compliance=float(compliance),
+            rest_length=float(rest_length),
+        )
 
     def step(self, dt=1.0 / 60.0, iterations=8, gravity=(0.0, 0.0, -9810.0), sphere=None, surface=None):
         if dt <= 0 or iterations < 1:
