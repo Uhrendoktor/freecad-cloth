@@ -235,3 +235,22 @@ def test_group_fit_uses_cached_surface_samples_for_shared_rigid_correction():
     assert sample_cache < sample_solver < centroid_fallback
     assert "for point in sample_cache[piece]" in body[sample_solver:centroid_fallback]
     assert "accepted_step = step" in body[sample_solver:centroid_fallback]
+
+
+def test_group_fit_sample_projection_preserves_panel_side_context():
+    from pathlib import Path
+
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "freecad_cloth"
+        / "avatar"
+        / "FittingCommands.py"
+    ).read_text(encoding="utf-8")
+    start = source.index("def snap_pattern_pieces_to_target(")
+    end = source.index("\ndef position_piece", start)
+    body = source[start:end]
+    directions = body.index("preferred_directions = {")
+    assert "average_point(sample_cache[piece])" in body[directions:directions + 600]
+    assert body.index("preferred_direction = preferred_directions[piece]", directions) < body.index(
+        "test_projection = nearest_target_projection(", directions
+    )
