@@ -31,6 +31,8 @@ def main() -> int:
     header = ROOT / "core/include/physics/MeshCollider.hpp"
     cpp = ROOT / "core/src/physics/MeshCollider.cpp"
     test = ROOT / "tests/physics/test_mesh_collider.cpp"
+    bvh_header = ROOT / "core/include/data-structures/BVH.hpp"
+    bvh_cpp = ROOT / "core/src/data-structures/BVH.cpp"
 
     replace_once(
         header,
@@ -47,6 +49,65 @@ def main() -> int:
         "MeshCollider.hpp member layout",
     )
 
+    replace_once(
+        header,
+        """    const std::vector<Triangle>& getTriangles() const { return m_triangles; }
+
+private:""",
+        """    const std::vector<Triangle>& getTriangles() const { return m_triangles; }
+
+private:
+    bool firstSegmentHit(const Eigen::Vector3d& start,
+                         const Eigen::Vector3d& end, double margin,
+                         double& hitT, Eigen::Vector3d& hitNormal,
+                         int& triangleIndex) const;""",
+        "MeshCollider.hpp first-segment-hit declaration",
+    )
+
+    replace_once(
+        bvh_header,
+        """    void query(const Eigen::Vector3d& point, double radius,
+               std::vector<int>& outTriangles) const;
+    int closestTriangle(const Eigen::Vector3d& point,
+                        const std::vector<Eigen::Vector3d>& vertices) const;""",
+        """    void query(const Eigen::Vector3d& point, double radius,
+               std::vector<int>& outTriangles) const;
+    int closestTriangle(const Eigen::Vector3d& point,
+                        const std::vector<Eigen::Vector3d>& vertices) const;""",
+        "BVH public query preservation",
+    )
+
+    replace_once(
+        bvh_header,
+        """private:
+    int buildRecursive(std::vector<Triangle>& tempTriangles,
+                       const std::vector<Eigen::Vector3d>& vertices, int start,
+                       int end);""",
+        """private:
+    friend class MeshCollider;
+    void query(const Eigen::AlignedBox3d& box,
+               std::vector<int>& outTriangles) const;
+
+    int buildRecursive(std::vector<Triangle>& tempTriangles,
+                       const std::vector<Eigen::Vector3d>& vertices, int start,
+                       int end);""",
+        "BVH private box query declaration",
+    )
+
+    replace_once(
+        bvh_header,
+        """    void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
+                        double squaredRadius,
+                        std::vector<int>& outTriangles) const;""",
+        """    void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
+                        double squaredRadius,
+                        std::vector<int>& outTriangles) const;
+    void queryBoxRecursive(int nodeIdx, const Eigen::AlignedBox3d& box,
+                           std::vector<int>& outTriangles) const;""",
+        "BVH box query recursive declaration",
+    )
+
+
     cpp = cpp.read_text(encoding="utf-8")
     include_old = '#include "physics/Particle.hpp"\n\nnamespace Tissu {'
     include_new = """#include "physics/Particle.hpp"
@@ -54,6 +115,7 @@ def main() -> int:
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <unordered_map>
 #include <utility>
 
@@ -119,6 +181,50 @@ MeshOrientation inferMeshOrientation(
         return {};
 
     return {true, signedVolume > 0.0 ? 1.0 : -1.0};
+}
+
+bool segmentTriangleHit(
+    const Eigen::Vector3d& start, const Eigen::Vector3d& end,
+    const Eigen::Vector3d& a, const Eigen::Vector3d& b,
+    const Eigen::Vector3d& c, double epsilon, double& t,
+    Eigen::Vector3d& normal) {
+    const Eigen::Vector3d direction = end - start;
+    const Eigen::Vector3d edge1 = b - a;
+    const Eigen::Vector3d edge2 = c - a;
+    const Eigen::Vector3d pvec = direction.cross(edge2);
+    const double determinant = edge1.dot(pvec);
+    if (std::abs(determinant) <= epsilon)
+        return false;
+
+    const double inverseDeterminant = 1.0 / determinant;
+    const Eigen::Vector3d tvec = start - a;
+    const double u = tvec.dot(pvec) * inverseDeterminant;
+    if (u < -epsilon || u > 1.0 + epsilon)
+        return false;
+
+    const Eigen::Vector3d qvec = tvec.cross(edge1);
+    const double v = direction.dot(qvec) * inverseDeterminant;
+    if (v < -epsilon || u + v > 1.0 + epsilon)
+        return false;
+
+    t = edge2.dot(qvec) * inverseDeterminant;
+    if (t <= epsilon || t > 1.0 + epsilon)
+        return false;
+
+    Eigen::Vector3d rawNormal = edge1.cross(edge2);
+    const double normalLength = rawNormal.norm();
+    const double directionLength = direction.norm();
+    if (normalLength <= epsilon || directionLength <= epsilon)
+        return false;
+
+    rawNormal /= normalLength;
+    if (std::abs(direction.normalized().dot(rawNormal)) <= 1e-10)
+        return false;
+
+    normal = rawNormal;
+    if (t > 1.0)
+        t = 1.0;
+    return true;
 }
 
 } // namespace
@@ -205,8 +311,198 @@ MeshOrientation inferMeshOrientation(
         if count != 1:
             raise RuntimeError(f"{label}: expected one source anchor, found {count}")
         cpp = cpp.replace(old, new, 1)
-    Path(cpp_path := ROOT / "core/src/physics/MeshCollider.cpp").write_text(cpp, encoding="utf-8")
+    replace_once(
+        bvh_cpp,
+        """void BVH::queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
+                         double squaredRadius,
+                         std::vector<int>& outTriangles) const {""",
+        """void BVH::query(const Eigen::AlignedBox3d& box,
+                std::vector<int>& outTriangles) const {
+    outTriangles.clear();
+    if (m_rootIndex == -1 || m_nodes.empty())
+        return;
+    queryBoxRecursive(m_rootIndex, box, outTriangles);
+}
 
+void BVH::queryBoxRecursive(int nodeIdx, const Eigen::AlignedBox3d& box,
+                            std::vector<int>& outTriangles) const {
+    const BVHNode& node = m_nodes[nodeIdx];
+    if (!node.bbox.intersects(box))
+        return;
+
+    if (node.isLeaf()) {
+        for (int i = 0; i < node.primitiveCount; ++i)
+            outTriangles.push_back(node.triangleIndex + i);
+        return;
+    }
+
+    queryBoxRecursive(node.left, box, outTriangles);
+    queryBoxRecursive(node.right, box, outTriangles);
+}
+
+void BVH::queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
+                         double squaredRadius,
+                         std::vector<int>& outTriangles) const {""",
+        "BVH box query implementation",
+    )
+
+    cpp_path = ROOT / "core/src/physics/MeshCollider.cpp"
+    first_segment_old = """void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
+                           double thickness) {"""
+    first_segment_new = """bool MeshCollider::firstSegmentHit(
+    const Eigen::Vector3d& start, const Eigen::Vector3d& end,
+    double margin, double& hitT, Eigen::Vector3d& hitNormal,
+    int& triangleIndex) const {
+    const Eigen::Vector3d minPoint =
+        start.cwiseMin(end) - Eigen::Vector3d::Constant(margin);
+    const Eigen::Vector3d maxPoint =
+        start.cwiseMax(end) + Eigen::Vector3d::Constant(margin);
+    const Eigen::AlignedBox3d queryBox(minPoint, maxPoint);
+
+    std::vector<int> candidates;
+    m_bvh.query(queryBox, candidates);
+    std::sort(candidates.begin(), candidates.end());
+    candidates.erase(std::unique(candidates.begin(), candidates.end()),
+                     candidates.end());
+
+    constexpr double epsilon = 1e-12;
+    double bestT = std::numeric_limits<double>::infinity();
+    int bestTriangle = -1;
+    Eigen::Vector3d bestNormal = Eigen::Vector3d::Zero();
+
+    for (const int candidateIndex : candidates) {
+        const Triangle& tri = m_bvh.getTriangle(candidateIndex);
+        double candidateT = 0.0;
+        Eigen::Vector3d candidateNormal = Eigen::Vector3d::Zero();
+        if (!segmentTriangleHit(start, end, m_worldVertices[tri.a],
+                                m_worldVertices[tri.b], m_worldVertices[tri.c],
+                                epsilon, candidateT, candidateNormal))
+            continue;
+
+        const double normalTravel =
+            std::abs((end - start).dot(candidateNormal));
+        if (normalTravel <= epsilon)
+            continue;
+
+        candidateT = std::max(
+            0.0, candidateT - margin / normalTravel);
+
+        if (candidateT < bestT - epsilon ||
+            (std::abs(candidateT - bestT) <= epsilon &&
+             (bestTriangle < 0 || candidateIndex < bestTriangle))) {
+            bestT = candidateT;
+            bestTriangle = candidateIndex;
+            bestNormal = candidateNormal;
+        }
+    }
+
+    if (bestTriangle < 0)
+        return false;
+
+    hitT = bestT;
+    hitNormal = bestNormal;
+    triangleIndex = bestTriangle;
+    return true;
+}
+
+void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
+                           double thickness) {"""
+    if cpp.count(first_segment_old) != 1:
+        raise RuntimeError("MeshCollider first-segment-hit implementation anchor mismatch")
+    cpp = cpp.replace(first_segment_old, first_segment_new, 1)
+    current_contact = """        if (distance <= thickness) {
+            Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
+            const double faceNormalLength = faceNormalRaw.norm();
+            if (faceNormalLength <= 1e-12)
+                continue;
+            Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
+
+            Eigen::Vector3d normal = faceNormal;
+            if (distance > 1e-6) {
+                normal = toParticle / distance;
+                if (m_closedManifold) {
+                    const Eigen::Vector3d outwardNormal =
+                        faceNormal * m_outwardNormalSign;
+                    // A particle on the interior side of a closed, consistently
+                    // oriented surface must be resolved along the outward
+                    // normal; outside contact preserves the existing vector.
+                    if (normal.dot(outwardNormal) < 0.0)
+                        normal = -normal;
+                }
+            } else if (m_closedManifold) {
+                normal *= m_outwardNormalSign;
+            }
+
+            Eigen::Vector3d newPosition = cp + normal * thickness;""";
+    swept_contact = """        Eigen::Vector3d sweptNormal = Eigen::Vector3d::Zero();
+        Eigen::Vector3d sweptFaceNormal = Eigen::Vector3d::Zero();
+        bool sweptContact = false;
+        const Eigen::Vector3d displacement =
+            particle.getPosition() - particle.getOldPosition();
+        if (distance > thickness &&
+            displacement.squaredNorm() > thickness * thickness) {
+            double hitT = 1.0;
+            Eigen::Vector3d hitNormal = Eigen::Vector3d::Zero();
+            int hitTriangle = -1;
+            if (firstSegmentHit(
+                    particle.getOldPosition(), particle.getPosition(),
+                    thickness, hitT, hitNormal, hitTriangle)) {
+                const Triangle& hitTri = m_bvh.getTriangle(hitTriangle);
+                const Eigen::Vector3d& hitA = m_worldVertices[hitTri.a];
+                const Eigen::Vector3d& hitB = m_worldVertices[hitTri.b];
+                const Eigen::Vector3d& hitC = m_worldVertices[hitTri.c];
+                const Eigen::Vector3d hitPoint =
+                    particle.getOldPosition() + displacement * hitT;
+                const Eigen::Vector3d rawHitNormal =
+                    (hitB - hitA).cross(hitC - hitA);
+                const double hitNormalLength = rawHitNormal.norm();
+                if (hitNormalLength > 1e-12) {
+                    sweptFaceNormal = rawHitNormal / hitNormalLength;
+                    sweptNormal = hitNormal.normalized();
+                    if (m_closedManifold) {
+                        sweptNormal = sweptFaceNormal * m_outwardNormalSign;
+                    } else if (
+                        (particle.getOldPosition() - hitPoint)
+                            .dot(sweptNormal) < 0.0) {
+                        sweptNormal = -sweptNormal;
+                    }
+                    cp = hitPoint;
+                    sweptContact = true;
+                }
+            }
+        }
+
+        if (distance <= thickness || sweptContact) {
+            Eigen::Vector3d faceNormalRaw =
+                sweptContact ? sweptFaceNormal : (b - a).cross(c - a);
+            const double faceNormalLength = faceNormalRaw.norm();
+            if (faceNormalLength <= 1e-12)
+                continue;
+            Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
+
+            Eigen::Vector3d normal = sweptContact ? sweptNormal : faceNormal;
+            if (!sweptContact && distance > 1e-6) {
+                normal = toParticle / distance;
+                if (m_closedManifold) {
+                    const Eigen::Vector3d outwardNormal =
+                        faceNormal * m_outwardNormalSign;
+                    // A particle on the interior side of a closed, consistently
+                    // oriented surface must be resolved along the outward
+                    // normal; outside contact preserves the existing vector.
+                    if (normal.dot(outwardNormal) < 0.0)
+                        normal = -normal;
+                }
+            } else if (!sweptContact && m_closedManifold) {
+                normal *= m_outwardNormalSign;
+            }
+
+            Eigen::Vector3d newPosition = cp + normal * thickness;""";
+    current_count = cpp.count(current_contact)
+    if current_count != 1:
+        raise RuntimeError(f"generated contact anchor count mismatch: {current_count}")
+    cpp = cpp.replace(current_contact, swept_contact, 1)
+
+    Path(cpp_path).write_text(cpp, encoding="utf-8")
     test_cpp = test.read_text(encoding="utf-8")
     test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
     helper = """static bool tetrahedronContains(const Eigen::Vector3d& point) {
@@ -282,16 +578,76 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     mesh.resolve(particles, 0.016, 0.1);
 
     EXPECT_GT(particles[0].getPosition().y(), initialPos.y());
-}"""
-    if test_cpp.count(old) != 1:
-        raise RuntimeError("MeshCollider regression test body anchor mismatch")
-    test_cpp = test_cpp.replace(old, new, 1)
+}
+
+TEST(MeshCollider, HighSpeedOutsideToInsideCrossingIsResolved) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    std::vector<Particle> particles;
+    particles.emplace_back(Eigen::Vector3d(1.0, 0.5, 0.75));
+    particles[0].setOldPosition(Eigen::Vector3d(1.0, -5.0, 0.75));
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+    EXPECT_LT(particles[0].getPosition().y(), 0.0);
+}
+
+TEST(MeshCollider, InsideToOutsideCrossingLeavesParticleOutside) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    std::vector<Particle> particles;
+    particles.emplace_back(Eigen::Vector3d(1.0, -5.0, 0.75));
+    particles[0].setOldPosition(Eigen::Vector3d(1.0, 0.5, 0.75));
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+}
+
+TEST(MeshCollider, ParallelOutsideMotionDoesNotFalsePositive) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    std::vector<Particle> particles;
+    const Eigen::Vector3d start(-1.0, -0.11, 1.0);
+    const Eigen::Vector3d end(3.0, -0.11, 1.0);
+    particles.emplace_back(end);
+    particles[0].setOldPosition(start);
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_EQ(particles[0].getPosition(), end);
+}
+
+TEST(MeshCollider, EarliestCrossingIsSelectedDeterministically) {
+    const std::vector<Eigen::Vector3d> vertices = {
+        {0.0, -10.0, -10.0}, {0.0, 10.0, -10.0},
+        {0.0, 10.0, 10.0}, {0.0, -10.0, 10.0},
+        {100.0, -10.0, -10.0}, {100.0, 10.0, -10.0},
+        {100.0, 10.0, 10.0}, {100.0, -10.0, 10.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {
+        {0, 1, 2}, {0, 2, 3}, {4, 6, 5}, {4, 7, 6},
+    };
+    MeshCollider mesh(vertices, triangles, 0.0);
+    const Eigen::Vector3d start(-250.0, 0.0, 0.0);
+    const Eigen::Vector3d end(250.0, 0.0, 0.0);
+    std::vector<Particle> particles;
+    particles.emplace_back(end);
+    particles[0].setOldPosition(start);
+
+    mesh.resolve(particles, 0.016, 0.5);
+
+    EXPECT_LT(particles[0].getPosition().x(), 0.0);
+    EXPECT_GT(particles[0].getPosition().x(), -1.0);
+}
+
+"""
     test.write_text(test_cpp, encoding="utf-8")
 
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
     changed = run("git", "diff", "--name-only")
     expected = {
+        "core/include/data-structures/BVH.hpp",
+        "core/src/data-structures/BVH.cpp",
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
         "tests/physics/test_mesh_collider.cpp",
@@ -302,7 +658,30 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     script_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     print(f"Tissu source commit: {EXPECTED_COMMIT}")
     print(f"Tissu contact fix script sha256: {script_sha}")
+    bvh_header_text = bvh_header.read_text(encoding="utf-8")
+    bvh_cpp_text = bvh_cpp.read_text(encoding="utf-8")
+    generated_cpp = cpp_path.read_text(encoding="utf-8")
+    for anchor in (
+        "void query(const Eigen::AlignedBox3d& box,",
+        "void queryBoxRecursive(int nodeIdx, const Eigen::AlignedBox3d& box,",
+    ):
+        if anchor not in bvh_header_text:
+            raise RuntimeError(f"missing BVH header anchor: {anchor}")
+    for anchor in (
+        "void BVH::query(const Eigen::AlignedBox3d& box,",
+        "void BVH::queryBoxRecursive(int nodeIdx, const Eigen::AlignedBox3d& box,",
+    ):
+        if anchor not in bvh_cpp_text:
+            raise RuntimeError(f"missing BVH implementation anchor: {anchor}")
+    for anchor in (
+        "bool MeshCollider::firstSegmentHit(",
+        "m_bvh.query(queryBox, candidates);",
+        "if (distance <= thickness || sweptContact)",
+    ):
+        if anchor not in generated_cpp:
+            raise RuntimeError(f"missing continuous-contact anchor: {anchor}")
     print("Tissu contact fix: applied and self-checked")
+    print("Tissu continuous body contact: verified")
     return 0
 
 
