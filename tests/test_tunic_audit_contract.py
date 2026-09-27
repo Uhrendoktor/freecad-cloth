@@ -13,7 +13,7 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())' in source
     assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in source
     assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in source
-    assert 'front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"' in source
+    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' in source
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
@@ -43,7 +43,7 @@ def test_canonical_tunic_uses_validated_authored_mapping():
     assert "required_indices = (1, 2, 6, 7)" in audit
     assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in audit
     assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in audit
-    assert 'front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"' in audit
+    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' in audit
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in audit
     assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' not in audit
 
