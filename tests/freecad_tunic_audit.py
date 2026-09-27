@@ -106,8 +106,7 @@ initial_stitch_probe = '''    initial_backend = scene.Proxy._base_or_restore().b
         raise RuntimeError("canonical tunic has no exact initial solver stitch spans")
     log("initial-stitch-span-mm min=%.3f mean=%.3f max=%.3f count=%d" % (min(initial_spans), sum(initial_spans) / len(initial_spans), max(initial_spans), len(initial_spans)))
 '''
-source = source.replace(anchor, initialProbe + '\n' + preview_probe + '\n' + timed_anchor, 1)
-source = source.replace(anchor, preview_probe + '\n' + timed_anchor, 1)
+source = source.replace(anchor, initial_stitch_probe + '\n' + preview_probe + '\n' + timed_anchor, 1)
 
 seam_check = """    backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
