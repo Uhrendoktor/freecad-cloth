@@ -40,7 +40,8 @@ def test_contact_control_contract():
     assert "if: always()" in workflow
     assert "if-no-files-found: warn" in workflow
     assert 'CLOTH_CONTACT_CONTROLS_EXECUTE=1' in workflow
-    assert 'or os.environ.get("CLOTH_CONTACT_CONTROLS_EXECUTE") == "1"' in source
+    assert "FreeCAD AppRun does not provide a reliable __main__ namespace" in source
+    assert "\nmain()\n" in source
     assert 'entrypoint __name__=' in source
     assert "retention-days: 14" in workflow
     assert "faulthandler.dump_traceback_later(30.0, repeat=True" in source
