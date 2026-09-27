@@ -57,64 +57,60 @@ class AvatarSpec:
 
 
 def coarsen_collision_surface(surface: CollisionSurface, max_triangles: int = 1024) -> CollisionSurface:
-    """Derive a spatially covered collision surface from a real authored mesh.
+    """Derive a deterministically covered collision surface from a real authored mesh.
 
-    The visible avatar remains the full MakeHuman mesh. The solver does not need
-    every render triangle, so this keeps one representative triangle per coarse
-    spatial cell until the requested triangle budget is reached. No proxy object
-    is created and the result remains derived solely from the real avatar mesh.
+    The visible avatar remains the full authored mesh. The solver gets at most
+    ``max_triangles`` source triangles selected by normalized farthest-point
+    sampling of triangle centroids. Normalizing each axis prevents a tall avatar
+    from starving lateral coverage, while source vertices, winding, region and
+    thickness remain unchanged. No proxy geometry is created.
     """
     limit = int(max_triangles)
     surface.validate()
     if limit < 1:
         raise ValueError("max_triangles must be positive")
-    if len(surface.triangles) <= limit:
+    triangle_count = len(surface.triangles)
+    if triangle_count <= limit:
         return surface
 
-    points = surface.vertices
     centroids = []
-    mins = [float("inf")] * 3
-    maxs = [float("-inf")] * 3
     for ia, ib, ic in surface.triangles:
-        a, b, c = points[ia], points[ib], points[ic]
-        center = tuple((a[i] + b[i] + c[i]) / 3.0 for i in range(3))
-        centroids.append(center)
-        for i in range(3):
-            mins[i] = min(mins[i], center[i])
-            maxs[i] = max(maxs[i], center[i])
+        a, b, c = surface.vertices[ia], surface.vertices[ib], surface.vertices[ic]
+        centroids.append((
+            (a[0] + b[0] + c[0]) / 3.0,
+            (a[1] + b[1] + c[1]) / 3.0,
+            (a[2] + b[2] + c[2]) / 3.0,
+        ))
 
-    span = max(maxs[i] - mins[i] for i in range(3))
-    if span <= 1e-9:
-        step = 1
-    else:
-        cells_per_axis = max(1, int(ceil(limit ** (1.0 / 3.0))))
-        cell = span / cells_per_axis
-        step = max(1, cells_per_axis)
+    import numpy as np
 
-    selected = {}
-    for index, center in enumerate(centroids):
-        if span <= 1e-9:
-            key = (0, 0, 0)
-        else:
-            key = tuple(min(step - 1, max(0, int((center[i] - mins[i]) / cell))) for i in range(3))
-        if key not in selected:
-            selected[key] = index
+    points = np.asarray(centroids, dtype=float)
+    mins = points.min(axis=0)
+    spans = points.max(axis=0) - mins
+    safe_spans = np.where(spans > 1e-12, spans, 1.0)
+    normalized = (points - mins) / safe_spans
 
-    indices = list(selected.values())
-    if len(indices) > limit:
-        stride = max(1, int(ceil(len(indices) / float(limit))))
-        indices = indices[::stride][:limit]
-    elif len(indices) < limit:
-        used = set(indices)
-        stride = max(1, len(surface.triangles) // limit)
-        for index in range(0, len(surface.triangles), stride):
-            if index not in used:
-                indices.append(index)
-                used.add(index)
-                if len(indices) >= limit:
-                    break
+    selected = np.empty(limit, dtype=np.int64)
+    center = np.full(3, 0.5, dtype=float)
+    first = int(np.argmin(np.sum((normalized - center) ** 2, axis=1)))
+    selected[0] = first
 
-    triangles = tuple(surface.triangles[index] for index in indices[:limit])
+    nearest_distance_sq = np.sum((normalized - normalized[first]) ** 2, axis=1)
+    nearest_distance_sq[first] = -1.0
+
+    for slot in range(1, limit):
+        next_index = int(np.argmax(nearest_distance_sq))
+        selected[slot] = next_index
+        delta = normalized - normalized[next_index]
+        distance_sq = np.sum(delta * delta, axis=1)
+        nearest_distance_sq = np.minimum(nearest_distance_sq, distance_sq)
+        nearest_distance_sq[next_index] = -1.0
+
+    selected_indices = tuple(int(index) for index in selected)
+    if len(set(selected_indices)) != limit:
+        raise RuntimeError("collision coarsening selected duplicate triangle indices")
+
+    triangles = tuple(surface.triangles[index] for index in selected_indices)
     result = CollisionSurface(surface.vertices, triangles, surface.region, surface.thickness)
     result.validate()
     return result
