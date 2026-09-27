@@ -1,0 +1,41 @@
+name: Publish GitHub Wiki
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "wiki/**"
+
+concurrency:
+  group: wiki-sync-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish human documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Require Wiki credential
+        env:
+          WIKI_SYNC_TOKEN: ${{ secrets.WIKI_SYNC_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$WIKI_SYNC_TOKEN" ]; then
+            echo "::error::WIKI_SYNC_TOKEN is not configured. Add a token with write access to the freecad-cloth wiki repository."
+            exit 1
+          fi
+
+      - name: Publish repository Wiki source
+        env:
+          WIKI_REMOTE_URL: https://x-access-token:${{ secrets.WIKI_SYNC_TOKEN }}@github.com/Uhrendoktor/freecad-cloth.wiki.git
+        run: python3 tools/wiki_bridge.py publish
