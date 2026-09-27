@@ -88,6 +88,8 @@ def test_workflow_validator_matches_shared_manifest():
     assert 'case["solver"]["backend"]' in WORKFLOW
     assert 'case["collision"]["solver_triangles"]' in WORKFLOW
     assert 'case["checkpoints"]' in WORKFLOW
+    assert "proximity_mesh.nearest.on_surface" in SOURCE
+    assert "trimesh.Trimesh(" in SOURCE
 
 
 def test_cube_ladder_is_typed_and_fail_closed():
