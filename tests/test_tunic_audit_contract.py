@@ -159,3 +159,21 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     gate = source.index("assert_drape_diagnostics(json.load(handle).get(\"panels\", ()))")
     assert "drape-metrics=" in source[:gate]
     assert "gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]
+
+
+def test_tissu_stitch_compliance_experiment_is_explicit_and_canonical_only():
+    backend = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "_TISSU_STITCH_COMPLIANCE_DEFAULT = 0.0" in backend
+    assert '"CLOTH_TISSU_STITCH_COMPLIANCE"' in backend
+    assert "self._stitch_compliance = _tissu_stitch_compliance(stitch_compliance)" in backend
+    assert "int(a), int(b), 0.0, self._stitch_compliance" in backend
+    assert 'os.environ["CLOTH_TISSU_STITCH_COMPLIANCE"] = "0.001"' in audit
+    assert 'tunic-stitch-compliance=' in audit
+    assert 'abs(active_compliance - 0.001) > 1.0e-12' in audit
+
+
+def test_tissu_stitch_compliance_default_is_not_changed_by_audit_scope():
+    backend = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    assert '_TISSU_STITCH_COMPLIANCE_DEFAULT = 0.0' in backend
+    assert 'os.environ.get("CLOTH_TISSU_STITCH_COMPLIANCE", raw)' in backend
