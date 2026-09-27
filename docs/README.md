@@ -28,6 +28,7 @@ Prefer updating an existing canonical document over adding a new note. Dated aud
 - **Human-facing usage documentation:** the [GitHub Wiki](https://github.com/Uhrendoktor/freecad-cloth/wiki) is published from the repository `wiki/` tree and optimized for first-time users.
 - **Development and agent documentation:** [docs/agents/](agents/) contains machine-oriented contracts, execution rules, and the wiki bridge protocol.
 - `docs/` remains the authoritative engineering reference. Human-facing wiki prose should reflect implemented behavior here rather than invent unsupported capabilities.
+- `.github/workflows/canonical-execution.yml` is the only canonical engineering/test workflow. `.github/workflows/wiki-sync.yml` is intentionally separate and triggers only for changes under `wiki/**` on `main`.
 
 ## Workbench model
 
