@@ -850,7 +850,7 @@ def _run_ladder_case(case_id, rung, predecessor_case_id, pin_mode, seam_mode,
         if panel_count == 2 and seam_mode != "none":
             from freecad_cloth.pattern.PatternModel import Seam
             from freecad_cloth.pattern.PatternObjects import add_seam
-            seam_id = "%s-seam" % case_id
+            seam_id = "cube-ladder-seam"
             seam = Seam(
                 str(pieces[0].PieceId), 1,
                 str(pieces[1].PieceId), 3,
@@ -877,6 +877,10 @@ def _run_ladder_case(case_id, rung, predecessor_case_id, pin_mode, seam_mode,
         if target_status["state"] != "ready":
             raise RuntimeError("%s DrapeTarget is not ready: %s" % (case_id, target_status))
 
+        source = getattr(target, "SourceObject", None)
+        if source is None:
+            raise RuntimeError("%s target source missing" % case_id)
+
         collision_surface = getattr(base, "solver_collision_surface", None)
         if collision_surface is None:
             collision_surface = getattr(base, "collision_surface", None)
@@ -897,7 +901,14 @@ def _run_ladder_case(case_id, rung, predecessor_case_id, pin_mode, seam_mode,
             raise RuntimeError("%s has no active FreeCAD view" % case_id)
 
         records = []
-        previous_positions = tuple(tuple(float(c) for c in p) for p in backend.positions())
+        initial_positions = tuple(tuple(float(c) for c in p) for p in backend.positions())
+        initial_seam_records = _seam_span_records(
+            initial_positions,
+            getattr(base, "seam_stitch_pairs", {}),
+        )
+        initial_distance = _nearest_surface_distance(initial_positions, collision_surface)
+        initial_inside = _inside_outside(initial_positions, source)
+        previous_positions = initial_positions
         start_time = time.perf_counter()
         first_response_step = None
         baseline_distance = None
@@ -924,7 +935,6 @@ def _run_ladder_case(case_id, rung, predecessor_case_id, pin_mode, seam_mode,
             )
             points = positions
             triangles = global_triangles
-            source = getattr(target, "SourceObject", None)
             before_inside = _inside_outside(points, source)
             distance = _nearest_surface_distance(points, collision_surface)
             signed = None
@@ -989,7 +999,12 @@ def _run_ladder_case(case_id, rung, predecessor_case_id, pin_mode, seam_mode,
                 "piece_count": int(panel_count),
                 "pin_mode": str(pin_mode),
                 "seam_mode": str(seam_mode),
+                "seam_id": seam_id,
                 "expected_gap_mm": None if gap_mm is None else float(gap_mm),
+                "initial_piece_placements_world_mm": [
+                    [float(placement.Base.x), float(placement.Base.y), float(placement.Base.z)]
+                    for placement in placements
+                ],
             },
             "solver": solver_settings,
             "collision": {
@@ -1005,10 +1020,14 @@ def _run_ladder_case(case_id, rung, predecessor_case_id, pin_mode, seam_mode,
             },
             "pre_step": {
                 "piece_bounds": piece_bounds,
-                "unsigned_clearance_mm": None,
-                "signed_clearance_mm": records[0]["target_clearance_mm"],
-                "seam_pairs": seam_records,
-                "seam_world_spans_mm": seam_records,
+                "unsigned_clearance_mm": initial_distance,
+                "signed_clearance_mm": (
+                    None
+                    if initial_distance is None
+                    else (-initial_distance if initial_inside in {"inside", "mixed"} else initial_distance)
+                ),
+                "seam_pairs": initial_seam_records,
+                "seam_world_spans_mm": initial_seam_records,
             },
             "checkpoints": records,
             "finite": bool(all(record_item["finite"] for record_item in records)),
@@ -1025,6 +1044,7 @@ def _run_ladder_case(case_id, rung, predecessor_case_id, pin_mode, seam_mode,
                 "seam_world_spans_mm": seam_records,
             },
             "images": [record["image"] for record in records],
+            "checkpoint_image_paths": [record["image"] for record in records],
             "notes": "diagnostic-only; frozen Tissu settings; interpret adjacent rungs until first failing rung",
         }
         return record
