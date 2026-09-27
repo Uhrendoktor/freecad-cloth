@@ -36,6 +36,19 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     assert 'target_source.Mesh.BoundBox' not in source
 
 
+def test_tunic_wrap_uses_authoritative_bounds_and_preserves_clearance():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "target_min_y = min(target_ys)" in source
+    assert "target_max_y = max(target_ys)" in source
+    assert "wrap_cos = min(0.35, 0.5 * max(0.0, target_max_y - target_min_y) / max(1.0, garment_height))" in source
+    assert "front_y = target_min_y - clearance - garment_height * wrap_cos" in source
+    assert "back_y = target_max_y + clearance + garment_height * wrap_cos" in source
+    assert "front_angle = degrees(acos(wrap_cos))" in source
+    assert "back_angle = 180.0 - front_angle" in source
+    assert "scene.PinSelection = []" in source
+    assert 'os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"' in source
+
+
 def test_canonical_tunic_uses_validated_authored_mapping():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "required_indices = (1, 2, 6, 7)" in audit
