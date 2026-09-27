@@ -129,6 +129,9 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "ZeroRestStitchEntryClipsAtClosedCollider" in script
     assert "ZeroRestStitchExitIsNotClipped" in script
     assert "motion.dot(outwardNormal) >= -1e-10" in script
+    assert "const double appliedCorrectionWeight =" in script
+    assert "const double appliedDeltaLambda = deltaLambda * appliedScale;" in script
+    assert "m_lambda += appliedDeltaLambda;" in script
 
     tunic = workflow[workflow.index("  gui-tunic-visual:") : workflow.index("\n  gui-", workflow.index("  gui-tunic-visual:") + 5)]
     assert "FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix" in tunic
