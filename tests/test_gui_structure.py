@@ -209,6 +209,11 @@ print("GUI structure checks passed")
 
 
 
+    icon = ROOT / "resources" / "icons" / "ClothFitting_SnapPiecesToTarget.svg"
+    assert icon.is_file(), icon
+    assert icon.read_text(encoding="utf-8").lstrip().startswith("<svg ")
+
+
 def test_fitting_command_registers_target_snap_and_persists_target_bridge():
     fitting = (ROOT / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
     handoff = (ROOT / "freecad_cloth" / "simulation" / "FittingHandoff.py").read_text(encoding="utf-8")
