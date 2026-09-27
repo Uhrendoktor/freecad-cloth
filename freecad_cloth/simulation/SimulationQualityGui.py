@@ -141,7 +141,11 @@ class SimulationQualityTaskPanel:
             snap_pattern_pieces_to_target(tuple(getattr(fitting, "PatternPieces", ()) or ()))
             self._refresh("Garment pieces arranged on the persistent DrapeTarget.")
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            self.status.setText("Target-aware arrangement unavailable — %s" % exc)
+            message = "Target-aware arrangement unavailable — %s" % exc
+            try:
+                self.status.setText(message)
+            except RuntimeError:
+                self._last_target_arrangement_error = message
 
     def reset_arrangement(self):
         try:
