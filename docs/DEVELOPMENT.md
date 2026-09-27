@@ -84,3 +84,19 @@ Simulation presents target validity before Run/Step. `Run` is primary, `Step` is
 ## Agent state
 
 Keep `AGENT_STATUS.md` and `TOOL_STATE.md` compact. They are the durable coordination records; do not create a new status document for every session.
+
+## Mandatory screenshot-backed simulation review
+
+Simulation behavior is not accepted, merged, or closed on scalar metrics or logs alone.
+
+Every simulation experiment intended for human judgment must have a governing Issue or PR containing the actual rendered screenshots inline in the conversation. Drag-and-drop or paste the PNGs into the Issue/PR; an Actions-artifact link by itself is not sufficient for the human feedback record.
+
+For a simulation run, retain and expose at least:
+- the initial state and the first post-step state;
+- the intermediate checkpoints used by the experiment, normally steps 5/15/30/45/60/75/90 as applicable;
+- the final front/rear/right/left/top/bottom views for garment-scale runs;
+- relevant control or diagnostic views when the hypothesis concerns contact, placement, seams, pins, or collision topology.
+
+The screenshots must correspond to the exact head/commit under discussion. The review comment records the run ID, artifact, exact head SHA, observed visual state, and any intervention required. A green automated gate or numerical metric cannot substitute for this visual record.
+
+The #2492 root issue is the durable experiment ledger. Child Issues/PRs are for one bounded hypothesis each; once a hypothesis is falsified, preserve the result in #2492 and close the duplicate lane rather than starting an equivalent branch without a new causal question.
