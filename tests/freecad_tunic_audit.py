@@ -166,8 +166,8 @@ target_snap_probe = r'''    # Target-aware fitting acceptance on the same native
     anchors = tuple(getattr(fitting, "GarmentAnchors", ()) or ()) if fitting is not None else ()
     if fitting is None or fitting.DrapeTarget != target:
         raise RuntimeError("canonical tunic Snap-to-target lost persistent DrapeTarget identity")
-    if len(anchors) < 2:
-        raise RuntimeError("canonical tunic Snap-to-target did not persist one fitting anchor per garment piece")
+    if len(anchors) < 4:
+        raise RuntimeError("canonical tunic Snap-to-target did not persist four garment anchors")
     snapped_pairwise = _pairwise_centers()
     snapped_relative = _relative_rotations()
     if set(home_pairwise) != set(snapped_pairwise):
