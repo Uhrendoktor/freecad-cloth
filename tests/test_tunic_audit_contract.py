@@ -121,18 +121,20 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert '/opt/conda/envs/freecad/bin/cmake -S . -B build' in dockerfile
     assert '/opt/conda/envs/freecad/bin/cmake --build build' in dockerfile
     assert '--target _cloth_sdk_core unit_tests' in dockerfile
-    assert "--gtest_filter='MeshCollider.*:Solver.*'" in dockerfile
+    assert "--gtest_filter='MeshCollider.*:StitchConstraint.*'" in dockerfile
     assert "ParticleInsideMeshMovesOutside" in script
     assert "tetrahedronContains" in script
     assert "ClosedMeshKeepsOutsideContactOutside" in script
     assert "OpenMeshRetainsLegacyContactDirection" in script
-    assert "ClipsZeroRestStitchAtClosedMeshCrossing" in script
-    assert "ZeroRestStitchFreeSpaceConvergesNormally" in script
-    assert "firstEnteringMeshCrossing" in script
-    assert "stitch->getLambda()" in script
-    assert "stitch->setLambda(" in script
-    assert "m_activeCollisionThickness" in script
-    assert "m_activeColliders" in script
+    assert "SolverClipsEnteringCorrectionAtClosedBox" in script
+    assert "SolverDoesNotClipExitFromClosedBox" in script
+    assert "SolverPreservesFreeSpaceCorrection" in script
+    assert "SolverKeepsAppliedLambdaStableAcrossIterations" in script
+    assert "SolverChoosesEarliestEnteringCrossingAcrossColliders" in script
+    assert "firstSegmentHit" in script
+    assert "enteringNormal" in script
+    assert "clipCorrectionAtFirstEnteringMeshHit" in script
+    assert "m_lambda += appliedDeltaLambda;" in script
 
     tunic = workflow[workflow.index("  gui-tunic-visual:") : workflow.index("\n  gui-", workflow.index("  gui-tunic-visual:") + 5)]
     assert "FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix" in tunic
@@ -140,7 +142,7 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert 'docker run --rm --init' in tunic
     assert '"$FREECAD_TUNIC_IMAGE" bash -lc' in tunic
     assert 'TISSU_FIX_SHA256=' in dockerfile
-    assert 'tissu-cpp-regression=MeshCollider.*:Solver.*' in dockerfile
+    assert 'tissu-cpp-regression=MeshCollider.*:StitchConstraint.*' in dockerfile
     assert 'tissu-cpp-regression-result=passed' in dockerfile
     assert 'docker run --rm "$FREECAD_TUNIC_IMAGE" bash -lc' in workflow
     assert 'artifacts/tissu-provenance.txt' in workflow
