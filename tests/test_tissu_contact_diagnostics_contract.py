@@ -67,6 +67,10 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "faulthandler.dump_traceback_later(30.0, repeat=True" in SOURCE
     assert "entrypoint __name__=" in SOURCE
     assert "setsid /opt/freecad/AppRun /workspace/tests/freecad_tissu_contact_diagnostics.py" in WORKFLOW
+    assert "Shape.CenterOfMass" in SOURCE
+    assert "width=72.0" in SOURCE
+    assert 'did not create a true interior pre-step state' in SOURCE
+    assert 'tissu-env: collision_mode=' in SOURCE
     assert "diagnostic-contact-supervisor=timeout" in WORKFLOW
     assert "artifacts/tissu-contact-diagnostics/app-run.log" in WORKFLOW
     assert "if-no-files-found: warn" in WORKFLOW
