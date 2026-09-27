@@ -606,13 +606,19 @@ class SimulationProxy:
         )
         system.add_stitches(seam_pairs)
         collision_surface = _collision_for_scene(obj)
-        shoulder_landmarks = _tunic_shoulder_landmarks(obj)
-        attachments = _tunic_shoulder_attachment_records(
-            seam_pair_records,
-            positions,
-            collision_surface,
-            shoulder_landmarks,
+        has_tunic_shoulders = any(
+            "tunic" in str(record[0]).lower() and "shoulder" in str(record[0]).lower()
+            for record in seam_pair_records
         )
+        attachments = ()
+        if has_tunic_shoulders:
+            shoulder_landmarks = _tunic_shoulder_landmarks(obj)
+            attachments = _tunic_shoulder_attachment_records(
+                seam_pair_records,
+                positions,
+                collision_surface,
+                shoulder_landmarks,
+            )
         first = panel_data[str(pieces[0].PieceId)] if pieces else None
         boundary = (
             tuple(dict.fromkeys(i for edge in first["boundary_edges"] for i in edge))
