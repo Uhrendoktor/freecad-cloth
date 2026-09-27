@@ -73,7 +73,7 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
     log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
 '''
-anchor = '''    initial_backend = scene.Proxy._base_or_restore().backend
+initial_span_probe = '''    initial_backend = scene.Proxy._base_or_restore().backend
     initial_positions = tuple(initial_backend.positions())
     initial_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
     if not initial_pairs_by_seam:
@@ -100,7 +100,8 @@ anchor = '''    initial_backend = scene.Proxy._base_or_restore().backend
     log("initial-stitch-spans-mm=%s" % json.dumps(initial_summary, sort_keys=True))
     if initial_max_span > 35.0:
         raise RuntimeError("initial tunic stitch spans remain incompatible: max %.3f mm" % initial_max_span)
-    for batch in (15,15,15,15,15,15):
+'''
+anchor = '''    for batch in (15,15,15,15,15,15):
         simulation_panel.step(batch); doc.recompute(); events()
 '''
 if anchor not in source:
@@ -120,7 +121,7 @@ timed_anchor = '''    from time import perf_counter
         log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
 '''
-source = source.replace(anchor, preview_probe + '\n' + timed_anchor, 1)
+source = source.replace(anchor, initial_span_probe + '\n' + timed_anchor, 1)
 
 seam_check = """    backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
