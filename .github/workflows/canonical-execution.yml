@@ -125,7 +125,7 @@ jobs:
 
   diagnostic-tissu-contact:
     name: Diagnostic Tissu contact controls
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls) || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'supervisor/tissu-contact-controls-2484-20260927')) }}
     needs: [local_runner_readiness]
     runs-on: ${{ inputs.runner_mode == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 15
