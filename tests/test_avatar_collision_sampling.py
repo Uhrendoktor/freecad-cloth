@@ -36,9 +36,8 @@ def test_coarsen_preserves_anisotropic_spatial_extrema():
     surface, centers = _surface_with_corner_and_interior_triangles()
     result = coarsen_collision_surface(surface, max_triangles=9)
 
-    selected_centers = []
-    for tri in result.triangles:
-        selected_centers.append(tuple(sum(surface.vertices[index][axis] for index in tri) / 3.0 for axis in range(3)))
+    source_index = {triangle: index for index, triangle in enumerate(surface.triangles)}
+    selected_centers = {centers[source_index[triangle]] for triangle in result.triangles}
 
     extrema = {
         (0.0, 0.0, 0.0),
