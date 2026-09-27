@@ -11,6 +11,7 @@ import math
 import os
 from pathlib import Path
 import sys
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -109,19 +110,89 @@ def _adopt_sketch(sketch, name):
     return piece
 
 
-def _mesh_points(obj):
+def _mesh_geometry(obj):
     mesh = getattr(obj, "Mesh", None)
-    if mesh is None:
-        raise RuntimeError("missing Mesh property on %s" % getattr(obj, "Name", "object"))
-    topology = getattr(mesh, "Topology", None) if mesh is not None else None
-    if topology is not None:
-        vertices, _triangles = topology
-        return tuple((float(v.x), float(v.y), float(v.z)) for v in vertices)
+    if mesh is not None:
+        topology = getattr(mesh, "Topology", None)
+        if topology is not None:
+            vertices, triangles = topology
+            points = tuple((float(v.x), float(v.y), float(v.z)) for v in vertices)
+            tris = tuple(tuple(int(i) for i in tri) for tri in triangles)
+            return points, tris
     shape = getattr(obj, "Shape", None)
     if shape is None or shape.isNull():
         raise RuntimeError("missing mesh or shape geometry on %s" % getattr(obj, "Name", "object"))
-    vertices, _triangles = shape.tessellate(1.0)
-    return tuple((float(v.x), float(v.y), float(v.z)) for v in vertices)
+    vertices, triangles = shape.tessellate(1.0)
+    points = tuple((float(v.x), float(v.y), float(v.z)) for v in vertices)
+    tris = tuple(tuple(int(i) for i in tri) for tri in triangles)
+    return points, tris
+
+
+def _mesh_points(obj):
+    return _mesh_geometry(obj)[0]
+
+
+def _connected_components(vertices, triangles):
+    if not vertices:
+        return 0
+    parent = list(range(len(vertices)))
+
+    def find(index):
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        return index
+
+    def union(left, right):
+        a = find(left)
+        b = find(right)
+        if a != b:
+            parent[b] = a
+
+    for triangle in triangles:
+        if len(triangle) != 3:
+            continue
+        a, b, c = (int(i) for i in triangle)
+        if all(0 <= i < len(vertices) for i in (a, b, c)):
+            union(a, b)
+            union(b, c)
+    return len({find(i) for i in range(len(vertices))})
+
+
+def _nearest_surface_observation(garment_points, surface):
+    if not garment_points or surface is None:
+        return None, None
+    vertices = tuple(getattr(surface, "vertices", ()) or ())
+    if not vertices:
+        return None, None
+    best = float("inf")
+    point = None
+    for source in garment_points:
+        for target in vertices:
+            d2 = sum((float(a) - float(b)) ** 2 for a, b in zip(source, target))
+            if d2 < best:
+                best = d2
+                point = tuple(float(c) for c in target)
+    return (math.sqrt(best) if math.isfinite(best) else None), point
+
+
+def _inside_outside(points, source):
+    shape = getattr(source, "Shape", None)
+    if shape is None or getattr(shape, "isNull", lambda: True)():
+        return "unknown"
+    states = []
+    for point in points[:64]:
+        try:
+            states.append(bool(shape.isInside(App.Vector(*point), 1e-6, True)))
+        except (AttributeError, TypeError, ValueError):
+            return "unknown"
+    if not states:
+        return "unknown"
+    if all(states):
+        return "inside"
+    if not any(states):
+        return "outside"
+    return "mixed"
 
 
 def _bounds(points):
@@ -180,62 +251,127 @@ def _target_signature(target):
 
 
 def _screenshot(view, path):
-    _progress("screenshot:set-camera:start")
     view.setCameraType("Orthographic")
-    _progress("screenshot:set-camera:done")
-    _progress("screenshot:fit-all:start")
     view.fitAll()
-    _progress("screenshot:fit-all:done")
-    _progress("screenshot:events:start")
     _events()
-    _progress("screenshot:events:done")
-    _progress("screenshot:save-image:start")
     view.saveImage(str(path), 1280, 720, "White")
-    _progress("screenshot:save-image:done")
     if not path.is_file() or path.stat().st_size <= 0:
         raise RuntimeError("screenshot missing: %s" % path)
 
 
-def _case_record(case_id, target, cloth_points_before, cloth_points_after, collision_surface, steps, image_paths):
+def _case_record(case_id, rung, target, source, cloth_points_before, cloth_points_after, panel_triangles, collision_surface, steps, image_paths, runtime_ms):
     before_centroid = _centroid(cloth_points_before)
     after_centroid = _centroid(cloth_points_after)
     before_bounds = _bounds(cloth_points_before)
     after_bounds = _bounds(cloth_points_after)
     before_distance = _nearest_surface_distance(cloth_points_before, collision_surface)
     after_distance = _nearest_surface_distance(cloth_points_after, collision_surface)
-    displacement = math.sqrt(
-        sum((after_centroid[i] - before_centroid[i]) ** 2 for i in range(3))
-    )
+    _, before_nearest_point = _nearest_surface_observation(cloth_points_before, collision_surface)
+    _, after_nearest_point = _nearest_surface_observation(cloth_points_after, collision_surface)
+    displacement = math.sqrt(sum((after_centroid[i] - before_centroid[i]) ** 2 for i in range(3)))
     max_vertex_displacement = max(
         math.sqrt(sum((after[i] - before[i]) ** 2 for i in range(3)))
         for before, after in zip(cloth_points_before, cloth_points_after)
     )
+    before_inside = _inside_outside(cloth_points_before, source)
+    after_inside = _inside_outside(cloth_points_after, source)
     if max_vertex_displacement > 0.01 and before_distance is not None and after_distance is not None and after_distance >= before_distance:
         contact_state = "projection-or-contact-response-observed"
     elif max_vertex_displacement <= 0.01:
         contact_state = "no-observable-response"
     else:
         contact_state = "response-toward-target-or-tangential-motion"
-    return {
-        "case": case_id,
-        "steps": int(steps),
-        "finite": all(math.isfinite(float(c)) for point in cloth_points_after for c in point),
-        "cloth_before": {
-            "bounds": before_bounds,
-            "centroid": before_centroid,
-            "nearest_solver_surface_distance_mm": before_distance,
-        },
-        "cloth_after": {
-            "bounds": after_bounds,
-            "centroid": after_centroid,
-            "nearest_solver_surface_distance_mm": after_distance,
-        },
-        "centroid_displacement_mm": displacement,
-        "max_vertex_displacement_mm": max_vertex_displacement,
-        "solver_collision_triangles": int(len(getattr(collision_surface, "triangles", ()) or ())),
+
+    target_points, target_triangles = _mesh_geometry(source)
+    target_bounds = _bounds(target_points)
+    target_sig = _target_signature(target)
+    target_surface_triangles = int(len(getattr(collision_surface, "triangles", ()) or ()))
+    signed_before = None if before_distance is None else (-before_distance if before_inside == "inside" else before_distance)
+    signed_after = None if after_distance is None else (-after_distance if after_inside == "inside" else after_distance)
+    after_components = _connected_components(cloth_points_after, panel_triangles)
+    finite = all(math.isfinite(float(c)) for point in cloth_points_after for c in point)
+
+    checkpoint = {
+        "step": 0,
+        "image": image_paths[0],
+        "finite": all(math.isfinite(float(c)) for point in cloth_points_before for c in point),
+        "components": _connected_components(cloth_points_before, panel_triangles),
+        "max_seam_gap_mm": 0.0,
+        "target_clearance_mm": signed_before,
+        "contact_state": "static-intersection-probe",
+        "inside_outside": before_inside,
+        "nearest_target_point": before_nearest_point,
+    }
+    checkpoint_after = {
+        "step": int(steps),
+        "image": image_paths[-1],
+        "finite": finite,
+        "components": after_components,
+        "max_seam_gap_mm": 0.0,
+        "target_clearance_mm": signed_after,
         "contact_state": contact_state,
+        "inside_outside": after_inside,
+        "nearest_target_point": after_nearest_point,
+    }
+    collision = {
+        "source_signature": target_sig,
+        "source_triangles": int(target_sig["source_triangles"]),
+        "solver_triangles": target_surface_triangles,
+        "target_bounds": target_bounds,
+        "target_topology_summary": {
+            "vertices": len(target_points),
+            "triangles": len(target_triangles),
+            "solver_triangles": target_surface_triangles,
+        },
+    }
+    solver = {
+        "backend": "tissu",
+        "particle_distance_mm": PARTICLE_DISTANCE,
+        "iterations": 1,
+        "substeps": 1,
+        "timestep_s": 1.0 / 120.0,
+        "gravity_z_mm_s2": 0.0,
+    }
+    return {
+        "case_id": case_id,
+        "predecessor_case_id": None,
+        "case": {
+            "rung": int(rung),
+            "id": case_id,
+            "target": str(target_sig["target_type"]).lower().replace(" ", "-"),
+            "piece_count": 1,
+            "pin_mode": "None",
+            "seam_mode": "none",
+        },
+        "solver": solver,
+        "collision": collision,
+        "pre_step": {
+            "piece_bounds": [list(before_bounds)],
+            "unsigned_clearance_mm": before_distance,
+            "signed_clearance_mm": signed_before,
+            "seam_pairs": [],
+            "seam_world_spans_mm": [],
+        },
+        "checkpoints": [checkpoint, checkpoint_after],
+        "finite": finite,
+        "connected_components": after_components,
+        "max_seam_gap_mm": 0.0,
+        "final_clearance_mm": signed_after,
+        "runtime_ms": round(float(runtime_ms), 3),
+        "first_contact_step": int(steps) if max_vertex_displacement > 0.01 else None,
+        "contact_mode": contact_state,
+        "control": {
+            "nearest_target_point_before": before_nearest_point,
+            "nearest_target_point_after": after_nearest_point,
+            "nearest_target_distance_before_mm": before_distance,
+            "nearest_target_distance_after_mm": after_distance,
+            "inside_outside_before": before_inside,
+            "inside_outside_after": after_inside,
+            "one_step_projection_delta_mm": max_vertex_displacement,
+            "centroid_displacement_mm": displacement,
+        },
         "images": image_paths,
-        "target": _target_signature(target),
+        "notes": "diagnostic-only; one unchanged Tissu step; release gate unaffected",
     }
 
 
@@ -284,7 +420,8 @@ def _build_piece(doc, name, placement, width=120.0, height=120.0):
     return piece
 
 
-def _run_case(case_id, scene, piece, camera):
+def _run_case(case_id, rung, scene, piece, camera):
+    started = time.perf_counter()
     _progress(f"{case_id}: assign-piece")
     scene.ClothPieces = [piece]
     scene.Steps = 0
@@ -305,12 +442,11 @@ def _run_case(case_id, scene, piece, camera):
     panel = next((obj for obj in scene.DrapePanels if obj.Name), None)
     if panel is None:
         raise RuntimeError("%s did not create a drape panel" % case_id)
-    before = _mesh_points(panel)
+    before, panel_triangles = _mesh_geometry(panel)
     _progress(f"{case_id}: panel-vertices={len(before)} collision-triangles={len(getattr(getattr(base, 'collision_surface', None), 'triangles', ()) or ())}")
-    gui_doc = Gui.getDocument(scene.Document.Name)
-    if gui_doc is None:
-        raise RuntimeError("%s has no GUI document" % case_id)
-    view = gui_doc.activeView()
+    view = Gui.activeDocument().activeView()
+    if view is None:
+        raise RuntimeError("%s has no active FreeCAD view" % case_id)
     _screenshot(view, OUT / (case_id + "-step-000.png"))
     _progress(f"{case_id}: screenshot-000")
     if camera == "front":
@@ -325,7 +461,7 @@ def _run_case(case_id, scene, piece, camera):
     scene.Steps = 1
     scene.Document.recompute()
     _events()
-    after = _mesh_points(panel)
+    after, _after_triangles = _mesh_geometry(panel)
     _screenshot(view, OUT / (case_id + "-step-001-camera.png"))
     _progress(f"{case_id}: screenshot-001")
     image_paths = [
@@ -333,16 +469,22 @@ def _run_case(case_id, scene, piece, camera):
         case_id + "-step-000-camera.png",
         case_id + "-step-001-camera.png",
     ]
+    source = getattr(target, "SourceObject", None)
+    if source is None:
+        raise RuntimeError("%s target source missing" % case_id)
     record = _case_record(
         case_id,
+        rung,
         target,
+        source,
         before,
         after,
+        panel_triangles,
         getattr(base, "collision_surface", None),
         int(scene.Steps),
         image_paths,
+        (time.perf_counter() - started) * 1000.0,
     )
-    record["backend"] = str(getattr(backend, "name", ""))
     _progress(f"{case_id}: record-ready")
     return record
 
@@ -366,7 +508,7 @@ def _run_control_cube():
             App.Placement(App.Vector(-180.0, -180.0, 58.5), App.Rotation()),
         )
         cube.ViewObject.Visibility = True
-        record = _run_case("control-0-cube", scene, piece, "axonometric")
+        record = _run_case("control-0-cube", 0, scene, piece, "axonometric")
         return record
     finally:
         App.closeDocument(doc.Name)
@@ -388,7 +530,7 @@ def _run_control_avatar():
         )
         piece = _build_piece(doc, "AvatarCloth", placement)
         avatar.ViewObject.Visibility = True
-        record = _run_case("control-0a-avatar", scene, piece, "front")
+        record = _run_case("control-0a-avatar", 0, scene, piece, "front")
         return record
     finally:
         App.closeDocument(doc.Name)
@@ -422,33 +564,71 @@ def main():
     manifest = {
         "schema": 1,
         "purpose": "diagnostic-only-contact-controls",
+        "cases": records,
+        "release_gate_effect": "none",
         "solver_settings_frozen": {
             "backend_requested": os.environ.get("CLOTH_SIMULATION_BACKEND", "auto"),
             "particle_distance_mm": PARTICLE_DISTANCE,
             "iterations": 1,
             "substeps": 1,
             "timestep_s": 1.0 / 120.0,
+            "gravity_z_mm_s2": 0.0,
             "gravity_mm_s2": [0.0, 0.0, 0.0],
             "fabric_friction": 0.5,
         },
-        "cases": records,
-        "release_gate_effect": "none",
     }
     (OUT / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
     _progress("main: manifest-written")
     print(json.dumps(manifest, indent=2, sort_keys=True), flush=True)
+    return 0
 
 
-def _run_from_freecad_event_loop():
+def _shutdown_gui():
     try:
-        main()
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
+        app = QtWidgets.QApplication.instance()
+        if app is not None:
+            app.quit()
+    except Exception as exc:
+        _progress("qt-quit-failed=%r" % (exc,))
+    try:
+        App.exit()
+    except Exception as exc:
+        _progress("app-exit-failed=%r" % (exc,))
+
+
+def _scheduled_main():
+    status = 1
+    try:
+        status = int(main() or 0)
+    except BaseException as exc:
+        _progress("main-failed=%r" % (exc,))
     finally:
-        close_gui()
+        try:
+            faulthandler.cancel_dump_traceback_later()
+        except Exception:
+            pass
+        _shutdown_gui()
+        _PROGRESS_HANDLE.flush()
+    os._exit(status)
 
 
-if __name__ == "__main__" or os.environ.get("CLOTH_CONTACT_DIAGNOSTICS_EXECUTE") == "1":
+def _schedule_main_once():
+    if os.environ.get("CLOTH_CONTACT_DIAGNOSTICS_SCHEDULED") == "1":
+        _progress("entrypoint:duplicate-schedule-suppressed")
+        return
+    os.environ["CLOTH_CONTACT_DIAGNOSTICS_SCHEDULED"] = "1"
     try:
         from PySide import QtCore
     except ImportError:
         from PySide2 import QtCore
-    QtCore.QTimer.singleShot(0, _run_from_freecad_event_loop)
+    _progress("entrypoint:schedule-main")
+    QtCore.QTimer.singleShot(0, _scheduled_main)
+
+
+if __name__ == "__main__" or os.environ.get("CLOTH_CONTACT_DIAGNOSTICS_EXECUTE") == "1":
+    _schedule_main_once()
+
