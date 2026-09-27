@@ -401,13 +401,9 @@ private:""",
 
     replace_once(
         ROOT / "core/src/physics/MeshCollider.cpp",
-        """} // namespace
-
-
-MeshCollider::MeshCollider(const std::string& meshPath, double friction) {""",
-        """namespace Tissu {
-
-namespace {
+        """void MeshCollider::transform(const Eigen::Vector3d& position,
+                             const Eigen::Quaterniond& rotation) {""",
+        """namespace {
 
 bool segmentTriangleHit(const Eigen::Vector3d& start,
                         const Eigen::Vector3d& end,
@@ -458,7 +454,8 @@ bool segmentTriangleHit(const Eigen::Vector3d& start,
 
 } // namespace
 
-MeshCollider::MeshCollider(const std::string& meshPath, double friction) {""",
+void MeshCollider::transform(const Eigen::Vector3d& position,
+                             const Eigen::Quaterniond& rotation) {""",
         "MeshCollider first-segment-hit helper",
     )
 
