@@ -25,9 +25,9 @@ replacements = {
         '        seam_records.append((seam_obj, front, back))':
         '    front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())\n'
         '    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())\n'
-        '    required_indices = (1, 2, 6, 7)\n'
+        '    required_indices = (1, 2, 5, 7)\n'
         '    if len(front_edge_ids) < 8 or len(back_edge_ids) < 8 or any(not front_edge_ids[index] or not back_edge_ids[index] for index in required_indices): raise RuntimeError("canonical tunic fixture is missing authored semantic edge IDs")\n'
-        '    seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"),(front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"),(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"))\n'
+        '    seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"),(front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"),(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"))\n'
         '    for edge_a_id, edge_b_id, seam_id in seam_specs:\n'
         '        seam = Seam(str(front.PieceId), edge_a_id, str(back.PieceId), edge_b_id, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
         '        add_seam(doc, seam)\n'
@@ -84,6 +84,33 @@ timed_anchor = '''    from time import perf_counter
     simulation_started = perf_counter()
     active_backend = scene.Proxy._base_or_restore().backend
     active_collision = getattr(active_backend, "_collision_surface", None)
+    initial_positions = tuple(active_backend.positions())
+    initial_stitch_pairs = getattr(scene.Proxy, "seam_stitch_pairs", {})
+    if not initial_positions or not initial_stitch_pairs:
+        raise RuntimeError("initial solver stitch provenance is unavailable")
+    initial_span_records = []
+    for seam, _piece_a, _piece_b in seam_records:
+        seam_id = str(getattr(seam, "SeamId", getattr(seam, "Label", "")))
+        pairs = tuple(initial_stitch_pairs.get(seam_id, ()))
+        if not pairs:
+            raise RuntimeError("initial solver stitch pairs missing for %s" % seam_id)
+        distances = []
+        for ga, gb in pairs:
+            pa = initial_positions[int(ga)]; pb = initial_positions[int(gb)]
+            distances.append(((pa[0]-pb[0])**2 + (pa[1]-pb[1])**2 + (pa[2]-pb[2])**2) ** 0.5)
+        initial_span_records.append({
+            "seam": seam_id,
+            "pair_count": len(pairs),
+            "min_mm": round(min(distances), 6),
+            "max_mm": round(max(distances), 6),
+            "mean_mm": round(sum(distances) / len(distances), 6),
+        })
+    flat_spans = [value for record in initial_span_records for value in (record["min_mm"], record["max_mm"])]
+    log("initial-stitch-spans=%s global-max-mm=%.6f global-mean-mm=%.6f" % (
+        json.dumps(initial_span_records, sort_keys=True),
+        max(flat_spans),
+        sum(flat_spans) / len(flat_spans),
+    ))
     log("tunic-simulation-start particles=%d iterations=%d substeps=%d backend=%s collision_triangles=%d" % (
         int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps),
         str(getattr(active_backend, "name", "")),
