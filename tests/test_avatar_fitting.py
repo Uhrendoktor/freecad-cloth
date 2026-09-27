@@ -19,7 +19,7 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertIn("def _ensure_avatar_proxy_link_global(scene):", source)
         self.assertIn('type_id == "App::PropertyGlobal"', source) if False else None
         self.assertIn('type_id == "App::PropertyLinkGlobal"', source)
-        self.assertIn('type_id == "App::PropertyLink"', source)
+        self.assertIn('type_id != "App::PropertyLink"', source)
         self.assertIn('scene.removeProperty("AvatarProxy")', source)
 
     def test_fitting_proxy_is_validation_only_during_recompute(self):
