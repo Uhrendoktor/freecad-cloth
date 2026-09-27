@@ -111,32 +111,45 @@ bool rayIntersectsAabb(const Eigen::Vector3d& origin,
     return tMax > kRayEpsilon;
 }
 
-bool rayIntersectsTriangle(const Eigen::Vector3d& origin,
-                           const Eigen::Vector3d& direction,
-                           const Eigen::Vector3d& a,
-                           const Eigen::Vector3d& b,
-                           const Eigen::Vector3d& c) {
+int rayIntersectsTriangle(const Eigen::Vector3d& origin,
+                          const Eigen::Vector3d& direction,
+                          const Eigen::Vector3d& a,
+                          const Eigen::Vector3d& b,
+                          const Eigen::Vector3d& c) {
     const Eigen::Vector3d edge1 = b - a;
     const Eigen::Vector3d edge2 = c - a;
+    const Eigen::Vector3d normal = edge1.cross(edge2);
+    const double normalSq = normal.squaredNorm();
+    if (normalSq <= kRayEpsilon * kRayEpsilon)
+        return -1;
+
     const Eigen::Vector3d pvec = direction.cross(edge2);
     const double determinant = edge1.dot(pvec);
-
-    if (std::abs(determinant) <= kRayEpsilon)
-        return false;
+    if (std::abs(determinant) <= kRayEpsilon) {
+        const double planeDistance =
+            std::abs((origin - a).dot(normal)) / std::sqrt(normalSq);
+        return planeDistance <= 1e-9 ? -1 : 0;
+    }
 
     const double invDeterminant = 1.0 / determinant;
     const Eigen::Vector3d tvec = origin - a;
     const double u = tvec.dot(pvec) * invDeterminant;
+    if (u < -kRayEpsilon || u > 1.0 + kRayEpsilon)
+        return 0;
     if (u <= kRayEpsilon || u >= 1.0 - kRayEpsilon)
-        return false;
+        return -1;
 
     const Eigen::Vector3d qvec = tvec.cross(edge1);
     const double v = direction.dot(qvec) * invDeterminant;
+    if (v < -kRayEpsilon || u + v > 1.0 + kRayEpsilon)
+        return 0;
     if (v <= kRayEpsilon || u + v >= 1.0 - kRayEpsilon)
-        return false;
+        return -1;
 
     const double t = edge2.dot(qvec) * invDeterminant;
-    return t > kRayEpsilon;
+    if (t < -kRayEpsilon)
+        return 0;
+    return t <= kRayEpsilon ? -1 : 1;
 }
 
 } // namespace
@@ -172,10 +185,12 @@ int BVH::rayIntersectionCountRecursive(
         int count = 0;
         for (int i = 0; i < node.primitiveCount; ++i) {
             const Triangle& tri = m_triangles[node.triangleIndex + i];
-            if (rayIntersectsTriangle(
-                    origin, direction,
-                    vertices[tri.a], vertices[tri.b], vertices[tri.c]))
-                ++count;
+            const int hit = rayIntersectsTriangle(
+                origin, direction,
+                vertices[tri.a], vertices[tri.b], vertices[tri.c]);
+            if (hit < 0)
+                return -1;
+            count += hit;
         }
         return count;
     }
@@ -418,19 +433,36 @@ bool isDeepInterior(
 
     test_cpp = test.read_text(encoding="utf-8")
     test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
-    helper = """static bool tetrahedronContains(const Eigen::Vector3d& point) {
-    const std::vector<Eigen::Vector3d> vertices = {
+    helper = """static std::vector<Eigen::Vector3d> referenceTetraVertices() {
+    return {
         {0.0, 0.0, 0.0},
         {2.0, 0.0, 0.0},
         {1.0, 0.0, 2.0},
         {1.0, 2.0, 1.0},
     };
-    const std::vector<std::array<int, 3>> triangles = {
-        {0, 2, 1},
-        {0, 1, 3},
-        {1, 2, 3},
-        {0, 3, 2},
+}
+
+static std::vector<std::array<int, 3>> referenceTetraTriangles(bool reverse) {
+    const std::array<std::array<int, 3>, 4> faces = {
+        std::array<int, 3>{0, 2, 1},
+        std::array<int, 3>{0, 1, 3},
+        std::array<int, 3>{1, 2, 3},
+        std::array<int, 3>{0, 3, 2},
     };
+    std::vector<std::array<int, 3>> result;
+    result.reserve(faces.size());
+    for (const auto& face : faces) {
+        result.push_back(reverse
+            ? std::array<int, 3>{face[0], face[2], face[1]}
+            : face);
+    }
+    return result;
+}
+
+static bool containsReferenceTetra(
+    const Eigen::Vector3d& point,
+    const std::vector<Eigen::Vector3d>& vertices,
+    const std::vector<std::array<int, 3>>& triangles) {
     const Eigen::Vector3d center =
         (vertices[0] + vertices[1] + vertices[2] + vertices[3]) / 4.0;
     constexpr double epsilon = 1e-9;
@@ -448,20 +480,113 @@ bool isDeepInterior(
     return true;
 }
 
+static bool tetrahedronContains(const Eigen::Vector3d& point) {
+    const auto vertices = referenceTetraVertices();
+    const auto triangles = referenceTetraTriangles(false);
+    return containsReferenceTetra(point, vertices, triangles);
+}
+
 """
     deep_test = """TEST(MeshCollider, DeepInteriorPointMovesOutsideClosedMesh) {
-    MeshCollider mesh = makeTetrahedron(0.0);
-
-    Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
+    const auto vertices = referenceTetraVertices();
+    const auto triangles = referenceTetraTriangles(false);
+    MeshCollider mesh(vertices, triangles, 0.0);
+    const Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
     std::vector<Particle> particles;
     particles.emplace_back(initialPos);
 
     mesh.resolve(particles, 0.016, 0.01);
 
-    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
-    EXPECT_GT(distanceMoved, 0.0);
-    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+    EXPECT_GT((particles[0].getPosition() - initialPos).norm(), 0.0);
+    EXPECT_FALSE(containsReferenceTetra(
+        particles[0].getPosition(), vertices, triangles));
 }
+
+TEST(MeshCollider, FarOutsidePointRemainsUnchanged) {
+    const auto vertices = referenceTetraVertices();
+    const auto triangles = referenceTetraTriangles(false);
+    MeshCollider mesh(vertices, triangles, 0.0);
+    const Eigen::Vector3d initialPos(100.0, 100.0, 100.0);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_LT((particles[0].getPosition() - initialPos).norm(), 1e-12);
+}
+
+TEST(MeshCollider, MultipleParticlesKeepOutsideUntouched) {
+    const auto vertices = referenceTetraVertices();
+    const auto triangles = referenceTetraTriangles(false);
+    MeshCollider mesh(vertices, triangles, 0.0);
+    const Eigen::Vector3d initialInside(1.0, 0.5, 0.75);
+    const Eigen::Vector3d initialOutside(100.0, 100.0, 100.0);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialInside);
+    particles.emplace_back(initialOutside);
+
+    mesh.resolve(particles, 0.016, 0.01);
+
+    EXPECT_FALSE(containsReferenceTetra(
+        particles[0].getPosition(), vertices, triangles));
+    EXPECT_LT(
+        (particles[1].getPosition() - initialOutside).norm(), 1e-12);
+}
+
+TEST(MeshCollider, ReversedClosedMeshMovesInteriorOutside) {
+    const auto vertices = referenceTetraVertices();
+    const auto triangles = referenceTetraTriangles(true);
+    MeshCollider mesh(vertices, triangles, 0.0);
+    const Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.01);
+
+    EXPECT_FALSE(containsReferenceTetra(
+        particles[0].getPosition(), vertices, triangles));
+}
+
+TEST(MeshCollider, TransformedRotatedClosedMeshMovesInteriorOutside) {
+    const auto sourceVertices = referenceTetraVertices();
+    const auto triangles = referenceTetraTriangles(false);
+    std::vector<Eigen::Vector3d> vertices;
+    vertices.reserve(sourceVertices.size());
+    for (const auto& point : sourceVertices)
+        vertices.emplace_back(
+            -point.y() + 4.0, point.x() - 3.0, point.z() + 2.0);
+
+    MeshCollider mesh(vertices, triangles, 0.0);
+    const Eigen::Vector3d initialPos(3.5, -2.0, 2.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.01);
+
+    const Eigen::Vector3d recovered(
+        particles[0].getPosition().y() + 3.0,
+        4.0 - particles[0].getPosition().x(),
+        particles[0].getPosition().z() - 2.0);
+    EXPECT_FALSE(containsReferenceTetra(
+        recovered, sourceVertices, triangles));
+}
+
+TEST(MeshCollider, AmbiguousVertexRayFailsClosed) {
+    const auto vertices = referenceTetraVertices();
+    const auto triangles = referenceTetraTriangles(false);
+    MeshCollider mesh(vertices, triangles, 0.0);
+    const Eigen::Vector3d direction =
+        Eigen::Vector3d(0.263, -0.547, 1.0).normalized();
+    const Eigen::Vector3d initialPos =
+        vertices[2] - direction;
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.01);
+
+    EXPECT_LT((particles[0].getPosition() - initialPos).norm(), 1e-12);
+}
+
 """
     test_cpp = test_cpp.replace(
         "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
@@ -481,9 +606,11 @@ bool isDeepInterior(
     new = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
     EXPECT_GT(distanceMoved, 0.0);
     EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
-}
-
-TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
+}"""
+    if test_cpp.count(old) != 1:
+        raise RuntimeError("MeshCollider regression test body anchor mismatch")
+    test_cpp = test_cpp.replace(old, new, 1)
+    extra = """TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
     MeshCollider mesh = makeTetrahedron(0.0);
     Eigen::Vector3d initialPos(1.0, -0.01, 0.75);
     std::vector<Particle> particles;
@@ -502,7 +629,6 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     };
     const std::vector<std::array<int, 3>> triangles = {{0, 1, 2}};
     MeshCollider mesh(vertices, triangles, 0.0);
-
     Eigen::Vector3d initialPos(0.5, 0.05, 0.5);
     std::vector<Particle> particles;
     particles.emplace_back(initialPos);
@@ -510,10 +636,14 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     mesh.resolve(particles, 0.016, 0.1);
 
     EXPECT_GT(particles[0].getPosition().y(), initialPos.y());
-}"""
-    if test_cpp.count(old) != 1:
-        raise RuntimeError("MeshCollider regression test body anchor mismatch")
-    test_cpp = test_cpp.replace(old, new, 1)
+}
+
+"""
+    test_cpp = test_cpp.replace(
+        "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
+        extra + "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
+        1,
+    )
     test.write_text(test_cpp, encoding="utf-8")
 
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
