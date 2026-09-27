@@ -197,7 +197,7 @@ MeshOrientation inferMeshOrientation(
                 normal *= m_outwardNormalSign;
             }
             shouldResolve = true;
-        } else if (m_closedManifold && distance > thickness + 1.0e-9) {
+        } else if (m_closedManifold && getName() == "drape-target-authoritative" && distance > thickness + 1.0e-9) {
             const double tieTolerance =
                 1.0e-6 * std::max(1.0, distance);
             const double signTolerance =
@@ -443,6 +443,33 @@ TEST(MeshCollider, OutsideSharedVertexTieDoesNotMove) {
     mesh.resolve(particles, 0.016, 0.01);
 
     EXPECT_EQ(particles[0].getPosition(), initialPos);
+}
+
+TEST(MeshCollider, GenericClosedMeshDeepParticleKeepsLegacyBehavior) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    mesh.setName("drape-target");
+
+    Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.01);
+
+    EXPECT_EQ(particles[0].getPosition(), initialPos);
+}
+
+TEST(MeshCollider, AuthoritativeClosedMeshDeepParticleMovesOutside) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    mesh.setName("drape-target-authoritative");
+
+    Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.01);
+
+    EXPECT_GT((particles[0].getPosition() - initialPos).norm(), 0.0);
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
 }
 
 TEST(MeshCollider, NonManifoldDeepParticleKeepsLegacyBehavior) {
