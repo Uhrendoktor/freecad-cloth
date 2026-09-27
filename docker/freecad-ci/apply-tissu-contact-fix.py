@@ -30,7 +30,12 @@ def main() -> int:
 
     header = ROOT / "core/include/physics/MeshCollider.hpp"
     cpp = ROOT / "core/src/physics/MeshCollider.cpp"
+    stitch_header = ROOT / "core/include/physics/StitchConstraint.hpp"
+    stitch_cpp = ROOT / "core/src/physics/StitchConstraint.cpp"
+    solver_header = ROOT / "core/include/physics/Solver.hpp"
+    solver_cpp = ROOT / "core/src/physics/Solver.cpp"
     test = ROOT / "tests/physics/test_mesh_collider.cpp"
+    stitch_test = ROOT / "tests/physics/test_stitch_constraint.cpp"
 
     replace_once(
         header,
