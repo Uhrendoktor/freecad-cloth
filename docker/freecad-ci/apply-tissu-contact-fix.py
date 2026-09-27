@@ -65,6 +65,7 @@ private:""",
     std::vector<Triangle> m_triangles;
     bool m_closedManifold = false;
     double m_outwardNormalSign = 1.0;
+    bool m_sweptContactEnabled = false;
     BVH m_bvh;""",
         "MeshCollider.hpp member layout",
     )
