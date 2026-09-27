@@ -89,6 +89,10 @@ def run_acceptance():
         target_body = doc.addObject("Part::Feature", "QualityAcceptanceTarget")
         target_body.Label = "Quality Acceptance Target"
         target_body.Shape = Part.makeCylinder(35, 100, App.Vector(-10, 0, -50))
+        # Exercise the production world-space target transform rather than an
+        # identity-placement-only fixture; target geometry may be placed in the
+        # FreeCAD document independently from its local tessellation.
+        target_body.Placement.Base = App.Vector(17.0, 12.0, 25.0)
         doc.recompute()
         _activate("ClothSimulationWorkbench", ["ClothDrape_CreateTarget", "ClothDrape_RefreshTarget", "ClothSimulation_Edit", "ClothSimulation_Step"])
         Gui.Selection.clearSelection()
@@ -216,12 +220,28 @@ def run_acceptance():
                     raise RuntimeError("Snap-to-target changed a native Sketch rotation")
 
             from freecad_cloth.avatar.TargetPlacement import nearest_surface_distance, point_inside_closed_surface
+            from freecad_cloth.avatar.AvatarCollision import CollisionSurface
             from freecad_cloth.simulation.DrapeTarget import collision_surface
-            surface = collision_surface(
+            local_surface = collision_surface(
                 target.SourceObject,
                 float(getattr(target, "CollisionDeflection", 1.0)),
                 float(getattr(target, "CollisionThickness", 0.0)),
             )
+            source_placement = getattr(target.SourceObject, "Placement", None)
+            if source_placement is None:
+                surface = local_surface
+            else:
+                world_vertices = []
+                for x, y, z in local_surface.vertices:
+                    point = source_placement.multVec(App.Vector(float(x), float(y), float(z)))
+                    world_vertices.append((float(point.x), float(point.y), float(point.z)))
+                surface = CollisionSurface(
+                    tuple(world_vertices),
+                    tuple(local_surface.triangles),
+                    str(local_surface.region),
+                    float(local_surface.thickness),
+                )
+                surface.validate()
             placed_points = tuple(
                 point
                 for piece in (front, back)
