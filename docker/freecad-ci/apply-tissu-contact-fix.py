@@ -364,6 +364,60 @@ void BVH::queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
         cpp = cpp.replace(old, new, 1)
     Path(cpp_path := ROOT / "core/src/physics/MeshCollider.cpp").write_text(cpp, encoding="utf-8")
 
+    replace_once(
+        cpp_path,
+        """void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
+                           double thickness) {""",
+        """bool MeshCollider::firstSegmentHit(const Eigen::Vector3d& start,
+                                    const Eigen::Vector3d& end,
+                                    double& hitT,
+                                    Eigen::Vector3d& hitNormal,
+                                    int& triangleIndex) const {
+    const Eigen::AlignedBox3d queryBox(start.cwiseMin(end), start.cwiseMax(end));
+    std::vector<int> candidates;
+    m_bvh.query(queryBox, candidates);
+    std::sort(candidates.begin(), candidates.end());
+    candidates.erase(std::unique(candidates.begin(), candidates.end()),
+                     candidates.end());
+
+    constexpr double epsilon = 1e-12;
+    double bestT = std::numeric_limits<double>::infinity();
+    int bestTriangle = -1;
+    Eigen::Vector3d bestNormal = Eigen::Vector3d::Zero();
+
+    for (const int candidateIndex : candidates) {
+        const Triangle& tri = m_bvh.getTriangle(candidateIndex);
+        double candidateT = 0.0;
+        Eigen::Vector3d candidateNormal = Eigen::Vector3d::Zero();
+        if (!segmentTriangleHit(
+                start, end, m_worldVertices[tri.a], m_worldVertices[tri.b],
+                m_worldVertices[tri.c], epsilon, candidateT, candidateNormal)) {
+            continue;
+        }
+
+        if (candidateT < bestT - epsilon ||
+            (std::abs(candidateT - bestT) <= epsilon &&
+             (bestTriangle < 0 || candidateIndex < bestTriangle))) {
+            bestT = candidateT;
+            bestTriangle = candidateIndex;
+            bestNormal = candidateNormal;
+        }
+    }
+
+    if (bestTriangle < 0)
+        return false;
+
+    hitT = bestT;
+    hitNormal = bestNormal;
+    triangleIndex = bestTriangle;
+    return true;
+}
+
+void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
+                           double thickness) {""",
+        "MeshCollider firstSegmentHit implementation",
+    )
+
     test_cpp = test.read_text(encoding="utf-8")
     test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
     helper = """static bool tetrahedronContains(const Eigen::Vector3d& point) {
