@@ -94,6 +94,33 @@ namespace Tissu {"""
         raise RuntimeError("MeshCollider.cpp include anchor mismatch")
     cpp = cpp.replace(include_old, include_new, 1)
 
+    transform_old = """void MeshCollider::transform(const Eigen::Vector3d& position,
+                             const Eigen::Quaterniond& rotation) {
+    Collider::transform(position, rotation);
+
+    for (size_t i = 0; i < m_localVertices.size(); ++i)
+        m_worldVertices[i] = rotation * m_localVertices[i] + position;
+
+    m_bvh.build(m_worldVertices, m_triangles);
+}"""
+    transform_new = """void MeshCollider::transform(const Eigen::Vector3d& position,
+                             const Eigen::Quaterniond& rotation) {
+    Collider::transform(position, rotation);
+
+    for (size_t i = 0; i < m_localVertices.size(); ++i)
+        m_worldVertices[i] = rotation * m_localVertices[i] + position;
+
+    m_worldBounds.setEmpty();
+    for (const auto& vertex : m_worldVertices)
+        m_worldBounds.extend(vertex);
+    m_containmentBootstrapped = false;
+
+    m_bvh.build(m_worldVertices, m_triangles);
+}"""
+    if cpp.count(transform_old) != 1:
+        raise RuntimeError("MeshCollider.cpp transform anchor mismatch")
+    cpp = cpp.replace(transform_old, transform_new, 1)
+
     ctor_old = """MeshCollider::MeshCollider(const std::vector<Eigen::Vector3d>& vertices,
                            const std::vector<std::array<int, 3>>& triangles,
                            double friction)
@@ -135,6 +162,55 @@ namespace Tissu {"""
     if cpp.count(ctor_old) != 1:
         raise RuntimeError("MeshCollider.cpp array-constructor anchor mismatch")
     cpp = cpp.replace(ctor_old, ctor_new, 1)
+
+    resolve_old = """void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
+                           double thickness) {"""
+    resolve_new = """bool MeshCollider::pointInsideClosedMesh(
+    const Eigen::Vector3d& point) const {
+    if (!m_closedManifold || m_worldBounds.isEmpty() ||
+        !m_worldBounds.contains(point))
+        return false;
+
+    const Eigen::Vector3d direction =
+        Eigen::Vector3d(1.0, 0.3713906763541037, 0.6123724356957945)
+            .normalized();
+    const double scale = std::max(1.0, point.norm());
+    const Eigen::Vector3d jitter =
+        direction.cross(Eigen::Vector3d::UnitX()) * (1e-9 * scale);
+    const Eigen::Vector3d origin = point + jitter;
+
+    int intersections = 0;
+    constexpr double epsilon = 1e-10;
+    for (const auto& tri : m_triangles) {
+        const Eigen::Vector3d& a = m_worldVertices[tri.a];
+        const Eigen::Vector3d& b = m_worldVertices[tri.b];
+        const Eigen::Vector3d& c = m_worldVertices[tri.c];
+        const Eigen::Vector3d edge1 = b - a;
+        const Eigen::Vector3d edge2 = c - a;
+        const Eigen::Vector3d pvec = direction.cross(edge2);
+        const double determinant = edge1.dot(pvec);
+        if (std::abs(determinant) <= epsilon)
+            continue;
+        const double inverseDeterminant = 1.0 / determinant;
+        const Eigen::Vector3d tvec = origin - a;
+        const double u = tvec.dot(pvec) * inverseDeterminant;
+        if (u < -epsilon || u > 1.0 + epsilon)
+            continue;
+        const Eigen::Vector3d qvec = tvec.cross(edge1);
+        const double v = direction.dot(qvec) * inverseDeterminant;
+        if (v < -epsilon || u + v > 1.0 + epsilon)
+            continue;
+        const double rayDistance = edge2.dot(qvec) * inverseDeterminant;
+        if (rayDistance > epsilon)
+            ++intersections;
+    }
+    return (intersections % 2) == 1;
+}
+
+void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
+                           double thickness) {"""
+
+    cpp = cpp.replace(resolve_old, resolve_new, 1)
 
     contact_old = """        if (distance <= thickness) {
             Eigen::Vector3d normal = (distance > 1e-6)
