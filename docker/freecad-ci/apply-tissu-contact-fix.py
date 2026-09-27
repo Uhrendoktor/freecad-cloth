@@ -819,6 +819,7 @@ void StitchConstraint::solveInternal(
     stitch_cpp_text = stitch_cpp_text[:stitch_cpp_text.index(solve_start)] + new_tail + stitch_cpp_text[stitch_cpp_text.index(solve_close):]
     stitch_cpp.write_text(stitch_cpp_text, encoding="utf-8")
 
+    # Private helper visibility is asserted after the generated header mutation.
     stitch_header_text = stitch_header.read_text(encoding="utf-8")
     private_helper_shape = """private:
     friend class Solver;
