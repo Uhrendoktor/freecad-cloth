@@ -148,7 +148,10 @@ def target_surface_anchor(surface, point, *,
     for other in candidates[1:]:
         if abs(other.distance - best.distance) > float(ambiguity_tolerance):
             break
-        if _norm(_sub(other.point, best.point)) > 1e-5 or _dot(other.normal, best.normal) < 0.20:
+        if (
+            _dot(other.normal, best.normal) < 0.20
+            and _norm(_sub(other.point, best.point)) > 1e-5
+        ):
             raise ValueError("target snap anchor is ambiguous across surface normals")
     return best
 
