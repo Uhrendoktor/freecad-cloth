@@ -35,30 +35,20 @@ def main() -> int:
     engine = ROOT / "python/tissu/engine.py"
     replace_once(
         header,
-        """    const std::vector<Triangle>& getTriangles() const {
-        return m_triangles;
-    }
-
-private:""",
-        """    const std::vector<Triangle>& getTriangles() const {
-        return m_triangles;
-    }
+        """    const std::vector<Triangle>& getTriangles() const { return m_triangles; }""",
+        """    const std::vector<Triangle>& getTriangles() const { return m_triangles; }
 
     void setSweptContactEnabled(bool enabled) {
         m_sweptContactEnabled = enabled;
-    }
-
-private:""",
+    }""",
         "MeshCollider.hpp public swept-contact setter",
     )
-
 
     replace_once(
         header,
         """    std::vector<Eigen::Vector3d> m_localVertices;
     std::vector<Eigen::Vector3d> m_worldVertices;
     std::vector<Triangle> m_triangles;
-    bool m_sweptContactEnabled = false;
     BVH m_bvh;""",
         """    std::vector<Eigen::Vector3d> m_localVertices;
     std::vector<Eigen::Vector3d> m_worldVertices;
@@ -69,7 +59,6 @@ private:""",
     BVH m_bvh;""",
         "MeshCollider.hpp member layout",
     )
-
     cpp = cpp.read_text(encoding="utf-8")
     include_old = '#include "physics/Particle.hpp"\n\nnamespace Tissu {'
     include_new = """#include "physics/Particle.hpp"
