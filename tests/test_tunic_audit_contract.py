@@ -129,7 +129,7 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "ClosedMeshKeepsOutsideContactOutside" in script
     assert "OpenMeshRetainsLegacyContactDirection" in script
     patch = (ROOT / "docker" / "freecad-ci" / "apply-tissu-contact-fix.py").read_text(encoding="utf-8")
-    solver_order_anchor = "solveConstraints(dt);\n\n    // The stitch pass can move particles back toward the closed collision"
+    solver_order_anchor = "solveConstraints(dt);\n\n    for (auto& collider : colliders)\n        collider->resolve(m_particles, dt, world.getThickness());"
     assert solver_order_anchor in patch
     assert patch.count("solveConstraints(dt);") >= 2
     collider_anchor = "for (auto& collider : colliders)\n        collider->resolve(m_particles, dt, world.getThickness());"
