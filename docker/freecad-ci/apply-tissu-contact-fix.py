@@ -243,7 +243,6 @@ MeshOrientation inferMeshOrientation(
             "MeshCollider.cpp contact response",
         ),
     ]
-    print("DEBUG replace_cpp tuple-shapes:", [(type(item).__name__, len(item) if isinstance(item, tuple) else None) for item in replace_cpp])
     for old, new, label in replace_cpp:
         count = cpp.count(old)
         if count != 1:
