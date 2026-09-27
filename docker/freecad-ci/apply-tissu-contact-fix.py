@@ -643,7 +643,7 @@ TEST(MeshCollider, DeepInteriorParityIsDeterministic) {
 TEST(MeshCollider, ParticleInsideMeshMovesOutside) {"""
     test_cpp = test_cpp.replace(
         "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
-        deep_test,
+        helper + deep_test,
         1,
     )
 
