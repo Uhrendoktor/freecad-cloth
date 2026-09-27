@@ -15,3 +15,5 @@ def test_contact_controls_are_diagnostic_only_and_schema_locked():
     assert 'inputs.diagnostic_controls == true' in workflow
     assert 'name: Diagnostic contact controls 0/0a' in workflow
     assert 'gui-tunic-visual' not in workflow[workflow.index("  contact_controls:"):workflow.index("\n  python:", workflow.index("  contact_controls:"))]
+
+# Opt-in PR lane remains branch-scoped; release gates stay untouched.
