@@ -34,6 +34,14 @@ The canonical FreeCAD image is Python 3.12-based. PR checkouts use the immutable
 
 Do not replace, duplicate, or casually refactor this routing. Preserve the existing Docker/Xvfb path that launches real FreeCAD and captures the validated GUI states and artifacts. Any UI, workflow, runner, or simulation-facing change must use the canonical workflow as its acceptance path. Never weaken screenshot, geometry, simulation, or artifact assertions to make CI green.
 
+## Mandatory visual review and human intervention
+
+Any workflow that exports images, screenshots, frame sequences, or rendered artifacts has a mandatory **human visual inspection gate** in addition to automated image/metric validation. The supervisor must open representative exported images from the actual GitHub Actions artifact before accepting, merging, or closing the associated work. A green image assertion or a scalar metric never substitutes for looking at the rendered output.
+
+Visual exports must be placed in a human-inspectable GitHub Actions artifact on every GUI/visual run, including failed runs when files exist. For simulations, retain intermediate states as well as final views; prefer the actual checkpoint sequence used by the simulation (for this repository, step 0 plus intermediate and final states) rather than only a final screenshot. For turntables, retain the full exported frame sequence in the review artifact, not only the published GIF or a sparse sample.
+
+The supervisor records the visual-review decision in the governing Issue/PR conversation, including the inspected artifact/run and any human-intervention findings. Work remains non-terminal while visual review is outstanding or a rendered defect is unresolved.
+
 ## Required verification
 
 Choose the smallest evidence set that proves the change:
