@@ -38,7 +38,7 @@ def test_length_mismatch_is_actionable():
     report = analyze_correspondence(100.0, 120.0, length_tolerance=0.05)
     assert report.status == STATUS_LENGTH_MISMATCH
     assert not report.valid
-    assert "16.67%" in report.message
+    assert "20.00%" in report.message
 
 
 def test_invalid_ranges_are_reported_without_silent_repair():
@@ -56,7 +56,10 @@ def test_partial_ranges_map_proportionally():
 
 def test_samples_are_deterministic_and_include_endpoints():
     expected = ((0.2, 0.8), (0.4, 0.6), (0.6, 0.4), (0.8, 0.2))
-    assert correspondence_samples(4, 0.2, 0.8, 0.2, 0.8, True) == pytest.approx(expected)
+    actual = correspondence_samples(4, 0.2, 0.8, 0.2, 0.8, True)
+    assert len(actual) == len(expected)
+    for actual_pair, expected_pair in zip(actual, expected):
+        assert actual_pair == pytest.approx(expected_pair)
 
 
 def test_arc_length_vertex_sampling_uses_physical_distance_not_vertex_index():

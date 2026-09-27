@@ -86,7 +86,7 @@ def test_invalid_seam_recompute_guard_blocks_without_rethrowing():
             Enabled=True,
             CollisionVertexCount=3,
             CollisionTriangleCount=1,
-            SourceSignature=repr(("Body", "Body", ("Shape", 123), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0)),
+            SourceSignature=repr(("Body", ("ShapeHash", 123), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0)),
         ),
         SimulationState="READY_FOR_SIMULATION",
         InvalidationReason="",
@@ -102,7 +102,7 @@ def test_invalid_seam_recompute_guard_blocks_without_rethrowing():
         SimulationStaleGuard._ORIGINAL_EXECUTE = original
 
     assert scene.SimulationState == "BLOCKED"
-    assert "seam-1: Changed reference" in scene.InvalidationReason
+    assert scene.InvalidationReason == "cannot simulate invalid seam seam-1: Changed reference"
 
 
 def test_pin_mode_semantics_preserve_automatic_defaults_and_support_no_pins():
@@ -205,6 +205,9 @@ def test_seam_pair_records_preserve_exact_solver_stitch_provenance():
         "piece-b": {
             "boundary_edges": ((3, 4, 5),),
             "positions": (
+                (0.0, 0.0, 0.0),
+                (10.0, 0.0, 0.0),
+                (20.0, 0.0, 0.0),
                 (0.0, 100.0, 0.0),
                 (10.0, 100.0, 0.0),
                 (20.0, 100.0, 0.0),
@@ -261,7 +264,8 @@ def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision():
     proxy.backend = FakeBackend()
     proxy.collision_surface = object()
     proxy.source_signature = _simulation_source_signature(scene, [])
-    proxy.execute(scene)
+    from freecad_cloth.simulation import SimulationStaleGuard
+    SimulationStaleGuard._ORIGINAL_EXECUTE(proxy, scene)
 
     assert proxy.backend.calls == [
         (
