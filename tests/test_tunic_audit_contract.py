@@ -17,6 +17,19 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
+def test_canonical_tunic_uses_open_book_launch_assembly():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    audit_tissu = (ROOT / "tests" / "freecad_tunic_audit_tissu.py").read_text(encoding="utf-8")
+    assert "def piece_placement(outline, side, angle_deg=0.0):" in source
+    assert "def apply_open_book_launch_assembly():" in source
+    assert "open-book-selected-angle-deg=" in source
+    assert "initial-stitch-spans=" in source
+    assert "min(target_ys) - clearance" not in audit
+    assert "max(target_ys) + clearance" not in audit
+    assert "target_box.YMin - clearance" not in audit_tissu
+    assert "target_box.YMax + clearance" not in audit_tissu
+
 def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert 'ArrangementPoint.from_string' in source
