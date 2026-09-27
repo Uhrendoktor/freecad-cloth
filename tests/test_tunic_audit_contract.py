@@ -159,3 +159,27 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     gate = source.index("assert_drape_diagnostics(json.load(handle).get(\"panels\", ()))")
     assert "drape-metrics=" in source[:gate]
     assert "gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]
+
+
+def test_canonical_tunic_compliance_is_fail_closed_and_test_only():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    objects = (ROOT / "freecad_cloth" / "simulation" / "SimulationObjects.py").read_text(encoding="utf-8")
+    tissu = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    hook = (ROOT / "sitecustomize.py").read_text(encoding="utf-8")
+    assert 'os.environ["CLOTH_CANONICAL_TUNIC_AUDIT"] = "1"' in audit
+    assert 'os.environ["CLOTH_TUNIC_STITCH_COMPLIANCE"] = "0.001"' in audit
+    assert "CLOTH_CANONICAL_TUNIC_AUDIT" in objects
+    assert "if value != 0.001:" in objects
+    assert "self._stitch_compliance = float(stitch_compliance)" in tissu
+    assert "self._sim.solver.add_stitch(int(a), int(b), self._stitch_compliance)" in tissu
+    assert "stitch_compliance=stitch_compliance" in hook
+    assert 'stitch_compliances = {float(getattr(c, "compliance", 0.0))' in hook
+    assert 'tunic-stitch-compliance=%.3f' in audit
+
+
+def test_default_simulation_stitches_remain_zero_compliance(monkeypatch):
+    from freecad_cloth.simulation.SimulationObjects import _canonical_tunic_stitch_compliance
+
+    monkeypatch.delenv("CLOTH_CANONICAL_TUNIC_AUDIT", raising=False)
+    monkeypatch.delenv("CLOTH_TUNIC_STITCH_COMPLIANCE", raising=False)
+    assert _canonical_tunic_stitch_compliance() == 0.0
