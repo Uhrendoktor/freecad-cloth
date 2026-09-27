@@ -24,7 +24,6 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     assert 'shoulder_right = arrangement_world("shoulder_right")' in source
     assert 'hip_point = arrangement_world("hip")' in source
     assert 'os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"' in source
-    assert 'os.environ["CLOTH_TISSU_STITCH_COMPLIANCE"] = "0.001"' in source
     assert 'status = target_status(target)' in source
     assert 'scene.PinMode = "None"' in source
     assert 'scene.PinSelection = []' in source
@@ -40,6 +39,7 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
 def test_canonical_tunic_uses_validated_authored_mapping():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "required_indices = (1, 2, 6, 7)" in audit
+    assert 'os.environ["CLOTH_TISSU_STITCH_COMPLIANCE"] = "0.001"' in audit
     assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in audit
     assert 'front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"' in audit
     assert 'front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"' in audit
