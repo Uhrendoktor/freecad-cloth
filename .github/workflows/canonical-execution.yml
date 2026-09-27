@@ -178,6 +178,7 @@ jobs:
                 tests/test_simulation_scene.py \
                 tests/test_simulation_quality.py \
                 tests/test_simulation_quality_runtime.py \
+                tests/test_tissu_collision_representation.py \
                 tests/test_avatar_fitting.py \
                 tests/test_avatar_shoulder_pose.py \
                 tests/test_avatar_hierarchical_pose.py \
