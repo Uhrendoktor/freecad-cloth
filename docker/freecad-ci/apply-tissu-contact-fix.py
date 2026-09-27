@@ -43,7 +43,10 @@ def main() -> int:
     std::vector<Triangle> m_triangles;
     bool m_closedManifold = false;
     double m_outwardNormalSign = 1.0;
-    BVH m_bvh;""",
+    bool m_convexClosedManifold = false;
+    BVH m_bvh;
+
+    bool pointInsideConvexMesh(const Eigen::Vector3d& point) const;""",
         "MeshCollider.hpp member layout",
     )
 
@@ -121,6 +124,56 @@ MeshOrientation inferMeshOrientation(
     return {true, signedVolume > 0.0 ? 1.0 : -1.0};
 }
 
+bool isConvexClosedMesh(
+    const std::vector<Eigen::Vector3d>& vertices,
+    const std::vector<Triangle>& triangles,
+    double outwardNormalSign) {
+    if (triangles.empty())
+        return false;
+
+    std::vector<char> referenced(vertices.size(), false);
+    std::vector<int> referencedIndices;
+    referencedIndices.reserve(vertices.size());
+
+    for (const auto& tri : triangles) {
+        const int ids[3] = {tri.a, tri.b, tri.c};
+        for (const int id : ids) {
+            if (id < 0 || id >= static_cast<int>(vertices.size()))
+                return false;
+            if (!referenced[id]) {
+                referenced[id] = true;
+                referencedIndices.push_back(id);
+            }
+        }
+    }
+
+    if (referencedIndices.empty())
+        return false;
+
+    const Eigen::Vector3d origin = vertices[referencedIndices.front()];
+    double scale = 1.0;
+    for (const int index : referencedIndices)
+        scale = std::max(scale, (vertices[index] - origin).norm());
+    const double tolerance = 1.0e-8 * scale;
+
+    for (const auto& tri : triangles) {
+        const Eigen::Vector3d& a = vertices[tri.a];
+        const Eigen::Vector3d& b = vertices[tri.b];
+        const Eigen::Vector3d& c = vertices[tri.c];
+        const Eigen::Vector3d normalRaw = (b - a).cross(c - a);
+        const double normalLength = normalRaw.norm();
+        if (normalLength <= 1.0e-12)
+            return false;
+        const Eigen::Vector3d outwardNormal =
+            (normalRaw / normalLength) * outwardNormalSign;
+        for (const int index : referencedIndices) {
+            if (outwardNormal.dot(vertices[index] - a) > tolerance)
+                return false;
+        }
+    }
+    return true;
+}
+
 } // namespace
 """
     if cpp.count(include_old) != 1:
@@ -142,6 +195,10 @@ MeshOrientation inferMeshOrientation(
         inferMeshOrientation(m_worldVertices, m_triangles);
     m_closedManifold = orientation.closedManifold;
     m_outwardNormalSign = orientation.outwardNormalSign;
+    m_convexClosedManifold =
+        m_closedManifold &&
+        isConvexClosedMesh(
+            m_worldVertices, m_triangles, m_outwardNormalSign);
 
     m_bvh.build(m_worldVertices, m_triangles);""",
             "MeshCollider.cpp file constructor",
@@ -162,18 +219,60 @@ MeshOrientation inferMeshOrientation(
         inferMeshOrientation(m_worldVertices, m_triangles);
     m_closedManifold = orientation.closedManifold;
     m_outwardNormalSign = orientation.outwardNormalSign;
+    m_convexClosedManifold =
+        m_closedManifold &&
+        isConvexClosedMesh(
+            m_worldVertices, m_triangles, m_outwardNormalSign);
 
     m_bvh.build(m_worldVertices, m_triangles);""",
             "MeshCollider.cpp vector constructor",
         ),
         (
-            """        if (distance <= thickness) {
+            """void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
+                           double thickness) {""",
+            """bool MeshCollider::pointInsideConvexMesh(
+    const Eigen::Vector3d& point) const {
+    if (!m_convexClosedManifold)
+        return false;
+
+    constexpr double epsilon = 1.0e-8;
+    for (const auto& tri : m_triangles) {
+        const Eigen::Vector3d& a = m_worldVertices[tri.a];
+        const Eigen::Vector3d& b = m_worldVertices[tri.b];
+        const Eigen::Vector3d& c = m_worldVertices[tri.c];
+        const Eigen::Vector3d normalRaw = (b - a).cross(c - a);
+        const double normalLength = normalRaw.norm();
+        if (normalLength <= 1.0e-12)
+            return false;
+        const Eigen::Vector3d outwardNormal =
+            (normalRaw / normalLength) * m_outwardNormalSign;
+        if (outwardNormal.dot(point - a) > epsilon)
+            return false;
+    }
+    return true;
+}
+
+void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
+                           double thickness) {""",
+            "MeshCollider.cpp convex containment helper",
+        ),
+        (
+            """        double distance = toParticle.norm();
+
+        if (distance <= thickness) {
             Eigen::Vector3d normal = (distance > 1e-6)
                                          ? toParticle.normalized()
                                          : ((b - a).cross(c - a)).normalized();
 
             Eigen::Vector3d newPosition = cp + normal * thickness;""",
-            """        if (distance <= thickness) {
+            """        double distance = toParticle.norm();
+
+        bool insideConvexMesh = false;
+        if (m_convexClosedManifold && distance > thickness)
+            insideConvexMesh = pointInsideConvexMesh(
+                particle.getPosition());
+
+        if (distance <= thickness || insideConvexMesh) {
             Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
             const double faceNormalLength = faceNormalRaw.norm();
             if (faceNormalLength <= 1e-12)
@@ -181,7 +280,9 @@ MeshOrientation inferMeshOrientation(
             Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
 
             Eigen::Vector3d normal = faceNormal;
-            if (distance > 1e-6) {
+            if (insideConvexMesh) {
+                normal = faceNormal * m_outwardNormalSign;
+            } else if (distance > 1e-6) {
                 normal = toParticle / distance;
                 if (m_closedManifold) {
                     const Eigen::Vector3d outwardNormal =
@@ -247,6 +348,26 @@ MeshOrientation inferMeshOrientation(
         helper + "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
         1,
     )
+    first_test_old = """TEST(MeshCollider, ParticleInsideMeshMovesOutside) {
+    MeshCollider mesh = makeTetrahedron(0.5);
+
+    Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 1.0);"""
+    first_test_new = """TEST(MeshCollider, ParticleInsideMeshMovesOutside) {
+    MeshCollider mesh = makeTetrahedron(0.5);
+
+    Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.1);"""
+    if test_cpp.count(first_test_old) != 1:
+        raise RuntimeError("MeshCollider deep-containment test anchor missing")
+    test_cpp = test_cpp.replace(first_test_old, first_test_new, 1)
+
     old = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
     EXPECT_GT(distanceMoved, 0.0);
 }"""
@@ -298,6 +419,8 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     }
     if set(changed.splitlines()) != expected:
         raise RuntimeError(f"unexpected patched files: {changed!r}")
+    if "m_convexClosedManifold" not in cpp or "pointInsideConvexMesh" not in cpp:
+        raise RuntimeError("convex closed-mesh containment patch anchors missing")
 
     script_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     print(f"Tissu source commit: {EXPECTED_COMMIT}")
