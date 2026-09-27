@@ -215,3 +215,23 @@ def test_group_fit_centroid_fallback_checks_exact_clearance_before_acceptance():
     assert guard < proof < accept
     assert "value < required - 1e-6" in body[guard:accept]
     assert "centroid" in body[fallback:accept].lower()
+
+
+def test_group_fit_uses_cached_surface_samples_for_shared_rigid_correction():
+    from pathlib import Path
+
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "freecad_cloth"
+        / "avatar"
+        / "FittingCommands.py"
+    ).read_text(encoding="utf-8")
+    start = source.index("def snap_pattern_pieces_to_target(")
+    end = source.index("\ndef position_piece", start)
+    body = source[start:end]
+    sample_cache = body.index("sample_cache = {")
+    sample_solver = body.index("weighted_sample_step = App.Vector", sample_cache)
+    centroid_fallback = body.index("# A common rigid transform has one shared translation.", sample_solver)
+    assert sample_cache < sample_solver < centroid_fallback
+    assert "for point in sample_cache[piece]" in body[sample_solver:centroid_fallback]
+    assert "accepted_step = step" in body[sample_solver:centroid_fallback]
