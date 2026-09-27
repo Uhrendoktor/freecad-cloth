@@ -101,6 +101,71 @@ def test_coplanar_adjacent_triangles_at_shared_edge_are_not_ambiguous():
     assert hit.normal == (0.0, 0.0, 1.0)
 
 
+def test_closed_convex_corner_tie_resolves_deterministically():
+    surface = _box()
+    hits = [target_surface_anchor(surface, (15.0, 0.0, 15.0)) for _ in range(3)]
+    assert all(hit.distance == 5.0 for hit in hits)
+    assert len({hit.triangle_index for hit in hits}) == 1
+    assert hits[0].normal in ((1.0, 0.0, 0.0), (0.0, 0.0, 1.0))
+
+
+def test_closed_concave_local_edge_tie_resolves_without_ambiguity():
+    surface = _concave_prism()
+    hit = target_surface_anchor(surface, (0.75, 0.75, 0.0))
+    assert hit.distance == 0.25
+    assert hit.normal in ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0))
+
+
+def test_disconnected_near_equal_normals_remain_fail_closed():
+    surface = _disconnected_orthogonal_tie_surface()
+    try:
+        target_surface_anchor(surface, (3.0, 0.0, 3.0))
+    except ValueError as exc:
+        assert "ambiguous" in str(exc)
+    else:
+        raise AssertionError("non-local normal tie was silently resolved")
+
+
+def _concave_prism():
+    polygon = (
+        (0.0, 0.0), (2.0, 0.0), (2.0, 2.0),
+        (1.0, 2.0), (1.0, 1.0), (0.0, 1.0),
+    )
+    vertices = tuple(
+        (x, y, z)
+        for z in (-1.0, 1.0)
+        for x, y in polygon
+    )
+    n = len(polygon)
+    triangles = []
+    for i in range(1, n - 1):
+        triangles.append((0, i + 1, i))
+        triangles.append((n, n + i, n + i + 1))
+    for i in range(n):
+        j = (i + 1) % n
+        triangles.extend((
+            (i, j, n + j),
+            (i, n + j, n + i),
+        ))
+    surface = CollisionSurface(vertices, tuple(triangles), "target")
+    surface.validate()
+    return surface
+
+
+def _disconnected_orthogonal_tie_surface():
+    vertices = (
+        (-10.0, -10.0, 0.0), (10.0, -10.0, 0.0), (-10.0, 10.0, 0.0),
+        (0.0, -10.0, -10.0), (0.0, 10.0, -10.0), (0.0, -10.0, 10.0),
+    )
+    surface = CollisionSurface(
+        vertices,
+        ((0, 1, 2), (3, 4, 5)),
+        "target",
+    )
+    surface.validate()
+    return surface
+
+
 def _reference_anchor(surface, point):
     center = surface.center
     candidates = []
@@ -153,3 +218,8 @@ def test_bvh_prunes_26k_triangle_target_without_wall_clock_gate():
     assert hit.distance == 25.0
     assert hit.normal == (0.0, 0.0, 1.0)
     assert _target_surface_query_candidate_count(surface, point) < 512
+
+
+def test_closed_manifold_detection_rejects_vertex_touching_disconnected_sheets():
+    surface = _disconnected_orthogonal_tie_surface()
+    assert target_surface_anchor
