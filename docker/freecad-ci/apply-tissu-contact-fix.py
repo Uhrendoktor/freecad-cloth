@@ -31,6 +31,8 @@ def main() -> int:
     header = ROOT / "core/include/physics/MeshCollider.hpp"
     cpp = ROOT / "core/src/physics/MeshCollider.cpp"
     test = ROOT / "tests/physics/test_mesh_collider.cpp"
+    solver_cpp = ROOT / "core/src/physics/Solver.cpp"
+    cloth_test = ROOT / "tests/physics/test_cloth.cpp"
 
     replace_once(
         header,
@@ -207,6 +209,86 @@ MeshOrientation inferMeshOrientation(
         cpp = cpp.replace(old, new, 1)
     Path(cpp_path := ROOT / "core/src/physics/MeshCollider.cpp").write_text(cpp, encoding="utf-8")
 
+    solver_text = solver_cpp.read_text(encoding="utf-8")
+    solver_old = """    const auto& colliders = world.getColliders();
+    for (auto& collider : colliders)
+        collider->resolve(m_particles, dt, world.getThickness());
+
+    solveSelfCollisions(dt, world.getThickness());"""
+    solver_new = """    const auto& colliders = world.getColliders();
+    for (auto& collider : colliders)
+        collider->resolve(m_particles, dt, world.getThickness());
+
+    // Re-enforce the existing constraints once after collision projection,
+    // then re-project collisions so the two operations reach a bounded
+    // fixed point without changing the configured solver iteration count.
+    solveConstraints(dt);
+
+    for (auto& collider : colliders)
+        collider->resolve(m_particles, dt, world.getThickness());
+
+    solveSelfCollisions(dt, world.getThickness());"""
+    if solver_text.count(solver_old) != 1:
+        raise RuntimeError("Solver.cpp collision-order anchor mismatch")
+    solver_cpp.write_text(solver_text.replace(solver_old, solver_new, 1), encoding="utf-8")
+
+    cloth_test_cpp = cloth_test.read_text(encoding="utf-8")
+    cloth_test_cpp = cloth_test_cpp.replace(
+        '#include "physics/Solver.hpp"\n',
+        '#include "physics/Collider.hpp"\n#include "physics/Solver.hpp"\n#include "engine/World.hpp"\n',
+        1,
+    )
+    cloth_test_cpp = cloth_test_cpp.replace("#include <gtest/gtest.h>\n", "#include <gtest/gtest.h>\n#include <memory>\n", 1)
+    order_test = """class OneShotDisplacingCollider final : public Collider {
+public:
+    int calls = 0;
+    double first_gap = -1.0;
+    double second_gap = -1.0;
+
+    void resolve(std::vector<Particle>& particles, double, double) override {
+        ++calls;
+        if (particles.size() < 2)
+            return;
+        if (calls == 1) {
+            particles[0].setPosition(Eigen::Vector3d(-0.5, 0.0, 0.0));
+            particles[1].setPosition(Eigen::Vector3d(0.5, 0.0, 0.0));
+            first_gap = (particles[0].getPosition() - particles[1].getPosition()).norm();
+        } else if (calls == 2) {
+            second_gap = (particles[0].getPosition() - particles[1].getPosition()).norm();
+        }
+    }
+};
+
+TEST(Solver, ReenforcesStitchesThenReprojectsCollider) {
+    Solver solver;
+    solver.setIterations(1);
+    solver.setSubsteps(1);
+    const int a = solver.addParticle(Particle(Eigen::Vector3d::Zero()));
+    const int b = solver.addParticle(Particle(Eigen::Vector3d::Zero()));
+    solver.addStitch(a, b, 0.0);
+
+    World world;
+    world.setGravity(Eigen::Vector3d::Zero());
+    world.setThickness(0.01);
+    auto collider = std::make_shared<OneShotDisplacingCollider>();
+    world.addCollider(collider);
+
+    solver.update(world, 1.0 / 60.0);
+
+    ASSERT_EQ(collider->calls, 2);
+    EXPECT_GT(collider->first_gap, 0.9);
+    EXPECT_NEAR(collider->second_gap, 0.0, 1e-9);
+    const auto& particles = solver.getParticles();
+    EXPECT_NEAR((particles[a].getPosition() - particles[b].getPosition()).norm(), 0.0, 1e-9);
+}
+
+"""
+    if cloth_test_cpp.count("TEST(Cloth, ClearFabric)") != 1:
+        raise RuntimeError("Cloth test anchor missing")
+    cloth_test_cpp = cloth_test_cpp.replace("TEST(Cloth, ClearFabric) {", order_test + "TEST(Cloth, ClearFabric) {", 1)
+    cloth_test.write_text(cloth_test_cpp, encoding="utf-8")
+
+
     test_cpp = test.read_text(encoding="utf-8")
     test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
     helper = """static bool tetrahedronContains(const Eigen::Vector3d& point) {
@@ -294,7 +376,9 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     expected = {
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
+        "core/src/physics/Solver.cpp",
         "tests/physics/test_mesh_collider.cpp",
+        "tests/physics/test_cloth.cpp",
     }
     if set(changed.splitlines()) != expected:
         raise RuntimeError(f"unexpected patched files: {changed!r}")
