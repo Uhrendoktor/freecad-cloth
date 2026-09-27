@@ -560,7 +560,15 @@ void StitchConstraint::solveWithColliders(
                 solveConstraint(*m_constraints[idx]);
             }
         }
-    }""",
+    }
+
+    for (const auto& pin : m_transientPins) {
+        pin->solve(m_particles, dt);
+    }
+    for (const auto& attach : m_attachments) {
+        attach->solve(m_particles, dt);
+    }
+}""",
         "Solver stitch dispatch",
     )
 
