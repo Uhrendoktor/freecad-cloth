@@ -4,6 +4,7 @@ The reference solver remains the deterministic fallback. Tissu is imported lazil
 so installations without the optional wheel keep the existing backend usable.
 """
 from copy import deepcopy
+import math
 from typing import Iterable, Sequence, Tuple
 import os
 
@@ -27,6 +28,17 @@ def _tissu_collision_triangle_limit():
     value = int(os.environ.get("CLOTH_TISSU_COLLISION_TRIANGLES", str(_TISSU_COLLISION_TRIANGLES_DEFAULT)))
     if value < 0:
         raise ValueError("CLOTH_TISSU_COLLISION_TRIANGLES must be >= 0")
+    return value
+
+
+def _tissu_stitch_compliance():
+    raw = os.environ.get("CLOTH_TISSU_STITCH_COMPLIANCE", "0.0").strip()
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise ValueError("CLOTH_TISSU_STITCH_COMPLIANCE must be a finite non-negative number") from exc
+    if not math.isfinite(value) or value < 0.0:
+        raise ValueError("CLOTH_TISSU_STITCH_COMPLIANCE must be a finite non-negative number")
     return value
 
 
@@ -103,6 +115,7 @@ class TissuBackend(ClothSimulationBackend):
         self._triangles = tuple(tuple(int(i) for i in tri) for tri in triangles)
         self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins))
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
+        self._stitch_compliance = _tissu_stitch_compliance()
         self._source_collision_surface = collision_surface
         collision_limit = _tissu_collision_triangle_limit()
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
@@ -160,8 +173,9 @@ class TissuBackend(ClothSimulationBackend):
             raise RuntimeError("Tissu did not preserve cloth particle ordering")
         for index in self._pin_indices:
             self._sim.solver.add_pin(int(index), np.asarray(positions[index], dtype=np.float64), 0.0)
+        print("cloth-tissu-stitch-compliance=%.9g" % self._stitch_compliance, flush=True)
         for a, b in self._stitches:
-            self._sim.solver.add_stitch(int(a), int(b), 0.0)
+            self._sim.solver.add_stitch(int(a), int(b), float(self._stitch_compliance))
         self._add_collision()
 
     def step(self, dt=1.0 / 60.0, iterations=8, gravity=(0.0, 0.0, -9810.0), sphere=None, surface=None):
