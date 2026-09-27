@@ -148,6 +148,63 @@ if "--syntax-check" in sys.argv:
     )
     raise SystemExit(0)
 
+def _validate_native_collision_decimation_runtime():
+    from freecad_cloth.avatar.AvatarCollision import CollisionSurface
+    from freecad_cloth.simulation.TissuBackend import _native_decimate_collision_surface
+
+    vertices = (
+        (0.0, 0.0, 0.0),
+        (10.0, 0.0, 0.0),
+        (10.0, 10.0, 0.0),
+        (0.0, 10.0, 0.0),
+        (0.0, 0.0, 10.0),
+        (10.0, 0.0, 10.0),
+        (10.0, 10.0, 10.0),
+        (0.0, 10.0, 10.0),
+    )
+    triangles = (
+        (0, 2, 1), (0, 3, 2),
+        (4, 5, 6), (4, 6, 7),
+        (0, 1, 5), (0, 5, 4),
+        (1, 2, 6), (1, 6, 5),
+        (2, 3, 7), (2, 7, 6),
+        (3, 0, 4), (3, 4, 7),
+    )
+    surface = CollisionSurface(vertices, triangles, region="native-decimation-test", thickness=1.5)
+    first, first_metrics, first_seconds = _native_decimate_collision_surface(surface, 8)
+    second, second_metrics, second_seconds = _native_decimate_collision_surface(surface, 8)
+
+    if len(first.triangles) != 8 or first_metrics["faces"] != 8:
+        raise RuntimeError("native collision decimation did not reach exact 8-face target: %r" % first_metrics)
+    if first_metrics["components"] != 1 or first_metrics["boundary_edges"] != 0:
+        raise RuntimeError("native collision decimation broke closed topology: %r" % first_metrics)
+    if first_metrics["nonmanifold_edges"] or first_metrics["degenerate_faces"]:
+        raise RuntimeError("native collision decimation produced invalid topology: %r" % first_metrics)
+    if first != second or first_metrics != second_metrics:
+        raise RuntimeError("native collision decimation is not deterministic")
+    if first.region != surface.region or first.thickness != surface.thickness:
+        raise RuntimeError("native collision decimation lost surface metadata")
+    if first_seconds < 0.0 or second_seconds < 0.0:
+        raise RuntimeError("native collision decimation reported invalid wall time")
+    print(
+        "native-collision-decimation=passed "
+        "vertices=%d faces=%d components=%d boundary_edges=%d nonmanifold_edges=%d "
+        "wall_ms=%.3f repeat_wall_ms=%.3f"
+        % (
+            first_metrics["vertices"],
+            first_metrics["faces"],
+            first_metrics["components"],
+            first_metrics["boundary_edges"],
+            first_metrics["nonmanifold_edges"],
+            first_seconds * 1000.0,
+            second_seconds * 1000.0,
+        ),
+        flush=True,
+    )
+
+
+_validate_native_collision_decimation_runtime()
+
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
 exec(compiled_source, globals(), globals())
