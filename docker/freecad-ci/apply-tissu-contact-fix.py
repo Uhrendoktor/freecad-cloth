@@ -309,8 +309,6 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
             "MeshCollider.cpp containment bootstrap",
         ),
     ]
-   ]
-    ]
     for old, new, label in replace_cpp:
         count = cpp.count(old)
         if count != 1:
