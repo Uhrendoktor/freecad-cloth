@@ -42,6 +42,7 @@ def main() -> int:
     std::vector<Eigen::Vector3d> m_worldVertices;
     std::vector<Triangle> m_triangles;
     bool m_closedManifold = false;
+    bool m_orientationKnown = false;
     double m_outwardNormalSign = 1.0;
     BVH m_bvh;""",
         "MeshCollider.hpp member layout",
@@ -63,6 +64,7 @@ namespace {
 
 struct MeshOrientation {
     bool closedManifold = false;
+    bool orientationKnown = false;
     double outwardNormalSign = 1.0;
 };
 
@@ -76,49 +78,86 @@ std::uint64_t edgeKey(int a, int b) {
 MeshOrientation inferMeshOrientation(
     const std::vector<Eigen::Vector3d>& vertices,
     const std::vector<Triangle>& triangles) {
-    if (triangles.empty())
+    if (triangles.empty() || vertices.empty())
         return {};
 
     std::unordered_map<std::uint64_t, std::pair<int, int>> edges;
     edges.reserve(triangles.size() * 3);
 
+    Eigen::Vector3d center = Eigen::Vector3d::Zero();
+    for (const auto& vertex : vertices)
+        center += vertex;
+    center /= static_cast<double>(vertices.size());
+
     double signedVolume = 0.0;
+    double absoluteVolume = 0.0;
+    double signedRadialArea = 0.0;
+    double absoluteRadialArea = 0.0;
+
     for (const auto& tri : triangles) {
         const int ids[3] = {tri.a, tri.b, tri.c};
-        signedVolume +=
-            ids[0] < static_cast<int>(vertices.size()) &&
-                    ids[1] < static_cast<int>(vertices.size()) &&
-                    ids[2] < static_cast<int>(vertices.size())
-                ? vertices[ids[0]].dot(
-                      vertices[ids[1]].cross(vertices[ids[2]])) /
-                      6.0
-                : 0.0;
+        if (ids[0] < 0 || ids[1] < 0 || ids[2] < 0 ||
+            ids[0] >= static_cast<int>(vertices.size()) ||
+            ids[1] >= static_cast<int>(vertices.size()) ||
+            ids[2] >= static_cast<int>(vertices.size())) {
+            return {};
+        }
+
+        const Eigen::Vector3d& a = vertices[ids[0]];
+        const Eigen::Vector3d& b = vertices[ids[1]];
+        const Eigen::Vector3d& c = vertices[ids[2]];
+        const Eigen::Vector3d faceRaw = (b - a).cross(c - a);
+        const double faceLength = faceRaw.norm();
+        if (faceLength <= 1.0e-12)
+            return {};
+        const Eigen::Vector3d normal = faceRaw / faceLength;
+        const Eigen::Vector3d triCenter = (a + b + c) / 3.0;
+        const double area = 0.5 * faceLength;
+        const double radial = normal.dot(triCenter - center);
+
+        const Eigen::Vector3d localA = a - center;
+        const Eigen::Vector3d localB = b - center;
+        const Eigen::Vector3d localC = c - center;
+        const double volume = localA.dot(localB.cross(localC)) / 6.0;
+        signedVolume += volume;
+        absoluteVolume += std::abs(volume);
+        signedRadialArea += radial * area;
+        absoluteRadialArea += std::abs(radial) * area;
 
         for (int edgeIndex = 0; edgeIndex < 3; ++edgeIndex) {
             const int from = ids[edgeIndex];
             const int to = ids[(edgeIndex + 1) % 3];
-            if (from < 0 || to < 0 ||
-                from >= static_cast<int>(vertices.size()) ||
-                to >= static_cast<int>(vertices.size())) {
-                return {};
-            }
             const auto key = edgeKey(from, to);
             auto& edge = edges[key];
             ++edge.first;
-            edge.second +=
-                from == std::min(from, to) ? 1 : -1;
+            edge.second += from == std::min(from, to) ? 1 : -1;
         }
     }
 
-    for (const auto& [key, edge] : edges) {
-        (void)key;
-        if (edge.first != 2 || edge.second != 0)
-            return {};
-    }
-    if (std::abs(signedVolume) <= 1.0e-12)
-        return {};
+    const bool closed =
+        !edges.empty() &&
+        std::all_of(
+            edges.begin(), edges.end(),
+            [](const auto& item) {
+                const auto& edge = item.second;
+                return edge.first == 2 && edge.second == 0;
+            });
 
-    return {true, signedVolume > 0.0 ? 1.0 : -1.0};
+    const bool volumeKnown = absoluteVolume > 1.0e-12 &&
+                             std::abs(signedVolume) / absoluteVolume >= 0.20;
+    const bool radialKnown = absoluteRadialArea > 1.0e-9 &&
+                             std::abs(signedRadialArea) / absoluteRadialArea >= 0.85;
+    const double volumeSign = signedVolume >= 0.0 ? 1.0 : -1.0;
+    const double radialSign = signedRadialArea >= 0.0 ? 1.0 : -1.0;
+    const bool signAgreement = volumeSign == radialSign;
+
+    if (closed && volumeKnown)
+        return {true, true, signedVolume > 0.0 ? 1.0 : -1.0};
+
+    if (volumeKnown && radialKnown && signAgreement)
+        return {false, true, radialSign};
+
+    return {false, false, 1.0};
 }
 
 } // namespace
@@ -141,6 +180,7 @@ MeshOrientation inferMeshOrientation(
     const MeshOrientation orientation =
         inferMeshOrientation(m_worldVertices, m_triangles);
     m_closedManifold = orientation.closedManifold;
+    m_orientationKnown = orientation.orientationKnown;
     m_outwardNormalSign = orientation.outwardNormalSign;
 
     m_bvh.build(m_worldVertices, m_triangles);""",
@@ -183,7 +223,7 @@ MeshOrientation inferMeshOrientation(
             Eigen::Vector3d normal = faceNormal;
             if (distance > 1e-6) {
                 normal = toParticle / distance;
-                if (m_closedManifold) {
+                if (m_orientationKnown) {
                     const Eigen::Vector3d outwardNormal =
                         faceNormal * m_outwardNormalSign;
                     // A particle on the interior side of a closed, consistently
@@ -192,7 +232,7 @@ MeshOrientation inferMeshOrientation(
                     if (normal.dot(outwardNormal) < 0.0)
                         normal = -normal;
                 }
-            } else if (m_closedManifold) {
+            } else if (m_orientationKnown) {
                 normal *= m_outwardNormalSign;
             }
 
@@ -263,6 +303,32 @@ TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
 
     mesh.resolve(particles, 0.016, 0.1);
 
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+}
+
+TEST(MeshCollider, OpenConsistentlyWoundSurfaceMovesInteriorParticleOutside) {
+    const std::vector<Eigen::Vector3d> vertices = {
+        {0.0, 0.0, 0.0},
+        {2.0, 0.0, 0.0},
+        {1.0, 0.0, 2.0},
+        {1.0, 2.0, 1.0},
+    };
+    // This is the closed tetrahedron with one outward-facing base winding
+    // omitted. The remaining three faces stay consistently authored/wound.
+    const std::vector<std::array<int, 3>> triangles = {
+        {0, 1, 2},
+        {0, 3, 1},
+        {1, 3, 2},
+    };
+    MeshCollider mesh(vertices, triangles, 0.0);
+
+    Eigen::Vector3d initialPos(1.0, 0.05, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_LT(particles[0].getPosition().y(), initialPos.y());
     EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
 }
 
