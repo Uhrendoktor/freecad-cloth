@@ -339,7 +339,8 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
             for values in vertices_by_piece.values()
             for point in values
         )
-        minimum_clearance = nearest_surface_distance(surface, placed_vertices)
+        from freecad_cloth.avatar.TargetPlacement import minimum_outward_clearance
+        minimum_clearance = minimum_outward_clearance(surface, placed_vertices)
         if minimum_clearance < float(clearance) - 1e-6:
             raise ValueError(
                 "target snap could not prove the requested %.3f mm collision-surface clearance (%.3f mm observed)"
