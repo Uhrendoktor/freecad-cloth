@@ -145,6 +145,7 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     assert "piece.Placement = open_book_piece_placement(side, outline)" in source
     assert "open-book-pivot=" in source
     assert "open_book_angles[side]" in source
+    assert "open_book_required_offsets[side]" in source
     assert 'open_book_angles["front"]' in source
     assert 'open_book_angles["back"]' in source
     assert 'float(open_book_angles["front"])' in source
