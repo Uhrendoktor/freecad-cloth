@@ -663,8 +663,8 @@ TEST(MeshCollider, EarliestCrossingIsSelectedDeterministically) {
     bvh_cpp_text = bvh_cpp.read_text(encoding="utf-8")
     generated_cpp = cpp_path.read_text(encoding="utf-8")
     for anchor in (
-        "void query(const Eigen::AlignedBox3d& box,",
-        "void queryBoxRecursive(int nodeIdx, const Eigen::AlignedBox3d& box,",
+        "void BVH::query(const Eigen::AlignedBox3d& box,",
+        "void BVH::queryBoxRecursive(int nodeIdx, const Eigen::AlignedBox3d& box,",
     ):
         if anchor not in bvh_header_text:
             raise RuntimeError(f"missing BVH header anchor: {anchor}")
