@@ -158,3 +158,32 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     gate = source.index("assert_drape_diagnostics(json.load(handle).get(\"panels\", ()))")
     assert "drape-metrics=" in source[:gate]
     assert "gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]
+
+
+def test_tunic_stitch_delay_experiment_is_explicitly_bounded():
+    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'os.environ["CLOTH_TISSU_STITCH_DELAY_STEPS"] = "15"' in source
+    assert 'os.environ["CLOTH_TISSU_SUBSTEPS"] = "1"' in source or 'os.environ.pop("CLOTH_TISSU_SUBSTEPS"' in source
+
+
+def test_tissu_stitch_delay_is_fail_closed():
+    from freecad_cloth.simulation.TissuBackend import _tissu_stitch_delay_steps
+    import os
+
+    original = os.environ.pop("CLOTH_TISSU_STITCH_DELAY_STEPS", None)
+    try:
+        assert _tissu_stitch_delay_steps() == 0
+        os.environ["CLOTH_TISSU_STITCH_DELAY_STEPS"] = "15"
+        assert _tissu_stitch_delay_steps() == 15
+        os.environ["CLOTH_TISSU_STITCH_DELAY_STEPS"] = "-1"
+        try:
+            _tissu_stitch_delay_steps()
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("negative Tissu stitch delay was accepted")
+    finally:
+        if original is None:
+            os.environ.pop("CLOTH_TISSU_STITCH_DELAY_STEPS", None)
+        else:
+            os.environ["CLOTH_TISSU_STITCH_DELAY_STEPS"] = original
