@@ -36,8 +36,6 @@ replacements = {
         '        seam_records.append((seam_obj, front, back))',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
     'scene.SolverIterations = 8;': 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-32 iterations-1 substeps-env");',
-    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance',
-    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
 }
 for old, new in replacements.items():
@@ -96,6 +94,32 @@ timed_anchor = '''    from time import perf_counter
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
 '''
 source = source.replace(anchor, preview_probe + '\n' + timed_anchor, 1)
+source = source.replace(
+    '    log("step0-target-vertex-clearance-mm=%.2f required-mm=%.2f" % (float(initial_clearance), float(clearance)))',
+    '''    log("step0-target-vertex-clearance-mm=%.2f required-mm=%.2f" % (float(initial_clearance), float(clearance)))
+    initial_positions = tuple(backend.positions())
+    initial_stitch_pairs = tuple(
+        pair
+        for seam_pairs in getattr(proxy, "seam_stitch_pairs", {}).values()
+        for pair in seam_pairs
+    )
+    if not initial_stitch_pairs:
+        raise RuntimeError("canonical tunic has no exact solver stitch pairs for initial-span diagnostics")
+    initial_stitch_spans = tuple(
+        ((initial_positions[int(a)][0] - initial_positions[int(b)][0]) ** 2
+         + (initial_positions[int(a)][1] - initial_positions[int(b)][1]) ** 2
+         + (initial_positions[int(a)][2] - initial_positions[int(b)][2]) ** 2) ** 0.5
+        for a, b in initial_stitch_pairs
+    )
+    log("initial-stitch-span-mm count=%d min=%.3f max=%.3f mean=%.3f" % (
+        len(initial_stitch_spans),
+        min(initial_stitch_spans),
+        max(initial_stitch_spans),
+        sum(initial_stitch_spans) / len(initial_stitch_spans),
+    ))''',
+    1,
+)
+
 
 seam_check = """    backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
