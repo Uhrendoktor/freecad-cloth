@@ -527,7 +527,16 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
 
     Path(cpp_path).write_text(cpp, encoding="utf-8")
     test_cpp = test.read_text(encoding="utf-8")
-    test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
+    test_cpp = test_cpp.replace(
+        "#include <engine/ClothMesh.hpp>\n",
+        "#include <engine/ClothMesh.hpp>\n#include <engine/World.hpp>\n#include <physics/MeshCollider.hpp>\n",
+        1,
+    )
+    test_cpp = test_cpp.replace(
+        "#include <vector>\n",
+        "#include <array>\n#include <vector>\n",
+        1,
+    )
     helper = """static bool tetrahedronContains(const Eigen::Vector3d& point) {
     const std::vector<Eigen::Vector3d> vertices = {
         {0.0, 0.0, 0.0},
