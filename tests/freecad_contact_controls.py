@@ -171,31 +171,6 @@ def _run_backend(surface, face_center, normal, offset, label):
     }
 
 
-def _set_probe_shape(obj, positions):
-    p = [App.Vector(*position) for position in positions]
-    obj.Shape = Part.Face(Part.makePolygon(p + [p[0]]))
-
-
-def _save_probe_view(name, avatar=None, target_box=None, probe=None):
-    if avatar is not None:
-        avatar.ViewObject.Transparency = 72
-        avatar.ViewObject.Visibility = True
-    if target_box is not None:
-        target_box.ViewObject.Visibility = True
-    if probe is not None:
-        probe.ViewObject.ShapeColor = (0.95, 0.25, 0.15)
-        probe.ViewObject.LineColor = (0.15, 0.02, 0.01)
-        probe.ViewObject.LineWidth = 3.0
-        probe.ViewObject.Visibility = True
-    view = Gui.activeDocument().activeView()
-    view.setCameraType("Orthographic")
-    view.viewFront()
-    view.fitAll()
-    _events()
-    view.saveImage(str(OUT / name), 1200, 900, "Current", 1)
-
-
-
 def _write_stage(stage):
     (OUT / "stage.txt").write_text(str(stage) + "\n", encoding="utf-8")
 
@@ -215,11 +190,6 @@ def _write_manifest(results, error=None):
 
 def _cube_control():
     _write_stage("cube-start")
-    doc = App.newDocument("TissuContactControlCube")
-    cube = doc.addObject("Part::Feature", "TargetCube")
-    cube.Shape = Part.makeBox(100.0, 100.0, 100.0, App.Vector(-50.0, -50.0, -50.0))
-    cube.ViewObject.Transparency = 65
-
     from freecad_cloth.avatar.AvatarCollision import CollisionSurface
     surface = CollisionSurface(
         (
@@ -239,15 +209,14 @@ def _cube_control():
     normal = (0.0, 0.0, 1.0)
     inside = _run_backend(surface, face_center, normal, -PENETRATION_MM, "cube_inside")
     outside = _run_backend(surface, face_center, normal, PENETRATION_MM, "cube_outside")
-
     _write_stage("cube-done")
     return {
         "rung": "0",
         "target": "cube",
         "source_triangles": len(surface.triangles),
         "solver_triangles": len(surface.triangles),
-        "inside": {k: v for k, v in inside.items() if k not in {"initial_positions", "final_positions"}},
-        "outside": {k: v for k, v in outside.items() if k not in {"initial_positions", "final_positions"}},
+        "inside": {k: v for k, v in inside.items()},
+        "outside": {k: v for k, v in outside.items()},
         "topology": validate_mesh(surface.vertices, surface.triangles, prefer_trimesh=False).__dict__,
     }
 
