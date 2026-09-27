@@ -519,6 +519,13 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
     // are not left separated by the final collision correction.
     solveConstraints(dt);
 
+    // The stitch pass can move particles back toward the closed collision
+    // surface. Re-apply the existing collider once, without another
+    // constraint solve or lambda reset, so contact remains the final
+    // positional authority before self-collision.
+    for (auto& collider : colliders)
+        collider->resolve(m_particles, dt, world.getThickness());
+
     solveSelfCollisions(dt, world.getThickness());"""
     if solver_text.count(solver_old) != 1:
         raise RuntimeError("Solver.cpp collision-order anchor mismatch")
@@ -571,6 +578,48 @@ TEST(Solver, ReenforcesStitchesAfterColliderProjection) {
             .norm(),
         0.0,
         1e-9);
+}
+
+class SecondPassObservingCollider final : public Collider {
+public:
+    int calls = 0;
+
+    void resolve(std::vector<Particle>& particles, double, double) override {
+        ++calls;
+        if (particles.size() < 2)
+            return;
+        if (calls == 1) {
+            particles[0].setPosition(
+                particles[0].getPosition() + Eigen::Vector3d(-1.0, 0.0, 0.0));
+            particles[1].setPosition(
+                particles[1].getPosition() + Eigen::Vector3d(1.0, 0.0, 0.0));
+        } else if (calls == 2) {
+            EXPECT_NEAR(
+                (particles[0].getPosition() - particles[1].getPosition()).norm(),
+                0.0,
+                1e-9);
+        }
+    }
+};
+
+TEST(Solver, ReappliesColliderAfterPostCollisionStitchSolve) {
+    Solver solver;
+    const int particleA =
+        solver.addParticle(Particle(Eigen::Vector3d::Zero()));
+    const int particleB =
+        solver.addParticle(Particle(Eigen::Vector3d::Zero()));
+    solver.addStitch(particleA, particleB, 0.0);
+    solver.setSubsteps(1);
+    solver.setIterations(1);
+
+    World world;
+    world.setGravity(Eigen::Vector3d::Zero());
+    auto collider = std::make_shared<SecondPassObservingCollider>();
+    world.addCollider(collider);
+
+    solver.update(world, 1.0 / 60.0);
+
+    EXPECT_EQ(collider->calls, 2);
 }
 
 """
