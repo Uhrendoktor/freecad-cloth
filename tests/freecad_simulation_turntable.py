@@ -426,7 +426,7 @@ def build_simulation_state(doc):
     scene.GravityX = 0.0
     scene.GravityY = 0.0
     scene.GravityZ = -9810.0
-    scene.TimeStep = 1.0 / 60.0
+    scene.TimeStep = 1.0 / 120.0
     scene.ParticleDistance = max(BLANKET_PARTICLE_DISTANCE, float(scene.ParticleDistance))
     scene.SolverIterations = 4
     scene.SolverSubsteps = 1
