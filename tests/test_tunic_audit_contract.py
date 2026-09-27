@@ -125,13 +125,15 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "rayIntersectionCount" in script
     assert "bool& ambiguous" in script
     assert "ParticleInsideMeshMovesOutside" in script
+    assert "DeepInteriorPointMovesOutsideClosedMesh" in script
     assert "tetrahedronContains" in script
     assert "ClosedMeshKeepsOutsideContactOutside" in script
     assert "FarOutsideParticleRemainsUnchanged" in script
-    assert "MultiParticleDeepInteriorOnlyMovesInteriorParticle" in script
-    assert "ReversedWindingClosedMeshStillResolvesInsideParticle" in script
-    assert "RotatedClosedMeshStillResolvesInsideParticle" in script
-    assert "AmbiguousRayThroughClosedMeshVertexFailsClosed" in script
+    assert "MultipleParticlesResolveInsideAndPreserveFarOutside" in script
+    assert "ReversedClosedTetrahedronAndCubeRemainClassified" in script
+    assert "TransformedClosedMeshRemainsClassified" in script
+    assert "AmbiguousSharedCornerRayFailsClosed" in script
+    assert "DeepInteriorParityIsDeterministic" in script
     assert "OpenMeshRetainsLegacyContactDirection" in script
 
     tunic = workflow[workflow.index("  gui-tunic-visual:") : workflow.index("\n  gui-", workflow.index("  gui-tunic-visual:") + 5)]
