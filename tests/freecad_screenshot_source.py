@@ -384,6 +384,7 @@ def simulation():
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
+    placement_z_offset = 120.0
     rot = App.Rotation(App.Vector(1,0,0), 90.0)
     def target_relative_piece_placement(side):
         if side == "front":
@@ -392,7 +393,7 @@ def simulation():
             y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
         else:
             raise ValueError("tunic target-relative side must be front or back")
-        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
+        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z + placement_z_offset), rot)
     def make_piece(name, side, neckline_ratio, neckline_drop):
         sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(side); piece.Sketch.Placement = piece.Placement; return piece, outline
     front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
