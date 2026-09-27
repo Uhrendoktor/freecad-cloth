@@ -124,18 +124,22 @@ def run_canonical_acceptance():
     os.makedirs(os.path.dirname(GARMENT_E2E_LOG), exist_ok=True)
     with open(GARMENT_E2E_LOG, "w", encoding="utf-8"):
         pass
+    def phase_marker(message):
+        with open(GARMENT_E2E_LOG, "a", encoding="utf-8") as handle:
+            handle.write(message + "\n")
+            handle.flush()
     for path, name, marker in ((
         "tests/freecad_avatar_acceptance.py", "freecad_avatar_acceptance", "avatar-provider-acceptance"),
         ("tests/freecad_garment_e2e_smoke.py", "freecad_garment_e2e_smoke", "canonical-garment-e2e"),
         ("tests/freecad_simulation_quality_acceptance.py", "freecad_simulation_quality_acceptance", "simulation-quality-acceptance")):
-        print("canonical-phase-start=%s" % name, flush=True)
+        phase_marker("canonical-phase-start=%s" % name)
         if name == "freecad_garment_e2e_smoke":
             with open(GARMENT_E2E_LOG, "a", encoding="utf-8") as handle:
                 with contextlib.redirect_stdout(handle):
                     load_and_run(os.path.join(ROOT, path), name)
         else:
             load_and_run(os.path.join(ROOT, path), name)
-        print("canonical-phase-passed=%s" % name, flush=True)
+        phase_marker("canonical-phase-passed=%s" % name)
         log(marker + "=passed")
 
 
