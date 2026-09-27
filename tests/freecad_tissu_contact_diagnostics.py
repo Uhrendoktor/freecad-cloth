@@ -1,5 +1,7 @@
 """Diagnostic controls for separating target/contact behavior from gravity and garment complexity.
 
+Diagnostic ladder interpretation: interpret adjacent rungs until first failing rung.
+
 This script is intentionally diagnostic-only. It exercises the existing FreeCAD/Tissu
 runtime without changing physics, solver budgets, canonical fixtures, or release gates.
 """
