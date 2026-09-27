@@ -25,9 +25,9 @@ replacements = {
         '        seam_records.append((seam_obj, front, back))':
         '    front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())\n'
         '    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())\n'
-        '    required_indices = (1, 2, 6, 7)\n'
+        '    required_indices = (1, 2, 5, 7)\n'
         '    if len(front_edge_ids) < 8 or len(back_edge_ids) < 8 or any(not front_edge_ids[index] or not back_edge_ids[index] for index in required_indices): raise RuntimeError("canonical tunic fixture is missing authored semantic edge IDs")\n'
-        '    seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"),(front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"),(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"))\n'
+        '    seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"),(front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"),(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"))\n'
         '    for edge_a_id, edge_b_id, seam_id in seam_specs:\n'
         '        seam = Seam(str(front.PieceId), edge_a_id, str(back.PieceId), edge_b_id, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
         '        add_seam(doc, seam)\n'
@@ -36,9 +36,34 @@ replacements = {
         '        seam_records.append((seam_obj, front, back))',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
     'scene.SolverIterations = 8;': 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-32 iterations-1 substeps-env");',
-    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance',
-    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance',
+    '    def target_relative_piece_placement(side):\n'
+        '        if side == "front":\n'
+        '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance\n'
+        '        elif side == "back":\n'
+        '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance\n'
+        '        else:\n'
+        '            raise ValueError("tunic target-relative side must be front or back")\n'
+        '        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)\n'
+        '    def make_piece(name, side, neckline_ratio, neckline_drop)':
+        '    def open_book_placement(side, outline):\n'
+        '        right_mid = ((outline[2][0] + outline[3][0]) / 2.0, (outline[2][1] + outline[3][1]) / 2.0)\n'
+        '        left_mid = ((outline[5][0] + outline[6][0]) / 2.0, (outline[5][1] + outline[6][1]) / 2.0)\n'
+        '        shoulder_local = ((right_mid[0] + left_mid[0]) / 2.0, (right_mid[1] + left_mid[1]) / 2.0)\n'
+        '        hem_local = ((outline[0][0] + outline[1][0]) / 2.0, (outline[0][1] + outline[1][1]) / 2.0)\n'
+        '        shoulder_to_hem = max(1.0, math.hypot(shoulder_local[0] - hem_local[0], shoulder_local[1] - hem_local[1]))\n'
+        '        target_half_depth = 0.5 * y_span + clearance\n'
+        '        if target_half_depth >= shoulder_to_hem: raise RuntimeError("open-book launch depth exceeds authored shoulder-to-hem span")\n'
+        '        angle = math.degrees(math.asin(target_half_depth / shoulder_to_hem))\n'
+        '        signed_angle = -angle if side == "front" else angle\n'
+        '        pivot = App.Vector(x_mid, (shoulder_left.y + shoulder_right.y) / 2.0, shoulder_z)\n'
+        '        base_zero = App.Vector(x_mid - shoulder_local[0], pivot.y, pivot.z - shoulder_local[1])\n'
+        '        extra = App.Rotation(App.Vector(1,0,0), signed_angle)\n'
+        '        base = pivot + extra.multVec(base_zero - pivot)\n'
+        '        log("open-book side=%s pivot=(%.2f,%.2f,%.2f) angle_deg=%.3f shoulder_to_hem_mm=%.2f target_half_depth_mm=%.2f" % (side, pivot.x, pivot.y, pivot.z, signed_angle, shoulder_to_hem, target_half_depth))\n'
+        '        return App.Placement(base, App.Rotation(App.Vector(1,0,0), 90.0 + signed_angle))\n'
+        '    def make_piece(name, side, neckline_ratio, neckline_drop)':
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
+    'import json': 'import json\nimport math',
 }
 for old, new in replacements.items():
     if old not in source:
