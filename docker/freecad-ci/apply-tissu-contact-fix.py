@@ -936,11 +936,15 @@ TEST(StitchConstraint, SolverChoosesEarliestCrossingAcrossMultipleMeshes) {
         encoding="utf-8",
     )
 
-    if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
-        raise RuntimeError("patched Tissu tree failed git diff --check")
-
-    if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
-        raise RuntimeError("patched Tissu tree failed git diff --check")
+    diff_check = subprocess.run(
+        ["git", "diff", "--check"], cwd=ROOT, check=False,
+        capture_output=True, text=True
+    )
+    if diff_check.returncode != 0:
+        detail = diff_check.stdout.strip() or diff_check.stderr.strip() or "<no diff-check output>"
+        raise RuntimeError(
+            "patched Tissu tree failed git diff --check:\n" + detail
+        )
     changed = run("git", "diff", "--name-only")
     expected = {
         "core/include/data-structures/BVH.hpp",
