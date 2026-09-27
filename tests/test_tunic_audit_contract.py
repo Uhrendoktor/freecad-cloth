@@ -137,7 +137,7 @@ def test_tissu_orientation_provenance_is_explicit_and_fail_closed():
     patch = (ROOT / "docker" / "freecad-ci" / "apply-tissu-contact-fix.py").read_text(encoding="utf-8")
     assert "source_outward_normal_sign" in avatar
     assert "_closed_surface_outward_normal_sign" in avatar
-    assert "source_outward_normal_sign=self._collision_surface.source_outward_normal_sign" in backend
+    assert "outward_normal_sign=self._collision_surface.source_outward_normal_sign" in backend
     assert "m_hasOutwardNormalHint" in patch
     assert "setOutwardNormalSign" in patch
     assert "outward_normal_sign: float | None = None" in patch
