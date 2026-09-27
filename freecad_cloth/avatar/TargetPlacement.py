@@ -268,3 +268,4 @@ def minimum_outward_clearance(surface, points, *, tolerance=1e-6):
     if minimum < -float(tolerance):
         return minimum
     return max(0.0, minimum)
+
