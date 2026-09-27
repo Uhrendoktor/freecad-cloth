@@ -158,3 +158,9 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     gate = source.index("assert_drape_diagnostics(json.load(handle).get(\"panels\", ()))")
     assert "drape-metrics=" in source[:gate]
     assert "gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]
+
+
+def test_canonical_tunic_uses_bounded_upward_placement_offset():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "placement_z_offset = 120.0" in source
+    assert "hem_z + placement_z_offset" in source
