@@ -400,9 +400,7 @@ private:
         ROOT / "core/src/physics/MeshCollider.cpp",
         """MeshCollider::MeshCollider(const std::string& meshPath, double friction)
     : m_meshPath(meshPath) {""",
-        """}
-
-namespace {
+        """namespace Tissu {
 
 bool segmentTriangleHit(const Eigen::Vector3d& start,
                         const Eigen::Vector3d& end,
