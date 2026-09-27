@@ -34,6 +34,13 @@ def test_contact_control_contract():
     assert "faulthandler.dump_traceback_later(30.0, repeat=True" in source
     assert "contact-controls-progress.log" in source
     assert "_progress(" in source
+    assert "Persist progress before any console I/O dependency" in source
+    assert 'print(line, flush=True)' not in source
+    progress_start = source.index("def _progress(message):")
+    progress_write = source.index('_PROGRESS_HANDLE.write(line + "\\n")', progress_start)
+    progress_flush = source.index("_PROGRESS_HANDLE.flush()", progress_write)
+    next_def = source.index("\ndef _events():", progress_flush)
+    assert progress_write < progress_flush < next_def
     assert "setsid /opt/freecad/AppRun" in workflow
     assert "contact-controls-supervisor=timeout" in workflow
     assert "artifacts/contact-controls/app-run.log" in workflow
