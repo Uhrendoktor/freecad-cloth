@@ -241,6 +241,7 @@ MeshOrientation inferMeshOrientation(
         if count != 1:
             raise RuntimeError(f"{label}: expected one source anchor, found {count}")
         cpp = cpp.replace(old, new, 1)
+    Path(cpp_path := ROOT / "core/src/physics/MeshCollider.cpp").write_text(cpp, encoding="utf-8")
     replace_once(
         cpp_path,
         """void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
@@ -336,7 +337,7 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
         "MeshCollider first entering segment hit",
     )
 
-    Path(cpp_path := ROOT / "core/src/physics/MeshCollider.cpp").write_text(cpp, encoding="utf-8")
+
 
     test_cpp = test.read_text(encoding="utf-8")
     test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
