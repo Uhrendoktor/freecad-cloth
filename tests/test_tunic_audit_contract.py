@@ -132,6 +132,7 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "for (const auto& pin : m_transientPins)" in script
     assert "for (const auto& attach : m_attachments)" in script
     assert "direction.dot(outwardNormal) >= -epsilon" in script
+    assert "class StitchConstraint;" in script
     assert "m_lambda = previousLambda +\n        proposedDeltaLambda * lambdaScale;" in script
 
     tunic = workflow[workflow.index("  gui-tunic-visual:") : workflow.index("\n  gui-", workflow.index("  gui-tunic-visual:") + 5)]
