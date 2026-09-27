@@ -1,5 +1,22 @@
 """FreeCAD-facing deterministic cloth simulation scene objects."""
 
+def _canonical_tunic_stitch_compliance():
+    """Return the sole test-only tunic stitch-compliance experiment value."""
+    import os
+
+    if os.environ.get("CLOTH_CANONICAL_TUNIC_AUDIT") != "1":
+        return 0.0
+    raw = os.environ.get("CLOTH_TUNIC_STITCH_COMPLIANCE")
+    if raw is None:
+        raise RuntimeError("canonical tunic audit must declare stitch compliance explicitly")
+    try:
+        value = float(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("canonical tunic stitch compliance must be numeric") from exc
+    if value != 0.001:
+        raise ValueError("canonical tunic experiment permits only compliance=0.001")
+    return value
+
 def _mesh_object(doc, name, label):
     import Mesh
     obj = doc.addObject("Mesh::Feature", name)
@@ -497,7 +514,8 @@ class SimulationProxy:
             panel_data,
             int(getattr(obj, "StitchSamples", 8)),
         )
-        system.add_stitches(seam_pairs)
+        stitch_compliance = _canonical_tunic_stitch_compliance()
+        system.add_stitches(seam_pairs, stitch_compliance)
         first = panel_data[str(pieces[0].PieceId)] if pieces else None
         boundary = (
             tuple(dict.fromkeys(i for edge in first["boundary_edges"] for i in edge))
@@ -519,6 +537,7 @@ class SimulationProxy:
                 "triangles": tuple(triangles_global),
                 "pins": pins,
                 "stitches": seam_pairs,
+                "stitch_compliance": stitch_compliance,
                 "collision_surface": collision_surface,
             }
         self.backend = registry.create(backend_name, system, **backend_kwargs)
