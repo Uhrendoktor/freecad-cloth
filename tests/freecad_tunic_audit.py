@@ -14,6 +14,7 @@ source = source_path.read_text(encoding="utf-8")
 # The canonical tunic audit must use the authoritative DrapeTarget collision
 # surface; do not replace it with the optional torso-envelope approximation.
 os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
+os.environ["CLOTH_TISSU_STITCHLESS_PROBE"] = "1"
 
 replacements = {
     'clearance = max(20.0, 0.08 * body_depth)': 'clearance = max(8.0, 0.025 * body_depth);',
@@ -27,7 +28,8 @@ replacements = {
         '    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())\n'
         '    required_indices = (1, 2, 6, 7)\n'
         '    if len(front_edge_ids) < 8 or len(back_edge_ids) < 8 or any(not front_edge_ids[index] or not back_edge_ids[index] for index in required_indices): raise RuntimeError("canonical tunic fixture is missing authored semantic edge IDs")\n'
-        '    seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"),(front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"),(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"))\n'
+        '    stitchless_probe = os.environ.get("CLOTH_TISSU_STITCHLESS_PROBE") == "1"\n'
+        '    seam_specs = () if stitchless_probe else ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"),(front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"),(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"))\n'
         '    for edge_a_id, edge_b_id, seam_id in seam_specs:\n'
         '        seam = Seam(str(front.PieceId), edge_a_id, str(back.PieceId), edge_b_id, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
         '        add_seam(doc, seam)\n'
@@ -89,9 +91,21 @@ timed_anchor = '''    from time import perf_counter
         str(getattr(active_backend, "name", "")),
         0 if active_collision is None else len(active_collision.triangles),
     ))
-    for batch in (15,15,15,15,15,15):
+    stitchless_probe = os.environ.get("CLOTH_TISSU_STITCHLESS_PROBE") == "1"
+    if stitchless_probe:
+        log("stitchless-probe-step=0 target-clearance-mm=%.3f finite=%s" % (float(initial_clearance), bool(scene.FiniteState)))
+    for batch in ((1,14,15,15,15,15,15) if stitchless_probe else (15,15,15,15,15,15)):
         batch_started = perf_counter()
         simulation_panel.step(batch); doc.recompute(); events()
+        if stitchless_probe:
+            try:
+                from freecad_cloth.common.MeshValidation import nearest_target_clearance
+                probe_clearance = nearest_target_clearance(tuple(active_backend.positions()), tuple(surface.vertices))
+            except (ImportError, ValueError):
+                probe_clearance = None
+            if probe_clearance is None:
+                raise RuntimeError("stitchless probe could not measure target clearance")
+            log("stitchless-probe-step=%d target-clearance-mm=%.3f finite=%s" % (int(scene.Steps), float(probe_clearance), bool(scene.FiniteState)))
         log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
 '''
@@ -121,6 +135,9 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
     if max_seam_gap > 35.0: raise RuntimeError("authoritative tunic seams did not converge: max endpoint gap %.1f mm" % max_seam_gap)
     log("authoritative-seam-max-gap-mm=%.2f seam-ids=%s" % (max_seam_gap, tuple(str(seam.SeamId) for seam, _a, _b in seam_records)))
 """
+
+if os.environ.get("CLOTH_TISSU_STITCHLESS_PROBE") == "1":
+    seam_check = '    log("stitchless-probe-seam-metric=undefined authored-seams=disabled")\\n'
 
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", 1)
 def _compile_generated_source(source_text):
