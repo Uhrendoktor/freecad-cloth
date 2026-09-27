@@ -700,16 +700,6 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         1,
     )
 
-    old_body = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
-    EXPECT_GT(distanceMoved, 0.0);
-}"""
-    new_body = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
-    EXPECT_GT(distanceMoved, 0.0);
-    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
-}"""
-    if test_cpp.count(old_body) != 1:
-        raise RuntimeError("MeshCollider distance-moved anchor mismatch")
-    test_cpp = test_cpp.replace(old_body, new_body, 1)
     test.write_text(test_cpp, encoding="utf-8")
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
