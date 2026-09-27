@@ -935,6 +935,12 @@ TEST(StitchConstraint, SolverChoosesEarliestCrossingAcrossMultipleMeshes) {
         encoding="utf-8",
     )
 
+    generated_stitch_test = stitch_test.read_text(encoding="utf-8")
+    stitch_test.write_text(
+        "\n".join(line.rstrip() for line in generated_stitch_test.splitlines()) + "\n",
+        encoding="utf-8",
+    )
+
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
 
