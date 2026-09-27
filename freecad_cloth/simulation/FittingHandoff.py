@@ -33,6 +33,7 @@ def fitting_stage_status(simulation):
 
 
 def prepare_fitting_from_simulation(simulation):
+    # Keep Snap-to-target non-modal so the active Simulation task panel remains valid.
     """Synchronize the persistent fitting scene without changing the active UI."""
     import FreeCAD as App
     import FreeCADGui as Gui
