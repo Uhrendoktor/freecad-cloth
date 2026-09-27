@@ -71,3 +71,60 @@ def test_registry_rejects_duplicate_or_invalid_backend_factories():
 def test_adapter_interface_is_abstract():
     with pytest.raises(TypeError):
         ClothSimulationBackend()
+
+
+def test_tissu_backend_forwards_stitch_compliance(monkeypatch):
+    import types
+
+    from freecad_cloth.simulation.TissuBackend import TissuBackend
+
+    class FakeSolver:
+        def __init__(self):
+            self.stitches = []
+            self.pins = []
+
+        def add_stitch(self, a, b, compliance):
+            self.stitches.append((a, b, compliance))
+
+        def add_pin(self, index, position, compliance):
+            self.pins.append((index, tuple(position), compliance))
+
+        def set_iterations(self, value):
+            self.iterations = value
+
+    class FakeInstance:
+        def __init__(self, count):
+            self.count = count
+
+        def get_particle_indices(self):
+            return tuple(range(self.count))
+
+    class FakeFabric:
+        def __init__(self, count):
+            self.instance = FakeInstance(count)
+
+    class FakeSimulation:
+        def __init__(self, **_kwargs):
+            self.solver = FakeSolver()
+            self.positions = ()
+            self.gravity = -9.81
+
+        def create_from_arrays(self, _name, vertices, _triangles, material=None):
+            self.positions = tuple(tuple(float(value) for value in row) for row in vertices)
+            return FakeFabric(len(self.positions))
+
+        def add_mesh_from_arrays(self, *_args, **_kwargs):
+            return None
+
+    monkeypatch.setitem(sys.modules, "tissu", types.SimpleNamespace(Simulation=FakeSimulation))
+    system = ClothSystem.grid(10, 10, nx=2, ny=2)
+    backend = TissuBackend(
+        system,
+        triangles=((0, 1, 2), (0, 2, 3)),
+        stitches=((0, 1),),
+        stitch_compliance=0.001,
+    )
+    assert backend._sim.solver.stitches == [(0, 1, 0.001)]
+
+    backend.set_stitches(((1, 2),), compliance=0.0)
+    assert backend._sim.solver.stitches[-1] == (1, 2, 0.0)
