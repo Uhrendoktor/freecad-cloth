@@ -526,7 +526,58 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
     solver_cpp.write_text(solver_text, encoding="utf-8")
 
     test_cpp = test.read_text(encoding="utf-8")
-    test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
+    test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <memory>\n#include <vector>\n", 1)
+    test_cpp = test_cpp.replace(
+        '#include "physics/Solver.hpp"\n',
+        '#include "engine/World.hpp"\n#include "physics/Collider.hpp"\n#include "physics/Solver.hpp"\n',
+        1,
+    )
+    post_collision_test = """class DisplacingCollider final : public Collider {
+public:
+    void resolve(std::vector<Particle>& particles, double, double) override {
+        if (particles.size() < 2)
+            return;
+        particles[0].setPosition(
+            particles[0].getPosition() + Eigen::Vector3d(-1.0, 0.0, 0.0));
+        particles[1].setPosition(
+            particles[1].getPosition() + Eigen::Vector3d(1.0, 0.0, 0.0));
+    }
+};
+
+TEST(Solver, ReenforcesStitchesAfterColliderProjection) {
+    Solver solver;
+    const int particleA =
+        solver.addParticle(Particle(Eigen::Vector3d::Zero()));
+    const int particleB =
+        solver.addParticle(Particle(Eigen::Vector3d::Zero()));
+    solver.addStitch(particleA, particleB, 0.0);
+    solver.setSubsteps(1);
+    solver.setIterations(1);
+
+    World world;
+    world.setGravity(Eigen::Vector3d::Zero());
+    world.addCollider(std::make_shared<DisplacingCollider>());
+
+    solver.update(world, 1.0 / 60.0);
+
+    const auto& particles = solver.getParticles();
+    EXPECT_NEAR(
+        (particles[particleA].getPosition() -
+         particles[particleB].getPosition())
+            .norm(),
+        0.0,
+        1e-9);
+}
+
+"""
+    if test_cpp.count("TEST(Cloth, ClearFabric)") != 1:
+        raise RuntimeError("Cloth test anchor missing")
+    test_cpp = test_cpp.replace(
+        "TEST(Cloth, ClearFabric) {",
+        post_collision_test + "TEST(Cloth, ClearFabric) {",
+        1,
+    )
+
     helper = """static bool tetrahedronContains(const Eigen::Vector3d& point) {
     const std::vector<Eigen::Vector3d> vertices = {
         {0.0, 0.0, 0.0},
