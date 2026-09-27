@@ -42,7 +42,6 @@ def test_canonical_tunic_uses_validated_authored_mapping():
     assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in audit
     assert 'front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"' in audit
     assert 'front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"' in audit
-    assert 'reversed_b=True' in audit
     assert 'reversed_b=seam_id in {"TunicRightShoulder", "TunicLeftShoulder"}' in audit
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in audit
     assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' not in audit
