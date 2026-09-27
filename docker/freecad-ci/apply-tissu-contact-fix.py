@@ -212,13 +212,7 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
 
     cpp = cpp.replace(resolve_old, resolve_new, 1)
 
-    contact_old = """        if (distance <= thickness) {
-            Eigen::Vector3d normal = (distance > 1e-6)
-                                         ? toParticle.normalized()
-                                         : ((b - a).cross(c - a)).normalized();
-
-            Eigen::Vector3d newPosition = cp + normal * thickness;"""
-    contact_new = """        if (distance <= thickness) {
+    contact_old = """        if (distance <= thickness || insideClosedMesh) {
             Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
             const double faceNormalLength = faceNormalRaw.norm();
             if (faceNormalLength <= 1e-12)
@@ -228,7 +222,7 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
             Eigen::Vector3d outwardNormal = faceNormal * m_outwardNormalSign;
             Eigen::Vector3d normal = outwardNormal;
 
-            if (distance > 1e-6) {
+            if (!insideClosedMesh && distance > 1e-6) {
                 normal = toParticle / distance;
                 if (m_closedManifold && normal.dot(outwardNormal) < 0.0)
                     normal = -normal;
@@ -237,6 +231,42 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
             Eigen::Vector3d newPosition = cp + normal * thickness;"""
     if cpp.count(contact_old) != 1:
         raise RuntimeError("MeshCollider.cpp contact-response anchor mismatch")
+    probe_old = """        double distance = toParticle.norm()
+
+        if (distance <= thickness) {"""
+    probe_new = """        double distance = toParticle.norm();
+
+        bool insideClosedMesh = false;
+        if (m_closedManifold && distance > thickness) {
+            const double displacement =
+                (particle.getPosition() - particle.getOldPosition()).norm();
+            const bool containmentProbe =
+                !m_containmentBootstrapped ||
+                displacement + 1e-9 >= distance;
+            if (containmentProbe)
+                insideClosedMesh = pointInsideClosedMesh(particle.getPosition());
+        }
+
+        if (distance <= thickness || insideClosedMesh) {"""
+    if cpp.count(probe_old) != 1:
+        raise RuntimeError("MeshCollider.cpp containment probe anchor mismatch")
+    cpp = cpp.replace(probe_old, probe_new, 1)
+
+    resolve_tail_old = """        }
+    }
+}
+
+} // namespace Tissu"""
+    resolve_tail_new = """        }
+    }
+    m_containmentBootstrapped = true;
+}
+
+} // namespace Tissu"""
+    if cpp.count(resolve_tail_old) != 1:
+        raise RuntimeError("MeshCollider.cpp resolve tail anchor mismatch")
+    cpp = cpp.replace(resolve_tail_old, resolve_tail_new, 1)
+
     cpp_path.write_text(cpp.replace(contact_old, contact_new, 1), encoding="utf-8")
 
     binding_old = """        .def(py::init<const std::vector<Eigen::Vector3d>&,
@@ -303,6 +333,11 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
     stub_py.write_text(stub_text.replace(stub_old, stub_new, 1), encoding="utf-8")
 
     test_cpp = test.read_text(encoding="utf-8")
+    first_test_old = """    mesh.resolve(particles, 0.016, 1.0);"""
+    first_test_new = """    mesh.resolve(particles, 0.016, 0.1);"""
+    if test_cpp.count(first_test_old) != 1:
+        raise RuntimeError("MeshCollider deep-containment regression anchor mismatch")
+    test_cpp = test_cpp.replace(first_test_old, first_test_new, 1)
     if "#include <array>" not in test_cpp:
         test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
 
@@ -449,6 +484,8 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
     full_diff = run("git", "diff")
     if "inferMeshOrientation" in full_diff or "std::unordered_map" in full_diff:
         raise RuntimeError("MeshCollider patch must not infer closure from solver geometry")
+    if "pointInsideClosedMesh" not in full_diff:
+        raise RuntimeError("explicit closed hint must enable bounded containment response")
 
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
