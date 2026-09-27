@@ -265,21 +265,21 @@ class _SurfaceIndex:
         return total
 
     @staticmethod
-    def _near_equal_triangles_are_local(candidates):
-        if len(candidates) <= 1:
+    def _near_equal_triangles_are_local(candidate_vertices):
+        if len(candidate_vertices) <= 1:
             return True
         connected = {0}
         pending = [0]
-        vertex_sets = [set(candidate.vertices) for candidate in candidates]
+        vertex_sets = [set(vertices) for vertices in candidate_vertices]
         while pending:
             index = pending.pop()
-            for other in range(len(candidates)):
+            for other in range(len(candidate_vertices)):
                 if other in connected:
                     continue
                 if vertex_sets[index].intersection(vertex_sets[other]):
                     connected.add(other)
                     pending.append(other)
-        return len(connected) == len(candidates)
+        return len(connected) == len(candidate_vertices)
 
     def nearest_hit(self, point, *, ambiguity_tolerance=DEFAULT_AMBIGUITY_TOLERANCE):
         point = tuple(float(value) for value in point)
@@ -334,8 +334,9 @@ class _SurfaceIndex:
             return best, candidate_count
 
         candidates = [hit for hit, _vertices in near_equal]
+        candidate_vertices = [vertices for _hit, vertices in near_equal]
         if not self._closed_manifold or not self._near_equal_triangles_are_local(
-            candidates
+            candidate_vertices
         ):
             raise ValueError("target snap anchor is ambiguous across surface normals")
 
