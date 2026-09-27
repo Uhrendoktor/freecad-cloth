@@ -181,8 +181,65 @@ MeshOrientation inferMeshOrientation(
         const Eigen::Vector3d outwardNormal =
             faceNormal * m_outwardNormalSign;
         const double outwardSignedDistance = toParticle.dot(outwardNormal);
-        const bool deeplyInsideClosedMesh =
+        bool deeplyInsideClosedMesh =
             m_closedManifold && outwardSignedDistance < -thickness;
+
+        if (deeplyInsideClosedMesh) {
+            // A nearest point on an edge/vertex is topologically ambiguous:
+            // one tied face can point inward even when the particle is outside.
+            const Eigen::Vector3d edge0 = b - a;
+            const Eigen::Vector3d edge1 = c - a;
+            const Eigen::Vector3d fromA = cp - a;
+            const double d00 = edge0.dot(edge0);
+            const double d01 = edge0.dot(edge1);
+            const double d11 = edge1.dot(edge1);
+            const double d20 = fromA.dot(edge0);
+            const double d21 = fromA.dot(edge1);
+            const double denom = d00 * d11 - d01 * d01;
+            bool nearestFeatureBoundary = false;
+            if (denom > 1.0e-18) {
+                const double baryV = (d11 * d20 - d01 * d21) / denom;
+                const double baryW = (d00 * d21 - d01 * d20) / denom;
+                const double baryU = 1.0 - baryV - baryW;
+                nearestFeatureBoundary =
+                    baryU <= 1.0e-8 || baryV <= 1.0e-8 || baryW <= 1.0e-8;
+            }
+
+            if (nearestFeatureBoundary) {
+                std::vector<int> localTriangles;
+                const double featureScale =
+                    std::max({edge0.norm(), edge1.norm(),
+                              (c - b).norm(), 1.0});
+                const double featureRadius = 1.0e-6 * featureScale;
+                m_bvh.query(cp, featureRadius, localTriangles);
+                if (localTriangles.size() < 2) {
+                    deeplyInsideClosedMesh = false;
+                } else {
+                    for (const int localTriIdx : localTriangles) {
+                        const Triangle& localTri = m_bvh.getTriangle(localTriIdx);
+                        const Eigen::Vector3d& localA =
+                            m_worldVertices[localTri.a];
+                        const Eigen::Vector3d& localB =
+                            m_worldVertices[localTri.b];
+                        const Eigen::Vector3d& localC =
+                            m_worldVertices[localTri.c];
+                        const Eigen::Vector3d localRaw =
+                            (localB - localA).cross(localC - localA);
+                        const double localLength = localRaw.norm();
+                        if (localLength <= 1.0e-12) {
+                            deeplyInsideClosedMesh = false;
+                            break;
+                        }
+                        const Eigen::Vector3d localOutward =
+                            (localRaw / localLength) * m_outwardNormalSign;
+                        if (toParticle.dot(localOutward) >= -thickness) {
+                            deeplyInsideClosedMesh = false;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
 
         if (distance <= thickness || deeplyInsideClosedMesh) {
             Eigen::Vector3d normal = faceNormal;
@@ -365,6 +422,28 @@ TEST(MeshCollider, ConcaveClosedMeshDoesNotMoveConcavityVoidPoint) {
     mesh.resolve(particles, 0.016, 0.01);
 
     EXPECT_NEAR((particles[0].getPosition() - initialPos).norm(), 0.0, 1e-9);
+}
+
+TEST(MeshCollider, ClosedMeshSharedVertexOutsideNotMoved) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    Eigen::Vector3d initialPos(-0.2, -0.2, -0.2);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.01);
+
+    EXPECT_EQ(particles[0].getPosition(), initialPos);
+}
+
+TEST(MeshCollider, ClosedMeshSharedEdgeOutsideNotMoved) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    Eigen::Vector3d initialPos(1.0, -0.2, 0.0);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.01);
+
+    EXPECT_EQ(particles[0].getPosition(), initialPos);
 }"""
     if test_cpp.count(old) != 1:
         raise RuntimeError("MeshCollider regression test body anchor mismatch")
