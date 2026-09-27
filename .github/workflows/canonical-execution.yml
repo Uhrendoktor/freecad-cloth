@@ -212,6 +212,152 @@ jobs:
           docker cp "$PWD/." "$CID:/workspace/"
           docker start -a "$CID"
 
+  diagnostic-tissu-contact:
+    name: Diagnostic Tissu contact controls
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls) || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'supervisor/tissu-complexity-ladder-2481-20260927')) }}
+    needs: [local_runner_readiness]
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+    env:
+      FREECAD_TUNISU_IMAGE: freecad-cloth-ci:tissu-contact-fix
+    steps:
+      - name: Log selected execution mode
+        run: |
+          set -euo pipefail
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build pinned Tissu validation image
+        run: |
+          set -euo pipefail
+          docker build --pull --progress=plain -t "$FREECAD_TUNISU_IMAGE" -f docker/freecad-ci/Dockerfile .
+      - name: Run one-step contact controls
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/tissu-contact-diagnostics
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu \
+            -e CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=1 \
+            -e CLOTH_COMPLEXITY_LADDER=${{ startsWith(github.head_ref, 'supervisor/tissu-complexity-ladder-2481-20260927') && '1' || '0' }} \
+            -e CLOTH_TISSU_SUBSTEPS=1 -e CLOTH_TISSU_COLLISION_MODE=mesh \
+            -e CLOTH_TISSU_COLLISION_TRIANGLES=2048 \
+            -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/tissu-contact-diagnostics \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_TUNISU_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/tissu-contact-diagnostics
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              rm -f /workspace/artifacts/tissu-contact-diagnostics/app-run.log
+              setsid /opt/freecad/AppRun /workspace/tests/freecad_tissu_contact_diagnostics.py > /workspace/artifacts/tissu-contact-diagnostics/app-run.log 2>&1 &
+              APP_PID=$!
+              APP_DEADLINE=$((SECONDS + 300))
+              echo "diagnostic-contact-supervisor=started pid=$APP_PID deadline_seconds=300"
+              while kill -0 "$APP_PID" 2>/dev/null; do
+                if [ "$SECONDS" -ge "$APP_DEADLINE" ]; then
+                  echo "diagnostic-contact-supervisor=timeout pid=$APP_PID elapsed_seconds=300" | tee -a /workspace/artifacts/tissu-contact-diagnostics/app-run.log
+                  kill -TERM -- "-$APP_PID" 2>/dev/null || kill -TERM "$APP_PID" 2>/dev/null || true
+                  sleep 5
+                  kill -KILL -- "-$APP_PID" 2>/dev/null || kill -KILL "$APP_PID" 2>/dev/null || true
+                  break
+                fi
+                sleep 1
+              done
+              set +e
+              wait "$APP_PID"
+              APP_STATUS=$?
+              set -e
+              echo "diagnostic-contact-supervisor=finished status=$APP_STATUS" | tee -a /workspace/artifacts/tissu-contact-diagnostics/app-run.log
+              exit "$APP_STATUS"
+            '
+      - name: Capture provenance
+        run: |
+          set -euo pipefail
+          docker run --rm "$FREECAD_TUNISU_IMAGE" bash -lc "cat /opt/tissu-provenance.txt" > artifacts/tissu-provenance.txt
+          test -s artifacts/tissu-provenance.txt
+          grep -q '^tissu-source-commit=c28a3c7504ddc782bef844ab5bd4cd0bde14b628$' artifacts/tissu-provenance.txt
+          grep -q '^tissu-contact-fix-sha256=[0-9a-f]\{64\}$' artifacts/tissu-provenance.txt
+          grep -q '^tissu-cpp-regression-result=passed$' artifacts/tissu-provenance.txt
+      - name: Validate diagnostic artifact
+        run: |
+          set -euo pipefail
+          test -s artifacts/tissu-contact-diagnostics/manifest.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path("artifacts/tissu-contact-diagnostics/manifest.json").read_text(encoding="utf-8"))
+          assert data["schema"] == 1, data
+          assert data["release_gate_effect"] == "none", data
+          ladder = os.environ.get("GITHUB_HEAD_REF", "").startswith("supervisor/tissu-complexity-ladder-2481-20260927")
+          ladder_ids = {
+              "rung-1-cube-pinned",
+              "rung-2-cube-unpinned",
+              "rung-3-cube-two-pieces-no-seam",
+              "rung-4-cube-two-pieces-small-seam",
+              "rung-5-cube-two-pieces-large-seam",
+          }
+          expected = {"control-0-cube", "control-0a-avatar"}
+          if ladder:
+              expected.update(ladder_ids)
+          assert {case["case"]["id"] for case in data["cases"]} == expected, data
+          for case in data["cases"]:
+              assert case["solver"]["backend"] == "tissu", case
+              assert case["collision"]["source_triangles"] > 0, case
+              assert case["collision"]["solver_triangles"] > 0, case
+              assert case["finite"], case
+              assert case["checkpoints"], case
+              for checkpoint in case["checkpoints"]:
+                  assert checkpoint["finite"], case
+              for image in case["images"]:
+                  assert Path("artifacts/tissu-contact-diagnostics", image).is_file(), image
+              case_id = case["case"]["id"]
+              if ladder and case_id in ladder_ids:
+                  assert case["case"]["target"] == "cube", case
+                  assert len(case["checkpoints"]) == 6, case
+                  assert [checkpoint["step"] for checkpoint in case["checkpoints"]] == [0, 1, 5, 15, 45, 90], case
+                  assert case["solver"]["iterations"] == 4, case
+                  assert case["solver"]["substeps"] == 1, case
+                  assert case["solver"]["timestep_s"] == 1.0 / 240.0, case
+                  assert case["solver"]["gravity_z_mm_s2"] == -9810.0, case
+                  assert case["case"]["piece_count"] in {1, 2}, case
+                  if case_id.endswith("small-seam") or case_id.endswith("large-seam"):
+                      assert case["case"]["seam_mode"] == "semantic", case
+                      assert case["pre_step"]["seam_pairs"], case
+                      assert case["pre_step"]["seam_world_spans_mm"], case
+                  else:
+                      assert case["case"]["seam_mode"] == "none", case
+              else:
+                  assert len(case["checkpoints"]) == 2, case
+                  assert [checkpoint["step"] for checkpoint in case["checkpoints"]] == [0, 1], case
+          print("diagnostic-contact-artifact=passed")
+          PY
+      - name: Upload contact diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: tissu-contact-diagnostics
+          path: |
+            artifacts/tissu-contact-diagnostics/**
+            artifacts/tissu-provenance.txt
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 1
   gui-sewing-creation:
     name: Sewing staged creation smoke
     needs: [local_runner_readiness]
