@@ -497,12 +497,12 @@ void StitchConstraint::solveInternal(
             startB, correctionB, *colliders, thickness);
     }
 
-    const Eigen::Vector3d appliedA = appliedA.correction;
-    const Eigen::Vector3d appliedB = appliedB.correction;
+    const Eigen::Vector3d appliedPositionA = appliedA.correction;
+    const Eigen::Vector3d appliedPositionB = appliedB.correction;
     const double proposedMagnitude =
         std::sqrt(correctionA.squaredNorm() + correctionB.squaredNorm());
     const double appliedMagnitude =
-        std::sqrt(appliedA.squaredNorm() + appliedB.squaredNorm());
+        std::sqrt(appliedPositionA.squaredNorm() + appliedPositionB.squaredNorm());
     const double lambdaScale =
         proposedMagnitude > 1e-12
             ? std::max(0.0, std::min(1.0,
@@ -510,8 +510,8 @@ void StitchConstraint::solveInternal(
             : 1.0;
 
     m_lambda = previousLambda + deltaLambda * lambdaScale;
-    pA.setPosition(startA + appliedA);
-    pB.setPosition(startB + appliedB);
+    pA.setPosition(startA + appliedPositionA);
+    pB.setPosition(startB + appliedPositionB);
 }""",
         "StitchConstraint collision-clipped solve",
     )
