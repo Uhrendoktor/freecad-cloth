@@ -48,9 +48,9 @@ class AvatarFittingTests(unittest.TestCase):
 
     def test_wrapped_panel_angles_are_symmetric_and_bounded(self):
         front, back = wrapped_panel_angles(-150.0, 150.0, 0.0, 700.0)
+        self.assertAlmostEqual(front, 77.6263748838, places=8)
+        self.assertAlmostEqual(back, 102.3736251162, places=8)
         self.assertAlmostEqual(front + back, 180.0, places=9)
-        self.assertLess(front, 90.0)
-        self.assertGreater(back, 90.0)
 
     def test_wrapped_panel_angles_reject_nonpositive_seam_height(self):
         with self.assertRaises(ValueError):
