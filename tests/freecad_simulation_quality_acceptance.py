@@ -40,6 +40,30 @@ def _panel_value(panel, widget_name):
     return getattr(panel, widget_name).value()
 
 
+def _placement_signature(piece):
+    placement = piece.Placement
+    base = placement.Base
+    axis = placement.Rotation.Axis
+    return (
+        float(base.x), float(base.y), float(base.z),
+        float(axis.x), float(axis.y), float(axis.z), float(placement.Rotation.Angle),
+    )
+
+
+def _sketch_placement_signature(piece):
+    sketch = getattr(piece, "Sketch", None)
+    return None if sketch is None else _placement_signature(sketch)
+
+
+def _piece_world_vertices(piece):
+    return tuple(
+        tuple(float(value) for value in (piece.Placement.multVec(vertex.Point).x,
+                                         piece.Placement.multVec(vertex.Point).y,
+                                         piece.Placement.multVec(vertex.Point).z))
+        for vertex in getattr(piece.Shape, "Vertexes", ())
+    )
+
+
 def run_acceptance():
     doc = App.newDocument("SimulationQualityAcceptance")
     try:
@@ -150,6 +174,84 @@ def run_acceptance():
                 raise RuntimeError("reloaded task panel lost authored fabric controls")
             if abs(_panel_value(panel, "skin_offset") - 2.5) > 1e-6:
                 raise RuntimeError("reloaded task panel lost authored collision control")
+            snap_before = {str(piece.PieceId): _placement_signature(piece) for piece in (front, back)}
+            snap_before_sketch = {str(piece.PieceId): _sketch_placement_signature(piece) for piece in (front, back)}
+
+            panel = SimulationQualityTaskPanel(scene)
+            Gui.Control.showDialog(panel)
+            _events()
+            if not hasattr(panel, "snap_to_target_button"):
+                raise RuntimeError("simulation task panel lost the target-snap button")
+            panel.snap_to_target_button.click()
+            _events()
+            reloaded.recompute()
+
+            fitting = next((obj for obj in reloaded.Objects if getattr(obj, "FittingType", "") == "FittingScene"), None)
+            if fitting is None:
+                raise RuntimeError("Snap-to-target did not create or preserve the FittingScene")
+            if getattr(fitting, "DrapeTarget", None) != target:
+                raise RuntimeError("Snap-to-target did not preserve the persistent DrapeTarget identity")
+            if str(getattr(fitting, "FitStatus", "")) != "Target-aware arrangement applied":
+                raise RuntimeError("Snap-to-target did not expose the applied arrangement state")
+            if not panel.reset_arrangement_button.isEnabled():
+                raise RuntimeError("Snap-to-target did not expose a reversible Reset arrangement state")
+
+            snap_after = {str(piece.PieceId): _placement_signature(piece) for piece in (front, back)}
+            snap_after_sketch = {str(piece.PieceId): _sketch_placement_signature(piece) for piece in (front, back)}
+            if snap_after == snap_before:
+                raise RuntimeError("Snap-to-target did not move any PatternPiece")
+            for piece_id in snap_before:
+                if snap_after[piece_id][3:] != snap_before[piece_id][3:]:
+                    raise RuntimeError("Snap-to-target changed a PatternPiece rotation")
+                before_sketch = snap_before_sketch[piece_id]
+                after_sketch = snap_after_sketch[piece_id]
+                if before_sketch is not None and after_sketch is not None and after_sketch[3:] != before_sketch[3:]:
+                    raise RuntimeError("Snap-to-target changed a native Sketch rotation")
+
+            from freecad_cloth.avatar.TargetPlacement import nearest_surface_distance, point_inside_closed_surface
+            from freecad_cloth.simulation.DrapeTarget import collision_surface
+            surface = collision_surface(
+                target.SourceObject,
+                float(getattr(target, "CollisionDeflection", 1.0)),
+                float(getattr(target, "CollisionThickness", 0.0)),
+            )
+            placed_points = tuple(
+                point
+                for piece in (front, back)
+                for point in _piece_world_vertices(piece)
+            )
+            if not placed_points:
+                raise RuntimeError("Snap-to-target produced no measurable PatternPiece vertices")
+            if nearest_surface_distance(surface, placed_points) < 8.0 - 1e-6:
+                raise RuntimeError("Snap-to-target failed its unchanged 8 mm collision-surface clearance gate")
+            placed_centroid = tuple(
+                sum(point[index] for point in placed_points) / float(len(placed_points))
+                for index in range(3)
+            )
+            if point_inside_closed_surface(surface, placed_centroid):
+                raise RuntimeError("Snap-to-target placed the garment centroid inside the closed DrapeTarget")
+            print(
+                "target-snap-ui-journey=passed target=%s clearance-mm=%.3f outside-centroid=true"
+                % (target.Name, nearest_surface_distance(surface, placed_points)),
+                flush=True,
+            )
+
+            panel.reset_arrangement_button.click()
+            _events()
+            reloaded.recompute()
+            restored = {str(piece.PieceId): _placement_signature(piece) for piece in (front, back)}
+            restored_sketch = {str(piece.PieceId): _sketch_placement_signature(piece) for piece in (front, back)}
+            if restored != snap_before:
+                raise RuntimeError("Reset arrangement did not restore exact PatternPiece placements")
+            if restored_sketch != snap_before_sketch:
+                raise RuntimeError("Reset arrangement did not restore exact native Sketch placements")
+            if tuple(getattr(fitting, "PiecePlacements", ()) or ()) != tuple(getattr(fitting, "HomePlacements", ()) or ()):
+                raise RuntimeError("Reset arrangement did not restore the fitting placement ledger")
+            if panel.reset_arrangement_button.isEnabled():
+                raise RuntimeError("Reset arrangement remained enabled after restoring HomePlacements")
+            print("target-snap-reset=passed pattern-and-sketch-placements=true", flush=True)
+            _close_task()
+
             _close_task()
 
             target_body.Placement.Base.x += 15.0
