@@ -32,8 +32,9 @@ def fitting_stage_status(simulation):
     return message, bool(tuple(getattr(fitting, "HomePlacements", ()) or ()))
 
 
-def open_arrange_fit_from_simulation(simulation):
-    """Open the existing fitting stage for the simulation's pieces and target."""
+def open_arrange_fit_from_simulation(simulation, *, close_dialog=True, activate_workbench=True):
+    """Open the fitting stage, optionally preserving the caller's task panel."""
+
     import FreeCAD as App
     import FreeCADGui as Gui
     doc = getattr(simulation, "Document", None) or App.ActiveDocument
@@ -52,9 +53,10 @@ def open_arrange_fit_from_simulation(simulation):
         FittingCommands.add_selected_pattern_pieces()
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(fitting)
-    if Gui.Control.activeDialog():
+    if close_dialog and Gui.Control.activeDialog():
         Gui.Control.closeDialog()
-    Gui.activateWorkbench("ClothSewingWorkbench")
+    if activate_workbench:
+        Gui.activateWorkbench("ClothSewingWorkbench")
     doc.recompute()
     return fitting
 

@@ -630,6 +630,8 @@ def run_acceptance():
         quality_panel.snap_to_target_button.click()
         _events()
         doc.recompute()
+        if not hasattr(quality_panel, "form"):
+            raise RuntimeError("Simulation quality task panel was destroyed by target snap")
         fitting_scene = next(
             (obj for obj in doc.Objects if getattr(obj, "FittingType", "") == "FittingScene"),
             None,

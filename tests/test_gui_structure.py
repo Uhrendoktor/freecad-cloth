@@ -191,6 +191,8 @@ def test_simulation_quality_panel_exposes_bounded_arrange_fit_bridge():
     assert 'QPushButton("Refresh target")' in quality_gui
     assert "fitting_stage_status" in quality_gui
     assert "open_arrange_fit_from_simulation" in quality_gui
+    assert "close_dialog=False" in quality_gui
+    assert "activate_workbench=False" in quality_gui
     assert "reset_arrangement_from_simulation" in quality_gui
     assert "snap_to_target" in quality_gui
     assert "snap_pattern_pieces_to_target" in quality_gui

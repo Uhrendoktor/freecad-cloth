@@ -137,7 +137,11 @@ class SimulationQualityTaskPanel:
         try:
             from freecad_cloth.simulation.FittingHandoff import open_arrange_fit_from_simulation
             from freecad_cloth.avatar.FittingCommands import snap_pattern_pieces_to_target
-            fitting = open_arrange_fit_from_simulation(self.scene)
+            fitting = open_arrange_fit_from_simulation(
+                self.scene,
+                close_dialog=False,
+                activate_workbench=False,
+            )
             snap_pattern_pieces_to_target(tuple(getattr(fitting, "PatternPieces", ()) or ()))
             self._refresh("Garment pieces arranged on the persistent DrapeTarget.")
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
