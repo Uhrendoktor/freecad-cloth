@@ -12,6 +12,18 @@ ARRANGEMENT_POINT_NAMES = (
 )
 
 
+def wrapped_panel_angles(front_y, back_y, target_y, seam_height, max_inward_cos=0.35):
+    """Return deterministic front/back X-axis wrap angles for a flat panel around an avatar."""
+    seam_height = float(seam_height)
+    if seam_height <= 0.0:
+        raise ValueError("seam height must be positive")
+    limit = max(0.0, min(0.999, float(max_inward_cos)))
+    front_cos = max(-limit, min(limit, (float(target_y) - float(front_y)) / seam_height))
+    back_cos = max(-limit, min(limit, (float(target_y) - float(back_y)) / seam_height))
+    from math import acos, degrees
+    return degrees(acos(front_cos)), degrees(acos(back_cos))
+
+
 def arrangement_points_from_landmarks(landmarks):
     """Return stable ``name|x,y,z`` arrangement points from landmark records."""
     by_name = {}
