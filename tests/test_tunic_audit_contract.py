@@ -158,3 +158,15 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     gate = source.index("assert_drape_diagnostics(json.load(handle).get(\"panels\", ()))")
     assert "drape-metrics=" in source[:gate]
     assert "gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]
+
+
+def test_tunic_staged_stitch_experiment_is_explicit_and_fail_closed():
+    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    backend = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    assert 'os.environ["CLOTH_TISSU_STITCH_DELAY_STEPS"] = "15"' in source
+    assert "tunic-stitch-delay-configured=%d" in source
+    assert "tunic-stitch-pre-activation step=%d clearance-mm=%.2f pairs-pending=%d" in source
+    assert "_TISSU_STITCH_DELAY_STEPS_DEFAULT = 0" in backend
+    assert "_tissu_stitch_delay_steps()" in backend
+    assert "_stitches_activated" in backend
+    assert 'self._sim.solver.add_stitch' in backend
