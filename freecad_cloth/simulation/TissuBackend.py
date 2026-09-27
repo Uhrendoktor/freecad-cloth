@@ -180,7 +180,7 @@ class TissuBackend(ClothSimulationBackend):
         for index in self._pin_indices:
             self._sim.solver.add_pin(int(index), np.asarray(positions[index], dtype=np.float64), 0.0)
         if self._stitches_active:
-            self._activate_stitches()
+            self._add_stitches_to_solver()
         self._add_collision()
 
     def _reset_stitch_activation_state(self):
@@ -198,6 +198,10 @@ class TissuBackend(ClothSimulationBackend):
             % (self._step_count + 1, len(self._stitches)),
             flush=True,
         )
+
+    def _add_stitches_to_solver(self):
+        for a, b in self._stitches:
+            self._sim.solver.add_stitch(int(a), int(b), 0.0)
 
     def _maybe_activate_stitches(self):
         if self._stitches_active or self._step_count < self._stitch_delay_steps:
