@@ -106,7 +106,7 @@ timed_anchor = '''    from time import perf_counter
                 from freecad_cloth.common.MeshValidation import nearest_target_clearance
                 pre_activation_clearance = nearest_target_clearance(
                     tuple(scene.Proxy._base_or_restore().backend.positions()),
-                    tuple(surface.vertices),
+                    tuple(target_surface.vertices),
                 )
             except (ImportError, ValueError):
                 pre_activation_clearance = None
