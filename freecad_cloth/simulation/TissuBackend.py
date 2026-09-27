@@ -14,6 +14,8 @@ from freecad_cloth.simulation.ClothSolver import ClothSystem
 _MM = 1000.0
 _TISSU_SUBSTEPS_DEFAULT = 1
 _TISSU_COLLISION_TRIANGLES_DEFAULT = 0
+_TISSU_STITCH_DELAY_STEPS_DEFAULT = 0
+_TISSU_STITCH_DELAY_STEPS_MAX = 90
 
 
 def _tissu_substeps():
@@ -27,6 +29,13 @@ def _tissu_collision_triangle_limit():
     value = int(os.environ.get("CLOTH_TISSU_COLLISION_TRIANGLES", str(_TISSU_COLLISION_TRIANGLES_DEFAULT)))
     if value < 0:
         raise ValueError("CLOTH_TISSU_COLLISION_TRIANGLES must be >= 0")
+    return value
+
+
+def _tissu_stitch_delay_steps():
+    value = int(os.environ.get("CLOTH_TISSU_STITCH_DELAY_STEPS", str(_TISSU_STITCH_DELAY_STEPS_DEFAULT)))
+    if value < 0 or value > _TISSU_STITCH_DELAY_STEPS_MAX:
+        raise ValueError("CLOTH_TISSU_STITCH_DELAY_STEPS must be between 0 and %d" % _TISSU_STITCH_DELAY_STEPS_MAX)
     return value
 
 
@@ -103,6 +112,10 @@ class TissuBackend(ClothSimulationBackend):
         self._triangles = tuple(tuple(int(i) for i in tri) for tri in triangles)
         self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins))
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
+        self._stitch_delay_steps = _tissu_stitch_delay_steps()
+        self._stitch_step = 0
+        self._stitch_activation_step = None
+        self._pending_stitches = ()
         self._source_collision_surface = collision_surface
         collision_limit = _tissu_collision_triangle_limit()
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
@@ -160,9 +173,31 @@ class TissuBackend(ClothSimulationBackend):
             raise RuntimeError("Tissu did not preserve cloth particle ordering")
         for index in self._pin_indices:
             self._sim.solver.add_pin(int(index), np.asarray(positions[index], dtype=np.float64), 0.0)
-        for a, b in self._stitches:
-            self._sim.solver.add_stitch(int(a), int(b), 0.0)
+        self._pending_stitches = tuple(self._stitches) if self._stitch_delay_steps else ()
+        if not self._stitch_delay_steps:
+            self._activate_stitches()
         self._add_collision()
+
+    def _activate_stitches(self):
+        if self._stitch_activation_step is not None:
+            return
+        for a, b in self._pending_stitches:
+            self._sim.solver.add_stitch(int(a), int(b), 0.0)
+        self._pending_stitches = ()
+        self._stitch_activation_step = int(self._stitch_step)
+        print(
+            "cloth-tissu-stitches delay=%d activation-step=%d pairs=%d"
+            % (self._stitch_delay_steps, self._stitch_activation_step, len(self._stitches)),
+            flush=True,
+        )
+
+    @property
+    def stitch_delay_steps(self):
+        return self._stitch_delay_steps
+
+    @property
+    def stitch_activation_step(self):
+        return self._stitch_activation_step
 
     def step(self, dt=1.0 / 60.0, iterations=8, gravity=(0.0, 0.0, -9810.0), sphere=None, surface=None):
         if dt <= 0 or iterations < 1:
@@ -174,13 +209,19 @@ class TissuBackend(ClothSimulationBackend):
         self._sim.solver.set_iterations(max(1, int(iterations)))
         _gx, _gy, gz = gravity
         self._sim.gravity = float(gz) / _MM
+        if self._pending_stitches and self._stitch_step >= self._stitch_delay_steps:
+            self._activate_stitches()
         self._sim.step(float(dt))
         self._iterations = int(iterations)
         self._time += float(dt)
+        self._stitch_step += 1
 
     def reset(self):
         from tissu import Simulation
         self._time = 0.0
+        self._stitch_step = 0
+        self._stitch_activation_step = None
+        self._pending_stitches = ()
         self._build(Simulation)
 
     def pin(self, indices: Iterable[int]):
@@ -192,6 +233,9 @@ class TissuBackend(ClothSimulationBackend):
 
     def set_stitches(self, pairs: Iterable[Tuple[int, int]], compliance=0.0):
         self._stitches = tuple((int(a), int(b)) for a, b in pairs)
+        if self._stitch_delay_steps and self._stitch_activation_step is None:
+            self._pending_stitches = tuple(self._stitches)
+            return
         for a, b in self._stitches:
             self._sim.solver.add_stitch(int(a), int(b), float(compliance))
 
