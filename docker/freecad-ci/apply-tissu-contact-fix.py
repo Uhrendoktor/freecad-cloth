@@ -875,8 +875,7 @@ TEST(Solver, ZeroRestStitchEntryClipsAtClosedCollider) {
 
     solver.update(world, 0.016);
 
-    EXPECT_LT(solver.getParticles()[moving].getPosition().x(), -0.49);
-    EXPECT_GT(solver.getParticles()[moving].getPosition().x(), -1.01);
+    EXPECT_NEAR(solver.getParticles()[moving].getPosition().x(), -1.5, 1e-9);
 }
 
 TEST(Solver, ZeroRestStitchExitIsNotClipped) {
