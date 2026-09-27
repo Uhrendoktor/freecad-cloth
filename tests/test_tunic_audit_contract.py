@@ -154,7 +154,7 @@ def test_tunic_shoulder_attachment_contract_uses_existing_tissu_attachment_api()
     assert 'endpoint_pairs = (stitch_pairs[0], stitch_pairs[-1])' in simulation_objects
     assert '"attachments": attachments' in simulation_objects
     assert "attachments: Iterable[Tuple[int, Tuple[float, float, float], float]] = ()" in tissu_backend
-    assert 'self._sim.add_attachment(' in tissu_backend
+    assert 'self._sim.attach(' in tissu_backend
     assert '"drape-target"' in tissu_backend
     assert "local_anchors=" in tissu_backend
     assert 'rest_length=float(rest_length) / _MM' in tissu_backend
