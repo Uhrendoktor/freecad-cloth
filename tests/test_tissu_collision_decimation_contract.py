@@ -1,7 +1,6 @@
 import sys
 import types
-
-import pytest
+from contextlib import contextmanager
 
 from freecad_cloth.avatar.AvatarCollision import CollisionSurface
 from freecad_cloth.avatar.AvatarCollisionRuntime import (
@@ -93,11 +92,34 @@ class FakeMeshModule:
         return FakeNativeMesh(self._output_vertices, self._output_faces)
 
 
-def _install_fake_freecad(monkeypatch, mesh_module):
+@contextmanager
+def _install_fake_freecad(mesh_module):
     freecad = types.ModuleType("FreeCAD")
     freecad.Vector = FakeVector
-    monkeypatch.setitem(sys.modules, "FreeCAD", freecad)
-    monkeypatch.setitem(sys.modules, "Mesh", mesh_module)
+    old_freecad = sys.modules.get("FreeCAD")
+    old_mesh = sys.modules.get("Mesh")
+    sys.modules["FreeCAD"] = freecad
+    sys.modules["Mesh"] = mesh_module
+    try:
+        yield
+    finally:
+        if old_freecad is None:
+            sys.modules.pop("FreeCAD", None)
+        else:
+            sys.modules["FreeCAD"] = old_freecad
+        if old_mesh is None:
+            sys.modules.pop("Mesh", None)
+        else:
+            sys.modules["Mesh"] = old_mesh
+
+
+def _expect_runtime(callback, message):
+    try:
+        callback()
+    except RuntimeError as exc:
+        assert message in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError containing %r" % message)
 
 
 def _tetra(offset):
@@ -111,15 +133,15 @@ def _tetra(offset):
     return base, faces
 
 
-def test_native_decimation_hits_exact_2048_and_is_deterministic(monkeypatch):
+def test_native_decimation_hits_exact_2048_and_is_deterministic():
     source_vertices, source_faces = _sphere(5)
     expected_vertices, expected_faces = _sphere(4)
     mesh = FakeMeshModule(expected_vertices, expected_faces)
-    _install_fake_freecad(monkeypatch, mesh)
     source = CollisionSurface(tuple(source_vertices), tuple(source_faces))
 
-    first = decimate_collision_surface_native(source, 2048)
-    second = decimate_collision_surface_native(source, 2048)
+    with _install_fake_freecad(mesh):
+        first = decimate_collision_surface_native(source, 2048)
+        second = decimate_collision_surface_native(source, 2048)
 
     assert len(first.triangles) == 2048
     assert first == second
@@ -131,7 +153,7 @@ def test_native_decimation_hits_exact_2048_and_is_deterministic(monkeypatch):
     assert report.finite is True
 
 
-def test_native_decimation_fails_closed_when_api_is_unavailable(monkeypatch):
+def test_native_decimation_fails_closed_when_api_is_unavailable():
     class NoDecimateMesh:
         def addFacets(self, facets):
             self._facets = facets
@@ -139,15 +161,17 @@ def test_native_decimation_fails_closed_when_api_is_unavailable(monkeypatch):
     class NoDecimateModule:
         Mesh = NoDecimateMesh
 
-    _install_fake_freecad(monkeypatch, NoDecimateModule())
     vertices, faces = _sphere(1)
     source = CollisionSurface(tuple(vertices), tuple(faces))
 
-    with pytest.raises(RuntimeError, match="decimation API is unavailable"):
-        decimate_collision_surface_native(source, 8)
+    with _install_fake_freecad(NoDecimateModule()):
+        _expect_runtime(
+            lambda: decimate_collision_surface_native(source, 8),
+            "decimation API is unavailable",
+        )
 
 
-def test_native_decimation_rejects_fragmented_output(monkeypatch):
+def test_native_decimation_rejects_fragmented_output():
     source_vertices, source_faces = _sphere(1)
     tetra_a, tetra_faces_a = _tetra(0.0)
     tetra_b, tetra_faces_b = _tetra(3.0)
@@ -156,19 +180,29 @@ def test_native_decimation_rejects_fragmented_output(monkeypatch):
         tetra_faces_a
         + tuple((a + 4, b + 4, c + 4) for a, b, c in tetra_faces_b)
     )
-    _install_fake_freecad(monkeypatch, FakeMeshModule(expected_vertices, expected_faces))
     source = CollisionSurface(tuple(source_vertices), tuple(source_faces))
 
-    with pytest.raises(RuntimeError, match="fragmented"):
-        decimate_collision_surface_native(source, 8)
+    with _install_fake_freecad(FakeMeshModule(expected_vertices, expected_faces)):
+        _expect_runtime(
+            lambda: decimate_collision_surface_native(source, 8),
+            "fragmented",
+        )
 
 
-def test_native_decimation_preserves_closed_source_contract(monkeypatch):
+def test_native_decimation_preserves_closed_source_contract():
     source_vertices, source_faces = _sphere(1)
     open_vertices = ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0), (0.0, 1.0, 0.0))
     open_faces = ((0, 1, 2), (0, 2, 3))
-    _install_fake_freecad(monkeypatch, FakeMeshModule(open_vertices, open_faces))
     source = CollisionSurface(tuple(source_vertices), tuple(source_faces))
 
-    with pytest.raises(RuntimeError, match="closed connected"):
-        decimate_collision_surface_native(source, 2)
+    with _install_fake_freecad(FakeMeshModule(open_vertices, open_faces)):
+        _expect_runtime(
+            lambda: decimate_collision_surface_native(source, 2),
+            "closed connected",
+        )
+
+
+if __name__ == '__main__':
+    for name, fn in globals().copy().items():
+        if name.startswith('test_'):
+            fn()
