@@ -121,6 +121,51 @@ MeshOrientation inferMeshOrientation(
     return {true, signedVolume > 0.0 ? 1.0 : -1.0};
 }
 
+bool segmentTriangleHit(
+    const Eigen::Vector3d& start,
+    const Eigen::Vector3d& end,
+    const Eigen::Vector3d& a,
+    const Eigen::Vector3d& b,
+    const Eigen::Vector3d& c,
+    double& hitT,
+    Eigen::Vector3d& hitNormal) {
+    const Eigen::Vector3d direction = end - start;
+    if (direction.squaredNorm() <= 1.0e-18)
+        return false;
+
+    const Eigen::Vector3d edge1 = b - a;
+    const Eigen::Vector3d edge2 = c - a;
+    const Eigen::Vector3d pvec = direction.cross(edge2);
+    const double determinant = edge1.dot(pvec);
+    constexpr double epsilon = 1.0e-12;
+    if (std::abs(determinant) <= epsilon)
+        return false;
+
+    const double inverseDeterminant = 1.0 / determinant;
+    const Eigen::Vector3d tvec = start - a;
+    const double u = tvec.dot(pvec) * inverseDeterminant;
+    if (u < -epsilon || u > 1.0 + epsilon)
+        return false;
+
+    const Eigen::Vector3d qvec = tvec.cross(edge1);
+    const double v = direction.dot(qvec) * inverseDeterminant;
+    if (v < -epsilon || u + v > 1.0 + epsilon)
+        return false;
+
+    const double t = edge2.dot(qvec) * inverseDeterminant;
+    if (t < -epsilon || t > 1.0 + epsilon)
+        return false;
+
+    const Eigen::Vector3d rawNormal = edge1.cross(edge2);
+    const double normalLength = rawNormal.norm();
+    if (normalLength <= epsilon)
+        return false;
+
+    hitT = std::clamp(t, 0.0, 1.0);
+    hitNormal = rawNormal / normalLength;
+    return true;
+}
+
 } // namespace
 """
     if cpp.count(include_old) != 1:
@@ -167,10 +212,79 @@ MeshOrientation inferMeshOrientation(
             "MeshCollider.cpp vector constructor",
         ),
         (
-            """        if (distance <= thickness) {
-            Eigen::Vector3d normal = (distance > 1e-6)
-                                         ? toParticle.normalized()
-                                         : ((b - a).cross(c - a)).normalized();
+            """        bool sweptHit = false;
+        Eigen::Vector3d sweptPoint = cp;
+        Eigen::Vector3d sweptNormal = Eigen::Vector3d::Zero();
+        double sweptT = 1.0;
+
+        if (distance > thickness) {
+            const Eigen::Vector3d oldPosition = particle.getOldPosition();
+            const Eigen::Vector3d segment = particle.getPosition() - oldPosition;
+            const double segmentLength = segment.norm();
+            if (segmentLength > thickness) {
+                const Eigen::Vector3d midpoint =
+                    0.5 * (oldPosition + particle.getPosition());
+                const double queryRadius = 0.5 * segmentLength + thickness;
+                std::vector<int> candidates;
+                m_bvh.query(midpoint, queryRadius, candidates);
+                for (const int candidate : candidates) {
+                    const Triangle& candidateTri = m_bvh.getTriangle(candidate);
+                    const Eigen::Vector3d& candidateA = m_worldVertices[candidateTri.a];
+                    const Eigen::Vector3d& candidateB = m_worldVertices[candidateTri.b];
+                    const Eigen::Vector3d& candidateC = m_worldVertices[candidateTri.c];
+                    double candidateT = 1.0;
+                    Eigen::Vector3d candidateNormal = Eigen::Vector3d::Zero();
+                    if (!segmentTriangleHit(
+                            oldPosition, particle.getPosition(),
+                            candidateA, candidateB, candidateC,
+                            candidateT, candidateNormal))
+                        continue;
+                    if (!sweptHit || candidateT < sweptT) {
+                        sweptHit = true;
+                        sweptT = candidateT;
+                        sweptPoint = oldPosition + segment * candidateT;
+                        sweptNormal = candidateNormal;
+                        triIdx = candidate;
+                    }
+                }
+            }
+        }
+
+        if (distance <= thickness || sweptHit) {
+            if (sweptHit) {
+                cp = sweptPoint;
+                distance = 0.0;
+            }
+
+            const Eigen::Vector3d faceNormalRaw =
+                (b - a).cross(c - a);
+            const double faceNormalLength = faceNormalRaw.norm();
+            if (faceNormalLength <= 1e-12)
+                continue;
+            Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
+
+            Eigen::Vector3d normal = faceNormal;
+            if (sweptHit) {
+                normal = sweptNormal;
+                if (m_closedManifold) {
+                    normal *= m_outwardNormalSign;
+                } else if (segment.dot(normal) > 0.0) {
+                    normal = -normal;
+                }
+            } else if (distance > 1e-6) {
+                normal = toParticle / distance;
+                if (m_closedManifold) {
+                    const Eigen::Vector3d outwardNormal =
+                        faceNormal * m_outwardNormalSign;
+                    // A particle on the interior side of a closed, consistently
+                    // oriented surface must be resolved along the outward
+                    // normal; outside contact preserves the existing vector.
+                    if (normal.dot(outwardNormal) < 0.0)
+                        normal = -normal;
+                }
+            } else if (m_closedManifold) {
+                normal *= m_outwardNormalSign;
+            }
 
             Eigen::Vector3d newPosition = cp + normal * thickness;""",
             """        if (distance <= thickness) {
@@ -249,6 +363,32 @@ MeshOrientation inferMeshOrientation(
     )
     old = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
     EXPECT_GT(distanceMoved, 0.0);
+}
+
+TEST(MeshCollider, SweptCrossingThinSurfaceIsProjectedOutside) {
+    const std::vector<Eigen::Vector3d> vertices = {
+        {0.0, 0.0, 0.0},
+        {2.0, 0.0, 0.0},
+        {0.0, 0.0, 2.0},
+        {2.0, 0.0, 2.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {
+        {0, 1, 2},
+        {2, 1, 3},
+    };
+    MeshCollider mesh(vertices, triangles, 0.0);
+
+    std::vector<Particle> particles;
+    particles.emplace_back(Eigen::Vector3d(1.0, 1.0, 1.0));
+    particles[0].setPosition(Eigen::Vector3d(1.0, -1.0, 1.0));
+    particles[0].setOldPosition(Eigen::Vector3d(1.0, 1.0, 1.0));
+
+    mesh.resolve(particles, 0.016, 0.05);
+
+    EXPECT_NEAR(particles[0].getPosition().y(), 0.05, 1e-9);
+    EXPECT_GT(
+        (particles[0].getPosition() - particles[0].getOldPosition()).norm(),
+        0.0);
 }"""
     new = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
     EXPECT_GT(distanceMoved, 0.0);
