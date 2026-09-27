@@ -453,6 +453,77 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
                     break
 
             if accepted_step is None:
+                # A common rigid transform has one shared translation. When the
+                # per-panel nearest-surface projections disagree locally, solve
+                # that rigid degree of freedom from the aggregate garment
+                # centroid, then retain the exact per-point clearance proof below.
+                group_points = tuple(
+                    point
+                    for piece in selected
+                    for point in sample_cache[piece]
+                )
+                group_center = average_point(group_points)
+                group_direction = tuple(
+                    float(group_center[index]) - float(surface.center[index])
+                    for index in range(3)
+                )
+                group_projection = nearest_target_projection(
+                    group_center,
+                    surface,
+                    preferred_normal=group_direction,
+                )
+                group_target = App.Vector(
+                    float(group_projection.point[0]) + float(group_projection.normal[0]) * required,
+                    float(group_projection.point[1]) + float(group_projection.normal[1]) * required,
+                    float(group_projection.point[2]) + float(group_projection.normal[2]) * required,
+                )
+                group_step = group_target - App.Vector(*group_center)
+                if group_step.Length <= 1e-6:
+                    raise ValueError(
+                        "target-aware group placement stalled before reaching the target"
+                    )
+                for scale in (
+                    1.0,
+                    0.5,
+                    0.25,
+                    0.125,
+                    0.0625,
+                    0.03125,
+                    0.015625,
+                    0.0078125,
+                ):
+                    step = group_step * scale
+                    proposed = total_translation + step
+                    if proposed.Length > float(max_translation) + 1e-9:
+                        continue
+                    test_center = tuple(
+                        float(group_center[index]) + float(step[index])
+                        for index in range(3)
+                    )
+                    test_projection = nearest_target_projection(
+                        test_center,
+                        surface,
+                        preferred_normal=group_direction,
+                    )
+                    test_target = tuple(
+                        float(test_projection.point[index])
+                        + float(test_projection.normal[index]) * required
+                        for index in range(3)
+                    )
+                    group_error = sum(
+                        (test_target[index] - test_center[index]) ** 2
+                        for index in range(3)
+                    ) ** 0.5
+                    current_group_error = sum(
+                        (float(group_target[index]) - float(group_center[index])) ** 2
+                        for index in range(3)
+                    ) ** 0.5
+                    if group_error < current_group_error - 1e-6:
+                        accepted_step = step
+                        accepted_proximity_error = group_error
+                        break
+
+            if accepted_step is None:
                 raise ValueError(
                     "target-aware group placement did not reduce target proximity error "
                     "(current=%.3f step=%.3f)"
