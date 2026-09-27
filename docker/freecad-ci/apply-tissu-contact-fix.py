@@ -272,7 +272,7 @@ bool segmentTriangleHit(
                 normal = sweptNormal;
                 if (m_closedManifold) {
                     normal *= m_outwardNormalSign;
-                } else if (segment.dot(normal) > 0.0) {
+                } else if ((particle.getPosition() - particle.getOldPosition()).dot(normal) > 0.0) {
                     normal = -normal;
                 }
             } else if (distance > 1e-6) {
