@@ -159,3 +159,15 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     gate = source.index("assert_drape_diagnostics(json.load(handle).get(\"panels\", ()))")
     assert "drape-metrics=" in source[:gate]
     assert "gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]
+
+
+def test_tunic_seam_rest_state_probe_preserves_ninety_step_run():
+    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "tunic-seam-rest-state-json=" in source
+    assert "tunic-seam-rest-state-delta-json=" in source
+    assert '"rest_distance_mm": 0.0' in source
+    assert '"rest_distance_source": "TissuBackend.add_stitch(a,b,0.0)"' in source
+    assert '_seam_state_snapshot("pre-step")' in source
+    assert '_seam_state_snapshot("after-step-1")' in source
+    assert "simulation_panel.step(14)" in source
+    assert "enumerate((15,15,15,15,15,15))" in source
