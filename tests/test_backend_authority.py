@@ -8,8 +8,30 @@ from freecad_cloth.simulation.ClothBackend import (
     default_backend_registry,
     validate_pinned_stitch_pairs,
 )
+from freecad_cloth.simulation.TissuBackend import _tissu_collision_thickness
+from freecad_cloth.avatar.AvatarCollision import CollisionSurface
 from freecad_cloth.simulation.SimulationBackend import NullSolver
 from freecad_cloth.simulation.ClothSolver import ClothSystem
+
+
+
+
+def test_tissu_collision_thickness_uses_surface_margin_in_metres():
+    surface = CollisionSurface(
+        vertices=((0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (0.0, 10.0, 0.0)),
+        triangles=((0, 1, 2),),
+        thickness=3.0,
+    )
+    assert _tissu_collision_thickness(surface) == 0.003
+
+
+def test_tissu_collision_thickness_preserves_legacy_zero_fallback():
+    surface = CollisionSurface(
+        vertices=((0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (0.0, 10.0, 0.0)),
+        triangles=((0, 1, 2),),
+        thickness=0.0,
+    )
+    assert _tissu_collision_thickness(surface) == 0.002
 
 
 def test_default_registry_exposes_single_reference_backend():
