@@ -126,6 +126,15 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "tetrahedronContains" in script
     assert "ClosedMeshKeepsOutsideContactOutside" in script
     assert "OpenMeshRetainsLegacyContactDirection" in script
+    assert "rayIntersectionCount" in script
+    assert "bool& ambiguous" in script
+    assert "DeepInteriorPointMovesOutsideClosedMesh" in script
+    assert "FarOutsideParticleRemainsUnchanged" in script
+    assert "MultipleParticlesResolveInsideAndPreserveFarOutside" in script
+    assert "ReversedClosedTetrahedronAndCubeRemainClassified" in script
+    assert "TransformedClosedMeshRemainsClassified" in script
+    assert "AmbiguousSharedCornerRayFailsClosed" in script
+    assert "DeepInteriorParityIsDeterministic" in script
 
     tunic = workflow[workflow.index("  gui-tunic-visual:") : workflow.index("\n  gui-", workflow.index("  gui-tunic-visual:") + 5)]
     assert "FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix" in tunic
@@ -136,6 +145,13 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert 'tissu-cpp-regression-result=passed' in dockerfile
     assert 'docker run --rm "$FREECAD_TUNIC_IMAGE" bash -lc' in workflow
     assert 'artifacts/tissu-provenance.txt' in workflow
+
+def test_tissu_contact_fix_uses_signed_ray_t_classification():
+    script = (ROOT / "docker" / "freecad-ci" / "apply-tissu-contact-fix.py").read_text(encoding="utf-8")
+    assert "if (t < -kRayEpsilon)" in script
+    assert "if (std::abs(t) <= kRayEpsilon)" in script
+    assert "if (t <= kRayEpsilon)" not in script
+
 
 def test_canonical_tunic_fixture_matches_validated_start_geometry():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
