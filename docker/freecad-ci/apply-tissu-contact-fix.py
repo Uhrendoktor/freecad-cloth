@@ -212,7 +212,7 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
 
     cpp = cpp.replace(resolve_old, resolve_new, 1)
 
-    contact_old = """        if (distance <= thickness) {
+    contact_old = """        if (distance <= thickness || insideClosedMesh) {
             Eigen::Vector3d normal = (distance > 1e-6)
                                          ? toParticle.normalized()
                                          : ((b - a).cross(c - a)).normalized();
