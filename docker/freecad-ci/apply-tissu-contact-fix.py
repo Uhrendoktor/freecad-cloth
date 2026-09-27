@@ -183,6 +183,9 @@ MeshOrientation inferMeshOrientation(
         inferMeshOrientation(m_worldVertices, m_triangles);
     m_closedManifold = orientation.closedManifold;
     m_outwardNormalSign = orientation.outwardNormalSign;
+    m_worldBounds.setEmpty();
+    for (const auto& vertex : m_worldVertices)
+        m_worldBounds.extend(vertex);
 
     m_bvh.build(m_worldVertices, m_triangles);""",
             "MeshCollider.cpp file constructor",
@@ -203,6 +206,9 @@ MeshOrientation inferMeshOrientation(
         inferMeshOrientation(m_worldVertices, m_triangles);
     m_closedManifold = orientation.closedManifold;
     m_outwardNormalSign = orientation.outwardNormalSign;
+    m_worldBounds.setEmpty();
+    for (const auto& vertex : m_worldVertices)
+        m_worldBounds.extend(vertex);
 
     m_bvh.build(m_worldVertices, m_triangles);""",
             "MeshCollider.cpp vector constructor",
