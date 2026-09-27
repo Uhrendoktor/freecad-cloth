@@ -7,7 +7,7 @@ from copy import deepcopy
 from typing import Iterable, Sequence, Tuple
 import os
 
-from freecad_cloth.avatar.AvatarCollision import CollisionSurface, coarsen_collision_surface
+from freecad_cloth.avatar.AvatarCollision import CollisionSurface, coarsen_collision_surface, surface_from_triangles
 from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 
@@ -47,6 +47,110 @@ def _to_tissu_mesh(surface):
     vertices = [np.asarray(_to_tissu_position(v), dtype=np.float64) for v in surface.vertices]
     triangles = [[int(a), int(c), int(b)] for a, b, c in surface.triangles]
     return vertices, triangles
+
+
+def _mesh_topology_metrics(vertices, triangles):
+    """Return deterministic topology metrics for a solver-facing collision mesh."""
+    vertices = tuple(tuple(float(c) for c in point) for point in vertices)
+    triangles = tuple(tuple(int(i) for i in tri) for tri in triangles)
+    if len(vertices) < 3 or not triangles:
+        raise ValueError("collision mesh is empty")
+    if any(not all(isfinite(c) for c in point) for point in vertices for c in (point,)):
+        # Defensive branch retained for malformed native bridge data.
+        raise ValueError("collision mesh contains non-finite vertices")
+    edge_faces = {}
+    adjacency = [set() for _ in triangles]
+    degenerate = 0
+    for face_index, (a, b, c) in enumerate(triangles):
+        if len({a, b, c}) != 3:
+            degenerate += 1
+            continue
+        if any(index < 0 or index >= len(vertices) for index in (a, b, c)):
+            raise ValueError("collision mesh triangle index out of range")
+        for left, right in ((a, b), (b, c), (c, a)):
+            edge = (min(left, right), max(left, right))
+            edge_faces.setdefault(edge, []).append(face_index)
+    for faces in edge_faces.values():
+        if len(faces) > 1:
+            for face_index in faces:
+                adjacency[face_index].update(other for other in faces if other != face_index)
+    visited = set()
+    components = 0
+    for face_index in range(len(triangles)):
+        if face_index in visited:
+            continue
+        components += 1
+        stack = [face_index]
+        visited.add(face_index)
+        while stack:
+            current = stack.pop()
+            for neighbor in adjacency[current]:
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    stack.append(neighbor)
+    return {
+        "vertices": len(vertices),
+        "faces": len(triangles),
+        "components": components,
+        "boundary_edges": sum(1 for faces in edge_faces.values() if len(faces) == 1),
+        "nonmanifold_edges": sum(1 for faces in edge_faces.values() if len(faces) > 2),
+        "degenerate_faces": degenerate,
+    }
+
+
+def _native_decimate_collision_surface(surface, max_triangles):
+    """Use FreeCAD's native mesh decimator without changing the model ABI."""
+    limit = int(max_triangles)
+    surface.validate()
+    if limit < 1:
+        raise ValueError("max_triangles must be positive")
+    if len(surface.triangles) <= limit:
+        return surface, _mesh_topology_metrics(surface.vertices, surface.triangles), 0.0
+
+    source_metrics = _mesh_topology_metrics(surface.vertices, surface.triangles)
+    if source_metrics["degenerate_faces"]:
+        raise RuntimeError("native collision decimation source contains degenerate faces")
+    if source_metrics["nonmanifold_edges"]:
+        raise RuntimeError("native collision decimation source is non-manifold")
+
+    try:
+        import FreeCAD as App
+        import Mesh
+    except ImportError as exc:
+        raise RuntimeError("FreeCAD Mesh runtime is required for native collision decimation") from exc
+
+    from time import perf_counter
+    started = perf_counter()
+    native = Mesh.Mesh()
+    vectors = [App.Vector(*point) for point in surface.vertices]
+    native.addFacets([(vectors[a], vectors[b], vectors[c]) for a, b, c in surface.triangles])
+    native.decimate(limit)
+    raw_vertices, raw_triangles = native.Topology
+    vertices = tuple((float(vertex.x), float(vertex.y), float(vertex.z)) for vertex in raw_vertices)
+    triangles = tuple(tuple(int(i) for i in face) for face in raw_triangles)
+    metrics = _mesh_topology_metrics(vertices, triangles)
+    if metrics["faces"] != limit:
+        raise RuntimeError(
+            "native collision decimation produced %d faces; expected %d"
+            % (metrics["faces"], limit)
+        )
+    if metrics["degenerate_faces"] or metrics["nonmanifold_edges"]:
+        raise RuntimeError(
+            "native collision decimation produced invalid topology: %s" % metrics
+        )
+    if metrics["components"] != source_metrics["components"]:
+        raise RuntimeError(
+            "native collision decimation changed component count: %d -> %d"
+            % (source_metrics["components"], metrics["components"])
+        )
+    if source_metrics["boundary_edges"] == 0 and metrics["boundary_edges"] != 0:
+        raise RuntimeError(
+            "native collision decimation opened a closed source surface: boundary_edges=%d"
+            % metrics["boundary_edges"]
+        )
+    result = surface_from_triangles(vertices, triangles, surface.region, surface.thickness)
+    elapsed = perf_counter() - started
+    return result, metrics, elapsed
 
 
 def _collision_envelope(surface):
@@ -106,13 +210,21 @@ class TissuBackend(ClothSimulationBackend):
         self._source_collision_surface = collision_surface
         collision_limit = _tissu_collision_triangle_limit()
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
-            collision_surface = coarsen_collision_surface(collision_surface, collision_limit)
+            collision_surface, collision_metrics, collision_seconds = _native_decimate_collision_surface(
+                collision_surface,
+                collision_limit,
+            )
             print(
-                "cloth-tissu-collision source_triangles=%d solver_triangles=%d limit=%d"
+                "cloth-tissu-collision native_decimation source_triangles=%d solver_triangles=%d "
+                "vertices=%d components=%d boundary_edges=%d nonmanifold_edges=%d wall_ms=%.3f"
                 % (
                     len(self._source_collision_surface.triangles),
                     len(collision_surface.triangles),
-                    collision_limit,
+                    collision_metrics["vertices"],
+                    collision_metrics["components"],
+                    collision_metrics["boundary_edges"],
+                    collision_metrics["nonmanifold_edges"],
+                    collision_seconds * 1000.0,
                 ),
                 flush=True,
             )
