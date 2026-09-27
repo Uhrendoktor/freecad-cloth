@@ -23,7 +23,8 @@ os.environ["CLOTH_TISSU_SUBSTEPS"] = "1"
 os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
 os.environ["CLOTH_TISSU_COLLISION_TRIANGLES"] = "2048"
 
-from freecad_cloth.avatar.AvatarCollision import coarsen_collision_surface, validate_mesh
+from freecad_cloth.avatar.AvatarCollision import coarsen_collision_surface
+from freecad_cloth.common.MeshValidation import validate_mesh
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 from freecad_cloth.simulation.DrapeTarget import collision_surface, refresh_drape_target, target_status
 from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
@@ -207,7 +208,6 @@ def _cube_control():
     cube.Shape = Part.makeBox(100.0, 100.0, 100.0, App.Vector(-50.0, -50.0, -50.0))
     cube.ViewObject.Transparency = 65
 
-    surface = type("CubeSurface", (), {})()
     from freecad_cloth.avatar.AvatarCollision import CollisionSurface
     surface = CollisionSurface(
         (
