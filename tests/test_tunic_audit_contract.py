@@ -143,6 +143,7 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance'," in audit
     assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance'," in audit
     assert "'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))'," in audit
+    assert "'        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)': '        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z + 100.0), rot)'" in audit
 
 
 def test_tunic_visual_diagnostics_are_authoritative_after_persistence():
