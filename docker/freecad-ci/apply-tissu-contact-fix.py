@@ -257,6 +257,12 @@ static bool containsReferenceTetra(
     return true;
 }
 
+static bool tetrahedronContains(const Eigen::Vector3d& point) {
+    const auto vertices = referenceTetraVertices();
+    const auto triangles = referenceTetraTriangles(false);
+    return containsReferenceTetra(point, vertices, triangles);
+}
+
 """
     if test_cpp.count("TEST(MeshCollider, ParticleInsideMeshMovesOutside)") != 1:
         raise RuntimeError("MeshCollider test anchor missing")
@@ -385,6 +391,22 @@ TEST(MeshCollider, ParticleInsideMeshMovesOutside) {""",
 }
 
 TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {""",
+        """TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    Eigen::Vector3d initialPos(1.0, -0.01, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+}
+
+TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {""",
+        1,
+    )
+    test_cpp = test_cpp.replace(
+        """TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {""",
         """TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
     MeshCollider mesh = makeTetrahedron(0.0);
     Eigen::Vector3d initialPos(1.0, -0.01, 0.75);
