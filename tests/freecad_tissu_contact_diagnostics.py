@@ -176,11 +176,46 @@ def _nearest_surface_observation(garment_points, surface):
     return (math.sqrt(best) if math.isfinite(best) else None), point
 
 
+def _ray_intersection_x(point, a, b, c):
+    px, py, pz = point
+    ay, az = float(a[1]) - py, float(a[2]) - pz
+    by, bz = float(b[1]) - py, float(b[2]) - pz
+    cy, cz = float(c[1]) - py, float(c[2]) - pz
+    det = ((float(b[1]) - float(a[1])) * (float(c[2]) - float(a[2])) -
+           (float(b[2]) - float(a[2])) * (float(c[1]) - float(a[1])))
+    if abs(det) <= 1e-12:
+        return False
+    u = (ay * (float(c[2]) - float(a[2])) - az * (float(c[1]) - float(a[1]))) / det
+    v = ((float(b[1]) - float(a[1])) * az - (float(b[2]) - float(a[2])) * ay) / det
+    if u < -1e-9 or v < -1e-9 or u + v > 1.0 + 1e-9:
+        return False
+    x_hit = float(a[0]) + u * (float(b[0]) - float(a[0])) + v * (float(c[0]) - float(a[0]))
+    return x_hit > px + 1e-7
+
+
+def _point_inside_mesh(point, vertices, triangles):
+    """Classify a point by majority vote across three deterministic ray directions."""
+    rays = (
+        lambda p, a, b, c: _ray_intersection_x(p, a, b, c),
+        lambda p, a, b, c: _ray_intersection_x((p[1], p[2], p[0]), (a[1], a[2], a[0]), (b[1], b[2], b[0]), (c[1], c[2], c[0])),
+        lambda p, a, b, c: _ray_intersection_x((p[2], p[0], p[1]), (a[2], a[0], a[1]), (b[2], b[0], b[1]), (c[2], c[0], c[1])),
+    )
+    votes = []
+    for ray in rays:
+        intersections = 0
+        for ia, ib, ic in triangles:
+            if ray(point, vertices[ia], vertices[ib], vertices[ic]):
+                intersections += 1
+        votes.append(bool(intersections % 2))
+    return sum(votes) >= 2
+
+
 def _inside_outside(points, source):
+    points = tuple(points[:64])
     shape = getattr(source, "Shape", None)
     if shape is not None and not getattr(shape, "isNull", lambda: True)():
         states = []
-        for point in points[:64]:
+        for point in points:
             try:
                 states.append(bool(shape.isInside(App.Vector(*point), 1e-6, True)))
             except (AttributeError, TypeError, ValueError):
@@ -198,28 +233,38 @@ def _inside_outside(points, source):
     if topology is None:
         return "unknown"
     try:
-        import numpy as np
-        import trimesh
         raw_vertices, raw_faces = topology
         vertices = tuple((float(v.x), float(v.y), float(v.z)) for v in raw_vertices)
         faces = tuple(tuple(int(i) for i in face) for face in raw_faces)
-        target_mesh = trimesh.Trimesh(
-            vertices=np.asarray(vertices, dtype=float),
-            faces=np.asarray(faces, dtype=int),
-            process=False,
-        )
-        if not target_mesh.is_watertight:
-            return "unknown"
-        states = [bool(value) for value in target_mesh.contains(np.asarray(points[:64], dtype=float))]
-        if not states:
-            return "unknown"
-        if all(states):
-            return "inside"
-        if not any(states):
-            return "outside"
-        return "mixed"
-    except (ImportError, TypeError, ValueError, RuntimeError):
-        return "unknown"
+        try:
+            import numpy as np
+            import trimesh
+            target_mesh = trimesh.Trimesh(
+                vertices=np.asarray(vertices, dtype=float),
+                faces=np.asarray(faces, dtype=int),
+                process=False,
+            )
+            if target_mesh.is_watertight:
+                states = [bool(value) for value in target_mesh.contains(np.asarray(points, dtype=float))]
+                if states:
+                    if all(states):
+                        return "inside"
+                    if not any(states):
+                        return "outside"
+                    return "mixed"
+        except (ImportError, TypeError, ValueError, RuntimeError):
+            pass
+
+        states = [_point_inside_mesh(point, vertices, faces) for point in points]
+        if states:
+            if all(states):
+                return "inside"
+            if not any(states):
+                return "outside"
+            return "mixed"
+    except (TypeError, ValueError, AttributeError, IndexError):
+        pass
+    return "unknown"
 
 
 def _bounds(points):
@@ -460,6 +505,14 @@ def _run_case(case_id, rung, scene, piece, camera):
     if backend is None:
         raise RuntimeError("%s did not build a simulation backend" % case_id)
     _progress(f"{case_id}: backend={getattr(backend, 'name', '')}")
+    _progress(
+        "tissu-env: collision_mode=%s collision_triangles=%s backend_module=%s"
+        % (
+            os.environ.get("CLOTH_TISSU_COLLISION_MODE", "<unset>"),
+            os.environ.get("CLOTH_TISSU_COLLISION_TRIANGLES", "<unset>"),
+            getattr(__import__("freecad_cloth.simulation.TissuBackend", fromlist=["__file__"]), "__file__", "<unknown>"),
+        )
+    )
     target = scene.DrapeTarget
     if target is None:
         raise RuntimeError("%s has no DrapeTarget" % case_id)
@@ -553,18 +606,35 @@ def _run_control_avatar():
     try:
         scene = _build_scene(doc)
         avatar = scene.AvatarProxy.SourceObject
-        box = avatar.Mesh.BoundBox
-        center_y = (float(box.YMin) + float(box.YMax)) / 2.0
-        center_z = float(box.ZMin) + 0.67 * float(box.ZMax - box.ZMin)
-        center_x = (float(box.XMin) + float(box.XMax)) / 2.0
-        penetration_shift_mm = 16.0
+        shape = getattr(avatar, "Shape", None)
+        if shape is None or getattr(shape, "isNull", lambda: True)():
+            raise RuntimeError("control-0a-avatar requires the production avatar shape")
+        center = getattr(shape, "CenterOfMass", None)
+        if center is None:
+            box = avatar.Mesh.BoundBox
+            center = App.Vector(
+                0.5 * (float(box.XMin) + float(box.XMax)),
+                0.5 * (float(box.YMin) + float(box.YMax)),
+                float(box.ZMin) + 0.67 * float(box.ZMax - box.ZMin),
+            )
+        center_x, center_y, center_z = float(center.x), float(center.y), float(center.z)
         placement = App.Placement(
-            App.Vector(center_x - 180.0, center_y, center_z - 180.0 + penetration_shift_mm),
+            App.Vector(center_x - 36.0, center_y, center_z - 36.0),
             App.Rotation(App.Vector(1.0, 0.0, 0.0), 90.0),
         )
-        piece = _build_piece(doc, "AvatarCloth", placement)
+        piece = _build_piece(doc, "AvatarCloth", placement, width=72.0, height=72.0)
         avatar.ViewObject.Visibility = True
+        try:
+            avatar.ViewObject.Transparency = 70
+        except (AttributeError, TypeError, ValueError):
+            pass
         record = _run_case("control-0a-avatar", 0, scene, piece, "front")
+        if record["control"]["inside_outside_before"] not in {"inside", "mixed"}:
+            raise RuntimeError(
+                "control-0a-avatar did not create a true interior pre-step state: %s"
+                % record["control"]["inside_outside_before"]
+            )
+        record["control"]["interior_probe"] = True
         return record
     finally:
         App.closeDocument(doc.Name)
