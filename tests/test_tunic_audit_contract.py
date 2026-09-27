@@ -158,3 +158,9 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     gate = source.index("assert_drape_diagnostics(json.load(handle).get(\"panels\", ()))")
     assert "drape-metrics=" in source[:gate]
     assert "gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]
+
+
+def test_canonical_tunic_fixture_uses_upright_back_panel_normal_flip():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'front_rot = App.Rotation(App.Vector(1,0,0), 90.0); back_rot = App.Rotation(App.Vector(0,1,1), 180.0)' in audit
+    assert 'rotation = front_rot if side == "front" else back_rot' in audit
