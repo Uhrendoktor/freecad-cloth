@@ -696,10 +696,18 @@ void StitchConstraint::solveInternal(
             pB.getPosition(), correctionB, *colliders, thickness);
     }
 
-    // The XPBD multiplier records the unconstrained stitch solve. Mesh contact
-    // is a separate endpoint barrier: only a crossing endpoint is clipped,
-    // while the other endpoint keeps its full free-space correction.
-    m_lambda += deltaLambda;
+    // The multiplier records only the actually applied XPBD correction,
+    // weighted by endpoint inverse mass. A clipped endpoint contributes only
+    // its applied fraction; a free endpoint contributes its full correction.
+    const double appliedCorrectionWeight =
+        wA * correctionScaleA + wB * correctionScaleB;
+    const double appliedScale =
+        appliedCorrectionWeight / wSum;
+    const double appliedDeltaLambda = deltaLambda * appliedScale;
+    m_lambda += appliedDeltaLambda;
+
+    // Mesh contact is an endpoint barrier: only an entering endpoint is
+    // clipped; the other endpoint keeps its full free-space correction.
     pA.setPosition(pA.getPosition() + correctionA * correctionScaleA);
     pB.setPosition(pB.getPosition() + correctionB * correctionScaleB);
 }""",
@@ -713,7 +721,9 @@ void StitchConstraint::solveInternal(
         "correctionScaleAtFirstMeshHit(",
         "double correctionScaleA = 1.0;",
         "double correctionScaleB = 1.0;",
-        "m_lambda += deltaLambda;",
+        "const double appliedCorrectionWeight =",
+        "const double appliedDeltaLambda = deltaLambda * appliedScale;",
+        "m_lambda += appliedDeltaLambda;",
     )
     missing = [marker for marker in required_markers if marker not in stitch_cpp_text]
     if missing:
@@ -721,8 +731,8 @@ void StitchConstraint::solveInternal(
             "StitchConstraint generated swept implementation missing markers: "
             + ", ".join(missing)
         )
-    if "const double appliedDeltaLambda = deltaLambda * correctionScale;" in stitch_cpp_text:
-        raise RuntimeError("StitchConstraint generated swept implementation still couples both endpoints through one scale")
+    if "m_lambda += deltaLambda;" in stitch_cpp_text:
+        raise RuntimeError("StitchConstraint lambda must not accumulate the unconstrained correction after clipping")
 
     replace_once(
         ROOT / "core/include/physics/Solver.hpp",
