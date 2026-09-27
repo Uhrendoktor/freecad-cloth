@@ -90,6 +90,7 @@ namespace Tissu {"""
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 
 namespace Tissu {"""
