@@ -194,3 +194,24 @@ def test_surface_index_is_reused_for_same_surface():
 
     surface = _top_surface()
     assert _surface_index(surface) is _surface_index(surface)
+
+
+def test_group_fit_centroid_fallback_checks_exact_clearance_before_acceptance():
+    from pathlib import Path
+
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "freecad_cloth"
+        / "avatar"
+        / "FittingCommands.py"
+    ).read_text(encoding="utf-8")
+    start = source.index("def snap_pattern_pieces_to_target(")
+    end = source.index("\ndef position_piece", start)
+    body = source[start:end]
+    fallback = body.index("group_points = tuple(")
+    accept = body.index("accepted_step = step", fallback)
+    guard = body.index("candidate_clearances = []", fallback)
+    proof = body.index("minimum_signed_clearance(", guard)
+    assert guard < proof < accept
+    assert "value < required - 1e-6" in body[guard:accept]
+    assert "centroid" in body[fallback:accept].lower()
