@@ -53,6 +53,23 @@ def test_shared_rigid_solution_preserves_pairwise_distance():
     assert delta.rotation_z == pytest.approx(0.0)
 
 
+def test_shared_rigid_solution_preserves_relative_rotation():
+    source = ((-5, 0, 0), (5, 0, 0))
+    angle = math.radians(20.0)
+    cos_a, sin_a = math.cos(angle), math.sin(angle)
+    target = tuple(
+        (cos_a * p[0] - sin_a * p[1] + 15.0, sin_a * p[0] + cos_a * p[1] - 7.0, p[2] + 3.0)
+        for p in source
+    )
+    delta = solve_rigid_z(source, target, max_translation=100, max_rotation=45)
+    transformed = apply_rigid_delta(source, delta)
+    assert delta.rotation_z == pytest.approx(20.0)
+    assert transformed == pytest.approx(target)
+    source_vector = (source[1][0] - source[0][0], source[1][1] - source[0][1])
+    transformed_vector = (transformed[1][0] - transformed[0][0], transformed[1][1] - transformed[0][1])
+    assert math.degrees(math.atan2(transformed_vector[1], transformed_vector[0]) - math.atan2(source_vector[1], source_vector[0])) == pytest.approx(20.0)
+
+
 def test_shared_rigid_solution_fails_closed_on_bounds():
     with pytest.raises(TargetPlacementError):
         solve_rigid_z(((0, 0, 0), (10, 0, 0)), ((1000, 0, 0), (1010, 0, 0)), max_translation=100, max_rotation=45)
