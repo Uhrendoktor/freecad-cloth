@@ -346,74 +346,16 @@ void BVH::queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
         "BVH box query implementation",
     )
 
-    replace_once(
-        cpp_path := ROOT / "core/src/physics/MeshCollider.cpp",
-        """void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
+    cpp_path = ROOT / "core/src/physics/MeshCollider.cpp"
+    first_segment_old = """void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
                            double thickness) {""",
-        """bool MeshCollider::firstSegmentHit(
-    const Eigen::Vector3d& start, const Eigen::Vector3d& end,
-    double margin, double& hitT, Eigen::Vector3d& hitNormal,
-    int& triangleIndex) const {
-    const Eigen::Vector3d minPoint =
-        start.cwiseMin(end) - Eigen::Vector3d::Constant(margin);
-    const Eigen::Vector3d maxPoint =
-        start.cwiseMax(end) + Eigen::Vector3d::Constant(margin);
-    const Eigen::AlignedBox3d queryBox(minPoint, maxPoint);
-
-    std::vector<int> candidates;
-    m_bvh.query(queryBox, candidates);
-    std::sort(candidates.begin(), candidates.end());
-    candidates.erase(std::unique(candidates.begin(), candidates.end()),
-                     candidates.end());
-
-    constexpr double epsilon = 1e-12;
-    double bestT = std::numeric_limits<double>::infinity();
-    int bestTriangle = -1;
-    Eigen::Vector3d bestNormal = Eigen::Vector3d::Zero();
-
-    for (const int candidateIndex : candidates) {
-        const Triangle& tri = m_bvh.getTriangle(candidateIndex);
-        double candidateT = 0.0;
-        Eigen::Vector3d candidateNormal = Eigen::Vector3d::Zero();
-        if (!segmentTriangleHit(start, end, m_worldVertices[tri.a],
-                                m_worldVertices[tri.b], m_worldVertices[tri.c],
-                                epsilon, candidateT, candidateNormal))
-            continue;
-
-        const double normalTravel =
-            std::abs((end - start).dot(candidateNormal));
-        if (normalTravel <= epsilon)
-            continue;
-
-        candidateT = std::max(
-            0.0, candidateT - margin / normalTravel);
-
-        if (candidateT < bestT - epsilon ||
-            (std::abs(candidateT - bestT) <= epsilon &&
-             (bestTriangle < 0 || candidateIndex < bestTriangle))) {
-            bestT = candidateT;
-            bestTriangle = candidateIndex;
-            bestNormal = candidateNormal;
-        }
-    }
-
-    if (bestTriangle < 0)
-        return false;
-
-    hitT = bestT;
-    hitNormal = bestNormal;
-    triangleIndex = bestTriangle;
-    return true;
-}
-
-void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
+"""
+    first_segment_new = """"void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
                            double thickness) {""",
-        "MeshCollider first-segment-hit implementation",
-    )
-    # The helper above is written directly to disk; refresh the in-memory
-    # source before applying the resolve-body replacement below so we do not
-    # overwrite firstSegmentHit with the pre-edit contents.
-    cpp = cpp_path.read_text(encoding="utf-8")
+"""
+    if cpp.count(first_segment_old) != 1:
+        raise RuntimeError("MeshCollider first-segment-hit implementation anchor mismatch")
+    cpp = cpp.replace(first_segment_old, first_segment_new, 1)
 
     current_contact = """        if (distance <= thickness) {
             Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
