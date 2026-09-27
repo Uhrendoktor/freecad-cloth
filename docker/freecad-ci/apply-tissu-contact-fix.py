@@ -173,26 +173,130 @@ MeshOrientation inferMeshOrientation(
                                          : ((b - a).cross(c - a)).normalized();
 
             Eigen::Vector3d newPosition = cp + normal * thickness;""",
-            """        if (distance <= thickness) {
+            """        bool deeplyInsideClosedMesh = false;
+        Eigen::Vector3d deepContactNormal = Eigen::Vector3d::Zero();
+        if (m_closedManifold && distance > thickness) {
+            Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
+            const double faceNormalLength = faceNormalRaw.norm();
+            if (faceNormalLength > 1e-12) {
+                const Eigen::Vector3d outwardNormal =
+                    (faceNormalRaw / faceNormalLength) * m_outwardNormalSign;
+                const double signedDistance =
+                    toParticle.dot(outwardNormal);
+                const double tieTolerance =
+                    1e-7 * std::max(1.0, distance);
+
+                if (signedDistance < -thickness - tieTolerance) {
+                    std::vector<int> candidateTriangles;
+                    // Query around the closest surface point, not the particle,
+                    // so a deep particle does not expand the BVH search radius.
+                    m_bvh.query(cp, 1e-7, candidateTriangles);
+                    candidateTriangles.push_back(triIdx);
+
+                    std::sort(candidateTriangles.begin(),
+                              candidateTriangles.end());
+                    candidateTriangles.erase(
+                        std::unique(candidateTriangles.begin(),
+                                    candidateTriangles.end()),
+                        candidateTriangles.end());
+
+                    std::vector<int> localCandidates;
+                    localCandidates.reserve(candidateTriangles.size());
+                    bool allCandidatesInterior = true;
+                    for (const int candidateIndex : candidateTriangles) {
+                        const Triangle& candidate =
+                            m_bvh.getTriangle(candidateIndex);
+                        const Eigen::Vector3d& ca =
+                            m_worldVertices[candidate.a];
+                        const Eigen::Vector3d& cb =
+                            m_worldVertices[candidate.b];
+                        const Eigen::Vector3d& cc =
+                            m_worldVertices[candidate.c];
+                        const Eigen::Vector3d candidatePoint =
+                            closestPointOnTriangle(toParticle, ca, cb, cc);
+                        const double candidateDistance =
+                            (toParticle - candidatePoint).norm();
+                        if (std::abs(candidateDistance - distance) >
+                            tieTolerance)
+                            continue;
+
+                        Eigen::Vector3d candidateNormalRaw =
+                            (cb - ca).cross(cc - ca);
+                        const double candidateNormalLength =
+                            candidateNormalRaw.norm();
+                        if (candidateNormalLength <= 1e-12)
+                            continue;
+                        const Eigen::Vector3d candidateOutward =
+                            (candidateNormalRaw / candidateNormalLength) *
+                            m_outwardNormalSign;
+                        const double candidateSignedDistance =
+                            (toParticle - candidatePoint).dot(
+                                candidateOutward);
+                        if (candidateSignedDistance >=
+                            -thickness - tieTolerance) {
+                            allCandidatesInterior = false;
+                            break;
+                        }
+                        localCandidates.push_back(candidateIndex);
+                    }
+
+                    auto sharesVertex = [this](int lhsIndex,
+                                               int rhsIndex) {
+                        const Triangle& lhs =
+                            m_bvh.getTriangle(lhsIndex);
+                        const Triangle& rhs =
+                            m_bvh.getTriangle(rhsIndex);
+                        return lhs.a == rhs.a || lhs.a == rhs.b ||
+                               lhs.a == rhs.c || lhs.b == rhs.a ||
+                               lhs.b == rhs.b || lhs.b == rhs.c ||
+                               lhs.c == rhs.a || lhs.c == rhs.b ||
+                               lhs.c == rhs.c;
+                    };
+
+                    if (allCandidatesInterior && !localCandidates.empty()) {
+                        std::vector<int> connected{triIdx};
+                        for (bool changed = true; changed;) {
+                            changed = false;
+                            for (const int candidateIndex : localCandidates) {
+                                if (std::find(connected.begin(), connected.end(),
+                                              candidateIndex) != connected.end())
+                                    continue;
+                                if (std::any_of(
+                                        connected.begin(), connected.end(),
+                                        [&](const int connectedIndex) {
+                                            return sharesVertex(candidateIndex,
+                                                                connectedIndex);
+                                        })) {
+                                    connected.push_back(candidateIndex);
+                                    changed = true;
+                                }
+                            }
+                        }
+                        if (connected.size() == localCandidates.size()) {
+                            deeplyInsideClosedMesh = true;
+                            deepContactNormal = outwardNormal;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (distance <= thickness || deeplyInsideClosedMesh) {
             Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
             const double faceNormalLength = faceNormalRaw.norm();
             if (faceNormalLength <= 1e-12)
                 continue;
-            Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
+            Eigen::Vector3d normal = faceNormalRaw / faceNormalLength;
 
-            Eigen::Vector3d normal = faceNormal;
-            if (distance > 1e-6) {
+            if (deeplyInsideClosedMesh) {
+                normal = deepContactNormal;
+            } else if (distance > 1e-6) {
+                // Preserve the pinned legacy outside-contact response exactly.
                 normal = toParticle / distance;
-                if (m_closedManifold) {
-                    const Eigen::Vector3d outwardNormal =
-                        faceNormal * m_outwardNormalSign;
-                    // A particle on the interior side of a closed, consistently
-                    // oriented surface must be resolved along the outward
-                    // normal; outside contact preserves the existing vector.
-                    if (normal.dot(outwardNormal) < 0.0)
-                        normal = -normal;
-                }
-            } else if (m_closedManifold) {
+            }
+
+            if (!deeplyInsideClosedMesh && distance <= 1e-6 &&
+                m_closedManifold) {
                 normal *= m_outwardNormalSign;
             }
 
@@ -265,6 +369,20 @@ TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
 
     EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
 }
+
+TEST(MeshCollider, ClosedMeshSharedVertexOutsideTieDoesNotMove) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    Eigen::Vector3d initialPos(-0.1, -0.1, 0.0);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.01);
+
+    EXPECT_NEAR(
+        (particles[0].getPosition() - initialPos).norm(),
+        0.0, 1e-9);
+}
+
 
 TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     const std::vector<Eigen::Vector3d> vertices = {
