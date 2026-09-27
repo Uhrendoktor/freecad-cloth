@@ -159,9 +159,9 @@ MeshOrientation inferMeshOrientation(
         return {true, true, signedVolume > 0.0 ? 1.0 : -1.0};
 
     if (volumeKnown && radialKnown && signAgreement)
-        // Negative radial sign means authored normals are outward; positive
-        // means authored normals are inward.
-        return {false, true, -radialSign};
+        // Positive radial sign means authored normals point away from the
+        // mesh center; negative means they point toward it.
+        return {false, true, radialSign};
 
     return {false, false, 1.0};
 }
@@ -330,8 +330,8 @@ TEST(MeshCollider, OpenConsistentlyWoundSurfaceMovesInteriorParticleOutside) {
     MeshCollider mesh(vertices, triangles, 0.0);
 
     const Eigen::Vector3d faceA = vertices[0];
-    const Eigen::Vector3d faceB = vertices[1];
-    const Eigen::Vector3d faceC = vertices[3];
+    const Eigen::Vector3d faceB = vertices[3];
+    const Eigen::Vector3d faceC = vertices[1];
     Eigen::Vector3d authoredOutwardNormal =
         (faceB - faceA).cross(faceC - faceA).normalized();
     const Eigen::Vector3d faceCenter = (faceA + faceB + faceC) / 3.0;
