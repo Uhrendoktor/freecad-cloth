@@ -81,6 +81,28 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "retention-days: 14" in WORKFLOW
 
 
+def test_cube_ladder_is_diagnostic_only_and_reuses_existing_job():
+    for needle in (
+        'diagnostic_ladder:',
+        'supervisor/tissu-cube-ladder-2481-',
+        'CLOTH_DIAGNOSTIC_LADDER',
+        '"ladder-r1-pinned"',
+        '"ladder-r2-unpinned"',
+        '"ladder-r3-two-piece-no-seam"',
+        '"ladder-r4-small-seam"',
+        '"ladder-r5-large-seam"',
+        '"diagnostic-only-contact-controls-and-cube-ladder"',
+        '"release_gate_effect": "none"',
+        '"solver_stitch_pairs"',
+        '"seam_world_spans_mm"',
+        '(0, 1, 5, 15, 45, 90)',
+    ):
+        assert needle in SOURCE or needle in WORKFLOW
+
+    assert WORKFLOW.count("diagnostic-tissu-contact:") == 1
+    assert "needs: [diagnostic-tissu-contact]" not in WORKFLOW
+
+
 def test_workflow_validator_matches_shared_manifest():
     assert 'assert data["schema"] == 1, data' in WORKFLOW
     assert 'assert data["release_gate_effect"] == "none", data' in WORKFLOW
