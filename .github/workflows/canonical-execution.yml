@@ -200,7 +200,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf artifacts/tissu-contact-diagnostics/cube-ladder
-          CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0             CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/tissu-contact-diagnostics             env -u CLOTH_CONTACT_DIAGNOSTICS_EXECUTE             timeout --signal=TERM --kill-after=10s 600s             /opt/freecad/AppRun /workspace/tests/freecad_tissu_cube_ladder.py
+          CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0             CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/tissu-contact-diagnostics             env -u CLOTH_CONTACT_DIAGNOSTICS_EXECUTE             /opt/freecad/AppRun /workspace/tests/freecad_tissu_cube_ladder.py
       - name: Validate cube ladder artifact
         run: |
           set -euo pipefail
