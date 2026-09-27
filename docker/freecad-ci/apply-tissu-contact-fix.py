@@ -680,7 +680,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     EXPECT_GT(particles[0].getPosition().y(), initialPos.y());
 }"""
     if test_cpp.count(old) != 1:
-        throw new Error("MeshCollider regression test body anchor mismatch");
+        raise RuntimeError("MeshCollider regression test body anchor mismatch")
     test_cpp = test_cpp.replace(old, new, 1);
     test.write_text(test_cpp, encoding="utf-8");
 
