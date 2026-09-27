@@ -367,6 +367,9 @@ void BVH::queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
         ROOT / "core/include/physics/MeshCollider.hpp",
         """    const std::vector<Triangle>& getTriangles() const { return m_triangles; }
 
+private:""",
+        """    const std::vector<Triangle>& getTriangles() const { return m_triangles; }
+
 private:
     friend class StitchConstraint;
 
