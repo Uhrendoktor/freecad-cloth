@@ -28,10 +28,169 @@ def main() -> int:
     if run("git", "rev-parse", "HEAD") != EXPECTED_COMMIT:
         raise RuntimeError("Tissu source commit does not match the pinned revision")
 
+    bvh_header = ROOT / "core/include/data-structures/BVH.hpp"
+    bvh_cpp_path = ROOT / "core/src/data-structures/BVH.cpp"
     header = ROOT / "core/include/physics/MeshCollider.hpp"
     cpp = ROOT / "core/src/physics/MeshCollider.cpp"
     test = ROOT / "tests/physics/test_mesh_collider.cpp"
 
+    replace_once(
+        bvh_header,
+        """    int closestTriangle(const Eigen::Vector3d& point,
+                        const std::vector<Eigen::Vector3d>& vertices) const;
+    const Triangle& getTriangle(int index) const { return m_triangles[index]; }
+""",
+        """    int closestTriangle(const Eigen::Vector3d& point,
+                        const std::vector<Eigen::Vector3d>& vertices) const;
+    int rayIntersectionCount(
+        const Eigen::Vector3d& origin,
+        const Eigen::Vector3d& direction,
+        const std::vector<Eigen::Vector3d>& vertices) const;
+    const Triangle& getTriangle(int index) const { return m_triangles[index]; }
+""",
+        "BVH ray query declaration",
+    )
+    replace_once(
+        bvh_header,
+        """    int closestRecursive(int nodeIdx, const Eigen::Vector3d& point,
+                         const std::vector<Eigen::Vector3d>& vertices,
+                         double& bestDistSq) const;
+""",
+        """    int closestRecursive(int nodeIdx, const Eigen::Vector3d& point,
+                         const std::vector<Eigen::Vector3d>& vertices,
+                         double& bestDistSq) const;
+
+    int rayIntersectionCountRecursive(
+        int nodeIdx,
+        const Eigen::Vector3d& origin,
+        const Eigen::Vector3d& direction,
+        const std::vector<Eigen::Vector3d>& vertices) const;
+""",
+        "BVH ray query recursion declaration",
+    )
+
+    bvh_cpp = bvh_cpp_path.read_text(encoding="utf-8")
+    bvh_cpp = bvh_cpp.replace(
+        '#include "data-structures/BVH.hpp"\n',
+        '#include "data-structures/BVH.hpp"\n\n#include <algorithm>\n#include <cmath>\n#include <limits>\n',
+        1,
+    )
+    ray_helpers = """namespace {
+
+constexpr double kRayEpsilon = 1e-10;
+
+bool rayIntersectsAabb(const Eigen::Vector3d& origin,
+                       const Eigen::Vector3d& direction,
+                       const Eigen::AlignedBox3d& bbox) {
+    double tMin = 0.0;
+    double tMax = std::numeric_limits<double>::infinity();
+
+    for (int axis = 0; axis < 3; ++axis) {
+        const double o = origin[axis];
+        const double d = direction[axis];
+        const double lo = bbox.min()[axis];
+        const double hi = bbox.max()[axis];
+
+        if (std::abs(d) <= kRayEpsilon) {
+            if (o < lo || o > hi)
+                return false;
+            continue;
+        }
+
+        double tNear = (lo - o) / d;
+        double tFar = (hi - o) / d;
+        if (tNear > tFar)
+            std::swap(tNear, tFar);
+
+        tMin = std::max(tMin, tNear);
+        tMax = std::min(tMax, tFar);
+        if (tMin > tMax)
+            return false;
+    }
+
+    return tMax > kRayEpsilon;
+}
+
+bool rayIntersectsTriangle(const Eigen::Vector3d& origin,
+                           const Eigen::Vector3d& direction,
+                           const Eigen::Vector3d& a,
+                           const Eigen::Vector3d& b,
+                           const Eigen::Vector3d& c) {
+    const Eigen::Vector3d edge1 = b - a;
+    const Eigen::Vector3d edge2 = c - a;
+    const Eigen::Vector3d pvec = direction.cross(edge2);
+    const double determinant = edge1.dot(pvec);
+
+    if (std::abs(determinant) <= kRayEpsilon)
+        return false;
+
+    const double invDeterminant = 1.0 / determinant;
+    const Eigen::Vector3d tvec = origin - a;
+    const double u = tvec.dot(pvec) * invDeterminant;
+    if (u <= kRayEpsilon || u >= 1.0 - kRayEpsilon)
+        return false;
+
+    const Eigen::Vector3d qvec = tvec.cross(edge1);
+    const double v = direction.dot(qvec) * invDeterminant;
+    if (v <= kRayEpsilon || u + v >= 1.0 - kRayEpsilon)
+        return false;
+
+    const double t = edge2.dot(qvec) * invDeterminant;
+    return t > kRayEpsilon;
+}
+
+} // namespace
+"""
+    if bvh_cpp.count("namespace Tissu {") != 1:
+        raise RuntimeError("BVH namespace anchor mismatch")
+    bvh_cpp = bvh_cpp.replace("namespace Tissu {\n", "namespace Tissu {\n\n" + ray_helpers + "\n", 1)
+    method_anchor = """int BVH::closestTriangle(const Eigen::Vector3d& point,
+                         const std::vector<Eigen::Vector3d>& vertices) const {
+"""
+    method_block = """int BVH::rayIntersectionCount(
+    const Eigen::Vector3d& origin,
+    const Eigen::Vector3d& direction,
+    const std::vector<Eigen::Vector3d>& vertices) const {
+    if (m_rootIndex == -1 || m_nodes.empty() ||
+        direction.squaredNorm() <= kRayEpsilon * kRayEpsilon)
+        return -1;
+
+    return rayIntersectionCountRecursive(
+        m_rootIndex, origin, direction.normalized(), vertices);
+}
+
+int BVH::rayIntersectionCountRecursive(
+    int nodeIdx,
+    const Eigen::Vector3d& origin,
+    const Eigen::Vector3d& direction,
+    const std::vector<Eigen::Vector3d>& vertices) const {
+    const BVHNode& node = m_nodes[nodeIdx];
+    if (!rayIntersectsAabb(origin, direction, node.bbox))
+        return 0;
+
+    if (node.isLeaf()) {
+        int count = 0;
+        for (int i = 0; i < node.primitiveCount; ++i) {
+            const Triangle& tri = m_triangles[node.triangleIndex + i];
+            if (rayIntersectsTriangle(
+                    origin, direction,
+                    vertices[tri.a], vertices[tri.b], vertices[tri.c]))
+                ++count;
+        }
+        return count;
+    }
+
+    return rayIntersectionCountRecursive(
+               node.left, origin, direction, vertices) +
+           rayIntersectionCountRecursive(
+               node.right, origin, direction, vertices);
+}
+
+"""
+    if bvh_cpp.count(method_anchor) != 1:
+        raise RuntimeError("BVH method anchor mismatch")
+    bvh_cpp = bvh_cpp.replace(method_anchor, method_block + method_anchor, 1)
+    bvh_cpp_path.write_text(bvh_cpp, encoding="utf-8")
     replace_once(
         header,
         """    std::vector<Eigen::Vector3d> m_localVertices;
