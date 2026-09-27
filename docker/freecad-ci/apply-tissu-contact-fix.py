@@ -304,28 +304,24 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     solver_header.write_text(solver_text, encoding="utf-8")
 
     solver_source = solver_cpp.read_text(encoding="utf-8")
-    solver_source = solver_source.replace(
-        "        solveConstraints(dt);\n",
-        "        solveConstraints(dt, world.getThickness());\n",
-        1,
-    )
-    solver_source = solver_source.replace(
-        "void Solver::solveConstraints(double dt) {\n"
-        "    ZoneScopedN(\"Solve Constraints\");\n"
-        "    if (m_batches.empty()) {\n"
-        "        for (const auto& constraint : m_constraints)\n"
-        "            constraint->solve(m_particles, dt);\n"
-        "    } else {\n"
-        "        for (const auto& batch : m_batches) {\n"
-        "            const int batchSize = static_cast<int>(batch.size());\n"
-        "#pragma omp parallel for\n"
-        "            for (int i = 0; i < batchSize; ++i) {\n"
-        "                const int idx = batch[i];\n"
-        "                m_constraints[idx]->solve(m_particles, dt);\n"
-        "            }\n"
-        "        }\n"
-        "    }\n",
-        """void Solver::solveConstraints(double dt, double stitchCorrectionLimit) {
+    old_solver_source = """void Solver::solveConstraints(double dt) {
+    ZoneScopedN("Solve Constraints");
+    if (m_batches.empty()) {
+        for (const auto& constraint : m_constraints)
+            constraint->solve(m_particles, dt);
+    } else {
+        for (const auto& batch : m_batches) {
+            const int batchSize = static_cast<int>(batch.size());
+#pragma omp parallel for
+            for (int i = 0; i < batchSize; ++i) {
+                const int idx = batch[i];
+                m_constraints[idx]->solve(m_particles, dt);
+            }
+        }
+    }
+}
+"""
+    new_solver_source = """void Solver::solveConstraints(double dt, double stitchCorrectionLimit) {
     ZoneScopedN("Solve Constraints");
     const auto solveConstraint = [this, dt, stitchCorrectionLimit](
                                      const std::unique_ptr<Constraint>& constraint) {
@@ -349,9 +345,10 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         }
     }
 }
-""",
-        1,
-    )
+"""
+    if solver_source.count(old_solver_source) != 1:
+        raise RuntimeError("Solver.cpp solveConstraints anchor mismatch")
+    solver_source = solver_source.replace(old_solver_source, new_solver_source, 1)
     if "void Solver::solveConstraints(double dt, double stitchCorrectionLimit)" not in solver_source:
         raise RuntimeError("Solver.cpp solveConstraints anchor mismatch")
     solver_cpp.write_text(solver_source, encoding="utf-8")
