@@ -290,8 +290,9 @@ def test_pattern_scene_truncates_stale_demo_panels_before_mesh_write():
             self.particles = particles
             self.constraints = constraints
 
-        def add_stitches(self, pairs):
+        def add_stitches(self, pairs, compliance=0.0):
             self.stitches = tuple(pairs)
+            self.stitch_compliance = float(compliance)
 
         def pin(self, pins):
             self.pins = tuple(pins)
