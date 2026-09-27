@@ -384,7 +384,7 @@ private:""",
         ROOT / "core/src/physics/MeshCollider.cpp",
         """#include "physics/MeshCollider.hpp"
 
-#include "io/OBJLoader.hpp"""",
+#include "io/OBJLoader.hpp""",
         """#include "physics/MeshCollider.hpp"
 
 #include <algorithm>
