@@ -275,7 +275,7 @@ MeshOrientation inferMeshOrientation(
                         const Eigen::Vector3d candidatePoint =
                             closestPointOnTriangle(particle.getPosition(), ca, cb, cc);
                         const double candidateDistance =
-                            (toParticle - candidatePoint).norm();
+                            (particle.getPosition() - candidatePoint).norm();
                         if (std::abs(candidateDistance - distance) >
                             tieTolerance)
                             continue;
@@ -292,7 +292,7 @@ MeshOrientation inferMeshOrientation(
                             (candidateNormalRaw / candidateNormalLength) *
                             m_outwardNormalSign;
                         const double candidateSignedDistance =
-                            (toParticle - candidatePoint).dot(
+                            (particle.getPosition() - candidatePoint).dot(
                                 candidateOutward);
                         if (candidateSignedDistance >=
                             -thickness - tieTolerance) {
