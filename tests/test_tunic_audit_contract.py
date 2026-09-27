@@ -124,7 +124,7 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "--gtest_filter='MeshCollider.*:Solver.*'" in dockerfile
     assert "tissu-cpp-regression=MeshCollider.*:Solver.*" in dockerfile
     assert "ParticleInsideMeshMovesOutside" in script
-    assert "ReenforcesStitchesAfterColliderProjection" in script
+    assert "AlternatesCollisionAndStitchProjection" in script
     assert "tetrahedronContains" in script
     assert "ClosedMeshKeepsOutsideContactOutside" in script
     assert "OpenMeshRetainsLegacyContactDirection" in script
