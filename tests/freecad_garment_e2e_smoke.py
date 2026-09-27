@@ -619,7 +619,7 @@ def run_acceptance():
             signature = {}
             for index, left in enumerate(pieces):
                 for right in pieces[index + 1:]:
-                    relative = left.Placement.Rotation.inverse().multiply(right.Placement.Rotation)
+                    relative = left.Placement.Rotation.inverted().multiply(right.Placement.Rotation)
                     axis = relative.Axis
                     signature[(str(left.PieceId), str(right.PieceId))] = (
                         round(float(relative.Angle), 9),
