@@ -336,6 +336,54 @@ def _seam_pair_records(pattern, panel_data, seam_samples=8):
     return tuple(dict.fromkeys(pairs)), tuple(records)
 
 
+def _tunic_shoulder_attachment_records(seam_pair_records, positions, collision_surface):
+    """Return deterministic Tissu attachment anchors for the tunic shoulder endpoints."""
+    if collision_surface is None or not getattr(collision_surface, "vertices", ()):
+        return ()
+    surface_vertices = tuple(
+        (float(vertex[0]), float(vertex[1]), float(vertex[2]))
+        for vertex in collision_surface.vertices
+    )
+    records = []
+    seen_particles = set()
+    for seam_id, _piece_a_name, _piece_b_name, stitch_pairs in seam_pair_records:
+        seam_key = str(seam_id).lower()
+        if "tunic" not in seam_key or "shoulder" not in seam_key:
+            continue
+        if len(stitch_pairs) < 2:
+            continue
+        endpoint_pairs = (stitch_pairs[0], stitch_pairs[-1])
+        for pair in endpoint_pairs:
+            for particle_id in pair:
+                particle_id = int(particle_id)
+                if particle_id in seen_particles:
+                    continue
+                if not 0 <= particle_id < len(positions):
+                    raise RuntimeError(
+                        "tunic shoulder attachment particle is outside the simulation mesh"
+                    )
+                point = positions[particle_id]
+                point_xyz = (float(point[0]), float(point[1]), float(point[2]))
+                target_vertex_id = min(
+                    range(len(surface_vertices)),
+                    key=lambda index: sum(
+                        (point_xyz[axis] - surface_vertices[index][axis]) ** 2
+                        for axis in range(3)
+                    ),
+                )
+                anchor = surface_vertices[target_vertex_id]
+                rest_length = sum(
+                    (point_xyz[axis] - anchor[axis]) ** 2 for axis in range(3)
+                ) ** 0.5
+                if rest_length <= 0.0:
+                    raise RuntimeError(
+                        "tunic shoulder attachment anchor has zero initial rest length"
+                    )
+                records.append((particle_id, int(target_vertex_id), float(rest_length)))
+                seen_particles.add(particle_id)
+    return tuple(records)
+
+
 def _boundary_vertices(piece_ir, edge_id, panel_data):
     for boundary, values in zip(piece_ir.boundaries, panel_data["boundary_edges"]):
         if str(boundary.id) == str(edge_id):
@@ -498,6 +546,12 @@ class SimulationProxy:
             int(getattr(obj, "StitchSamples", 8)),
         )
         system.add_stitches(seam_pairs)
+        collision_surface = _collision_for_scene(obj)
+        attachments = _tunic_shoulder_attachment_records(
+            seam_pair_records,
+            positions,
+            collision_surface,
+        )
         first = panel_data[str(pieces[0].PieceId)] if pieces else None
         boundary = (
             tuple(dict.fromkeys(i for edge in first["boundary_edges"] for i in edge))
@@ -510,7 +564,6 @@ class SimulationProxy:
         )
         if pins:
             system.pin(pins)
-        collision_surface = _collision_for_scene(obj)
         registry = default_backend_registry()
         backend_name = preferred_backend_name(registry)
         backend_kwargs = {}
@@ -519,6 +572,7 @@ class SimulationProxy:
                 "triangles": tuple(triangles_global),
                 "pins": pins,
                 "stitches": seam_pairs,
+                "attachments": attachments,
                 "collision_surface": collision_surface,
             }
         self.backend = registry.create(backend_name, system, **backend_kwargs)
