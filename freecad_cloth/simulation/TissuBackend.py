@@ -146,7 +146,14 @@ class TissuBackend(ClothSimulationBackend):
                 )
             return
         vtx, idx = _to_tissu_mesh(self._collision_surface)
-        self._sim.add_mesh_from_arrays("drape-target", vtx, idx, friction=0.5)
+        self._sim.add_mesh_from_arrays(
+            "drape-target",
+            vtx,
+            idx,
+            friction=0.5,
+            swept_contact=True,
+        )
+        print("cloth-tissu-collision swept_contact=true", flush=True)
 
     def _build(self, Simulation):
         import numpy as np
