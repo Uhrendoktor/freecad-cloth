@@ -133,7 +133,7 @@ class TissuBackend(ClothSimulationBackend):
         self._time = 0.0
         self._iterations = 8
         self._substeps = _tissu_substeps()
-        self._collider_friction = _tissu_collider_friction()
+        self._collider_friction = _tissu_collider_friction() if collision_mode == "mesh" else 0.5
         self._build(Simulation)
 
     @property
@@ -149,16 +149,16 @@ class TissuBackend(ClothSimulationBackend):
         import numpy as np
         if self._collision_surface is None:
             return
-        print("cloth-tissu-collider-friction=%.9g" % self._collider_friction, flush=True)
         if self._collision_mode == "torso-envelope":
             for index, (center, radius_mm) in enumerate(_collision_envelope(self._collision_surface)):
                 self._sim.add_sphere(
                     f"drape-torso-{index}",
                     np.asarray(_to_tissu_position(center), dtype=np.float64),
                     float(radius_mm) / _MM,
-                    friction=self._collider_friction,
+                    friction=0.5,
                 )
             return
+        print("cloth-tissu-collider-friction=%.9g" % self._collider_friction, flush=True)
         vtx, idx = _to_tissu_mesh(self._collision_surface)
         self._sim.add_mesh_from_arrays("drape-target", vtx, idx, friction=self._collider_friction)
 
