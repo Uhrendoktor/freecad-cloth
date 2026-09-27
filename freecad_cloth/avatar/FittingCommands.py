@@ -267,7 +267,7 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
     import FreeCAD as App
     from freecad_cloth.simulation.DrapeTarget import target_status
     from freecad_cloth.avatar.TargetPlacement import (
-        minimum_outward_clearance,
+        nearest_surface_distance,
         point_inside_closed_surface,
         translation_to_target,
     )
@@ -334,12 +334,16 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
                 sketch.Placement = updated
         doc.recompute()
 
+        # Keep the exact all-vertex unsigned clearance gate, but do not require
+        # every local vertex to have the same triangle-normal sign. A broad rigid
+        # pattern piece may legitimately straddle local normals on a curved target.
+        # Closed-surface side proof is applied to the placed garment centroid below.
         placed_vertices = tuple(
             (float(point[0]) + delta[0], float(point[1]) + delta[1], float(point[2]) + delta[2])
             for values in vertices_by_piece.values()
             for point in values
         )
-        minimum_clearance = minimum_outward_clearance(surface, placed_vertices)
+        minimum_clearance = nearest_surface_distance(surface, placed_vertices)
         if minimum_clearance < float(clearance) - 1e-6:
             raise ValueError(
                 "target snap could not prove the requested %.3f mm collision-surface clearance (%.3f mm observed)"
