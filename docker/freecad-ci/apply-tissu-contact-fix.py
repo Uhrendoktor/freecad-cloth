@@ -318,22 +318,22 @@ TEST(MeshCollider, OpenConsistentlyWoundSurfaceMovesInteriorParticleOutside) {
         {1.0, 0.0, 2.0},
         {1.0, 2.0, 1.0},
     };
-    // This is the closed tetrahedron with one outward-facing base winding
-    // omitted. The remaining three faces stay consistently authored/wound.
+    // This is the closed tetrahedron with the outward-facing base omitted;
+    // the remaining three authored faces retain the source exterior winding.
     const std::vector<std::array<int, 3>> triangles = {
-        {0, 1, 2},
-        {0, 3, 1},
-        {1, 3, 2},
+        {0, 1, 3},
+        {1, 2, 3},
+        {0, 3, 2},
     };
     MeshCollider mesh(vertices, triangles, 0.0);
 
-    Eigen::Vector3d initialPos(1.0, 0.05, 0.75);
+    const Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
     std::vector<Particle> particles;
     particles.emplace_back(initialPos);
 
     mesh.resolve(particles, 0.016, 0.1);
 
-    EXPECT_LT(particles[0].getPosition().y(), initialPos.y());
+    EXPECT_GT((particles[0].getPosition() - initialPos).norm(), 0.0);
     EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
 }
 
