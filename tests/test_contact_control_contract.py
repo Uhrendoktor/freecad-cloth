@@ -37,6 +37,8 @@ def test_contact_control_contract():
     assert "Gui.getDocument(doc.Name)" in source
     assert 'saveImage(str(OUT / name), 1200, 900, "Current")' in source
     assert 'saveImage(str(OUT / name), 1200, 900, "Current", 1)' not in source
+    assert "App.closeDocument(doc.Name)" in source
+    assert "    doc.close()" not in source
     assert "_events()" in source
     assert "setsid /opt/freecad/AppRun" in workflow
     assert "contact-controls-supervisor=timeout" in workflow
