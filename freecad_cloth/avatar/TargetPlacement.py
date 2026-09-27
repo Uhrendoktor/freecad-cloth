@@ -333,6 +333,16 @@ class _SurfaceIndex:
         if len(near_equal) <= 1:
             return best, candidate_count
 
+        # Preserve the historical deterministic behavior for coplanar or
+        # otherwise closely aligned ties, including open surfaces. Only
+        # materially different normals require manifold/topology proof.
+        if all(
+            _dot(hit.normal, best.normal) >= 0.20
+            for hit, _vertices in near_equal
+            if hit.triangle_index != best.triangle_index
+        ):
+            return best, candidate_count
+
         candidates = [hit for hit, _vertices in near_equal]
         candidate_vertices = [vertices for _hit, vertices in near_equal]
         if not self._closed_manifold or not self._near_equal_triangles_are_local(
@@ -407,8 +417,9 @@ def target_surface_anchor(surface, point, *,
                            ambiguity_tolerance=DEFAULT_AMBIGUITY_TOLERANCE):
     """Return the nearest outward-facing surface point and normal.
 
-    A near-tie with materially different/opposing normals is rejected rather
-    than selecting an arbitrary triangle at a fold or self-intersection.
+    Coplanar/aligned ties keep deterministic nearest-triangle behavior.
+    Materially different normals are resolved only on a verified local
+    manifold fan; non-local or opposing ties remain fail-closed.
     """
     return _surface_index(surface).nearest_hit(
         point,
