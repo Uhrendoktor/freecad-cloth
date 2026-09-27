@@ -143,3 +143,18 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance'," in audit
     assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance'," in audit
     assert "'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))'," in audit
+
+
+def test_tunic_visual_diagnostics_are_authoritative_after_persistence():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    metrics_write = source.index('json.dump(payload, handle, indent=2, sort_keys=True)')
+    gate = source.index("assert_drape_diagnostics(json.load(handle).get(\"panels\", ()))")
+    screenshot = source.index('save("cloth-simulation-draped-%s.png" % direction')
+    assert metrics_write < screenshot < gate
+
+
+def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    gate = source.index("assert_drape_diagnostics(json.load(handle).get(\"panels\", ()))")
+    assert "drape-metrics=" in source[:gate]
+    assert "gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]
