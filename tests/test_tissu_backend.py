@@ -114,6 +114,16 @@ def test_set_stitches_updates_deferred_pair_set_before_activation(monkeypatch):
     assert simulation.solver.added_stitches == [(1, 2, 0.0)]
 
 
+def test_delayed_activation_preserves_requested_compliance(monkeypatch):
+    backend = make_backend(monkeypatch, 2, stitches=((0, 1),))
+    simulation = FakeSimulation.last_instance
+    backend.set_stitches(((1, 2),), compliance=0.125)
+    backend.step(iterations=1)
+    backend.step(iterations=1)
+    backend.step(iterations=1)
+    assert simulation.solver.added_stitches == [(1, 2, 0.125)]
+
+
 def test_reset_restarts_delay_window(monkeypatch):
     backend = make_backend(monkeypatch, 2)
     backend.step(iterations=1)
