@@ -489,7 +489,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
         "core/src/physics/Solver.cpp",
-        "python/src/bindings.cpp",
+        "python/src/bindings_headless.cpp",
         "python/tissu/engine.py",
         "tests/physics/test_mesh_collider.cpp",
     }
