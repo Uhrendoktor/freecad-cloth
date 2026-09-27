@@ -333,8 +333,15 @@ class StitchConstraint""",
         const std::vector<std::shared_ptr<Collider>>& colliders,
         double thickness);
 
+    static double clipCorrectionAtFirstEnteringMeshHit(
+        const Eigen::Vector3d& start,
+        const Eigen::Vector3d& correction,
+        const std::vector<std::shared_ptr<Collider>>& colliders,
+        double thickness,
+        Eigen::Vector3d& appliedCorrection);
+
     int m_idA;""",
-        "StitchConstraint private collider helper",
+        "StitchConstraint private collider helpers",
     )
 
     replace_once(
@@ -380,20 +387,15 @@ namespace Tissu {""",
     pA.setPosition(pA.getPosition() + wA * norm * deltaLambda);
     pB.setPosition(pB.getPosition() - wB * norm * deltaLambda);
 }""",
-        """namespace {
-
-struct AppliedCorrection {
-    Eigen::Vector3d correction = Eigen::Vector3d::Zero();
-    double scale = 1.0;
-};
-
-AppliedCorrection clipCorrectionAtFirstEnteringMeshHit(
+        """double StitchConstraint::clipCorrectionAtFirstEnteringMeshHit(
     const Eigen::Vector3d& start,
     const Eigen::Vector3d& correction,
     const std::vector<std::shared_ptr<Collider>>& colliders,
-    double thickness) {
+    double thickness,
+    Eigen::Vector3d& appliedCorrection) {
+    appliedCorrection = correction;
     if (correction.squaredNorm() <= 1e-18)
-        return {correction, 1.0};
+        return 1.0;
 
     double bestT = 1.0;
     Eigen::Vector3d bestNormal = Eigen::Vector3d::Zero();
@@ -418,19 +420,16 @@ AppliedCorrection clipCorrectionAtFirstEnteringMeshHit(
     }
 
     if (!foundHit)
-        return {correction, 1.0};
+        return 1.0;
 
     const Eigen::Vector3d hitPoint = start + correction * bestT;
     const Eigen::Vector3d clippedPosition =
         hitPoint + bestNormal * std::max(0.0, thickness);
-    const Eigen::Vector3d appliedCorrection = clippedPosition - start;
+    appliedCorrection = clippedPosition - start;
     const double correctionNorm2 = correction.squaredNorm();
-    double scale =
+    const double scale =
         appliedCorrection.dot(correction) / correctionNorm2;
-    scale = std::max(0.0, std::min(1.0, scale));
-    return {appliedCorrection, scale};
-}
-
+    return std::max(0.0, std::min(1.0, scale));
 }
 
 void StitchConstraint::solve(std::vector<Particle>& particles, double dt) {
@@ -475,22 +474,20 @@ void StitchConstraint::solveWithColliders(
     const Eigen::Vector3d proposedA = pA.getPosition() - startA;
     const Eigen::Vector3d proposedB = pB.getPosition() - startB;
 
-    const AppliedCorrection appliedA =
-        clipCorrectionAtFirstEnteringMeshHit(
-            startA, proposedA, colliders, thickness);
-    const AppliedCorrection appliedB =
-        clipCorrectionAtFirstEnteringMeshHit(
-            startB, proposedB, colliders, thickness);
+    Eigen::Vector3d appliedA = proposedA;
+    Eigen::Vector3d appliedB = proposedB;
+    clipCorrectionAtFirstEnteringMeshHit(
+        startA, proposedA, colliders, thickness, appliedA);
+    clipCorrectionAtFirstEnteringMeshHit(
+        startB, proposedB, colliders, thickness, appliedB);
 
-    pA.setPosition(startA + appliedA.correction);
-    pB.setPosition(startB + appliedB.correction);
+    pA.setPosition(startA + appliedA);
+    pB.setPosition(startB + appliedB);
 
     const double proposedMagnitude =
         std::sqrt(proposedA.squaredNorm() + proposedB.squaredNorm());
     const double appliedMagnitude =
-        std::sqrt(
-            appliedA.correction.squaredNorm() +
-            appliedB.correction.squaredNorm());
+        std::sqrt(appliedA.squaredNorm() + appliedB.squaredNorm());
     const double lambdaScale =
         proposedMagnitude > 1e-12
             ? std::max(0.0, std::min(1.0,
