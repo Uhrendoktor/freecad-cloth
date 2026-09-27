@@ -292,7 +292,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     cloth_test_cpp = cloth_test.read_text(encoding="utf-8")
     cloth_test_cpp = cloth_test_cpp.replace(
         "#include <engine/ClothMesh.hpp>\n",
-        "#include <engine/ClothMesh.hpp>\n#include <physics/MeshCollider.hpp>\n",
+        "#include <array>\n#include <memory>\n#include <engine/ClothMesh.hpp>\n#include <engine/World.hpp>\n#include <physics/MeshCollider.hpp>\n",
         1,
     )
     cloth_anchor = """    cloth->clear();
