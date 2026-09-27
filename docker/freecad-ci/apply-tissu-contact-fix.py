@@ -355,8 +355,8 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
         1,
     )
 
-    if test_cpp.count("mesh.resolve(particles, 0.016, 1.0);") != 1:
-        raise RuntimeError("expected one deep-containment resolve call")
+    if test_cpp.count("mesh.resolve(particles, 0.016, 1.0);") != 2:
+        raise RuntimeError("expected two pinned resolve calls before deep-containment recut")
     test_cpp = test_cpp.replace(
         "mesh.resolve(particles, 0.016, 1.0);",
         "mesh.resolve(particles, 0.016, 0.1);",
