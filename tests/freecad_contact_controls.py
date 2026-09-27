@@ -257,13 +257,18 @@ def _save_probe_view(name, avatar=None, target_box=None, probe=None):
 
 
 def _cube_control():
-    _progress("cube control: create document")
+    _progress("cube control: before App.newDocument")
     doc = App.newDocument("TissuContactControlCube")
+    _progress("cube control: after App.newDocument")
     cube = doc.addObject("Part::Feature", "TargetCube")
+    _progress("cube control: after addObject")
     cube.Shape = Part.makeBox(100.0, 100.0, 100.0, App.Vector(-50.0, -50.0, -50.0))
+    _progress("cube control: after Part.makeBox")
     cube.ViewObject.Transparency = 65
+    _progress("cube control: after transparency")
 
     from freecad_cloth.avatar.AvatarCollision import CollisionSurface
+    _progress("cube control: before CollisionSurface construction")
     surface = CollisionSurface(
         (
             (-50.0, -50.0, -50.0), (50.0, -50.0, -50.0), (50.0, 50.0, -50.0), (-50.0, 50.0, -50.0),
@@ -277,6 +282,7 @@ def _cube_control():
         "cube",
         0.0,
     )
+    _progress("cube control: CollisionSurface constructed")
     surface.validate()
     _progress("cube control: surface validated triangles=%d" % len(surface.triangles))
     face_center = (0.0, 0.0, 50.0)
@@ -326,9 +332,12 @@ def _cube_control():
 
 
 def _avatar_control():
-    _progress("avatar control: create production DrapeTarget scene")
+    _progress("avatar control: before App.newDocument")
     doc = App.newDocument("TissuContactControlAvatar")
+    _progress("avatar control: after App.newDocument")
+    _progress("avatar control: before create_quality_simulation_scene")
     scene = create_quality_simulation_scene(doc)
+    _progress("avatar control: after create_quality_simulation_scene")
     target = scene.DrapeTarget
     source = getattr(target, "SourceObject", None)
     if source is None:
@@ -415,8 +424,13 @@ def _avatar_control():
 def main():
     results = []
     try:
+        _progress("main: entered")
+        _progress("main: before cube control")
         results.append(_cube_control())
+        _progress("main: after cube control")
+        _progress("main: before avatar control")
         results.append(_avatar_control())
+        _progress("main: after avatar control")
         manifest = {
             "schema": 1,
             "suite": "tissu-contact-controls",
