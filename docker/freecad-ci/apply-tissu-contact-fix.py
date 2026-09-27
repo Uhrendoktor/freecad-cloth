@@ -709,12 +709,13 @@ TEST(StitchConstraint, SolverChoosesEarliestEnteringCrossingAcrossMeshes) {
     stitch_test.write_text(stitch_test_text.rstrip(" \t\r\n") + "\n", encoding="utf-8")
 
     stitch_cpp_text = stitch_cpp.read_text(encoding="utf-8")
+    normalized_stitch_cpp = " ".join(stitch_cpp_text.split())
     for marker in (
         "const double previousLambda = m_lambda;",
         "m_lambda = previousLambda + proposedDeltaLambda * lambdaScale;",
         "clipCorrectionAtFirstEnteringMeshHit(",
     ):
-        if marker not in stitch_cpp_text:
+        if " ".join(marker.split()) not in normalized_stitch_cpp:
             raise RuntimeError(f"missing stitch crossing marker: {marker}")
     if "direction.dot(outwardNormal) >= -epsilon" not in cpp:
         raise RuntimeError("missing entering/exiting discriminator")
