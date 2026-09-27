@@ -517,7 +517,6 @@ def simulation():
     fitting = FittingCommands._scene(doc)
     if fitting is None or str(getattr(fitting, "FitStatus", "")) != "Target-aware placement applied":
         raise RuntimeError("second Snap-to-target did not restore the ready fitted state")
-    target.Info if False else None
     for batch in (15,15,15,15,15,15):
         simulation_panel.step(batch); doc.recompute(); events()
     if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
