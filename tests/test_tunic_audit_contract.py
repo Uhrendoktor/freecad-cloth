@@ -163,3 +163,9 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     gate = source.index("assert_drape_diagnostics(json.load(handle).get(\"panels\", ()))")
     assert "drape-metrics=" in source[:gate]
     assert "gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]
+
+
+def test_tissu_ci_image_rejects_out_of_triangle_barycentric_w():
+    script = (ROOT / "docker" / "freecad-ci" / "apply-tissu-contact-fix.py").read_text(encoding="utf-8")
+    assert "const double w = 1.0 - u - v;" in script
+    assert "if (w < -1.0e-9 || w > 1.0 + 1.0e-9)" in script
