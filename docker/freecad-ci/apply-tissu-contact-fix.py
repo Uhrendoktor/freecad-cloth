@@ -259,24 +259,49 @@ MeshOrientation inferMeshOrientation(
     m_bvh.build(m_worldVertices, m_triangles);""",
             "MeshCollider.cpp vector constructor",
         ),
-        (
-            """        if (distance <= thickness) {
-            Eigen::Vector3d normal = (distance > 1e-6)
-                                         ? toParticle.normalized()
-                                         : ((b - a).cross(c - a)).normalized();
+        ( 
+            """void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
+                           double thickness) {
+    Eigen::Vector3d linearVel = getLinearVelocity(dt);
+    Eigen::Vector3d omega = getAngularVelocity(dt);
 
-            Eigen::Vector3d newPosition = cp + normal * thickness;""",
-            """        bool deeplyInsideClosedMesh = false;
-        Eigen::Vector3d deepContactNormal = Eigen::Vector3d::Zero();
-        if (m_closedManifold) {
+    constexpr int kMaxClosedContactIterations = 8;
+    constexpr double kContactEpsilon = 1e-12;
+
+    for (auto& particle : particles) {
+        Eigen::Vector3d resolvedPosition = particle.getPosition();
+        Eigen::Vector3d finalNormal = Eigen::Vector3d::Zero();
+        bool touched = false;
+
+        const int maxIterations =
+            m_closedManifold ? kMaxClosedContactIterations : 1;
+
+        for (int iteration = 0; iteration < maxIterations; ++iteration) {
+            const int triIdx =
+                m_bvh.closestTriangle(resolvedPosition, m_worldVertices);
+            if (triIdx == -1)
+                break;
+
+            const Triangle& tri = m_bvh.getTriangle(triIdx);
+            const Eigen::Vector3d& a = m_worldVertices[tri.a];
+            const Eigen::Vector3d& b = m_worldVertices[tri.b];
+            const Eigen::Vector3d& c = m_worldVertices[tri.c];
+
+            const Eigen::Vector3d cp =
+                closestPointOnTriangle(resolvedPosition, a, b, c);
+            const Eigen::Vector3d toParticle = resolvedPosition - cp;
+            const double distance = toParticle.norm();
+
             const Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
             const double faceNormalLength = faceNormalRaw.norm();
-            if (faceNormalLength > 1e-12) {
-                const Eigen::Vector3d outwardNormal =
-                    (faceNormalRaw / faceNormalLength) * m_outwardNormalSign;
-                const double tieTolerance =
-                    1e-7 * std::max(1.0, distance);
+            if (faceNormalLength <= kContactEpsilon)
+                break;
 
+            const Eigen::Vector3d outwardNormal =
+                (faceNormalRaw / faceNormalLength) * m_outwardNormalSign;
+
+            bool insideClosedMesh = false;
+            if (m_closedManifold) {
                 std::vector<int> candidateTriangles;
                 candidateTriangles.reserve(
                     m_vertexTriangles[tri.a].size() +
@@ -300,6 +325,8 @@ MeshOrientation inferMeshOrientation(
                                 candidateTriangles.end()),
                     candidateTriangles.end());
 
+                const double tieTolerance =
+                    1e-7 * std::max(1.0, distance);
                 bool allCandidatesInterior = true;
                 bool hasCandidate = false;
                 for (const int candidateIndex : candidateTriangles) {
@@ -313,9 +340,9 @@ MeshOrientation inferMeshOrientation(
                         m_worldVertices[candidate.c];
                     const Eigen::Vector3d candidatePoint =
                         closestPointOnTriangle(
-                            particle.getPosition(), ca, cb, cc);
+                            resolvedPosition, ca, cb, cc);
                     const double candidateDistance =
-                        (particle.getPosition() - candidatePoint).norm();
+                        (resolvedPosition - candidatePoint).norm();
                     if (std::abs(candidateDistance - distance) >
                         tieTolerance)
                         continue;
@@ -325,7 +352,7 @@ MeshOrientation inferMeshOrientation(
                         (cb - ca).cross(cc - ca);
                     const double candidateNormalLength =
                         candidateNormalRaw.norm();
-                    if (candidateNormalLength <= 1e-12) {
+                    if (candidateNormalLength <= kContactEpsilon) {
                         allCandidatesInterior = false;
                         break;
                     }
@@ -334,36 +361,68 @@ MeshOrientation inferMeshOrientation(
                         (candidateNormalRaw / candidateNormalLength) *
                         m_outwardNormalSign;
                     const double candidateSignedDistance =
-                        (particle.getPosition() - candidatePoint).dot(
+                        (resolvedPosition - candidatePoint).dot(
                             candidateOutward);
                     if (candidateSignedDistance >= -tieTolerance) {
                         allCandidatesInterior = false;
                         break;
                     }
                 }
-
-                if (hasCandidate && allCandidatesInterior) {
-                    deeplyInsideClosedMesh = true;
-                    deepContactNormal = outwardNormal;
-                }
+                insideClosedMesh = hasCandidate && allCandidatesInterior;
             }
+
+            if (distance > thickness && !insideClosedMesh)
+                break;
+
+            Eigen::Vector3d normal;
+            if (m_closedManifold && insideClosedMesh) {
+                normal = outwardNormal;
+            } else if (distance > 1e-6) {
+                // Preserve the pinned legacy outside-contact response exactly.
+                normal = toParticle / distance;
+            } else {
+                normal = (faceNormalRaw / faceNormalLength) *
+                         (m_closedManifold ? m_outwardNormalSign : 1.0);
+            }
+
+            const Eigen::Vector3d newPosition =
+                cp + normal * thickness;
+            if ((newPosition - resolvedPosition).norm() <= kContactEpsilon)
+                break;
+
+            resolvedPosition = newPosition;
+            finalNormal = normal;
+            touched = true;
+
+            if (!m_closedManifold || !insideClosedMesh)
+                break;
         }
 
-        if (distance <= thickness || deeplyInsideClosedMesh) {
-            Eigen::Vector3d normal = deepContactNormal;
-            if (!deeplyInsideClosedMesh) {
-                if (distance > 1e-6) {
-                    // Preserve the pinned legacy outside-contact response exactly.
-                    normal = toParticle / distance;
-                } else {
-                    normal = (faceNormalRaw / faceNormalLength) *
-                             (m_closedManifold ? m_outwardNormalSign : 1.0);
-                }
-            }
+        if (!touched)
+            continue;
 
-            Eigen::Vector3d newPosition = cp + normal * thickness;""",
+        particle.setPosition(resolvedPosition);
+
+        Eigen::Vector3d colliderVelocity =
+            linearVel + omega.cross(resolvedPosition - m_position);
+        Eigen::Vector3d colliderDisplacement = colliderVelocity * dt;
+        Eigen::Vector3d particleDisplacement =
+            resolvedPosition - particle.getOldPosition();
+        Eigen::Vector3d relDisplacement =
+            particleDisplacement - colliderDisplacement;
+
+        double normalVelMag = relDisplacement.dot(finalNormal);
+        Eigen::Vector3d normalVel = finalNormal * normalVelMag;
+        Eigen::Vector3d tangentVel = relDisplacement - normalVel;
+
+        Eigen::Vector3d newVelocity =
+            normalVel + tangentVel * (1.0 - m_friction);
+
+        particle.setOldPosition(resolvedPosition - newVelocity);
+    }
+}""",
             "MeshCollider.cpp contact response",
-        ),
+        )
     ]
     for old, new, label in replace_cpp:
         count = cpp.count(old)
