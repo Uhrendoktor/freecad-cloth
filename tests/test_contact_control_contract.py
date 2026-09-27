@@ -1,0 +1,18 @@
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_contact_control_contract():
+    source = (ROOT / "tests" / "freecad_contact_controls.py").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    assert 'CLOTH_TISSU_COLLISION_MODE" = "mesh"' in source or 'CLOTH_TISSU_COLLISION_MODE"] = "mesh"' in source
+    assert 'CLOTH_TISSU_COLLISION_TRIANGLES" = "2048"' in source or 'CLOTH_TISSU_COLLISION_TRIANGLES"] = "2048"' in source
+    assert 'rung": "0"' in source
+    assert 'rung": "0a"' in source
+    assert "inside" in source and "outside" in source
+    assert "resolved_outward" in source
+    assert "outside_preserved" in source
+    assert "run_diagnostics" in workflow
+    assert "diagnostic-contact-controls" in workflow
+    assert "workflow_dispatch" in workflow
