@@ -142,7 +142,7 @@ jobs:
           echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: docker/login-action@v3
         with:
@@ -240,6 +240,8 @@ jobs:
                   assert len(case["checkpoints"]) == 6, case
                   assert [checkpoint["step"] for checkpoint in case["checkpoints"]] == [0, 1, 5, 15, 45, 90], case
                   assert case["solver"]["collision_triangle_budget"] == 2048, case
+                  assert case["checkpoint_image_paths"] == case["images"], case
+                  assert case["case"]["seam_id"] == ("cube-ladder-seam" if int(case["case"]["rung"]) >= 4 else None), case
                   if int(case["case"]["rung"]) >= 4:
                       spans = case["pre_step"]["seam_world_spans_mm"]
                       assert spans, case
@@ -249,6 +251,22 @@ jobs:
               for image in case["images"]:
                   assert Path("artifacts/tissu-contact-diagnostics", image).is_file(), image
           print("diagnostic-contact-artifact=passed")
+
+          ladder_cases = {
+              int(case["case"]["rung"]): case
+              for case in data["cases"]
+              if int(case["case"]["rung"]) in {1, 2, 3, 4, 5}
+          }
+          r4 = ladder_cases[4]
+          r5 = ladder_cases[5]
+          p4 = r4["case"]["initial_piece_placements_world_mm"]
+          p5 = r5["case"]["initial_piece_placements_world_mm"]
+          assert p4[0] == p5[0], (p4, p5)
+          assert p4[1][1:] == p5[1][1:], (p4, p5)
+          assert p4[1][0] != p5[1][0], (p4, p5)
+          assert r4["case"]["expected_gap_mm"] != r5["case"]["expected_gap_mm"], (r4, r5)
+          assert r4["pre_step"]["seam_world_spans_mm"] and r5["pre_step"]["seam_world_spans_mm"], (r4, r5)
+          print("diagnostic-ladder-invariants=passed")
           PY
       - name: Upload contact diagnostics
         if: always()
