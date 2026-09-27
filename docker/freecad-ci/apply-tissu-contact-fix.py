@@ -514,13 +514,6 @@ void StitchConstraint::solveWithColliders(
 
     replace_once(
         solver_cpp,
-        """        solveConstraints(dt);""",
-        """        solveConstraints(world, dt);""",
-        "Solver collision-aware call",
-    )
-
-    replace_once(
-        solver_cpp,
         """void Solver::solveConstraints(double dt) {
     ZoneScopedN("Solve Constraints");
     if (m_batches.empty()) {
@@ -579,7 +572,6 @@ void StitchConstraint::solveWithColliders(
 }""",
         "Solver stitch dispatch",
     )
-
     stitch_test_text = stitch_test.read_text(encoding="utf-8")
     stitch_test_text = stitch_test_text.replace(
         "#include <vector>\n",
