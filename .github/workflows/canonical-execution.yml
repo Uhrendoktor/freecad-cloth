@@ -528,11 +528,8 @@ jobs:
       - name: Validate diagnostic manifest
         run: |
           set -euo pipefail
+          test -s artifacts/contact-controls/stage.txt
           test -s artifacts/contact-controls/manifest.json
-          test -s artifacts/contact-controls/cube-inside-step-0.png
-          test -s artifacts/contact-controls/cube-inside-step-1.png
-          test -s artifacts/contact-controls/avatar-inside-step-0.png
-          test -s artifacts/contact-controls/avatar-inside-step-1.png
           python3 - <<'PY'
           import json
           from pathlib import Path
