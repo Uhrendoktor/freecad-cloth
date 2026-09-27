@@ -7,7 +7,7 @@ from freecad_cloth.pattern.PatternExport import from_dxf_metadata, to_dxf, to_sv
 from freecad_cloth.pattern.PatternDerivedGeometry import Notch, PatternMark, add_marks, add_notches, derive_cut_boundary, notch_point
 from freecad_cloth.sewing.SewingSemantics import SeamConstraint, validate_seam_graph
 from freecad_cloth.sewing.SewingObjects import _edge_length, _edge_points
-from freecad_cloth.avatar.AvatarCollision import AvatarSpec, CollisionSurface, surface_from_triangles
+from freecad_cloth.avatar.AvatarCollision import AvatarSpec, CollisionSurface, coarsen_collision_surface, surface_from_triangles
 from freecad_cloth.common.DrapeVisualSanity import assert_drape_diagnostics
 from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
 from fixtures.garment_fixtures import two_piece_rectangle, mirrored_pair, multi_piece
@@ -70,6 +70,71 @@ def test_sewing_edge_points_apply_rotated_piece_placement_once():
         else: sys.modules['FreeCAD'] = old_freecad
     assert (start.x, start.y, start.z) == (10.0, -1.0, 2.2)
     assert (end.x, end.y, end.z) == (7.0, -1.0, 2.2)
+
+def test_collision_surface_fps_is_deterministic_and_covers_anisotropic_extrema():
+    anchors = (
+        (0.0, 0.0, 0.0),
+        (0.0, 0.0, 1.0),
+        (0.0, 10.0, 0.0),
+        (0.0, 10.0, 1.0),
+        (1000.0, 0.0, 0.0),
+        (1000.0, 0.0, 1.0),
+        (1000.0, 10.0, 0.0),
+        (1000.0, 10.0, 1.0),
+    )
+    vertices = []
+    triangles = []
+    offsets = ((0.3, 0.0, 0.0), (-0.15, 0.2, 0.0), (-0.15, -0.2, 0.0))
+    for center in anchors:
+        start = len(vertices)
+        vertices.extend(
+            tuple(center[axis] + offset[axis] for axis in range(3))
+            for offset in offsets
+        )
+        triangles.append((start, start + 1, start + 2))
+
+    for index in range(40):
+        center = (500.0 + float(index % 5 - 2), 5.0 + 0.05 * float(index % 3 - 1), 0.5)
+        start = len(vertices)
+        vertices.extend(
+            tuple(center[axis] + offset[axis] for axis in range(3))
+            for offset in offsets
+        )
+        triangles.append((start, start + 1, start + 2))
+
+    surface = surface_from_triangles(vertices, triangles, region="anisotropic", thickness=1.75)
+    first = coarsen_collision_surface(surface, max_triangles=8)
+    second = coarsen_collision_surface(surface, max_triangles=8)
+
+    assert first.triangles == second.triangles
+    assert len(first.triangles) == 8
+    source_indices = {triangle: index for index, triangle in enumerate(surface.triangles)}
+    selected_indices = [source_indices[triangle] for triangle in first.triangles]
+    assert len(selected_indices) == len(set(selected_indices))
+    assert set(range(8)).issubset(selected_indices)
+    assert first.vertices == surface.vertices
+    assert first.region == surface.region
+    assert first.thickness == surface.thickness
+
+
+def test_collision_surface_fps_respects_exact_triangle_cap():
+    vertices = []
+    triangles = []
+    offsets = ((0.3, 0.0, 0.0), (-0.15, 0.2, 0.0), (-0.15, -0.2, 0.0))
+    for index in range(17):
+        center = (float(index), float(index % 4), float(index % 3))
+        start = len(vertices)
+        vertices.extend(
+            tuple(center[axis] + offset[axis] for axis in range(3))
+            for offset in offsets
+        )
+        triangles.append((start, start + 1, start + 2))
+
+    surface = surface_from_triangles(vertices, triangles)
+    result = coarsen_collision_surface(surface, max_triangles=7)
+
+    assert len(result.triangles) == 7
+    assert len(set(result.triangles)) == 7
 
 if __name__=='__main__':
     for name,fn in globals().copy().items():
