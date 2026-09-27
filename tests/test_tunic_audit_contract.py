@@ -109,7 +109,7 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'tunic-simulation-start' in source
 
 
-# The pinned Tissu image must execute the focused MeshCollider/Solver regression and record that exact filter in provenance; no gate changes are permitted.
+# Supervisor validation checkpoint: the pinned Tissu image must execute the focused MeshCollider/Solver regression; no gate changes are permitted.
 def test_tissu_ci_image_is_pinned_and_self_regressing():
     dockerfile = (ROOT / "docker" / "freecad-ci" / "Dockerfile").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
