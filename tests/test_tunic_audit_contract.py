@@ -124,7 +124,14 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "--gtest_filter='MeshCollider.*'" in dockerfile
     assert "ParticleInsideMeshMovesOutside" in script
     assert "DeepInteriorPointMovesOutsideClosedMesh" in script
+    assert "FarOutsidePointRemainsUnchanged" in script
+    assert "MultipleParticlesResolveInsideAndPreserveFarOutside" in script
+    assert "ReversedClosedTetrahedronAndCubeRemainClassified" in script
+    assert "TransformedClosedMeshRemainsClassified" in script
+    assert "AmbiguousSharedCornerRayFailsClosed" in script
+    assert "DeepInteriorParityIsDeterministic" in script
     assert "rayIntersectionCount" in script
+    assert "return -1" in script
     assert "tetrahedronContains" in script
     assert "ClosedMeshKeepsOutsideContactOutside" in script
     assert "OpenMeshRetainsLegacyContactDirection" in script
