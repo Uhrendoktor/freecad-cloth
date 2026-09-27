@@ -613,60 +613,30 @@ namespace Tissu {""",
 }""",
         """namespace {
 
-struct ClippedCorrection {
-    Eigen::Vector3d position;
-    double scale;
-};
-
-ClippedCorrection clipCorrectionAtFirstMeshHit(
-    const Eigen::Vector3d& start, const Eigen::Vector3d& correction,
-    const std::vector<std::shared_ptr<Collider>>& colliders, double thickness) {
+double correctionScaleAtFirstMeshHit(
+    const Eigen::Vector3d& start,
+    const Eigen::Vector3d& correction,
+    const std::vector<std::shared_ptr<Collider>>& colliders,
+    double thickness) {
     if (correction.squaredNorm() <= 1e-18)
-        return {start + correction, 1.0};
+        return 1.0;
 
+    double scale = 1.0;
     const Eigen::Vector3d end = start + correction;
-    double bestT = 1.0;
-    int bestCollider = -1;
-    int bestTriangle = -1;
-    Eigen::Vector3d bestPoint = end;
-    Eigen::Vector3d bestNormal = Eigen::Vector3d::Zero();
-
-    for (int colliderIndex = 0;
-         colliderIndex < static_cast<int>(colliders.size()); ++colliderIndex) {
-        const auto& collider = colliders[colliderIndex];
+    for (const auto& collider : colliders) {
         const auto* mesh = dynamic_cast<const MeshCollider*>(collider.get());
         if (mesh == nullptr)
             continue;
 
-        double hitT = 0.0;
+        double hitT = 1.0;
         Eigen::Vector3d hitNormal = Eigen::Vector3d::Zero();
         int hitTriangle = -1;
-        if (!mesh->firstSegmentHit(start, end, thickness, hitT, hitNormal,
-                                   hitTriangle))
-            continue;
-
-        if (hitT < bestT - 1e-12 ||
-            (std::abs(hitT - bestT) <= 1e-12 &&
-             (bestCollider < 0 || colliderIndex < bestCollider ||
-              (colliderIndex == bestCollider && hitTriangle < bestTriangle)))) {
-            bestT = hitT;
-            bestCollider = colliderIndex;
-            bestTriangle = hitTriangle;
-            bestPoint = start + correction * hitT;
-            bestNormal = hitNormal;
+        if (mesh->firstSegmentHit(start, end, thickness, hitT, hitNormal,
+                                  hitTriangle)) {
+            scale = std::min(scale, std::max(0.0, std::min(1.0, hitT)));
         }
     }
-
-    if (bestCollider < 0)
-        return {end, 1.0};
-
-    if ((start - bestPoint).dot(bestNormal) < 0.0)
-        bestNormal = -bestNormal;
-
-    return {
-        bestPoint + bestNormal * std::max(0.0, thickness),
-        bestT,
-    };
+    return scale;
 }
 
 } // namespace
@@ -702,29 +672,26 @@ void StitchConstraint::solveInternal(
     double C = currentLength;
     double alphaHat = m_compliance / (dt * dt);
     double deltaLambda = (-C - alphaHat * m_lambda) / (wSum + alphaHat);
+
     const Eigen::Vector3d correctionA = wA * norm * deltaLambda;
     const Eigen::Vector3d correctionB = -wB * norm * deltaLambda;
 
+    double correctionScale = 1.0;
     if (colliders != nullptr && !colliders->empty()) {
-        const ClippedCorrection clippedA = clipCorrectionAtFirstMeshHit(
-            pA.getPosition(), correctionA, *colliders, thickness);
-        const ClippedCorrection clippedB = clipCorrectionAtFirstMeshHit(
-            pB.getPosition(), correctionB, *colliders, thickness);
-
-        // Lambda tracks the stitch-normal component actually applied before
-        // collision-thickness offsets, so repeated iterations remain coherent
-        // even when the two endpoints hit different barriers.
-        const double appliedScale =
-            (wA * clippedA.scale + wB * clippedB.scale) / wSum;
-        m_lambda += deltaLambda * appliedScale;
-        pA.setPosition(clippedA.position);
-        pB.setPosition(clippedB.position);
-        return;
+        correctionScale = std::min(
+            correctionScale,
+            correctionScaleAtFirstMeshHit(
+                pA.getPosition(), correctionA, *colliders, thickness));
+        correctionScale = std::min(
+            correctionScale,
+            correctionScaleAtFirstMeshHit(
+                pB.getPosition(), correctionB, *colliders, thickness));
     }
 
-    m_lambda += deltaLambda;
-    pA.setPosition(pA.getPosition() + correctionA);
-    pB.setPosition(pB.getPosition() + correctionB);
+    const double appliedDeltaLambda = deltaLambda * correctionScale;
+    m_lambda += appliedDeltaLambda;
+    pA.setPosition(pA.getPosition() + wA * norm * appliedDeltaLambda);
+    pB.setPosition(pB.getPosition() - wB * norm * appliedDeltaLambda);
 }""",
         "StitchConstraint collision-aware solve implementation",
     )
@@ -733,8 +700,9 @@ void StitchConstraint::solveInternal(
     required_markers = (
         "void StitchConstraint::solveWithColliders(",
         "void StitchConstraint::solveInternal(",
-        "clipCorrectionAtFirstMeshHit(",
-        "m_lambda += deltaLambda * appliedScale;",
+        "correctionScaleAtFirstMeshHit(",
+        "const double appliedDeltaLambda = deltaLambda * correctionScale;",
+        "m_lambda += appliedDeltaLambda;",
     )
     missing = [marker for marker in required_markers if marker not in stitch_cpp_text]
     if missing:
@@ -742,6 +710,8 @@ void StitchConstraint::solveInternal(
             "StitchConstraint generated swept implementation missing markers: "
             + ", ".join(missing)
         )
+    if "ClippedCorrection" in stitch_cpp_text or "appliedScale" in stitch_cpp_text:
+        raise RuntimeError("StitchConstraint generated swept implementation retains split endpoint clipping")
 
     replace_once(
         ROOT / "core/include/physics/Solver.hpp",
