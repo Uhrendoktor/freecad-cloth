@@ -259,6 +259,9 @@ jobs:
               xdpyinfo -display :99 >/dev/null 2>&1
               timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_sewing_creation_smoke.py
               test -s /workspace/artifacts/sewing-creation-smoke.log
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_simulation_quality_acceptance.py > /workspace/artifacts/simulation-quality-acceptance.log 2>&1
+              grep -q 'target-snap-ui-journey=passed' /workspace/artifacts/simulation-quality-acceptance.log
+              grep -q 'target-snap-reset=passed' /workspace/artifacts/simulation-quality-acceptance.log
             '
       - name: Restore workspace from Docker volume
         if: ${{ always() }}
@@ -298,7 +301,9 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: sewing-creation-smoke
-          path: artifacts/sewing-creation-smoke.log
+          path: |
+            artifacts/sewing-creation-smoke.log
+            artifacts/simulation-quality-acceptance.log
           if-no-files-found: error
           compression-level: 1
 
