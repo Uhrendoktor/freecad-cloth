@@ -475,7 +475,7 @@ jobs:
     name: Diagnostic contact controls (manual only)
     if: ${{ github.event_name == 'pull_request' && github.event.pull_request.number == 2491 }}
     needs: [local_runner_readiness]
-    runs-on: ${{ inputs.runner_mode == 'hosted' && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 12
     env:
       FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix
