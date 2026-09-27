@@ -81,6 +81,29 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "retention-days: 14" in WORKFLOW
 
 
+
+def test_cube_ladder_rungs_and_checkpoint_contract_are_explicit():
+    assert '"rung-1-pinned"' in SOURCE
+    assert '"rung-2-unpinned"' in SOURCE
+    assert '"rung-3-two-piece"' in SOURCE
+    assert '"rung-4-small-seam-span"' in SOURCE
+    assert '"rung-5-large-seam-span"' in SOURCE
+    assert 'scene.PinMode = str(pin_mode)' in SOURCE
+    assert 'scene.StartHeight = 0.0' in SOURCE
+    assert 'scene.SolverIterations = 1' in SOURCE
+    assert 'scene.SolverSubsteps = 1' in SOURCE
+    assert 'scene.GravityZ = -9810.0' in SOURCE
+    assert 'scene.ParticleDistance = PARTICLE_DISTANCE' in SOURCE
+    assert '0 < solver_triangle_count <= 2048' in SOURCE
+    assert '"seam_world_spans_mm"' in SOURCE
+    assert '"checkpoint_steps = (1, 5, 15, 45, 90)"' not in SOURCE
+    assert 'checkpoint_steps = (1, 5, 15, 45, 90)' in SOURCE
+    assert 'PatternModel.Seam' in SOURCE
+    assert 'PatternObjects import add_seam' in SOURCE
+    assert '"ladder-side-seam"' in SOURCE
+    assert '"rung-5-large-seam-span"' in SOURCE
+
+
 def test_workflow_validator_matches_shared_manifest():
     assert 'assert data["schema"] == 1, data' in WORKFLOW
     assert 'assert data["release_gate_effect"] == "none", data' in WORKFLOW
