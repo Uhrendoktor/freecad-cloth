@@ -28,7 +28,7 @@ RUN apt-get update -qq \
     && /opt/conda/envs/freecad/bin/cmake --build build --config Release --target _cloth_sdk_core unit_tests --parallel 4 \
     && /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir --no-deps --no-build-isolation --force-reinstall . \
     && /opt/conda/envs/freecad/bin/python -m pip check \
-    && /tmp/Tissu/build/bin/unit_tests --gtest_filter='MeshCollider.*' \
+    && /tmp/Tissu/build/bin/unit_tests --gtest_filter='MeshCollider.*:Solver.*' \
     && TISSU_FIX_SHA256="$(sha256sum /tmp/apply-tissu-contact-fix.py | awk '{print $1}')" \
     && TISSU_VERSION="$(/opt/conda/envs/freecad/bin/python -c "import importlib.metadata; print(importlib.metadata.version('pytissu'))")" \
     && TISSU_MODULE="$(/opt/conda/envs/freecad/bin/python -c "import tissu; print(tissu.__file__)")" \
