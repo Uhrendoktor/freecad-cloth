@@ -12,8 +12,8 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())' in source
     assert 'back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())' in source
     assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in source
-    assert 'front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"' in source
-    assert 'front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"' in source
+    assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in source
+    assert 'front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"' in source
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
@@ -45,6 +45,15 @@ def test_canonical_tunic_uses_validated_authored_mapping():
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in audit
     assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' not in audit
 
+
+def test_canonical_tunic_source_rewrite_contract():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "open_book_placement" in audit
+    assert "launch_anchor" in audit
+    assert "open-book-initial-stitch-spans-mm=" in audit
+    assert "target_relative_piece_placement" not in audit
+    assert "y = min(target_ys) - clearance" not in audit
+    assert "y = max(target_ys) + clearance" not in audit
 
 def test_canonical_tunic_source_rewrite_compiles():
     import subprocess
