@@ -7,7 +7,7 @@ import unittest
 from freecad_cloth.avatar.AvatarFitting import ArrangementPoint, BodyMeasurements, BoundingVolume, FittingScene, PiecePlacement
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose, generate_mesh
 from freecad_cloth.avatar.AvatarService import AvatarService
-from freecad_cloth.avatar.AvatarArrangement import ARRANGEMENT_POINT_NAMES, arrangement_point_map, arrangement_points_from_landmarks
+from freecad_cloth.avatar.AvatarArrangement import ARRANGEMENT_POINT_NAMES, arrangement_point_map, arrangement_points_from_landmarks, wrapped_panel_angles
 from freecad_cloth.avatar.HumanoidMesh import MeshData, MAKEHUMAN_BASE_SHA256, MAKEHUMAN_BASE_URL, MAKEHUMAN_BODY_VERTEX_COUNT, fit_makehuman_mesh, parse_obj
 
 
@@ -45,6 +45,16 @@ class AvatarFittingTests(unittest.TestCase):
     def test_piece_placement_round_trip(self):
         placement = PiecePlacement("front", (1.5, -2.0, 3.25), 90.0)
         self.assertEqual(PiecePlacement.from_string(placement.to_string()), placement)
+
+    def test_wrapped_panel_angles_are_symmetric_and_bounded(self):
+        front, back = wrapped_panel_angles(-150.0, 150.0, 0.0, 700.0)
+        self.assertAlmostEqual(front + back, 180.0, places=9)
+        self.assertGreater(front, 90.0 - 45.0)
+        self.assertLess(back, 90.0 + 45.0)
+
+    def test_wrapped_panel_angles_reject_nonpositive_seam_height(self):
+        with self.assertRaises(ValueError):
+            wrapped_panel_angles(-10.0, 10.0, 0.0, 0.0)
 
     def test_arrangement_point_round_trip_and_mirror(self):
         point = ArrangementPoint("shoulder-left", 120, 80, 15, "left", 10, "shoulders")
