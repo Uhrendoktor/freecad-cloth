@@ -57,12 +57,11 @@ class AvatarSpec:
 
 
 def coarsen_collision_surface(surface: CollisionSurface, max_triangles: int = 1024) -> CollisionSurface:
-    """Derive a spatially covered collision surface from a real authored mesh.
+    """Derive a spatially covered, deterministic collision surface from authored triangles.
 
-    The visible avatar remains the full MakeHuman mesh. The solver does not need
-    every render triangle, so this keeps one representative triangle per coarse
-    spatial cell until the requested triangle budget is reached. No proxy object
-    is created and the result remains derived solely from the real avatar mesh.
+    One representative source triangle is kept per coarse spatial cell, preferring
+    the largest-area triangle in that cell. Remaining budget is filled by largest
+    unused source triangles. The visible avatar and source topology remain unchanged.
     """
     limit = int(max_triangles)
     surface.validate()
@@ -73,12 +72,21 @@ def coarsen_collision_surface(surface: CollisionSurface, max_triangles: int = 10
 
     points = surface.vertices
     centroids = []
+    triangle_areas = []
     mins = [float("inf")] * 3
     maxs = [float("-inf")] * 3
     for ia, ib, ic in surface.triangles:
         a, b, c = points[ia], points[ib], points[ic]
         center = tuple((a[i] + b[i] + c[i]) / 3.0 for i in range(3))
         centroids.append(center)
+        edge_ab = tuple(b[i] - a[i] for i in range(3))
+        edge_ac = tuple(c[i] - a[i] for i in range(3))
+        cross = (
+            edge_ab[1] * edge_ac[2] - edge_ab[2] * edge_ac[1],
+            edge_ab[2] * edge_ac[0] - edge_ab[0] * edge_ac[2],
+            edge_ab[0] * edge_ac[1] - edge_ab[1] * edge_ac[0],
+        )
+        triangle_areas.append(sum(value * value for value in cross))
         for i in range(3):
             mins[i] = min(mins[i], center[i])
             maxs[i] = max(maxs[i], center[i])
@@ -96,8 +104,18 @@ def coarsen_collision_surface(surface: CollisionSurface, max_triangles: int = 10
         if span <= 1e-9:
             key = (0, 0, 0)
         else:
-            key = tuple(min(step - 1, max(0, int((center[i] - mins[i]) / cell))) for i in range(3))
-        if key not in selected:
+            key = tuple(
+                min(step - 1, max(0, int((center[i] - mins[i]) / cell)))
+                for i in range(3)
+            )
+        current = selected.get(key)
+        if current is None or (
+            triangle_areas[index] > triangle_areas[current]
+            or (
+                triangle_areas[index] == triangle_areas[current]
+                and index < current
+            )
+        ):
             selected[key] = index
 
     indices = list(selected.values())
@@ -106,13 +124,11 @@ def coarsen_collision_surface(surface: CollisionSurface, max_triangles: int = 10
         indices = indices[::stride][:limit]
     elif len(indices) < limit:
         used = set(indices)
-        stride = max(1, len(surface.triangles) // limit)
-        for index in range(0, len(surface.triangles), stride):
-            if index not in used:
-                indices.append(index)
-                used.add(index)
-                if len(indices) >= limit:
-                    break
+        remaining = sorted(
+            (index for index in range(len(surface.triangles)) if index not in used),
+            key=lambda index: (-triangle_areas[index], index),
+        )
+        indices.extend(remaining[: limit - len(indices)])
 
     triangles = tuple(surface.triangles[index] for index in indices[:limit])
     result = CollisionSurface(surface.vertices, triangles, surface.region, surface.thickness)
