@@ -273,7 +273,7 @@ MeshOrientation inferMeshOrientation(
                         const Eigen::Vector3d& cc =
                             m_worldVertices[candidate.c];
                         const Eigen::Vector3d candidatePoint =
-                            closestPointOnTriangle(toParticle, ca, cb, cc);
+                            closestPointOnTriangle(particle.getPosition(), ca, cb, cc);
                         const double candidateDistance =
                             (toParticle - candidatePoint).norm();
                         if (std::abs(candidateDistance - distance) >
