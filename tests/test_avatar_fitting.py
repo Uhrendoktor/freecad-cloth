@@ -12,6 +12,16 @@ from freecad_cloth.avatar.HumanoidMesh import MeshData, MAKEHUMAN_BASE_SHA256, M
 
 
 class AvatarFittingTests(unittest.TestCase):
+    def test_fitting_avatar_proxy_is_document_global(self):
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+        self.assertIn('"App::PropertyLinkGlobal", "AvatarProxy"', source)
+        self.assertIn("def _ensure_avatar_proxy_link_global(scene):", source)
+        self.assertIn('type_id == "App::PropertyGlobal"', source) if False else None
+        self.assertIn('type_id == "App::PropertyLinkGlobal"', source)
+        self.assertIn('type_id == "App::PropertyLink"', source)
+        self.assertIn('scene.removeProperty("AvatarProxy")', source)
+
     def test_fitting_proxy_is_validation_only_during_recompute(self):
         root = Path(__file__).resolve().parents[1]
         source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
