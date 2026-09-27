@@ -542,11 +542,12 @@ def simulation():
         for before, after in zip(probe0["signed_distances"], probe1["signed_distances"])
         if before is not None and after is not None and before > 1e-6 and after < -1e-6
     )
-    total_displacement = sum(
-        ((after[i] - before[i]) ** 2 for i in range(3))
+    total_displacement = max(
+        (
+            sum((after[i] - before[i]) ** 2 for i in range(3))
+        ) ** 0.5
         for before, after in zip(step0_positions, step1_positions)
-    )
-    total_displacement = total_displacement ** 0.5
+    ) if step0_positions else 0.0
     if probe0["inside_count"]:
         classification = "initial-intersection"
     elif crossing_count:
