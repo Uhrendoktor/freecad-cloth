@@ -350,10 +350,6 @@ def _blanket_world_diagnostics(points, cube, support_band_mm=20.0, xy_margin_mm=
     cube_center_y = 0.5 * (float(cube_box.YMin) + float(cube_box.YMax))
     cloth_center_x = sum(xs) / len(xs)
     cloth_center_y = sum(ys) / len(ys)
-    footprint_margin = (
-        max(float(cube_box.XMin) - xy_margin_mm, 0.0),
-        min(float(cube_box.XMax) + xy_margin_mm, 0.0),
-    )
     # Keep the exact cube coordinates rather than assuming the cube is centered
     # at the origin in future fixture revisions.
     x_min = float(cube_box.XMin) - xy_margin_mm
