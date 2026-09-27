@@ -835,6 +835,7 @@ void StitchConstraint::solveInternal(
     int m_idA;"""
     if stitch_header_text.count(private_helper_shape) != 1:
         raise RuntimeError("StitchConstraint helper visibility anchor mismatch")
+    # Trigger exact-head canonical validation after the generator anchor cleanup.
     # The private collision-aware helpers were installed by the first header mutation above.
     stitch_header.write_text(stitch_header_text, encoding="utf-8")
 
