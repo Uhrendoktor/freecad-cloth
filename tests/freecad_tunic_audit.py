@@ -46,6 +46,14 @@ replacements = {
         '        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)\n'
         '    def make_piece(name, side, neckline_ratio, neckline_drop):':
         '    def open_book_placement(side, outline):\n'
+        '        target_centroid = App.Vector(sum(float(vertex[0]) for vertex in target_surface.vertices) / len(target_surface.vertices), sum(float(vertex[1]) for vertex in target_surface.vertices) / len(target_surface.vertices), sum(float(vertex[2]) for vertex in target_surface.vertices) / len(target_surface.vertices))\n'
+        '        shoulder_mid_world = App.Vector(x_mid, (shoulder_left.y + shoulder_right.y) / 2.0, shoulder_z)\n'
+        '        shoulder_surface_anchor = min((App.Vector(float(vertex[0]), float(vertex[1]), float(vertex[2])) for vertex in target_surface.vertices), key=lambda vertex: (vertex - shoulder_mid_world).Length)\n'
+        '        outward = shoulder_surface_anchor - target_centroid\n'
+        '        if outward.Length <= 1e-9: outward = shoulder_mid_world - target_centroid\n'
+        '        if outward.Length <= 1e-9: raise RuntimeError("canonical tunic DrapeTarget has no usable shoulder outward direction")\n'
+        '        outward.normalize()\n'
+        '        launch_anchor = shoulder_surface_anchor + outward * float(clearance)\n'
         '        right_mid = ((outline[2][0] + outline[3][0]) / 2.0, (outline[2][1] + outline[3][1]) / 2.0)\n'
         '        left_mid = ((outline[5][0] + outline[6][0]) / 2.0, (outline[5][1] + outline[6][1]) / 2.0)\n'
         '        shoulder_local = ((right_mid[0] + left_mid[0]) / 2.0, (right_mid[1] + left_mid[1]) / 2.0)\n'
@@ -55,11 +63,11 @@ replacements = {
         '        if target_half_depth >= shoulder_to_hem: raise RuntimeError("open-book launch depth exceeds authored shoulder-to-hem span")\n'
         '        angle = math.degrees(math.asin(target_half_depth / shoulder_to_hem))\n'
         '        signed_angle = -angle if side == "front" else angle\n'
-        '        pivot = App.Vector(x_mid, (shoulder_left.y + shoulder_right.y) / 2.0, shoulder_z)\n'
+        '        pivot = launch_anchor\n'
         '        base_zero = App.Vector(x_mid - shoulder_local[0], pivot.y, pivot.z - shoulder_local[1])\n'
         '        extra = App.Rotation(App.Vector(1,0,0), signed_angle)\n'
         '        base = pivot + extra.multVec(base_zero - pivot)\n'
-        '        log("open-book side=%s pivot=(%.2f,%.2f,%.2f) angle_deg=%.3f shoulder_to_hem_mm=%.2f target_half_depth_mm=%.2f" % (side, pivot.x, pivot.y, pivot.z, signed_angle, shoulder_to_hem, target_half_depth))\n'
+        '        log("open-book side=%s anchor=(%.2f,%.2f,%.2f) pivot=(%.2f,%.2f,%.2f) angle_deg=%.3f shoulder_to_hem_mm=%.2f target_half_depth_mm=%.2f" % (side, launch_anchor.x, launch_anchor.y, launch_anchor.z, pivot.x, pivot.y, pivot.z, signed_angle, shoulder_to_hem, target_half_depth))\n'
         '        return App.Placement(base, App.Rotation(App.Vector(1,0,0), 90.0 + signed_angle))\n',
     '    def make_piece(name, side, neckline_ratio, neckline_drop): sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(side); piece.Sketch.Placement = piece.Placement; return piece, outline': '    def make_piece(name, side, neckline_ratio, neckline_drop): sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = open_book_placement(side, outline); piece.Sketch.Placement = piece.Placement; return piece, outline',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
