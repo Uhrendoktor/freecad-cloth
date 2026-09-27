@@ -42,6 +42,7 @@ def main() -> int:
     std::vector<Eigen::Vector3d> m_worldVertices;
     std::vector<Triangle> m_triangles;
     bool m_closedManifold = false;
+    bool m_windingSignal = false;
     double m_outwardNormalSign = 1.0;
     BVH m_bvh;""",
         "MeshCollider.hpp member layout",
@@ -63,6 +64,7 @@ namespace {
 
 struct MeshOrientation {
     bool closedManifold = false;
+    bool windingSignal = false;
     double outwardNormalSign = 1.0;
 };
 
@@ -110,15 +112,24 @@ MeshOrientation inferMeshOrientation(
         }
     }
 
+    bool closedManifold = true;
     for (const auto& [key, edge] : edges) {
         (void)key;
-        if (edge.first != 2 || edge.second != 0)
-            return {};
+        if (edge.first != 2 || edge.second != 0) {
+            closedManifold = false;
+            break;
+        }
     }
+
+    // Representative-triangle coarsening preserves authored triangle winding
+    // even when it disconnects the derived surface. Keep a separate orientation
+    // signal so contact correction can remain available for that sparse surface.
+    // A near-zero signed volume provides no defensible global orientation and
+    // therefore fails closed.
     if (std::abs(signedVolume) <= 1.0e-12)
         return {};
 
-    return {true, signedVolume > 0.0 ? 1.0 : -1.0};
+    return {closedManifold, true, signedVolume > 0.0 ? 1.0 : -1.0};
 }
 
 } // namespace
@@ -141,6 +152,7 @@ MeshOrientation inferMeshOrientation(
     const MeshOrientation orientation =
         inferMeshOrientation(m_worldVertices, m_triangles);
     m_closedManifold = orientation.closedManifold;
+    m_windingSignal = orientation.windingSignal;
     m_outwardNormalSign = orientation.outwardNormalSign;
 
     m_bvh.build(m_worldVertices, m_triangles);""",
@@ -183,16 +195,17 @@ MeshOrientation inferMeshOrientation(
             Eigen::Vector3d normal = faceNormal;
             if (distance > 1e-6) {
                 normal = toParticle / distance;
-                if (m_closedManifold) {
+                if (m_windingSignal) {
                     const Eigen::Vector3d outwardNormal =
                         faceNormal * m_outwardNormalSign;
-                    // A particle on the interior side of a closed, consistently
-                    // oriented surface must be resolved along the outward
-                    // normal; outside contact preserves the existing vector.
+                    // Authored source triangles retain their winding through
+                    // coarsening. For an oriented sparse surface, resolve an
+                    // interior particle along the outward normal; outside
+                    // contact preserves the existing vector.
                     if (normal.dot(outwardNormal) < 0.0)
                         normal = -normal;
                 }
-            } else if (m_closedManifold) {
+            } else if (m_windingSignal) {
                 normal *= m_outwardNormalSign;
             }
 
@@ -282,6 +295,52 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     mesh.resolve(particles, 0.016, 0.1);
 
     EXPECT_GT(particles[0].getPosition().y(), initialPos.y());
+}
+
+TEST(MeshCollider, OrientedSparseMeshResolvesInteriorOutward) {
+    const std::vector<Eigen::Vector3d> vertices = {
+        {0.0, 0.0, 0.0},
+        {2.0, 0.0, 0.0},
+        {1.0, 0.0, 2.0},
+        {1.0, 2.0, 1.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {
+        {0, 2, 1},
+        {0, 1, 3},
+        {1, 2, 3},
+    };
+    MeshCollider mesh(vertices, triangles, 0.0);
+
+    Eigen::Vector3d initialPos(1.0, 0.01, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_LT(particles[0].getPosition().y(), initialPos.y());
+}
+
+TEST(MeshCollider, OrientedSparseMeshPreservesOutsideContact) {
+    const std::vector<Eigen::Vector3d> vertices = {
+        {0.0, 0.0, 0.0},
+        {2.0, 0.0, 0.0},
+        {1.0, 0.0, 2.0},
+        {1.0, 2.0, 1.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {
+        {0, 2, 1},
+        {0, 1, 3},
+        {1, 2, 3},
+    };
+    MeshCollider mesh(vertices, triangles, 0.0);
+
+    Eigen::Vector3d initialPos(1.0, -0.01, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_GT(particles[0].getPosition().y(), initialPos.y() - 0.01);
 }"""
     if test_cpp.count(old) != 1:
         raise RuntimeError("MeshCollider regression test body anchor mismatch")
