@@ -1,52 +1,42 @@
 # Agent status
 
-Machine-readable supervisor/release record. Durable guidance lives in docs/DEVELOPMENT.md.
+Machine-readable supervisor/recovery record.
 
 ## Repository
 - Repository: Uhrendoktor/freecad-cloth
 - Default branch: main
-- Validated release code commit: `b43b8a2982e4570f25824509674dad9b66a38677`.
-- Later main commits are release-state documentation only and do not alter the validated release code.
-- Canonical workflow: .github/workflows/canonical-execution.yml; exactly one workflow.
-- Supervisor completion issue: #1017 (closed completed).
-- Continuation/recovery issue: #1098 (closed completed).
+- Canonical workflow: .github/workflows/canonical-execution.yml
+- Canonical workflow count: exactly one.
+- Root experiment ledger: #2492 (FOR SUPERVISOR: Future Goals to ease testing).
+- Current production repair state: no Tissu contact fix merged.
+- Release-gate thresholds/timeouts/solver budgets remain frozen.
 
-## Final release outcome
-- Release PR #1165 merged into main.
-- PR #1177 supplied bounded sewing-smoke stale-task-panel fixes and is integrated.
-- PR #1187 hardened README GUI startup/readiness and screenshot-settle handling and is integrated.
-- PR #1190 fixed the README publisher blanket artifact extraction path and is integrated.
-- PR #1191 repaired the Native Sketcher post-Commit continuation and is integrated.
-- PR #1195 repaired README turntable GIF timing and added fail-closed timing assertions; it is integrated.
-- Exact PR validation for #1195 passed; merged-main validation subsequently passed the complete canonical graph and publication job.
+## Recovery policy
+- Use #2492 as the single causal ledger.
+- One bounded hypothesis per child Issue/PR.
+- Reuse existing research/diagnostic infrastructure instead of creating a new workflow or parallel harness.
+- A simulation hypothesis is not terminal until the exact-head rendered output has been inspected by a human.
+- The governing Issue/PR must contain the actual screenshots inline; an artifact URL alone is not an acceptable visual-review record.
+- Preserve falsified hypotheses as concise evidence in #2492; close duplicate implementation lanes with an explicit reason.
+- Do not infer a physics fix from scalar clearance/seam/runtime metrics when the rendered garment state disagrees.
 
-## Evidence
-- Native Sketcher acceptance: passed on the merged release code.
-- Sewing staged creation smoke: passed, including correspondence, persistence, invalidation, and UI teardown checks.
-- Tunic visual/simulation audit: passed; evidence covers sewing, arrangement, mannequin drape target, diagnostics, persistence, determinism, and SVG/DXF export.
-- Basic blanket visual: passed with 16 motion frames at 640x480, 100 ms/frame, finite movement, connected mesh, plausible drape, and material presentation.
-- README turntables: all three are 73 frames at 640x480 with uniform 80 ms frame timing; rendered representative frames were inspected from exact canonical artifacts.
-- Publication verification matched the authoritative merged-main run #3990 artifact bytes to the `docs/screenshots` Git blobs at commit `f276d1f5f51eb4d3d9ade58aa28c8fffd3fbc7d5`; all five README assets match exactly.
-- README references the five stable generated assets: cloth-blanket-motion.gif, cloth-avatar-turntable.gif, cloth-simulation-arranged-turntable.gif, cloth-simulation-draped-turntable.gif, cloth-simulation-draped-front.png.
-- Canonical workflow remains fail-closed; no thresholds or validation topology were weakened.
+## Known reusable work
+- #2487: diagnostic contact-controls harness/lifecycle/schema work; retain useful pieces, but do not treat its fixture result as physics evidence.
+- #2493: human visual-review artifact retention and intermediate screenshot policy; restore its useful evidence-retention changes.
+- #2500/#2503: durable progress and FreeCAD AppRun lifecycle fixes; preserve where already incorporated into current diagnostics.
+- #2449/#2450/#2452: BVH ray/parity fixes form a research lineage; preserve as historical evidence rather than reopening duplicates.
+- #2476: collider-friction=0.85 experiment is falsified by an unchanged detached/collapsed tunic result.
+- #2470/#2466: stitch-compliance=0.001 plumbing/diagnostic lineage is historical evidence, not an accepted product fix.
+- #2513/#2515/#2516/#2524: sparse-orientation repair lineage; none is accepted into production.
+- #2492 ladder remains the preferred diagnostic path when the current contact hypothesis is falsified.
 
-## Reconciled failures and decisions
-- Run #3964 exposed a FreeCAD GUI startup race in the README turntable job. PR #1187 added bounded GUI readiness and screenshot redraw/settle waits.
-- Run #3966 exposed a deterministic publisher artifact-path bug. PR #1190 corrected only that path.
-- PR #1191 repaired Native Sketcher post-Commit continuation through a bounded Qt event-loop deferral with callback-traceback evidence.
-- Media audit exposed zero-duration README turntable GIFs. PR #1195 moved `-delay 8` before the frame glob and added uniform-delay assertions.
+## Human review requirement
+Required simulation review record:
+1. exact head SHA and Actions run;
+2. actual inline screenshots;
+3. observed visual state;
+4. comparison with expected state;
+5. whether the hypothesis survives;
+6. next bounded action.
 
-## Repository hygiene
-- Exactly one GitHub Actions workflow exists.
-- No open PRs remain.
-- No open issues remain; #1017 and #1098 are closed completed.
-- No actionable TODO/FIXME/XXX findings were identified in the audited code/state.
-- Branch deletion remains connector-limited; no claim of full remote branch purge is made. Scheduled retention remains fail-closed and present.
-
-## Current gate
-- Release scope: complete.
-- Exact-head validation: complete.
-- Merged-main validation: complete.
-- Artifact and rendered-output inspection: complete.
-- README publication validation: complete.
-- Final repository/issue/PR reconciliation: complete.
+Never close an unresolved engineering problem solely to reduce queue size.
