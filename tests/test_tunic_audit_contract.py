@@ -148,14 +148,25 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
 
 def test_tissu_contact_fix_preserves_legacy_near_surface_response():
     script = (ROOT / "docker" / "freecad-ci" / "apply-tissu-contact-fix.py").read_text(encoding="utf-8")
-    assert '"""        bool deepInterior = false' in script
-    assert 'Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);' in script
-    assert 'normal = toParticle / distance;' in script
-    assert 'const Eigen::Vector3d outwardNormal =' in script
-    assert 'if (normal.dot(outwardNormal) < 0.0)' in script
-    assert 'else if (m_closedManifold)' in script
-    assert 'normal *= m_outwardNormalSign;' in script
-    assert 'deepInterior = isDeepInterior(' in script
+    expected_contact = """        bool deepInterior = false;
+        if (m_closedManifold && distance > thickness)
+            deepInterior = isDeepInterior(
+                m_bvh, particle.getPosition(), m_worldVertices);
+
+        if (distance <= thickness || deepInterior) {
+            Eigen::Vector3d normal = (distance > 1e-6)
+                                         ? toParticle.normalized()
+                                         : ((b - a).cross(c - a)).normalized();
+
+            if (deepInterior)
+                normal = -normal;
+
+            Eigen::Vector3d newPosition = cp + normal * thickness;"""
+    assert expected_contact in script
+    assert "const Eigen::Vector3d outwardNormal =" not in script
+    assert "normal.dot(outwardNormal)" not in script
+    assert "normal *= m_outwardNormalSign;" not in script
+    assert "deepInterior = isDeepInterior(" in script
 
 def test_canonical_tunic_fixture_matches_validated_start_geometry():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
