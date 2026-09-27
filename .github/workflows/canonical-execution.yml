@@ -24,6 +24,11 @@ on:
         required: false
         type: boolean
         default: false
+      diagnostic_ladder:
+        description: "Run the diagnostic-only cube complexity ladder (rungs 1-5); never part of release-gate dependencies."
+        required: false
+        type: boolean
+        default: false
   schedule:
     - cron: '0 3 * * *'
 
@@ -125,7 +130,7 @@ jobs:
 
   diagnostic-tissu-contact:
     name: Diagnostic Tissu contact controls
-    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls) || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'supervisor/tissu-contact-controls-2484-20260927')) }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && (inputs.diagnostic_controls || inputs.diagnostic_ladder)) || (github.event_name == 'pull_request' && (startsWith(github.head_ref, 'supervisor/tissu-contact-controls-2484-20260927') || startsWith(github.head_ref, 'supervisor/tissu-cube-ladder-2481'))) }}
     needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 15
@@ -134,6 +139,7 @@ jobs:
       packages: read
     env:
       FREECAD_TUNISU_IMAGE: freecad-cloth-ci:tissu-contact-fix
+      CLOTH_DIAGNOSTIC_LADDER: ${{ (github.event_name == 'workflow_dispatch' && inputs.diagnostic_ladder) && '1' || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'supervisor/tissu-cube-ladder-2481')) && '1' || '0' }}
     steps:
       - name: Log selected execution mode
         run: |
@@ -162,6 +168,7 @@ jobs:
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
             -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu \
             -e CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=1 \
+            -e CLOTH_DIAGNOSTIC_LADDER="$CLOTH_DIAGNOSTIC_LADDER" \
             -e CLOTH_TISSU_SUBSTEPS=1 -e CLOTH_TISSU_COLLISION_MODE=mesh \
             -e CLOTH_TISSU_COLLISION_TRIANGLES=2048 \
             -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/tissu-contact-diagnostics \
@@ -214,7 +221,21 @@ jobs:
           data = json.loads(Path("artifacts/tissu-contact-diagnostics/manifest.json").read_text(encoding="utf-8"))
           assert data["schema"] == 1, data
           assert data["release_gate_effect"] == "none", data
-          assert {case["case"]["id"] for case in data["cases"]} == {"control-0-cube", "control-0a-avatar"}, data
+          base_ids = {"control-0-cube", "control-0a-avatar"}
+          case_ids = {case["case"]["id"] for case in data["cases"]}
+          assert base_ids.issubset(case_ids), data
+          if data.get("ladder_enabled"):
+              expected_ladder = [
+                  "rung-1-cube-pinned",
+                  "rung-2-cube-unpinned",
+                  "rung-3-cube-two-piece-no-seam",
+                  "rung-4-cube-small-span-seam",
+                  "rung-5-cube-large-span-seam",
+              ]
+              assert data["ladder_case_ids"] == expected_ladder, data
+              ladder = [case for case in data["cases"] if case["case"]["id"] in expected_ladder]
+              assert [case["case"]["rung"] for case in ladder] == [1, 2, 3, 4, 5], data
+              assert all(case["control"]["fixture_contract_pass"] for case in ladder), data
           for case in data["cases"]:
               assert case["solver"]["backend"] == "tissu", case
               assert case["solver"]["iterations"] == 1, case
