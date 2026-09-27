@@ -196,6 +196,54 @@ jobs:
               echo "diagnostic-contact-supervisor=finished status=$APP_STATUS" | tee -a /workspace/artifacts/tissu-contact-diagnostics/app-run.log
               exit "$APP_STATUS"
             '
+      - name: Run cube complexity ladder
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/tissu-contact-diagnostics/cube-ladder
+          CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0             CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/tissu-contact-diagnostics             env -u CLOTH_CONTACT_DIAGNOSTICS_EXECUTE             timeout --signal=TERM --kill-after=10s 600s             /opt/freecad/AppRun /workspace/tests/freecad_tissu_cube_ladder.py
+      - name: Validate cube ladder artifact
+        run: |
+          set -euo pipefail
+          test -s artifacts/tissu-contact-diagnostics/cube-ladder-manifest.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path("artifacts/tissu-contact-diagnostics")
+          data = json.loads((root / "cube-ladder-manifest.json").read_text(encoding="utf-8"))
+          assert data["schema"] == 1, data
+          assert data["purpose"] == "diagnostic-only-cube-complexity-ladder", data
+          assert data["release_gate_effect"] == "none", data
+          assert data["checkpoint_steps"] == [0, 1, 5, 15, 45, 90], data
+          assert len(data["cases"]) == 5, data
+          expected = [
+              ("rung-1-cube-pinned", 1, 1, "Automatic", "none"),
+              ("rung-2-cube-unpinned", 2, 1, "None", "none"),
+              ("rung-3-cube-two-piece-no-seam", 3, 2, "None", "none"),
+              ("rung-4-cube-two-piece-small-seam", 4, 2, "None", "small"),
+              ("rung-5-cube-two-piece-large-seam", 5, 2, "None", "large"),
+          ]
+          for record, spec in zip(data["cases"], expected):
+              case_id, rung, pieces, pin_mode, seam_mode = spec
+              case = record["case"]
+              assert (case["id"], case["rung"], case["piece_count"], case["pin_mode"], case["seam_mode"]) == spec, record
+              assert record["finite"], record
+              assert record["solver"]["backend"] == "tissu", record
+              assert record["solver"]["iterations"] == 1, record
+              assert record["solver"]["substeps"] == 1, record
+              assert abs(record["solver"]["timestep_s"] - 1/120) < 1e-12, record
+              assert record["solver"]["gravity_z_mm_s2"] == 0.0, record
+              assert len(record["checkpoints"]) == 6, record
+              assert [x["step"] for x in record["checkpoints"]] == [0, 1, 5, 15, 45, 90], record
+              for image in record["images"]:
+                  assert (root / "cube-ladder" / image.split("/", 1)[-1]).is_file(), image
+          small = data["cases"][3]["pre_step"]["seam_world_spans_mm"]
+          large = data["cases"][4]["pre_step"]["seam_world_spans_mm"]
+          assert len(small) == 1 and len(large) == 1, data
+          assert large[0]["max_span_mm"] > small[0]["max_span_mm"] + 20.0, (small, large)
+          assert data["structural_validation"]["first_failing_rung"] in {None, 1, 2, 3, 4, 5}
+          print("cube-ladder-artifact=passed")
+          PY
       - name: Capture provenance
         run: |
           set -euo pipefail
