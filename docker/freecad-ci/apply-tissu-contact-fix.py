@@ -31,6 +31,7 @@ def main() -> int:
     header = ROOT / "core/include/physics/MeshCollider.hpp"
     cpp = ROOT / "core/src/physics/MeshCollider.cpp"
     test = ROOT / "tests/physics/test_mesh_collider.cpp"
+    cloth_test = ROOT / "tests/physics/test_cloth.cpp"
 
     replace_once(
         header,
@@ -288,12 +289,63 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     test_cpp = test_cpp.replace(old, new, 1)
     test.write_text(test_cpp, encoding="utf-8")
 
+    cloth_test_cpp = cloth_test.read_text(encoding="utf-8")
+    cloth_test_cpp = cloth_test_cpp.replace(
+        "#include <engine/ClothMesh.hpp>\n",
+        "#include <engine/ClothMesh.hpp>\n#include <physics/MeshCollider.hpp>\n",
+        1,
+    )
+    cloth_anchor = """    cloth->clear();
+    EXPECT_EQ(cloth->getTriangles().size(), 0);
+    EXPECT_EQ(cloth->getParticleIndices().size(), 0);
+    EXPECT_EQ(cloth->getAeroFaces().size(), 0);
+    EXPECT_EQ(cloth->getVisualEdges().size(), 0);
+}"""
+    cloth_regression = """    cloth->clear();
+    EXPECT_EQ(cloth->getTriangles().size(), 0);
+    EXPECT_EQ(cloth->getParticleIndices().size(), 0);
+    EXPECT_EQ(cloth->getAeroFaces().size(), 0);
+    EXPECT_EQ(cloth->getVisualEdges().size(), 0);
+}
+
+TEST(Cloth, AttachmentMaintainsRestDistanceUnderSolverStep) {
+    Solver solver;
+    const std::vector<Eigen::Vector3d> vertices = {
+        {-2.0, 0.0, -2.0},
+        {2.0, 0.0, -2.0},
+        {0.0, 0.0, 2.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {{0, 1, 2}};
+    const auto collider =
+        std::make_shared<MeshCollider>(vertices, triangles, 0.0);
+
+    const int particleId =
+        solver.addParticle(Particle(Eigen::Vector3d(0.0, 1.2, 0.0)));
+    solver.addAttachmentLocal(
+        particleId,
+        collider,
+        Eigen::Vector3d(0.0, 0.0, 0.0),
+        0.0,
+        1.0);
+
+    World world;
+    world.addCollider(collider);
+    solver.update(world, 1.0 / 60.0);
+
+    EXPECT_NEAR(solver.getParticles().at(particleId).getPosition().norm(), 1.0, 1e-6);
+}"""
+    if cloth_test_cpp.count(cloth_anchor) != 1:
+        raise RuntimeError("Cloth attachment regression anchor mismatch")
+    cloth_test_cpp = cloth_test_cpp.replace(cloth_anchor, cloth_regression, 1)
+    cloth_test.write_text(cloth_test_cpp, encoding="utf-8")
+
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
     changed = run("git", "diff", "--name-only")
     expected = {
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
+        "tests/physics/test_cloth.cpp",
         "tests/physics/test_mesh_collider.cpp",
     }
     if set(changed.splitlines()) != expected:
