@@ -212,7 +212,13 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
 
     cpp = cpp.replace(resolve_old, resolve_new, 1)
 
-    contact_old = """        if (distance <= thickness || insideClosedMesh) {
+    contact_old = """        if (distance <= thickness) {
+            Eigen::Vector3d normal = (distance > 1e-6)
+                                         ? toParticle.normalized()
+                                         : ((b - a).cross(c - a)).normalized();
+
+            Eigen::Vector3d newPosition = cp + normal * thickness;"""
+    contact_new = """        if (distance <= thickness || insideClosedMesh) {
             Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
             const double faceNormalLength = faceNormalRaw.norm();
             if (faceNormalLength <= 1e-12)
@@ -231,7 +237,7 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
             Eigen::Vector3d newPosition = cp + normal * thickness;"""
     if cpp.count(contact_old) != 1:
         raise RuntimeError("MeshCollider.cpp contact-response anchor mismatch")
-    probe_old = """        double distance = toParticle.norm()
+    probe_old = """        double distance = toParticle.norm();
 
         if (distance <= thickness) {"""
     probe_new = """        double distance = toParticle.norm();
