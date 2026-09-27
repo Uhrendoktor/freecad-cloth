@@ -283,7 +283,7 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
 
             Eigen::Vector3d newPosition = cp + normal * thickness;"""
     contact_new = """        if (distance <= thickness || insideClosedMesh || sweptContact) {
-            Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
+            Eigen::Vector3d faceNormalRaw = (contactB - contactA).cross(contactC - contactA);
             const double faceNormalLength = faceNormalRaw.norm();
             if (faceNormalLength <= 1e-12)
                 continue;
@@ -300,6 +300,9 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
 
             Eigen::Vector3d newPosition = cp + normal * thickness;"""
     probe_old = """        double distance = toParticle.norm();
+        Eigen::Vector3d contactA = a;
+        Eigen::Vector3d contactB = b;
+        Eigen::Vector3d contactC = c;
 
         bool insideClosedMesh = false;
         bool sweptContact = false;
@@ -314,11 +317,10 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
                 sweptContact = findSweptContact(
                     startPosition, endPosition, thickness, sweptTriangle, sweptT);
                 if (sweptContact) {
-                    triIdx = sweptTriangle;
-                    const Triangle& sweptTri = m_bvh.getTriangle(triIdx);
-                    a = m_worldVertices[sweptTri.a];
-                    b = m_worldVertices[sweptTri.b];
-                    c = m_worldVertices[sweptTri.c];
+                    const Triangle& sweptTri = m_bvh.getTriangle(sweptTriangle);
+                    contactA = m_worldVertices[sweptTri.a];
+                    contactB = m_worldVertices[sweptTri.b];
+                    contactC = m_worldVertices[sweptTri.c];
                     cp = startPosition + (endPosition - startPosition) * sweptT;
                     toParticle = endPosition - cp;
                     distance = toParticle.norm();
