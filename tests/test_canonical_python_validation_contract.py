@@ -25,6 +25,7 @@ def test_pytest_contract_module_has_a_real_test_entrypoint():
     assert "def test_canonical_python_job_executes_pytest_contract_modules" in source
     assert "def test_pytest_contract_module_has_a_real_test_entrypoint" in source
 
+
 def test_tissu_contact_patch_preserves_sparse_surface_orientation_contract():
     source = (ROOT / "docker" / "freecad-ci" / "apply-tissu-contact-fix.py").read_text(
         encoding="utf-8"
@@ -34,4 +35,5 @@ def test_tissu_contact_patch_preserves_sparse_surface_orientation_contract():
     assert "if (m_windingSignal)" in source
     assert "OrientedSparseMeshResolvesInteriorOutward" in source
     assert "OrientedSparseMeshPreservesOutsideContact" in source
+    assert source.count("m_windingSignal = orientation.windingSignal") == 2
     assert "m_closedManifold = orientation.closedManifold" in source
