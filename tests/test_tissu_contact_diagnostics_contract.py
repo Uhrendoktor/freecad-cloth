@@ -73,6 +73,13 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "float(center.y) + 120.0" in SOURCE
     assert "width=72.0" in SOURCE
     assert "mesh_is_inside = getattr(mesh, \"isInside\", None)" in SOURCE
+    assert "def _source_local_point(point, source):" in SOURCE
+    assert "placement.inverse().multVec(App.Vector(*point))" in SOURCE
+    assert "interior_seed_world" in SOURCE
+    assert "interior_seed_local" in SOURCE
+    assert "inside_test_coordinate_space" in SOURCE
+    assert "source-local-via-source-placement-inverse" in SOURCE
+    assert "interior_seed_classification" in SOURCE
     assert 'did not create a true interior pre-step state' in SOURCE
     assert 'tissu-env: collision_mode=' in SOURCE
     assert "diagnostic-contact-supervisor=timeout" in WORKFLOW
