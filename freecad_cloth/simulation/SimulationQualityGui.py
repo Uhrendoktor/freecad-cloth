@@ -135,13 +135,13 @@ class SimulationQualityTaskPanel:
             self.status.setText("Create or select a Cloth Simulation object before snapping pieces to target.")
             return
         try:
-            from freecad_cloth.simulation.FittingHandoff import open_arrange_fit_from_simulation
+            from freecad_cloth.simulation.FittingHandoff import prepare_fitting_from_simulation
             from freecad_cloth.avatar.FittingCommands import snap_pattern_pieces_to_target
-            fitting = open_arrange_fit_from_simulation(self.scene)
+            fitting = prepare_fitting_from_simulation(self.scene)
             snap_pattern_pieces_to_target(tuple(getattr(fitting, "PatternPieces", ()) or ()))
             self._refresh("Garment pieces arranged on the persistent DrapeTarget.")
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            self.status.setText("Target-aware arrangement unavailable — %s" % exc)
+            self._refresh("Target-aware arrangement unavailable — %s" % exc)
 
     def reset_arrangement(self):
         try:
