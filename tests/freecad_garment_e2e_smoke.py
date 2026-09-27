@@ -715,7 +715,7 @@ def run_acceptance():
         doc.recompute()
         screenshot = str(Path(os.environ.get("CLOTH_SCREENSHOT_DIR", "/workspace/docs/images/generated")) / "cloth-simulation-draped-target-snap-applied.png")
         Gui.activeDocument().activeView().fitAll()
-        Gui.activeDocument().activeView().saveImage(screenshot, 1280, 720, "Current", 1)
+        Gui.activeDocument().activeView().saveImage(screenshot, 1280, 720, "White")
         if not os.path.exists(screenshot) or os.path.getsize(screenshot) <= 0:
             raise RuntimeError("target snap rendered evidence was not written")
         fitting = doc.getObject("FittingScene")
@@ -751,7 +751,7 @@ def run_acceptance():
             raise RuntimeError("Reset arrangement did not restore the exact pre-snap PatternPiece and native Sketch placements")
         screenshot = str(Path(os.environ.get("CLOTH_SCREENSHOT_DIR", "/workspace/docs/images/generated")) / "cloth-simulation-draped-target-snap-reset.png")
         Gui.activeDocument().activeView().fitAll()
-        Gui.activeDocument().activeView().saveImage(screenshot, 1280, 720, "Current", 1)
+        Gui.activeDocument().activeView().saveImage(screenshot, 1280, 720, "White")
         if not os.path.exists(screenshot) or os.path.getsize(screenshot) <= 0:
             raise RuntimeError("target snap Reset rendered evidence was not written")
         quality_panel.snap_to_target_button.click()
