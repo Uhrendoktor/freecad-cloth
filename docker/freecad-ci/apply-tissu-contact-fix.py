@@ -312,26 +312,19 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         "BVH box query declaration",
     )
 
-    replace_once(
-        bvh_header,
-        """    void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
-                        double squaredRadius,
-                        std::vector<int>& outTriangles) const;
-    void queryBoxRecursive(int nodeIdx, const Eigen::AlignedBox3d& box,
+    bvh_header_text = bvh_header.read_text(encoding="utf-8")
+    recursive_anchor = """    void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,"""
+    if bvh_header_text.count(recursive_anchor) != 1:
+        raise RuntimeError("BVH box helper declaration: expected one stable source anchor")
+    bvh_header_text = bvh_header_text.replace(
+        recursive_anchor,
+        """    void queryBoxRecursive(int nodeIdx, const Eigen::AlignedBox3d& box,
                            std::vector<int>& outTriangles) const;
-    int closestRecursive(int nodeIdx, const Eigen::Vector3d& point,
-                         const std::vector<Eigen::Vector3d>& vertices,
-                         double& bestDistSq) const;""",
-        """    void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
-                        double squaredRadius,
-                        std::vector<int>& outTriangles) const;
-    void queryBoxRecursive(int nodeIdx, const Eigen::AlignedBox3d& box,
-                           std::vector<int>& outTriangles) const;
-    int closestRecursive(int nodeIdx, const Eigen::Vector3d& point,
-                         const std::vector<Eigen::Vector3d>& vertices,
-                         double& bestDistSq) const;""",
-        "BVH box helper declaration",
+""" + recursive_anchor,
+        1,
     )
+    bvh_header.write_text(bvh_header_text, encoding="utf-8")
+
 
     bvh_cpp_text = bvh_cpp.read_text(encoding="utf-8")
     replace_once(
@@ -496,6 +489,13 @@ MeshCollider::MeshCollider(const std::string& meshPath, double friction) {""",
                                 m_worldVertices[tri.b], m_worldVertices[tri.c],
                                 epsilon, candidateT, candidateNormal))
             continue;
+
+        const double normalTravel =
+            std::abs((end - start).dot(candidateNormal));
+        if (normalTravel <= epsilon)
+            continue;
+        candidateT = std::max(
+            0.0, candidateT - safeMargin / normalTravel);
 
         if (candidateT < bestT - epsilon ||
             (std::abs(candidateT - bestT) <= epsilon &&
@@ -733,6 +733,137 @@ void StitchConstraint::solveInternal(
         "StitchConstraint collision-aware solve implementation",
     )
 
+    # Reconcile the generated stitch implementation with the numerical and
+    # integration contract: one scalar lambda must match the correction actually applied.
+    stitch_cpp_text = stitch_cpp.read_text(encoding="utf-8")
+    sweep_start = "namespace {\n\nEigen::Vector3d clipCorrectionAtFirstMeshHit("
+    sweep_end = "\nvoid StitchConstraint::solve(std::vector<Particle>& particles, double dt) {"
+    if stitch_cpp_text.count(sweep_start) != 1 or stitch_cpp_text.count(sweep_end) != 1:
+        raise RuntimeError("StitchConstraint sweep repair anchors mismatch")
+    helper = """namespace {
+
+double correctionScaleAtFirstMeshHit(
+    const Eigen::Vector3d& start, const Eigen::Vector3d& correction,
+    const std::vector<std::shared_ptr<Collider>>& colliders, double thickness) {
+    if (correction.squaredNorm() <= 1e-18)
+        return 1.0;
+
+    double scale = 1.0;
+    const Eigen::Vector3d end = start + correction;
+    for (const auto& collider : colliders) {
+        const auto* mesh = dynamic_cast<const MeshCollider*>(collider.get());
+        if (mesh == nullptr)
+            continue;
+
+        double hitT = 1.0;
+        Eigen::Vector3d hitNormal = Eigen::Vector3d::Zero();
+        int hitTriangle = -1;
+        if (mesh->firstSegmentHit(start, end, thickness, hitT, hitNormal,
+                                  hitTriangle)) {
+            scale = std::min(scale, std::max(0.0, std::min(1.0, hitT)));
+        }
+    }
+    return scale;
+}
+
+} // namespace
+"""
+    stitch_cpp_text = stitch_cpp_text[:stitch_cpp_text.index(sweep_start)] + helper + stitch_cpp_text[stitch_cpp_text.index(sweep_end):]
+
+    solve_start = "void StitchConstraint::solve(std::vector<Particle>& particles, double dt) {"
+    solve_close = "\n} // namespace Tissu"
+    if stitch_cpp_text.count(solve_start) != 1 or stitch_cpp_text.count(solve_close) != 1:
+        raise RuntimeError("StitchConstraint solve body anchors mismatch")
+    new_tail = """void StitchConstraint::solve(std::vector<Particle>& particles, double dt) {
+    solveInternal(particles, dt, nullptr, 0.0);
+}
+
+void StitchConstraint::solveWithColliders(
+    std::vector<Particle>& particles, double dt,
+    const std::vector<std::shared_ptr<Collider>>& colliders, double thickness) {
+    solveInternal(particles, dt, &colliders, thickness);
+}
+
+void StitchConstraint::solveInternal(
+    std::vector<Particle>& particles, double dt,
+    const std::vector<std::shared_ptr<Collider>>* colliders, double thickness) {
+    Particle& pA = particles[m_idA];
+    Particle& pB = particles[m_idB];
+
+    Eigen::Vector3d delta = pA.getPosition() - pB.getPosition();
+    double currentLength = delta.norm();
+    if (currentLength < 1e-6)
+        return;
+
+    double wA = pA.getInverseMass();
+    double wB = pB.getInverseMass();
+    double wSum = wA + wB;
+    if (wSum == 0.0)
+        return;
+
+    Eigen::Vector3d norm = delta / currentLength;
+    double C = currentLength;
+    double alphaHat = m_compliance / (dt * dt);
+    double deltaLambda = (-C - alphaHat * m_lambda) / (wSum + alphaHat);
+
+    const Eigen::Vector3d correctionA = wA * norm * deltaLambda;
+    const Eigen::Vector3d correctionB = -wB * norm * deltaLambda;
+
+    double correctionScale = 1.0;
+    if (colliders != nullptr && !colliders->empty()) {
+        correctionScale = std::min(
+            correctionScale,
+            correctionScaleAtFirstMeshHit(
+                pA.getPosition(), correctionA, *colliders, thickness));
+        correctionScale = std::min(
+            correctionScale,
+            correctionScaleAtFirstMeshHit(
+                pB.getPosition(), correctionB, *colliders, thickness));
+    }
+
+    const double appliedDeltaLambda = deltaLambda * correctionScale;
+    m_lambda += appliedDeltaLambda;
+    pA.setPosition(pA.getPosition() + wA * norm * appliedDeltaLambda);
+    pB.setPosition(pB.getPosition() - wB * norm * appliedDeltaLambda);
+}"""
+    stitch_cpp_text = stitch_cpp_text[:stitch_cpp_text.index(solve_start)] + new_tail + stitch_cpp_text[stitch_cpp_text.index(solve_close):]
+    stitch_cpp.write_text(stitch_cpp_text, encoding="utf-8")
+
+    stitch_header_text = stitch_header.read_text(encoding="utf-8")
+    public_helper = """    void solveWithColliders(
+        std::vector<Particle>& particles, double dt,
+        const std::vector<std::shared_ptr<Collider>>& colliders,
+        double thickness);
+
+    std::vector<int>"""
+    if stitch_header_text.count(public_helper) != 1:
+        raise RuntimeError("StitchConstraint helper visibility anchor mismatch")
+    stitch_header_text = stitch_header_text.replace(public_helper, "    std::vector<int>", 1)
+    private_anchor = """private:
+    void solveInternal(
+        std::vector<Particle>& particles, double dt,
+        const std::vector<std::shared_ptr<Collider>>* colliders,
+        double thickness);"""
+    if stitch_header_text.count(private_anchor) != 1:
+        raise RuntimeError("StitchConstraint private helper anchor mismatch")
+    stitch_header_text = stitch_header_text.replace(
+        private_anchor,
+        """private:
+    friend class Solver;
+
+    void solveWithColliders(
+        std::vector<Particle>& particles, double dt,
+        const std::vector<std::shared_ptr<Collider>>& colliders,
+        double thickness);
+
+    void solveInternal(
+        std::vector<Particle>& particles, double dt,
+        const std::vector<std::shared_ptr<Collider>>* colliders,
+        double thickness);""",
+        1,
+    )
+    stitch_header.write_text(stitch_header_text, encoding="utf-8")
+
     replace_once(
         ROOT / "core/include/physics/Solver.hpp",
         """    void solveConstraints(double dt);""",
@@ -901,27 +1032,33 @@ TEST(StitchConstraint, SolverDoesNotClipTangentCorrection) {
     EXPECT_NEAR(solver.getParticles()[moving].getPosition().y(), 250.0, 1e-9);
 }
 
-TEST(StitchConstraint, SolverMultipleIterationsKeepSweptEndpointBounded) {
-    World world;
-    world.setGravity(Eigen::Vector3d::Zero());
-    world.setThickness(0.5);
-    world.addCollider(makeWall(0.0));
+TEST(StitchConstraint, SolverMultipleIterationsPreserveAppliedLambdaCorrection) {
+    auto solve = [](int iterations) {
+        World world;
+        world.setGravity(Eigen::Vector3d::Zero());
+        world.setThickness(0.5);
+        world.addCollider(makeWall(0.0));
 
-    Solver solver;
-    solver.setSubsteps(1);
-    solver.setIterations(3);
-    const int moving =
-        solver.addParticle(Particle(Eigen::Vector3d(-250.0, 0.0, 0.0)));
-    const int anchor =
-        solver.addParticle(Particle(Eigen::Vector3d(250.0, 0.0, 0.0)));
-    solver.setParticleInverseMass(anchor, 0.0);
-    solver.addStitch(moving, anchor, 0.0);
+        Solver solver;
+        solver.setSubsteps(1);
+        solver.setIterations(iterations);
+        const int moving =
+            solver.addParticle(Particle(Eigen::Vector3d(-250.0, 0.0, 0.0)));
+        const int anchor =
+            solver.addParticle(Particle(Eigen::Vector3d(250.0, 0.0, 0.0)));
+        solver.setParticleInverseMass(anchor, 0.0);
+        solver.addStitch(moving, anchor, 0.0);
 
-    solver.update(world, 0.016);
+        solver.update(world, 0.016);
+        return solver.getParticles()[moving].getPosition().x();
+    };
 
-    const double x = solver.getParticles()[moving].getPosition().x();
-    EXPECT_LT(x, -0.49);
-    EXPECT_GT(x, -1.01);
+    const double oneIteration = solve(1);
+    const double threeIterations = solve(3);
+
+    EXPECT_NEAR(oneIteration, threeIterations, 1e-9);
+    EXPECT_LT(threeIterations, -0.49);
+    EXPECT_GT(threeIterations, -1.01);
 }
 
 TEST(StitchConstraint, SolverChoosesEarliestCrossingAcrossMultipleMeshes) {
@@ -970,6 +1107,12 @@ TEST(StitchConstraint, SolverChoosesEarliestCrossingAcrossMultipleMeshes) {
     }
     if set(changed.splitlines()) != expected:
         raise RuntimeError(f"unexpected patched files: {changed!r}")
+
+    stitch_header_text = stitch_header.read_text(encoding="utf-8")
+    if stitch_header_text.index("void solveWithColliders(") < stitch_header_text.index("private:"):
+        raise RuntimeError("StitchConstraint world-aware helper must remain private")
+    if "m_lambda += appliedDeltaLambda;" not in stitch_cpp.read_text(encoding="utf-8"):
+        raise RuntimeError("StitchConstraint lambda must match applied bounded correction")
 
     script_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     print(f"Tissu source commit: {EXPECTED_COMMIT}")
