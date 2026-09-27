@@ -21,10 +21,13 @@ def test_readme_turntable_uses_real_blanket_drape_motion():
     assert "stage=simulation-pass" in source
     assert "stage=validation-pass" in source
     assert "stage=draped-render-pass" in source
-    assert "BLANKET_PARTICLE_DISTANCE = 16.0" in source
+    assert "BLANKET_PARTICLE_DISTANCE = 12.0" in source
     assert "scene.SolverSubsteps = 1" in source
     assert 'set_avatar_collision_source(scene, cube, thickness=2.0, deflection=1.0)' in source
     assert 'arranged_objects = [cube, panel]' in source
+    assert '_interior_top_face_pins(panel_indices, positions)' in source
+    assert 'App.Vector(-0.375 * BLANKET_SIZE, 0.0, BLANKET_START_Z)' in source
+    assert 'App.Vector(0.375 * BLANKET_SIZE, 0.0, BLANKET_START_Z)' in source
     assert 'visible_names = {obj.Name for obj in objects}' in source
     assert 'panel.ViewObject.DisplayMode = "Shaded"' in source
     assert 'start_angle = pi / 2.0' in source
