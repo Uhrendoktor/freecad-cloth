@@ -488,31 +488,6 @@ TEST(Solver, ZeroOrNegativeWorldThicknessFailsClosed) {
     }
 }
 
-TEST(Solver, ZeroOrNegativeWorldThicknessFailsClosed) {
-    for (double thickness : {0.0, -1.0}) {
-        Solver solver;
-        World world;
-        world.setGravity(Eigen::Vector3d::Zero());
-        world.setThickness(thickness);
-        solver.setSubsteps(1);
-        solver.setIterations(1);
-
-        solver.addParticle(Particle(Eigen::Vector3d(0.0, 0.0, 0.0)));
-        solver.addParticle(Particle(Eigen::Vector3d(10.0, 0.0, 0.0)));
-        solver.addStitch(0, 1, 0.0);
-
-        solver.update(world, 0.016);
-
-        EXPECT_NEAR(
-            (solver.getParticles()[0].getPosition() -
-             Eigen::Vector3d(0.0, 0.0, 0.0)).norm(),
-            0.0, 1e-9);
-        EXPECT_NEAR(
-            (solver.getParticles()[1].getPosition() -
-             Eigen::Vector3d(10.0, 0.0, 0.0)).norm(),
-            0.0, 1e-9);
-    }
-}
 
 TEST(Solver, StitchCorrectionWithinThicknessRemainsUnclamped) {
     Solver solver;
