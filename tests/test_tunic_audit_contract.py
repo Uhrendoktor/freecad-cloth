@@ -149,9 +149,12 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
 def test_tunic_shoulder_attachment_contract_uses_existing_tissu_attachment_api():
     simulation_objects = (ROOT / "freecad_cloth" / "simulation" / "SimulationObjects.py").read_text(encoding="utf-8")
     tissu_backend = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    assert "def _tunic_shoulder_landmarks" in simulation_objects
     assert "def _tunic_shoulder_attachment_records" in simulation_objects
     assert 'if "tunic" not in seam_key or "shoulder" not in seam_key' in simulation_objects
     assert 'endpoint_pairs = (stitch_pairs[0], stitch_pairs[-1])' in simulation_objects
+    assert '"shoulder_left", "shoulder_right"' in simulation_objects
+    assert "requires exactly four shoulder attachments" in simulation_objects
     assert '"attachments": attachments' in simulation_objects
     assert "attachments: Iterable[Tuple[int, Tuple[float, float, float], float]] = ()" in tissu_backend
     assert 'self._sim.attach(' in tissu_backend
