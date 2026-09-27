@@ -156,6 +156,9 @@ def test_tissu_contact_fix_preserves_legacy_near_surface_response():
     assert 'else if (m_closedManifold)' in script
     assert 'normal *= m_outwardNormalSign;' in script
     assert 'deepInterior = isDeepInterior(' in script
+    assert 'if (w < -1.0e-9 || w > 1.0 + 1.0e-9)' in script
+    assert 'if (t < -kRayEpsilon)' in script
+    assert 'if (std::abs(t) <= kRayEpsilon)' in script
 
 def test_canonical_tunic_fixture_matches_validated_start_geometry():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
