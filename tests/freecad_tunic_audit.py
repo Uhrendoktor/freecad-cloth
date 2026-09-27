@@ -75,6 +75,11 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
     log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
 '''
+anchor = '''    for batch in (15,15,15,15,15,15):
+        simulation_panel.step(batch); doc.recompute(); events()
+'''
+if anchor not in source:
+    raise RuntimeError("simulation batch anchor missing")
 target_snap_probe = r'''    # Target-aware fitting acceptance on the same native tunic fixture used below.
     import math
     from freecad_cloth.avatar import FittingCommands
@@ -167,55 +172,8 @@ target_snap_probe = r'''    # Target-aware fitting acceptance on the same native
         raise RuntimeError("canonical tunic Snap/Reset cycle mutated existing pinning state")
     log("tunic-target-resnap=passed")
 '''
-anchor = '''    for batch in (15,15,15,15,15,15):
-        simulation_panel.step(batch); doc.recompute(); events()
-'''
-if anchor not in source:
-    raise RuntimeError("simulation batch anchor missing")
 source = source.replace(anchor, target_snap_probe + "\n" + anchor, 1)
-timed_anchor = '''    from time import perf_counter
-    simulation_started = perf_counter()
-    active_backend = scene.Proxy._base_or_restore().backend
-    active_collision = getattr(active_backend, "_collision_surface", None)
-    log("tunic-simulation-start particles=%d iterations=%d substeps=%d backend=%s collision_triangles=%d" % (
-        int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps),
-        str(getattr(active_backend, "name", "")),
-        0 if active_collision is None else len(active_collision.triangles),
-    ))
-    for batch in (15,15,15,15,15,15):
-        batch_started = perf_counter()
-        simulation_panel.step(batch); doc.recompute(); events()
-        log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
-    log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
-'''
-source = source.replace(anchor, preview_probe + '\n' + timed_anchor, 1)
 
-seam_check = """    backend_state = scene.Proxy._base_or_restore()
-    simulated_positions = tuple(backend_state.backend.positions())
-    if not simulated_positions: raise RuntimeError("Tissu backend returned no simulated particle positions")
-    stitch_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
-    if not stitch_pairs_by_seam: raise RuntimeError("authoritative seam check has no exact solver stitch provenance")
-    seam_gaps = []
-    for seam, piece_a, piece_b in seam_records:
-        expected_a = f"{piece_a.PieceId}:edge:"
-        expected_b = f"{piece_b.PieceId}:edge:"
-        edge_a_id = str(getattr(seam, "EdgeAId", ""))
-        edge_b_id = str(getattr(seam, "EdgeBId", ""))
-        if not edge_a_id.startswith(expected_a) or not edge_b_id.startswith(expected_b):
-            raise RuntimeError("authoritative tunic seam lost semantic edge identity")
-        pairs = tuple(stitch_pairs_by_seam.get(str(seam.SeamId), ()))
-        if not pairs:
-            raise RuntimeError("authoritative seam check cannot resolve exact solver pairs for %s" % seam.SeamId)
-        for ga, gb in pairs:
-            a = simulated_positions[int(ga)]
-            b = simulated_positions[int(gb)]
-            seam_gaps.append(((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2)**0.5)
-    max_seam_gap = max(seam_gaps) if seam_gaps else 0.0
-    if max_seam_gap > 35.0: raise RuntimeError("authoritative tunic seams did not converge: max endpoint gap %.1f mm" % max_seam_gap)
-    log("authoritative-seam-max-gap-mm=%.2f seam-ids=%s" % (max_seam_gap, tuple(str(seam.SeamId) for seam, _a, _b in seam_records)))
-"""
-
-source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", 1)
 def _compile_generated_source(source_text):
     try:
         return compile(source_text, str(source_path), "exec")
