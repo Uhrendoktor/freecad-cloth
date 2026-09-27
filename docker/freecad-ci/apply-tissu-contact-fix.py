@@ -207,8 +207,60 @@ MeshOrientation inferMeshOrientation(
         cpp = cpp.replace(old, new, 1)
     Path(cpp_path := ROOT / "core/src/physics/MeshCollider.cpp").write_text(cpp, encoding="utf-8")
 
+    solver_path = ROOT / "core/src/physics/Solver.cpp"
+    solver_cpp = solver_path.read_text(encoding="utf-8")
+    solver_cpp = solver_cpp.replace(
+        "#include <algorithm>\n#include <memory>\n",
+        "#include <algorithm>\n#include <cstdlib>\n#include <memory>\n",
+        1,
+    )
+    solver_old = """    for (auto& constraint : m_constraints) {
+        constraint->resetLambda();
+    }
+
+    for (int i = 0; i < m_iterations; i++) {
+        solveConstraints(dt);
+    }
+
+    const auto& colliders = world.getColliders();
+    for (auto& collider : colliders)
+        collider->resolve(m_particles, dt, world.getThickness());
+"""
+    solver_new = """    for (auto& constraint : m_constraints) {
+        constraint->resetLambda();
+    }
+
+    const char* contactOrder =
+        std::getenv("CLOTH_TISSU_CONTACT_BEFORE_CONSTRAINTS");
+    const bool contactBeforeConstraints =
+        contactOrder != nullptr && contactOrder[0] == '1' && contactOrder[1] == '\0';
+    const auto& colliders = world.getColliders();
+    if (contactBeforeConstraints) {
+        for (auto& collider : colliders)
+            collider->resolve(m_particles, dt, world.getThickness());
+    }
+
+    for (int i = 0; i < m_iterations; i++) {
+        solveConstraints(dt);
+    }
+
+    if (!contactBeforeConstraints) {
+        for (auto& collider : colliders)
+            collider->resolve(m_particles, dt, world.getThickness());
+    }
+"""
+    if solver_cpp.count(solver_old) != 1:
+        raise RuntimeError("Solver.cpp contact-order anchor mismatch")
+    solver_cpp = solver_cpp.replace(solver_old, solver_new, 1)
+    solver_path.write_text(solver_cpp, encoding="utf-8")
+
     test_cpp = test.read_text(encoding="utf-8")
-    test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
+    test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <cstdlib>\n#include <memory>\n#include <string>\n#include <vector>\n", 1)
+    test_cpp = test_cpp.replace(
+        '#include "physics/MeshCollider.hpp"\n',
+        '#include "engine/World.hpp"\n#include "physics/Collider.hpp"\n#include "physics/MeshCollider.hpp"\n#include "physics/Solver.hpp"\n',
+        1,
+    )
     helper = """static bool tetrahedronContains(const Eigen::Vector3d& point) {
     const std::vector<Eigen::Vector3d> vertices = {
         {0.0, 0.0, 0.0},
@@ -286,6 +338,79 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     if test_cpp.count(old) != 1:
         raise RuntimeError("MeshCollider regression test body anchor mismatch")
     test_cpp = test_cpp.replace(old, new, 1)
+
+    test_cpp += r'''
+
+class ContactOrderingProbeCollider final : public Collider {
+public:
+    double observedDistance = -1.0;
+
+    void resolve(std::vector<Particle>& particles, double, double) override {
+        observedDistance =
+            (particles[0].getPosition() - particles[1].getPosition()).norm();
+    }
+};
+
+class ScopedEnvironmentVariable {
+public:
+    explicit ScopedEnvironmentVariable(const char* name, const char* value)
+        : m_name(name), m_previous(std::getenv(name)) {
+        if (value == nullptr)
+            unsetenv(name);
+        else
+            setenv(name, value, 1);
+    }
+
+    ~ScopedEnvironmentVariable() {
+        if (m_previous.empty())
+            unsetenv(m_name.c_str());
+        else
+            setenv(m_name.c_str(), m_previous.c_str(), 1);
+    }
+
+private:
+    std::string m_name;
+    std::string m_previous;
+};
+
+TEST(MeshCollider, ContactOrderingDefaultIsPostConstraint) {
+    ScopedEnvironmentVariable env("CLOTH_TISSU_CONTACT_BEFORE_CONSTRAINTS", nullptr);
+
+    Solver solver;
+    solver.setIterations(1);
+    solver.setSubsteps(1);
+    solver.addParticle(Particle(Eigen::Vector3d(0.0, 0.0, 0.0)));
+    solver.addParticle(Particle(Eigen::Vector3d(1.0, 0.0, 0.0)));
+    solver.addStitch(0, 1, 0.0);
+
+    World world;
+    auto probe = std::make_shared<ContactOrderingProbeCollider>();
+    world.addCollider(probe);
+
+    solver.update(world, 1.0 / 60.0);
+
+    ASSERT_NEAR(probe->observedDistance, 0.0, 1.0e-9);
+}
+
+TEST(MeshCollider, ContactOrderingExperimentIsPreConstraint) {
+    ScopedEnvironmentVariable env("CLOTH_TISSU_CONTACT_BEFORE_CONSTRAINTS", "1");
+
+    Solver solver;
+    solver.setIterations(1);
+    solver.setSubsteps(1);
+    solver.addParticle(Particle(Eigen::Vector3d(0.0, 0.0, 0.0)));
+    solver.addParticle(Particle(Eigen::Vector3d(1.0, 0.0, 0.0)));
+    solver.addStitch(0, 1, 0.0);
+
+    World world;
+    auto probe = std::make_shared<ContactOrderingProbeCollider>();
+    world.addCollider(probe);
+
+    solver.update(world, 1.0 / 60.0);
+
+    ASSERT_NEAR(probe->observedDistance, 1.0, 1.0e-9);
+}
+'''
     test.write_text(test_cpp, encoding="utf-8")
 
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
@@ -294,6 +419,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     expected = {
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
+        "core/src/physics/Solver.cpp",
         "tests/physics/test_mesh_collider.cpp",
     }
     if set(changed.splitlines()) != expected:
@@ -302,7 +428,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     script_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     print(f"Tissu source commit: {EXPECTED_COMMIT}")
     print(f"Tissu contact fix script sha256: {script_sha}")
-    print("Tissu contact fix: applied and self-checked")
+    print("Tissu contact/order fix: applied and self-checked")
     return 0
 
 
