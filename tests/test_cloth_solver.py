@@ -73,6 +73,7 @@ def test_tissu_collision_surface_abi_preserves_solver_surface_identity():
     assert "def solver_collision_surface(self):" in backend_source
     assert "def solver_collision_surface(self):" in tissu_source
     assert "return self._collision_surface" in tissu_source
+    assert "triangles = [[int(a), int(b), int(c)] for a, b, c in surface.triangles]" in tissu_source
     assert "self.collision_surface = collision_surface" in objects_source
     assert "_collision_surface_for_step(self)" in objects_source
 
