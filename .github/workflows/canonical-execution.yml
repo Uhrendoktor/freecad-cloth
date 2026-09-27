@@ -19,6 +19,11 @@ on:
         required: false
         type: string
         default: ""
+      diagnostic_controls:
+        description: "Run the opt-in cloth contact controls 0/0a diagnostic job."
+        required: false
+        type: boolean
+        default: false
   schedule:
     - cron: '0 3 * * *'
 
@@ -41,6 +46,64 @@ permissions:
   packages: read
 
 jobs:
+  contact_controls:
+    name: Diagnostic contact controls 0/0a
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls == true }}
+    needs: [local_runner_readiness]
+    runs-on: ${{ (inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 15
+    steps:
+      - name: Log diagnostic execution mode
+        run: |
+          set -euo pipefail
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Run diagnostic controls
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/contact-controls
+          mkdir -p artifacts/contact-controls
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_CONTACT_CONTROLS_OUT=/workspace/artifacts/contact-controls \
+            -e CLOTH_TISSU_COLLISION_MODE=mesh -e CLOTH_TISSU_COLLISION_TRIANGLES=0 -e CLOTH_TISSU_SUBSTEPS=1 \
+            -v "$GITHUB_WORKSPACE:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/contact-controls
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              /opt/freecad/AppRun /workspace/tests/freecad_contact_controls.py | tee /workspace/artifacts/contact-controls/contact-controls.log
+              grep -q "contact-control-0=passed" /workspace/artifacts/contact-controls/contact-controls.log
+              grep -q "contact-control-0a=passed" /workspace/artifacts/contact-controls/contact-controls.log
+              test -s /workspace/artifacts/contact-controls/contact-controls.json
+              test -s /workspace/artifacts/contact-controls/control-0-static.png
+              test -s /workspace/artifacts/contact-controls/control-0a-step-000.png
+              test -s /workspace/artifacts/contact-controls/control-0a-step-001.png
+            '
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: cloth-contact-controls
+          path: artifacts/contact-controls
+          if-no-files-found: error
+          compression-level: 1
+
   local_runner_readiness:
     name: Selected runner readiness
     if: ${{ github.event_name != 'schedule' }}
