@@ -40,6 +40,7 @@ RUN apt-get update -qq \
          "tissu-cpp-regression=MeshCollider.*" \
          "tissu-cpp-regression-result=passed" \
          "tissu-swept-contact=opt-in-mesh-capability" \
+         "tissu-python-binding=headless" \
          "tissu-solver-order=collider-before-each-constraint-iteration" \
          "tissu-python-package-version=$TISSU_VERSION" \
          "tissu-python-module=$TISSU_MODULE" \
