@@ -77,7 +77,7 @@ for old, new in replacements.items():
         raise RuntimeError(f"audit replacement did not match source: {old}")
     source = source.replace(old, new, 1)
 
-placement_source = r"piece\\.Placement\\s*=\\s*target_relative_piece_placement\\(side\\);"
+placement_source = r"piece\.Placement\s*=\s*target_relative_piece_placement\(side\);"
 source, placement_count = re.subn(
     placement_source,
     "piece.Placement = open_book_placement(side, outline);",
