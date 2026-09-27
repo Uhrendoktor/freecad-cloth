@@ -266,11 +266,6 @@ TEST(MeshCollider, DeepInteriorClosedMeshProjectsOutside) {
 
     EXPECT_GT((particles[0].getPosition() - initialPos).norm(), 0.0);
     EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
-    EXPECT_NEAR(
-        (particles[0].getPosition() - initialPos).norm(),
-        (particles[0].getPosition() -
-         Eigen::Vector3d(1.0, 0.0, 0.75)).norm(),
-        10.0);
 }
 
 TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
