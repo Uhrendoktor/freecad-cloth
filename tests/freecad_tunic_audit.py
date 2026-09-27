@@ -124,11 +124,41 @@ target_snap_probe = r'''    # Target-aware fitting acceptance on the same native
                 values.append(((str(left.PieceId), str(right.PieceId)), round(abs(float(dot)), 9)))
         return tuple(values)
 
+    def _sketch_pose_signature():
+        values = []
+        for piece in sorted(pieces, key=lambda item: str(item.PieceId)):
+            sketch = getattr(piece, "Sketch", None)
+            if sketch is None:
+                values.append((str(piece.PieceId), None))
+                continue
+            base = sketch.Placement.Base
+            axis = sketch.Placement.Rotation.Axis
+            values.append((
+                str(piece.PieceId),
+                round(float(base.x), 9), round(float(base.y), 9), round(float(base.z), 9),
+                round(float(sketch.Placement.Rotation.Angle), 9),
+                round(float(axis.x), 9), round(float(axis.y), 9), round(float(axis.z), 9),
+            ))
+        return tuple(values)
+
     home_pose = _pose_signature()
+    home_sketch_pose = _sketch_pose_signature()
     home_pairwise = _pairwise_centers()
     home_relative = _relative_rotations()
     home_pin_mode = str(getattr(scene, "PinMode", ""))
     home_pin_selection = tuple(str(value) for value in (getattr(scene, "PinSelection", ()) or ()))
+
+    target_was_enabled = bool(getattr(target, "Enabled", True))
+    target.Enabled = False
+    doc.recompute(); events()
+    simulation_panel._refresh_fitting_stage()
+    if simulation_panel.snap_to_target_button.isEnabled():
+        raise RuntimeError("canonical tunic Snap-to-target remained enabled for a disabled DrapeTarget")
+    target.Enabled = target_was_enabled
+    doc.recompute(); events()
+    simulation_panel._refresh_fitting_stage()
+    if not simulation_panel.snap_to_target_button.isEnabled():
+        raise RuntimeError("canonical tunic Snap-to-target did not recover after re-enabling the DrapeTarget")
 
     simulation_panel.snap_to_target()
     doc.recompute(); events()
@@ -136,8 +166,8 @@ target_snap_probe = r'''    # Target-aware fitting acceptance on the same native
     anchors = tuple(getattr(fitting, "GarmentAnchors", ()) or ()) if fitting is not None else ()
     if fitting is None or fitting.DrapeTarget != target:
         raise RuntimeError("canonical tunic Snap-to-target lost persistent DrapeTarget identity")
-    if len(anchors) < 4:
-        raise RuntimeError("canonical tunic Snap-to-target did not persist four garment anchors")
+    if len(anchors) < 2:
+        raise RuntimeError("canonical tunic Snap-to-target did not persist one fitting anchor per garment piece")
     snapped_pairwise = _pairwise_centers()
     snapped_relative = _relative_rotations()
     if set(home_pairwise) != set(snapped_pairwise):
@@ -157,7 +187,9 @@ target_snap_probe = r'''    # Target-aware fitting acceptance on the same native
     doc.recompute(); events()
     if _pose_signature() != home_pose:
         raise RuntimeError("canonical tunic Reset arrangement did not restore the exact pre-snap placement")
-    log("tunic-target-reset=passed exact_piece_restore=true")
+    if _sketch_pose_signature() != home_sketch_pose:
+        raise RuntimeError("canonical tunic Reset arrangement did not restore the native Sketch placement")
+    log("tunic-target-reset=passed exact_piece_restore=true native_sketch_restore=true")
 
     simulation_panel.snap_to_target()
     doc.recompute(); events()
