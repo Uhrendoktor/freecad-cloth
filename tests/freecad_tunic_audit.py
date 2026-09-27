@@ -48,8 +48,6 @@ replacements = {
     'scene.SolverIterations = 8;': 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-32 iterations-1 substeps-env");',
     '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = target_min_y - clearance - garment_height * wrap_cos; rotation = front_rot; log("compound-placement side=front xyz=(%.3f,%.3f,%.3f) rotation=Rx(%.3f)" % (x_mid - hem_width / 2.0, y, hem_z, front_angle))',
     '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = target_max_y + clearance + garment_height * wrap_cos; rotation = back_rot; log("compound-placement side=back xyz=(%.3f,%.3f,%.3f) rotation=Raxis(0,1,1,180)*Rx(%.3f)" % (x_mid - hem_width / 2.0, y, hem_z, back_wrap_angle))',
-    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance',
-    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance',
     '        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)': '        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rotation)',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
 }
