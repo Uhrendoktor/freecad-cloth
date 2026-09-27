@@ -37,6 +37,10 @@ def main() -> int:
         """    std::vector<Eigen::Vector3d> m_localVertices;
     std::vector<Eigen::Vector3d> m_worldVertices;
     std::vector<Triangle> m_triangles;
+    BVH m_bvh;""",
+        """    std::vector<Eigen::Vector3d> m_localVertices;
+    std::vector<Eigen::Vector3d> m_worldVertices;
+    std::vector<Triangle> m_triangles;
     bool m_closedManifold = false;
     double m_outwardNormalSign = 1.0;
     bool m_containmentBootstrapped = false;
@@ -44,12 +48,6 @@ def main() -> int:
     BVH m_bvh;
 
     bool pointInsideClosedMesh(const Eigen::Vector3d& point) const;""",
-        """    std::vector<Eigen::Vector3d> m_localVertices;
-    std::vector<Eigen::Vector3d> m_worldVertices;
-    std::vector<Triangle> m_triangles;
-    bool m_closedManifold = false;
-    double m_outwardNormalSign = 1.0;
-    BVH m_bvh;""",
         "MeshCollider.hpp member layout",
     )
 
