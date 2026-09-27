@@ -145,7 +145,7 @@ MeshOrientation inferMeshOrientation(
     m_outwardNormalSign = orientation.outwardNormalSign;
 
     m_bvh.build(m_worldVertices, m_triangles);
-    std::cout << \"tissu-collision-manifold triangles=" << m_triangles.size()
+    std::cerr << "tissu-collision-manifold triangles=" << m_triangles.size()
               << " closed_manifold=" << (m_closedManifold ? 1 : 0)
               << " outward_normal_sign=" << m_outwardNormalSign << std::endl;""",
             "MeshCollider.cpp file constructor",
@@ -168,9 +168,9 @@ MeshOrientation inferMeshOrientation(
     m_outwardNormalSign = orientation.outwardNormalSign;
 
     m_bvh.build(m_worldVertices, m_triangles);
-    std::cerr << \"tissu-collision-manifold triangles=\" << m_triangles.size()
-              << \" closed_manifold=\" << (m_closedManifold ? 1 : 0)
-              << \" outward_normal_sign=\" << m_outwardNormalSign << std::endl;""",
+    std::cerr << "tissu-collision-manifold triangles=" << m_triangles.size()
+              << " closed_manifold=" << (m_closedManifold ? 1 : 0)
+              << " outward_normal_sign=" << m_outwardNormalSign << std::endl;""",
             "MeshCollider.cpp vector constructor",
         ),
         (
