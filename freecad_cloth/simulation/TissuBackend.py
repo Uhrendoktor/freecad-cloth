@@ -7,7 +7,8 @@ from copy import deepcopy
 from typing import Iterable, Sequence, Tuple
 import os
 
-from freecad_cloth.avatar.AvatarCollision import CollisionSurface, coarsen_collision_surface
+from freecad_cloth.avatar.AvatarCollision import CollisionSurface
+from freecad_cloth.avatar.AvatarCollisionRuntime import decimate_collision_surface_native
 from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 
@@ -106,7 +107,7 @@ class TissuBackend(ClothSimulationBackend):
         self._source_collision_surface = collision_surface
         collision_limit = _tissu_collision_triangle_limit()
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
-            collision_surface = coarsen_collision_surface(collision_surface, collision_limit)
+            collision_surface = decimate_collision_surface_native(collision_surface, collision_limit)
             print(
                 "cloth-tissu-collision source_triangles=%d solver_triangles=%d limit=%d"
                 % (
