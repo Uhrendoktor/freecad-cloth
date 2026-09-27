@@ -610,6 +610,186 @@ def _run_case(case_id, rung, scene, piece, camera):
     return record
 
 
+
+def _add_ladder_seam(doc, piece_a, piece_b, seam_id):
+    from freecad_cloth.pattern.PatternModel import Seam
+    from freecad_cloth.pattern.PatternObjects import add_seam
+    seam = Seam(
+        str(piece_a.PieceId), 1,
+        str(piece_b.PieceId), 3,
+        id=seam_id,
+        stitch_group=seam_id,
+    )
+    obj = add_seam(doc, seam)
+    doc.recompute()
+    return obj
+
+
+def _run_ladder_case(case_id, rung, pin_mode, second_x=None, seam=False):
+    _progress(f"{case_id}: start")
+    doc = App.newDocument("TissuCubeLadder_%s" % case_id.replace("-", "_"))
+    try:
+        scene = _build_scene(doc)
+        scene.PinMode = pin_mode
+        scene.PinSelection = []
+        cube = doc.addObject("Part::Feature", "DiagnosticCube")
+        cube.Label = "Diagnostic Cube"
+        cube.Shape = Part.makeBox(180.0, 180.0, 60.0, App.Vector(-90.0, -90.0, 0.0))
+        doc.recompute()
+        from freecad_cloth.simulation.SimulationObjects import set_avatar_collision_source
+        set_avatar_collision_source(scene, cube, thickness=2.0, deflection=1.0)
+        if scene.AvatarProxy.SourceObject is not None and hasattr(scene.AvatarProxy.SourceObject, "ViewObject"):
+            scene.AvatarProxy.SourceObject.ViewObject.Visibility = False
+
+        piece_a = _build_piece(
+            doc,
+            case_id + "A",
+            App.Placement(App.Vector(-180.0, -180.0, 58.5), App.Rotation()),
+        )
+        pieces = [piece_a]
+        placements = {"A": [-180.0, -180.0, 58.5]}
+        seam_obj = None
+        if second_x is not None:
+            piece_b = _build_piece(
+                doc,
+                case_id + "B",
+                App.Placement(App.Vector(float(second_x), -180.0, 58.5), App.Rotation()),
+            )
+            pieces.append(piece_b)
+            placements["B"] = [float(second_x), -180.0, 58.5]
+            if seam:
+                seam_obj = _add_ladder_seam(doc, piece_a, piece_b, "%s-seam" % case_id)
+
+        cube.ViewObject.Visibility = True
+        scene.ClothPieces = pieces
+        scene.Steps = 0
+        scene.touch()
+        doc.recompute()
+        base = scene.Proxy._base_or_restore()
+        panels = [panel for panel in getattr(scene, "DrapePanels", ()) if getattr(panel, "Name", "")]
+        if len(panels) != len(pieces):
+            raise RuntimeError("%s expected %d DrapePanels, got %d" % (case_id, len(pieces), len(panels)))
+
+        solver_stitches = {
+            str(seam_id): [list(pair) for pair in pairs]
+            for seam_id, pairs in getattr(base, "seam_stitch_pairs", {}).items()
+        }
+        panel_indices = {
+            panel.Name: list(base.panel_indices.get(panel.Name, ()))
+            for panel in panels
+        }
+        before_positions = tuple(base.backend.positions())
+        view = Gui.activeDocument().activeView()
+        if view is None:
+            raise RuntimeError("%s has no active FreeCAD view" % case_id)
+        view.viewFront()
+        _events()
+        checkpoints = []
+        for step in (0, 1, 5, 15, 45, 90):
+            scene.Steps = int(step)
+            scene.Document.recompute()
+            _events()
+            finite = bool(base.backend.finite()) and all(
+                math.isfinite(float(coord))
+                for point in base.backend.positions()
+                for coord in point
+            )
+            positions = tuple(base.backend.positions())
+            seam_report = {}
+            for seam_id, pairs in getattr(base, "seam_stitch_pairs", {}).items():
+                spans = []
+                for left, right in pairs:
+                    if 0 <= int(left) < len(positions) and 0 <= int(right) < len(positions):
+                        a = positions[int(left)]
+                        b = positions[int(right)]
+                        spans.append(math.sqrt(sum((float(a[i]) - float(b[i])) ** 2 for i in range(3))))
+                seam_report[str(seam_id)] = {
+                    "pair_count": len(spans),
+                    "spans_mm": [round(value, 6) for value in spans],
+                    "max_span_mm": round(max(spans), 6) if spans else None,
+                    "mean_span_mm": round(sum(spans) / len(spans), 6) if spans else None,
+                }
+            image = OUT / (case_id + "-step-%03d.png" % step)
+            _screenshot(view, image)
+            checkpoint = {
+                "step": int(step),
+                "image": image.name,
+                "finite": finite,
+                "particle_count": len(positions),
+                "components": _connected_components(
+                    positions,
+                    tuple(tri for panel in panels for tri in base.panel_triangles.get(panel.Name, ())),
+                ),
+                "seam_world_spans_mm": seam_report,
+            }
+            checkpoints.append(checkpoint)
+            if not finite:
+                _progress("%s: nonfinite at step %d" % (case_id, step))
+                break
+
+        final_positions = tuple(base.backend.positions())
+        max_displacement = max(
+            math.sqrt(sum((float(after[i]) - float(before[i])) ** 2 for i in range(3)))
+            for before, after in zip(before_positions, final_positions)
+        ) if before_positions and final_positions else 0.0
+
+        record = {
+            "case_id": case_id,
+            "predecessor_case_id": None,
+            "case": {
+                "rung": int(rung),
+                "id": case_id,
+                "target": "cube",
+                "piece_count": len(pieces),
+                "pin_mode": str(pin_mode),
+                "seam_mode": "semantic" if seam_obj is not None else "none",
+                "seam_id": str(getattr(seam_obj, "SeamId", "")) if seam_obj is not None else None,
+            },
+            "fixture": {
+                "piece_placements": placements,
+                "cube_bounds": [-90.0, 90.0, -90.0, 90.0, 0.0, 60.0],
+                "only_variable_from_previous": (
+                    "pin_mode" if rung == 2
+                    else "piece_count" if rung == 3
+                    else "initial_second_piece_x" if rung in {4, 5}
+                    else "none"
+                ),
+            },
+            "solver": {
+                "backend": "tissu",
+                "particle_distance_mm": PARTICLE_DISTANCE,
+                "iterations": 1,
+                "substeps": 1,
+                "timestep_s": 1.0 / 120.0,
+                "gravity_z_mm_s2": 0.0,
+            },
+            "collision": {
+                "solver_triangles": len(getattr(base.collision_surface, "triangles", ()) or ()),
+                "source_triangles": len(getattr(
+                    getattr(base.collision_surface, "source_surface", None),
+                    "triangles",
+                    getattr(base.collision_surface, "triangles", ()),
+                ) or ()),
+            },
+            "panel_indices": panel_indices,
+            "solver_stitch_pairs": solver_stitches,
+            "pre_step": {
+                "seam_world_spans_mm": checkpoints[0]["seam_world_spans_mm"] if checkpoints else {},
+            },
+            "checkpoints": checkpoints,
+            "finite": bool(base.backend.finite()),
+            "max_particle_displacement_mm": max_displacement,
+            "final": {
+                "seam_world_spans_mm": checkpoints[-1]["seam_world_spans_mm"] if checkpoints else {},
+            },
+            "images": [checkpoint["image"] for checkpoint in checkpoints],
+            "notes": "diagnostic-only; release gate unaffected; stop interpretation at first failing adjacent rung",
+        }
+        _progress("%s: record-ready" % case_id)
+        return record
+    finally:
+        App.closeDocument(doc.Name)
+
 def _run_control_cube():
     _progress("control-0-cube: start")
     doc = App.newDocument("TissuContactControlCube")
@@ -735,6 +915,17 @@ def _run_control_avatar():
         App.closeDocument(doc.Name)
 
 
+
+def _run_cube_ladder():
+    return [
+        _run_ladder_case("ladder-r1-pinned", 1, "Automatic"),
+        _run_ladder_case("ladder-r2-unpinned", 2, "None"),
+        _run_ladder_case("ladder-r3-two-piece-no-seam", 3, "None", second_x=-58.0, seam=False),
+        _run_ladder_case("ladder-r4-small-seam", 4, "None", second_x=-58.0, seam=True),
+        _run_ladder_case("ladder-r5-large-seam", 5, "None", second_x=20.0, seam=True),
+    ]
+
+
 def close_gui():
     try:
         import FreeCADGui as Gui
@@ -760,9 +951,15 @@ def main():
         _run_control_cube(),
         _run_control_avatar(),
     ]
+    ladder_enabled = os.environ.get("CLOTH_DIAGNOSTIC_LADDER", "").strip().lower() in {"1", "true", "yes"}
+    if ladder_enabled:
+        _progress("main: cube-ladder-enabled")
+        records.extend(_run_cube_ladder())
     manifest = {
         "schema": 1,
-        "purpose": "diagnostic-only-contact-controls",
+        "purpose": "diagnostic-only-contact-controls-and-cube-ladder" if ladder_enabled else "diagnostic-only-contact-controls",
+        "ladder_enabled": ladder_enabled,
+        "cases": records,
         "cases": records,
         "release_gate_effect": "none",
         "solver_settings_frozen": {
