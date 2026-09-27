@@ -1,6 +1,7 @@
 """CI entry point for the full tunic visual/simulation audit."""
 from pathlib import Path
 import os
+import json
 import re
 import sys
 
@@ -14,6 +15,7 @@ source = source_path.read_text(encoding="utf-8")
 # The canonical tunic audit must use the authoritative DrapeTarget collision
 # surface; do not replace it with the optional torso-envelope approximation.
 os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
+os.environ["CLOTH_TISSU_INITIAL_CONTAINMENT_PROBE"] = "1"
 
 replacements = {
     'clearance = max(20.0, 0.08 * body_depth)': 'clearance = max(8.0, 0.025 * body_depth);',
@@ -44,6 +46,37 @@ for old, new in replacements.items():
     if old not in source:
         raise RuntimeError(f"audit replacement did not match source: {old}")
     source = source.replace(old, new, 1)
+
+containment_probe = '''    if os.environ.get("CLOTH_TISSU_INITIAL_CONTAINMENT_PROBE") == "1":
+        from freecad_cloth.avatar.TargetPlacement import _surface_index, point_inside_closed_surface
+        positions = tuple(tuple(float(value) for value in point) for point in backend.positions())
+        if not positions:
+            raise RuntimeError("initial containment probe found no solver particles")
+        surface_index = _surface_index(surface)
+        signed_distances = []
+        inside_count = 0
+        max_inside_depth = 0.0
+        for position in positions:
+            is_inside = point_inside_closed_surface(surface, position)
+            distance = float(surface_index.minimum_distance(position))
+            signed_distance = -distance if is_inside else distance
+            signed_distances.append(signed_distance)
+            if is_inside:
+                inside_count += 1
+                max_inside_depth = max(max_inside_depth, distance)
+        payload = {
+            "particles": len(signed_distances),
+            "inside_count": inside_count,
+            "percent_inside": 100.0 * inside_count / len(signed_distances),
+            "max_inside_depth_mm": max_inside_depth,
+            "min_signed_distance_mm": min(signed_distances),
+            "max_signed_distance_mm": max(signed_distances),
+            "mean_signed_distance_mm": sum(signed_distances) / len(signed_distances),
+            "source_triangles": len(surface.triangles),
+            "source_vertices": len(surface.vertices),
+        }
+        log("initial-containment-probe=%s" % json.dumps(payload, sort_keys=True, separators=(",", ":")))
+'''
 
 
 preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
@@ -95,6 +128,7 @@ timed_anchor = '''    from time import perf_counter
         log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
 '''
+source = source.replace('    log("step0-target-vertex-clearance-mm=%.2f required-mm=%.2f" % (float(initial_clearance), float(clearance)))\n', '    log("step0-target-vertex-clearance-mm=%.2f required-mm=%.2f" % (float(initial_clearance), float(clearance)))\n' + containment_probe, 1)
 source = source.replace(anchor, preview_probe + '\n' + timed_anchor, 1)
 
 seam_check = """    backend_state = scene.Proxy._base_or_restore()
