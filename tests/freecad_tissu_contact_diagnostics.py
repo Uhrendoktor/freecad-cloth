@@ -286,8 +286,8 @@ def _case_record(case_id, rung, target, source, cloth_points_before, cloth_point
     target_bounds = _bounds(target_points)
     target_sig = _target_signature(target)
     target_surface_triangles = int(len(getattr(collision_surface, "triangles", ()) or ()))
-    signed_before = None if before_distance is None else (-before_distance if before_inside == "inside" else before_distance)
-    signed_after = None if after_distance is None else (-after_distance if after_inside == "inside" else after_distance)
+    signed_before = None if before_distance is None else (-before_distance if before_inside in {"inside", "mixed"} else before_distance)
+    signed_after = None if after_distance is None else (-after_distance if after_inside in {"inside", "mixed"} else after_distance)
     after_components = _connected_components(cloth_points_after, panel_triangles)
     finite = all(math.isfinite(float(c)) for point in cloth_points_after for c in point)
 
@@ -315,7 +315,7 @@ def _case_record(case_id, rung, target, source, cloth_points_before, cloth_point
     }
     collision = {
         "source_signature": target_sig,
-        "source_triangles": int(target_sig["source_triangles"]),
+        "source_triangles": len(target_triangles),
         "solver_triangles": target_surface_triangles,
         "target_bounds": target_bounds,
         "target_topology_summary": {
