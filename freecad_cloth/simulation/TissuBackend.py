@@ -4,6 +4,7 @@ The reference solver remains the deterministic fallback. Tissu is imported lazil
 so installations without the optional wheel keep the existing backend usable.
 """
 from copy import deepcopy
+import math
 from typing import Iterable, Sequence, Tuple
 import os
 
@@ -27,6 +28,17 @@ def _tissu_collision_triangle_limit():
     value = int(os.environ.get("CLOTH_TISSU_COLLISION_TRIANGLES", str(_TISSU_COLLISION_TRIANGLES_DEFAULT)))
     if value < 0:
         raise ValueError("CLOTH_TISSU_COLLISION_TRIANGLES must be >= 0")
+    return value
+
+
+def _tissu_collider_friction():
+    raw = os.environ.get("CLOTH_TISSU_COLLIDER_FRICTION", "0.5").strip()
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise ValueError("CLOTH_TISSU_COLLIDER_FRICTION must be a finite number in [0, 1]") from exc
+    if not math.isfinite(value) or value < 0.0 or value > 1.0:
+        raise ValueError("CLOTH_TISSU_COLLIDER_FRICTION must be a finite number in [0, 1]")
     return value
 
 
@@ -121,6 +133,7 @@ class TissuBackend(ClothSimulationBackend):
         self._time = 0.0
         self._iterations = 8
         self._substeps = _tissu_substeps()
+        self._collider_friction = _tissu_collider_friction()
         self._build(Simulation)
 
     @property
@@ -136,17 +149,18 @@ class TissuBackend(ClothSimulationBackend):
         import numpy as np
         if self._collision_surface is None:
             return
+        print("cloth-tissu-collider-friction=%.9g" % self._collider_friction, flush=True)
         if self._collision_mode == "torso-envelope":
             for index, (center, radius_mm) in enumerate(_collision_envelope(self._collision_surface)):
                 self._sim.add_sphere(
                     f"drape-torso-{index}",
                     np.asarray(_to_tissu_position(center), dtype=np.float64),
                     float(radius_mm) / _MM,
-                    friction=0.5,
+                    friction=self._collider_friction,
                 )
             return
         vtx, idx = _to_tissu_mesh(self._collision_surface)
-        self._sim.add_mesh_from_arrays("drape-target", vtx, idx, friction=0.5)
+        self._sim.add_mesh_from_arrays("drape-target", vtx, idx, friction=self._collider_friction)
 
     def _build(self, Simulation):
         import numpy as np
