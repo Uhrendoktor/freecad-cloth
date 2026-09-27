@@ -125,7 +125,7 @@ jobs:
 
   diagnostic-tissu-contact:
     name: Diagnostic Tissu contact controls
-    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls) || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'supervisor/tissu-contact-controls-2484-20260927')) }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls) || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'supervisor/tissu-complexity-ladder-2481-20260927-v2')) }}
     needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 15
@@ -162,6 +162,7 @@ jobs:
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
             -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu \
             -e CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=1 \
+            -e CLOTH_COMPLEXITY_LADDER=${{ startsWith(github.head_ref, 'supervisor/tissu-complexity-ladder-2481-20260927-v2') && '1' || '0' }} \
             -e CLOTH_TISSU_SUBSTEPS=1 -e CLOTH_TISSU_COLLISION_MODE=mesh \
             -e CLOTH_TISSU_COLLISION_TRIANGLES=2048 \
             -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/tissu-contact-diagnostics \
@@ -214,21 +215,47 @@ jobs:
           data = json.loads(Path("artifacts/tissu-contact-diagnostics/manifest.json").read_text(encoding="utf-8"))
           assert data["schema"] == 1, data
           assert data["release_gate_effect"] == "none", data
-          assert {case["case"]["id"] for case in data["cases"]} == {"control-0-cube", "control-0a-avatar"}, data
+          ladder = os.environ.get("GITHUB_HEAD_REF", "").startswith("supervisor/tissu-complexity-ladder-2481-20260927-v2")
+          ladder_ids = {
+              "rung-1-cube-pinned",
+              "rung-2-cube-unpinned",
+              "rung-3-cube-two-pieces-no-seam",
+              "rung-4-cube-two-pieces-small-seam",
+              "rung-5-cube-two-pieces-large-seam",
+          }
+          expected = {"control-0-cube", "control-0a-avatar"}
+          if ladder:
+              expected.update(ladder_ids)
+          assert {case["case"]["id"] for case in data["cases"]} == expected, data
           for case in data["cases"]:
               assert case["solver"]["backend"] == "tissu", case
-              assert case["solver"]["iterations"] == 1, case
-              assert case["solver"]["substeps"] == 1, case
-              assert case["solver"]["gravity_z_mm_s2"] == 0.0, case
               assert case["collision"]["source_triangles"] > 0, case
               assert case["collision"]["solver_triangles"] > 0, case
-              assert len(case["checkpoints"]) == 2, case
-              assert [checkpoint["step"] for checkpoint in case["checkpoints"]] == [0, 1], case
               assert case["finite"], case
-              assert case["checkpoints"][0]["finite"], case
-              assert case["checkpoints"][1]["finite"], case
+              assert case["checkpoints"], case
+              for checkpoint in case["checkpoints"]:
+                  assert checkpoint["finite"], case
               for image in case["images"]:
                   assert Path("artifacts/tissu-contact-diagnostics", image).is_file(), image
+              case_id = case["case"]["id"]
+              if ladder and case_id in ladder_ids:
+                  assert case["case"]["target"] == "cube", case
+                  assert len(case["checkpoints"]) == 6, case
+                  assert [checkpoint["step"] for checkpoint in case["checkpoints"]] == [0, 1, 5, 15, 45, 90], case
+                  assert case["solver"]["iterations"] == 4, case
+                  assert case["solver"]["substeps"] == 1, case
+                  assert case["solver"]["timestep_s"] == 1.0 / 240.0, case
+                  assert case["solver"]["gravity_z_mm_s2"] == -9810.0, case
+                  assert case["case"]["piece_count"] in {1, 2}, case
+                  if case_id.endswith("small-seam") or case_id.endswith("large-seam"):
+                      assert case["case"]["seam_mode"] == "semantic", case
+                      assert case["pre_step"]["seam_pairs"], case
+                      assert case["pre_step"]["seam_world_spans_mm"], case
+                  else:
+                      assert case["case"]["seam_mode"] == "none", case
+              else:
+                  assert len(case["checkpoints"]) == 2, case
+                  assert [checkpoint["step"] for checkpoint in case["checkpoints"]] == [0, 1], case
           print("diagnostic-contact-artifact=passed")
           PY
       - name: Upload contact diagnostics
