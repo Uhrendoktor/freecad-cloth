@@ -31,6 +31,11 @@ def main() -> int:
     header = ROOT / "core/include/physics/MeshCollider.hpp"
     cpp = ROOT / "core/src/physics/MeshCollider.cpp"
     test = ROOT / "tests/physics/test_mesh_collider.cpp"
+    solver_header = ROOT / "core/include/physics/Solver.hpp"
+    solver_cpp = ROOT / "core/src/physics/Solver.cpp"
+    stitch_header = ROOT / "core/include/physics/StitchConstraint.hpp"
+    stitch_cpp = ROOT / "core/src/physics/StitchConstraint.cpp"
+    stitch_test = ROOT / "tests/physics/test_stitch_constraint.cpp"
 
     replace_once(
         header,
@@ -287,6 +292,239 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         raise RuntimeError("MeshCollider regression test body anchor mismatch")
     test_cpp = test_cpp.replace(old, new, 1)
     test.write_text(test_cpp, encoding="utf-8")
+
+    solver_text = solver_header.read_text(encoding="utf-8")
+    solver_text = solver_text.replace(
+        "    void solveConstraints(double dt);\n",
+        "    void solveConstraints(double dt, double stitchCorrectionLimit);\n",
+        1,
+    )
+    if "void solveConstraints(double dt, double stitchCorrectionLimit);" not in solver_text:
+        raise RuntimeError("Solver.hpp stitch-bound API anchor mismatch")
+    solver_header.write_text(solver_text, encoding="utf-8")
+
+    solver_source = solver_cpp.read_text(encoding="utf-8")
+    solver_source = solver_source.replace(
+        "        solveConstraints(dt);\n",
+        "        solveConstraints(dt, world.getThickness());\n",
+        1,
+    )
+    solver_source = solver_source.replace(
+        "void Solver::solveConstraints(double dt) {\n"
+        "    ZoneScopedN("Solve Constraints");\n"
+        "    if (m_batches.empty()) {\n"
+        "        for (const auto& constraint : m_constraints)\n"
+        "            constraint->solve(m_particles, dt);\n"
+        "    } else {\n"
+        "        for (const auto& batch : m_batches) {\n"
+        "            const int batchSize = static_cast<int>(batch.size());\n"
+        "#pragma omp parallel for\n"
+        "            for (int i = 0; i < batchSize; ++i) {\n"
+        "                const int idx = batch[i];\n"
+        "                m_constraints[idx]->solve(m_particles, dt);\n"
+        "            }\n"
+        "        }\n"
+        "    }\n",
+        """void Solver::solveConstraints(double dt, double stitchCorrectionLimit) {
+    ZoneScopedN("Solve Constraints");
+    const auto solveConstraint = [this, dt, stitchCorrectionLimit](
+                                     const std::unique_ptr<Constraint>& constraint) {
+        if (auto* stitch = dynamic_cast<StitchConstraint*>(constraint.get())) {
+            stitch->solveBounded(m_particles, dt, stitchCorrectionLimit);
+            return;
+        }
+        constraint->solve(m_particles, dt);
+    };
+    if (m_batches.empty()) {
+        for (const auto& constraint : m_constraints)
+            solveConstraint(constraint);
+    } else {
+        for (const auto& batch : m_batches) {
+            const int batchSize = static_cast<int>(batch.size());
+#pragma omp parallel for
+            for (int i = 0; i < batchSize; ++i) {
+                const int idx = batch[i];
+                solveConstraint(m_constraints[idx]);
+            }
+        }
+    }
+}
+""",
+        1,
+    )
+    if "void Solver::solveConstraints(double dt, double stitchCorrectionLimit)" not in solver_source:
+        raise RuntimeError("Solver.cpp solveConstraints anchor mismatch")
+    solver_cpp.write_text(solver_source, encoding="utf-8")
+
+    stitch_text = stitch_header.read_text(encoding="utf-8")
+    stitch_text = stitch_text.replace(
+        "    void solve(std::vector<Particle>& particles, double dt) override;\n",
+        "    void solve(std::vector<Particle>& particles, double dt) override;\n"
+        "    void solveBounded(std::vector<Particle>& particles, double dt,\n"
+        "                      double maxCorrection) ;\n",
+        1,
+    )
+    if "void solveBounded" not in stitch_text:
+        raise RuntimeError("StitchConstraint.hpp bound method anchor mismatch")
+    stitch_header.write_text(stitch_text, encoding="utf-8")
+
+    stitch_source = stitch_cpp.read_text(encoding="utf-8")
+    old_stitch = """#include "physics/StitchConstraint.hpp"
+
+namespace Tissu {
+
+StitchConstraint::StitchConstraint(int idA, int idB, double compliance)
+    : m_idA(idA), m_idB(idB) {
+    m_compliance = compliance;
+}
+
+void StitchConstraint::solve(std::vector<Particle>& particles, double dt) {
+    Particle& pA = particles[m_idA];
+    Particle& pB = particles[m_idB];
+
+    Eigen::Vector3d delta = pA.getPosition() - pB.getPosition();
+    double currentLength = delta.norm();
+    if (currentLength < 1e-6)
+        return;
+
+    double wA = pA.getInverseMass();
+    double wB = pB.getInverseMass();
+    double wSum = wA + wB;
+    if (wSum == 0.0)
+        return;
+
+    Eigen::Vector3d norm = delta / currentLength;
+    double C = currentLength;
+    double alphaHat = m_compliance / (dt * dt);
+    double deltaLambda = (-C - alphaHat * m_lambda) / (wSum + alphaHat);
+    m_lambda += deltaLambda;
+
+    pA.setPosition(pA.getPosition() + wA * norm * deltaLambda);
+    pB.setPosition(pB.getPosition() - wB * norm * deltaLambda);
+}
+
+} // namespace Tissu
+"""
+    new_stitch = """#include "physics/StitchConstraint.hpp"
+
+#include <cmath>
+
+namespace Tissu {
+
+StitchConstraint::StitchConstraint(int idA, int idB, double compliance)
+    : m_idA(idA), m_idB(idB) {
+    m_compliance = compliance;
+}
+
+void StitchConstraint::solve(std::vector<Particle>& particles, double dt) {
+    solveBounded(particles, dt, -1.0);
+}
+
+void StitchConstraint::solveBounded(std::vector<Particle>& particles,
+                                    double dt, double maxCorrection) {
+    Particle& pA = particles[m_idA];
+    Particle& pB = particles[m_idB];
+
+    Eigen::Vector3d delta = pA.getPosition() - pB.getPosition();
+    double currentLength = delta.norm();
+    if (currentLength < 1e-6)
+        return;
+
+    double wA = pA.getInverseMass();
+    double wB = pB.getInverseMass();
+    double wSum = wA + wB;
+    if (wSum == 0.0)
+        return;
+
+    Eigen::Vector3d norm = delta / currentLength;
+    double C = currentLength;
+    double alphaHat = m_compliance / (dt * dt);
+    double deltaLambda = (-C - alphaHat * m_lambda) / (wSum + alphaHat);
+    if (maxCorrection > 0.0) {
+        const double relativeCorrection = std::abs(deltaLambda) * wSum;
+        if (relativeCorrection > maxCorrection)
+            deltaLambda = std::copysign(maxCorrection / wSum, deltaLambda);
+    }
+    m_lambda += deltaLambda;
+
+    pA.setPosition(pA.getPosition() + wA * norm * deltaLambda);
+    pB.setPosition(pB.getPosition() - wB * norm * deltaLambda);
+}
+
+} // namespace Tissu
+"""
+    if stitch_source.count(old_stitch) != 1:
+        raise RuntimeError("StitchConstraint.cpp anchor mismatch")
+    stitch_cpp.write_text(stitch_source.replace(old_stitch, new_stitch), encoding="utf-8")
+
+    stitch_test_text = stitch_test.read_text(encoding="utf-8")
+    if '#include "engine/World.hpp"\n' not in stitch_test_text:
+        stitch_test_text = stitch_test_text.replace(
+            '#include "Eigen/Dense"\n',
+            '#include "Eigen/Dense"\n#include "engine/World.hpp"\n',
+            1,
+        )
+    stitch_test_text += """
+
+TEST(Solver, StitchCorrectionIsBoundedByWorldThickness) {
+    Solver solver;
+    World world;
+    world.setGravity(Eigen::Vector3d::Zero());
+    world.setThickness(1.0);
+    solver.setSubsteps(1);
+    solver.setIterations(1);
+
+    solver.addParticle(Particle(Eigen::Vector3d(0.0, 0.0, 0.0)));
+    solver.addParticle(Particle(Eigen::Vector3d(10.0, 0.0, 0.0)));
+    solver.addStitch(0, 1, 0.0);
+
+    solver.update(world, 0.016);
+
+    EXPECT_NEAR((solver.getParticles()[0].getPosition() -
+                 Eigen::Vector3d(0.5, 0.0, 0.0)).norm(), 0.0, 1e-9);
+    EXPECT_NEAR((solver.getParticles()[1].getPosition() -
+                 Eigen::Vector3d(9.5, 0.0, 0.0)).norm(), 0.0, 1e-9);
+    EXPECT_NEAR(
+        (solver.getParticles()[0].getPosition() -
+         solver.getParticles()[1].getPosition()).norm(),
+        9.0, 1e-9);
+}
+
+TEST(Solver, StitchCorrectionWithinThicknessRemainsUnclamped) {
+    Solver solver;
+    World world;
+    world.setGravity(Eigen::Vector3d::Zero());
+    world.setThickness(1.0);
+    solver.setSubsteps(1);
+    solver.setIterations(1);
+
+    solver.addParticle(Particle(Eigen::Vector3d(0.0, 0.0, 0.0)));
+    solver.addParticle(Particle(Eigen::Vector3d(0.5, 0.0, 0.0)));
+    solver.addStitch(0, 1, 0.0);
+
+    solver.update(world, 0.016);
+
+    EXPECT_NEAR(
+        (solver.getParticles()[0].getPosition() -
+         solver.getParticles()[1].getPosition()).norm(),
+        0.0, 1e-9);
+}
+"""
+    stitch_test.write_text(stitch_test_text, encoding="utf-8")
+
+    changed = run("git", "diff", "--name-only")
+    expected = {
+        "core/include/physics/MeshCollider.hpp",
+        "core/src/physics/MeshCollider.cpp",
+        "tests/physics/test_mesh_collider.cpp",
+        "core/include/physics/Solver.hpp",
+        "core/src/physics/Solver.cpp",
+        "core/include/physics/StitchConstraint.hpp",
+        "core/src/physics/StitchConstraint.cpp",
+        "tests/physics/test_stitch_constraint.cpp",
+    }
+    if set(changed.splitlines()) != expected:
+        raise RuntimeError(f"unexpected patched files: {changed!r}")
 
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
