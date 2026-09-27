@@ -288,6 +288,24 @@ MeshOrientation inferMeshOrientation(
         cpp = cpp.replace(old, new, 1)
     Path(cpp_path := ROOT / "core/src/physics/MeshCollider.cpp").write_text(cpp, encoding="utf-8")
 
+    resolve_anchor = "void MeshCollider::resolve(std::vector<Particle>& particles, double dt,"
+    if cpp.count(resolve_anchor) != 1:
+        raise RuntimeError("MeshCollider resolve anchor mismatch")
+    cpp = cpp.replace(resolve_anchor, entering_helper + resolve_anchor, 1)
+    Path(cpp_path := ROOT / "core/src/physics/MeshCollider.cpp").write_text(cpp, encoding="utf-8")
+
+    replace_once(
+        stitch_header,
+        """#pragma once
+#include "physics/Constraint.hpp"
+#include "physics/Particle.hpp""",
+        """#pragma once
+#include <memory>
+
+#include "physics/Constraint.hpp"
+#include "physics/Particle.hpp""",
+        "StitchConstraint header includes",
+    )
     test_cpp = test.read_text(encoding="utf-8")
     test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
     helper = """static bool tetrahedronContains(const Eigen::Vector3d& point) {
