@@ -14,6 +14,8 @@ source = source_path.read_text(encoding="utf-8")
 # The canonical tunic audit must use the authoritative DrapeTarget collision
 # surface; do not replace it with the optional torso-envelope approximation.
 os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
+os.environ["CLOTH_CANONICAL_TUNIC_AUDIT"] = "1"
+os.environ["CLOTH_TUNIC_STITCH_COMPLIANCE"] = "0.001"
 
 replacements = {
     'clearance = max(20.0, 0.08 * body_depth)': 'clearance = max(8.0, 0.025 * body_depth);',
@@ -84,6 +86,10 @@ timed_anchor = '''    from time import perf_counter
     simulation_started = perf_counter()
     active_backend = scene.Proxy._base_or_restore().backend
     active_collision = getattr(active_backend, "_collision_surface", None)
+    active_compliance = float(getattr(active_backend, "_stitch_compliance", 0.0))
+    if active_compliance != 0.001:
+        raise RuntimeError("canonical tunic did not apply stitch compliance=0.001: %.6f" % active_compliance)
+    log("tunic-stitch-compliance=%.3f" % active_compliance)
     log("tunic-simulation-start particles=%d iterations=%d substeps=%d backend=%s collision_triangles=%d" % (
         int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps),
         str(getattr(active_backend, "name", "")),
