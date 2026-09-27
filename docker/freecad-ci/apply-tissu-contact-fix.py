@@ -1069,8 +1069,8 @@ TEST(StitchConstraint, SolverChoosesEarliestCrossingAcrossMultipleMeshes) {
     if stitch_header_text.index("void solveWithColliders(") < stitch_header_text.index("private:"):
         raise RuntimeError("StitchConstraint world-aware helper must remain private")
     stitch_cpp_text = stitch_cpp.read_text(encoding="utf-8")
-    if "m_lambda += deltaLambda;" not in stitch_cpp_text:
-        raise RuntimeError("StitchConstraint lambda must record the unconstrained XPBD solve")
+    if "m_lambda += deltaLambda;" in stitch_cpp_text:
+        raise RuntimeError("StitchConstraint lambda must not accumulate the unconstrained correction after clipping")
     for anchor in (
         "double correctionScaleA = 1.0;",
         "double correctionScaleB = 1.0;",
