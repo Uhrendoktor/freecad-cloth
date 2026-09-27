@@ -379,7 +379,7 @@ def _tunic_shoulder_attachment_records(seam_pair_records, positions, collision_s
                     raise RuntimeError(
                         "tunic shoulder attachment anchor has zero initial rest length"
                     )
-                records.append((particle_id, int(target_vertex_id), float(rest_length)))
+                records.append((particle_id, anchor, float(rest_length)))
                 seen_particles.add(particle_id)
     return tuple(records)
 
