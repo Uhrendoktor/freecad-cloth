@@ -90,10 +90,32 @@ timed_anchor = '''    from time import perf_counter
         str(getattr(active_backend, "name", "")),
         0 if active_collision is None else len(active_collision.triangles),
     ))
-    for batch in (15,15,15,15,15,15):
+    for batch_index, batch in enumerate((1,14,15,15,15,15,15)):
         batch_started = perf_counter()
         simulation_panel.step(batch); doc.recompute(); events()
         log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
+        if batch_index == 0:
+            backend_now = scene.Proxy._base_or_restore().backend
+            if getattr(backend_now, "stitch_activation_step", None) is not None:
+                raise RuntimeError("Tissu stitches activated before the step-1 preactivation gate")
+            if not bool(backend_now.finite()):
+                raise RuntimeError("Tissu collision-only step-1 state is not finite")
+            from freecad_cloth.common.MeshValidation import nearest_target_clearance
+            pre_activation_clearance = nearest_target_clearance(
+                tuple(backend_now.positions()),
+                tuple(target_surface.vertices),
+            )
+            log("tunic-stitch-delay-before-activation configured_steps=1 activation_step=2 target-clearance-mm=%.2f" % float(pre_activation_clearance))
+            if float(pre_activation_clearance) < float(clearance):
+                raise RuntimeError(
+                    "one-step delayed-stitch pre-activation target clearance is below configured separation: "
+                    "%.2f mm < %.2f mm" % (float(pre_activation_clearance), float(clearance))
+                )
+        elif batch_index == 1:
+            backend_now = scene.Proxy._base_or_restore().backend
+            if int(getattr(backend_now, "stitch_activation_step", -1) or -1) != 2:
+                raise RuntimeError("Tissu stitches did not activate at the exact logical step 2 boundary")
+            log("tunic-stitch-delay-activation=passed step=2")
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
 '''
 source = source.replace(anchor, preview_probe + '\n' + timed_anchor, 1)
