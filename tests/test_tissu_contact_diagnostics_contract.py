@@ -70,6 +70,7 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "ArrangementPoint.from_string" in SOURCE
     assert '_inside_outside(((float(candidate.x), float(candidate.y), float(candidate.z)),), avatar)' in SOURCE
     assert "interior_seed_source" in SOURCE
+    assert "float(center.y) + 120.0" in SOURCE
     assert "width=72.0" in SOURCE
     assert 'did not create a true interior pre-step state' in SOURCE
     assert 'tissu-env: collision_mode=' in SOURCE
