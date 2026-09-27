@@ -210,12 +210,57 @@ def _point_inside_mesh(point, vertices, triangles):
     return sum(votes) >= 2
 
 
+def _point_inside_mesh(point, vertices, triangles):
+    ray = (1.0, 0.3713906763541037, 0.1932424973120743)
+    origin = (float(point[0]), float(point[1]), float(point[2]))
+    hits = 0
+    epsilon = 1e-9
+
+    def cross(left, right):
+        return (
+            left[1] * right[2] - left[2] * right[1],
+            left[2] * right[0] - left[0] * right[2],
+            left[0] * right[1] - left[1] * right[0],
+        )
+
+    def dot(left, right):
+        return left[0] * right[0] + left[1] * right[1] + left[2] * right[2]
+
+    for triangle in triangles:
+        if len(triangle) != 3:
+            continue
+        ia, ib, ic = (int(index) for index in triangle)
+        if any(index < 0 or index >= len(vertices) for index in (ia, ib, ic)):
+            continue
+        a = vertices[ia]
+        b = vertices[ib]
+        c = vertices[ic]
+        e1 = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
+        e2 = (c[0] - a[0], c[1] - a[1], c[2] - a[2])
+        pvec = cross(ray, e2)
+        determinant = dot(e1, pvec)
+        if abs(determinant) <= epsilon:
+            continue
+        inv_det = 1.0 / determinant
+        tvec = (origin[0] - a[0], origin[1] - a[1], origin[2] - a[2])
+        u = dot(tvec, pvec) * inv_det
+        if u < -epsilon or u > 1.0 + epsilon:
+            continue
+        qvec = cross(tvec, e1)
+        v = dot(ray, qvec) * inv_det
+        if v < -epsilon or u + v > 1.0 + epsilon:
+            continue
+        distance = dot(e2, qvec) * inv_det
+        if distance > epsilon:
+            hits += 1
+    return bool(hits % 2)
+
+
 def _inside_outside(points, source):
-    points = tuple(points[:64])
     shape = getattr(source, "Shape", None)
     if shape is not None and not getattr(shape, "isNull", lambda: True)():
         states = []
-        for point in points:
+        for point in points[:64]:
             try:
                 states.append(bool(shape.isInside(App.Vector(*point), 1e-6, True)))
             except (AttributeError, TypeError, ValueError):
@@ -232,39 +277,31 @@ def _inside_outside(points, source):
     topology = getattr(mesh, "Topology", None) if mesh is not None else None
     if topology is None:
         return "unknown"
+    raw_vertices, raw_faces = topology
+    vertices = tuple((float(v.x), float(v.y), float(v.z)) for v in raw_vertices)
+    triangles = tuple(tuple(int(i) for i in face) for face in raw_faces)
+    if not vertices or not triangles:
+        return "unknown"
     try:
-        raw_vertices, raw_faces = topology
-        vertices = tuple((float(v.x), float(v.y), float(v.z)) for v in raw_vertices)
-        faces = tuple(tuple(int(i) for i in face) for face in raw_faces)
-        try:
-            import numpy as np
-            import trimesh
-            target_mesh = trimesh.Trimesh(
-                vertices=np.asarray(vertices, dtype=float),
-                faces=np.asarray(faces, dtype=int),
-                process=False,
-            )
-            if target_mesh.is_watertight:
-                states = [bool(value) for value in target_mesh.contains(np.asarray(points, dtype=float))]
-                if states:
-                    if all(states):
-                        return "inside"
-                    if not any(states):
-                        return "outside"
-                    return "mixed"
-        except (ImportError, TypeError, ValueError, RuntimeError):
-            pass
-
-        states = [_point_inside_mesh(point, vertices, faces) for point in points]
-        if states:
-            if all(states):
-                return "inside"
-            if not any(states):
-                return "outside"
-            return "mixed"
-    except (TypeError, ValueError, AttributeError, IndexError):
-        pass
-    return "unknown"
+        import numpy as np
+        import trimesh
+        target_mesh = trimesh.Trimesh(
+            vertices=np.asarray(vertices, dtype=float),
+            faces=np.asarray(triangles, dtype=int),
+            process=False,
+        )
+        if not target_mesh.is_watertight:
+            raise RuntimeError("target mesh is not watertight")
+        states = [bool(value) for value in target_mesh.contains(np.asarray(points[:64], dtype=float))]
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        states = [_point_inside_mesh(point, vertices, triangles) for point in points[:64]]
+    if not states:
+        return "unknown"
+    if all(states):
+        return "inside"
+    if not any(states):
+        return "outside"
+    return "mixed"
 
 
 def _bounds(points):
