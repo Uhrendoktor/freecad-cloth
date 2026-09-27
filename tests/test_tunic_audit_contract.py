@@ -126,6 +126,12 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "tetrahedronContains" in script
     assert "ClosedMeshKeepsOutsideContactOutside" in script
     assert "OpenMeshRetainsLegacyContactDirection" in script
+    assert "OpenConsistentlyWoundSurfaceMovesInteriorParticleOutside" in script
+    assert "m_orientationKnown" in script
+    assert "radialDominance" in script
+    assert "volumeDominance" in script
+    assert "0.85" in script
+    assert "0.20" in script
 
     tunic = workflow[workflow.index("  gui-tunic-visual:") : workflow.index("\n  gui-", workflow.index("  gui-tunic-visual:") + 5)]
     assert "FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix" in tunic
