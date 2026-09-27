@@ -1,6 +1,7 @@
 from freecad_cloth.avatar.AvatarCollision import CollisionSurface
 from freecad_cloth.avatar.TargetPlacement import (
     nearest_surface_distance,
+    point_inside_closed_surface,
     target_surface_anchor,
     translation_to_target,
 )
@@ -41,3 +42,46 @@ def test_translation_to_target_rejects_excessive_travel():
 
 def test_nearest_surface_distance_is_surface_based():
     assert nearest_surface_distance(_plane(), ((0.0, 0.0, 12.5),)) == 12.5
+
+
+def _box(size=20.0):
+    h = float(size) / 2.0
+    vertices = (
+        (-h, -h, -h), (h, -h, -h), (h, h, -h), (-h, h, -h),
+        (-h, -h, h), (h, -h, h), (h, h, h), (-h, h, h),
+    )
+    triangles = (
+        (0, 2, 1), (0, 3, 2),
+        (4, 5, 6), (4, 6, 7),
+        (0, 1, 5), (0, 5, 4),
+        (1, 2, 6), (1, 6, 5),
+        (2, 3, 7), (2, 7, 6),
+        (3, 0, 4), (3, 4, 7),
+    )
+    surface = CollisionSurface(vertices, triangles, "target")
+    surface.validate()
+    return surface
+
+
+def test_closed_surface_classifies_inside_and_outside():
+    surface = _box()
+    assert point_inside_closed_surface(surface, (0.0, 0.0, 0.0)) is True
+    assert point_inside_closed_surface(surface, (20.0, 0.0, 0.0)) is False
+
+
+def test_closed_surface_rejects_open_surface():
+    surface = _plane()
+    try:
+        point_inside_closed_surface(surface, (0.0, 0.0, 1.0))
+    except ValueError as exc:
+        assert "not closed" in str(exc)
+    else:
+        raise AssertionError("open target surface was accepted as closed")
+
+
+def test_translation_anchor_is_outside_after_bounded_move():
+    surface = _box()
+    delta, _hit = translation_to_target(surface, (0.0, 0.0, 30.0), clearance=8.0, max_translation=30.0)
+    placed = (0.0 + delta[0], 0.0 + delta[1], 30.0 + delta[2])
+    assert point_inside_closed_surface(surface, placed) is False
+    assert nearest_surface_distance(surface, (placed,)) >= 8.0 - 1e-6
