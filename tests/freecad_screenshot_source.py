@@ -398,7 +398,7 @@ def _tunic_collision_probe(surface, positions, neighborhood_mm):
     bounds = []
     if positions:
         bounds = [
-            tuple(float(min(point[i] for point in positions)), float(max(point[i] for point in positions)))
+            (float(min(point[i] for point in positions)), float(max(point[i] for point in positions)))
             for i in range(3)
         ]
     return {
@@ -518,6 +518,59 @@ def simulation():
     log("pin-mode=None solver-pins=0")
     log("target-collision-mode=mesh")
     log("step0-target-vertex-clearance-mm=%.2f required-mm=%.2f" % (float(initial_clearance), float(clearance)))
+    solver_surface = getattr(backend, "solver_collision_surface", None) or getattr(backend, "_collision_surface", None)
+    if solver_surface is None or len(getattr(solver_surface, "triangles", ())) != 2048:
+        raise RuntimeError("tunic penetration diagnostic did not receive the frozen 2048-triangle solver surface")
+    probe_neighborhood_mm = max(36.0, 1.5 * float(getattr(scene, "ParticleDistance", 24.0)))
+    step0_positions = tuple(backend.positions())
+    probe0 = _tunic_collision_probe(solver_surface, step0_positions, probe_neighborhood_mm)
+    log("tunic-collision-probe-step0 " + json.dumps({
+        "classification": "initial-intersection" if probe0["inside_count"] else "no-initial-intersection",
+        "minimum_clearance_mm": probe0["minimum_clearance_mm"],
+        "particle_count": probe0["particle_count"],
+        "inside_count": probe0["inside_count"],
+        "outside_count": probe0["outside_count"],
+        "ambiguous_count": probe0["ambiguous_count"],
+        "no_nearby_triangle_count": probe0["no_nearby_triangle_count"],
+        "bounds": probe0["bounds"],
+    }, sort_keys=True))
+    simulation_panel.step(1); doc.recompute(); events()
+    step1_positions = tuple(scene.Proxy._base_or_restore().backend.positions())
+    probe1 = _tunic_collision_probe(solver_surface, step1_positions, probe_neighborhood_mm)
+    crossing_count = sum(
+        1
+        for before, after in zip(probe0["signed_distances"], probe1["signed_distances"])
+        if before is not None and after is not None and before > 1e-6 and after < -1e-6
+    )
+    total_displacement = sum(
+        ((after[i] - before[i]) ** 2 for i in range(3))
+        for before, after in zip(step0_positions, step1_positions)
+    )
+    total_displacement = total_displacement ** 0.5
+    if probe0["inside_count"]:
+        classification = "initial-intersection"
+    elif crossing_count:
+        classification = "first-step-crossing"
+    elif probe1["no_nearby_triangle_count"] > 0:
+        classification = "persistent-collision-surface-miss-candidate"
+    else:
+        classification = "no-initial-or-first-step-crossing"
+    log("tunic-collision-probe-step1 " + json.dumps({
+        "classification": classification,
+        "minimum_clearance_mm": probe1["minimum_clearance_mm"],
+        "particle_count": probe1["particle_count"],
+        "inside_count": probe1["inside_count"],
+        "outside_count": probe1["outside_count"],
+        "ambiguous_count": probe1["ambiguous_count"],
+        "no_nearby_triangle_count": probe1["no_nearby_triangle_count"],
+        "crossing_count": crossing_count,
+        "total_displacement_mm": total_displacement,
+        "bounds": probe1["bounds"],
+    }, sort_keys=True))
+    simulation_panel.reset(); doc.recompute(); events()
+    if int(scene.Steps) != 0:
+        raise RuntimeError("tunic penetration diagnostic did not reset before the authoritative 90-step run")
+    log("tunic-collision-probe-classification=%s reset=passed" % classification)
     for source in (doc.getObject("VisualTunicFront"), doc.getObject("VisualTunicBack")):
         if source is not None: source.ViewObject.Visibility = False
         sketch = getattr(source, "Sketch", None) if source is not None else None
