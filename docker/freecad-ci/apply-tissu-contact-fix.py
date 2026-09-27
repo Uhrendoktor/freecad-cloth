@@ -398,6 +398,7 @@ private:
 
     replace_once(
         ROOT / "core/src/physics/MeshCollider.cpp",
+        """void MeshCollider::resolve(std::vector<Particle>& particles, double dt,""",
         """namespace {
 
 bool segmentTriangleHit(
@@ -445,12 +446,11 @@ bool segmentTriangleHit(
     normal = rawNormal;
     t = std::min(1.0, t);
     return true;
-
 }
 
 } // namespace
-void MeshCollider::resolve(std::vector<Particle>& particles, double dt,""",
-        """bool MeshCollider::firstSegmentHit(const Eigen::Vector3d& start,
+
+bool MeshCollider::firstSegmentHit(const Eigen::Vector3d& start,
                                    const Eigen::Vector3d& end, double margin,
                                    double& hitT, Eigen::Vector3d& hitNormal,
                                    int& triangleIndex) const {
@@ -509,6 +509,7 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,""",
 void MeshCollider::resolve(std::vector<Particle>& particles, double dt,""",
         "MeshCollider first-segment-hit method",
     )
+
 
     replace_once(
         ROOT / "core/include/physics/StitchConstraint.hpp",
