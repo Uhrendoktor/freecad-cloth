@@ -181,8 +181,52 @@ MeshOrientation inferMeshOrientation(
         const Eigen::Vector3d outwardNormal =
             faceNormal * m_outwardNormalSign;
         const double outwardSignedDistance = toParticle.dot(outwardNormal);
-        const bool deeplyInsideClosedMesh =
-            m_closedManifold && outwardSignedDistance < -thickness;
+
+        bool deeplyInsideClosedMesh = false;
+        if (m_closedManifold && distance > thickness &&
+            outwardSignedDistance < -thickness) {
+            // The BVH may return any one triangle when the closest point lies
+            // on a shared edge/vertex. Only classify a deep penetration as
+            // "inside" when every triangle touching that closest surface point
+            // agrees on the inward side; otherwise fail closed.
+            constexpr double closestFeatureTolerance = 1.0e-7;
+            std::vector<int> touchingTriangles;
+            m_bvh.query(cp, closestFeatureTolerance, touchingTriangles);
+            bool sawClosestTriangle = false;
+            bool allClosestTrianglesAgreeInside = true;
+            for (const int candidateIdx : touchingTriangles) {
+                const Triangle& candidate = m_bvh.getTriangle(candidateIdx);
+                const Eigen::Vector3d& ca = m_worldVertices[candidate.a];
+                const Eigen::Vector3d& cb = m_worldVertices[candidate.b];
+                const Eigen::Vector3d& cc = m_worldVertices[candidate.c];
+                Eigen::Vector3d candidateRaw = (cb - ca).cross(cc - ca);
+                const double candidateNormalLength = candidateRaw.norm();
+                if (candidateNormalLength <= 1e-12)
+                    continue;
+                const Eigen::Vector3d candidateNormal =
+                    candidateRaw / candidateNormalLength;
+                const Eigen::Vector3d candidateOutward =
+                    candidateNormal * m_outwardNormalSign;
+                const Eigen::Vector3d candidateCp =
+                    closestPointOnTriangle(
+                        particle.getPosition(), ca, cb, cc);
+                const Eigen::Vector3d candidateToParticle =
+                    particle.getPosition() - candidateCp;
+                const double candidateDistance = candidateToParticle.norm();
+                const double distanceTolerance =
+                    1.0e-7 * std::max(1.0, distance);
+                if (std::abs(candidateDistance - distance) >
+                    distanceTolerance)
+                    continue;
+                sawClosestTriangle = true;
+                if (candidateToParticle.dot(candidateOutward) >= -thickness) {
+                    allClosestTrianglesAgreeInside = false;
+                    break;
+                }
+            }
+            deeplyInsideClosedMesh =
+                sawClosestTriangle && allClosestTrianglesAgreeInside;
+        }
 
         if (distance <= thickness || deeplyInsideClosedMesh) {
             Eigen::Vector3d normal = faceNormal;
