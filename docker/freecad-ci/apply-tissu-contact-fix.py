@@ -789,16 +789,19 @@ TEST(MeshCollider, SegmentHitRejectsCoplanarTangentAndFindsCrossing) {
     MeshCollider mesh(vertices, triangles, 0.0);
 
     double hitT = 0.0;
+    Eigen::Vector3d hitNormal = Eigen::Vector3d::Zero();
     int hitTriangle = -1;
     EXPECT_FALSE(mesh.firstSegmentHit(
         Eigen::Vector3d(-1.0, 0.0, 0.0),
         Eigen::Vector3d(1.0, 0.0, 0.0),
         hitT,
+        hitNormal,
         hitTriangle));
     EXPECT_TRUE(mesh.firstSegmentHit(
         Eigen::Vector3d(0.0, -1.0, 0.0),
         Eigen::Vector3d(0.0, 1.0, 0.0),
         hitT,
+        hitNormal,
         hitTriangle));
     EXPECT_NEAR(hitT, 0.5, 1e-9);
     EXPECT_EQ(hitTriangle, 0);
