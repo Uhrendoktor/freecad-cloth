@@ -11,8 +11,7 @@ replacements = {
     'y = target_box.YMin - clearance if side == "front" else target_box.YMax + clearance': 'y = target_box.YMax + clearance if side == "front" else target_box.YMin - clearance',
     'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)':
         'front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)',
-    'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):' :
-        'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
+
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
     'for batch in (15,15,15,15,15,15):': 'for batch in (40,40,40):',
     'if int(scene.Steps) != 90 or': 'if int(scene.Steps) != 120 or',
