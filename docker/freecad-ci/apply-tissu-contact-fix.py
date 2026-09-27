@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply the pinned Tissu contact-response fix with fail-closed source anchors."""
+"""Apply the pinned Tissu contact-response and fixed-point solver-order fixes with fail-closed source anchors."""
 from __future__ import annotations
 
 import hashlib
@@ -31,6 +31,8 @@ def main() -> int:
     header = ROOT / "core/include/physics/MeshCollider.hpp"
     cpp = ROOT / "core/src/physics/MeshCollider.cpp"
     test = ROOT / "tests/physics/test_mesh_collider.cpp"
+    solver_cpp = ROOT / "core/src/physics/Solver.cpp"
+    cloth_test = ROOT / "tests/physics/test_cloth.cpp"
 
     replace_once(
         header,
@@ -207,6 +209,133 @@ MeshOrientation inferMeshOrientation(
         cpp = cpp.replace(old, new, 1)
     Path(cpp_path := ROOT / "core/src/physics/MeshCollider.cpp").write_text(cpp, encoding="utf-8")
 
+    solver_text = solver_cpp.read_text(encoding="utf-8")
+    solver_old = """    for (auto& collider : colliders)
+        collider->resolve(m_particles, dt, world.getThickness());
+
+    solveSelfCollisions(dt, world.getThickness());"""
+    solver_new = """    for (auto& collider : colliders)
+        collider->resolve(m_particles, dt, world.getThickness());
+
+    // Re-enforce the same existing constraints once so post-collision
+    // sewing corrections are followed by one final collision projection.
+    solveConstraints(dt);
+
+    for (auto& collider : colliders)
+        collider->resolve(m_particles, dt, world.getThickness());
+
+    solveSelfCollisions(dt, world.getThickness());"""
+    if solver_text.count(solver_old) != 1:
+        raise RuntimeError("Solver.cpp collision-order anchor mismatch")
+    solver_text = solver_text.replace(solver_old, solver_new, 1)
+    solver_cpp.write_text(solver_text, encoding="utf-8")
+
+    cloth_test_cpp = cloth_test.read_text(encoding="utf-8")
+    cloth_test_cpp = cloth_test_cpp.replace(
+        '#include "physics/Solver.hpp"
+',
+        '#include "physics/Solver.hpp"
+#include "engine/World.hpp"
+#include "physics/Collider.hpp"
+',
+        1,
+    )
+    cloth_test_cpp = cloth_test_cpp.replace(
+        "#include <gtest/gtest.h>
+",
+        "#include <gtest/gtest.h>
+#include <memory>
+",
+        1,
+    )
+    post_collision_test = """class DisplacingCollider final : public Collider {
+public:
+    void resolve(std::vector<Particle>& particles, double, double) override {
+        if (particles.size() < 2)
+            return;
+        particles[0].setPosition(
+            particles[0].getPosition() + Eigen::Vector3d(-1.0, 0.0, 0.0));
+        particles[1].setPosition(
+            particles[1].getPosition() + Eigen::Vector3d(1.0, 0.0, 0.0));
+    }
+};
+
+class TwoStageProjectionCollider final : public Collider {
+public:
+    void resolve(std::vector<Particle>& particles, double, double) override {
+        ++m_resolveCount;
+        if (particles.size() < 2)
+            return;
+        if (m_resolveCount == 1) {
+            particles[0].setPosition(Eigen::Vector3d(-1.0, 0.0, 0.0));
+            particles[1].setPosition(Eigen::Vector3d(1.0, 0.0, 0.0));
+            return;
+        }
+        particles[0].setPosition(Eigen::Vector3d(0.5, 0.0, 0.0));
+        particles[1].setPosition(Eigen::Vector3d(0.5, 0.0, 0.0));
+    }
+
+    int resolveCount() const { return m_resolveCount; }
+
+private:
+    int m_resolveCount = 0;
+};
+
+TEST(Solver, ReenforcesStitchesAfterColliderProjection) {
+    Solver solver;
+    const int particleA = solver.addParticle(Particle(Eigen::Vector3d::Zero()));
+    const int particleB = solver.addParticle(Particle(Eigen::Vector3d::Zero()));
+    solver.addStitch(particleA, particleB, 0.0);
+    solver.setSubsteps(1);
+    solver.setIterations(1);
+
+    World world;
+    world.setGravity(Eigen::Vector3d::Zero());
+    world.addCollider(std::make_shared<DisplacingCollider>());
+
+    solver.update(world, 1.0 / 60.0);
+
+    const auto& particles = solver.getParticles();
+    EXPECT_NEAR(
+        (particles[particleA].getPosition() - particles[particleB].getPosition()).norm(),
+        0.0,
+        1e-9);
+}
+
+TEST(Solver, ReprojectsAfterPostCollisionConstraintPass) {
+    Solver solver;
+    const int particleA = solver.addParticle(Particle(Eigen::Vector3d::Zero()));
+    const int particleB = solver.addParticle(Particle(Eigen::Vector3d::Zero()));
+    solver.addStitch(particleA, particleB, 0.0);
+    solver.setSubsteps(1);
+    solver.setIterations(1);
+
+    World world;
+    world.setGravity(Eigen::Vector3d::Zero());
+    auto collider = std::make_shared<TwoStageProjectionCollider>();
+    world.addCollider(collider);
+
+    solver.update(world, 1.0 / 60.0);
+
+    const auto& particles = solver.getParticles();
+    EXPECT_EQ(collider->resolveCount(), 2);
+    EXPECT_NEAR(
+        (particles[particleA].getPosition() - particles[particleB].getPosition()).norm(),
+        0.0,
+        1e-9);
+    EXPECT_NEAR(particles[particleA].getPosition().x(), 0.5, 1e-9);
+}
+
+"""
+    if cloth_test_cpp.count("TEST(Cloth, ClearFabric)") != 1:
+        throw RuntimeError("Cloth test anchor missing")
+    cloth_test_cpp = cloth_test_cpp.replace(
+        "TEST(Cloth, ClearFabric) {",
+        post_collision_test + "TEST(Cloth, ClearFabric) {",
+        1,
+    )
+    cloth_test.write_text(cloth_test_cpp, encoding="utf-8")
+
     test_cpp = test.read_text(encoding="utf-8")
     test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
     helper = """static bool tetrahedronContains(const Eigen::Vector3d& point) {
@@ -294,7 +423,9 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     expected = {
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
+        "core/src/physics/Solver.cpp",
         "tests/physics/test_mesh_collider.cpp",
+        "tests/physics/test_cloth.cpp",
     }
     if set(changed.splitlines()) != expected:
         raise RuntimeError(f"unexpected patched files: {changed!r}")
@@ -302,7 +433,13 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     script_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     print(f"Tissu source commit: {EXPECTED_COMMIT}")
     print(f"Tissu contact fix script sha256: {script_sha}")
-    print("Tissu contact fix: applied and self-checked")
+    if solver_new.strip() not in solver_cpp.read_text(encoding="utf-8"):
+        raise RuntimeError("missing post-collision constraint-order anchor")
+    if "TEST(Solver, ReenforcesStitchesAfterColliderProjection)" not in cloth_test.read_text(encoding="utf-8"):
+        raise RuntimeError("missing solver-order regression anchor")
+    if "TEST(Solver, ReprojectsAfterPostCollisionConstraintPass)" not in cloth_test.read_text(encoding="utf-8"):
+        raise RuntimeError("missing second collision-projection regression anchor")
+    print("Tissu contact + fixed-point solver-order fixes: applied and self-checked")
     return 0
 
 
