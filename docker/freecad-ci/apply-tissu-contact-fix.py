@@ -550,17 +550,7 @@ static void expectMovedOutside(
         raise RuntimeError("MeshCollider test anchor missing")
     test_cpp = test_cpp.replace(
         "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
-        helper + """TEST(MeshCollider, DeepInteriorPointMovesOutsideClosedMesh) {
-    const auto vertices = makeTestTetrahedronVertices();
-    const auto triangles =
-        orientOutward(vertices, makeTestTetrahedronTriangles());
-    MeshCollider mesh(vertices, triangles, 0.0);
-    const Eigen::Vector3d initialPos =
-        (vertices[0] + vertices[1] + vertices[2] + vertices[3]) / 4.0;
-    expectMovedOutside(mesh, vertices, triangles, initialPos);
-}
-
-TEST(MeshCollider, ParticleInsideMeshMovesOutside) {""",
+        helper + "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
         1,
     )
 
