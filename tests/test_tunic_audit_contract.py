@@ -106,6 +106,10 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert "SolverSubsteps = 1" in source
     assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
+    assert "_collision_orientation_hint" in source
+    assert "closed_manifold=self._collision_closed_manifold_hint" in source
+    assert "outward_normal_sign=self._collision_outward_normal_sign_hint" in source
+    assert "source_closed_manifold=%s" in source
     assert 'tunic-simulation-start' in source
 
 
@@ -123,6 +127,10 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert '--target _cloth_sdk_core unit_tests' in dockerfile
     assert "--gtest_filter='MeshCollider.*'" in dockerfile
     assert "ParticleInsideMeshMovesOutside" in script
+    assert "NonWatertightMeshHonorsExplicitClosedHint" in script
+    assert "closed_manifold" in script
+    assert "outward_normal_sign" in script
+    assert "inferMeshOrientation" not in script
     assert "tetrahedronContains" in script
     assert "ClosedMeshKeepsOutsideContactOutside" in script
     assert "OpenMeshRetainsLegacyContactDirection" in script
