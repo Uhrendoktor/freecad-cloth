@@ -23,3 +23,5 @@ def test_contact_control_contract():
     assert '"case_id": "0a-avatar-contact"' in source
     assert '"collision_source_triangle_count"' in source
     assert '"solver_collision_triangle_count"' in source
+    assert "App.exit()" in source
+    assert "QApplication.instance()" in source
