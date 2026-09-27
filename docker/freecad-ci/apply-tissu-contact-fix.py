@@ -741,6 +741,13 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     if test_cpp.count(old) != 1:
         raise RuntimeError("MeshCollider exact ParticleInside test anchor mismatch")
     test_cpp = test_cpp.replace(old, new, 1)
+    if test_cpp.count("    double distanceMoved = (particles[0].getPosition() - initialPos).norm();\n    EXPECT_GT(distanceMoved, 0.0);") != 1:
+        raise RuntimeError("MeshCollider distance-moved anchor mismatch")
+    test_cpp = test_cpp.replace(
+        "    double distanceMoved = (particles[0].getPosition() - initialPos).norm();\n    EXPECT_GT(distanceMoved, 0.0);",
+        "    double distanceMoved = (particles[0].getPosition() - initialPos).norm();\n    EXPECT_GT(distanceMoved, 0.0);\\n    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));",
+        1,
+    )
     test.write_text(test_cpp, encoding="utf-8")
 
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
