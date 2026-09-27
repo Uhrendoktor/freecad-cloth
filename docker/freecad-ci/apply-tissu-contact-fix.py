@@ -497,18 +497,88 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     if test_cpp.count(old) != 1:
         raise RuntimeError("MeshCollider regression test body anchor mismatch")
     test_cpp = test_cpp.replace(old, new, 1)
+
+    test_cpp += """
+    
+TEST(MeshCollider, HighSpeedOutsideToInsideCrossingStaysOutside) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    std::vector<Particle> particles;
+    particles.emplace_back(Eigen::Vector3d(1.0, 5.0, 1.0));
+    particles[0].setOldPosition(Eigen::Vector3d(1.0, -5.0, 1.0));
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+    EXPECT_LT(particles[0].getPosition().y(), 0.0);
+}
+
+TEST(MeshCollider, HighSpeedInsideToOutsideCrossingStopsOutside) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    std::vector<Particle> particles;
+    particles.emplace_back(Eigen::Vector3d(1.0, -5.0, 1.0));
+    particles[0].setOldPosition(Eigen::Vector3d(1.0, 5.0, 1.0));
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+    EXPECT_GT(particles[0].getPosition().y(), 0.0);
+}
+
+TEST(MeshCollider, ParallelOutsideMotionDoesNotFalsePositive) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    const Eigen::Vector3d start(-1.0, -0.2, 1.0);
+    const Eigen::Vector3d end(3.0, -0.2, 1.0);
+
+    std::vector<Particle> particles;
+    particles.emplace_back(end);
+    particles[0].setOldPosition(start);
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_EQ(particles[0].getPosition(), end);
+}
+
+TEST(MeshCollider, MultipleCrossingsChooseEarliestSurface) {
+    const std::vector<Eigen::Vector3d> vertices = {
+        {0.0, 0.0, 0.0}, {2.0, 0.0, 0.0},
+        {2.0, 0.0, 2.0}, {0.0, 0.0, 2.0},
+        {0.0, 2.0, 0.0}, {2.0, 2.0, 0.0},
+        {2.0, 2.0, 2.0}, {0.0, 2.0, 2.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {
+        {0, 1, 2}, {0, 2, 3},
+        {4, 6, 5}, {4, 7, 6},
+    };
+    MeshCollider mesh(vertices, triangles, 0.0);
+
+    std::vector<Particle> particles;
+    particles.emplace_back(Eigen::Vector3d(1.0, 3.0, 1.0));
+    particles[0].setOldPosition(Eigen::Vector3d(1.0, -1.0, 1.0));
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_LT(particles[0].getPosition().y(), 0.0);
+    EXPECT_GT(particles[0].getPosition().y(), -0.2);
+}
+"""
     test.write_text(test_cpp, encoding="utf-8")
 
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
     changed = run("git", "diff", "--name-only")
     expected = {
+        "core/include/data-structures/BVH.hpp",
+        "core/src/data-structures/BVH.cpp",
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
         "tests/physics/test_mesh_collider.cpp",
     }
     if set(changed.splitlines()) != expected:
         raise RuntimeError(f"unexpected patched files: {changed!r}")
+    if "bool MeshCollider::firstSegmentHit(" not in cpp_path.read_text(encoding="utf-8"):
+        raise RuntimeError("generated MeshCollider sweep helper is missing")
+    if "BVH::query(const Eigen::AlignedBox3d& box" not in bvh_cpp.read_text(encoding="utf-8"):
+        raise RuntimeError("generated BVH box query is missing")
 
     script_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     print(f"Tissu source commit: {EXPECTED_COMMIT}")
