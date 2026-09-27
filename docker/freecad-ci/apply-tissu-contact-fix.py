@@ -290,30 +290,70 @@ void BVH::queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
                                          : ((b - a).cross(c - a)).normalized();
 
             Eigen::Vector3d newPosition = cp + normal * thickness;""",
-            """        if (distance <= thickness) {
-            Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
-            const double faceNormalLength = faceNormalRaw.norm();
-            if (faceNormalLength <= 1e-12)
-                continue;
-            Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
+            """        Eigen::Vector3d contactPoint = cp;
+        Eigen::Vector3d normal = Eigen::Vector3d::Zero();
+        bool sweptContact = false;
+        const Eigen::Vector3d displacement =
+            particle.getPosition() - particle.getOldPosition();
 
-            Eigen::Vector3d normal = faceNormal;
-            if (distance > 1e-6) {
-                normal = toParticle / distance;
-                if (m_closedManifold) {
-                    const Eigen::Vector3d outwardNormal =
-                        faceNormal * m_outwardNormalSign;
-                    // A particle on the interior side of a closed, consistently
-                    // oriented surface must be resolved along the outward
-                    // normal; outside contact preserves the existing vector.
-                    if (normal.dot(outwardNormal) < 0.0)
+        if (distance > thickness &&
+            displacement.squaredNorm() > thickness * thickness) {
+            double hitT = 0.0;
+            Eigen::Vector3d hitNormal = Eigen::Vector3d::Zero();
+            int hitTriangle = -1;
+            if (firstSegmentHit(particle.getOldPosition(),
+                                 particle.getPosition(),
+                                 hitT, hitNormal, hitTriangle)) {
+                const Triangle& hitTri = m_bvh.getTriangle(hitTriangle);
+                const Eigen::Vector3d& hitA = m_worldVertices[hitTri.a];
+                const Eigen::Vector3d& hitB = m_worldVertices[hitTri.b];
+                const Eigen::Vector3d& hitC = m_worldVertices[hitTri.c];
+                Eigen::Vector3d faceNormalRaw =
+                    (hitB - hitA).cross(hitC - hitA);
+                const double faceNormalLength = faceNormalRaw.norm();
+                if (faceNormalLength > 1e-12) {
+                    const Eigen::Vector3d faceNormal =
+                        faceNormalRaw / faceNormalLength;
+                    contactPoint =
+                        particle.getOldPosition() + displacement * hitT;
+                    normal = hitNormal.normalized();
+                    if (m_closedManifold) {
+                        normal = faceNormal * m_outwardNormalSign;
+                    } else if (
+                        (particle.getOldPosition() - contactPoint).dot(normal) <
+                        0.0) {
                         normal = -normal;
+                    }
+                    sweptContact = true;
                 }
-            } else if (m_closedManifold) {
-                normal *= m_outwardNormalSign;
+            }
+        }
+
+        if (distance <= thickness || sweptContact) {
+            if (!sweptContact) {
+                Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
+                const double faceNormalLength = faceNormalRaw.norm();
+                if (faceNormalLength <= 1e-12)
+                    continue;
+                const Eigen::Vector3d faceNormal =
+                    faceNormalRaw / faceNormalLength;
+
+                normal = faceNormal;
+                if (distance > 1e-6) {
+                    normal = toParticle / distance;
+                    if (m_closedManifold) {
+                        const Eigen::Vector3d outwardNormal =
+                            faceNormal * m_outwardNormalSign;
+                        if (normal.dot(outwardNormal) < 0.0)
+                            normal = -normal;
+                    }
+                } else if (m_closedManifold) {
+                    normal *= m_outwardNormalSign;
+                }
             }
 
-            Eigen::Vector3d newPosition = cp + normal * thickness;""",
+            Eigen::Vector3d newPosition =
+                contactPoint + normal * thickness;""",
             "MeshCollider.cpp contact response",
         ),
     ]
