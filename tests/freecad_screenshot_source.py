@@ -459,6 +459,57 @@ def simulation():
         raise RuntimeError("visual fixture does not contain a real humanoid mesh")
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
     simulation_panel = SimulationQualityTaskPanel(scene); task_dock = show_task(simulation_panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset")); view = Gui.activeDocument().activeView(); view.setCameraType("Orthographic"); view.viewFront(); view.fitAll(); events(); task_dock.hide(); events(); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical sewn tunic generated from native Sketcher pattern sources on production mannequin"); task_dock.show(); task_dock.raise_(); events()
+    # Production tunic audit: exercise the same target-aware fitting action users invoke in Simulation.
+    import copy
+    from freecad_cloth.avatar import FittingCommands
+    pre_snap_piece_placements = {
+        str(piece.PieceId): copy.deepcopy(piece.Placement)
+        for piece in (front, back)
+    }
+    pre_snap_sketch_placements = {
+        str(piece.PieceId): copy.deepcopy(piece.Sketch.Placement)
+        for piece in (front, back)
+    }
+    if not simulation_panel.snap_to_target_button.isEnabled():
+        raise RuntimeError("tunic target-snap action is not enabled for the ready DrapeTarget")
+    simulation_panel.snap_to_target()
+    events(); doc.recompute()
+    fitting = FittingCommands._scene(doc)
+    if fitting is None or fitting.DrapeTarget != target:
+        raise RuntimeError("tunic target-snap lost persistent DrapeTarget identity")
+    anchors = tuple(getattr(fitting, "GarmentAnchors", ()) or ())
+    if len(anchors) < 4:
+        raise RuntimeError("tunic target-snap did not persist at least four garment anchors")
+    if all(piece.Placement == pre_snap_piece_placements[str(piece.PieceId)] for piece in (front, back)):
+        raise RuntimeError("tunic target-snap did not change the authored garment placement")
+    post_snap_piece_placements = {
+        str(piece.PieceId): copy.deepcopy(piece.Placement)
+        for piece in (front, back)
+    }
+    post_snap_sketch_placements = {
+        str(piece.PieceId): copy.deepcopy(piece.Sketch.Placement)
+        for piece in (front, back)
+    }
+    log("tunic-target-snap=passed persistent_target=true anchors=%d" % len(anchors))
+    simulation_panel.reset_arrangement()
+    events(); doc.recompute()
+    fitting = FittingCommands._scene(doc)
+    if fitting is None or str(getattr(fitting, "FitStatus", "")) != "Arrangement reset":
+        raise RuntimeError("tunic Reset arrangement did not restore fitting state")
+    for piece in (front, back):
+        pid = str(piece.PieceId)
+        if piece.Placement != pre_snap_piece_placements[pid]:
+            raise RuntimeError("tunic Reset arrangement did not restore PatternPiece placement")
+        if piece.Sketch is None or piece.Sketch.Placement != pre_snap_sketch_placements[pid]:
+            raise RuntimeError("tunic Reset arrangement did not restore native Sketch placement")
+    log("tunic-target-reset=passed exact_piece_and_sketch_restore=true")
+    simulation_panel.snap_to_target()
+    events(); doc.recompute()
+    for piece in (front, back):
+        pid = str(piece.PieceId)
+        if piece.Placement != post_snap_piece_placements[pid] or piece.Sketch.Placement != post_snap_sketch_placements[pid]:
+            raise RuntimeError("second tunic Snap-to-target did not restore the fitted state")
+    log("tunic-target-resnap=passed")
     for batch in (15,15,15,15,15,15):
         simulation_panel.step(batch); doc.recompute(); events()
     if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
