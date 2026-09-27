@@ -89,9 +89,20 @@ timed_anchor = '''    from time import perf_counter
         str(getattr(active_backend, "name", "")),
         0 if active_collision is None else len(active_collision.triangles),
     ))
+    visual_checkpoints = (15,30,45,60,75,90)
     for batch in (15,15,15,15,15,15):
         batch_started = perf_counter()
         simulation_panel.step(batch); doc.recompute(); events()
+        checkpoint_step = int(scene.Steps)
+        if checkpoint_step not in visual_checkpoints:
+            raise RuntimeError("unexpected tunic visual checkpoint step %d" % checkpoint_step)
+        view.viewFront(); view.fitAll(); events()
+        save(
+            "cloth-simulation-draped-step-%03d.png" % checkpoint_step,
+            "Simulation Workbench draped step %d" % checkpoint_step,
+            "human-review checkpoint after %d real simulation steps; six-step exported sequence"
+            % checkpoint_step,
+        )
         log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
 '''
