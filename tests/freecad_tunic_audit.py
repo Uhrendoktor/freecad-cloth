@@ -95,6 +95,11 @@ timed_anchor = '''    from time import perf_counter
         simulation_panel.step(batch); doc.recompute(); events()
         log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
         if batch_index == 0:
+            backend_now = scene.Proxy._base_or_restore().backend
+            if getattr(backend_now, "stitch_activation_step", None) is not None:
+                raise RuntimeError("Tissu stitches activated before the step-15 preactivation gate")
+            if not bool(backend_now.finite()):
+                raise RuntimeError("Tissu collision-only preactivation state is not finite")
             pre_activation_clearance = None
             try:
                 from freecad_cloth.common.MeshValidation import nearest_target_clearance
