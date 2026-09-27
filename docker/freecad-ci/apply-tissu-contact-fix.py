@@ -195,10 +195,17 @@ int BVH::rayIntersectionCountRecursive(
         return count;
     }
 
-    return rayIntersectionCountRecursive(
-               node.left, origin, direction, vertices) +
-           rayIntersectionCountRecursive(
-               node.right, origin, direction, vertices);
+    const int leftCount = rayIntersectionCountRecursive(
+        node.left, origin, direction, vertices);
+    if (leftCount < 0)
+        return -1;
+
+    const int rightCount = rayIntersectionCountRecursive(
+        node.right, origin, direction, vertices);
+    if (rightCount < 0)
+        return -1;
+
+    return leftCount + rightCount;
 }
 
 """
