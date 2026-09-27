@@ -25,3 +25,6 @@ def test_contact_control_contract():
     assert '"solver_collision_triangle_count"' in source
     assert "App.exit()" in source
     assert "QApplication.instance()" in source
+    assert "faulthandler.dump_traceback_later(30.0, repeat=True" in source
+    assert "contact-controls-progress.log" in source
+    assert "_progress(" in source
