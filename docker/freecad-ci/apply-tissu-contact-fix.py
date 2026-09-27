@@ -315,15 +315,19 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     replace_once(
         bvh_header,
         """    void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
-                         double squaredRadius,
-                         std::vector<int>& outTriangles) const;
-    int closestRecursive""",
+                        double squaredRadius,
+                        std::vector<int>& outTriangles) const;
+    int closestRecursive(int nodeIdx, const Eigen::Vector3d& point,
+                         const std::vector<Eigen::Vector3d>& vertices,
+                         double& bestDistSq) const;""",
         """    void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
-                         double squaredRadius,
-                         std::vector<int>& outTriangles) const;
+                        double squaredRadius,
+                        std::vector<int>& outTriangles) const;
     void queryBoxRecursive(int nodeIdx, const Eigen::AlignedBox3d& box,
                            std::vector<int>& outTriangles) const;
-    int closestRecursive""",
+    int closestRecursive(int nodeIdx, const Eigen::Vector3d& point,
+                         const std::vector<Eigen::Vector3d>& vertices,
+                         double& bestDistSq) const;""",
         "BVH box helper declaration",
     )
 
