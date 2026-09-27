@@ -29,3 +29,4 @@ Presentation properties are persisted on the native Fabric Material object and a
 After pattern, seam-source or drape-target changes, rebuild or repair dependent derived state before simulation/export. Cloth intentionally reports stale dependencies instead of silently using outdated derived geometry.
 
 For debugging, compare local results with the FreeCAD/Triangle/Tissu versions recorded by the canonical workflow and attach the relevant CI artifact/log rather than editing generated evidence manually.
+<!-- canonical validation mirror: target-snap -->
