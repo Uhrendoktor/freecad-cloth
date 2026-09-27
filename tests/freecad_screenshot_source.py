@@ -384,6 +384,7 @@ def simulation():
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
+    opening_angles = {}
     def open_book_piece_placement(side, outline):
         from math import asin, degrees, isfinite
         if side not in ("front", "back"):
@@ -416,6 +417,7 @@ def simulation():
         if sine <= 0.0 or sine >= 1.0:
             raise RuntimeError("open-book tunic geometry cannot place the panel outside the target depth")
         opening_angle = degrees(asin(sine))
+        opening_angles[side] = opening_angle
         sign = -1.0 if side == "front" else 1.0
         rotation = App.Rotation(App.Vector(1, 0, 0), 90.0 + sign * opening_angle)
         translation = pivot - rotation.multVec(local_shoulder)
@@ -457,10 +459,11 @@ def simulation():
         float(x_mid),
         float(0.5 * (shoulder_left.y + shoulder_right.y)),
         float(shoulder_z),
-        float(opening_angle),
+        float(opening_angles.get("front", 0.0)),
         float(body_depth),
         float(0.5 * body_depth + clearance),
     ))
+    log("open-book-opening-angles-deg=%s" % {side: round(angle, 6) for side, angle in sorted(opening_angles.items())})
     log("initial-solver-stitch-spans-mm=%s max=%.3f" % (initial_spans, initial_seam_span))
     if str(getattr(scene, "PinMode", "")) != "None":
         raise RuntimeError("canonical tunic must use PinMode=None")
