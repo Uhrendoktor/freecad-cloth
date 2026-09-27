@@ -46,7 +46,7 @@ def test_diagnostic_manifest_contains_shared_schema_fields():
 def test_canonical_workflow_uses_single_opt_in_dispatch_job():
     assert "diagnostic_controls:" in WORKFLOW
     assert "diagnostic-tissu-contact:" in WORKFLOW
-    assert "github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls" in WORKFLOW
+    assert "github.event_name == 'workflow_dispatch' && (inputs.diagnostic_controls || inputs.diagnostic_ladder)" in WORKFLOW
     assert "needs: [local_runner_readiness]" in WORKFLOW
     assert "needs: [diagnostic-tissu-contact]" not in WORKFLOW
 
