@@ -315,30 +315,12 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     if solver_source.count(step_call) != 1:
         raise RuntimeError("Solver.cpp step constraint call anchor mismatch")
     solver_source = solver_source.replace(step_call, step_call_replacement, 1)
-    old_solver_source = """void Solver::solveConstraints(double dt) {
-    ZoneScopedN("Solve Constraints");
-    if (m_batches.empty()) {
-        for (const auto& constraint : m_constraints)
-            constraint->solve(m_particles, dt);
-    } else {
-        for (const auto& batch : m_batches) {
-            const int batchSize = static_cast<int>(batch.size());
-#pragma omp parallel for
-            for (int i = 0; i < batchSize; ++i) {
-                const int idx = batch[i];
-                m_constraints[idx]->solve(m_particles, dt);
-            }
-        }
-    }
-
-    for (const auto& pin : m_transientPins) {
-        pin->solve(m_particles, dt);
-    }
-    for (const auto& attach : m_attachments) {
-        attach->solve(m_particles, dt);
-    }
-}
-"""
+    start_marker = "void Solver::solveConstraints(double dt) {"
+    end_marker = "\nvoid Solver::buildCollisionColorBatches() {"
+    if solver_source.count(start_marker) != 1 or solver_source.count(end_marker) != 1:
+        raise RuntimeError("Solver.cpp solveConstraints function-boundary anchors mismatch")
+    start_index = solver_source.index(start_marker)
+    end_index = solver_source.index(end_marker, start_index)
     new_solver_source = """void Solver::solveConstraints(double dt, double stitchCorrectionLimit) {
     ZoneScopedN("Solve Constraints");
     const auto solveConstraint = [this, dt, stitchCorrectionLimit](
@@ -362,11 +344,22 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
             }
         }
     }
+
+    for (const auto& pin : m_transientPins) {
+        pin->solve(m_particles, dt);
+    }
+    for (const auto& attach : m_attachments) {
+        attach->solve(m_particles, dt);
+    }
 }
 """
-    if solver_source.count(old_solver_source) != 1:
-        raise RuntimeError("Solver.cpp solveConstraints anchor mismatch")
-    solver_source = solver_source.replace(old_solver_source, new_solver_source, 1)
+    solver_source = solver_source[:start_index] + new_solver_source + solver_source[end_index:]
+    if "void Solver::solveConstraints(double dt, double stitchCorrectionLimit)" not in solver_source:
+        raise RuntimeError("Solver.cpp bounded solve replacement failed")
+    if "for (const auto& pin : m_transientPins)" not in solver_source:
+        raise RuntimeError("Solver.cpp pin solve preservation check failed")
+    if "for (const auto& attach : m_attachments)" not in solver_source:
+        raise RuntimeError("Solver.cpp attachment solve preservation check failed")
     if "void Solver::solveConstraints(double dt, double stitchCorrectionLimit)" not in solver_source:
         raise RuntimeError("Solver.cpp solveConstraints anchor mismatch")
     if "solveConstraints(dt, world.getThickness());" not in solver_source:
