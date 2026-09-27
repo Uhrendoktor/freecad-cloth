@@ -6,8 +6,11 @@ profile exercises the native Sketcher garment, Tissu realtime preview, finite
 simulation, visual sanity checks, and the six-side screenshot audit.
 """
 from pathlib import Path
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 marker = ROOT / "tests" / ".diagnostic_controls_enabled"
 if marker.is_file():
     from freecad_contact_diagnostics import run as run_contact_diagnostics
