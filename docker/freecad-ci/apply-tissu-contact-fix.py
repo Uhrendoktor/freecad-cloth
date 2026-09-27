@@ -553,6 +553,11 @@ class StitchConstraint""",
     int m_idA;""",
         """private:
     friend class Solver;
+    static double correctionScaleAtFirstMeshHit(
+        const Eigen::Vector3d& start,
+        const Eigen::Vector3d& correction,
+        const std::vector<std::shared_ptr<Collider>>& colliders,
+        double thickness);
     void solveWithColliders(
         std::vector<Particle>& particles, double dt,
         const std::vector<std::shared_ptr<Collider>>& colliders,
@@ -611,9 +616,7 @@ namespace Tissu {""",
     pA.setPosition(pA.getPosition() + wA * norm * deltaLambda);
     pB.setPosition(pB.getPosition() - wB * norm * deltaLambda);
 }""",
-        """namespace {
-
-double correctionScaleAtFirstMeshHit(
+        """double StitchConstraint::correctionScaleAtFirstMeshHit(
     const Eigen::Vector3d& start,
     const Eigen::Vector3d& correction,
     const std::vector<std::shared_ptr<Collider>>& colliders,
@@ -638,8 +641,6 @@ double correctionScaleAtFirstMeshHit(
     }
     return scale;
 }
-
-} // namespace
 
 void StitchConstraint::solve(std::vector<Particle>& particles, double dt) {
     solveInternal(particles, dt, nullptr, 0.0);
