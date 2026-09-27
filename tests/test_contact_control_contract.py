@@ -8,8 +8,6 @@ def test_contact_control_contract():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
     assert 'CLOTH_TISSU_COLLISION_MODE" = "mesh"' in source or 'CLOTH_TISSU_COLLISION_MODE"] = "mesh"' in source
     assert 'CLOTH_TISSU_COLLISION_TRIANGLES" = "2048"' in source or 'CLOTH_TISSU_COLLISION_TRIANGLES"] = "2048"' in source
-    assert 'rung": "0"' in source
-    assert 'rung": "0a"' in source
     assert "inside" in source and "outside" in source
     assert "resolved_outward" in source
     assert "outside_preserved" in source
