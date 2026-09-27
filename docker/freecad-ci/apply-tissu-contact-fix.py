@@ -379,7 +379,7 @@ static MeshCollider makeConcaveShell(double friction = 0.0) {
         {6, 7, 8}, {7, 4, 8},
     };
     return MeshCollider(vertices, triangles, friction);
-}
+}"""
 
     if test_cpp.count("TEST(MeshCollider, ParticleInsideMeshMovesOutside)") != 1:
         raise RuntimeError("MeshCollider test anchor missing")
