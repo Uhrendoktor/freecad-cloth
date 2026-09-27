@@ -335,8 +335,8 @@ def _nearest_pin_indices(panel_indices, positions, targets):
 def _interior_top_face_pins(panel_indices, positions):
     """Pin two opposite blanket particles over the cube footprint."""
     targets = (
-        App.Vector(-0.375 * BLANKET_SIZE, 0.0, BLANKET_START_Z),
-        App.Vector(0.375 * BLANKET_SIZE, 0.0, BLANKET_START_Z),
+        App.Vector(-0.40 * BLANKET_SIZE, 0.0, BLANKET_START_Z),
+        App.Vector(0.40 * BLANKET_SIZE, 0.0, BLANKET_START_Z),
     )
     pins = _nearest_pin_indices(panel_indices, positions, targets)
     span = abs(float(positions[pins[1]][0]) - float(positions[pins[0]][0]))
