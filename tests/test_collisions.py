@@ -4,7 +4,7 @@ from freecad_cloth.pattern.PatternGeometry import rectangle
 from freecad_cloth.pattern.PatternMesh import triangulate
 from freecad_cloth.avatar.AvatarCollision import CollisionSurface
 from freecad_cloth.simulation.SimulationBackend import ClothState
-from freecad_cloth.simulation.TissuBackend import _native_decimate_collision_surface
+from freecad_cloth.simulation.TissuBackend import _mesh_topology_metrics, _native_decimate_collision_surface
 from freecad_cloth.simulation.XPBD import DistanceConstraint, SphereCollider, XPBDClothSolver
 
 
@@ -49,27 +49,50 @@ def _closed_cube_surface():
     return CollisionSurface(vertices, triangles, region="avatar", thickness=1.5)
 
 
-def test_native_collision_decimation_is_exact_closed_and_deterministic():
+def test_collision_topology_metrics_are_exact_for_closed_fixture():
     surface = _closed_cube_surface()
-    first, first_metrics, first_seconds = _native_decimate_collision_surface(surface, 8)
-    second, second_metrics, second_seconds = _native_decimate_collision_surface(surface, 8)
+    metrics = _mesh_topology_metrics(surface.vertices, surface.triangles)
+    assert metrics == {
+        "vertices": 8,
+        "faces": 12,
+        "components": 1,
+        "boundary_edges": 0,
+        "nonmanifold_edges": 0,
+        "degenerate_faces": 0,
+    }
 
-    assert len(first.triangles) == 8
-    assert first_metrics["faces"] == 8
-    assert first_metrics["components"] == 1
-    assert first_metrics["boundary_edges"] == 0
-    assert first_metrics["nonmanifold_edges"] == 0
-    assert first_metrics["degenerate_faces"] == 0
-    assert first == second
-    assert first_metrics == second_metrics
-    assert first_seconds >= 0.0
-    assert second_seconds >= 0.0
-    assert first.region == surface.region
-    assert first.thickness == surface.thickness
+
+def test_native_collision_decimation_fails_closed_without_freecad_runtime():
+    surface = _closed_cube_surface()
+    try:
+        import FreeCAD  # noqa: F401
+    except ModuleNotFoundError:
+        try:
+            _native_decimate_collision_surface(surface, 8)
+        except RuntimeError as exc:
+            assert "FreeCAD Mesh runtime is required" in str(exc)
+        else:
+            raise AssertionError("native collision decimation unexpectedly ran without FreeCAD")
+    else:
+        first, first_metrics, first_seconds = _native_decimate_collision_surface(surface, 8)
+        second, second_metrics, second_seconds = _native_decimate_collision_surface(surface, 8)
+        assert len(first.triangles) == 8
+        assert first_metrics["faces"] == 8
+        assert first_metrics["components"] == 1
+        assert first_metrics["boundary_edges"] == 0
+        assert first_metrics["nonmanifold_edges"] == 0
+        assert first_metrics["degenerate_faces"] == 0
+        assert first == second
+        assert first_metrics == second_metrics
+        assert first_seconds >= 0.0
+        assert second_seconds >= 0.0
+        assert first.region == surface.region
+        assert first.thickness == surface.thickness
 
 
 if __name__ == "__main__":
     test_sphere_collision_pushes_particle_outside_surface()
     test_collision_and_structural_constraints_can_coexist()
-    test_native_collision_decimation_is_exact_closed_and_deterministic()
+    test_collision_topology_metrics_are_exact_for_closed_fixture()
+    test_native_collision_decimation_fails_closed_without_freecad_runtime()
     print("collision tests passed")
