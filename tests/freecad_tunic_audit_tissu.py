@@ -14,6 +14,7 @@ replacements = {
     'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):' :
         'for edge_a, edge_b, seam_id in ((1,1,"TunicRightSide"),(2,6,"TunicRightShoulder"),(6,2,"TunicLeftShoulder"),(7,7,"TunicLeftSide")):',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
+    'scene.TimeStep = 1.0 / 120.0;': 'scene.TimeStep = 1.0 / 240.0;',
     'for batch in (15,15,15,15,15,15):': 'for batch in (40,40,40):',
     'if int(scene.Steps) != 90 or': 'if int(scene.Steps) != 120 or',
     '"simulation did not reach a finite 90-step state"': '"simulation did not reach a finite 120-step state"',
