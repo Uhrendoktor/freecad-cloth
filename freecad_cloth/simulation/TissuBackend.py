@@ -16,6 +16,13 @@ _TISSU_SUBSTEPS_DEFAULT = 1
 _TISSU_COLLISION_TRIANGLES_DEFAULT = 0
 
 
+def _tissu_stitch_delay_steps():
+    value = int(os.environ.get("CLOTH_TISSU_STITCH_DELAY_STEPS", "0"))
+    if value < 0:
+        raise ValueError("CLOTH_TISSU_STITCH_DELAY_STEPS must be >= 0")
+    return value
+
+
 def _tissu_substeps():
     value = int(os.environ.get("CLOTH_TISSU_SUBSTEPS", str(_TISSU_SUBSTEPS_DEFAULT)))
     if value < 1:
@@ -104,6 +111,9 @@ class TissuBackend(ClothSimulationBackend):
         self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins))
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
         self._source_collision_surface = collision_surface
+        self._stitch_delay_steps = _tissu_stitch_delay_steps()
+        self._step_count = 0
+        self._stitches_active = self._stitch_delay_steps == 0
         collision_limit = _tissu_collision_triangle_limit()
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
             collision_surface = coarsen_collision_surface(collision_surface, collision_limit)
@@ -122,6 +132,15 @@ class TissuBackend(ClothSimulationBackend):
         self._iterations = 8
         self._substeps = _tissu_substeps()
         self._build(Simulation)
+        print(
+            "cloth-tissu-stitch-delay configured=%d activation_step=%d pair_count=%d"
+            % (
+                self._stitch_delay_steps,
+                0 if self._stitch_delay_steps == 0 else self._stitch_delay_steps + 1,
+                len(self._stitches),
+            ),
+            flush=True,
+        )
 
     @property
     def solver_collision_surface(self):
@@ -160,9 +179,30 @@ class TissuBackend(ClothSimulationBackend):
             raise RuntimeError("Tissu did not preserve cloth particle ordering")
         for index in self._pin_indices:
             self._sim.solver.add_pin(int(index), np.asarray(positions[index], dtype=np.float64), 0.0)
+        if self._stitches_active:
+            self._activate_stitches()
+        self._add_collision()
+
+    def _reset_stitch_activation_state(self):
+        self._step_count = 0
+        self._stitches_active = self._stitch_delay_steps == 0
+
+    def _activate_stitches(self):
+        if self._stitches_active:
+            return
         for a, b in self._stitches:
             self._sim.solver.add_stitch(int(a), int(b), 0.0)
-        self._add_collision()
+        self._stitches_active = True
+        print(
+            "cloth-tissu-stitch-delay activated step=%d pairs=%d"
+            % (self._step_count + 1, len(self._stitches)),
+            flush=True,
+        )
+
+    def _maybe_activate_stitches(self):
+        if self._stitches_active or self._step_count < self._stitch_delay_steps:
+            return
+        self._activate_stitches()
 
     def step(self, dt=1.0 / 60.0, iterations=8, gravity=(0.0, 0.0, -9810.0), sphere=None, surface=None):
         if dt <= 0 or iterations < 1:
@@ -171,16 +211,19 @@ class TissuBackend(ClothSimulationBackend):
             raise RuntimeError("TissuBackend collision surface is immutable after construction")
         if sphere is not None:
             raise RuntimeError("TissuBackend does not support sphere fallback collision")
+        self._maybe_activate_stitches()
         self._sim.solver.set_iterations(max(1, int(iterations)))
         _gx, _gy, gz = gravity
         self._sim.gravity = float(gz) / _MM
         self._sim.step(float(dt))
         self._iterations = int(iterations)
         self._time += float(dt)
+        self._step_count += 1
 
     def reset(self):
         from tissu import Simulation
         self._time = 0.0
+        self._reset_stitch_activation_state()
         self._build(Simulation)
 
     def pin(self, indices: Iterable[int]):
@@ -192,8 +235,9 @@ class TissuBackend(ClothSimulationBackend):
 
     def set_stitches(self, pairs: Iterable[Tuple[int, int]], compliance=0.0):
         self._stitches = tuple((int(a), int(b)) for a, b in pairs)
-        for a, b in self._stitches:
-            self._sim.solver.add_stitch(int(a), int(b), float(compliance))
+        if self._stitches_active:
+            for a, b in self._stitches:
+                self._sim.solver.add_stitch(int(a), int(b), float(compliance))
 
     def positions(self):
         return tuple(_from_tissu_position(p) for p in self._sim.positions)
