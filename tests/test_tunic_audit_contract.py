@@ -109,6 +109,15 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'tunic-simulation-start' in source
 
 
+def test_tunic_geometry_derived_clearance_fit_is_fail_closed():
+    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "placement_fit_probe" in source
+    assert "geometry-derived-placement-correction-mm=" in source
+    assert "canonical tunic placement correction did not rebuild a simulation backend" in source
+    assert "after geometry-derived placement correction" in source
+    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance'" not in source
+    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance'" not in source
+
 def test_tissu_collision_reduction_preserves_manifold_and_budget():
     source = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
     assert "_coarsen_collision_surface_topology_preserving" in source
