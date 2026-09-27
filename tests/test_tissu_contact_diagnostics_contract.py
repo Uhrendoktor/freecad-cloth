@@ -61,3 +61,11 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "artifacts/tissu-contact-diagnostics/app-run.log" in WORKFLOW
     assert "if-no-files-found: warn" in WORKFLOW
     assert "retention-days: 14" in WORKFLOW
+
+def test_diagnostic_freecad_gui_lifecycle_and_screenshot_api_are_bounded():
+    assert 'view.saveImage(str(path), 1280, 720, "White")' in SOURCE
+    assert 'view.saveImage(str(path), 1280, 720, "White", 1)' not in SOURCE
+    assert "QtCore.QTimer.singleShot(0, _run_from_freecad_event_loop)" in SOURCE
+    assert "def close_gui():" in SOURCE
+    assert "window.close()" in SOURCE
+    assert "app.quit()" in SOURCE
