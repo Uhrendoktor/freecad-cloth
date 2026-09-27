@@ -191,6 +191,12 @@ MeshOrientation inferMeshOrientation(
                     // normal; outside contact preserves the existing vector.
                     if (normal.dot(outwardNormal) < 0.0)
                         normal = -normal;
+                } else if (normal.dot(faceNormal) < 0.0) {
+                    // Coarsened avatar surfaces are intentionally sparse and may
+                    // not remain closed 2-manifolds. Preserve the authored local
+                    // face orientation so a back-side/interior contact resolves
+                    // to the authored exterior rather than deeper into the target.
+                    normal = -normal;
                 }
             } else if (m_closedManifold) {
                 normal *= m_outwardNormalSign;
@@ -281,6 +287,27 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
 
     mesh.resolve(particles, 0.016, 0.1);
 
+    EXPECT_GT(particles[0].getPosition().y(), initialPos.y());
+}
+
+TEST(MeshCollider, SparseOpenMeshResolvesBackSideAlongAuthoredNormal) {
+    const std::vector<Eigen::Vector3d> vertices = {
+        {0.0, 0.0, 0.0},
+        {2.0, 0.0, 0.0},
+        {0.0, 0.0, 2.0},
+    };
+    // The authored triangle normal points toward +Y. This is the local
+    // "exterior" direction that the sparse production collision surface retains.
+    const std::vector<std::array<int, 3>> triangles = {{0, 1, 2}};
+    MeshCollider mesh(vertices, triangles, 0.0);
+
+    const Eigen::Vector3d initialPos(0.5, -0.05, 0.5);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_GT(particles[0].getPosition().y(), 0.0);
     EXPECT_GT(particles[0].getPosition().y(), initialPos.y());
 }"""
     if test_cpp.count(old) != 1:
