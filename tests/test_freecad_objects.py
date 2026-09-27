@@ -113,6 +113,8 @@ def test_avatar_collision_source_supports_fitting_and_simulation_scopes():
         fitting = create_fitting_scene()
         proxy = set_avatar_collision_source(fitting, body, thickness=2.0, deflection=1.0)
         assert proxy is fitting.AvatarProxy
+        assert "AvatarProxy" in set(getattr(fitting, "PropertiesList", ()) or ())
+        assert fitting.getTypeIdOfProperty("AvatarProxy") == "App::PropertyLinkGlobal"
         assert proxy.Name == "AvatarCollision"
         assert proxy.SourceObject == body
         assert "DrapeTarget" not in set(getattr(fitting, "PropertiesList", ()) or ())
