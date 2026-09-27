@@ -530,6 +530,9 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,""",
         ROOT / "core/include/physics/StitchConstraint.hpp",
         """namespace Tissu {
 
+class Collider;
+class Solver;
+
 class StitchConstraint""",
         """namespace Tissu {
 
@@ -543,27 +546,26 @@ class StitchConstraint""",
         """    void solve(std::vector<Particle>& particles, double dt) override;
     std::vector<int>""",
         """    void solve(std::vector<Particle>& particles, double dt) override;
-
-    void solveWithColliders(
-        std::vector<Particle>& particles, double dt,
-        const std::vector<std::shared_ptr<Collider>>& colliders,
-        double thickness);
-
     std::vector<int>""",
-        "StitchConstraint collision-aware solve declaration",
+        "StitchConstraint public API declaration",
     )
     replace_once(
         ROOT / "core/include/physics/StitchConstraint.hpp",
         """private:
     int m_idA;""",
         """private:
+    friend class Solver;
+    void solveWithColliders(
+        std::vector<Particle>& particles, double dt,
+        const std::vector<std::shared_ptr<Collider>>& colliders,
+        double thickness);
     void solveInternal(
         std::vector<Particle>& particles, double dt,
         const std::vector<std::shared_ptr<Collider>>* colliders,
         double thickness);
 
     int m_idA;""",
-        "StitchConstraint solve helper declaration",
+        "StitchConstraint private collision-aware solve declaration",
     )
 
     replace_once(
