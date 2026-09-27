@@ -17,6 +17,18 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
+
+
+def test_tunic_wrap_uses_authoritative_bounds_and_preserves_clearance():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "target_min_y = min(target_ys)" in source
+    assert "target_max_y = max(target_ys)" in source
+    assert "wrap_cos = min(0.35, 0.5 * max(0.0, target_max_y - target_min_y) / max(1.0, garment_height))" in source
+    assert "front_y = target_min_y - clearance - garment_height * wrap_cos" in source
+    assert "back_y = target_max_y + clearance + garment_height * wrap_cos" in source
+    assert "front_angle = degrees(acos(wrap_cos))" in source
+    assert "back_angle = 180.0 - front_angle" in source
+
 def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert 'ArrangementPoint.from_string' in source
