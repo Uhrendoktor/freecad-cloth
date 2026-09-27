@@ -14,6 +14,7 @@ source = source_path.read_text(encoding="utf-8")
 # The canonical tunic audit must use the authoritative DrapeTarget collision
 # surface; do not replace it with the optional torso-envelope approximation.
 os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
+os.environ["CLOTH_TISSU_STITCH_DELAY_STEPS"] = "15"
 
 replacements = {
     'clearance = max(20.0, 0.08 * body_depth)': 'clearance = max(8.0, 0.025 * body_depth);',
@@ -89,10 +90,24 @@ timed_anchor = '''    from time import perf_counter
         str(getattr(active_backend, "name", "")),
         0 if active_collision is None else len(active_collision.triangles),
     ))
+    stitch_delay_steps = int(os.environ.get("CLOTH_TISSU_STITCH_DELAY_STEPS", "0"))
+    log("tunic-stitch-delay-configured=%d" % stitch_delay_steps)
     for batch in (15,15,15,15,15,15):
         batch_started = perf_counter()
         simulation_panel.step(batch); doc.recompute(); events()
         log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
+        if stitch_delay_steps and int(scene.Steps) == stitch_delay_steps:
+            delay_backend = scene.Proxy._base_or_restore().backend
+            try:
+                from freecad_cloth.common.MeshValidation import nearest_target_clearance as _nearest_target_clearance
+                pre_activation_clearance = _nearest_target_clearance(tuple(delay_backend.positions()), tuple(surface.vertices))
+            except (ImportError, ValueError):
+                pre_activation_clearance = None
+            if pre_activation_clearance is None:
+                raise RuntimeError("staged-stitch pre-activation clearance could not be computed")
+            if getattr(delay_backend, "_stitches_activated", False):
+                raise RuntimeError("staged stitches activated before configured boundary")
+            log("tunic-stitch-pre-activation step=%d clearance-mm=%.2f pairs-pending=%d" % (int(scene.Steps), float(pre_activation_clearance), len(getattr(delay_backend, "_stitches", ()))))
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
 '''
 source = source.replace(anchor, preview_probe + '\n' + timed_anchor, 1)
