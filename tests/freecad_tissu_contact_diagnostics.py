@@ -77,10 +77,14 @@ def _mesh_points(obj):
     mesh = getattr(obj, "Mesh", None)
     if mesh is None:
         raise RuntimeError("missing Mesh property on %s" % getattr(obj, "Name", "object"))
-    topology = getattr(mesh, "Topology", None)
-    if topology is None:
-        raise RuntimeError("missing mesh topology on %s" % getattr(obj, "Name", "object"))
-    vertices, _triangles = topology
+    topology = getattr(mesh, "Topology", None) if mesh is not None else None
+    if topology is not None:
+        vertices, _triangles = topology
+        return tuple((float(v.x), float(v.y), float(v.z)) for v in vertices)
+    shape = getattr(obj, "Shape", None)
+    if shape is None or shape.isNull():
+        raise RuntimeError("missing mesh or shape geometry on %s" % getattr(obj, "Name", "object"))
+    vertices, _triangles = shape.tessellate(1.0)
     return tuple((float(v.x), float(v.y), float(v.z)) for v in vertices)
 
 
@@ -115,13 +119,14 @@ def _target_signature(target):
     source = getattr(target, "SourceObject", None)
     if source is None:
         raise RuntimeError("diagnostic target has no source")
+    mesh = getattr(source, "Mesh", None)
     return {
         "target_type": str(getattr(target, "TargetType", "")),
         "source_name": str(getattr(source, "Name", "")),
         "source_label": str(getattr(source, "Label", "")),
         "source_revision": int(getattr(source, "AvatarRevision", 0)),
-        "source_vertices": int(getattr(source, "MeshVertexCount", getattr(source.Mesh, "CountPoints", 0))),
-        "source_triangles": int(getattr(source, "MeshTriangleCount", getattr(source.Mesh, "CountFacets", 0))),
+        "source_vertices": int(getattr(source, "MeshVertexCount", getattr(mesh, "CountPoints", 0) if mesh is not None else 0)),
+        "source_triangles": int(getattr(source, "MeshTriangleCount", getattr(mesh, "CountFacets", 0) if mesh is not None else 0)),
         "collision_triangles_authored": int(getattr(target, "CollisionTriangleCount", 0)),
         "collision_vertices_authored": int(getattr(target, "CollisionVertexCount", 0)),
     }
@@ -277,6 +282,8 @@ def _run_control_cube():
         doc.recompute()
         from freecad_cloth.simulation.SimulationObjects import set_avatar_collision_source
         set_avatar_collision_source(scene, cube, thickness=2.0, deflection=1.0)
+        if scene.AvatarProxy.SourceObject is not None and hasattr(scene.AvatarProxy.SourceObject, "ViewObject"):
+            scene.AvatarProxy.SourceObject.ViewObject.Visibility = False
         piece = _build_piece(
             doc,
             "CubeCloth",
