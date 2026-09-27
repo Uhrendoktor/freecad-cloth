@@ -39,6 +39,9 @@ def test_contact_control_contract():
     assert "artifacts/contact-controls/app-run.log" in workflow
     assert "if: always()" in workflow
     assert "if-no-files-found: warn" in workflow
+    assert 'CLOTH_CONTACT_CONTROLS_EXECUTE=1' in workflow
+    assert 'or os.environ.get("CLOTH_CONTACT_CONTROLS_EXECUTE") == "1"' in source
+    assert 'entrypoint __name__=' in source
     assert "retention-days: 14" in workflow
     assert "faulthandler.dump_traceback_later(30.0, repeat=True" in source
     assert "contact-controls-progress.log" in source
