@@ -346,11 +346,10 @@ void BVH::queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
         "BVH box query implementation",
     )
 
-    replace_once(
-        cpp_path := ROOT / "core/src/physics/MeshCollider.cpp",
-        """void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
-                           double thickness) {""",
-        """bool MeshCollider::firstSegmentHit(
+    cpp_path = ROOT / "core/src/physics/MeshCollider.cpp"
+    first_segment_old = """void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
+                           double thickness) {"""
+    first_segment_new = """bool MeshCollider::firstSegmentHit(
     const Eigen::Vector3d& start, const Eigen::Vector3d& end,
     double margin, double& hitT, Eigen::Vector3d& hitNormal,
     int& triangleIndex) const {
@@ -407,14 +406,10 @@ void BVH::queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
 }
 
 void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
-                           double thickness) {""",
-        "MeshCollider first-segment-hit implementation",
-    )
-    # The helper above is written directly to disk; refresh the in-memory
-    # source before applying the resolve-body replacement below so we do not
-    # overwrite firstSegmentHit with the pre-edit contents.
-    cpp = cpp_path.read_text(encoding="utf-8")
-
+                           double thickness) {"""
+    if cpp.count(first_segment_old) != 1:
+        raise RuntimeError("MeshCollider first-segment-hit implementation anchor mismatch")
+    cpp = cpp.replace(first_segment_old, first_segment_new, 1)
     current_contact = """        if (distance <= thickness) {
             Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
             const double faceNormalLength = faceNormalRaw.norm();
