@@ -317,16 +317,16 @@ namespace Tissu {"""
         {2.0, 0.0, 0.0},
         {1.0, 0.0, 2.0},
     };
-    const std::vector<std::array<int, 3>> triangles = {{0, 1, 2}};
-    MeshCollider mesh(vertices, triangles, 0.0, true, -1.0);
+    const std::vector<std::array<int, 3>> triangles = {{0, 2, 1}};
+    MeshCollider mesh(vertices, triangles, 0.0, true, 1.0);
 
-    const Eigen::Vector3d initialPos(1.0, 0.05, 0.75);
+    const Eigen::Vector3d initialPos(1.0, -0.05, 0.75);
     std::vector<Particle> particles;
     particles.emplace_back(initialPos);
 
     mesh.resolve(particles, 0.016, 0.1);
 
-    EXPECT_LT(particles[0].getPosition().y(), 0.0);
+    EXPECT_GT(particles[0].getPosition().y(), 0.0);
 }
 
 """
