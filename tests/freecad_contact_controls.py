@@ -12,10 +12,6 @@ import sys
 import time
 from pathlib import Path
 
-import FreeCAD as App
-import FreeCADGui as Gui
-import Part
-
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -25,23 +21,11 @@ os.environ["CLOTH_TISSU_SUBSTEPS"] = "1"
 os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
 os.environ["CLOTH_TISSU_COLLISION_TRIANGLES"] = "2048"
 
-from freecad_cloth.avatar.AvatarCollision import coarsen_collision_surface
-from freecad_cloth.common.MeshValidation import validate_mesh
-from freecad_cloth.simulation.ClothSolver import ClothSystem
-from freecad_cloth.simulation.DrapeTarget import collision_surface, refresh_drape_target, target_status
-from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
-from freecad_cloth.simulation.TissuBackend import TissuBackend
-
 OUT = Path(os.environ.get("CLOTH_CONTACT_CONTROLS_DIR", "artifacts/contact-controls"))
 OUT.mkdir(parents=True, exist_ok=True)
 PROGRESS_LOG = OUT / "contact-controls-progress.log"
 _PROGRESS_HANDLE = PROGRESS_LOG.open("a", encoding="utf-8", buffering=1)
 faulthandler.enable(file=_PROGRESS_HANDLE)
-
-THICKNESS_MM = 0.5
-PROBE_HALF_SIZE_MM = 1.5
-PENETRATION_MM = 0.75
-
 
 def _progress(message):
     line = "contact-controls: " + str(message)
@@ -54,6 +38,38 @@ _PROGRESS_HANDLE.write("entrypoint __name__=%r\n" % __name__)
 _PROGRESS_HANDLE.flush()
 faulthandler.dump_traceback_later(30.0, repeat=True, file=_PROGRESS_HANDLE)
 
+_progress("import FreeCAD: begin")
+import FreeCAD as App
+_progress("import FreeCAD: complete")
+_progress("import FreeCADGui: begin")
+import FreeCADGui as Gui
+_progress("import FreeCADGui: complete")
+_progress("import Part: begin")
+import Part
+_progress("import Part: complete")
+_progress("import freecad_cloth.avatar.AvatarCollision: begin")
+from freecad_cloth.avatar.AvatarCollision import coarsen_collision_surface
+_progress("import freecad_cloth.avatar.AvatarCollision: complete")
+_progress("import freecad_cloth.common.MeshValidation: begin")
+from freecad_cloth.common.MeshValidation import validate_mesh
+_progress("import freecad_cloth.common.MeshValidation: complete")
+_progress("import freecad_cloth.simulation.ClothSolver: begin")
+from freecad_cloth.simulation.ClothSolver import ClothSystem
+_progress("import freecad_cloth.simulation.ClothSolver: complete")
+_progress("import freecad_cloth.simulation.DrapeTarget: begin")
+from freecad_cloth.simulation.DrapeTarget import collision_surface, refresh_drape_target, target_status
+_progress("import freecad_cloth.simulation.DrapeTarget: complete")
+_progress("import freecad_cloth.simulation.SimulationQualityRuntimeV2: begin")
+from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
+_progress("import freecad_cloth.simulation.SimulationQualityRuntimeV2: complete")
+_progress("import freecad_cloth.simulation.TissuBackend: begin")
+from freecad_cloth.simulation.TissuBackend import TissuBackend
+_progress("import freecad_cloth.simulation.TissuBackend: complete")
+_progress("diagnostic imports complete")
+
+THICKNESS_MM = 0.5
+PROBE_HALF_SIZE_MM = 1.5
+PENETRATION_MM = 0.75
 
 def _events():
     Gui.updateGui()
