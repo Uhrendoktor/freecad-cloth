@@ -400,9 +400,7 @@ private:
         ROOT / "core/src/physics/MeshCollider.cpp",
         """MeshCollider::MeshCollider(const std::string& meshPath, double friction)
     : m_meshPath(meshPath) {""",
-        """namespace Tissu {
-
-bool segmentTriangleHit(const Eigen::Vector3d& start,
+        """bool segmentTriangleHit(const Eigen::Vector3d& start,
                         const Eigen::Vector3d& end,
                         const Eigen::Vector3d& a,
                         const Eigen::Vector3d& b,
@@ -536,9 +534,10 @@ class StitchConstraint""",
         """namespace Tissu {
 
 class Collider;
+class Solver;
 
 class StitchConstraint""",
-        "StitchConstraint collider forward declaration",
+        "StitchConstraint collider+solver forward declaration",
     )
     replace_once(
         ROOT / "core/include/physics/StitchConstraint.hpp",
