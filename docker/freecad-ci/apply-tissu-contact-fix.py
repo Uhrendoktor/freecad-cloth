@@ -31,6 +31,7 @@ def main() -> int:
     header = ROOT / "core/include/physics/MeshCollider.hpp"
     cpp = ROOT / "core/src/physics/MeshCollider.cpp"
     test = ROOT / "tests/physics/test_mesh_collider.cpp"
+    stitch_test = ROOT / "tests/physics/test_stitch_constraint.cpp"
 
     replace_once(
         header,
@@ -207,6 +208,46 @@ MeshOrientation inferMeshOrientation(
         cpp = cpp.replace(old, new, 1)
     Path(cpp_path := ROOT / "core/src/physics/MeshCollider.cpp").write_text(cpp, encoding="utf-8")
 
+    stitch_test_cpp = stitch_test.read_text(encoding="utf-8")
+    stitch_marker = "TEST(StitchConstraint, LowerComplianceConvergesFaster)"
+    if stitch_test_cpp.count(stitch_marker) != 1:
+        raise RuntimeError("StitchConstraint compliance regression anchor mismatch")
+    compliance_regression = """
+TEST(StitchConstraint, CanonicalDiagnosticCompliance001IsAccepted) {
+    std::vector<Particle> strictParticles;
+    strictParticles.emplace_back(Eigen::Vector3d(0.0, 0.0, 0.0));
+    strictParticles.emplace_back(Eigen::Vector3d(0.0, 1.0, 0.0));
+
+    std::vector<Particle> compliantParticles;
+    compliantParticles.emplace_back(Eigen::Vector3d(0.0, 0.0, 0.0));
+    compliantParticles.emplace_back(Eigen::Vector3d(0.0, 1.0, 0.0));
+
+    StitchConstraint strict(0, 1, 0.0);
+    StitchConstraint compliant(0, 1, 0.001);
+
+    for (int idx = 0; idx < 10; ++idx) {
+        strict.solve(strictParticles, 1.0 / 120.0);
+        compliant.solve(compliantParticles, 1.0 / 120.0);
+    }
+
+    const double strictDistance =
+        (strictParticles[0].getPosition() - strictParticles[1].getPosition()).norm();
+    const double compliantDistance =
+        (compliantParticles[0].getPosition() - compliantParticles[1].getPosition()).norm();
+
+    EXPECT_NEAR(0.0, strictDistance, 1e-9);
+    EXPECT_GT(compliantDistance, 0.0);
+    EXPECT_LT(compliantDistance, 0.001);
+}
+
+"""
+    stitch_test_cpp = stitch_test_cpp.replace(
+        stitch_marker,
+        compliance_regression + stitch_marker,
+        1,
+    )
+    stitch_test.write_text(stitch_test_cpp, encoding="utf-8")
+
     test_cpp = test.read_text(encoding="utf-8")
     test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
     helper = """static bool tetrahedronContains(const Eigen::Vector3d& point) {
@@ -295,6 +336,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
         "tests/physics/test_mesh_collider.cpp",
+        "tests/physics/test_stitch_constraint.cpp",
     }
     if set(changed.splitlines()) != expected:
         raise RuntimeError(f"unexpected patched files: {changed!r}")
