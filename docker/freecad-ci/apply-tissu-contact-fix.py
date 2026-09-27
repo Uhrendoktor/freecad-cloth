@@ -233,7 +233,7 @@ MeshOrientation inferMeshOrientation(
     const char* contactOrder =
         std::getenv("CLOTH_TISSU_CONTACT_BEFORE_CONSTRAINTS");
     const bool contactBeforeConstraints =
-        contactOrder != nullptr && contactOrder[0] == '1' && contactOrder[1] == '\0';
+        contactOrder != nullptr && contactOrder[0] == '1' && contactOrder[1] == '\\0';
     const auto& colliders = world.getColliders();
     if (contactBeforeConstraints) {
         for (auto& collider : colliders)
