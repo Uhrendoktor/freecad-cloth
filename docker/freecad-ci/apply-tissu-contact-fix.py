@@ -276,13 +276,13 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
 
     cpp = cpp.replace(resolve_old, resolve_new, 1)
 
-    contact_old = """        if (distance <= thickness || insideClosedMesh) {
+    contact_old = """        if (distance <= thickness || insideClosedMesh || sweptContact) {
             Eigen::Vector3d normal = (distance > 1e-6)
                                          ? toParticle.normalized()
                                          : ((b - a).cross(c - a)).normalized();
 
             Eigen::Vector3d newPosition = cp + normal * thickness;"""
-    contact_new = """        if (distance <= thickness || insideClosedMesh) {
+    contact_new = """        if (distance <= thickness || insideClosedMesh || sweptContact) {
             Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
             const double faceNormalLength = faceNormalRaw.norm();
             if (faceNormalLength <= 1e-12)
@@ -292,7 +292,7 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
             Eigen::Vector3d outwardNormal = faceNormal * m_outwardNormalSign;
             Eigen::Vector3d normal = outwardNormal;
 
-            if (!insideClosedMesh && distance > 1e-6) {
+            if (!insideClosedMesh && !sweptContact && distance > 1e-6) {
                 normal = toParticle / distance;
                 if (m_closedManifold && normal.dot(outwardNormal) < 0.0)
                     normal = -normal;
@@ -536,6 +536,21 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
             raise RuntimeError("MeshCollider closed-mesh regression insertion anchor missing")
         test_cpp = test_cpp.replace(anchor, closed_test + anchor, 1)
 
+    swept_tunneling_test = """TEST(MeshCollider, ClosedMeshSweptContactPreventsTunneling) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+
+    const Eigen::Vector3d startPos(1.0, 3.0, 0.75);
+    const Eigen::Vector3d endPos(1.0, -1.0, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(startPos);
+    particles[0].setPosition(endPos);
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+    EXPECT_GT(particles[0].getPosition().y(), 1.9);
+}
+
     deep_containment_test = """TEST(MeshCollider, ClosedMeshRecoversDeepInteriorParticle) {
     MeshCollider mesh = makeTetrahedron(0.0);
 
@@ -623,8 +638,8 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
     full_diff = run("git", "diff")
     if "inferMeshOrientation" in full_diff or "std::unordered_map" in full_diff:
         raise RuntimeError("MeshCollider patch must not infer closure from solver geometry")
-    if "pointInsideClosedMesh" not in full_diff:
-        raise RuntimeError("explicit closed hint must enable bounded containment response")
+    if "pointInsideClosedMesh" not in full_diff or "findSweptContact" not in full_diff:
+        raise RuntimeError("explicit closed hint must enable bounded containment and swept response")
 
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
