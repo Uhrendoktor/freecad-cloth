@@ -820,15 +820,20 @@ void StitchConstraint::solveInternal(
     stitch_cpp.write_text(stitch_cpp_text, encoding="utf-8")
 
     stitch_header_text = stitch_header.read_text(encoding="utf-8")
-    public_helper = """    void solveWithColliders(
+    private_helper_shape = """private:
+    friend class Solver;
+    void solveWithColliders(
         std::vector<Particle>& particles, double dt,
         const std::vector<std::shared_ptr<Collider>>& colliders,
         double thickness);
+    void solveInternal(
+        std::vector<Particle>& particles, double dt,
+        const std::vector<std::shared_ptr<Collider>>* colliders,
+        double thickness);
 
-    std::vector<int>"""
-    if stitch_header_text.count(public_helper) != 1:
+    int m_idA;"""
+    if stitch_header_text.count(private_helper_shape) != 1:
         raise RuntimeError("StitchConstraint helper visibility anchor mismatch")
-    stitch_header_text = stitch_header_text.replace(public_helper, "    std::vector<int>", 1)
     private_anchor = """private:
     void solveInternal(
         std::vector<Particle>& particles, double dt,
