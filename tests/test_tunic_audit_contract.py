@@ -165,7 +165,7 @@ def test_tissu_ci_attachment_regression_is_pinned_and_executed():
     script = (ROOT / "docker" / "freecad-ci" / "apply-tissu-contact-fix.py").read_text(encoding="utf-8")
     expected = "Cloth.AttachmentMaintainsRestDistanceUnderSolverStep"
     assert expected in dockerfile
-    assert expected in script
+    assert "TEST(Cloth, AttachmentMaintainsRestDistanceUnderSolverStep)" in script
     assert "tests/physics/test_cloth.cpp" in script
 
 
