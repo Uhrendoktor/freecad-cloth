@@ -499,7 +499,6 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     test_cpp = test_cpp.replace(old, new, 1)
 
     test_cpp += """
-    
 TEST(MeshCollider, HighSpeedOutsideToInsideCrossingStaysOutside) {
     MeshCollider mesh = makeTetrahedron(0.0);
     std::vector<Particle> particles;
