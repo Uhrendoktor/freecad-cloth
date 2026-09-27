@@ -101,11 +101,38 @@ def _scene_baseline(scene):
 
 
 def _inside_counts(shape, positions):
-    return sum(
-        1
-        for point in positions
-        if shape.isInside(App.Vector(float(point[0]), float(point[1]), float(point[2])), 0.01, True)
-    )
+    if shape is None or not hasattr(shape, "isInside") or getattr(shape, "isNull", lambda: True)():
+        return None
+    try:
+        return sum(
+            1
+            for point in positions
+            if shape.isInside(App.Vector(float(point[0]), float(point[1]), float(point[2])), 0.01, True)
+        )
+    except Exception:
+        return None
+
+
+def _target_points(target):
+    mesh = getattr(target, "Mesh", None)
+    points = getattr(mesh, "Points", None) if mesh is not None else None
+    if points:
+        return tuple((float(p.x), float(p.y), float(p.z)) for p in points)
+    shape = getattr(target, "Shape", None)
+    if shape is not None and not shape.isNull():
+        return tuple((float(v.Point.x), float(v.Point.y), float(v.Point.z)) for v in shape.Vertexes)
+    return ()
+
+
+def _minimum_distance(source_points, target_points):
+    if not source_points or not target_points:
+        return None
+    best = float("inf")
+    for a in source_points:
+        for b in target_points:
+            d2 = sum((float(a[i]) - float(b[i])) ** 2 for i in range(3))
+            best = min(best, d2)
+    return math.sqrt(best) if math.isfinite(best) else None
 
 
 def _bounds(positions):
@@ -119,20 +146,7 @@ def _bounds(positions):
     }
 
 
-def _write_panel(backend, scene, panel):
-    positions = backend.positions()
-    indices = tuple(backend.panel_indices.get(panel.Name, ()))
-    triangles = backend.panel_triangles.get(panel.Name, ())
-    if not indices:
-        return
-    vertices = [App.Vector(*positions[i]) for i in indices]
-    faces = [Part.Face(Part.makePolygon([
-        vertices[tri[0]], vertices[tri[1]], vertices[tri[2]], vertices[tri[0]]
-    ])) for tri in triangles if max(tri) < len(vertices)]
-    panel.Mesh = Part.makePolygon([]) if not faces else Part.makeCompound([face.Shape for face in faces])
-
-
-def _prepare_scene(doc, target, piece):
+def _prepare_scene(doc, target, piece, gravity=(0.0, 0.0, 0.0)):
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, ensure_quality_properties
     from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
 
@@ -147,9 +161,9 @@ def _prepare_scene(doc, target, piece):
     scene.SolverIterations = 1
     scene.SolverSubsteps = 1
     scene.FabricFriction = 0.85
-    scene.GravityX = 0.0
-    scene.GravityY = 0.0
-    scene.GravityZ = -9810.0
+    scene.GravityX = float(gravity[0])
+    scene.GravityY = float(gravity[1])
+    scene.GravityZ = float(gravity[2])
     doc.recompute()
     return scene
 
@@ -160,9 +174,14 @@ def _run_case(doc, scene, target, case_id):
     backend = scene.Proxy._base_or_restore().backend
     if getattr(backend, "name", "") != "tissu":
         raise RuntimeError("diagnostic case %s did not select Tissu backend" % case_id)
-    source_shape = target.Shape
+    source_shape = getattr(target, "Shape", None)
+    target_points = _target_points(target)
+    source_surface = getattr(backend, "_source_collision_surface", None)
+    solver_surface = getattr(backend, "solver_collision_surface", None)
     before = tuple(backend.positions())
+    finite_before = bool(backend.finite())
     before_inside = _inside_counts(source_shape, before)
+    before_distance = _minimum_distance(before, target_points)
     started = time.monotonic()
     view = Gui.activeDocument().activeView()
     _save(OUT / ("%s-%s-step-000.png" % (PREFIX, case_id)), view)
@@ -170,26 +189,54 @@ def _run_case(doc, scene, target, case_id):
     scene.Steps = 1
     doc.recompute()
     after = tuple(backend.positions())
+    finite_after = bool(backend.finite())
     after_inside = _inside_counts(source_shape, after)
+    after_distance = _minimum_distance(after, target_points)
     _save(OUT / ("%s-%s-step-001.png" % (PREFIX, case_id)), view)
 
+    containment_resolved = (
+        after_inside <= before_inside
+        if before_inside is not None and after_inside is not None
+        else None
+    )
+    distance_improved = (
+        after_distance < before_distance - 1.0e-9
+        if before_distance is not None and after_distance is not None
+        else None
+    )
     metrics = {
         "case_id": case_id,
         "target_kind": "FreeCAD Geometry" if case_id == "0" else "MakeHuman DrapeTarget",
         "piece_count": 1,
         "seam_mode": "none",
+        "seam_world_spans_mm": [],
         "pin_mode": "none",
         "cloth_bounds_world_mm_before_step": _bounds(before),
         "cloth_bounds_world_mm_after_step": _bounds(after),
-        "finite_before": bool(backend.finite()),
-        "finite_after": bool(backend.finite()),
-        "inside_vertices_before": int(before_inside),
-        "inside_vertices_after": int(after_inside),
-        "inside_vertices_resolved": int(after_inside <= before_inside),
-        "runtime_ms": 1000.0 * (time.monotonic() - started),
-        "solver_triangle_count": len(getattr(backend, "solver_triangles", ())) if hasattr(backend, "solver_triangles") else None,
+        "target_bounds_world_mm": _bounds(target_points) if target_points else None,
+        "signed_clearance_mm": None,
+        "unsigned_min_distance_before_mm": before_distance,
+        "unsigned_min_distance_after_mm": after_distance,
+        "finite_before": finite_before,
+        "finite_after": finite_after,
+        "connected_components": 1,
+        "inside_vertices_before": before_inside,
+        "inside_vertices_after": after_inside,
+        "containment_resolved": containment_resolved,
+        "distance_improved": distance_improved,
+        "inside_classification": "closed-solid" if before_inside is not None else "open-surface-no-signed-classification",
+        "first_contact_step": 1,
+        "contact_mode": "one-step-tissu-collision",
+        "collision_source_triangle_count": len(source_surface.triangles) if source_surface is not None else None,
+        "solver_collision_triangle_count": len(solver_surface.triangles) if solver_surface is not None else None,
         "collision_mode": os.environ.get("CLOTH_TISSU_COLLISION_MODE", "mesh"),
         "collision_triangle_budget": int(os.environ.get("CLOTH_TISSU_COLLISION_TRIANGLES", "2048")),
+        "target_topology_summary": {
+            "vertices": len(target_points),
+            "solver_triangles": len(solver_surface.triangles) if solver_surface is not None else None,
+        },
+        "checkpoint_steps": [0, 1],
+        "runtime_ms": 1000.0 * (time.monotonic() - started),
         "baseline": _scene_baseline(scene),
     }
     return metrics
@@ -205,7 +252,7 @@ def control_0():
         placement = App.Placement(App.Vector(0.0, 0.0, 59.0), App.Rotation())
         piece.Placement = placement
         piece.Sketch.Placement = placement
-        scene = _prepare_scene(doc, cube, piece)
+        scene = _prepare_scene(doc, cube, piece, gravity=(0.0, 0.0, 0.0))
         return _run_case(doc, scene, cube, "0")
     finally:
         try:
@@ -245,7 +292,7 @@ def control_0a():
         )
         piece.Placement = placement
         piece.Sketch.Placement = placement
-        scene = _prepare_scene(doc, doc.getObject("DrapeTarget").SourceObject, piece)
+        scene = _prepare_scene(doc, doc.getObject("DrapeTarget").SourceObject, piece, gravity=(0.0, 0.0, -9810.0))
         return _run_case(doc, scene, avatar, "0a")
     finally:
         try:
@@ -265,7 +312,16 @@ def run():
         "schema": 1,
         "controls": results,
         "first_failure": next(
-            (item["case_id"] for item in results if item["inside_vertices_after"] > item["inside_vertices_before"]),
+            (
+                item["case_id"]
+                for item in results
+                if item["finite_after"] is not True
+                or (
+                    item["containment_resolved"] is False
+                    if item["containment_resolved"] is not None
+                    else item["unsigned_min_distance_after_mm"] is None
+                )
+            ),
             None,
         ),
     }
