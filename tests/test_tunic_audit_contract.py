@@ -167,7 +167,8 @@ def test_tissu_stitch_compliance_experiment_is_explicit_and_canonical_only():
     assert "_TISSU_STITCH_COMPLIANCE_DEFAULT = 0.0" in backend
     assert '"CLOTH_TISSU_STITCH_COMPLIANCE"' in backend
     assert "self._stitch_compliance = _tissu_stitch_compliance(stitch_compliance)" in backend
-    assert "int(a), int(b), 0.0, self._stitch_compliance" in backend
+    assert "int(a), int(b), self._stitch_compliance" in backend
+    assert "int(a), int(b), 0.0, self._stitch_compliance" not in backend
     assert 'os.environ["CLOTH_TISSU_STITCH_COMPLIANCE"] = "0.001"' in audit
     assert 'tunic-stitch-compliance=' in audit
     assert 'abs(active_compliance - 0.001) > 1.0e-12' in audit
