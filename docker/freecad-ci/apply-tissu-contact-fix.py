@@ -987,8 +987,17 @@ TEST(StitchConstraint, SolverChoosesEarliestCrossingAcrossMultipleMeshes) {
     stitch_header_text = stitch_header.read_text(encoding="utf-8")
     if stitch_header_text.index("void solveWithColliders(") < stitch_header_text.index("private:"):
         raise RuntimeError("StitchConstraint world-aware helper must remain private")
-    if "m_lambda += appliedDeltaLambda;" not in stitch_cpp.read_text(encoding="utf-8"):
-        raise RuntimeError("StitchConstraint lambda must match applied bounded correction")
+    stitch_cpp_text = stitch_cpp.read_text(encoding="utf-8")
+    if "m_lambda += deltaLambda;" not in stitch_cpp_text:
+        raise RuntimeError("StitchConstraint lambda must record the unconstrained XPBD solve")
+    for anchor in (
+        "double correctionScaleA = 1.0;",
+        "double correctionScaleB = 1.0;",
+        "pA.setPosition(pA.getPosition() + correctionA * correctionScaleA);",
+        "pB.setPosition(pB.getPosition() + correctionB * correctionScaleB);",
+    ):
+        if anchor not in stitch_cpp_text:
+            raise RuntimeError(f"StitchConstraint endpoint barrier anchor missing: {anchor}")
 
     script_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     print(f"Tissu source commit: {EXPECTED_COMMIT}")
