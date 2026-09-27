@@ -297,7 +297,7 @@ def _style_mesh(obj):
     obj.ViewObject.LineWidth = 1.0
 
 
-def _diagonal_corner_pins(piece, positions, panel_indices):
+def _opposite_side_midpoint_pins(piece, positions, panel_indices):
     mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, BLANKET_PARTICLE_DISTANCE)
     boundary_vertices = tuple(
         sorted(set(index for chain in boundary for index in chain), key=lambda index: index)
@@ -308,7 +308,8 @@ def _diagonal_corner_pins(piece, positions, panel_indices):
     max_x = max(float(mesh_positions[index][0]) for index in boundary_vertices)
     min_y = min(float(mesh_positions[index][1]) for index in boundary_vertices)
     max_y = max(float(mesh_positions[index][1]) for index in boundary_vertices)
-    targets = ((min_x, min_y), (max_x, max_y))
+    center_y = 0.5 * (min_y + max_y)
+    targets = ((min_x, center_y), (max_x, center_y))
     available = list(boundary_vertices)
     selected = []
     for target_x, target_y in targets:
@@ -321,15 +322,18 @@ def _diagonal_corner_pins(piece, positions, panel_indices):
         )
         selected.append(index)
         available.remove(index)
-    lower_left, upper_right = selected
-    span_x = abs(float(mesh_positions[upper_right][0]) - float(mesh_positions[lower_left][0]))
-    span_y = abs(float(mesh_positions[upper_right][1]) - float(mesh_positions[lower_left][1]))
-    if span_x < 0.75 * BLANKET_SIZE or span_y < 0.75 * BLANKET_SIZE:
+    left, right = selected
+    span_x = abs(float(mesh_positions[right][0]) - float(mesh_positions[left][0]))
+    midpoint_error = max(
+        abs(float(mesh_positions[left][1]) - center_y),
+        abs(float(mesh_positions[right][1]) - center_y),
+    )
+    if span_x < 0.75 * BLANKET_SIZE or midpoint_error > 0.15 * BLANKET_SIZE:
         raise RuntimeError(
-            "blanket pins are not diagonally opposite corners: span_x=%.3f span_y=%.3f"
-            % (span_x, span_y)
+            "blanket pins are not opposite side-edge midpoints: span=%.3f midpoint_error=%.3f"
+            % (span_x, midpoint_error)
         )
-    return tuple(int(panel_indices[index]) for index in selected), span_x, span_y
+    return tuple(int(panel_indices[index]) for index in selected), span_x, midpoint_error
 
 
 def _nearest_pin_indices(panel_indices, positions, targets):
@@ -459,11 +463,11 @@ def build_simulation_state(doc):
     proxy = scene.Proxy._base_or_restore()
     positions = tuple(proxy.backend.positions())
     panel_indices = tuple(proxy.panel_indices[panel.Name])
-    pins, span_x, span_y = _diagonal_corner_pins(blanket, positions, panel_indices)
+    pins, span_x, midpoint_error = _opposite_side_midpoint_pins(blanket, positions, panel_indices)
     scene.PinSelection = [str(index) for index in pins]
     log(
-        "blanket-pins=passed diagonal-corners span_x=%.3f span_y=%.3f indices=%s"
-        % (span_x, span_y, pins)
+        "blanket-pins=passed opposite-side-midpoints span_x=%.3f midpoint_error=%.3f indices=%s"
+        % (span_x, midpoint_error, pins)
     )
     doc.recompute()
 
