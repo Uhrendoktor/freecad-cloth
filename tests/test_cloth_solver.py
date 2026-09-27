@@ -93,6 +93,39 @@ def test_mesh_collision_edge_projection_is_idempotent():
     assert max(abs(value) for value in drift) <= 1e-9, drift
 
 
+def test_tissu_collider_friction_mesh_path_forwards_explicit_value(monkeypatch):
+    from freecad_cloth.simulation.TissuBackend import TissuBackend
+
+    calls = []
+
+    class FakeSim:
+        def add_mesh_from_arrays(self, *args, **kwargs):
+            calls.append((args, kwargs))
+
+    backend = TissuBackend.__new__(TissuBackend)
+    backend._sim = FakeSim()
+    backend._collision_mode = "mesh"
+    backend._collider_friction = 0.85
+    backend._collision_surface = type(
+        "Surface",
+        (),
+        {
+            "vertices": (
+                (0.0, 0.0, 0.0),
+                (1.0, 0.0, 0.0),
+                (0.0, 1.0, 0.0),
+            ),
+            "triangles": ((0, 1, 2),),
+        },
+    )()
+
+    backend._add_collision()
+
+    assert len(calls) == 1
+    assert calls[0][0][0] == "drape-target"
+    assert calls[0][1]["friction"] == 0.85
+
+
 if __name__ == "__main__":
     for name, test in sorted(globals().items()):
         if name.startswith("test_") and callable(test):
