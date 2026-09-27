@@ -727,7 +727,7 @@ void StitchConstraint::solveInternal(
     # Reconcile the generated stitch implementation with the numerical and
     # integration contract: one scalar lambda must match the correction actually applied.
     stitch_cpp_text = stitch_cpp.read_text(encoding="utf-8")
-    sweep_start = "namespace {\n\nEigen::Vector3d clipCorrectionAtFirstMeshHit("
+    sweep_start = "namespace {\n\nstruct ClippedCorrection {"
     sweep_end = "\nvoid StitchConstraint::solve(std::vector<Particle>& particles, double dt) {"
     if stitch_cpp_text.count(sweep_start) != 1 or stitch_cpp_text.count(sweep_end) != 1:
         raise RuntimeError("StitchConstraint sweep repair anchors mismatch")
