@@ -354,7 +354,11 @@ public:
 class ScopedEnvironmentVariable {
 public:
     explicit ScopedEnvironmentVariable(const char* name, const char* value)
-        : m_name(name), m_previous(std::getenv(name)) {
+        : m_name(name) {
+        if (const char* previous = std::getenv(name)) {
+            m_hadPrevious = true;
+            m_previous = previous;
+        }
         if (value == nullptr)
             unsetenv(name);
         else
@@ -362,7 +366,7 @@ public:
     }
 
     ~ScopedEnvironmentVariable() {
-        if (m_previous.empty())
+        if (!m_hadPrevious)
             unsetenv(m_name.c_str());
         else
             setenv(m_name.c_str(), m_previous.c_str(), 1);
@@ -371,6 +375,7 @@ public:
 private:
     std::string m_name;
     std::string m_previous;
+    bool m_hadPrevious = false;
 };
 
 TEST(MeshCollider, ContactOrderingDefaultIsPostConstraint) {
