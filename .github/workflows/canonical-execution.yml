@@ -208,6 +208,7 @@ jobs:
                 tests/test_readme_visual_contract.py \
                 tests/test_sketcher_bootstrap_contract.py \
                 tests/test_canonical_python_validation_contract.py
+                tests/test_contact_control_contract.py
             ')"
           cleanup() {
             set +e
@@ -477,7 +478,6 @@ jobs:
     runs-on: ${{ inputs.runner_mode == 'hosted' && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 12
     env:
-      FREECAD_TUNISU_IMAGE: freecad-cloth-ci:tissu-contact-fix
       FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix
     steps:
       - name: Log selected execution mode
