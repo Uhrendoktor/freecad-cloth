@@ -108,11 +108,12 @@ class TissuBackend(ClothSimulationBackend):
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
             collision_surface = coarsen_collision_surface(collision_surface, collision_limit)
             print(
-                "cloth-tissu-collision source_triangles=%d solver_triangles=%d limit=%d"
+                "cloth-tissu-collision source_triangles=%d solver_triangles=%d limit=%d source_orientation_sign=%s"
                 % (
                     len(self._source_collision_surface.triangles),
                     len(collision_surface.triangles),
                     collision_limit,
+                    collision_surface.source_outward_normal_sign,
                 ),
                 flush=True,
             )
@@ -146,7 +147,13 @@ class TissuBackend(ClothSimulationBackend):
                 )
             return
         vtx, idx = _to_tissu_mesh(self._collision_surface)
-        self._sim.add_mesh_from_arrays("drape-target", vtx, idx, friction=0.5)
+        self._sim.add_mesh_from_arrays(
+            "drape-target",
+            vtx,
+            idx,
+            friction=0.5,
+            outward_normal_sign=self._collision_surface.source_outward_normal_sign,
+        )
 
     def _build(self, Simulation):
         import numpy as np
