@@ -625,21 +625,76 @@ def _run_control_avatar():
     try:
         scene = _build_scene(doc)
         avatar = scene.AvatarProxy.SourceObject
-        shape = getattr(avatar, "Shape", None)
-        center = getattr(shape, "CenterOfMass", None) if shape is not None and not getattr(shape, "isNull", lambda: True)() else None
-        if center is None:
-            mesh = getattr(avatar, "Mesh", None)
-            box = getattr(mesh, "BoundBox", None)
-            if box is None:
-                raise RuntimeError("control-0a-avatar requires mesh collision geometry")
-            center = App.Vector(
-                0.5 * (float(box.XMin) + float(box.XMax)),
-                0.5 * (float(box.YMin) + float(box.YMax)),
-                float(box.ZMin) + 0.67 * float(box.ZMax - box.ZMin),
+        if avatar is None:
+            raise RuntimeError("control-0a-avatar requires the production avatar source")
+
+        from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
+
+        def arrangement_world(name):
+            raw = next(
+                (value for value in getattr(avatar, "ArrangementPoints", ()) if str(value).split("|", 1)[0] == name),
+                None,
             )
-        center_x, center_y, center_z = float(center.x), float(center.y), float(center.z)
+            if raw is None:
+                return None
+            point = ArrangementPoint.from_string(raw)
+            return avatar.Placement.multVec(App.Vector(*point.position()))
+
+        box = getattr(getattr(avatar, "Mesh", None), "BoundBox", None)
+        if box is None:
+            raise RuntimeError("control-0a-avatar requires mesh collision geometry")
+        shoulder_left = arrangement_world("shoulder_left")
+        shoulder_right = arrangement_world("shoulder_right")
+        hip_point = arrangement_world("hip")
+        if shoulder_left is not None and shoulder_right is not None and hip_point is not None:
+            x_mid = 0.5 * (float(shoulder_left.x) + float(shoulder_right.x))
+            y_mid = 0.5 * (float(shoulder_left.y) + float(shoulder_right.y))
+            shoulder_z = 0.5 * (float(shoulder_left.z) + float(shoulder_right.z))
+            hip_z = float(hip_point.z)
+            x_span = abs(float(shoulder_right.x) - float(shoulder_left.x))
+            y_span = max(1.0, float(box.YMax - box.YMin))
+        else:
+            x_mid = 0.5 * (float(box.XMin) + float(box.XMax))
+            y_mid = 0.5 * (float(box.YMin) + float(box.YMax))
+            shoulder_z = float(box.ZMin) + 0.76 * float(box.ZMax - box.ZMin)
+            hip_z = float(box.ZMin) + 0.40 * float(box.ZMax - box.ZMin)
+            x_span = float(box.XMax - box.XMin)
+            y_span = float(box.YMax - box.YMin)
+
+        z_span = shoulder_z - hip_z
+        if z_span <= 1.0:
+            raise RuntimeError("control-0a-avatar has invalid shoulder/hip arrangement span")
+
+        candidate_offsets = (-0.24, -0.12, 0.0, 0.12, 0.24)
+        candidate_z = (0.28, 0.40, 0.52, 0.64, 0.76)
+        center = None
+        for x_factor in candidate_offsets:
+            for y_factor in candidate_offsets:
+                for z_factor in candidate_z:
+                    candidate = App.Vector(
+                        x_mid + x_factor * max(40.0, x_span),
+                        y_mid + y_factor * max(80.0, min(220.0, y_span)),
+                        hip_z + z_factor * z_span,
+                    )
+                    state = _inside_outside(((float(candidate.x), float(candidate.y), float(candidate.z)),), avatar)
+                    if state == "inside":
+                        center = candidate
+                        break
+                if center is not None:
+                    break
+            if center is not None:
+                break
+        if center is None:
+            raise RuntimeError(
+                "control-0a-avatar could not find a deterministic interior arrangement-point probe"
+            )
+        _progress(
+            "control-0a-avatar: interior-seed=%.2f,%.2f,%.2f"
+            % (float(center.x), float(center.y), float(center.z))
+        )
+
         placement = App.Placement(
-            App.Vector(center_x - 36.0, center_y, center_z - 36.0),
+            App.Vector(float(center.x) - 36.0, float(center.y), float(center.z) - 36.0),
             App.Rotation(App.Vector(1.0, 0.0, 0.0), 90.0),
         )
         piece = _build_piece(doc, "AvatarCloth", placement, width=72.0, height=72.0)
@@ -655,6 +710,7 @@ def _run_control_avatar():
                 % record["control"]["inside_outside_before"]
             )
         record["control"]["interior_probe"] = True
+        record["control"]["interior_seed_source"] = "avatar-arrangement-points-with-mesh-inside-search"
         return record
     finally:
         App.closeDocument(doc.Name)
