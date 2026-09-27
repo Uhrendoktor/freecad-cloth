@@ -370,7 +370,7 @@ def _tunic_shoulder_attachment_records(seam_pair_records, positions, collision_s
         for pair in endpoint_pairs:
             for particle_id, piece_name in zip(pair, side_names, strict=False):
                 particle_id = int(particle_id)
-                is_front_piece = side_names[0] == side_names[0] and piece_name == side_names[0]
+                is_front_piece = piece_name == side_names[0]
                 if particle_id in seen_particles:
                     continue
                 if not 0 <= particle_id < len(positions):
