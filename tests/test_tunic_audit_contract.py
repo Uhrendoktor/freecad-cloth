@@ -17,7 +17,7 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
-def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
+def test_canonical_tunic_uses_arrangement_points_target_collision_and_outer_shoulder_pins():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert 'ArrangementPoint.from_string' in source
     assert 'shoulder_left = arrangement_world("shoulder_left")' in source
