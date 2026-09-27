@@ -232,32 +232,31 @@ MeshOrientation inferMeshOrientation(
 
     cloth_test_cpp = cloth_test.read_text(encoding="utf-8")
     cloth_test_cpp = cloth_test_cpp.replace(
-        '#include "physics/Solver.hpp"
-',
-        '#include "physics/Solver.hpp"
-#include "engine/World.hpp"
-#include "physics/Collider.hpp"
-',
+        '#include "physics/Solver.hpp"\n',
+        '#include "physics/Solver.hpp"\n#include "engine/World.hpp"\n#include "physics/Collider.hpp"\n',
         1,
+    )
     )
     cloth_test_cpp = cloth_test_cpp.replace(
-        "#include <gtest/gtest.h>
-",
-        "#include <gtest/gtest.h>
-#include <memory>
-",
+        "#include <gtest/gtest.h>\n",
+        "#include <gtest/gtest.h>\n#include <memory>\n",
         1,
     )
-    post_collision_test = """class DisplacingCollider final : public Collider {
+    )
+class DisplacingCollider final : public Collider {
 public:
     void resolve(std::vector<Particle>& particles, double, double) override {
-        if (particles.size() < 2)
+        if (m_resolved || particles.size() < 2)
             return;
+        m_resolved = true;
         particles[0].setPosition(
             particles[0].getPosition() + Eigen::Vector3d(-1.0, 0.0, 0.0));
         particles[1].setPosition(
             particles[1].getPosition() + Eigen::Vector3d(1.0, 0.0, 0.0));
     }
+
+private:
+    bool m_resolved = false;
 };
 
 class TwoStageProjectionCollider final : public Collider {
