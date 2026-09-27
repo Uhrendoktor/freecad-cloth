@@ -150,6 +150,7 @@ int rayIntersectsTriangle(const Eigen::Vector3d& origin,
         return 0;
 
     const double w = 1.0 - u - v;
+    // A barycentric w outside [0, 1] is not a hit on this triangle.
     if (w < -1.0e-9 || w > 1.0 + 1.0e-9)
         return 0;
     if (std::abs(u) <= 1.0e-9 ||
