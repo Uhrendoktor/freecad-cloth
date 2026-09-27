@@ -3,6 +3,7 @@
 The model layer deliberately does not import FreeCAD.  ``surface_from_freecad``
 is the small GUI/runtime bridge used by the document workbench.
 """
+from collections import Counter
 from dataclasses import dataclass
 from math import ceil
 from typing import Tuple
@@ -56,19 +57,40 @@ class AvatarSpec:
             self.collision.validate()
 
 
-def coarsen_collision_surface(surface: CollisionSurface, max_triangles: int = 1024) -> CollisionSurface:
-    """Derive a spatially covered collision surface from a real authored mesh.
+def _is_closed_two_manifold(surface: CollisionSurface) -> bool:
+    """Return True when every undirected triangle edge is shared exactly twice."""
+    edge_counts = Counter()
+    for ia, ib, ic in surface.triangles:
+        if ia == ib or ib == ic or ic == ia:
+            return False
+        for first, second in ((ia, ib), (ib, ic), (ic, ia)):
+            edge_counts[tuple(sorted((first, second)))] += 1
+    return bool(edge_counts) and all(count == 2 for count in edge_counts.values())
 
-    The visible avatar remains the full MakeHuman mesh. The solver does not need
-    every render triangle, so this keeps one representative triangle per coarse
-    spatial cell until the requested triangle budget is reached. No proxy object
-    is created and the result remains derived solely from the real avatar mesh.
+
+def coarsen_collision_surface(
+    surface: CollisionSurface,
+    max_triangles: int = 1024,
+    preserve_closed: bool = False,
+) -> CollisionSurface:
+    """Derive a solver collision surface from a real authored mesh.
+
+    The visible avatar remains the full MakeHuman mesh. Open or non-manifold
+    surfaces use the existing deterministic spatial coverage reduction. A
+    closed manifold can opt into fidelity preservation so the solver receives
+    the complete authored surface instead of a hole-prone triangle subset.
+
+    The Tissu path deliberately keeps the caller's triangle-budget contract
+    while allowing a verified closed authored surface to exceed that budget:
+    the budget governs representative coarsening, not loss of closed topology.
     """
     limit = int(max_triangles)
     surface.validate()
     if limit < 1:
         raise ValueError("max_triangles must be positive")
     if len(surface.triangles) <= limit:
+        return surface
+    if preserve_closed and _is_closed_two_manifold(surface):
         return surface
 
     points = surface.vertices
