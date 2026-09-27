@@ -137,12 +137,19 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert 'docker run --rm "$FREECAD_TUNIC_IMAGE" cat /opt/tissu-provenance.txt' in workflow
     assert 'artifacts/tissu-provenance.txt' in workflow
 
-def test_canonical_tunic_fixture_matches_validated_start_geometry():
+def test_canonical_tunic_fixture_matches_compound_wrap_geometry():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert '"front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)"' in audit
-    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance'," in audit
-    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance'," in audit
+    assert "'    rot = App.Rotation(App.Vector(1,0,0), 90.0)'" in audit
+    assert "front_rot = App.Rotation(App.Vector(1,0,0), front_angle)" in audit
+    assert "upright_back = App.Rotation(App.Vector(0,1,1), 180.0)" in audit
+    assert "back_rot = upright_back.multiply(App.Rotation(App.Vector(1,0,0), back_wrap_angle))" in audit
+    assert "back_wrap_angle = front_angle - 90.0" in audit
+    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance'" in audit
+    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance'" in audit
+    assert "initial-stitch-span seam=%s" in audit
     assert "'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))'," in audit
+
 
 
 def test_tunic_visual_diagnostics_are_authoritative_after_persistence():
