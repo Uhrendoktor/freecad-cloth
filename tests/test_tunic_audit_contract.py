@@ -122,9 +122,16 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert '/opt/conda/envs/freecad/bin/cmake --build build' in dockerfile
     assert '--target _cloth_sdk_core unit_tests' in dockerfile
     assert "--gtest_filter='MeshCollider.*'" in dockerfile
+    assert "rayIntersectionCount" in script
+    assert "bool& ambiguous" in script
     assert "ParticleInsideMeshMovesOutside" in script
     assert "tetrahedronContains" in script
     assert "ClosedMeshKeepsOutsideContactOutside" in script
+    assert "FarOutsideParticleRemainsUnchanged" in script
+    assert "MultiParticleDeepInteriorOnlyMovesInteriorParticle" in script
+    assert "ReversedWindingClosedMeshStillResolvesInsideParticle" in script
+    assert "RotatedClosedMeshStillResolvesInsideParticle" in script
+    assert "AmbiguousRayThroughClosedMeshVertexFailsClosed" in script
     assert "OpenMeshRetainsLegacyContactDirection" in script
 
     tunic = workflow[workflow.index("  gui-tunic-visual:") : workflow.index("\n  gui-", workflow.index("  gui-tunic-visual:") + 5)]
