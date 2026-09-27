@@ -17,6 +17,23 @@ def _plane(z=0.0):
     return surface
 
 
+
+
+
+def test_anchor_allows_equidistant_surface_patches_with_same_normal():
+    surface = CollisionSurface(
+        (
+            (-10.0, -10.0, 0.0), (-1.0, -10.0, 0.0), (-1.0, 10.0, 0.0), (-10.0, 10.0, 0.0),
+            (1.0, -10.0, 0.0), (10.0, -10.0, 0.0), (10.0, 10.0, 0.0), (1.0, 10.0, 0.0),
+        ),
+        ((0, 1, 2), (0, 2, 3), (4, 5, 6), (4, 6, 7)),
+        "target",
+    )
+    surface.validate()
+    hit = target_surface_anchor(surface, (0.0, 0.0, 5.0))
+    assert hit.normal == (0.0, 0.0, 1.0)
+    assert abs(hit.distance - 5.0) < 1e-12
+
 def test_anchor_uses_nearest_surface_and_outward_normal():
     hit = target_surface_anchor(_plane(), (0.0, 0.0, 25.0))
     assert hit.triangle_index in (0, 1)
