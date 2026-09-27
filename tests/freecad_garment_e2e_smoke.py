@@ -598,6 +598,11 @@ def run_acceptance():
         box.Width = 400.0
         box.Height = 400.0
         box.Placement.Base = App.Vector(-200.0, -200.0, 0.0)
+        from freecad_cloth.common.GarmentDocument import garment_group
+        avatar_group = garment_group(doc, "Avatar")
+        if avatar_group is None:
+            raise RuntimeError("target-snap fixture requires the native Garment Avatar group")
+        avatar_group.addObject(box)
         _select_objects(box)
         Gui.runCommand("ClothDrape_CreateTarget", 0)
         _events()
@@ -648,8 +653,12 @@ def run_acceptance():
             for piece in sorted(tuple(getattr(scene, "ClothPieces", ()) or ()), key=lambda item: str(item.PieceId)):
                 base = piece.Placement.Base
                 axis = piece.Placement.Rotation.Axis
+                sketch = getattr(piece, "Sketch", None)
+                sketch_base = sketch.Placement.Base if sketch is not None else None
+                sketch_axis = sketch.Placement.Rotation.Axis if sketch is not None else None
                 signature.append(
                     (
+                        "piece",
                         str(piece.PieceId),
                         round(float(base.x), 9),
                         round(float(base.y), 9),
@@ -658,6 +667,15 @@ def run_acceptance():
                         round(float(axis.x), 9),
                         round(float(axis.y), 9),
                         round(float(axis.z), 9),
+                        "sketch",
+                        None if sketch is None else str(sketch.Name),
+                        None if sketch_base is None else round(float(sketch_base.x), 9),
+                        None if sketch_base is None else round(float(sketch_base.y), 9),
+                        None if sketch_base is None else round(float(sketch_base.z), 9),
+                        None if sketch is None else round(float(sketch.Placement.Rotation.Angle), 9),
+                        None if sketch_axis is None else round(float(sketch_axis.x), 9),
+                        None if sketch_axis is None else round(float(sketch_axis.y), 9),
+                        None if sketch_axis is None else round(float(sketch_axis.z), 9),
                     )
                 )
             return tuple(signature)
@@ -695,6 +713,11 @@ def run_acceptance():
         quality_panel.snap_to_target_button.click()
         _events()
         doc.recompute()
+        screenshot = str(Path(os.environ.get("CLOTH_SCREENSHOT_DIR", "/workspace/docs/images/generated")) / "cloth-simulation-draped-target-snap-applied.png")
+        Gui.activeDocument().activeView().fitAll()
+        Gui.activeDocument().activeView().saveImage(screenshot, 1280, 720, "Current", 1)
+        if not os.path.exists(screenshot) or os.path.getsize(screenshot) <= 0:
+            raise RuntimeError("target snap rendered evidence was not written")
         fitting = doc.getObject("FittingScene")
         if fitting is None or fitting.DrapeTarget != target:
             raise RuntimeError("target snap did not preserve the persistent fitting DrapeTarget identity")
@@ -725,7 +748,12 @@ def run_acceptance():
         _events()
         doc.recompute()
         if _piece_pose_signature() != home_pose:
-            raise RuntimeError("Reset arrangement did not restore the exact pre-snap piece/sketch placement")
+            raise RuntimeError("Reset arrangement did not restore the exact pre-snap PatternPiece and native Sketch placements")
+        screenshot = str(Path(os.environ.get("CLOTH_SCREENSHOT_DIR", "/workspace/docs/images/generated")) / "cloth-simulation-draped-target-snap-reset.png")
+        Gui.activeDocument().activeView().fitAll()
+        Gui.activeDocument().activeView().saveImage(screenshot, 1280, 720, "Current", 1)
+        if not os.path.exists(screenshot) or os.path.getsize(screenshot) <= 0:
+            raise RuntimeError("target snap Reset rendered evidence was not written")
         quality_panel.snap_to_target_button.click()
         _events()
         doc.recompute()
