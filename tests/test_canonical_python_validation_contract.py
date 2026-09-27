@@ -54,3 +54,18 @@ def test_tunic_audit_replaces_hard_exit_and_writes_failure_diagnostics():
     assert "traceback.format_exc()" in audit
     assert "tunic-audit-gui-log-tail-begin" in audit
     assert "docs/images/generated/tunic-audit-diagnostics.txt" in workflow
+
+
+def test_turntable_exports_post_simulation_state_before_validation():
+    source = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    render = source.index('render_turntable(view, [cube, panel], os.path.join(OUT, "cloth-simulation-post-simulation-turntable-frames"))')
+    validation = source.index('validation_started = time.monotonic()')
+    assert render < validation
+    assert "blanket-world-diagnostics centroid_xy_offset_mm=" in source
+    assert "projected_overlap_ratio=" in source
+    assert "top_support_vertex_fraction=" in source
+    assert "low_cube_support" in source
+    assert "cloth-simulation-post-simulation-turntable-frames/frame-*.png" in workflow or "*turntable-frames/frame-*.png" in workflow
