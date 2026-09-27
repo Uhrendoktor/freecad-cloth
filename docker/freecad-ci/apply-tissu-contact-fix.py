@@ -211,6 +211,7 @@ int BVH::rayIntersectionCountRecursive(
     include_new = """#include "physics/Particle.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <unordered_map>
@@ -432,6 +433,25 @@ bool isDeepInterior(
 }
 
 """
+    deep_test = """TEST(MeshCollider, DeepInteriorPointMovesOutsideClosedMesh) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+
+    Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.01);
+
+    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
+    EXPECT_GT(distanceMoved, 0.0);
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+}
+"""
+    test_cpp = test_cpp.replace(
+        "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
+        deep_test + "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
+        1,
+    )
     if test_cpp.count("TEST(MeshCollider, ParticleInsideMeshMovesOutside)") != 1:
         raise RuntimeError("MeshCollider test anchor missing")
     test_cpp = test_cpp.replace(
