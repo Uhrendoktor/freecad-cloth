@@ -132,14 +132,13 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     solver_new_start = patch.index('solver_new = """')
     solver_new_end = patch.index('"""', solver_new_start + len('solver_new = """'))
     solver_new = patch[solver_new_start:solver_new_end]
-    solver_lines = [line.strip() for line in solver_new.splitlines() if line.strip()]
-    assert "solveConstraints(dt);" in solver_lines
-    assert solver_lines.count("solveConstraints(dt);") == 1
-    collider_line = "for (auto& collider in colliders)"
-    first_collider = solver_lines.index(collider_line)
-    post_stitch = solver_lines.index("solveConstraints(dt);", first_collider)
-    second_collider = solver_lines.index(collider_line, post_stitch + 1)
-    self_collision = solver_lines.index("solveSelfCollisions(dt, world.getThickness());", second_collider + 1)
+    assert "solveConstraints(dt);" in solver_new
+    assert solver_new.count("solveConstraints(dt);") == 1
+    collider_token = "for (auto& collider in colliders)"
+    first_collider = solver_new.index(collider_token)
+    post_stitch = solver_new.index("solveConstraints(dt);", first_collider)
+    second_collider = solver_new.index(collider_token, post_stitch + 1)
+    self_collision = solver_new.index("solveSelfCollisions(dt, world.getThickness());", second_collider)
     assert first_collider < post_stitch < second_collider < self_collision
 
     tunic = workflow[workflow.index("  gui-tunic-visual:") : workflow.index("\n  gui-", workflow.index("  gui-tunic-visual:") + 5)]
