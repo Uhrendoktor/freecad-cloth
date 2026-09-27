@@ -68,7 +68,7 @@ replacements = {
         '        base = pivot + extra.multVec(base_zero - pivot)\n'
         '        log("open-book side=%s anchor=(%.2f,%.2f,%.2f) pivot=(%.2f,%.2f,%.2f) angle_deg=%.3f shoulder_to_hem_mm=%.2f target_half_depth_mm=%.2f" % (side, launch_anchor.x, launch_anchor.y, launch_anchor.z, pivot.x, pivot.y, pivot.z, signed_angle, shoulder_to_hem, target_half_depth))\n'
         '        return App.Placement(base, App.Rotation(App.Vector(1,0,0), 90.0 + signed_angle))\n',
-    '    def make_piece(name, side, neckline_ratio, neckline_drop): sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(side); piece.Sketch.Placement = piece.Placement; return piece, outline': '    def make_piece(name, side, neckline_ratio, neckline_drop): sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = open_book_placement(side, outline); piece.Sketch.Placement = piece.Placement; return piece, outline',
+    '        piece.Placement = target_relative_piece_placement(side)': '        piece.Placement = open_book_placement(side, outline)',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
     'import json': 'import json\nimport math',
 }
