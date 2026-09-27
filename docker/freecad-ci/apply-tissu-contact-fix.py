@@ -523,7 +523,6 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,""",
         """namespace Tissu {
 
 class Collider;
-class Solver;
 
 class StitchConstraint""",
         """namespace Tissu {
@@ -782,12 +781,16 @@ void StitchConstraint::solveInternal(
     )
 
     stitch_test_text = stitch_test.read_text(encoding="utf-8")
-    replace_once(
-        stitch_test,
-        """#include <vector>
+    stitch_test_text = stitch_test.read_text(encoding="utf-8")
+    stitch_include_anchor = """#include <vector>
 
 #include "Eigen/Dense"
-#include "physics/Particle.hpp" """.rstrip(),
+#include "physics/Particle.hpp" """
+    stitch_include_anchor = stitch_include_anchor.rstrip()
+    if stitch_test_text.count(stitch_include_anchor) != 1:
+        raise RuntimeError("Stitch test includes: expected one stable source anchor")
+    stitch_test_text = stitch_test_text.replace(
+        stitch_include_anchor,
         """#include <array>
 #include <memory>
 #include <vector>
@@ -795,9 +798,10 @@ void StitchConstraint::solveInternal(
 #include "Eigen/Dense"
 #include "engine/World.hpp"
 #include "physics/MeshCollider.hpp"
-#include "physics/Particle.hpp" """.rstrip(),
-        "Stitch test includes",
+#include "physics/Particle.hpp""",
+        1,
     )
+    stitch_test.write_text(stitch_test_text, encoding="utf-8")
     replace_once(
         stitch_test,
         """using namespace Tissu;
