@@ -594,6 +594,71 @@ def run_acceptance():
             raise RuntimeError("Simulation quality task panel did not expose the Arrange / Fit / target-snap bridge")
         if not quality_panel.snap_to_target_button.isEnabled():
             raise RuntimeError("Simulation panel did not expose enabled target-aware placement for a ready target")
+
+        def _piece_pose_signature():
+            signature = []
+            for piece in sorted(tuple(getattr(scene, "ClothPieces", ()) or ()), key=lambda item: str(item.PieceId)):
+                base = piece.Placement.Base
+                axis = piece.Placement.Rotation.Axis
+                signature.append(
+                    (
+                        str(piece.PieceId),
+                        round(float(base.x), 9),
+                        round(float(base.y), 9),
+                        round(float(base.z), 9),
+                        round(float(piece.Placement.Rotation.Angle), 9),
+                        round(float(axis.x), 9),
+                        round(float(axis.y), 9),
+                        round(float(axis.z), 9),
+                    )
+                )
+            return tuple(signature)
+
+        def _pairwise_centers():
+            pieces = sorted(tuple(getattr(scene, "ClothPieces", ()) or ()), key=lambda item: str(item.PieceId))
+            centers = []
+            for piece in pieces:
+                base = piece.Placement.Base
+                centers.append((str(piece.PieceId), float(base.x), float(base.y), float(base.z)))
+            distances = {}
+            for index, left in enumerate(centers):
+                for right in centers[index + 1:]:
+                    distances[(left[0], right[0])] = math.dist(left[1:], right[1:])
+            return distances
+
+        home_pose = _piece_pose_signature()
+        home_pairwise = _pairwise_centers()
+        quality_panel.snap_to_target_button.click()
+        _events()
+        doc.recompute()
+        fitting = doc.getObject("FittingScene")
+        if fitting is None or fitting.DrapeTarget != target:
+            raise RuntimeError("target snap did not preserve the persistent fitting DrapeTarget identity")
+        anchors = tuple(getattr(fitting, "GarmentAnchors", ()) or ())
+        if len(anchors) < 4:
+            raise RuntimeError("target snap did not persist the garment-local anchor set")
+        snapped_pairwise = _pairwise_centers()
+        if set(home_pairwise) != set(snapped_pairwise):
+            raise RuntimeError("target snap changed the authored piece set")
+        for key in home_pairwise:
+            if abs(float(home_pairwise[key]) - float(snapped_pairwise[key])) > 1e-6:
+                raise RuntimeError("target snap changed pairwise piece spacing; placement was not shared-rigid")
+        if "persistent DrapeTarget" not in str(quality_panel.status.text()):
+            raise RuntimeError("target snap did not report a successful public UI status")
+        if not quality_panel.reset_arrangement_button.isEnabled():
+            raise RuntimeError("target snap did not enable the public Reset arrangement control")
+        quality_panel.reset_arrangement_button.click()
+        _events()
+        doc.recompute()
+        if _piece_pose_signature() != home_pose:
+            raise RuntimeError("Reset arrangement did not restore the exact pre-snap piece/sketch placement")
+        quality_panel.snap_to_target_button.click()
+        _events()
+        doc.recompute()
+        if _piece_pose_signature() == home_pose:
+            raise RuntimeError("second target snap did not change the authored arrangement")
+        print("target-snap-ui=passed anchors=%d shared-rigid=true reset=true" % len(anchors), flush=True)
+
         quality_panel.quality.setCurrentText("Fast")
         if not quality_panel.accept():
             raise RuntimeError("public Simulation quality task panel rejected the selected preset")
