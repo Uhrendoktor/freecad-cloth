@@ -339,6 +339,78 @@ def _center_z(points):
     return sum(float(p[2]) for p in points) / len(points)
 
 
+def _blanket_world_diagnostics(points, cube, support_band_mm=20.0, xy_margin_mm=10.0):
+    if not points:
+        raise RuntimeError("cannot diagnose empty blanket point set")
+    cube_box = cube.Shape.BoundBox
+    xs = [float(point[0]) for point in points]
+    ys = [float(point[1]) for point in points]
+    zs = [float(point[2]) for point in points]
+    cube_center_x = 0.5 * (float(cube_box.XMin) + float(cube_box.XMax))
+    cube_center_y = 0.5 * (float(cube_box.YMin) + float(cube_box.YMax))
+    cloth_center_x = sum(xs) / len(xs)
+    cloth_center_y = sum(ys) / len(ys)
+    footprint_margin = (
+        max(float(cube_box.XMin) - xy_margin_mm, 0.0),
+        min(float(cube_box.XMax) + xy_margin_mm, 0.0),
+    )
+    # Keep the exact cube coordinates rather than assuming the cube is centered
+    # at the origin in future fixture revisions.
+    x_min = float(cube_box.XMin) - xy_margin_mm
+    x_max = float(cube_box.XMax) + xy_margin_mm
+    y_min = float(cube_box.YMin) - xy_margin_mm
+    y_max = float(cube_box.YMax) + xy_margin_mm
+    top_band = float(cube_box.ZMax) - float(support_band_mm)
+    in_footprint = [
+        point for point in points
+        if x_min <= float(point[0]) <= x_max
+        and y_min <= float(point[1]) <= y_max
+    ]
+    top_support = [
+        point for point in in_footprint
+        if float(point[2]) >= top_band
+    ]
+    cloth_x_span = max(xs) - min(xs)
+    cloth_y_span = max(ys) - min(ys)
+    overlap_x = max(
+        0.0,
+        min(max(xs), float(cube_box.XMax)) - max(min(xs), float(cube_box.XMin)),
+    )
+    overlap_y = max(
+        0.0,
+        min(max(ys), float(cube_box.YMax)) - max(min(ys), float(cube_box.YMin)),
+    )
+    cube_x_span = max(float(cube_box.XLength), 1e-9)
+    cube_y_span = max(float(cube_box.YLength), 1e-9)
+    projected_overlap_ratio = max(0.0, min(1.0, overlap_x / cube_x_span)) * max(
+        0.0, min(1.0, overlap_y / cube_y_span)
+    )
+    return {
+        "cube_bounds": (
+            float(cube_box.XMin), float(cube_box.XMax),
+            float(cube_box.YMin), float(cube_box.YMax),
+            float(cube_box.ZMin), float(cube_box.ZMax),
+        ),
+        "cloth_bounds": (
+            min(xs), max(xs), min(ys), max(ys), min(zs), max(zs),
+        ),
+        "centroid_xyz": (
+            cloth_center_x, cloth_center_y, sum(zs) / len(zs),
+        ),
+        "centroid_xy_offset_mm": (
+            (cloth_center_x - cube_center_x) ** 2
+            + (cloth_center_y - cube_center_y) ** 2
+        ) ** 0.5,
+        "projected_overlap_ratio": projected_overlap_ratio,
+        "footprint_vertex_fraction": len(in_footprint) / float(len(points)),
+        "top_support_vertex_fraction": len(top_support) / float(len(points)),
+        "support_band_mm": float(support_band_mm),
+        "xy_margin_mm": float(xy_margin_mm),
+        "cloth_x_span_mm": cloth_x_span,
+        "cloth_y_span_mm": cloth_y_span,
+    }
+
+
 def validate_blanket_drape(panel, cube):
     from freecad_cloth.common.DrapeVisualSanity import inspect_drape, mesh_shape_sanity
     from freecad_cloth.common.MeshValidation import validate_mesh
@@ -539,6 +611,39 @@ def main():
         if minimum_z > cube_top + 35.0:
             raise RuntimeError("blanket did not approach cube surface: min_z=%.2f cube_top=%.2f" % (minimum_z, cube_top))
 
+        world_diag = _blanket_world_diagnostics(final_positions, cube)
+        log(
+            "blanket-world-diagnostics centroid_xy_offset_mm=%.2f projected_overlap_ratio=%.3f "
+            "footprint_vertex_fraction=%.3f top_support_vertex_fraction=%.3f "
+            "cloth_bounds=%s cube_bounds=%s"
+            % (
+                world_diag["centroid_xy_offset_mm"],
+                world_diag["projected_overlap_ratio"],
+                world_diag["footprint_vertex_fraction"],
+                world_diag["top_support_vertex_fraction"],
+                world_diag["cloth_bounds"],
+                world_diag["cube_bounds"],
+            )
+        )
+        if world_diag["projected_overlap_ratio"] < 0.10 or world_diag["top_support_vertex_fraction"] < 0.05:
+            log(
+                "blanket-world-diagnostics-warning low_cube_support "
+                "projected_overlap_ratio=%.3f top_support_vertex_fraction=%.3f"
+                % (
+                    world_diag["projected_overlap_ratio"],
+                    world_diag["top_support_vertex_fraction"],
+                )
+            )
+
+        # Export the post-simulation turntable before validation so a failing
+        # visual state is still available in the human-review artifact.
+        post_simulation_render_started = time.monotonic()
+        render_turntable(view, [cube, panel], os.path.join(OUT, "cloth-simulation-post-simulation-turntable-frames"))
+        log(
+            "stage=post-simulation-render-pass frames=73 elapsed_ms=%.1f"
+            % (1000.0 * (time.monotonic() - post_simulation_render_started))
+        )
+
         validation_started = time.monotonic()
         log("stage=validation-start")
         panel.ViewObject.Visibility = True
@@ -555,9 +660,14 @@ def main():
         )
 
         draped_started = time.monotonic()
-        render_turntable(view, [cube, panel], os.path.join(OUT, "cloth-simulation-draped-turntable-frames"))
+        source_dir = os.path.join(OUT, "cloth-simulation-post-simulation-turntable-frames")
+        target_dir = os.path.join(OUT, "cloth-simulation-draped-turntable-frames")
+        os.makedirs(target_dir, exist_ok=True)
+        import shutil
+        for filename in os.listdir(source_dir):
+            shutil.copy2(os.path.join(source_dir, filename), os.path.join(target_dir, filename))
         log(
-            "stage=draped-render-pass frames=73 elapsed_ms=%.1f"
+            "stage=draped-render-pass frames=73 copied_from=post-simulation elapsed_ms=%.1f"
             % (1000.0 * (time.monotonic() - draped_started))
         )
         log("blanket-turntable-pass")
