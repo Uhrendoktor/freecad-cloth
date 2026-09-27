@@ -384,18 +384,33 @@ def simulation():
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
-    rot = App.Rotation(App.Vector(1,0,0), 90.0)
-    def target_relative_piece_placement(side):
+    def piece_placement(outline, side, angle_deg=0.0):
         if side == "front":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
+            side_sign = -1.0
+            y_offset = -clearance
         elif side == "back":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
+            side_sign = 1.0
+            y_offset = clearance
         else:
-            raise ValueError("tunic target-relative side must be front or back")
-        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
+            raise ValueError("tunic open-book side must be front or back")
+        local_hinge = App.Vector(
+            (float(outline[2][0]) + float(outline[3][0]) + float(outline[5][0]) + float(outline[6][0])) / 4.0,
+            (float(outline[2][1]) + float(outline[3][1]) + float(outline[5][1]) + float(outline[6][1])) / 4.0,
+            0.0,
+        )
+        rotation = App.Rotation(App.Vector(1,0,0), 90.0 + side_sign * float(angle_deg))
+        hinge_world = App.Vector(
+            x_mid,
+            (shoulder_left.y + shoulder_right.y) / 2.0 + y_offset,
+            shoulder_z,
+        )
+        base = hinge_world - rotation.multVec(local_hinge)
+        return App.Placement(base, rotation)
+
     def make_piece(name, side, neckline_ratio, neckline_drop):
-        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(side); piece.Sketch.Placement = piece.Placement; return piece, outline
-    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
+        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = piece_placement(outline, side, 0.0); piece.Sketch.Placement = piece.Placement; return piece, outline
+    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10)
+    back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
     for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):
@@ -403,7 +418,36 @@ def simulation():
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
-    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.PinMode = "None"; scene.PinSelection = []; scene.ClothPieces = [front, back]; refresh_drape_target(target); doc.recompute()
+    scene.StartHeight = 0.0; scene.QualityPreset = "Fast"; scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; scene.TimeStep = 1.0 / 120.0; scene.GravityX = 0.0; scene.GravityY = 0.0; scene.GravityZ = -9810.0; scene.FabricFriction = 0.75; scene.PinMode = "None"; scene.PinSelection = []; scene.ClothPieces = [front, back]
+    from freecad_cloth.common.MeshValidation import nearest_target_clearance
+    from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
+    def apply_open_book_launch_assembly():
+        selected_angle = None
+        selected_clearance = None
+        particle_distance = float(getattr(scene, "ParticleDistance", 24.0))
+        for angle in range(0, 36):
+            front.Placement = piece_placement(front_outline, "front", angle)
+            back.Placement = piece_placement(back_outline, "back", angle)
+            front.Sketch.Placement = front.Placement
+            back.Sketch.Placement = back.Placement
+            front_vertices, _front_triangles, _front_boundary = quality_piece_mesh(front, 0.0, particle_distance)
+            back_vertices, _back_triangles, _back_boundary = quality_piece_mesh(back, 0.0, particle_distance)
+            measured = nearest_target_clearance(tuple(front_vertices) + tuple(back_vertices), tuple(target_surface.vertices))
+            log("open-book-angle-deg=%d step0-clearance-mm=%.2f" % (angle, float(measured)))
+            if float(measured) >= float(clearance):
+                selected_angle = angle
+                selected_clearance = float(measured)
+                break
+        if selected_angle is None:
+            raise RuntimeError("open-book launch assembly could not satisfy the unchanged step-0 clearance gate")
+        front.Placement = piece_placement(front_outline, "front", selected_angle)
+        back.Placement = piece_placement(back_outline, "back", selected_angle)
+        front.Sketch.Placement = front.Placement
+        back.Sketch.Placement = back.Placement
+        log("open-book-selected-angle-deg=%d step0-clearance-mm=%.2f" % (selected_angle, selected_clearance))
+        return selected_angle, selected_clearance
+    open_book_angle, open_book_clearance = apply_open_book_launch_assembly()
+    refresh_drape_target(target); doc.recompute()
     status = target_status(target)
     if str(status.get("state", "")) != "ready":
         raise RuntimeError("canonical tunic DrapeTarget is not current: %s" % status.get("message", status))
@@ -411,6 +455,17 @@ def simulation():
     backend = getattr(proxy, "backend", None)
     if backend is None:
         raise RuntimeError("canonical tunic did not build a simulation backend")
+    initial_positions = tuple(backend.positions())
+    initial_span_records = []
+    initial_span_max = 0.0
+    for seam_id, stitch_pairs in sorted(getattr(proxy, "seam_stitch_pairs", {}).items()):
+        spans = []
+        for pair_a, pair_b in stitch_pairs:
+            a = initial_positions[int(pair_a)]; b = initial_positions[int(pair_b)]
+            span = (sum((float(a[i]) - float(b[i])) ** 2 for i in range(3))) ** 0.5
+            spans.append(span); initial_span_max = max(initial_span_max, span)
+        initial_span_records.append((str(seam_id), min(spans) if spans else 0.0, max(spans) if spans else 0.0, sum(spans) / len(spans) if spans else 0.0))
+    log("initial-stitch-spans=%s global-max-mm=%.3f" % (initial_span_records, initial_span_max))
     if list(getattr(scene, "PinSelection", ())) != []:
         raise RuntimeError("canonical tunic PinMode=None retained explicit PinSelection values")
     solver_pins = tuple(int(i) for i in getattr(backend, "_pin_indices", ()))
