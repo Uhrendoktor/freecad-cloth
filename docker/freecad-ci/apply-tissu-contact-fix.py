@@ -167,6 +167,12 @@ MeshOrientation inferMeshOrientation(
             "MeshCollider.cpp vector constructor",
         ),
         (
+            """        if (distance <= thickness) {
+            Eigen::Vector3d normal = (distance > 1e-6)
+                                         ? toParticle.normalized()
+                                         : ((b - a).cross(c - a)).normalized();
+
+            Eigen::Vector3d newPosition = cp + normal * thickness;""",
             """        Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
             const double faceNormalLength = faceNormalRaw.norm();
             if (faceNormalLength <= 1e-12)
