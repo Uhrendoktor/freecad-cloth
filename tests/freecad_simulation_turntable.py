@@ -297,23 +297,39 @@ def _style_mesh(obj):
     obj.ViewObject.LineWidth = 1.0
 
 
-def _opposite_top_edge_pins(piece, positions, panel_indices):
+def _diagonal_corner_pins(piece, positions, panel_indices):
     mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, BLANKET_PARTICLE_DISTANCE)
-    boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
+    boundary_vertices = tuple(
+        sorted(set(index for chain in boundary for index in chain), key=lambda index: index)
+    )
     if not boundary_vertices:
         raise RuntimeError("blanket quality mesh has no boundary vertices")
-    top_y = max(float(mesh_positions[index][1]) for index in boundary_vertices)
-    top_edge = tuple(index for index in boundary_vertices if abs(float(mesh_positions[index][1]) - top_y) <= 1e-9)
-    if len(top_edge) < 2:
-        raise RuntimeError("blanket top edge has fewer than two boundary vertices")
-    top = (
-        min(top_edge, key=lambda index: float(mesh_positions[index][0])),
-        max(top_edge, key=lambda index: float(mesh_positions[index][0])),
-    )
-    span = abs(float(mesh_positions[top[1]][0]) - float(mesh_positions[top[0]][0]))
-    if span < 0.75 * BLANKET_SIZE:
-        raise RuntimeError("blanket pins are not opposite top-edge corners: span=%.3f" % span)
-    return tuple(int(panel_indices[top_index]) for top_index in top), span
+    min_x = min(float(mesh_positions[index][0]) for index in boundary_vertices)
+    max_x = max(float(mesh_positions[index][0]) for index in boundary_vertices)
+    min_y = min(float(mesh_positions[index][1]) for index in boundary_vertices)
+    max_y = max(float(mesh_positions[index][1]) for index in boundary_vertices)
+    targets = ((min_x, min_y), (max_x, max_y))
+    available = list(boundary_vertices)
+    selected = []
+    for target_x, target_y in targets:
+        index = min(
+            available,
+            key=lambda candidate: (
+                (float(mesh_positions[candidate][0]) - target_x) ** 2
+                + (float(mesh_positions[candidate][1]) - target_y) ** 2
+            ),
+        )
+        selected.append(index)
+        available.remove(index)
+    lower_left, upper_right = selected
+    span_x = abs(float(mesh_positions[upper_right][0]) - float(mesh_positions[lower_left][0]))
+    span_y = abs(float(mesh_positions[upper_right][1]) - float(mesh_positions[lower_left][1]))
+    if span_x < 0.75 * BLANKET_SIZE or span_y < 0.75 * BLANKET_SIZE:
+        raise RuntimeError(
+            "blanket pins are not diagonally opposite corners: span_x=%.3f span_y=%.3f"
+            % (span_x, span_y)
+        )
+    return tuple(int(panel_indices[index]) for index in selected), span_x, span_y
 
 
 def _nearest_pin_indices(panel_indices, positions, targets):
@@ -443,9 +459,12 @@ def build_simulation_state(doc):
     proxy = scene.Proxy._base_or_restore()
     positions = tuple(proxy.backend.positions())
     panel_indices = tuple(proxy.panel_indices[panel.Name])
-    pins, span = _opposite_top_edge_pins(blanket, positions, panel_indices)
+    pins, span_x, span_y = _diagonal_corner_pins(blanket, positions, panel_indices)
     scene.PinSelection = [str(index) for index in pins]
-    log("blanket-pins=passed opposite-corners span=%.3f indices=%s" % (span, pins))
+    log(
+        "blanket-pins=passed diagonal-corners span_x=%.3f span_y=%.3f indices=%s"
+        % (span_x, span_y, pins)
+    )
     doc.recompute()
 
     sketch.ViewObject.Visibility = False
