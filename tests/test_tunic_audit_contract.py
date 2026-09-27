@@ -130,7 +130,7 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "SolverAllowsExitFromClosedSurface" in script
     assert "SolverPreservesFreeSpaceStitchConvergence" in script
     assert "direction.dot(outwardNormal) >= -epsilon" in script
-    assert "m_lambda = previousLambda + proposedDeltaLambda * lambdaScale;" in script
+    assert "m_lambda = previousLambda +\n        proposedDeltaLambda * lambdaScale;" in script
 
     tunic = workflow[workflow.index("  gui-tunic-visual:") : workflow.index("\n  gui-", workflow.index("  gui-tunic-visual:") + 5)]
     assert "FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix" in tunic
