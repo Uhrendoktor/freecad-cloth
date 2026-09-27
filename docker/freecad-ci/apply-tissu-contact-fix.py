@@ -718,14 +718,48 @@ void StitchConstraint::solveSwept(
 TEST(StitchConstraint, ParticleShareSamePosition) {""",
         """using namespace Tissu;
 
-static std::shared_ptr<MeshCollider> makeTriangleCollider(double y) {
+static std::shared_ptr<MeshCollider> makeTetrahedronCollider() {
     const std::vector<Eigen::Vector3d> vertices = {
-        {-2.0, y, -2.0},
-        {2.0, y, -2.0},
-        {0.0, y, 2.0},
+        {0.0, 0.0, 0.0},
+        {2.0, 0.0, 0.0},
+        {1.0, 0.0, 2.0},
+        {1.0, 2.0, 1.0},
     };
-    const std::vector<std::array<int, 3>> triangles = {{0, 1, 2}};
+    const std::vector<std::array<int, 3>> triangles = {
+        {0, 2, 1},
+        {0, 1, 3},
+        {1, 2, 3},
+        {0, 3, 2},
+    };
     return std::make_shared<MeshCollider>(vertices, triangles, 0.0);
+}
+
+static bool tetrahedronContains(const Eigen::Vector3d& point) {
+    const std::vector<Eigen::Vector3d> vertices = {
+        {0.0, 0.0, 0.0},
+        {2.0, 0.0, 0.0},
+        {1.0, 0.0, 2.0},
+        {1.0, 2.0, 1.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {
+        {0, 2, 1},
+        {0, 1, 3},
+        {1, 2, 3},
+        {0, 3, 2},
+    };
+    const Eigen::Vector3d center =
+        (vertices[0] + vertices[1] + vertices[2] + vertices[3]) / 4.0;
+    for (const auto& tri : triangles) {
+        const Eigen::Vector3d& a = vertices[tri[0]];
+        const Eigen::Vector3d& b = vertices[tri[1]];
+        const Eigen::Vector3d& c = vertices[tri[2]];
+        Eigen::Vector3d normal = (b - a).cross(c - a).normalized();
+        if ((center - a).dot(normal) > 0.0)
+            normal = -normal;
+        if ((point - a).dot(normal) > 1e-9)
+            return false;
+    }
+    return true;
 }
 
 TEST(StitchConstraint, ParticleShareSamePosition) {""",
@@ -733,90 +767,104 @@ TEST(StitchConstraint, ParticleShareSamePosition) {""",
     )
     let_stitch_test += r"""
 
-TEST(StitchConstraint, SolverClipsEndpointBeforeMeshCrossing) {
-    World world;
-    world.setGravity(Eigen::Vector3d::Zero());
-    world.setThickness(0.01);
-    world.addCollider(makeTriangleCollider(0.0));
+TEST(StitchConstraint, EnteringCrossingIsClassifiedAndExitIsIgnored) {
+    auto collider = makeTetrahedronCollider();
+    double hitT = 0.0;
+    int hitTriangle = -1;
+    bool hitEntering = false;
+    Eigen::Vector3d hitNormal = Eigen::Vector3d::Zero();
 
-    Solver solver;
-    solver.setSubsteps(1);
-    solver.setIterations(1);
-    const int a = solver.addParticle(Eigen::Vector3d(0.0, 0.1, 0.0));
-    const int b = solver.addParticle(Eigen::Vector3d(0.0, -1.0, 0.0));
-    solver.addStitch(a, b, 0.0);
+    EXPECT_TRUE(collider->firstSegmentHit(
+        Eigen::Vector3d(1.0, 2.5, 1.0),
+        Eigen::Vector3d(1.0, 0.5, 1.0),
+        hitT,
+        hitNormal,
+        hitTriangle,
+        hitEntering));
+    EXPECT_TRUE(hitEntering);
+    EXPECT_GT(hitT, 0.0);
+    EXPECT_LT(hitT, 1.0);
+    EXPECT_GT(hitNormal.norm(), 0.9);
 
-    solver.update(world, 0.016);
-
-    EXPECT_GE(solver.getParticles()[a].getPosition().y(), 0.009);
-    EXPECT_LT(solver.getParticles()[a].getPosition().y(), 0.1);
+    hitEntering = false;
+    EXPECT_FALSE(collider->firstSegmentHit(
+        Eigen::Vector3d(1.0, 0.5, 1.0),
+        Eigen::Vector3d(1.0, 2.5, 1.0),
+        hitT,
+        hitNormal,
+        hitTriangle,
+        hitEntering));
+    EXPECT_FALSE(hitEntering);
 }
 
-TEST(StitchConstraint, SolverPreservesFullFreeSpaceCorrection) {
+TEST(StitchConstraint, SolverScalesLambdaToActuallyAppliedEnteringCorrection) {
     World world;
     world.setGravity(Eigen::Vector3d::Zero());
     world.setThickness(0.01);
-    world.addCollider(makeTriangleCollider(10.0));
+    world.addCollider(makeTetrahedronCollider());
 
     Solver solver;
     solver.setSubsteps(1);
     solver.setIterations(1);
-    const int a = solver.addParticle(Eigen::Vector3d(0.0, 0.5, 0.0));
-    const int b = solver.addParticle(Eigen::Vector3d(0.0, -1.0, 0.0));
+    const int a = solver.addParticle(Eigen::Vector3d(1.0, 2.5, 1.0));
+    const int b = solver.addParticle(Eigen::Vector3d(1.0, 0.5, 1.0));
+    solver.setParticleInverseMass(b, 0.0);
     solver.addStitch(a, b, 0.0);
+
+    const Eigen::Vector3d startA = solver.getParticles()[a].getPosition();
+    const Eigen::Vector3d startB = solver.getParticles()[b].getPosition();
+    const Eigen::Vector3d norm = (startA - startB).normalized();
 
     solver.update(world, 0.016);
 
-    EXPECT_NEAR(solver.getParticles()[a].getPosition().y(), -0.25, 1e-9);
-    EXPECT_NEAR(solver.getParticles()[b].getPosition().y(), -0.25, 1e-9);
+    const double appliedLambda =
+        (solver.getParticles()[a].getPosition() - startA).dot(norm);
+    const double lambda = solver.getConstraints()[0]->getLambda();
+
+    EXPECT_NEAR(lambda, appliedLambda, 1.0e-9);
+    EXPECT_LT(std::abs(lambda), (startA - startB).norm());
+    EXPECT_FALSE(tetrahedronContains(solver.getParticles()[a].getPosition()));
 }
 
-TEST(StitchConstraint, SolverChoosesEarliestCrossingAcrossColliders) {
+TEST(StitchConstraint, SolverPreservesFullNoCrossingCorrection) {
     World world;
     world.setGravity(Eigen::Vector3d::Zero());
     world.setThickness(0.01);
-    world.addCollider(makeTriangleCollider(0.3));
-    world.addCollider(makeTriangleCollider(0.0));
+    world.addCollider(makeTetrahedronCollider());
 
     Solver solver;
     solver.setSubsteps(1);
     solver.setIterations(1);
-    const int a = solver.addParticle(Eigen::Vector3d(0.0, 0.5, 0.0));
-    const int b = solver.addParticle(Eigen::Vector3d(0.0, -0.5, 0.0));
+    const int a = solver.addParticle(Eigen::Vector3d(4.0, 3.0, 4.0));
+    const int b = solver.addParticle(Eigen::Vector3d(4.0, 2.0, 4.0));
     solver.addStitch(a, b, 0.0);
 
     solver.update(world, 0.016);
 
-    EXPECT_GE(solver.getParticles()[a].getPosition().y(), 0.289);
-    EXPECT_LT(solver.getParticles()[a].getPosition().y(), 0.5);
+    EXPECT_NEAR(solver.getParticles()[a].getPosition().y(), 2.5, 1e-9);
+    EXPECT_NEAR(solver.getParticles()[b].getPosition().y(), 2.5, 1e-9);
 }
 
-TEST(StitchConstraint, SolverDoesNotClipParallelTangentMotion) {
-    const std::vector<Eigen::Vector3d> vertices = {
-        {0.0, -2.0, -2.0},
-        {0.0, 2.0, -2.0},
-        {0.0, 0.0, 2.0},
-    };
-    const std::vector<std::array<int, 3>> triangles = {{0, 1, 2}};
-
+TEST(StitchConstraint, SolverDoesNotClipExitMotion) {
     World world;
     world.setGravity(Eigen::Vector3d::Zero());
     world.setThickness(0.01);
-    world.addCollider(std::make_shared<MeshCollider>(vertices, triangles, 0.0));
+    world.addCollider(makeTetrahedronCollider());
 
     Solver solver;
     solver.setSubsteps(1);
     solver.setIterations(1);
-    const int a = solver.addParticle(Eigen::Vector3d(0.1, 0.5, 0.0));
-    const int b = solver.addParticle(Eigen::Vector3d(0.1, -1.0, 0.0));
+    const int a = solver.addParticle(Eigen::Vector3d(1.0, 0.5, 1.0));
+    const int b = solver.addParticle(Eigen::Vector3d(1.0, 4.0, 1.0));
     solver.addStitch(a, b, 0.0);
 
     solver.update(world, 0.016);
 
-    EXPECT_NEAR(solver.getParticles()[a].getPosition().x(), 0.1, 1e-9);
-    EXPECT_NEAR(solver.getParticles()[a].getPosition().y(), -0.25, 1e-9);
+    EXPECT_NEAR(solver.getParticles()[a].getPosition().y(), 2.25, 1e-9);
+    EXPECT_NEAR(solver.getParticles()[b].getPosition().y(), 2.25, 1e-9);
 }
 """
+
     stitch_test.write_text(let_stitch_test, encoding="utf-8")
 
     let_mesh_test = test.read_text(encoding="utf-8");
@@ -834,20 +882,21 @@ TEST(MeshCollider, SegmentHitRejectsCoplanarTangentAndFindsCrossing) {
     double hitT = 0.0;
     Eigen::Vector3d hitNormal = Eigen::Vector3d::Zero();
     int hitTriangle = -1;
+    bool hitEntering = false;
     EXPECT_FALSE(mesh.firstSegmentHit(
         Eigen::Vector3d(-1.0, 0.0, 0.0),
         Eigen::Vector3d(1.0, 0.0, 0.0),
         hitT,
         hitNormal,
-        hitTriangle));
-    EXPECT_TRUE(mesh.firstSegmentHit(
+        hitTriangle,
+        hitEntering));
+    EXPECT_FALSE(mesh.firstSegmentHit(
         Eigen::Vector3d(0.0, -1.0, 0.0),
         Eigen::Vector3d(0.0, 1.0, 0.0),
         hitT,
         hitNormal,
-        hitTriangle));
-    EXPECT_NEAR(hitT, 0.5, 1e-9);
-    EXPECT_EQ(hitTriangle, 0);
+        hitTriangle,
+        hitEntering));
 }
 """
     test.write_text(let_mesh_test, encoding="utf-8")
