@@ -454,8 +454,7 @@ def _default_anchor_map(scene, pieces):
 def snap_pieces_to_target(pattern_pieces=None, clearance=8.0, max_translation=600.0, max_rotation=45.0):
     """Apply one shared rigid transform to a set of sewn garment pieces transactionally."""
     import FreeCAD as App
-    from freecad_cloth.avatar.AvatarCollision import CollisionSurface
-    from freecad_cloth.avatar.TargetAwarePlacement import TargetPlacementError, solve_rigid_z, target_surface_anchor, wrap_normal, minimum_anchor_clearance, apply_rigid_delta
+    from freecad_cloth.avatar.TargetAwarePlacement import TargetPlacementError, solve_rigid_z, target_surface_anchor, wrap_normal, minimum_anchor_clearance
     from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
 
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
@@ -479,7 +478,6 @@ def snap_pieces_to_target(pattern_pieces=None, clearance=8.0, max_translation=60
     )
     source_points = []
     target_points = []
-    normals = []
     index = range(len(surface.triangles))
     for anchor in anchors:
         piece = next(piece for piece in pieces if str(piece.PieceId) == str(anchor.piece_id))
@@ -489,7 +487,6 @@ def snap_pieces_to_target(pattern_pieces=None, clearance=8.0, max_translation=60
         desired = tuple(hit.point[i] + hit.normal[i] * (float(getattr(surface, "thickness", 0.0)) + float(clearance)) for i in range(3))
         source_points.append((float(source.x), float(source.y), float(source.z)))
         target_points.append(desired)
-        normals.append(normal)
     delta = solve_rigid_z(
         source_points,
         target_points,
@@ -521,8 +518,14 @@ def snap_pieces_to_target(pattern_pieces=None, clearance=8.0, max_translation=60
         for anchor in anchors:
             piece = next(piece for piece in pieces if str(piece.PieceId) == str(anchor.piece_id))
             point = piece.Placement.multVec(App.Vector(*anchor.position))
-            if float(minimum_anchor_clearance(surface, [((float(point.x), float(point.y), float(point.z))), wrap_normal(anchor.wrap_direction)])) < float(clearance) - 1e-6:
-                raise TargetPlacementError("shared rigid placement did not establish the required target clearance")
+            placed_anchor_records = []
+        for anchor in anchors:
+            piece = next(piece for piece in pieces if str(piece.PieceId) == str(anchor.piece_id))
+            point = piece.Placement.multVec(App.Vector(*anchor.position))
+            placed_anchor_records.append(((float(point.x), float(point.y), float(point.z)), wrap_normal(anchor.wrap_direction)))
+        actual_clearance = float(minimum_anchor_clearance(surface, placed_anchor_records))
+        if actual_clearance < float(clearance) - 1e-6:
+            raise TargetPlacementError("shared rigid placement did not establish the required target clearance")
         placement_values = []
         for piece in sorted(pieces, key=lambda item: str(item.PieceId)):
             base = piece.Placement.Base
@@ -549,16 +552,7 @@ def snap_pieces_to_target(pattern_pieces=None, clearance=8.0, max_translation=60
             "translation": tuple(round(float(v), 6) for v in delta.translation),
             "rotation_z": round(float(delta.rotation_z), 6),
             "anchor_residual": round(float(delta.residual_max), 6),
-            "clearance": round(float(minimum_anchor_clearance(surface, [
-                (
-                    tuple(float(value) for value in (
-                        piece.Placement.multVec(App.Vector(*anchor.position)).x,
-                        piece.Placement.multVec(App.Vector(*anchor.position)).y,
-                        piece.Placement.multVec(App.Vector(*anchor.position)).z,
-                    )),
-                    wrap_normal(anchor.wrap_direction),
-                )
-            ] for anchor in anchors)), 6),
+            "clearance": round(actual_clearance, 6),
         }
     except Exception:
         for piece, placement, sketch_placement in snapshots:
@@ -574,6 +568,7 @@ def snap_pieces_to_target(pattern_pieces=None, clearance=8.0, max_translation=60
 
 def snap_pattern_pieces_to_target(pattern_pieces=None):
     """Public adapter used by the Simulation workbench target-snap button."""
+    import FreeCAD as App
     pieces = tuple(pattern_pieces or ())
     doc = App.ActiveDocument
     scene = _scene(doc) if doc is not None else None
