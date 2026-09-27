@@ -1,8 +1,11 @@
 """CI entry point for the full tunic visual/simulation audit."""
 from pathlib import Path
+import json
 import os
 import re
 import sys
+import traceback
+from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -151,6 +154,55 @@ def _compile_generated_source(source_text):
             % (error.msg, line_number, context)
         ) from error
 
+# The generated acceptance source historically terminates with os._exit(), which can
+# discard buffered diagnostics and leave CI with only a bare exit code. For this
+# wrapper, convert those terminal exits to SystemExit so the supervisor can emit
+# a full traceback and a durable failure report.
+source = source.replace('os._exit(1)', 'raise SystemExit(1)')
+source = source.replace('getattr(os, "_" + "exit")(0)', 'raise SystemExit(0)')
+
+def _diagnostic_report_path():
+    return Path(os.environ.get(
+        "TUNIC_AUDIT_DIAGNOSTICS",
+        str(ROOT / "docs" / "images" / "generated" / "tunic-audit-diagnostics.txt"),
+    ))
+
+def _write_failure_report(error):
+    path = _diagnostic_report_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "tunic-audit-diagnostics",
+        "timestamp_utc=%s" % datetime.now(timezone.utc).isoformat(),
+        "python=%s" % sys.version.replace("\n", " "),
+        "platform=%s" % sys.platform,
+        "cwd=%s" % os.getcwd(),
+        "pid=%s" % os.getpid(),
+        "source_path=%s" % source_path,
+        "generated_source_lines=%d" % len(source.splitlines()),
+        "collision_mode=%s" % os.environ.get("CLOTH_TISSU_COLLISION_MODE", ""),
+        "simulation_backend=%s" % os.environ.get("CLOTH_SIMULATION_BACKEND", ""),
+        "tissu_substeps=%s" % os.environ.get("CLOTH_TISSU_SUBSTEPS", ""),
+        "tissu_collision_triangles=%s" % os.environ.get("CLOTH_TISSU_COLLISION_TRIANGLES", ""),
+        "exception_type=%s" % type(error).__name__,
+        "exception=%r" % (error,),
+        "",
+        "traceback:",
+        traceback.format_exc(),
+    ]
+    path.write_text("\n".join(lines), encoding="utf-8")
+    print("tunic-audit-diagnostics-path=%s" % path, flush=True)
+    print("tunic-audit-diagnostics-exception=%s: %r" % (type(error).__name__, error), flush=True)
+    try:
+        log_path = ROOT / "docs" / "images" / "generated" / "gui-progress.log"
+        if log_path.is_file():
+            tail = log_path.read_text(encoding="utf-8", errors="replace").splitlines()[-80:]
+            print("tunic-audit-gui-log-tail-begin", flush=True)
+            for line in tail:
+                print(line, flush=True)
+            print("tunic-audit-gui-log-tail-end", flush=True)
+    except Exception as log_error:
+        print("tunic-audit-log-tail-error=%r" % (log_error,), flush=True)
+
 compiled_source = _compile_generated_source(source)
 if "--syntax-check" in sys.argv:
     print(
@@ -161,6 +213,18 @@ if "--syntax-check" in sys.argv:
 
 # The source uses the production simulation path; this wrapper only stabilizes
 # the tunic fixture and verifies the realtime Tissu selector.
-exec(compiled_source, globals(), globals())
-print("tunic-audit-process-exit=success", flush=True)
-os._exit(0)
+try:
+    exec(compiled_source, globals(), globals())
+except SystemExit as error:
+    code = int(getattr(error, "code", 1) or 0)
+    if code:
+        _write_failure_report(error)
+        print("tunic-audit-process-exit=failure code=%d" % code, flush=True)
+        raise SystemExit(code)
+    print("tunic-audit-process-exit=success", flush=True)
+except BaseException as error:
+    _write_failure_report(error)
+    print("tunic-audit-process-exit=failure exception=%s" % type(error).__name__, flush=True)
+    raise
+else:
+    print("tunic-audit-process-exit=success", flush=True)
