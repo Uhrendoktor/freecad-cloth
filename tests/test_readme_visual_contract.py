@@ -79,3 +79,9 @@ def test_blanket_visual_fixture_uses_authoritative_quality_solver_budget():
     assert 'scene.SolverIterations = 4' in source
     assert 'scene.SolverSubsteps = 1' in source
     assert 'motion-frames=passed count=%d final_steps=%d' in source
+
+
+def test_readme_fixture_uses_interior_two_pin_targets():
+    assert "App.Vector(-0.40 * BLANKET_SIZE, 0.0, BLANKET_START_Z)" in source
+    assert "App.Vector(0.40 * BLANKET_SIZE, 0.0, BLANKET_START_Z)" in source
+    assert "span < 0.75 * BLANKET_SIZE" in source
