@@ -724,8 +724,7 @@ void StitchConstraint::solveInternal(
         "StitchConstraint collision-aware solve implementation",
     )
 
-    # Reconcile the generated stitch implementation with the numerical and
-    # integration contract: one scalar lambda must match the correction actually applied.
+    # Reconcile generated clip helper into the final scalar-lambda solve before source validation.
     stitch_cpp_text = stitch_cpp.read_text(encoding="utf-8")
     sweep_start = "namespace {\n\nstruct ClippedCorrection {"
     sweep_end = "\nvoid StitchConstraint::solve(std::vector<Particle>& particles, double dt) {"
