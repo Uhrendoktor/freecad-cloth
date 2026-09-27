@@ -8,7 +8,7 @@ from typing import Iterable, Sequence, Tuple
 import os
 from math import isfinite
 
-from freecad_cloth.avatar.AvatarCollision import CollisionSurface, coarsen_collision_surface, surface_from_triangles
+from freecad_cloth.avatar.AvatarCollision import CollisionSurface, surface_from_triangles
 from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 
