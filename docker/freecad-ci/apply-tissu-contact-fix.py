@@ -525,11 +525,15 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
     solver_text = solver_text.replace(solver_old, solver_new, 1)
     solver_cpp.write_text(solver_text, encoding="utf-8")
 
-    test_cpp = test.read_text(encoding="utf-8")
-    test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <memory>\n#include <vector>\n", 1)
-    test_cpp = test_cpp.replace(
+    cloth_test_cpp = cloth_test.read_text(encoding="utf-8")
+    cloth_test_cpp = cloth_test_cpp.replace(
         '#include "physics/Solver.hpp"\n',
         '#include "engine/World.hpp"\n#include "physics/Collider.hpp"\n#include "physics/Solver.hpp"\n',
+        1,
+    )
+    cloth_test_cpp = cloth_test_cpp.replace(
+        "#include <gtest/gtest.h>\n",
+        "#include <gtest/gtest.h>\n#include <memory>\n",
         1,
     )
     post_collision_test = """class DisplacingCollider final : public Collider {
@@ -570,14 +574,17 @@ TEST(Solver, ReenforcesStitchesAfterColliderProjection) {
 }
 
 """
-    cloth_anchor = '#include "engine/Cloth.hpp"\n'
-    if test_cpp.count(cloth_anchor) != 1:
-        raise RuntimeError("Cloth test include anchor missing")
-    test_cpp = test_cpp.replace(
-        cloth_anchor,
-        cloth_anchor + post_collision_test,
+    if cloth_test_cpp.count("TEST(Cloth, ClearFabric)") != 1:
+        raise RuntimeError("Cloth test anchor missing")
+    cloth_test_cpp = cloth_test_cpp.replace(
+        "TEST(Cloth, ClearFabric) {",
+        post_collision_test + "TEST(Cloth, ClearFabric) {",
         1,
     )
+    cloth_test.write_text(cloth_test_cpp, encoding="utf-8")
+
+    test_cpp = test.read_text(encoding="utf-8")
+    test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
 
     helper = """static bool tetrahedronContains(const Eigen::Vector3d& point) {
     const std::vector<Eigen::Vector3d> vertices = {
