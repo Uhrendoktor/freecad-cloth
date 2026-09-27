@@ -19,6 +19,12 @@ on:
         required: false
         type: string
         default: ""
+      run_diagnostics:
+        description: "Optional diagnostic-only suite; never participates in release acceptance."
+        required: false
+        type: choice
+        default: none
+        options: [none, contact]
   schedule:
     - cron: '0 3 * * *'
 
@@ -464,6 +470,87 @@ jobs:
           if-no-files-found: error
           compression-level: 1
 
+  diagnostic-contact-controls:
+    name: Diagnostic contact controls (manual only)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_diagnostics == 'contact' }}
+    needs: [local_runner_readiness]
+    runs-on: ${{ inputs.runner_mode == 'hosted' && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 12
+    env:
+      FREECAD_TUNISU_IMAGE: freecad-cloth-ci:tissu-contact-fix
+      FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix
+    steps:
+      - name: Log selected execution mode
+        run: |
+          set -euo pipefail
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@v5
+        with:
+          ref: $GITHUB_SHA
+          persist-credentials: false
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build pinned Tissu diagnostic image
+        run: |
+          set -euo pipefail
+          docker build --pull --progress=plain -t "$FREECAD_TUNIC_IMAGE" -f docker/freecad-ci/Dockerfile .
+      - name: Run contact controls
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/contact-controls
+          mkdir -p artifacts/contact-controls
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu \
+            -e CLOTH_TISSU_SUBSTEPS=1 -e CLOTH_TISSU_COLLISION_MODE=mesh \
+            -e CLOTH_TISSU_COLLISION_TRIANGLES=2048 \
+            -e CLOTH_CONTACT_CONTROLS_DIR=/workspace/artifacts/contact-controls \
+            -v "$GITHUB_WORKSPACE:/workspace" -w /workspace "$FREECAD_TUNIC_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/contact-controls
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_contact_controls.py
+            '
+      - name: Validate diagnostic manifest
+        run: |
+          set -euo pipefail
+          test -s artifacts/contact-controls/manifest.json
+          test -s artifacts/contact-controls/cube-inside-step-0.png
+          test -s artifacts/contact-controls/cube-inside-step-1.png
+          test -s artifacts/contact-controls/avatar-inside-step-0.png
+          test -s artifacts/contact-controls/avatar-inside-step-1.png
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path("artifacts/contact-controls/manifest.json").read_text(encoding="utf-8"))
+          assert manifest["schema"] == 1, manifest
+          assert len(manifest["results"]) == 2, manifest
+          for result in manifest["results"]:
+              assert result["inside"]["finite"], result
+              assert result["outside"]["finite"], result
+              assert result["solver_triangles"] > 0, result
+          avatar = next(result for result in manifest["results"] if result["rung"] == "0a")
+          assert avatar["solver_triangles"] == 2048, avatar
+          print("diagnostic-manifest=valid")
+          PY
+      - name: Upload contact control evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: diagnostic-contact-controls
+          path: artifacts/contact-controls/
+          if-no-files-found: error
+          compression-level: 1
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
     needs: [local_runner_readiness]
