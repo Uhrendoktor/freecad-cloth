@@ -518,10 +518,34 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
                         (float(group_target[index]) - float(group_center[index])) ** 2
                         for index in range(3)
                     ) ** 0.5
-                    if group_error < current_group_error - 1e-6:
-                        accepted_step = step
-                        accepted_proximity_error = group_error
-                        break
+                    if group_error >= current_group_error - 1e-6:
+                        continue
+                    # The fallback is only a candidate proximity step. Before accepting it,
+                    # prove the translated PatternMesh still satisfies the exact clearance
+                    # contract; this avoids taking a centroid-improving step through the target.
+                    candidate_clearances = []
+                    for piece in selected:
+                        translated_samples = tuple(
+                            tuple(
+                                float(point[index]) + float(step[index])
+                                for index in range(3)
+                            )
+                            for point in sample_cache[piece]
+                        )
+                        candidate_clearances.append(
+                            minimum_signed_clearance(
+                                translated_samples,
+                                surface,
+                            ).minimum_signed_clearance
+                        )
+                    if any(
+                        value < required - 1e-6
+                        for value in candidate_clearances
+                    ):
+                        continue
+                    accepted_step = step
+                    accepted_proximity_error = group_error
+                    break
 
             if accepted_step is None:
                 raise ValueError(
