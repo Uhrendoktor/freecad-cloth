@@ -48,7 +48,7 @@ permissions:
 jobs:
   contact_controls:
     name: Diagnostic contact controls 0/0a
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls == true }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls == true) || (github.event_name == 'pull_request' && github.head_ref == 'supervisor/contact-controls-2484-20260927') }}
     needs: [local_runner_readiness]
     runs-on: ${{ (inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 15
