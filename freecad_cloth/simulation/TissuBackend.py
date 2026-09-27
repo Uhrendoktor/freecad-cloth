@@ -7,13 +7,57 @@ from copy import deepcopy
 from typing import Iterable, Sequence, Tuple
 import os
 
-from freecad_cloth.avatar.AvatarCollision import CollisionSurface, coarsen_collision_surface
+from freecad_cloth.avatar.AvatarCollision import CollisionSurface
 from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 
 _MM = 1000.0
 _TISSU_SUBSTEPS_DEFAULT = 1
 _TISSU_COLLISION_TRIANGLES_DEFAULT = 0
+
+def _coarsen_collision_surface_topology_preserving(surface: CollisionSurface, max_triangles: int) -> CollisionSurface:
+    """Reduce the Tissu collision mesh with FreeCAD's topology-aware decimator."""
+    limit = int(max_triangles)
+    surface.validate()
+    if limit < 1:
+        raise ValueError("max_triangles must be positive")
+
+    import Mesh
+
+    facets = [
+        [
+            tuple(float(coord) for coord in surface.vertices[a]),
+            tuple(float(coord) for coord in surface.vertices[b]),
+            tuple(float(coord) for coord in surface.vertices[c]),
+        ]
+        for a, b, c in surface.triangles
+    ]
+    native = Mesh.Mesh(facets)
+    if native.hasNonManifolds():
+        raise RuntimeError("Tissu source collision mesh is non-manifold")
+    if len(native.Topology[1]) > limit:
+        native.decimate(limit)
+    native.harmonizeNormals()
+    if native.hasNonManifolds():
+        raise RuntimeError("Tissu decimated collision mesh is non-manifold")
+    topology = native.Topology
+    vertices = tuple(
+        (float(point[0]), float(point[1]), float(point[2]))
+        for point in topology[0]
+    )
+    triangles = tuple(
+        tuple(int(index) for index in face)
+        for face in topology[1]
+    )
+    if not triangles or len(triangles) > limit:
+        raise RuntimeError(
+            "Tissu decimated collision mesh violates triangle budget: %d > %d"
+            % (len(triangles), limit)
+        )
+    result = CollisionSurface(vertices, triangles, surface.region, surface.thickness)
+    result.validate()
+    return result
+
 
 
 def _tissu_substeps():
@@ -106,9 +150,9 @@ class TissuBackend(ClothSimulationBackend):
         self._source_collision_surface = collision_surface
         collision_limit = _tissu_collision_triangle_limit()
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
-            collision_surface = coarsen_collision_surface(collision_surface, collision_limit)
+            collision_surface = _coarsen_collision_surface_topology_preserving(collision_surface, collision_limit)
             print(
-                "cloth-tissu-collision source_triangles=%d solver_triangles=%d limit=%d"
+                "cloth-tissu-collision source_triangles=%d solver_triangles=%d limit=%d solver_closed_manifold=1"
                 % (
                     len(self._source_collision_surface.triangles),
                     len(collision_surface.triangles),
