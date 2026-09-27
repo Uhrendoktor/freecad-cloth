@@ -192,6 +192,7 @@ def test_simulation_quality_panel_exposes_bounded_arrange_fit_bridge():
     assert "open_arrange_fit_from_simulation" in quality_gui
     assert "reset_arrangement_from_simulation" in quality_gui
     assert "snap_to_target" in quality_gui
+    assert "snap_pattern_pieces_to_target" in quality_gui
     assert "ClothPieces" in handoff
     assert 'Gui.activateWorkbench("ClothSewingWorkbench")' in handoff
     assert "assign_avatar_source" not in handoff
@@ -204,3 +205,14 @@ def test_pattern_drafting_remains_compatibility_only():
 
 
 print("GUI structure checks passed")
+
+
+
+def test_fitting_command_registers_target_snap_and_persists_target_bridge():
+    fitting = (ROOT / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    handoff = (ROOT / "freecad_cloth" / "simulation" / "FittingHandoff.py").read_text(encoding="utf-8")
+    assert "def snap_pattern_pieces_to_target" in fitting
+    assert '"ClothFitting_SnapPiecesToTarget"' in fitting
+    assert 'PropertyLinkGlobal", "DrapeTarget", "Fitting"' in fitting
+    assert 'simulation.DrapeTarget = scene.DrapeTarget' in fitting
+    assert 'fitting.DrapeTarget = target' in handoff
