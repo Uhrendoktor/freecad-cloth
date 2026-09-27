@@ -150,6 +150,7 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     assert "'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))'," in audit
 
 
+# Keep source-rewriter consumers topology-neutral: the fixture owns the semantic seam ABI.
 def test_tunic_screenshot_fixture_uses_production_semantic_seam_abi():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert "front_edge_ids[1], back_edge_ids[1], \"TunicRightSide\"" in source
