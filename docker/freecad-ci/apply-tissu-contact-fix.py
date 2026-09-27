@@ -499,8 +499,7 @@ void StitchConstraint::solveWithColliders(
     const double proposedDeltaLambda = m_lambda - previousLambda;
 
     // Keep lambda consistent with the correction that was actually applied.
-    m_lambda = previousLambda +
-        proposedDeltaLambda * lambdaScale;
+    m_lambda = previousLambda + proposedDeltaLambda * lambdaScale;
 }""",
         "StitchConstraint collision-aware solve",
     )
