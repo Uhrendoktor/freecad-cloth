@@ -384,6 +384,9 @@ def simulation():
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
+    open_book_angles = {}
+    open_book_pivots = {}
+    open_book_required_offsets = {}
     def open_book_piece_placement(side, outline):
         from math import asin, degrees, isfinite
         if side not in ("front", "back"):
@@ -416,6 +419,9 @@ def simulation():
         if sine <= 0.0 or sine >= 1.0:
             raise RuntimeError("open-book tunic geometry cannot place the panel outside the target depth")
         opening_angle = degrees(asin(sine))
+        open_book_angles[side] = float(opening_angle)
+        open_book_pivots[side] = (float(pivot.x), float(pivot.y), float(pivot.z))
+        open_book_required_offsets[side] = float(required_offset)
         sign = -1.0 if side == "front" else 1.0
         rotation = App.Rotation(App.Vector(1, 0, 0), 90.0 + sign * opening_angle)
         translation = pivot - rotation.multVec(local_shoulder)
@@ -453,13 +459,14 @@ def simulation():
     for seam_id, stitch_pairs in sorted(stitch_pairs_by_seam.items()):
         initial_spans[str(seam_id)] = round(float(_post_drape_seam_gap(tuple(stitch_pairs), initial_positions)), 6)
     initial_seam_span = max(initial_spans.values()) if initial_spans else 0.0
-    log("open-book-pivot=(%.3f,%.3f,%.3f) opening-angle-deg=%.6f body-depth-mm=%.3f required-offset-mm=%.3f" % (
-        float(x_mid),
-        float(0.5 * (shoulder_left.y + shoulder_right.y)),
-        float(shoulder_z),
-        float(opening_angle),
+    log("open-book-pivot=front=(%.3f,%.3f,%.3f) back=(%.3f,%.3f,%.3f) opening-angle-deg=front:%.6f back:%.6f body-depth-mm=%.3f required-offset-mm=front:%.3f back:%.3f" % (
+        *open_book_pivots["front"],
+        *open_book_pivots["back"],
+        float(open_book_angles["front"]),
+        float(open_book_angles["back"]),
         float(body_depth),
-        float(0.5 * body_depth + clearance),
+        float(open_book_required_offsets["front"]),
+        float(open_book_required_offsets["back"]),
     ))
     log("initial-solver-stitch-spans-mm=%s max=%.3f" % (initial_spans, initial_seam_span))
     if str(getattr(scene, "PinMode", "")) != "None":
