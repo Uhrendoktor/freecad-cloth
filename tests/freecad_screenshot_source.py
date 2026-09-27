@@ -384,17 +384,30 @@ def simulation():
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
+    from math import atan2, cos, degrees, sin
     rot = App.Rotation(App.Vector(1,0,0), 90.0)
-    def target_relative_piece_placement(side):
-        if side == "front":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
-        elif side == "back":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
-        else:
-            raise ValueError("tunic target-relative side must be front or back")
-        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
+    def open_book_piece_placement(side, outline):
+        if side not in ("front", "back"):
+            raise ValueError("open-book tunic side must be front or back")
+        if len(outline) < 8:
+            raise ValueError("open-book tunic outline is incomplete")
+        right_shoulder_mid_x = 0.5 * (float(outline[2][0]) + float(outline[3][0]))
+        left_shoulder_mid_x = 0.5 * (float(outline[5][0]) + float(outline[6][0]))
+        shoulder_pair_mid_x = 0.5 * (right_shoulder_mid_x + left_shoulder_mid_x)
+        hinge_y = 0.5 * (float(shoulder_left.y) + float(shoulder_right.y))
+        pivot = App.Vector(x_mid, hinge_y, shoulder_z)
+        opening_angle = degrees(atan2(0.55 * body_depth, max(1.0, garment_height)))
+        sign = -1.0 if side == "front" else 1.0
+        angle = sign * opening_angle
+        radians = angle * 3.141592653589793 / 180.0
+        base_x = x_mid - shoulder_pair_mid_x
+        base_z_offset = hem_z - pivot.z
+        base_y = pivot.y - sin(radians) * base_z_offset
+        base_z = pivot.z + cos(radians) * base_z_offset
+        placement_rotation = App.Rotation(App.Vector(1,0,0), 90.0 + angle)
+        return App.Placement(App.Vector(base_x, base_y, base_z), placement_rotation)
     def make_piece(name, side, neckline_ratio, neckline_drop):
-        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(side); piece.Sketch.Placement = piece.Placement; return piece, outline
+        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = open_book_piece_placement(side, outline); piece.Sketch.Placement = piece.Placement; return piece, outline
     front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
