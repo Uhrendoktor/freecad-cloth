@@ -1,0 +1,52 @@
+name: Simulation visual review
+description: Record one simulation experiment with the actual rendered result for human inspection
+title: "[sim-review] "
+labels: ["simulation"]
+body:
+  - type: textarea
+    id: hypothesis
+    attributes:
+      label: Hypothesis
+      description: State exactly one causal hypothesis and the one bounded change being tested.
+    validations:
+      required: true
+  - type: textarea
+    id: exact_head
+    attributes:
+      label: Exact head and run
+      description: Give the exact commit SHA and GitHub Actions run URL or ID.
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Actual screenshots
+      description: "Required: drag-and-drop or paste the actual PNG screenshots into this field. Include the initial state, post-step state, relevant intermediate checkpoints, and final six views where applicable. Artifact links alone do not satisfy review."
+      placeholder: |
+        Paste screenshots here.
+
+        What changed visually?
+        What stayed wrong?
+    validations:
+      required: true
+  - type: textarea
+    id: automated
+    attributes:
+      label: Automated evidence
+      description: Summarize finite/seam/clearance/runtime and link the exact artifact.
+    validations:
+      required: true
+  - type: textarea
+    id: human_observation
+    attributes:
+      label: Human visual observation
+      description: Describe what the rendered geometry visibly does, without inferring causes not supported by the image.
+    validations:
+      required: true
+  - type: textarea
+    id: decision
+    attributes:
+      label: Review disposition
+      description: Record whether the hypothesis remains plausible, is falsified, or needs a new bounded experiment; do not stack unrelated physics changes.
+    validations:
+      required: true
