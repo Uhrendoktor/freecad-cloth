@@ -24,6 +24,7 @@ from freecad_tissu_contact_diagnostics import (
     _nearest_surface_distance,
     _progress,
     _screenshot,
+    _shutdown_gui,
     _target_signature,
 )
 
@@ -458,5 +459,16 @@ def main():
     return 0
 
 
+def _run_and_shutdown():
+    status = 1
+    try:
+        status = int(main() or 0)
+    except BaseException as exc:
+        _progress("cube-ladder: main-failed=%r" % (exc,))
+    finally:
+        _shutdown_gui()
+    os._exit(status)
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    _run_and_shutdown()
