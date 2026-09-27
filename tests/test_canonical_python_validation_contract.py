@@ -41,3 +41,16 @@ def test_visual_review_is_mandatory_and_exports_intermediate_states():
     assert "for batch in (15,15,15,15,15,15):" in source
     assert "visual_checkpoints = (15,30,45,60,75,90)" in audit
     assert 'cloth-simulation-draped-step-%03d.png' in audit
+
+
+def test_tunic_audit_replaces_hard_exit_and_writes_failure_diagnostics():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "source = source.replace('os._exit(1)', 'raise SystemExit(1)')" in audit
+    assert 'source = source.replace(\'getattr(os, "_" + "exit")(0)\', \'raise SystemExit(0)\')' in audit
+    assert "tunic-audit-diagnostics-path=" in audit
+    assert "traceback.format_exc()" in audit
+    assert "tunic-audit-gui-log-tail-begin" in audit
+    assert "docs/images/generated/tunic-audit-diagnostics.txt" in workflow
