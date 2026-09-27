@@ -599,6 +599,10 @@ jobs:
             docs/images/generated/gui-screenshot-manifest.txt
             artifacts/garment-e2e.log
             artifacts/tissu-provenance.txt
+            artifacts/tunic-audit.stdout.log
+            artifacts/tunic-audit.stderr.log
+            artifacts/freecad-realtime-benchmark.stdout.log
+            artifacts/freecad-realtime-benchmark.stderr.log
           if-no-files-found: error
           compression-level: 1
 
