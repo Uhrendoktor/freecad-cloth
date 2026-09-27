@@ -44,8 +44,8 @@ PENETRATION_MM = 0.75
 
 
 def _progress(message):
+    """Persist progress before any console I/O dependency."""
     line = "contact-controls: " + str(message)
-    print(line, flush=True)
     _PROGRESS_HANDLE.write(line + "\n")
     _PROGRESS_HANDLE.flush()
 
