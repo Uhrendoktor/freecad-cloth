@@ -221,3 +221,6 @@ def test_fitting_command_registers_target_snap_and_persists_target_bridge():
     assert "all snapped PatternPieces must belong to the fitting scene" in fitting
     assert "select or assign at least one PatternPiece before snapping to a target" in fitting
     assert "target snap exceeds the configured translation bound" in target_placement
+    assert "translations_by_piece" in fitting
+    assert "centroids_by_piece" in fitting
+    assert "piece_clearance" in fitting
