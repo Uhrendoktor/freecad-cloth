@@ -269,6 +269,7 @@ def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=No
         "hem_z": hem_z,
         "panels": records,
         "seam_coherence": _seam_coherence(panels, seam_records, proxy=proxy),
+        "collision_coverage_probe": coverage_probe if os.environ.get("CLOTH_TISSU_COLLISION_COVERAGE_PROBE") == "1" else None,
     }
     with open(METRICS, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, sort_keys=True)
@@ -363,6 +364,101 @@ def simulation():
     )
     if not target_surface.vertices or not target_surface.triangles:
         raise RuntimeError("canonical tunic DrapeTarget has no authoritative collision triangles")
+
+
+    def _surface_topology(surface):
+        edge_counts = {}
+        triangle_edges = []
+        for tri in surface.triangles:
+            local_edges = (
+                (min(int(tri[0]), int(tri[1])), max(int(tri[0]), int(tri[1]))),
+                (min(int(tri[1]), int(tri[2])), max(int(tri[1]), int(tri[2]))),
+                (min(int(tri[2]), int(tri[0])), max(int(tri[2]), int(tri[0]))),
+            )
+            triangle_edges.append(local_edges)
+            for edge in local_edges:
+                edge_counts[edge] = edge_counts.get(edge, 0) + 1
+        adjacency = [set() for _ in surface.triangles]
+        by_edge = {}
+        for index, edges in enumerate(triangle_edges):
+            for edge in edges:
+                by_edge.setdefault(edge, []).append(index)
+        for indices in by_edge.values():
+            if len(indices) > 1:
+                first = indices[0]
+                for other in indices[1:]:
+                    adjacency[first].add(other)
+                    adjacency[other].add(first)
+        components = 0
+        seen = set()
+        for start in range(len(adjacency)):
+            if start in seen:
+                continue
+            components += 1
+            stack = [start]
+            seen.add(start)
+            while stack:
+                current = stack.pop()
+                for other in adjacency[current]:
+                    if other not in seen:
+                        seen.add(other)
+                        stack.append(other)
+        return {
+            "triangle_count": int(len(surface.triangles)),
+            "unique_edge_count": int(len(edge_counts)),
+            "boundary_edge_count": int(sum(1 for count in edge_counts.values() if count == 1)),
+            "nonmanifold_edge_count": int(sum(1 for count in edge_counts.values() if count > 2)),
+            "connected_triangle_components": int(components),
+        }
+
+    if os.environ.get("CLOTH_TISSU_COLLISION_COVERAGE_PROBE") == "1":
+        from freecad_cloth.avatar.AvatarCollision import coarsen_collision_surface
+        import numpy as np
+
+        coarse = coarsen_collision_surface(target_surface, 2048)
+        full_topology = _surface_topology(target_surface)
+        coarse_topology = _surface_topology(coarse)
+
+        centroids = np.asarray(
+            [
+                [
+                    sum(float(target_surface.vertices[index][axis]) for index in tri) / 3.0
+                    for axis in range(3)
+                ]
+                for tri in target_surface.triangles
+            ],
+            dtype=float,
+        )
+        coarse_centroids = np.asarray(
+            [
+                [
+                    sum(float(coarse.vertices[index][axis]) for index in tri) / 3.0
+                    for axis in range(3)
+                ]
+                for tri in coarse.triangles
+            ],
+            dtype=float,
+        )
+        stride = max(1, len(centroids) // 512)
+        sampled = centroids[::stride][:512]
+        nearest_centroid_distances = []
+        for point in sampled:
+            deltas = coarse_centroids - point
+            nearest_centroid_distances.append(float(np.sqrt(np.min(np.sum(deltas * deltas, axis=1)))))
+        coverage_probe = {
+            "source": full_topology,
+            "coarse": coarse_topology,
+            "source_vertex_count": int(len(target_surface.vertices)),
+            "coarse_vertex_count": int(len(coarse.vertices)),
+            "sampled_source_triangle_centroids": int(len(sampled)),
+            "nearest_coarse_triangle_centroid_distance_mm": {
+                "min": float(np.min(nearest_centroid_distances)),
+                "mean": float(np.mean(nearest_centroid_distances)),
+                "p95": float(np.percentile(nearest_centroid_distances, 95)),
+                "max": float(np.max(nearest_centroid_distances)),
+            },
+        }
+        log("tunic-collision-coverage-probe=%s" % json.dumps(coverage_probe, sort_keys=True))
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
     def arrangement_world(name):
         raw = next((value for value in getattr(avatar, "ArrangementPoints", ()) if str(value).split("|", 1)[0] == name), None)
