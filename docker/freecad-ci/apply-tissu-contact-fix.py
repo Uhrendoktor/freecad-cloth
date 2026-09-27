@@ -380,60 +380,7 @@ namespace Tissu {""",
     pA.setPosition(pA.getPosition() + wA * norm * deltaLambda);
     pB.setPosition(pB.getPosition() - wB * norm * deltaLambda);
 }""",
-        """namespace {
-
-struct AppliedCorrection {
-    Eigen::Vector3d correction = Eigen::Vector3d::Zero();
-    double scale = 1.0;
-};
-
-AppliedCorrection clipCorrectionAtFirstEnteringMeshHit(
-    const Eigen::Vector3d& start,
-    const Eigen::Vector3d& correction,
-    const std::vector<std::shared_ptr<Collider>>& colliders,
-    double thickness) {
-    if (correction.squaredNorm() <= 1e-18)
-        return {correction, 1.0};
-
-    double bestT = 1.0;
-    Eigen::Vector3d bestNormal = Eigen::Vector3d::Zero();
-    bool foundHit = false;
-
-    for (const auto& collider : colliders) {
-        const auto* mesh = dynamic_cast<const MeshCollider*>(collider.get());
-        if (mesh == nullptr)
-            continue;
-
-        double hitT = 1.0;
-        Eigen::Vector3d outwardNormal = Eigen::Vector3d::Zero();
-        if (!mesh->firstEnteringSegmentHit(
-                start, start + correction, hitT, outwardNormal))
-            continue;
-
-        if (!foundHit || hitT < bestT - 1e-12) {
-            bestT = hitT;
-            bestNormal = outwardNormal;
-            foundHit = true;
-        }
-    }
-
-    if (!foundHit)
-        return {correction, 1.0};
-
-    const Eigen::Vector3d hitPoint = start + correction * bestT;
-    const Eigen::Vector3d clippedPosition =
-        hitPoint + bestNormal * std::max(0.0, thickness);
-    const Eigen::Vector3d appliedCorrection = clippedPosition - start;
-    const double correctionNorm2 = correction.squaredNorm();
-    double scale =
-        appliedCorrection.dot(correction) / correctionNorm2;
-    scale = std::max(0.0, std::min(1.0, scale));
-    return {appliedCorrection, scale};
-}
-
-}
-
-void StitchConstraint::solve(std::vector<Particle>& particles, double dt) {
+        """void StitchConstraint::solve(std::vector<Particle>& particles, double dt) {
     Particle& pA = particles[m_idA];
     Particle& pB = particles[m_idB];
 
@@ -463,6 +410,55 @@ void StitchConstraint::solveWithColliders(
     double dt,
     const std::vector<std::shared_ptr<Collider>>& colliders,
     double thickness) {
+    struct AppliedCorrection {
+        Eigen::Vector3d correction = Eigen::Vector3d::Zero();
+        double scale = 1.0;
+    };
+
+    auto clipCorrectionAtFirstEnteringMeshHit =
+        [&](const Eigen::Vector3d& start,
+            const Eigen::Vector3d& correction,
+            const std::vector<std::shared_ptr<Collider>>& meshColliders,
+            double collisionThickness) -> AppliedCorrection {
+        if (correction.squaredNorm() <= 1e-18)
+            return {correction, 1.0};
+
+        double bestT = 1.0;
+        Eigen::Vector3d bestNormal = Eigen::Vector3d::Zero();
+        bool foundHit = false;
+
+        for (const auto& collider : meshColliders) {
+            const auto* mesh = dynamic_cast<const MeshCollider*>(collider.get());
+            if (mesh == nullptr)
+                continue;
+
+            double hitT = 1.0;
+            Eigen::Vector3d outwardNormal = Eigen::Vector3d::Zero();
+            if (!mesh->firstEnteringSegmentHit(
+                    start, start + correction, hitT, outwardNormal))
+                continue;
+
+            if (!foundHit || hitT < bestT - 1e-12) {
+                bestT = hitT;
+                bestNormal = outwardNormal;
+                foundHit = true;
+            }
+        }
+
+        if (!foundHit)
+            return {correction, 1.0};
+
+        const Eigen::Vector3d hitPoint = start + correction * bestT;
+        const Eigen::Vector3d clippedPosition =
+            hitPoint + bestNormal * std::max(0.0, collisionThickness);
+        const Eigen::Vector3d appliedCorrection = clippedPosition - start;
+        const double correctionNorm2 = correction.squaredNorm();
+        double scale =
+            appliedCorrection.dot(correction) / correctionNorm2;
+        scale = std::max(0.0, std::min(1.0, scale));
+        return {appliedCorrection, scale};
+    };
+
     Particle& pA = particles[m_idA];
     Particle& pB = particles[m_idB];
     const Eigen::Vector3d startA = pA.getPosition();
