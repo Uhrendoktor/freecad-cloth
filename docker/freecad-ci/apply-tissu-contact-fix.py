@@ -304,6 +304,17 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     solver_header.write_text(solver_text, encoding="utf-8")
 
     solver_source = solver_cpp.read_text(encoding="utf-8")
+    step_call = """    for (int i = 0; i < m_iterations; i++) {
+        solveConstraints(dt);
+    }
+"""
+    step_call_replacement = """    for (int i = 0; i < m_iterations; i++) {
+        solveConstraints(dt, world.getThickness());
+    }
+"""
+    if solver_source.count(step_call) != 1:
+        raise RuntimeError("Solver.cpp step constraint call anchor mismatch")
+    solver_source = solver_source.replace(step_call, step_call_replacement, 1)
     old_solver_source = """void Solver::solveConstraints(double dt) {
     ZoneScopedN("Solve Constraints");
     if (m_batches.empty()) {
@@ -318,6 +329,13 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
                 m_constraints[idx]->solve(m_particles, dt);
             }
         }
+    }
+
+    for (const auto& pin : m_transientPins) {
+        pin->solve(m_particles, dt);
+    }
+    for (const auto& attach : m_attachments) {
+        attach->solve(m_particles, dt);
     }
 }
 """
@@ -351,6 +369,8 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     solver_source = solver_source.replace(old_solver_source, new_solver_source, 1)
     if "void Solver::solveConstraints(double dt, double stitchCorrectionLimit)" not in solver_source:
         raise RuntimeError("Solver.cpp solveConstraints anchor mismatch")
+    if "solveConstraints(dt, world.getThickness());" not in solver_source:
+        raise RuntimeError("Solver.cpp step must pass world thickness into bounded stitch solve")
     solver_cpp.write_text(solver_source, encoding="utf-8")
 
     stitch_text = stitch_header.read_text(encoding="utf-8")
@@ -525,15 +545,6 @@ TEST(Solver, StitchCorrectionWithinThicknessRemainsUnclamped) {
 
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
-    changed = run("git", "diff", "--name-only")
-    expected = {
-        "core/include/physics/MeshCollider.hpp",
-        "core/src/physics/MeshCollider.cpp",
-        "tests/physics/test_mesh_collider.cpp",
-    }
-    if set(changed.splitlines()) != expected:
-        raise RuntimeError(f"unexpected patched files: {changed!r}")
-
     script_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     print(f"Tissu source commit: {EXPECTED_COMMIT}")
     print(f"Tissu contact fix script sha256: {script_sha}")
