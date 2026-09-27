@@ -109,6 +109,17 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'tunic-simulation-start' in source
 
 
+def test_tissu_collision_reduction_preserves_manifold_and_budget():
+    source = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    assert "_coarsen_collision_surface_topology_preserving" in source
+    assert "Mesh.Mesh(facets)" in source
+    assert "native.decimate(limit)" in source
+    assert "native.harmonizeNormals()" in source
+    assert "native.hasNonManifolds()" in source
+    assert "solver_closed_manifold=1" in source
+    assert "coarsen_collision_surface(collision_surface, collision_limit)" not in source
+
+
 def test_tissu_ci_image_is_pinned_and_self_regressing():
     dockerfile = (ROOT / "docker" / "freecad-ci" / "Dockerfile").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
