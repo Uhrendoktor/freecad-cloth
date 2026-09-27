@@ -410,6 +410,7 @@ def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=No
         "hem_z": hem_z,
         "panels": records,
         "seam_coherence": _seam_coherence(panels, seam_records, proxy=proxy),
+        "contact_probe": CONTACT_PROBE,
     }
     with open(METRICS, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, sort_keys=True)
@@ -596,6 +597,12 @@ def simulation():
     target_zs = [float(vertex[2]) for vertex in target_surface.vertices]
     log("target-surface-bounds x=%.1f..%.1f y=%.1f..%.1f z=%.1f..%.1f" % (min(target_xs),max(target_xs),min(target_ys),max(target_ys),min(target_zs),max(target_zs)))
     log("tunic-source=freecad-native-sketcher edges=%d front=%s back=%s" % (len(front.Sketch.Geometry),front.Sketch.Name,back.Sketch.Name))
+    if os.environ.get("CLOTH_TISSU_CONTACT_PROBE") == "1":
+        solver_surface = getattr(backend, "_collision_surface", None)
+        if solver_surface is None:
+            raise RuntimeError("tunic contact probe requires the Tissu solver collision surface")
+        _run_tunic_contact_probe(scene, target_surface, solver_surface, simulation_panel)
+
     if int(getattr(avatar, "MeshVertexCount", 0)) <= 100 or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100:
         raise RuntimeError("visual fixture does not contain a real humanoid mesh")
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
