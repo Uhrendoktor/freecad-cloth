@@ -385,7 +385,7 @@ MeshCollider::MeshCollider""",
     const Eigen::Vector3d& start,
     const Eigen::Vector3d& end,
     double& hitT, Eigen::Vector3d& hitNormal,
-    int& hitTriangle) const {
+    int& hitTriangle, bool& hitEntering) const {
     const Eigen::Vector3d segment = end - start;
     const double length = segment.norm();
     if (length <= 1.0e-12)
@@ -398,9 +398,12 @@ MeshCollider::MeshCollider""",
     candidates.erase(
         std::unique(candidates.begin(), candidates.end()), candidates.end());
 
+    // Only an entering crossing through a closed manifold is a stitch barrier.
+    // Exit and tangent motion stay unclipped; open meshes have no inside test.
     double bestT = std::numeric_limits<double>::infinity();
     int bestTriangle = -1;
     Eigen::Vector3d bestNormal = Eigen::Vector3d::Zero();
+
     for (const int triIdx : candidates) {
         const Triangle& tri = m_bvh.getTriangle(triIdx);
         double candidateT = 0.0;
@@ -415,6 +418,14 @@ MeshCollider::MeshCollider""",
                 candidateNormal)) {
             continue;
         }
+
+        if (!m_closedManifold)
+            continue;
+
+        candidateNormal *= m_outwardNormalSign;
+        if ((end - start).dot(candidateNormal) >= -1.0e-10)
+            continue;
+
         if (candidateT < bestT - 1.0e-12 ||
             (std::abs(candidateT - bestT) <= 1.0e-12 &&
              (bestTriangle == -1 || triIdx < bestTriangle))) {
@@ -423,18 +434,19 @@ MeshCollider::MeshCollider""",
             bestNormal = candidateNormal;
         }
     }
+
     if (bestTriangle == -1)
         return false;
 
     hitT = bestT;
     hitNormal = bestNormal;
     hitTriangle = bestTriangle;
+    hitEntering = true;
     return true;
 }
-
 void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
-                           double thickness) {""",
-        "MeshCollider firstSegmentHit implementation",
+                           double thickness) {"""
+
     )
 
     replace_once(
