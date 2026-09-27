@@ -91,3 +91,8 @@ def test_minimum_outward_clearance_rejects_inward_points():
     from freecad_cloth.avatar.TargetPlacement import minimum_outward_clearance
     assert minimum_outward_clearance(_plane(), ((0.0, 0.0, 8.0),)) == 8.0
     assert minimum_outward_clearance(_plane(), ((0.0, 0.0, -2.0),)) < 0.0
+
+
+def test_coplanar_adjacent_triangles_at_shared_edge_are_not_ambiguous():
+    hit = target_surface_anchor(_plane(), (0.0, 0.0, 25.0))
+    assert hit.normal == (0.0, 0.0, 1.0)
