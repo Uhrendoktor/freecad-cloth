@@ -80,7 +80,7 @@ def test_sewing_command_groups_are_unique_and_complete():
     assert commands == [
         "ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing", "ClothSewing_CreateNetwork", "ClothSewing_FreeSewing",
         "ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_EditNetwork", "ClothSewing_ReverseSeam", "ClothSewing_ToggleAlignment",
-        "ClothSewing_Validate", "ClothSewing_RepairSeam", "ClothSewing_Show2D",
+        "ClothSewing_Validate", "ClothSewing_RepairSeam", "ClothSewing_FocusSeam3D", "ClothSewing_EditSeamSideA", "ClothSewing_EditSeamSideB", "ClothSewing_Show2D",
     ]
 
 
