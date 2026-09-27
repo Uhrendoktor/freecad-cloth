@@ -101,6 +101,9 @@ def test_cube_ladder_rungs_are_explicit_and_use_real_seams():
         'from freecad_cloth.pattern.PatternObjects import add_seam',
         '"collision_triangle_budget"',
         '"seam_world_spans_mm"',
+        '"checkpoint_image_paths"',
+        '"initial_piece_placements_world_mm"',
+        '"cube-ladder-seam"',
         '"interpret adjacent rungs until first failing rung"',
     ):
         assert needle in SOURCE
