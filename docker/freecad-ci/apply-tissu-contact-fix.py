@@ -62,6 +62,7 @@ def main() -> int:
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <unordered_map>
 #include <utility>
 
@@ -129,11 +130,119 @@ MeshOrientation inferMeshOrientation(
     return {true, signedVolume > 0.0 ? 1.0 : -1.0};
 }
 
+bool segmentTriangleHit(const Eigen::Vector3d& start,
+                        const Eigen::Vector3d& end,
+                        const Eigen::Vector3d& a,
+                        const Eigen::Vector3d& b,
+                        const Eigen::Vector3d& c,
+                        double epsilon,
+                        double& t,
+                        Eigen::Vector3d& normal) {
+    const Eigen::Vector3d direction = end - start;
+    const Eigen::Vector3d edge1 = b - a;
+    const Eigen::Vector3d edge2 = c - a;
+    const Eigen::Vector3d pvec = direction.cross(edge2);
+    const double determinant = edge1.dot(pvec);
+    if (std::abs(determinant) <= epsilon)
+        return false;
+
+    const double inverseDeterminant = 1.0 / determinant;
+    const Eigen::Vector3d tvec = start - a;
+    const double u = tvec.dot(pvec) * inverseDeterminant;
+    if (u < -epsilon || u > 1.0 + epsilon)
+        return false;
+
+    const Eigen::Vector3d qvec = tvec.cross(edge1);
+    const double v = direction.dot(qvec) * inverseDeterminant;
+    if (v < -epsilon || u + v > 1.0 + epsilon)
+        return false;
+
+    t = edge2.dot(qvec) * inverseDeterminant;
+    if (t <= epsilon || t > 1.0 + epsilon)
+        return false;
+
+    Eigen::Vector3d rawNormal = edge1.cross(edge2);
+    const double normalLength = rawNormal.norm();
+    if (normalLength <= epsilon || direction.squaredNorm() <= epsilon * epsilon)
+        return false;
+
+    rawNormal /= normalLength;
+    if (std::abs(direction.normalized().dot(rawNormal)) <= 1e-10)
+        return false;
+
+    normal = rawNormal;
+    return true;
+}
+
 } // namespace
 """
     if cpp.count(include_old) != 1:
         raise RuntimeError("MeshCollider.cpp include anchor mismatch")
     cpp = cpp.replace(include_old, include_new, 1)
+
+    replace_once(
+        bvh_header,
+        """    void query(const Eigen::Vector3d& point, double radius,
+               std::vector<int>& outTriangles) const;
+    int closestTriangle(const Eigen::Vector3d& point,
+                        const std::vector<Eigen::Vector3d>& vertices) const;""",
+        """    void query(const Eigen::Vector3d& point, double radius,
+               std::vector<int>& outTriangles) const;
+    void query(const Eigen::AlignedBox3d& box,
+               std::vector<int>& outTriangles) const;
+    int closestTriangle(const Eigen::Vector3d& point,
+                        const std::vector<Eigen::Vector3d>& vertices) const;""",
+        "BVH box query declaration",
+    )
+
+    bvh_header_text = bvh_header.read_text(encoding="utf-8")
+    recursive_anchor = "void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,"
+    if bvh_header_text.count(recursive_anchor) != 1:
+        raise RuntimeError("BVH box query helper declaration anchor mismatch")
+    recursive_pos = bvh_header_text.index(recursive_anchor)
+    line_start = bvh_header_text.rfind("\n", 0, recursive_pos) + 1
+    bvh_header_text = (
+        bvh_header_text[:line_start]
+        + "    void queryBoxRecursive(int nodeIdx, const Eigen::AlignedBox3d& box,\n"
+        + "                           std::vector<int>& outTriangles) const;\n"
+        + bvh_header_text[line_start:]
+    )
+    bvh_header.write_text(bvh_header_text, encoding="utf-8")
+
+    replace_once(
+        bvh_cpp,
+        """void BVH::queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
+                         double squaredRadius,
+                         std::vector<int>& outTriangles) const {""",
+        """void BVH::query(const Eigen::AlignedBox3d& box,
+                std::vector<int>& outTriangles) const {
+    outTriangles.clear();
+    if (m_rootIndex == -1 || m_nodes.empty())
+        return;
+    queryBoxRecursive(m_rootIndex, box, outTriangles);
+}
+
+void BVH::queryBoxRecursive(int nodeIdx, const Eigen::AlignedBox3d& box,
+                            std::vector<int>& outTriangles) const {
+    const BVHNode& node = m_nodes[nodeIdx];
+    if (!node.bbox.intersects(box))
+        return;
+
+    if (node.isLeaf()) {
+        for (int i = 0; i < node.primitiveCount; ++i)
+            outTriangles.push_back(node.triangleIndex + i);
+        return;
+    }
+
+    queryBoxRecursive(node.left, box, outTriangles);
+    queryBoxRecursive(node.right, box, outTriangles);
+}
+
+void BVH::queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
+                         double squaredRadius,
+                         std::vector<int>& outTriangles) const {""",
+        "BVH box query implementation",
+    )
 
     replace_cpp = [
         (
