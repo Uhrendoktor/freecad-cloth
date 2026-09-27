@@ -238,11 +238,23 @@ def _point_inside_mesh(point, vertices, triangles):
             hits += 1
     return bool(hits % 2)
 
+def _source_local_point(point, source):
+    placement = getattr(source, "Placement", None)
+    if placement is None:
+        return tuple(float(value) for value in point)
+    local = placement.inverse().multVec(App.Vector(*point))
+    return (float(local.x), float(local.y), float(local.z))
+
+
+def _source_local_points(points, source):
+    return tuple(_source_local_point(point, source) for point in points)
+
+
 def _inside_outside(points, source):
     shape = getattr(source, "Shape", None)
     if shape is not None and not getattr(shape, "isNull", lambda: True)():
         states = []
-        for point in points[:64]:
+        for point in _source_local_points(points[:64], source):
             try:
                 states.append(bool(shape.isInside(App.Vector(*point), 1e-6, True)))
             except (AttributeError, TypeError, ValueError):
@@ -259,7 +271,7 @@ def _inside_outside(points, source):
     mesh_is_inside = getattr(mesh, "isInside", None) if mesh is not None else None
     if callable(mesh_is_inside):
         states = []
-        for point in points[:64]:
+        for point in _source_local_points(points[:64], source):
             try:
                 states.append(bool(mesh_is_inside(App.Vector(*point), 1e-6, True)))
             except (AttributeError, TypeError, ValueError):
@@ -290,9 +302,9 @@ def _inside_outside(points, source):
         )
         if not target_mesh.is_watertight:
             raise RuntimeError("target mesh is not watertight")
-        states = [bool(value) for value in target_mesh.contains(np.asarray(points[:64], dtype=float))]
+        states = [bool(value) for value in target_mesh.contains(np.asarray(_source_local_points(points[:64], source), dtype=float))]
     except (ImportError, RuntimeError, TypeError, ValueError):
-        states = [_point_inside_mesh(point, vertices, triangles) for point in points[:64]]
+        states = [_point_inside_mesh(point, vertices, triangles) for point in _source_local_points(points[:64], source)]
     if not states:
         return "unknown"
     if all(states):
@@ -730,9 +742,319 @@ def _run_control_avatar():
             )
         record["control"]["interior_probe"] = True
         record["control"]["interior_seed_source"] = "avatar-arrangement-points-with-mesh-inside-search"
+        record["control"]["interior_seed_world"] = [
+            float(center.x), float(center.y), float(center.z)
+        ]
+        record["control"]["interior_seed_local"] = list(
+            _source_local_point((float(center.x), float(center.y), float(center.z)), avatar)
+        )
+        record["control"]["interior_seed_classification"] = _inside_outside(
+            ((float(center.x), float(center.y), float(center.z)),), avatar
+        )
+        record["control"]["inside_test_coordinate_space"] = "source-local-via-source-placement-inverse"
         return record
     finally:
         App.closeDocument(doc.Name)
+
+
+
+def _seam_span_records(positions, seam_stitch_pairs):
+    records = []
+    for seam_id, pairs in sorted(getattr(seam_stitch_pairs, "items", lambda: ())()):
+        distances = []
+        for left, right in pairs:
+            if not (0 <= int(left) < len(positions) and 0 <= int(right) < len(positions)):
+                continue
+            a, b = positions[int(left)], positions[int(right)]
+            distances.append(
+                math.sqrt(sum((float(a[i]) - float(b[i])) ** 2 for i in range(3)))
+            )
+        if distances:
+            records.append({
+                "seam_id": str(seam_id),
+                "pair_count": len(distances),
+                "min_span_mm": min(distances),
+                "max_span_mm": max(distances),
+                "mean_span_mm": sum(distances) / len(distances),
+            })
+        else:
+            records.append({
+                "seam_id": str(seam_id),
+                "pair_count": 0,
+                "min_span_mm": None,
+                "max_span_mm": None,
+                "mean_span_mm": None,
+            })
+    return records
+
+
+def _run_ladder_case(case_id, rung, predecessor_case_id, pin_mode, seam_mode,
+                     gap_mm=None, panel_count=1, checkpoint_steps=(0, 1, 5, 15, 45, 90)):
+    _progress(f"{case_id}: start")
+    doc = App.newDocument("TissuCubeLadder_%s" % case_id.replace("-", "_"))
+    try:
+        scene = _build_scene(doc)
+        scene.PinMode = str(pin_mode)
+        scene.PinSelection = []
+        cube = doc.addObject("Part::Feature", "LadderCube")
+        cube.Label = "Diagnostic Ladder Collision Cube"
+        cube.Shape = Part.makeBox(
+            340.0, 180.0, 60.0, App.Vector(-170.0, -90.0, 0.0)
+        )
+        doc.recompute()
+        from freecad_cloth.simulation.SimulationObjects import set_avatar_collision_source
+        set_avatar_collision_source(scene, cube, thickness=2.0, deflection=1.0)
+        avatar_proxy = getattr(scene, "AvatarProxy", None)
+        if avatar_proxy is not None:
+            source_avatar = getattr(avatar_proxy, "SourceObject", None)
+            if source_avatar is not None and hasattr(source_avatar, "ViewObject"):
+                source_avatar.ViewObject.Visibility = False
+        cube.ViewObject.Visibility = True
+
+        start_height = float(getattr(scene, "StartHeight", PARTICLE_DISTANCE * 5.0))
+        panel_z = 58.0 - start_height
+        if panel_count == 1:
+            placements = [
+                App.Placement(
+                    App.Vector(-60.0, -60.0, panel_z),
+                    App.Rotation(),
+                )
+            ]
+        else:
+            small_gap = 4.0
+            relative_gap = float(small_gap if gap_mm is None else gap_mm)
+            placements = [
+                App.Placement(
+                    App.Vector(-120.0, -60.0, panel_z),
+                    App.Rotation(),
+                ),
+                App.Placement(
+                    App.Vector(relative_gap, -60.0, panel_z),
+                    App.Rotation(),
+                ),
+            ]
+
+        pieces = []
+        for index, placement in enumerate(placements):
+            piece = _build_piece(
+                doc,
+                "%sPanel%d" % (case_id, index + 1),
+                placement,
+                width=120.0,
+                height=120.0,
+            )
+            piece.ViewObject.Visibility = True
+            pieces.append(piece)
+
+        seam_id = None
+        if panel_count == 2 and seam_mode != "none":
+            from freecad_cloth.pattern.PatternModel import Seam
+            from freecad_cloth.pattern.PatternObjects import add_seam
+            seam_id = "%s-seam" % case_id
+            seam = Seam(
+                str(pieces[0].PieceId), 1,
+                str(pieces[1].PieceId), 3,
+                id=seam_id,
+            )
+            add_seam(doc, seam)
+            doc.recompute()
+
+        scene.ClothPieces = pieces
+        scene.touch()
+        doc.recompute()
+        base = scene.Proxy._base_or_restore()
+        backend = getattr(base, "backend", None)
+        if backend is None or getattr(backend, "name", "") != "tissu":
+            raise RuntimeError("%s did not build the Tissu backend" % case_id)
+
+        target = getattr(scene, "DrapeTarget", None)
+        if target is None:
+            raise RuntimeError("%s has no DrapeTarget" % case_id)
+        target_status = __import__(
+            "freecad_cloth.simulation.DrapeTarget",
+            fromlist=["target_status"],
+        ).target_status(target)
+        if target_status["state"] != "ready":
+            raise RuntimeError("%s DrapeTarget is not ready: %s" % (case_id, target_status))
+
+        collision_surface = getattr(base, "solver_collision_surface", None)
+        if collision_surface is None:
+            collision_surface = getattr(base, "collision_surface", None)
+        solver_triangle_count = len(getattr(collision_surface, "triangles", ()) or ())
+        if solver_triangle_count <= 0:
+            raise RuntimeError("%s has no solver collision surface" % case_id)
+
+        panel_indices = dict(getattr(base, "panel_indices", {}) or {})
+        panel_triangles = dict(getattr(base, "panel_triangles", {}) or {})
+        global_triangles = tuple(
+            triangle
+            for triangles in panel_triangles.values()
+            for triangle in triangles
+        )
+        panel_names = tuple(getattr(panel, "Name", "") for panel in getattr(scene, "DrapePanels", ()))
+        view = Gui.activeDocument().activeView()
+        if view is None:
+            raise RuntimeError("%s has no active FreeCAD view" % case_id)
+
+        records = []
+        previous_positions = tuple(tuple(float(c) for c in p) for p in backend.positions())
+        start_time = time.perf_counter()
+        first_response_step = None
+        baseline_distance = None
+        for step in checkpoint_steps:
+            scene.Steps = int(step)
+            doc.recompute()
+            _events()
+            positions = tuple(tuple(float(c) for c in p) for p in backend.positions())
+            if step == 0:
+                previous_positions = positions
+            max_displacement = 0.0
+            if positions and previous_positions:
+                max_displacement = max(
+                    math.sqrt(sum((positions[i][axis] - previous_positions[i][axis]) ** 2 for axis in range(3)))
+                    for i in range(min(len(positions), len(previous_positions)))
+                )
+            if first_response_step is None and max_displacement > 0.01:
+                first_response_step = int(step)
+
+            seam_spans = _seam_span_records(positions, getattr(base, "seam_stitch_pairs", {}))
+            max_seam_gap = max(
+                (float(item["max_span_mm"]) for item in seam_spans if item["max_span_mm"] is not None),
+                default=0.0,
+            )
+            points = positions
+            triangles = global_triangles
+            source = getattr(target, "SourceObject", None)
+            before_inside = _inside_outside(points, source)
+            distance = _nearest_surface_distance(points, collision_surface)
+            signed = None
+            if distance is not None:
+                signed = -distance if before_inside in {"inside", "mixed"} else distance
+            finite = all(math.isfinite(float(c)) for point in positions for c in point)
+            components = _connected_components(points, triangles)
+            if baseline_distance is None:
+                baseline_distance = distance
+            if max_displacement > 0.01 and distance is not None and baseline_distance is not None:
+                contact_state = "response-observed"
+            elif max_displacement > 0.01:
+                contact_state = "motion-observed"
+            else:
+                contact_state = "no-observable-response"
+
+            if step in checkpoint_steps:
+                view.viewAxonometric()
+                _events()
+                image_name = "%s-step-%03d.png" % (case_id, int(step))
+                _screenshot(view, OUT / image_name)
+                records.append({
+                    "step": int(step),
+                    "image": image_name,
+                    "finite": finite,
+                    "components": components,
+                    "max_seam_gap_mm": max_seam_gap,
+                    "target_clearance_mm": signed,
+                    "contact_state": contact_state,
+                    "inside_outside": before_inside,
+                    "nearest_target_point": None,
+                    "seam_world_spans_mm": seam_spans,
+                })
+            previous_positions = positions
+
+        piece_bounds = []
+        source_points, source_triangles = _mesh_geometry(source)
+        for name in panel_names:
+            piece = doc.getObject(name)
+            if piece is not None:
+                piece_bounds.append(list(_bounds(_mesh_points(piece))))
+        seam_records = _seam_span_records(
+            previous_positions,
+            getattr(base, "seam_stitch_pairs", {}),
+        )
+        solver_settings = {
+            "backend": "tissu",
+            "particle_distance_mm": PARTICLE_DISTANCE,
+            "iterations": 1,
+            "substeps": 1,
+            "timestep_s": 1.0 / 120.0,
+            "gravity_z_mm_s2": 0.0,
+            "collision_triangle_budget": int(os.environ.get("CLOTH_TISSU_COLLISION_TRIANGLES", "2048")),
+        }
+        record = {
+            "case_id": case_id,
+            "predecessor_case_id": predecessor_case_id,
+            "case": {
+                "rung": int(rung),
+                "id": case_id,
+                "target": str(getattr(target, "TargetType", "")).lower().replace(" ", "-"),
+                "piece_count": int(panel_count),
+                "pin_mode": str(pin_mode),
+                "seam_mode": str(seam_mode),
+                "expected_gap_mm": None if gap_mm is None else float(gap_mm),
+            },
+            "solver": solver_settings,
+            "collision": {
+                "source_signature": _target_signature(target),
+                "source_triangles": len(source_triangles),
+                "solver_triangles": solver_triangle_count,
+                "target_bounds": _bounds(source_points),
+                "target_topology_summary": {
+                    "vertices": len(source_points),
+                    "triangles": len(source_triangles),
+                    "solver_triangles": solver_triangle_count,
+                },
+            },
+            "pre_step": {
+                "piece_bounds": piece_bounds,
+                "unsigned_clearance_mm": None,
+                "signed_clearance_mm": records[0]["target_clearance_mm"],
+                "seam_pairs": seam_records,
+                "seam_world_spans_mm": seam_records,
+            },
+            "checkpoints": records,
+            "finite": bool(all(record_item["finite"] for record_item in records)),
+            "connected_components": int(records[-1]["components"]),
+            "max_seam_gap_mm": float(max_seam_gap),
+            "final_clearance_mm": records[-1]["target_clearance_mm"],
+            "runtime_ms": round((time.perf_counter() - start_time) * 1000.0, 3),
+            "first_contact_step": first_response_step,
+            "contact_mode": records[-1]["contact_state"],
+            "control": {
+                "collision_shape": "cube",
+                "pin_mode": str(pin_mode),
+                "seam_mode": str(seam_mode),
+                "seam_world_spans_mm": seam_records,
+            },
+            "images": [record["image"] for record in records],
+            "notes": "diagnostic-only; frozen Tissu settings; interpret adjacent rungs until first failing rung",
+        }
+        return record
+    finally:
+        App.closeDocument(doc.Name)
+
+
+def _run_cube_ladder():
+    cases = []
+    cases.append(_run_ladder_case(
+        "rung-1-auto-pin", 1, "control-0-cube", "Automatic", "none",
+        panel_count=1,
+    ))
+    cases.append(_run_ladder_case(
+        "rung-2-no-pin", 2, "rung-1-auto-pin", "None", "none",
+        panel_count=1,
+    ))
+    cases.append(_run_ladder_case(
+        "rung-3-no-seam", 3, "rung-2-no-pin", "None", "none",
+        panel_count=2, gap_mm=4.0,
+    ))
+    cases.append(_run_ladder_case(
+        "rung-4-small-seam-gap", 4, "rung-3-no-seam", "None", "semantic",
+        panel_count=2, gap_mm=4.0,
+    ))
+    cases.append(_run_ladder_case(
+        "rung-5-large-seam-gap", 5, "rung-4-small-seam-gap", "None", "semantic",
+        panel_count=2, gap_mm=48.0,
+    ))
+    return cases
 
 
 def close_gui():
@@ -760,6 +1082,7 @@ def main():
         _run_control_cube(),
         _run_control_avatar(),
     ]
+    records.extend(_run_cube_ladder())
     manifest = {
         "schema": 1,
         "purpose": "diagnostic-only-contact-controls",
