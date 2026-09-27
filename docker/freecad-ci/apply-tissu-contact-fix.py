@@ -598,7 +598,7 @@ TEST(Solver, AlternatesCollisionAndStitchProjection) {
     cloth_test.write_text(cloth_test_cpp, encoding="utf-8")
 
     cloth_regression_text = cloth_test.read_text(encoding="utf-8")
-    if "TEST(Solver, ReenforcesStitchesAfterColliderProjection)" not in cloth_regression_text:
+    if "TEST(Solver, AlternatesCollisionAndStitchProjection)" not in cloth_regression_text:
         raise RuntimeError("missing solver-order regression test anchor")
 
     test_cpp = test.read_text(encoding="utf-8")
