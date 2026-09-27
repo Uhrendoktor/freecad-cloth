@@ -34,6 +34,8 @@ def test_contact_control_contract():
     assert "faulthandler.dump_traceback_later(30.0, repeat=True" in source
     assert "contact-controls-progress.log" in source
     assert "_progress(" in source
+    assert "Gui.getDocument(doc.Name)" in source
+    assert "_events()" in source
     assert "setsid /opt/freecad/AppRun" in workflow
     assert "contact-controls-supervisor=timeout" in workflow
     assert "artifacts/contact-controls/app-run.log" in workflow
