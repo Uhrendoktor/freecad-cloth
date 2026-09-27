@@ -36,8 +36,6 @@ replacements = {
         '        seam_records.append((seam_obj, front, back))',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
     'scene.SolverIterations = 8;': 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-32 iterations-1 substeps-env");',
-    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance',
-    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
 }
 for old, new in replacements.items():
@@ -95,6 +93,20 @@ timed_anchor = '''    from time import perf_counter
         log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
 '''
+initial_stitch_probe = '''    initial_backend = scene.Proxy._base_or_restore().backend
+    initial_positions = tuple(initial_backend.positions())
+    initial_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
+    initial_spans = []
+    for pairs in initial_pairs_by_seam.values():
+        for ga, gb in pairs:
+            a = initial_positions[int(ga)]
+            b = initial_positions[int(gb)]
+            initial_spans.append(((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2)**0.5)
+    if not initial_spans:
+        raise RuntimeError("canonical tunic has no exact initial solver stitch spans")
+    log("initial-stitch-span-mm min=%.3f mean=%.3f max=%.3f count=%d" % (min(initial_spans), sum(initial_spans) / len(initial_spans), max(initial_spans), len(initial_spans)))
+'''
+source = source.replace(anchor, initialProbe + '\n' + preview_probe + '\n' + timed_anchor, 1)
 source = source.replace(anchor, preview_probe + '\n' + timed_anchor, 1)
 
 seam_check = """    backend_state = scene.Proxy._base_or_restore()
