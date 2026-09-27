@@ -32,10 +32,12 @@ def test_visual_review_is_mandatory_and_exports_intermediate_states():
     )
     development = (ROOT / "docs" / "DEVELOPMENT.md").read_text(encoding="utf-8")
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "Mandatory visual review and human intervention" in development
     assert "Human inspection is mandatory before acceptance/merge." in workflow
     assert "retention-days: 14" in workflow
     assert "cloth-simulation-draped-step-*.png" in workflow
     assert "cloth-simulation-draped-turntable-frames/frame-*.png" in workflow
-    assert "visual_checkpoints = (15, 30, 45, 60, 75, 90)" in source
-    assert 'cloth-simulation-draped-step-%03d.png' in source
+    assert "for batch in (15,15,15,15,15,15):" in source
+    assert "visual_checkpoints = (15,30,45,60,75,90)" in audit
+    assert 'cloth-simulation-draped-step-%03d.png' in audit
