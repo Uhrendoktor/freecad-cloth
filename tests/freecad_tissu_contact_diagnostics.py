@@ -204,12 +204,24 @@ def _case_record(case_id, target, cloth_points_before, cloth_points_after, colli
 
 
 def _build_scene(doc):
+    from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
+    from freecad_cloth.avatar.AvatarCommands import create_avatar
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import (
-        create_quality_simulation_scene,
+        QualitySimulationProxy,
         ensure_quality_properties,
     )
-    scene = create_quality_simulation_scene(doc)
+    scene = create_simulation_scene(doc, build=False)
+    legacy = doc.getObject("HumanoidAvatar")
+    if legacy is not None and hasattr(legacy, "ViewObject"):
+        legacy.ViewObject.Visibility = False
+    avatar = create_avatar(attach_collision=False, doc=doc)
+    avatar.Label = "Cloth Human Avatar (MakeHuman)"
+    avatar.ViewObject.Visibility = True
+    set_avatar_collision_source(scene, avatar, float(getattr(avatar, "SkinOffset", 3.0)), 1.0)
+    scene.AvatarProxy.SourceObject = avatar
+    scene.DrapeTarget = doc.getObject("DrapeTarget")
     ensure_quality_properties(scene)
+    scene.Proxy = QualitySimulationProxy()
     scene.QualityPreset = "Fast"
     scene.ParticleDistance = PARTICLE_DISTANCE
     scene.SolverIterations = 1
@@ -222,7 +234,6 @@ def _build_scene(doc):
     scene.PinMode = "None"
     scene.PinSelection = []
     scene.FabricTransparency = 0
-    doc.recompute()
     return scene
 
 
