@@ -280,6 +280,33 @@ MeshOrientation inferMeshOrientation(
     return {true, signedVolume > 0.0 ? 1.0 : -1.0};
 }
 
+bool isDeepInterior(
+    const BVH& bvh,
+    const Eigen::Vector3d& point,
+    const std::vector<Eigen::Vector3d>& vertices) {
+    static const std::array<Eigen::Vector3d, 3> directions = {
+        Eigen::Vector3d(1.0, 0.371, 0.593).normalized(),
+        Eigen::Vector3d(-0.421, 1.0, 0.337).normalized(),
+        Eigen::Vector3d(0.263, -0.547, 1.0).normalized(),
+    };
+
+    int referenceParity = -1;
+    for (const auto& direction : directions) {
+        const int intersections =
+            bvh.rayIntersectionCount(point, direction, vertices);
+        if (intersections < 0)
+            return false;
+
+        const int parity = intersections & 1;
+        if (referenceParity == -1)
+            referenceParity = parity;
+        else if (parity != referenceParity)
+            return false;
+    }
+
+    return referenceParity == 1;
+}
+
 } // namespace
 """
     if cpp.count(include_old) != 1:
@@ -332,7 +359,11 @@ MeshOrientation inferMeshOrientation(
                                          : ((b - a).cross(c - a)).normalized();
 
             Eigen::Vector3d newPosition = cp + normal * thickness;""",
-            """        if (distance <= thickness) {
+            """        bool deepInterior = false;
+        if (m_closedManifold && distance > thickness)
+            deepInterior = isDeepInterior(m_bvh, particle.getPosition(), m_worldVertices);
+
+        if (distance <= thickness || deepInterior) {
             Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
             const double faceNormalLength = faceNormalRaw.norm();
             if (faceNormalLength <= 1e-12)
@@ -340,7 +371,9 @@ MeshOrientation inferMeshOrientation(
             Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
 
             Eigen::Vector3d normal = faceNormal;
-            if (distance > 1e-6) {
+            if (deepInterior) {
+                normal *= m_outwardNormalSign;
+            } else if (distance > 1e-6) {
                 normal = toParticle / distance;
                 if (m_closedManifold) {
                     const Eigen::Vector3d outwardNormal =
@@ -451,6 +484,8 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         raise RuntimeError("patched Tissu tree failed git diff --check")
     changed = run("git", "diff", "--name-only")
     expected = {
+        "core/include/data-structures/BVH.hpp",
+        "core/src/data-structures/BVH.cpp",
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
         "tests/physics/test_mesh_collider.cpp",
