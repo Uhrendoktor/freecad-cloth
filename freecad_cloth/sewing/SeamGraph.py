@@ -175,7 +175,7 @@ class SeamGraph:
                 a_sel = arc_length_vertex_indices(a, a_points, count, seam.start_a, seam.end_a)
                 b_sel = arc_length_vertex_indices(b, b_points, count, seam.start_b, seam.end_b)
             if seam.reversed_b:
-                b_sel.reverse()
+                b_sel = tuple(reversed(b_sel))
             pairs.extend(zip(a_sel, b_sel))
         return tuple(pairs)
 
