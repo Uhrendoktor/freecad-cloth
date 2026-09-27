@@ -167,10 +167,28 @@ MeshOrientation inferMeshOrientation(
             "MeshCollider.cpp vector constructor",
         ),
         (
-            """        if (distance <= thickness) {
-            Eigen::Vector3d normal = (distance > 1e-6)
-                                         ? toParticle.normalized()
-                                         : ((b - a).cross(c - a)).normalized();
+            """        Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
+        const double faceNormalLength = faceNormalRaw.norm();
+        if (faceNormalLength <= 1e-12)
+            continue;
+        Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
+        const Eigen::Vector3d outwardNormal =
+            faceNormal * m_outwardNormalSign;
+        const double outwardSignedDistance = toParticle.dot(outwardNormal);
+        const bool deeplyInsideClosedMesh =
+            m_closedManifold && outwardSignedDistance < -thickness;
+
+        if (distance <= thickness || deeplyInsideClosedMesh) {
+            Eigen::Vector3d normal = faceNormal;
+            if (deeplyInsideClosedMesh) {
+                normal = outwardNormal;
+            } else if (distance > 1e-6) {
+                normal = toParticle / distance;
+                if (m_closedManifold && normal.dot(outwardNormal) < 0.0)
+                    normal = outwardNormal;
+            } else if (m_closedManifold) {
+                normal = outwardNormal;
+            }
 
             Eigen::Vector3d newPosition = cp + normal * thickness;""",
             """        if (distance <= thickness) {
@@ -282,6 +300,19 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     mesh.resolve(particles, 0.016, 0.1);
 
     EXPECT_GT(particles[0].getPosition().y(), initialPos.y());
+}
+
+TEST(MeshCollider, DeepParticleInsideClosedMeshMovesOutside) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.01);
+
+    const Eigen::Vector3d finalPos = particles[0].getPosition();
+    EXPECT_FALSE(tetrahedronContains(finalPos));
+    EXPECT_GT((finalPos - initialPos).norm(), 0.1);
 }"""
     if test_cpp.count(old) != 1:
         raise RuntimeError("MeshCollider regression test body anchor mismatch")
