@@ -698,7 +698,7 @@ void StitchConstraint::solveSwept(
 #include "Eigen/Dense"
 #include "physics/Particle.hpp"
 #include "physics/Solver.hpp"
-#include "physics/StitchConstraint.hpp"""",
+#include "physics/StitchConstraint.hpp""",
         """#include <array>
 #include <memory>
 #include <vector>
@@ -708,7 +708,7 @@ void StitchConstraint::solveSwept(
 #include "physics/MeshCollider.hpp"
 #include "physics/Particle.hpp"
 #include "physics/Solver.hpp"
-#include "physics/StitchConstraint.hpp"""",
+#include "physics/StitchConstraint.hpp""",
         "StitchConstraint test includes",
     )
     replace_once(
