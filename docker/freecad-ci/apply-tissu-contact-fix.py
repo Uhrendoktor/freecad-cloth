@@ -31,12 +31,34 @@ def main() -> int:
     header = ROOT / "core/include/physics/MeshCollider.hpp"
     cpp = ROOT / "core/src/physics/MeshCollider.cpp"
     test = ROOT / "tests/physics/test_mesh_collider.cpp"
+    bindings = ROOT / "python/src/bindings.cpp"
+    engine = ROOT / "python/tissu/engine.py"
+    replace_once(
+        header,
+        """    const std::vector<Triangle>& getTriangles() const {
+        return m_triangles;
+    }
+
+private:""",
+        """    const std::vector<Triangle>& getTriangles() const {
+        return m_triangles;
+    }
+
+    void setSweptContactEnabled(bool enabled) {
+        m_sweptContactEnabled = enabled;
+    }
+
+private:""",
+        "MeshCollider.hpp public swept-contact setter",
+    )
+
 
     replace_once(
         header,
         """    std::vector<Eigen::Vector3d> m_localVertices;
     std::vector<Eigen::Vector3d> m_worldVertices;
     std::vector<Triangle> m_triangles;
+    bool m_sweptContactEnabled = false;
     BVH m_bvh;""",
         """    std::vector<Eigen::Vector3d> m_localVertices;
     std::vector<Eigen::Vector3d> m_worldVertices;
@@ -121,20 +143,61 @@ MeshOrientation inferMeshOrientation(
     return {true, signedVolume > 0.0 ? 1.0 : -1.0};
 }
 
+bool intersectSegmentTriangle(
+    const Eigen::Vector3d& start,
+    const Eigen::Vector3d& end,
+    const Eigen::Vector3d& a,
+    const Eigen::Vector3d& b,
+    const Eigen::Vector3d& c,
+    double& outT) {
+    const Eigen::Vector3d direction = end - start;
+    const Eigen::Vector3d edge1 = b - a;
+    const Eigen::Vector3d edge2 = c - a;
+    const Eigen::Vector3d pvec = direction.cross(edge2);
+    const double determinant = edge1.dot(pvec);
+    constexpr double epsilon = 1e-10;
+    if (std::abs(determinant) <= epsilon)
+        return false;
+
+    const double inverseDeterminant = 1.0 / determinant;
+    const Eigen::Vector3d tvec = start - a;
+    const double u = tvec.dot(pvec) * inverseDeterminant;
+    if (u < -epsilon || u > 1.0 + epsilon)
+        return false;
+
+    const Eigen::Vector3d qvec = tvec.cross(edge1);
+    const double v = direction.dot(qvec) * inverseDeterminant;
+    if (v < -epsilon || u + v > 1.0 + epsilon)
+        return false;
+
+    const double t = edge2.dot(qvec) * inverseDeterminant;
+    if (t <= epsilon || t > 1.0 + epsilon)
+        return false;
+
+    outT = std::max(0.0, std::min(1.0, t));
+    return true;
+}
+
 } // namespace
 """
     if cpp.count(include_old) != 1:
         raise RuntimeError("MeshCollider.cpp include anchor mismatch")
     cpp = cpp.replace(include_old, include_new, 1)
 
-    replace_cpp = [
-        (
-            """    m_triangles.reserve(indices.size() / 3);
+    def replace_cpp_once(old: str, new: str, label: str) -> None:
+        nonlocal cpp
+        count = cpp.count(old)
+        if count != 1:
+            raise RuntimeError(f"{label}: expected one source anchor, found {count}")
+        cpp = cpp.replace(old, new, 1)
+
+    replace_cpp_once(
+        """    m_triangles.reserve(indices.size() / 3);
     for (size_t i = 0; i + 2 < indices.size(); i += 3)
         m_triangles.emplace_back(indices[i], indices[i + 1], indices[i + 2]);
 
     m_bvh.build(m_worldVertices, m_triangles);""",
-            """    m_triangles.reserve(indices.size() / 3);
+        """    m_triangles.reserve(indices.size() / 3);
     for (size_t i = 0; i + 2 < indices.size(); i += 3)
         m_triangles.emplace_back(indices[i], indices[i + 1], indices[i + 2]);
 
@@ -144,16 +207,17 @@ MeshOrientation inferMeshOrientation(
     m_outwardNormalSign = orientation.outwardNormalSign;
 
     m_bvh.build(m_worldVertices, m_triangles);""",
-            "MeshCollider.cpp file constructor",
-        ),
-        (
-            """    m_triangles.reserve(triangles.size());
+        "MeshCollider.cpp file constructor",
+    )
+
+    replace_cpp_once(
+        """    m_triangles.reserve(triangles.size());
     for (const auto& tri : triangles) {
         m_triangles.emplace_back(tri[0], tri[1], tri[2]);
     }
 
     m_bvh.build(m_worldVertices, m_triangles);""",
-            """    m_triangles.reserve(triangles.size());
+        """    m_triangles.reserve(triangles.size());
     for (const auto& tri : triangles) {
         m_triangles.emplace_back(tri[0], tri[1], tri[2]);
     }
@@ -164,48 +228,146 @@ MeshOrientation inferMeshOrientation(
     m_outwardNormalSign = orientation.outwardNormalSign;
 
     m_bvh.build(m_worldVertices, m_triangles);""",
-            "MeshCollider.cpp vector constructor",
-        ),
-        (
-            """        if (distance <= thickness) {
+        "MeshCollider.cpp vector constructor",
+    )
+
+    replace_cpp_once(
+        """        if (distance <= thickness) {
             Eigen::Vector3d normal = (distance > 1e-6)
                                          ? toParticle.normalized()
                                          : ((b - a).cross(c - a)).normalized();
 
             Eigen::Vector3d newPosition = cp + normal * thickness;""",
-            """        if (distance <= thickness) {
-            Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
-            const double faceNormalLength = faceNormalRaw.norm();
+        """        bool sweptHit = false;
+        Eigen::Vector3d collisionPoint = cp;
+        Eigen::Vector3d sweptFaceNormal;
+        if (m_sweptContactEnabled) {
+            const Eigen::Vector3d start =
+                particle.getOldPosition();
+            const Eigen::Vector3d end = particle.getPosition();
+            const Eigen::Vector3d travel = end - start;
+            const double travelLength = travel.norm();
+            if (travelLength > 1e-6) {
+                const Eigen::Vector3d midpoint = 0.5 * (start + end);
+                std::vector<int> candidates;
+                m_bvh.query(
+                    midpoint,
+                    0.5 * travelLength + thickness + 1e-6,
+                    candidates);
+
+                double bestT = -1.0;
+                int bestTriangle = -1;
+                for (int candidate : candidates) {
+                    const Triangle& sweptTri = m_bvh.getTriangle(candidate);
+                    const Eigen::Vector3d& sweptA =
+                        m_worldVertices[sweptTri.a];
+                    const Eigen::Vector3d& sweptB =
+                        m_worldVertices[sweptTri.b];
+                    const Eigen::Vector3d& sweptC =
+                        m_worldVertices[sweptTri.c];
+                    double hitT = 0.0;
+                    if (!intersectSegmentTriangle(
+                            start, end, sweptA, sweptB, sweptC, hitT))
+                        continue;
+                    // A tunneled particle can cross a closed surface twice and
+                    // finish outside it. Resolve against the hit nearest the
+                    // current position so collision response preserves the
+                    // particle's current-side locality instead of teleporting
+                    // it back to the entry surface.
+                    if (hitT > bestT) {
+                        bestT = hitT;
+                        bestTriangle = candidate;
+                    }
+                }
+
+                if (bestTriangle >= 0) {
+                    const Triangle& sweptTri = m_bvh.getTriangle(bestTriangle);
+                    const Eigen::Vector3d& sweptA =
+                        m_worldVertices[sweptTri.a];
+                    const Eigen::Vector3d& sweptB =
+                        m_worldVertices[sweptTri.b];
+                    const Eigen::Vector3d& sweptC =
+                        m_worldVertices[sweptTri.c];
+                    collisionPoint = start + (end - start) * bestT;
+                    sweptFaceNormal =
+                        (sweptB - sweptA).cross(sweptC - sweptA);
+                    const double sweptNormalLength =
+                        sweptFaceNormal.norm();
+                    if (sweptNormalLength > 1e-12) {
+                        sweptFaceNormal /= sweptNormalLength;
+                        sweptHit = true;
+                    }
+                }
+            }
+        }
+
+        if (distance <= thickness || sweptHit) {
+            Eigen::Vector3d faceNormal =
+                sweptHit ? sweptFaceNormal : (b - a).cross(c - a);
+            const double faceNormalLength = faceNormal.norm();
             if (faceNormalLength <= 1e-12)
                 continue;
-            Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
+            faceNormal /= faceNormalLength;
 
             Eigen::Vector3d normal = faceNormal;
-            if (distance > 1e-6) {
-                normal = toParticle / distance;
-                if (m_closedManifold) {
-                    const Eigen::Vector3d outwardNormal =
-                        faceNormal * m_outwardNormalSign;
-                    // A particle on the interior side of a closed, consistently
-                    // oriented surface must be resolved along the outward
-                    // normal; outside contact preserves the existing vector.
+            if (m_closedManifold) {
+                const Eigen::Vector3d outwardNormal =
+                    faceNormal * m_outwardNormalSign;
+                if (sweptHit) {
+                    normal = outwardNormal;
+                } else if (distance > 1e-6) {
+                    normal = toParticle / distance;
                     if (normal.dot(outwardNormal) < 0.0)
                         normal = -normal;
+                } else {
+                    normal = outwardNormal;
                 }
-            } else if (m_closedManifold) {
-                normal *= m_outwardNormalSign;
+            } else if (distance > 1e-6) {
+                normal = toParticle / distance;
             }
 
-            Eigen::Vector3d newPosition = cp + normal * thickness;""",
-            "MeshCollider.cpp contact response",
-        ),
-    ]
-    for old, new, label in replace_cpp:
-        count = cpp.count(old)
-        if count != 1:
-            raise RuntimeError(f"{label}: expected one source anchor, found {count}")
-        cpp = cpp.replace(old, new, 1)
+            Eigen::Vector3d newPosition =
+                collisionPoint + normal * thickness;""",
+        "MeshCollider.cpp contact response",
+    )
     Path(cpp_path := ROOT / "core/src/physics/MeshCollider.cpp").write_text(cpp, encoding="utf-8")
+
+    binding_old = '''        .def("get_mesh_path", &MeshCollider::getMeshPath)
+        .def("get_world_vertices", &MeshCollider::getWorldVertices);'''
+    binding_new = '''        .def("get_mesh_path", &MeshCollider::getMeshPath)
+        .def("get_world_vertices", &MeshCollider::getWorldVertices)
+        .def("set_swept_contact_enabled",
+             &MeshCollider::setSweptContactEnabled,
+             py::arg("enabled"));'''
+    replace_once(bindings, binding_old, binding_new, "Tissu pybind MeshCollider swept-contact ABI")
+
+    engine_old = '''    def add_mesh_from_arrays(
+        self,
+        name: str,
+        vertices: np.ndarray,
+        triangles: np.ndarray,
+        friction: float = 0.5,
+    ):
+        collider = sdk.MeshCollider(vertices, triangles, float(friction))
+        collider.set_name(name)
+        self.world.add_collider(collider)
+        self._colliders[name] = len(self.world.get_colliders()) - 1
+'''
+    engine_new = '''    def add_mesh_from_arrays(
+        self,
+        name: str,
+        vertices: np.ndarray,
+        triangles: np.ndarray,
+        friction: float = 0.5,
+        swept_contact: bool = False,
+    ):
+        collider = sdk.MeshCollider(vertices, triangles, float(friction))
+        collider.set_swept_contact_enabled(bool(swept_contact))
+        collider.set_name(name)
+        self.world.add_collider(collider)
+        self._colliders[name] = len(self.world.get_colliders()) - 1
+'''
+    replace_once(engine, engine_old, engine_new, "Tissu python engine swept-contact ABI")
 
     test_cpp = test.read_text(encoding="utf-8")
     test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
@@ -266,6 +428,23 @@ TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
     EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
 }
 
+TEST(MeshCollider, ClosedMeshSweptContactPreventsTunneling) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    const Eigen::Vector3d previous(1.0, -0.5, 0.75);
+    const Eigen::Vector3d current(1.0, 2.5, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(current);
+    particles[0].setOldPosition(previous);
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+    // The segment crosses the closed tetrahedron at y=0.0 (entry) and y=1.5
+    // (exit). Swept response must remain on the current/exit side rather than
+    // teleporting the particle back to the entry surface.
+    EXPECT_GT(particles[0].getPosition().y(), 1.0);
+}
+
 TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     const std::vector<Eigen::Vector3d> vertices = {
         {0.0, 0.0, 0.0},
@@ -288,12 +467,39 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     test_cpp = test_cpp.replace(old, new, 1)
     test.write_text(test_cpp, encoding="utf-8")
 
+    solver = ROOT / "core/src/physics/Solver.cpp"
+    solver_cpp = solver.read_text(encoding="utf-8")
+    solver_old = '''    for (int i = 0; i < m_iterations; i++) {
+        solveConstraints(dt);
+    }
+
+    const auto& colliders = world.getColliders();
+    for (auto& collider : colliders)
+        collider->resolve(m_particles, dt, world.getThickness());
+
+    solveSelfCollisions(dt, world.getThickness());'''
+    solver_new = '''    const auto& colliders = world.getColliders();
+    for (int i = 0; i < m_iterations; i++) {
+        for (auto& collider : colliders)
+            collider->resolve(m_particles, dt, world.getThickness());
+        solveConstraints(dt);
+    }
+
+    solveSelfCollisions(dt, world.getThickness());'''
+    if solver_cpp.count(solver_old) != 1:
+        raise RuntimeError("Solver.cpp ordering anchor mismatch")
+    solver.write_text(solver_cpp.replace(solver_old, solver_new, 1), encoding="utf-8")
+
+
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
     changed = run("git", "diff", "--name-only")
     expected = {
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
+        "core/src/physics/Solver.cpp",
+        "python/src/bindings.cpp",
+        "python/tissu/engine.py",
         "tests/physics/test_mesh_collider.cpp",
     }
     if set(changed.splitlines()) != expected:
@@ -303,6 +509,8 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     print(f"Tissu source commit: {EXPECTED_COMMIT}")
     print(f"Tissu contact fix script sha256: {script_sha}")
     print("Tissu contact fix: applied and self-checked")
+    print("Tissu swept contact: opt-in mesh collision capability installed")
+    print("Tissu solver order: collider-before-each-constraint-iteration")
     return 0
 
 
