@@ -31,6 +31,7 @@ def main() -> int:
     header = ROOT / "core/include/physics/MeshCollider.hpp"
     cpp = ROOT / "core/src/physics/MeshCollider.cpp"
     test = ROOT / "tests/physics/test_mesh_collider.cpp"
+    solver = ROOT / "core/src/physics/Solver.cpp"
 
     replace_once(
         header,
@@ -207,6 +208,29 @@ MeshOrientation inferMeshOrientation(
         cpp = cpp.replace(old, new, 1)
     Path(cpp_path := ROOT / "core/src/physics/MeshCollider.cpp").write_text(cpp, encoding="utf-8")
 
+    solver_cpp = solver.read_text(encoding="utf-8")
+    solver_old = """    for (int i = 0; i < m_iterations; i++) {
+        solveConstraints(dt);
+    }
+
+    const auto& colliders = world.getColliders();
+    for (auto& collider : colliders)
+        collider->resolve(m_particles, dt, world.getThickness());
+
+    solveSelfCollisions(dt, world.getThickness());"""
+    solver_new = """    const auto& colliders = world.getColliders();
+    for (int i = 0; i < m_iterations; i++) {
+        for (auto& collider : colliders)
+            collider->resolve(m_particles, dt, world.getThickness());
+        solveConstraints(dt);
+    }
+
+    solveSelfCollisions(dt, world.getThickness());"""
+    if solver_cpp.count(solver_old) != 1:
+        raise RuntimeError("Solver.cpp ordering anchor mismatch")
+    solver_cpp = solver_cpp.replace(solver_old, solver_new, 1)
+    solver.write_text(solver_cpp, encoding="utf-8")
+
     test_cpp = test.read_text(encoding="utf-8")
     test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
     helper = """static bool tetrahedronContains(const Eigen::Vector3d& point) {
@@ -295,6 +319,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
         "tests/physics/test_mesh_collider.cpp",
+        "core/src/physics/Solver.cpp",
     }
     if set(changed.splitlines()) != expected:
         raise RuntimeError(f"unexpected patched files: {changed!r}")
@@ -303,6 +328,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     print(f"Tissu source commit: {EXPECTED_COMMIT}")
     print(f"Tissu contact fix script sha256: {script_sha}")
     print("Tissu contact fix: applied and self-checked")
+    print("Tissu solver order: collider-before-each-constraint-iteration")
     return 0
 
 
