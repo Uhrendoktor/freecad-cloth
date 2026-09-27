@@ -167,13 +167,13 @@ target_snap_probe = r'''    # Target-aware fitting acceptance on the same native
         raise RuntimeError("canonical tunic Snap/Reset cycle mutated existing pinning state")
     log("tunic-target-resnap=passed")
 '''
+source = source.replace(anchor, target_snap_probe + "\n" + anchor, 1)
 
 anchor = '''    for batch in (15,15,15,15,15,15):
         simulation_panel.step(batch); doc.recompute(); events()
 '''
 if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
-source = source.replace(anchor, target_snap_probe + "\n" + anchor, 1)
 target_snap_probe = r'''    # Target-aware fitting acceptance on the same native tunic fixture used below.
     import math
     from freecad_cloth.avatar import FittingCommands
