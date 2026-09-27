@@ -303,7 +303,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     bool firstSegmentHit(const Eigen::Vector3d& start,
                          const Eigen::Vector3d& end,
                          double& hitT, Eigen::Vector3d& hitNormal,
-                         int& hitTriangle) const;""",
+                         int& hitTriangle, bool& hitEntering) const;""",
         "MeshCollider firstSegmentHit declaration",
     )
 
