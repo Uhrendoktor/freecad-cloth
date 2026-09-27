@@ -125,6 +125,12 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
 """
 
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", 1)
+source = source.replace(
+    "def main():\n",
+    'def main():\n    log("tissu-stitch-compliance=%s canonical-only default=0.0" % os.environ.get("CLOTH_TISSU_STITCH_COMPLIANCE", "0.0"))\n',
+    1,
+)
+
 def _compile_generated_source(source_text):
     try:
         return compile(source_text, str(source_path), "exec")
