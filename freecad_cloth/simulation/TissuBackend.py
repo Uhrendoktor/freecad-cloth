@@ -173,7 +173,7 @@ class TissuBackend(ClothSimulationBackend):
             raise RuntimeError("Tissu did not preserve cloth particle ordering")
         for index in self._pin_indices:
             self._sim.solver.add_pin(int(index), np.asarray(positions[index], dtype=np.float64), 0.0)
-        self._pending_stitches = tuple(self._stitches)
+        self._pending_stitches = tuple((a, b, 0.0) for a, b in self._stitches)
         if not self._stitch_delay_steps:
             self._activate_stitches(activation_step=0)
         self._add_collision()
@@ -181,8 +181,8 @@ class TissuBackend(ClothSimulationBackend):
     def _activate_stitches(self, activation_step=None):
         if self._stitch_activation_step is not None:
             return
-        for a, b in self._pending_stitches:
-            self._sim.solver.add_stitch(int(a), int(b), 0.0)
+        for a, b, compliance in self._pending_stitches:
+            self._sim.solver.add_stitch(int(a), int(b), float(compliance))
         self._pending_stitches = ()
         self._stitch_activation_step = (
             int(self._stitch_step) if activation_step is None else int(activation_step)
@@ -236,7 +236,7 @@ class TissuBackend(ClothSimulationBackend):
     def set_stitches(self, pairs: Iterable[Tuple[int, int]], compliance=0.0):
         self._stitches = tuple((int(a), int(b)) for a, b in pairs)
         if self._stitch_delay_steps and self._stitch_activation_step is None:
-            self._pending_stitches = tuple(self._stitches)
+            self._pending_stitches = tuple((a, b, float(compliance)) for a, b in self._stitches)
             return
         for a, b in self._stitches:
             self._sim.solver.add_stitch(int(a), int(b), float(compliance))
