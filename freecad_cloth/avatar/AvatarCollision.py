@@ -4,7 +4,7 @@ The model layer deliberately does not import FreeCAD.  ``surface_from_freecad``
 is the small GUI/runtime bridge used by the document workbench.
 """
 from dataclasses import dataclass
-from math import ceil
+import numpy as np
 from typing import Tuple
 
 
@@ -71,50 +71,45 @@ def coarsen_collision_surface(surface: CollisionSurface, max_triangles: int = 10
     if len(surface.triangles) <= limit:
         return surface
 
-    points = surface.vertices
-    centroids = []
-    mins = [float("inf")] * 3
-    maxs = [float("-inf")] * 3
-    for ia, ib, ic in surface.triangles:
-        a, b, c = points[ia], points[ib], points[ic]
-        center = tuple((a[i] + b[i] + c[i]) / 3.0 for i in range(3))
-        centroids.append(center)
-        for i in range(3):
-            mins[i] = min(mins[i], center[i])
-            maxs[i] = max(maxs[i], center[i])
+    centroids = np.asarray(
+        [
+            [
+                (surface.vertices[ia][axis] + surface.vertices[ib][axis] + surface.vertices[ic][axis]) / 3.0
+                for axis in range(3)
+            ]
+            for ia, ib, ic in surface.triangles
+        ],
+        dtype=np.float64,
+    )
 
-    span = max(maxs[i] - mins[i] for i in range(3))
-    if span <= 1e-9:
-        step = 1
-    else:
-        cells_per_axis = max(1, int(ceil(limit ** (1.0 / 3.0))))
-        cell = span / cells_per_axis
-        step = max(1, cells_per_axis)
+    # Normalize each axis independently so anisotropic authored meshes receive
+    # comparable spatial weight without changing the source coordinates.
+    mins = centroids.min(axis=0)
+    spans = centroids.max(axis=0) - mins
+    normalizers = np.where(spans > 1e-12, spans, 1.0)
+    normalized = (centroids - mins) / normalizers
 
-    selected = {}
-    for index, center in enumerate(centroids):
-        if span <= 1e-9:
-            key = (0, 0, 0)
-        else:
-            key = tuple(min(step - 1, max(0, int((center[i] - mins[i]) / cell))) for i in range(3))
-        if key not in selected:
-            selected[key] = index
+    # Deterministic farthest-point sampling: seed with the lowest normalized
+    # centroid (original index breaks exact ties), then repeatedly choose the
+    # point farthest from its nearest selected point. np.argmax resolves equal
+    # scores by the lowest original index, keeping repeated runs identical.
+    original_indices = np.arange(len(surface.triangles), dtype=np.intp)
+    seed = int(np.lexsort((original_indices, normalized[:, 2], normalized[:, 1], normalized[:, 0]))[0])
+    indices = np.empty(limit, dtype=np.intp)
+    indices[0] = seed
+    selected_count = 1
 
-    indices = list(selected.values())
-    if len(indices) > limit:
-        stride = max(1, int(ceil(len(indices) / float(limit))))
-        indices = indices[::stride][:limit]
-    elif len(indices) < limit:
-        used = set(indices)
-        stride = max(1, len(surface.triangles) // limit)
-        for index in range(0, len(surface.triangles), stride):
-            if index not in used:
-                indices.append(index)
-                used.add(index)
-                if len(indices) >= limit:
-                    break
+    point_norms = np.einsum("ij,ij->i", normalized, normalized)
+    nearest_distances = np.full(len(surface.triangles), np.inf, dtype=np.float64)
+    while selected_count < limit:
+        selected_point = normalized[indices[selected_count - 1]]
+        candidate_distances = point_norms + float(np.dot(selected_point, selected_point)) - 2.0 * normalized.dot(selected_point)
+        nearest_distances = np.minimum(nearest_distances, candidate_distances)
+        nearest_distances[indices[:selected_count]] = -1.0
+        indices[selected_count] = int(np.argmax(nearest_distances))
+        selected_count += 1
 
-    triangles = tuple(surface.triangles[index] for index in indices[:limit])
+    triangles = tuple(surface.triangles[int(index)] for index in indices)
     result = CollisionSurface(surface.vertices, triangles, surface.region, surface.thickness)
     result.validate()
     return result
