@@ -31,6 +31,8 @@ def main() -> int:
     header = ROOT / "core/include/physics/MeshCollider.hpp"
     cpp = ROOT / "core/src/physics/MeshCollider.cpp"
     test = ROOT / "tests/physics/test_mesh_collider.cpp"
+    solver_cpp = ROOT / "core/src/physics/Solver.cpp"
+    cloth_test = ROOT / "tests/physics/test_cloth.cpp"
     bvh_header = ROOT / "core/include/data-structures/BVH.hpp"
     bvh_cpp = ROOT / "core/src/data-structures/BVH.cpp"
 
@@ -503,6 +505,26 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
     cpp = cpp.replace(current_contact, swept_contact, 1)
 
     Path(cpp_path).write_text(cpp, encoding="utf-8")
+
+    solver_text = solver_cpp.read_text(encoding="utf-8")
+    solver_old = """    for (auto& collider : colliders)
+        collider->resolve(m_particles, dt, world.getThickness());
+
+    solveSelfCollisions(dt, world.getThickness());"""
+    solver_new = """    for (auto& collider : colliders)
+        collider->resolve(m_particles, dt, world.getThickness());
+
+    // Collision projection runs after the main constraint iterations.
+    // Re-enforce the same existing constraints once so zero-rest stitches
+    // are not left separated by the final collision correction.
+    solveConstraints(dt);
+
+    solveSelfCollisions(dt, world.getThickness());"""
+    if solver_text.count(solver_old) != 1:
+        raise RuntimeError("Solver.cpp collision-order anchor mismatch")
+    solver_text = solver_text.replace(solver_old, solver_new, 1)
+    solver_cpp.write_text(solver_text, encoding="utf-8")
+
     test_cpp = test.read_text(encoding="utf-8")
     test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
     helper = """static bool tetrahedronContains(const Eigen::Vector3d& point) {
@@ -650,7 +672,9 @@ TEST(MeshCollider, EarliestCrossingIsSelectedDeterministically) {
         "core/src/data-structures/BVH.cpp",
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
+        "core/src/physics/Solver.cpp",
         "tests/physics/test_mesh_collider.cpp",
+        "tests/physics/test_cloth.cpp",
     }
     if set(changed.splitlines()) != expected:
         raise RuntimeError(f"unexpected patched files: {changed!r}")
@@ -680,6 +704,8 @@ TEST(MeshCollider, EarliestCrossingIsSelectedDeterministically) {
     ):
         if anchor not in generated_cpp:
             raise RuntimeError(f"missing continuous-contact anchor: {anchor}")
+    if solver_new.strip() not in solver_cpp.read_text(encoding="utf-8"):
+        raise RuntimeError("missing post-collision constraint-order anchor")
     print("Tissu contact fix: applied and self-checked")
     print("Tissu continuous body contact: verified")
     return 0
