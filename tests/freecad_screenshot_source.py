@@ -340,7 +340,7 @@ def style_mesh(obj, label):
 def simulation():
     import os
     os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
-    os.environ["CLOTH_TISSU_COLLISION_TRIANGLES"] = "0"
+    os.environ["CLOTH_TISSU_COLLISION_TRIANGLES"] = "26756"
     log("tunic-collision-ab=full-authored-surface")
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
     from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
