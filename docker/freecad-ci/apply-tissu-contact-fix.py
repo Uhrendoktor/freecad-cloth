@@ -313,15 +313,16 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     )
 
     bvh_header_text = bvh_header.read_text(encoding="utf-8")
-    recursive_anchor = """    void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,"""
+    recursive_anchor = "void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,"
     if bvh_header_text.count(recursive_anchor) != 1:
         raise RuntimeError("BVH box helper declaration: expected one stable source anchor")
-    bvh_header_text = bvh_header_text.replace(
-        recursive_anchor,
-        """    void queryBoxRecursive(int nodeIdx, const Eigen::AlignedBox3d& box,
-                           std::vector<int>& outTriangles) const;
-""" + recursive_anchor,
-        1,
+    recursive_pos = bvh_header_text.index(recursive_anchor)
+    line_start = bvh_header_text.rfind("\n", 0, recursive_pos) + 1
+    bvh_header_text = (
+        bvh_header_text[:line_start]
+        + "    void queryBoxRecursive(int nodeIdx, const Eigen::AlignedBox3d& box,\n"
+        + "                           std::vector<int>& outTriangles) const;\n"
+        + bvh_header_text[line_start:]
     )
     bvh_header.write_text(bvh_header_text, encoding="utf-8")
 
