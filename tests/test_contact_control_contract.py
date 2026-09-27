@@ -19,3 +19,8 @@ def test_contact_control_contract():
     assert "diagnostic-contact-controls" in workflow
     assert "workflow_dispatch" in workflow
     assert "iterations=1" in source
+    assert '"iterations": 1' in source
+    assert '"case_id": "0-cube-contact"' in source
+    assert '"case_id": "0a-avatar-contact"' in source
+    assert '"collision_source_triangle_count"' in source
+    assert '"solver_collision_triangle_count"' in source
