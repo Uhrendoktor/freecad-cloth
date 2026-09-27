@@ -91,3 +91,19 @@ def test_minimum_outward_clearance_rejects_inward_points():
     from freecad_cloth.avatar.TargetPlacement import minimum_outward_clearance
     assert minimum_outward_clearance(_plane(), ((0.0, 0.0, 8.0),)) == 8.0
     assert minimum_outward_clearance(_plane(), ((0.0, 0.0, -2.0),)) < 0.0
+
+
+
+def test_anchor_allows_equidistant_surface_patches_with_same_normal():
+    surface = CollisionSurface(
+        (
+            (-10.0, -10.0, 0.0), (-1.0, -10.0, 0.0), (-1.0, 10.0, 0.0), (-10.0, 10.0, 0.0),
+            (1.0, -10.0, 0.0), (10.0, -10.0, 0.0), (10.0, 10.0, 0.0), (1.0, 10.0, 0.0),
+        ),
+        ((0, 1, 2), (0, 2, 3), (4, 5, 6), (4, 6, 7)),
+        "target",
+    )
+    surface.validate()
+    hit = target_surface_anchor(surface, (0.0, 0.0, 5.0))
+    assert hit.normal == (0.0, 0.0, 1.0)
+    assert abs(hit.distance - (26.0 ** 0.5)) < 1e-12
