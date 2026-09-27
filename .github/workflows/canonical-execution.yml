@@ -734,6 +734,55 @@ jobs:
           if-no-files-found: error
           compression-level: 1
 
+      - name: Publish inline simulation evidence for human review
+        if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_ID: ${{ github.run_id }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          review_root="docs/images/generated"
+          evidence_branch="simulation-evidence/pr-$PR_NUMBER"
+          worktree="$RUNNER_TEMP/simulation-evidence"
+          rm -rf "$worktree"
+          git fetch origin "refs/heads/$evidence_branch:refs/remotes/origin/$evidence_branch" || true
+          if git show-ref --verify --quiet "refs/remotes/origin/$evidence_branch"; then
+            git worktree add --detach "$worktree" "refs/remotes/origin/$evidence_branch"
+          else
+            git worktree add --detach "$worktree" "$GITHUB_SHA"
+            git -C "$worktree" switch --orphan "$evidence_branch"
+            git -C "$worktree" rm -rf . >/dev/null 2>&1 || true
+          fi
+          dest="$worktree/pr-$PR_NUMBER/run-$RUN_ID"
+          mkdir -p "$dest"
+          mapfile -t images < <(find "$review_root" -maxdepth 1 -type f -iname '*.png' | sort | grep -Ei '(tunic|draped|step-(015|045|090)|front|rear|right|left|top|bottom|diagnostic)' | head -n 18 || true)
+          if [ ${#images[@]} -eq 0 ]; then mapfile -t images < <(find "$review_root" -maxdepth 1 -type f -iname '*.png' | sort | head -n 18 || true); fi
+          for image in "${images[@]}"; do cp "$image" "$dest/"; done
+          printf '%s\n' '# Simulation visual evidence' '' "PR #$PR_NUMBER, canonical workflow run $RUN_ID." '' 'Human review starts with the rendered PNGs. Logs and manifests are secondary evidence.' > "$dest/README.md"
+          if [ ${#images[@]} -gt 0 ]; then
+            (cd "$worktree" && git add "pr-$PR_NUMBER/run-$RUN_ID" && git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "simulation evidence PR #$PR_NUMBER run $RUN_ID")
+            git -C "$worktree" push origin "HEAD:$evidence_branch"
+          fi
+          body="$RUNNER_TEMP/simulation-review.md"
+          {
+            echo '<!-- simulation-evidence -->'
+            echo "## Simulation visual evidence — PR #$PR_NUMBER / run $RUN_ID"
+            if [ ${#images[@]} -eq 0 ]; then
+              echo; echo 'No PNG evidence was produced. This simulation run is not human-reviewable.'
+            else
+              echo; echo 'Inspect the rendered images before reading the logs.'
+              for image in "${images[@]:0:8}"; do
+                name=$(basename "$image")
+                url="https://raw.githubusercontent.com/$REPOSITORY/$evidence_branch/pr-$PR_NUMBER/run-$RUN_ID/$name"
+                echo; echo "**$name**"; echo "![${name}]($url)"
+              done
+              echo; echo "[Open complete evidence bundle](https://github.com/$REPOSITORY/tree/$evidence_branch/pr-$PR_NUMBER/run-$RUN_ID)"
+            fi
+          } > "$body"
+          gh pr comment "$PR_NUMBER" --body-file "$body"
+          if [ ${#images[@]} -eq 0 ]; then exit 1; fi
   gui-turntables:
     name: README simulation turntable
     needs: [local_runner_readiness]
