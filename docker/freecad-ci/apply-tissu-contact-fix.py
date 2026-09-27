@@ -461,8 +461,7 @@ void StitchConstraint::solveBounded(std::vector<Particle>& particles,
     pB.setPosition(pB.getPosition() - wB * norm * deltaLambda);
 }
 
-} // namespace Tissu
-"""
+} // namespace Tissu"""
     if stitch_source.count(old_stitch) != 1:
         raise RuntimeError("StitchConstraint.cpp anchor mismatch")
     stitch_cpp.write_text(stitch_source.replace(old_stitch, new_stitch), encoding="utf-8")
