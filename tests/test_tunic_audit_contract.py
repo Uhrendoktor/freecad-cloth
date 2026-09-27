@@ -4,7 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-# The canonical native-Sketcher outline uses edges 3/5 as the shoulder seams.
+# The canonical native-Sketcher outline uses edges 2/5 as the shoulder seams.
 # Keep front/back semantic edge IDs independent; never fall back to one piece's IDs.
 
 def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
@@ -12,8 +12,8 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
     assert 'front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())' in source
     assert 'back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())' in source
     assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in source
-    assert 'front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"' in source
-    assert 'front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"' in source
+    assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in source
+    assert 'front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"' in source
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
@@ -30,6 +30,7 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     assert 'if solver_pins:' in source
     assert 'nearest_target_clearance' in source
     assert 'step0-target-vertex-clearance-mm=' in source
+    assert "initial-stitch-spans=" in source
     assert 'authored_shoulder_pins' not in source
     assert 'scene.PinSelection = [str(i) for i in front_pins]' not in source
     assert 'target_surface = collision_surface(' in source
@@ -38,12 +39,13 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
 
 def test_canonical_tunic_uses_validated_authored_mapping():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert "required_indices = (1, 2, 6, 7)" in audit
+    assert "required_indices = (1, 2, 5, 7)" in audit
     assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in audit
-    assert 'front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"' in audit
-    assert 'front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"' in audit
+    assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in audit
+    assert 'front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"' in audit
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in audit
     assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' not in audit
+    assert 'front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"' not in audit
 
 
 def test_canonical_tunic_source_rewrite_compiles():
