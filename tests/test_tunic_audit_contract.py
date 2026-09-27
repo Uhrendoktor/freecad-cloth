@@ -121,11 +121,14 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert '/opt/conda/envs/freecad/bin/cmake -S . -B build' in dockerfile
     assert '/opt/conda/envs/freecad/bin/cmake --build build' in dockerfile
     assert '--target _cloth_sdk_core unit_tests' in dockerfile
-    assert "--gtest_filter='MeshCollider.*'" in dockerfile
+    assert "--gtest_filter='MeshCollider.*:StitchConstraint.*:Solver.*'" in dockerfile
     assert "ParticleInsideMeshMovesOutside" in script
     assert "tetrahedronContains" in script
     assert "ClosedMeshKeepsOutsideContactOutside" in script
     assert "OpenMeshRetainsLegacyContactDirection" in script
+    assert "ZeroRestStitchEntryClipsAtClosedCollider" in script
+    assert "ZeroRestStitchExitIsNotClipped" in script
+    assert "motion.dot(outwardNormal) >= -1e-10" in script
 
     tunic = workflow[workflow.index("  gui-tunic-visual:") : workflow.index("\n  gui-", workflow.index("  gui-tunic-visual:") + 5)]
     assert "FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix" in tunic
