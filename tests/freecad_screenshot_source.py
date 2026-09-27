@@ -554,6 +554,7 @@ def simulation():
         hem_z=hem_z,
         seam_records=seam_records,
         proxy=proxy,
+        winding_probe=winding_probe,
     )
     bounds = []
     for panel in scene.DrapePanels:
