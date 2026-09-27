@@ -32,13 +32,13 @@ def fitting_stage_status(simulation):
     return message, bool(tuple(getattr(fitting, "HomePlacements", ()) or ()))
 
 
-def open_arrange_fit_from_simulation(simulation):
-    """Open the existing fitting stage for the simulation's pieces and target."""
+def prepare_fitting_from_simulation(simulation):
+    """Synchronize the persistent fitting scene without changing the active UI."""
     import FreeCAD as App
     import FreeCADGui as Gui
     doc = getattr(simulation, "Document", None) or App.ActiveDocument
     if doc is None:
-        raise RuntimeError("open a document before opening Arrange / Fit")
+        raise RuntimeError("open a document before preparing the fitting stage")
     from freecad_cloth.avatar import FittingCommands
     fitting = FittingCommands.create_fitting_scene()
     target = getattr(simulation, "DrapeTarget", None)
@@ -50,6 +50,16 @@ def open_arrange_fit_from_simulation(simulation):
         for piece in pieces:
             Gui.Selection.addSelection(piece)
         FittingCommands.add_selected_pattern_pieces()
+    Gui.Selection.clearSelection()
+    return fitting
+
+
+def open_arrange_fit_from_simulation(simulation):
+    """Open the existing fitting stage for the simulation's pieces and target."""
+    import FreeCAD as App
+    import FreeCADGui as Gui
+    doc = getattr(simulation, "Document", None) or App.ActiveDocument
+    fitting = prepare_fitting_from_simulation(simulation)
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(fitting)
     if Gui.Control.activeDialog():
