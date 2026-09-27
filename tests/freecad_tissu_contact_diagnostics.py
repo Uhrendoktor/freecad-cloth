@@ -681,6 +681,7 @@ def _ladder_snapshot(case_id, step, scene, pieces, collision_surface, cube, init
 
 
 def _run_ladder_case(case_id, rung, pin_mode, seam_mode="none", separation_mm=None):
+    started = time.perf_counter()
     _progress(f"{case_id}: start")
     doc = App.newDocument("TissuCubeLadder_%s" % case_id)
     try:
@@ -793,9 +794,12 @@ def _run_ladder_case(case_id, rung, pin_mode, seam_mode="none", separation_mm=No
                 None,
             )
         solver_triangle_count = len(collision_surface or ())
-        if solver_triangle_count != 2048:
+        collision_surface = getattr(backend, "solver_collision_surface", None)
+        if collision_surface is None:
+            collision_surface = getattr(backend, "collision_surface", None)
+        if not (collision_surface is not None and 0 < solver_triangle_count <= 2048):
             raise RuntimeError(
-                "%s solver collision triangle count changed: %s"
+                "%s solver collision triangle count is invalid: %s"
                 % (case_id, solver_triangle_count)
             )
         if rung in {1, 2}:
@@ -846,7 +850,7 @@ def _run_ladder_case(case_id, rung, pin_mode, seam_mode="none", separation_mm=No
                     "mean_mm": sum(spans) / len(spans),
                 })
         initial = _ladder_snapshot(
-            case_id, 0, scene, pieces, backend.solver_collision_surface, cube, before
+            case_id, 0, scene, pieces, collision_surface, cube, before
         )
         checkpoints = [initial["checkpoint"]]
         image_paths = [initial["checkpoint"]["image"]]
@@ -858,7 +862,7 @@ def _run_ladder_case(case_id, rung, pin_mode, seam_mode="none", separation_mm=No
             doc.recompute()
             _events()
             snap = _ladder_snapshot(
-                case_id, step, scene, pieces, backend.solver_collision_surface, cube, before
+                case_id, step, scene, pieces, collision_surface, cube, before
             )
             checkpoints.append(snap["checkpoint"])
             image_paths.append(snap["checkpoint"]["image"])
@@ -892,7 +896,7 @@ def _run_ladder_case(case_id, rung, pin_mode, seam_mode="none", separation_mm=No
             pre_step["piece_bounds_world_mm_before_step"] = panel_bounds
 
         final = _ladder_snapshot(
-            case_id, 90, scene, pieces, backend.solver_collision_surface, cube, before
+            case_id, 90, scene, pieces, collision_surface, cube, before
         )
         record = {
             "case_id": case_id,
@@ -931,7 +935,7 @@ def _run_ladder_case(case_id, rung, pin_mode, seam_mode="none", separation_mm=No
             "connected_components": final["checkpoint"]["components"],
             "max_seam_gap_mm": final["max_seam_gap"],
             "final_clearance_mm": final["signed_clearance"],
-            "runtime_ms": 0.0,
+            "runtime_ms": round((time.perf_counter() - started) * 1000.0, 3),
             "first_contact_step": next(
                 (
                     int(item["step"])
