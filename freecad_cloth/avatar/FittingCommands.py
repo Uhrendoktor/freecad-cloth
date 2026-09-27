@@ -268,6 +268,7 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
     from freecad_cloth.simulation.DrapeTarget import target_status
     from freecad_cloth.avatar.TargetPlacement import (
         nearest_surface_distance,
+        point_inside_closed_surface,
         translation_to_target,
     )
 
@@ -343,6 +344,28 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
             raise ValueError(
                 "target snap could not prove the requested %.3f mm collision-surface clearance (%.3f mm observed)"
                 % (float(clearance), float(minimum_clearance))
+            )
+        placed_centroid = (
+            centroid[0] + delta[0],
+            centroid[1] + delta[1],
+            centroid[2] + delta[2],
+        )
+        if point_inside_closed_surface(surface, placed_centroid):
+            raise ValueError("target snap placed the garment centroid inside the closed DrapeTarget")
+        _delta_check, hit = translation_to_target(
+            surface,
+            placed_centroid,
+            clearance=float(clearance),
+            max_translation=float(max_translation),
+        )
+        outward_signed = sum(
+            (float(placed_centroid[i]) - float(hit.point[i])) * float(hit.normal[i])
+            for i in range(3)
+        )
+        if outward_signed < float(clearance) - 1e-6:
+            raise ValueError(
+                "target snap outside proof failed: %.3f mm outward clearance < %.3f mm"
+                % (float(outward_signed), float(clearance))
             )
 
         current = {
