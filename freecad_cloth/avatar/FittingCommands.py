@@ -238,13 +238,10 @@ def add_selected_pattern_pieces():
             continue
         width = max(1.0, float(getattr(piece, "Width", 100.0) or 100.0))
         height = max(1.0, float(getattr(piece, "Height", 100.0) or 100.0))
-        wrap = "back" if "back" in str(getattr(piece, "Label", "") or getattr(piece, "Name", "")).lower() else "front"
-        defaults.extend((
-            GarmentAnchor(pid, "shoulder_left", (0.15 * width, 0.95 * height, 0.0), wrap).to_string(),
-            GarmentAnchor(pid, "shoulder_right", (0.85 * width, 0.95 * height, 0.0), wrap).to_string(),
-        ))
-        existing_anchor_keys.add((pid, "shoulder_left"))
-        existing_anchor_keys.add((pid, "shoulder_right"))
+        defaults.append(
+            GarmentAnchor(pid, "fitting_origin", (0.5 * width, 0.5 * height, 0.0), "front").to_string()
+        )
+        existing_anchor_keys.add((pid, "fitting_origin"))
     scene.GarmentAnchors = sorted(set(defaults))
     FittingScene(BodyMeasurements.from_json(scene.MeasurementData), getattr(scene.AvatarProxy, "Label", "") if scene.AvatarProxy else "", tuple(by_id.values())).validate()
     scene.FitStatus = "Ready" if scene.AvatarProxy else "Pieces assigned"
@@ -477,10 +474,52 @@ def _default_anchor_map(scene, pieces):
     return {key: tuple(sorted(items, key=lambda item: item.name)) for key, items in by_piece.items()}
 
 
-def snap_pieces_to_target(pattern_pieces=None, clearance=8.0, max_translation=600.0, max_rotation=45.0):
-    """Apply one shared rigid transform to a set of sewn garment pieces transactionally."""
+def _piece_anchor_samples(pieces, anchors_by_piece):
     import FreeCAD as App
-    from freecad_cloth.avatar.TargetAwarePlacement import TargetPlacementError, solve_rigid_z, target_surface_anchor, wrap_normal, minimum_anchor_clearance
+    records = []
+    piece_map = {str(piece.PieceId): piece for piece in pieces}
+    for piece_id in sorted(anchors_by_piece):
+        piece = piece_map.get(str(piece_id))
+        if piece is None:
+            continue
+        for anchor in anchors_by_piece[piece_id]:
+            point = piece.Placement.multVec(App.Vector(*anchor.position))
+            records.append(
+                (
+                    str(anchor.piece_id),
+                    str(anchor.name),
+                    (float(point.x), float(point.y), float(point.z)),
+                )
+            )
+    if not records:
+        raise ValueError("target-aware placement requires at least one persistent garment anchor")
+    return tuple(records)
+
+
+def _piece_world_samples(pieces):
+    import FreeCAD as App
+    points = []
+    for piece in pieces:
+        vertexes = tuple(getattr(getattr(piece, "Shape", None), "Vertexes", ()) or ())
+        if not vertexes:
+            base = piece.Placement.Base
+            points.append((float(base.x), float(base.y), float(base.z)))
+            continue
+        for vertex in vertexes:
+            point = piece.Placement.multVec(vertex.Point)
+            points.append((float(point.x), float(point.y), float(point.z)))
+    return tuple(points)
+
+
+def snap_pieces_to_target(pattern_pieces=None, clearance=8.0, max_translation=600.0):
+    """Apply one shared rigid translation to a sewn garment set transactionally."""
+    import FreeCAD as App
+    from freecad_cloth.avatar.TargetAwarePlacement import (
+        TargetPlacementError,
+        minimum_surface_clearance,
+        nearest_target_projection,
+        solve_shared_translation,
+    )
     from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
 
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
@@ -492,63 +531,52 @@ def snap_pieces_to_target(pattern_pieces=None, clearance=8.0, max_translation=60
     pieces = tuple(pattern_pieces or getattr(scene, "PatternPieces", ()) or ())
     if not pieces:
         raise ValueError("target-aware placement requires at least one pattern piece")
-    piece_ids = {str(piece.PieceId) for piece in pieces}
+
     anchors_by_piece = _default_anchor_map(scene, pieces)
-    anchors = [anchor for pid in sorted(anchors_by_piece) for anchor in anchors_by_piece[pid] if pid in piece_ids]
-    if len(anchors) < 2:
-        raise TargetPlacementError("target-aware placement requires at least two persistent anchors")
+    anchor_records = _piece_anchor_samples(pieces, anchors_by_piece)
     surface = collision_surface(
         target.SourceObject,
         float(getattr(target, "CollisionDeflection", 1.0)),
         float(getattr(target, "CollisionThickness", 0.0)),
     )
-    source_points = []
+
+    source_points = [record[2] for record in anchor_records]
     target_points = []
-    index = range(len(surface.triangles))
-    for anchor in anchors:
-        piece = next(piece for piece in pieces if str(piece.PieceId) == str(anchor.piece_id))
-        source = piece.Placement.multVec(App.Vector(*anchor.position))
-        normal = wrap_normal(anchor.wrap_direction)
-        hit = target_surface_anchor(surface, (source.x, source.y, source.z), normal, index=index)
-        desired = tuple(hit.point[i] + hit.normal[i] * (float(getattr(surface, "thickness", 0.0)) + float(clearance)) for i in range(3))
-        source_points.append((float(source.x), float(source.y), float(source.z)))
-        target_points.append(desired)
-    delta = solve_rigid_z(
+    offset = float(getattr(surface, "thickness", 0.0)) + float(clearance)
+    for point in source_points:
+        hit = nearest_target_projection(surface, point)
+        target_points.append(tuple(hit.point[i] + hit.normal[i] * offset for i in range(3)))
+
+    delta = solve_shared_translation(
         source_points,
         target_points,
         max_translation=float(max_translation),
-        max_rotation=float(max_rotation),
     )
-    if delta.residual_max > max(float(clearance) * 2.5, 20.0):
-        raise TargetPlacementError(
-            "shared rigid target fit residual %.3f mm exceeds the bounded placement tolerance" % delta.residual_max
-        )
-
     snapshots = []
     previous_piece_placements = list(getattr(scene, "PiecePlacements", ()) or ())
     previous_fit_status = str(getattr(scene, "FitStatus", ""))
+    previous_target = getattr(scene, "DrapeTarget", None)
     try:
-        rotation = App.Rotation(App.Vector(0, 0, 1), float(delta.rotation_z))
         translation = App.Vector(*delta.translation)
         for piece in pieces:
             placement = piece.Placement
             sketch = getattr(piece, "Sketch", None)
             snapshots.append((piece, App.Placement(placement), None if sketch is None else App.Placement(sketch.Placement)))
-            base = rotation.multVec(placement.Base) + translation
-            updated = App.Placement(base, rotation.multiply(placement.Rotation))
-            piece.Placement = updated
+            piece.Placement = App.Placement(
+                placement.Base + translation,
+                App.Rotation(placement.Rotation),
+            )
             if sketch is not None:
-                sketch.Placement = updated
+                sketch.Placement = App.Placement(piece.Placement)
         doc.recompute()
 
-        placed_anchor_records = []
-        for anchor in anchors:
-            piece = next(piece for piece in pieces if str(piece.PieceId) == str(anchor.piece_id))
-            point = piece.Placement.multVec(App.Vector(*anchor.position))
-            placed_anchor_records.append(((float(point.x), float(point.y), float(point.z)), wrap_normal(anchor.wrap_direction)))
-        actual_clearance = float(minimum_anchor_clearance(surface, placed_anchor_records))
-        if actual_clearance < float(clearance) - 1e-6:
-            raise TargetPlacementError("shared rigid placement did not establish the required target clearance")
+        clearance_value = minimum_surface_clearance(surface, _piece_world_samples(pieces))
+        if clearance_value < float(clearance) - 1e-6:
+            raise TargetPlacementError(
+                "shared rigid target placement did not establish the required %.3f mm minimum clearance (got %.3f mm)"
+                % (float(clearance), float(clearance_value))
+            )
+
         placement_values = []
         for piece in sorted(pieces, key=lambda item: str(item.PieceId)):
             base = piece.Placement.Base
@@ -567,15 +595,16 @@ def snap_pieces_to_target(pattern_pieces=None, clearance=8.0, max_translation=60
         for value in placement_values:
             existing[value.split("|", 1)[0]] = value
         scene.PiecePlacements = [existing[key] for key in sorted(existing)]
+        scene.DrapeTarget = previous_target
         scene.FitStatus = "Target-aware placement applied"
         doc.recompute()
         return {
             "piece_count": len(pieces),
-            "anchor_count": len(anchors),
+            "anchor_count": len(anchor_records),
             "translation": tuple(round(float(v), 6) for v in delta.translation),
-            "rotation_z": round(float(delta.rotation_z), 6),
+            "rotation_z": 0.0,
             "anchor_residual": round(float(delta.residual_max), 6),
-            "clearance": round(actual_clearance, 6),
+            "clearance": round(float(clearance_value), 6),
         }
     except Exception:
         for piece, placement, sketch_placement in snapshots:
@@ -584,6 +613,7 @@ def snap_pieces_to_target(pattern_pieces=None, clearance=8.0, max_translation=60
             if sketch is not None and sketch_placement is not None:
                 sketch.Placement = sketch_placement
         scene.PiecePlacements = previous_piece_placements
+        scene.DrapeTarget = previous_target
         scene.FitStatus = previous_fit_status
         doc.recompute()
         raise
