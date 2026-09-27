@@ -677,22 +677,21 @@ void StitchConstraint::solveInternal(
     const Eigen::Vector3d correctionA = wA * norm * deltaLambda;
     const Eigen::Vector3d correctionB = -wB * norm * deltaLambda;
 
-    double correctionScale = 1.0;
+    double correctionScaleA = 1.0;
+    double correctionScaleB = 1.0;
     if (colliders != nullptr && !colliders->empty()) {
-        correctionScale = std::min(
-            correctionScale,
-            correctionScaleAtFirstMeshHit(
-                pA.getPosition(), correctionA, *colliders, thickness));
-        correctionScale = std::min(
-            correctionScale,
-            correctionScaleAtFirstMeshHit(
-                pB.getPosition(), correctionB, *colliders, thickness));
+        correctionScaleA = correctionScaleAtFirstMeshHit(
+            pA.getPosition(), correctionA, *colliders, thickness);
+        correctionScaleB = correctionScaleAtFirstMeshHit(
+            pB.getPosition(), correctionB, *colliders, thickness);
     }
 
-    const double appliedDeltaLambda = deltaLambda * correctionScale;
-    m_lambda += appliedDeltaLambda;
-    pA.setPosition(pA.getPosition() + wA * norm * appliedDeltaLambda);
-    pB.setPosition(pB.getPosition() - wB * norm * appliedDeltaLambda);
+    // The XPBD multiplier records the unconstrained stitch solve. Mesh contact
+    // is a separate endpoint barrier: only a crossing endpoint is clipped,
+    // while the other endpoint keeps its full free-space correction.
+    m_lambda += deltaLambda;
+    pA.setPosition(pA.getPosition() + correctionA * correctionScaleA);
+    pB.setPosition(pB.getPosition() + correctionB * correctionScaleB);
 }""",
         "StitchConstraint collision-aware solve implementation",
     )
@@ -702,8 +701,9 @@ void StitchConstraint::solveInternal(
         "void StitchConstraint::solveWithColliders(",
         "void StitchConstraint::solveInternal(",
         "correctionScaleAtFirstMeshHit(",
-        "const double appliedDeltaLambda = deltaLambda * correctionScale;",
-        "m_lambda += appliedDeltaLambda;",
+        "double correctionScaleA = 1.0;",
+        "double correctionScaleB = 1.0;",
+        "m_lambda += deltaLambda;",
     )
     missing = [marker for marker in required_markers if marker not in stitch_cpp_text]
     if missing:
@@ -711,8 +711,8 @@ void StitchConstraint::solveInternal(
             "StitchConstraint generated swept implementation missing markers: "
             + ", ".join(missing)
         )
-    if "ClippedCorrection" in stitch_cpp_text or "appliedScale" in stitch_cpp_text:
-        raise RuntimeError("StitchConstraint generated swept implementation retains split endpoint clipping")
+    if "const double appliedDeltaLambda = deltaLambda * correctionScale;" in stitch_cpp_text:
+        raise RuntimeError("StitchConstraint generated swept implementation still couples both endpoints through one scale")
 
     replace_once(
         ROOT / "core/include/physics/Solver.hpp",
@@ -880,6 +880,28 @@ TEST(StitchConstraint, SolverDoesNotClipTangentCorrection) {
 
     EXPECT_NEAR(solver.getParticles()[moving].getPosition().x(), 0.0, 1e-9);
     EXPECT_NEAR(solver.getParticles()[moving].getPosition().y(), 250.0, 1e-9);
+}
+
+TEST(StitchConstraint, SolverClipsOnlyCrossingEndpoint) {
+    World world;
+    world.setGravity(Eigen::Vector3d::Zero());
+    world.setThickness(0.5);
+    world.addCollider(makeWall(0.0));
+
+    Solver solver;
+    solver.setSubsteps(1);
+    solver.setIterations(1);
+    const int moving =
+        solver.addParticle(Particle(Eigen::Vector3d(-10.0, 0.0, 0.0)));
+    const int freeEndpoint =
+        solver.addParticle(Particle(Eigen::Vector3d(500.0, 0.0, 0.0)));
+    solver.addStitch(moving, freeEndpoint, 0.0);
+
+    solver.update(world, 0.016);
+
+    EXPECT_LT(solver.getParticles()[moving].getPosition().x(), -0.49);
+    EXPECT_GT(solver.getParticles()[moving].getPosition().x(), -1.01);
+    EXPECT_NEAR(solver.getParticles()[freeEndpoint].getPosition().x(), 245.0, 1e-9);
 }
 
 TEST(StitchConstraint, SolverMultipleIterationsPreserveAppliedLambdaCorrection) {
