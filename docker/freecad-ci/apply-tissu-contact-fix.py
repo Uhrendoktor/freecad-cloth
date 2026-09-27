@@ -433,7 +433,6 @@ TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
 }
 
 TEST(MeshCollider, VertexTouchingClosedShellsDoNotEnableDeepContact) {
-    const auto first = makeTetrahedron(0.0);
     const std::vector<Eigen::Vector3d> vertices = {
         {0.0, 0.0, 0.0},
         {2.0, 0.0, 0.0},
@@ -448,9 +447,8 @@ TEST(MeshCollider, VertexTouchingClosedShellsDoNotEnableDeepContact) {
         {0, 4, 5}, {0, 5, 6}, {4, 6, 5}, {0, 6, 4},
     };
     MeshCollider mesh(vertices, triangles, 0.0);
-    (void)first;
 
-    Eigen::Vector3d initialPos(-0.2, 2.2, 2.0);
+    Eigen::Vector3d initialPos(-0.5, 2.0, 1.75);
     std::vector<Particle> particles;
     particles.emplace_back(initialPos);
 
