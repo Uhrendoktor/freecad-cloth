@@ -38,5 +38,6 @@ def test_tissu_contact_patch_preserves_sparse_surface_orientation_contract():
     assert "OrientedSparseMeshPreservesOutsideContact" in source
     assert "OrientedSparseMeshIsTranslationInvariant" in source
     assert "localA = a - center" in source
+    assert "center /= static_cast<double>(vertices.size())" in source
     assert source.count("m_windingSignal = orientation.windingSignal") == 2
     assert "m_closedManifold = orientation.closedManifold" in source
