@@ -509,17 +509,25 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
+              echo "diagnostic-freecad-start=$(date -u +%FT%TZ)" > /workspace/artifacts/diagnostic-contact-controls/runner-stage.log
+              set +e
               timeout --signal=TERM --kill-after=10s 120s /opt/freecad/AppRun /workspace/tests/freecad_contact_diagnostics.py > /workspace/artifacts/diagnostic-contact-controls/diagnostic.log 2>&1
+              status=$?
+              set -e
+              echo "diagnostic-freecad-exit=$status" >> /workspace/artifacts/diagnostic-contact-controls/runner-stage.log
+              cp /tmp/xvfb.log /workspace/artifacts/diagnostic-contact-controls/xvfb.log 2>/dev/null || true
+              cp /tmp/openbox.log /workspace/artifacts/diagnostic-contact-controls/openbox.log 2>/dev/null || true
+              cp /tmp/triangle-install.log /workspace/artifacts/diagnostic-contact-controls/triangle-install.log 2>/dev/null || true
+              cp /workspace/docs/images/generated/diagnostic-control-results.json /workspace/artifacts/diagnostic-contact-controls/ 2>/dev/null || true
+              cp /workspace/docs/images/generated/cloth-simulation-diagnostic-control-*.png /workspace/artifacts/diagnostic-contact-controls/ 2>/dev/null || true
+              if [ "$status" -ne 0 ]; then
+                exit "$status"
+              fi
               test -s /workspace/docs/images/generated/cloth-simulation-diagnostic-control-0-step-000.png
               test -s /workspace/docs/images/generated/cloth-simulation-diagnostic-control-0-step-001.png
               test -s /workspace/docs/images/generated/cloth-simulation-diagnostic-control-0a-step-000.png
               test -s /workspace/docs/images/generated/cloth-simulation-diagnostic-control-0a-step-001.png
               test -s /workspace/docs/images/generated/diagnostic-control-results.json
-              cp /workspace/docs/images/generated/diagnostic-control-results.json /workspace/artifacts/diagnostic-contact-controls/
-              cp /workspace/docs/images/generated/cloth-simulation-diagnostic-control-*.png /workspace/artifacts/diagnostic-contact-controls/ 2>/dev/null || true
-              cp /tmp/xvfb.log /workspace/artifacts/diagnostic-contact-controls/xvfb.log 2>/dev/null || true
-              cp /tmp/openbox.log /workspace/artifacts/diagnostic-contact-controls/openbox.log 2>/dev/null || true
-              cp /tmp/triangle-install.log /workspace/artifacts/diagnostic-contact-controls/triangle-install.log 2>/dev/null || true
             '
       - name: Validate diagnostic manifest
         run: |
