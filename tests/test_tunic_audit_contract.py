@@ -164,7 +164,8 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
 def test_canonical_tunic_experiment_enables_only_existing_automatic_pins():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    assert ''    scene.PinMode = "None"; scene.PinSelection = []': '    scene.PinMode = "Automatic"; scene.PinSelection = []; log("tunic-pin-mode=automatic")',' in audit
+    assert 'scene.PinMode = "None"; scene.PinSelection = []' in audit
+    assert 'scene.PinMode = "Automatic"; scene.PinSelection = []; log("tunic-pin-mode=automatic")' in audit
     assert 'scene.PinMode = "None"; scene.PinSelection = []' in source
     assert 'scene.PinMode = "Automatic"' in audit
     assert 'tunic-pin-mode=automatic' in audit
