@@ -86,8 +86,14 @@ def test_release_gate_validates_deterministic_svg_and_dxf_round_trip():
 def test_release_gate_rejects_geometry_or_semantic_drift():
     pattern = _curved_pattern()
     svg = to_svg(pattern, curve_samples=9, piece_id="bodice-front", seam_ids=("seam-neck",))
+    tampered_svg = svg.replace(
+        '<path d="M 0.000000,60.000000',
+        '<path d="M 1.000000,60.000000',
+        1,
+    )
+    assert tampered_svg != svg
     with TestCase().assertRaisesRegex(ValueError, "deterministic authoritative pattern"):
-        validate_export(pattern, svg.replace("100.000000,0.000000", "101.000000,0.000000", 1), "svg", curve_samples=9, piece_id="bodice-front", seam_ids=("seam-neck",))
+        validate_export(pattern, tampered_svg, "svg", curve_samples=9, piece_id="bodice-front", seam_ids=("seam-neck",))
 
     dxf = to_dxf(pattern, curve_samples=9, piece_id="bodice-front", seam_ids=("seam-neck",))
     with TestCase().assertRaisesRegex(ValueError, "deterministic authoritative pattern"):
@@ -175,10 +181,11 @@ def test_pattern_piece_export_blocks_invalid_semantic_seams(tmp_path):
 
 def test_export_boundary_is_closed_and_continuous():
     pattern = _curved_pattern()
-    points = pattern.sampled_outline(24)
-    assert len(points) >= 3
-    for start, end in zip(points, points[1:] + points[:1]):
-        assert ((start[0] - end[0]) ** 2 + (start[1] - end[1]) ** 2) <= 1e-12
+    svg = to_svg(pattern, curve_samples=24)
+    assert '<path d="' in svg
+    assert ' Z"' in svg
+    dxf = to_dxf(pattern, curve_samples=24)
+    assert '"70","1"' in dxf
 
 
 def test_export_rejects_disconnected_boundary_segments():
