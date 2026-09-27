@@ -72,6 +72,7 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "interior_seed_source" in SOURCE
     assert "float(center.y) + 120.0" in SOURCE
     assert "width=72.0" in SOURCE
+    assert "mesh_is_inside = getattr(mesh, \"isInside\", None)" in SOURCE
     assert 'did not create a true interior pre-step state' in SOURCE
     assert 'tissu-env: collision_mode=' in SOURCE
     assert "diagnostic-contact-supervisor=timeout" in WORKFLOW
