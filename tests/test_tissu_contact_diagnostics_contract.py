@@ -88,3 +88,7 @@ def test_workflow_validator_matches_shared_manifest():
     assert 'case["solver"]["backend"]' in WORKFLOW
     assert 'case["collision"]["solver_triangles"]' in WORKFLOW
     assert 'case["checkpoints"]' in WORKFLOW
+
+
+def test_diagnostic_job_has_no_obsolete_branch_trigger():
+    assert "supervisor/tissu-contact-controls-2484-20260927" not in WORKFLOW
