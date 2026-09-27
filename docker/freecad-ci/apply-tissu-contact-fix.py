@@ -72,8 +72,6 @@ private:
                         const std::vector<Eigen::Vector3d>& vertices) const;""",
         """    void query(const Eigen::Vector3d& point, double radius,
                std::vector<int>& outTriangles) const;
-    void query(const Eigen::AlignedBox3d& box,
-               std::vector<int>& outTriangles) const;
     int closestTriangle(const Eigen::Vector3d& point,
                         const std::vector<Eigen::Vector3d>& vertices) const;""",
         "BVH box query declaration",
@@ -81,17 +79,25 @@ private:
 
     replace_once(
         bvh_header,
+        """private:
+    void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
+                        double squaredRadius,
+                        std::vector<int>& outTriangles) const;""",
+        """private:
+    friend class MeshCollider;
+    void query(const Eigen::AlignedBox3d& box,
+               std::vector<int>& outTriangles) const;
+    void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
+                        double squaredRadius,
+                        std::vector<int>& outTriangles) const;""",
+        "BVH private box query declaration",
+    )
+
+    replace_once(
+        bvh_header,
         """    void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
                         double squaredRadius,
                         std::vector<int>& outTriangles) const;""",
-        """    void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
-                        double squaredRadius,
-                        std::vector<int>& outTriangles) const;
-    void queryBoxRecursive(int nodeIdx, const Eigen::AlignedBox3d& box,
-                           std::vector<int>& outTriangles) const;""",
-        "BVH box query recursive declaration",
-    )
-
     cpp = cpp.read_text(encoding="utf-8")
     include_old = '#include "physics/Particle.hpp"\n\nnamespace Tissu {'
     include_new = """#include "physics/Particle.hpp"
@@ -395,7 +401,7 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
         "MeshCollider first-segment-hit implementation",
     )
 
-    currentContact = """        if (distance <= thickness) {
+    current_contact = """        if (distance <= thickness) {
             Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
             const double faceNormalLength = faceNormalRaw.norm();
             if (faceNormalLength <= 1e-12)
@@ -419,7 +425,7 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
             }
 
             Eigen::Vector3d newPosition = cp + normal * thickness;""";
-    const std::string sweptContact = """        Eigen::Vector3d sweptNormal = Eigen::Vector3d::Zero();
+    swept_contact = """        Eigen::Vector3d sweptNormal = Eigen::Vector3d::Zero();
         Eigen::Vector3d sweptFaceNormal = Eigen::Vector3d::Zero();
         bool sweptContact = false;
         const Eigen::Vector3d displacement =
@@ -482,9 +488,10 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
             }
 
             Eigen::Vector3d newPosition = cp + normal * thickness;""";
-    const currentCount = cpp.count(currentContact);
-    if(currentCount!==1) throw new Error("generated contact anchor count "+currentCount);
-    cpp = cpp.replace(currentContact, sweptContact, 1);
+    current_count = cpp.count(current_contact)
+    if current_count != 1:
+        raise RuntimeError(f"generated contact anchor count mismatch: {current_count}")
+    cpp = cpp.replace(current_contact, swept_contact, 1)
 
     Path(cpp_path).write_text(cpp, encoding="utf-8")
     test_cpp = test.read_text(encoding="utf-8")
