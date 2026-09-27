@@ -36,6 +36,22 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     assert 'target_source.Mesh.BoundBox' not in source
 
 
+def test_canonical_tunic_uses_symmetric_outer_shoulder_pins():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert 'right_shoulder = tuple(initial_shoulder_pairs.get("TunicRightShoulder", ()))' in source
+    assert 'left_shoulder = tuple(initial_shoulder_pairs.get("TunicLeftShoulder", ()))' in source
+    assert '("TunicRightShoulder", "front", "outer", int(right_shoulder[0][0]))' in source
+    assert '("TunicRightShoulder", "back", "outer", int(right_shoulder[-1][1]))' in source
+    assert '("TunicLeftShoulder", "front", "outer", int(left_shoulder[-1][0]))' in source
+    assert '("TunicLeftShoulder", "back", "outer", int(left_shoulder[0][1]))' in source
+    assert 'if len(shoulder_pin_indices) != 4 or len(set(shoulder_pin_indices)) != 4:' in source
+    assert 'scene.PinMode = "Explicit"' in source
+    assert 'canonical tunic explicit outer-shoulder pins not applied' in source
+    assert 'outer-shoulder=' in source
+    assert 'pin_clearances' in source
+    assert 'authored_shoulder_pins' not in source
+
+
 def test_canonical_tunic_uses_validated_authored_mapping():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "required_indices = (1, 2, 6, 7)" in audit
