@@ -598,6 +598,11 @@ def run_acceptance():
         box.Width = 400.0
         box.Height = 400.0
         box.Placement.Base = App.Vector(-200.0, -200.0, 0.0)
+        from freecad_cloth.common.GarmentDocument import garment_group, link_garment_object
+        link_garment_object(box, "Avatar", doc)
+        avatar_group = garment_group(doc, "Avatar")
+        if avatar_group is None or box not in tuple(getattr(avatar_group, "Group", ()) or ()):
+            raise RuntimeError("target snap fixture did not join the native Avatar collision group")
         _select_objects(box)
         Gui.runCommand("ClothDrape_CreateTarget", 0)
         _events()
