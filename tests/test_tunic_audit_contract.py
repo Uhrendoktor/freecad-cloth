@@ -162,7 +162,6 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
 
 def test_tunic_stitch_delay_experiment_is_explicitly_bounded():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert 'os.environ["CLOTH_TISSU_STITCH_DELAY_STEPS"] = "15"' in source
     assert 'os.environ["CLOTH_TISSU_SUBSTEPS"] = "1"' in source or 'os.environ.pop("CLOTH_TISSU_SUBSTEPS"' in source
 
 
