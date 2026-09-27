@@ -68,6 +68,10 @@ class _ShortDecimatingMesh(_DecimatingMesh):
         self._faces = self._faces[:-1]
 
 
+class _NoDecimateMesh(_DecimatingMesh):
+    decimate = None
+
+
 def _closed_octahedron():
     vertices = (
         (1, 0, 0), (-1, 0, 0),
@@ -129,7 +133,7 @@ def test_native_decimation_fails_closed_on_exact_budget_violation(monkeypatch):
 
 def test_native_decimation_fails_closed_when_mesh_api_is_unavailable(monkeypatch):
     monkeypatch.setitem(sys.modules, "FreeCAD", types.SimpleNamespace(Vector=_Vector))
-    monkeypatch.setitem(sys.modules, "Mesh", types.SimpleNamespace(Mesh=lambda: object()))
+    monkeypatch.setitem(sys.modules, "Mesh", types.SimpleNamespace(Mesh=_NoDecimateMesh))
 
     with pytest.raises(RuntimeError, match="absolute decimation"):
         _decimate_collision_surface_native(_closed_octahedron(), 4)
