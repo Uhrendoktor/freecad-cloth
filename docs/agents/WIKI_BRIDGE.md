@@ -8,7 +8,7 @@ FreeCAD Cloth therefore treats the repository directory wiki/ as the editable so
 
 The intended flow is:
 
-MCP → repository/wiki → canonical GitHub Actions workflow → freecad-cloth.wiki.git → GitHub Wiki
+MCP → repository/wiki → path-scoped wiki-sync.yml → freecad-cloth.wiki.git → GitHub Wiki
 
 This restores practical read/write access to Wiki content through the repository interface that agents already use.
 
@@ -24,24 +24,16 @@ That makes Wiki changes durable, reviewable and reproducible.
 
 Repository wiki files are published as part of the canonical workflow.
 
-- Normal pushes to main publish the repository wiki tree.
-- A manual canonical workflow run can explicitly select Wiki operation = publish.
+- A push to `main` publishes the repository wiki tree when `wiki/**` changed.
+- The publishing workflow does not run for code-only changes, pull requests, schedules or unrelated paths.
 - The bridge copies the whole wiki tree into the Wiki Git repository.
 - The published copy therefore has deterministic content.
 
 ### Import
 
-Direct Wiki edits can be imported back into the repository.
+Direct Wiki edits are intentionally not part of the automatic publish workflow. To preserve a direct Wiki edit, run the bridge locally with `python3 tools/wiki_bridge.py import`, inspect the resulting `wiki/` diff, and submit it through the normal repository PR flow.
 
-1. Run the canonical workflow from main.
-2. Select Wiki operation = import.
-3. The workflow clones the live Wiki.
-4. The live tree replaces the repository wiki tree in the working copy.
-5. If it differs, the workflow creates an agent/wiki-import-<run-id> branch.
-6. A normal pull request is opened.
-7. Merge that PR to make the imported state canonical.
-
-There is no silent three-way merge.
+There is no silent three-way merge and no automatic last-writer-wins import.
 
 ## Credential
 
@@ -59,17 +51,12 @@ The current connected GitHub MCP does not expose Actions-secret creation or rota
 
 ## Workflow contract
 
-FreeCAD Cloth intentionally keeps one GitHub Actions workflow:
+FreeCAD Cloth has one canonical engineering/test workflow and one intentionally narrow documentation workflow:
 
-.github/workflows/canonical-execution.yml
+- `.github/workflows/canonical-execution.yml` — engineering, GUI, simulation, benchmark and release validation.
+- `.github/workflows/wiki-sync.yml` — human documentation publishing only; it triggers on `push` to `main` with `paths: [wiki/**]`.
 
-The workflow dispatch input Wiki operation has three choices:
-
-- none — normal canonical execution only
-- publish — publish repository documentation to the live Wiki
-- import — import live Wiki content and open a pull request
-
-The automatic hosted fallback explicitly forwards publish so a runner fallback still publishes documentation from main.
+The Wiki workflow does not participate in PR validation and does not share runner orchestration with engineering CI.
 
 ## Agent rules
 
@@ -115,4 +102,4 @@ A basic syntax check is:
 
 python3 -m py_compile tools/wiki_bridge.py
 
-The canonical Python validation already compiles the repository tree, so the bridge script is syntax checked as part of ordinary CI.
+The canonical Python validation compiles the repository tree, so the bridge script is syntax checked as part of engineering CI. The Wiki workflow itself is intentionally small and has no project test matrix.
