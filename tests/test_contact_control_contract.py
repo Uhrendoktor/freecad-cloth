@@ -14,5 +14,8 @@ def test_contact_control_contract():
     assert "resolved_outward" in source
     assert "outside_preserved" in source
     assert "run_diagnostics" in workflow
+    assert "github.event_name == 'workflow_dispatch' && inputs.run_diagnostics == 'contact'" in workflow
+    assert "github.head_ref == 'agent/contact-controls-2484-supervisor-20260927'" not in workflow
     assert "diagnostic-contact-controls" in workflow
     assert "workflow_dispatch" in workflow
+    assert "iterations=1" in source
