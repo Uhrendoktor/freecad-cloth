@@ -14,7 +14,7 @@ def test_quality_names_and_discretization_are_materially_distinct():
 
 def test_quality_preset_updates_solver_controls():
     scene = SimpleNamespace(
-        QualityPreset="Balanced", ParticleDistance=4.0,
+        QualityPreset="Balanced", ParticleDistance=4.0, PinMode="Automatic",
         SolverIterations=8, SolverSubsteps=1,
         FabricDensity=150.0, FabricThickness=0.5,
         FabricStretch=0.02, FabricShear=0.02,
