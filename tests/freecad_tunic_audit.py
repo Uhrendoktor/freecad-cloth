@@ -36,8 +36,6 @@ replacements = {
         '        seam_records.append((seam_obj, front, back))',
     'scene.FabricFriction = 0.75;': 'scene.FabricFriction = 0.85;',
     'scene.SolverIterations = 8;': 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-32 iterations-1 substeps-env");',
-    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance',
-    '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
 }
 for old, new in replacements.items():
@@ -95,6 +93,34 @@ timed_anchor = '''    from time import perf_counter
         log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
 '''
+placement_fit_probe = '''    raw_initial_clearance = initial_clearance
+    geometry_derived_correction = max(0.0, float(clearance) - float(raw_initial_clearance or 0.0))
+    if geometry_derived_correction > 0.0:
+        for piece, direction in ((front, -1.0), (back, 1.0)):
+            base = piece.Placement.Base
+            rotation = piece.Placement.Rotation
+            piece.Placement = App.Placement(
+                App.Vector(base.x, base.y + direction * geometry_derived_correction, base.z),
+                rotation,
+            )
+            sketch = getattr(piece, "Sketch", None)
+            if sketch is not None:
+                sketch.Placement = piece.Placement
+        scene.Steps = 0
+        doc.recompute()
+        proxy = scene.Proxy
+        backend = getattr(proxy, "backend", None)
+        if backend is None:
+            raise RuntimeError("canonical tunic placement correction did not rebuild a simulation backend")
+        initial_clearance = nearest_target_clearance(tuple(backend.positions()), tuple(surface.vertices))
+    log("geometry-derived-placement-correction-mm=%.3f raw-step0-clearance-mm=%.3f corrected-step0-clearance-mm=%.3f" % (geometry_derived_correction, float(raw_initial_clearance or 0.0), float(initial_clearance or 0.0)))
+    if initial_clearance is None or float(initial_clearance) < float(clearance):
+        raise RuntimeError(
+            "canonical tunic step-0 target clearance is below configured separation after geometry-derived placement correction: "
+            "%.2f mm < %.2f mm" % (float(initial_clearance or 0.0), float(clearance))
+        )
+'''
+source = source.replace("    if initial_clearance is None or float(initial_clearance) < float(clearance):\n        raise RuntimeError(\n            \"canonical tunic step-0 target clearance is below configured separation: \"\n            \"%.2f mm < %.2f mm\" % (float(initial_clearance or 0.0), float(clearance))\n        )", placement_fit_probe, 1)
 source = source.replace(anchor, preview_probe + '\n' + timed_anchor, 1)
 
 seam_check = """    backend_state = scene.Proxy._base_or_restore()
