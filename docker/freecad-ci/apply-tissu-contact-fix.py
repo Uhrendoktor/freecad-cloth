@@ -437,6 +437,7 @@ TEST(MeshCollider, ClosedMeshSweptContactPreventsTunneling) {
     particles.emplace_back(current);
     particles[0].setOldPosition(previous);
 
+    mesh.setSweptContactEnabled(true);
     mesh.resolve(particles, 0.016, 0.1);
 
     EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
