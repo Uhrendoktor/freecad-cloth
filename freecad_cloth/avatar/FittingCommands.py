@@ -93,7 +93,6 @@ def _migrate_visual_output_references(scene):
         setattr(scene, name, names)
 
 def _ensure_fitting_runtime_properties(scene):
-    import FreeCAD as App
     if "DrapeTarget" not in getattr(scene, "PropertiesList", ()):
         scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")
     if "GarmentAnchors" not in getattr(scene, "PropertiesList", ()):
@@ -515,10 +514,7 @@ def snap_pieces_to_target(pattern_pieces=None, clearance=8.0, max_translation=60
                 sketch.Placement = updated
         doc.recompute()
 
-        for anchor in anchors:
-            piece = next(piece for piece in pieces if str(piece.PieceId) == str(anchor.piece_id))
-            point = piece.Placement.multVec(App.Vector(*anchor.position))
-            placed_anchor_records = []
+        placed_anchor_records = []
         for anchor in anchors:
             piece = next(piece for piece in pieces if str(piece.PieceId) == str(anchor.piece_id))
             point = piece.Placement.multVec(App.Vector(*anchor.position))
