@@ -432,6 +432,14 @@ def simulation():
         solver_pins = tuple(sorted(int(i) for i in getattr(system, "pins", {}).keys()))
     if str(getattr(scene, "PinMode", "")) != "None":
         raise RuntimeError("canonical tunic must use PinMode=None")
+    initial_positions = tuple(backend.positions())
+    initial_spans = {}
+    for seam_id, stitch_pairs in sorted((proxy.seam_stitch_pairs or {}).items()):
+        initial_spans[str(seam_id)] = round(float(_post_drape_seam_gap(tuple(stitch_pairs), initial_positions)), 6)
+    initial_seam_span = max(initial_spans.values()) if initial_spans else 0.0
+    log("initial-solver-stitch-spans-mm=%s max=%.3f" % (initial_spans, initial_seam_span))
+    if initial_seam_span >= 250.0:
+        raise RuntimeError("open-book tunic launch assembly did not materially reduce the initial zero-rest stitch span: %.3f mm" % initial_seam_span)
     if solver_pins:
         raise RuntimeError("canonical tunic PinMode=None still has solver pins: %s" % (solver_pins,))
     surface = collision_surface(
