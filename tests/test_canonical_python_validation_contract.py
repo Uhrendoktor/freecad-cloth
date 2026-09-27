@@ -48,7 +48,8 @@ def test_tunic_audit_replaces_hard_exit_and_writes_failure_diagnostics():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
-    assert "source = source.replace('os._exit(1)', 'raise SystemExit(1)')" in audit
+    assert 'source = source.replace(' in audit
+    assert 'raise RuntimeError("tunic audit scenario failed:' in audit
     assert 'source = source.replace(\'getattr(os, "_" + "exit")(0)\', \'raise SystemExit(0)\')' in audit
     assert "tunic-audit-diagnostics-path=" in audit
     assert "traceback.format_exc()" in audit
