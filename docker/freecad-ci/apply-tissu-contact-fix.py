@@ -570,11 +570,12 @@ TEST(Solver, ReenforcesStitchesAfterColliderProjection) {
 }
 
 """
-    if test_cpp.count("TEST(Cloth, ClearFabric)") != 1:
-        raise RuntimeError("Cloth test anchor missing")
+    cloth_anchor = '#include "engine/Cloth.hpp"\n'
+    if test_cpp.count(cloth_anchor) != 1:
+        raise RuntimeError("Cloth test include anchor missing")
     test_cpp = test_cpp.replace(
-        "TEST(Cloth, ClearFabric) {",
-        post_collision_test + "TEST(Cloth, ClearFabric) {",
+        cloth_anchor,
+        cloth_anchor + post_collision_test,
         1,
     )
 
