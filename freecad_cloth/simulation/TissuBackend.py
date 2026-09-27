@@ -111,6 +111,7 @@ class TissuBackend(ClothSimulationBackend):
         self._triangles = tuple(tuple(int(i) for i in tri) for tri in triangles)
         self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins))
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
+        self._stitch_compliance = 0.0
         self._source_collision_surface = collision_surface
         collision_limit = _tissu_collision_triangle_limit()
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
@@ -163,7 +164,7 @@ class TissuBackend(ClothSimulationBackend):
         if self._stitches_armed:
             return
         for a, b in self._stitches:
-            self._sim.solver.add_stitch(int(a), int(b), 0.0)
+            self._sim.solver.add_stitch(int(a), int(b), self._stitch_compliance)
         self._stitches_armed = True
         clearance = None
         surface = self._source_collision_surface or self._collision_surface
@@ -238,10 +239,11 @@ class TissuBackend(ClothSimulationBackend):
 
     def set_stitches(self, pairs: Iterable[Tuple[int, int]], compliance=0.0):
         self._stitches = tuple((int(a), int(b)) for a, b in pairs)
+        self._stitch_compliance = float(compliance)
         if self._stitch_delay_steps > 0 and not self._stitches_armed:
             return
         for a, b in self._stitches:
-            self._sim.solver.add_stitch(int(a), int(b), float(compliance))
+            self._sim.solver.add_stitch(int(a), int(b), self._stitch_compliance)
         self._stitches_armed = True
 
     def positions(self):
