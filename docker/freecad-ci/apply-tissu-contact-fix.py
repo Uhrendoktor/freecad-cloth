@@ -143,10 +143,14 @@ MeshOrientation inferMeshOrientation(
                 return edge.first == 2 && edge.second == 0;
             });
 
-    const bool volumeKnown = absoluteVolume > 1.0e-12 &&
-                             std::abs(signedVolume) / absoluteVolume >= 0.20;
-    const bool radialKnown = absoluteRadialArea > 1.0e-9 &&
-                             std::abs(signedRadialArea) / absoluteRadialArea >= 0.85;
+    const double volumeDominance =
+        absoluteVolume > 1.0e-12 ? std::abs(signedVolume) / absoluteVolume : 0.0;
+    const double radialDominance =
+        absoluteRadialArea > 1.0e-9
+            ? std::abs(signedRadialArea) / absoluteRadialArea
+            : 0.0;
+    const bool volumeKnown = volumeDominance >= 0.20;
+    const bool radialKnown = radialDominance >= 0.85;
     const double volumeSign = signedVolume >= 0.0 ? 1.0 : -1.0;
     const double radialSign = signedRadialArea >= 0.0 ? 1.0 : -1.0;
     const bool signAgreement = volumeSign == radialSign;
