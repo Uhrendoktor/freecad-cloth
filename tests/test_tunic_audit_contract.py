@@ -7,18 +7,6 @@ ROOT = Path(__file__).resolve().parents[1]
 # The canonical native-Sketcher outline uses edges 3/5 as the shoulder seams.
 # Keep front/back semantic edge IDs independent; never fall back to one piece's IDs.
 
-def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
-    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert 'front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())' in source
-    assert 'back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())' in source
-    assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in source
-    assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in source
-    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' in source
-    assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
-
-
-
-
 def test_tunic_wrap_uses_authoritative_bounds_and_preserves_clearance():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert "target_min_y = min(target_ys)" in source
@@ -28,6 +16,17 @@ def test_tunic_wrap_uses_authoritative_bounds_and_preserves_clearance():
     assert "back_y = target_max_y + clearance + garment_height * wrap_cos" in source
     assert "front_angle = degrees(acos(wrap_cos))" in source
     assert "back_angle = 180.0 - front_angle" in source
+
+
+def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
+    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())' in source
+    assert 'back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())' in source
+    assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in source
+    assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in source
+    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' in source
+    assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
+
 
 def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
