@@ -785,7 +785,12 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     expected = {
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
+        "core/include/physics/StitchConstraint.hpp",
+        "core/src/physics/StitchConstraint.cpp",
+        "core/include/physics/Solver.hpp",
+        "core/src/physics/Solver.cpp",
         "tests/physics/test_mesh_collider.cpp",
+        "tests/physics/test_stitch_constraint.cpp",
     }
     if set(changed.splitlines()) != expected:
         raise RuntimeError(f"unexpected patched files: {changed!r}")
