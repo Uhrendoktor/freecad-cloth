@@ -131,6 +131,8 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "m_bvh.query" in script
     assert "setSweptContactEnabled" in script
     assert "set_swept_contact_enabled" in script
+    assert "python/src/bindings_headless.cpp" in script
+    assert "tissu-python-binding=headless" in dockerfile
     assert "Solver.cpp ordering anchor mismatch" in script
     assert "tissu-swept-contact=opt-in-mesh-capability" in dockerfile
     assert "tissu-solver-order=collider-before-each-constraint-iteration" in dockerfile
