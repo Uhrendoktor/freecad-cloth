@@ -174,21 +174,57 @@ MeshOrientation inferMeshOrientation(
             "MeshCollider.cpp vector constructor",
         ),
         (
-            """        if (distance <= thickness) {
-            Eigen::Vector3d normal = (distance > 1e-6)
-                                         ? toParticle.normalized()
-                                         : ((b - a).cross(c - a)).normalized();
+            """        Eigen::Vector3d contactPoint = cp;
+        Eigen::Vector3d sweptNormal = Eigen::Vector3d::Zero();
+        Eigen::Vector3d sweptFaceNormal = Eigen::Vector3d::Zero();
+        bool sweptContact = false;
+        const Eigen::Vector3d displacement =
+            particle.getPosition() - particle.getOldPosition();
+        if (distance > thickness &&
+            displacement.squaredNorm() > thickness * thickness) {
+            double hitT = 1.0;
+            Eigen::Vector3d hitNormal = Eigen::Vector3d::Zero();
+            int hitTriangle = -1;
+            if (firstSegmentHit(
+                    particle.getOldPosition(), particle.getPosition(),
+                    thickness, hitT, hitNormal, hitTriangle)) {
+                const Triangle& hitTri = m_bvh.getTriangle(hitTriangle);
+                const Eigen::Vector3d& hitA = m_worldVertices[hitTri.a];
+                const Eigen::Vector3d& hitB = m_worldVertices[hitTri.b];
+                const Eigen::Vector3d& hitC = m_worldVertices[hitTri.c];
+                const Eigen::Vector3d hitPoint =
+                    particle.getOldPosition() + displacement * hitT;
+                Eigen::Vector3d faceNormalRaw =
+                    (hitB - hitA).cross(hitC - hitA);
+                const double faceNormalLength = faceNormalRaw.norm();
+                if (faceNormalLength > 1e-12) {
+                    sweptFaceNormal = faceNormalRaw / faceNormalLength;
+                    sweptNormal = hitNormal.normalized();
+                    if (m_closedManifold) {
+                        sweptNormal = sweptFaceNormal * m_outwardNormalSign;
+                    } else if (
+                        (particle.getOldPosition() - hitPoint)
+                            .dot(sweptNormal) < 0.0) {
+                        sweptNormal = -sweptNormal;
+                    }
+                    contactPoint = hitPoint;
+                    cp = contactPoint;
+                    sweptContact = true;
+                }
+            }
+        }
 
-            Eigen::Vector3d newPosition = cp + normal * thickness;""",
-            """        if (distance <= thickness) {
-            Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
+        if (distance <= thickness || sweptContact) {
+            Eigen::Vector3d faceNormalRaw = sweptContact
+                                                 ? sweptFaceNormal
+                                                 : (b - a).cross(c - a);
             const double faceNormalLength = faceNormalRaw.norm();
             if (faceNormalLength <= 1e-12)
                 continue;
             Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
 
-            Eigen::Vector3d normal = faceNormal;
-            if (distance > 1e-6) {
+            Eigen::Vector3d normal = sweptContact ? sweptNormal : faceNormal;
+            if (!sweptContact && distance > 1e-6) {
                 normal = toParticle / distance;
                 if (m_closedManifold) {
                     const Eigen::Vector3d outwardNormal =
@@ -199,7 +235,7 @@ MeshOrientation inferMeshOrientation(
                     if (normal.dot(outwardNormal) < 0.0)
                         normal = -normal;
                 }
-            } else if (m_closedManifold) {
+            } else if (!sweptContact && m_closedManifold) {
                 normal *= m_outwardNormalSign;
             }
 
@@ -289,6 +325,45 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     mesh.resolve(particles, 0.016, 0.1);
 
     EXPECT_GT(particles[0].getPosition().y(), initialPos.y());
+}
+
+TEST(MeshCollider, HighSpeedOutsideToInsideCrossingIsResolved) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    const Eigen::Vector3d start(1.0, -5.0, 1.0);
+    const Eigen::Vector3d end(1.0, 5.0, 1.0);
+    std::vector<Particle> particles;
+    particles.emplace_back(end);
+    particles[0].setOldPosition(start);
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_LT(particles[0].getPosition().y(), 0.0);
+}
+
+TEST(MeshCollider, HighSpeedInsideToOutsideCrossingEndsOutside) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    const Eigen::Vector3d start(1.0, 5.0, 1.0);
+    const Eigen::Vector3d end(1.0, -5.0, 1.0);
+    std::vector<Particle> particles;
+    particles.emplace_back(end);
+    particles[0].setOldPosition(start);
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_LT(particles[0].getPosition().y(), 0.0);
+}
+
+TEST(MeshCollider, ParallelOutsideMotionDoesNotFalsePositive) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+    const Eigen::Vector3d start(-1.0, -0.11, 1.0);
+    const Eigen::Vector3d end(3.0, -0.11, 1.0);
+    std::vector<Particle> particles;
+    particles.emplace_back(end);
+    particles[0].setOldPosition(start);
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_EQ(particles[0].getPosition(), end);
 }"""
     if test_cpp.count(old) != 1:
         raise RuntimeError("MeshCollider regression test body anchor mismatch")
