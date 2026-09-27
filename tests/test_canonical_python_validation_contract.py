@@ -9,14 +9,14 @@ def test_canonical_python_job_executes_pytest_contract_modules():
         encoding="utf-8"
     )
     assert "python3 -m pytest --version" in workflow
-    assert "python3 -m pytest -q \\" in workflow
-    pytest_list = workflow[
-        workflow.index("python3 -m pytest -q \\")
-        : workflow.index("            ')"", workflow.index("python3 -m pytest -q \\"))
-    ]
+    pytest_marker = "python3 -m pytest -q"
+    pytest_start = workflow.index(pytest_marker)
+    pytest_end = workflow.index("\n              ')", pytest_start)
+    pytest_list = workflow[pytest_start:pytest_end]
     assert "tests/test_tunic_audit_contract.py" in pytest_list
     assert "tests/test_readme_visual_contract.py" in pytest_list
     assert "tests/test_cloth_diagnostics.py" in pytest_list
+    assert "python3 -m pytest -q" in pytest_list
     assert 'python3 "$test"' in workflow
 
 
