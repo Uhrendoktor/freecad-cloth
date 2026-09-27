@@ -269,6 +269,7 @@ def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=No
         "hem_z": hem_z,
         "panels": records,
         "seam_coherence": _seam_coherence(panels, seam_records, proxy=proxy),
+        "winding_probe": winding_probe,
     }
     with open(METRICS, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, sort_keys=True)
@@ -363,6 +364,34 @@ def simulation():
     )
     if not target_surface.vertices or not target_surface.triangles:
         raise RuntimeError("canonical tunic DrapeTarget has no authoritative collision triangles")
+
+
+    winding_probe = None
+    if os.environ.get("CLOTH_TISSU_WINDING_PROBE") == "1":
+        edge_counts = {}
+        signed_volume = 0.0
+        for triangle in target_surface.triangles:
+            a, b, c = (target_surface.vertices[index] for index in triangle)
+            signed_volume += (
+                float(a[0]) * (float(b[1]) * float(c[2]) - float(b[2]) * float(c[1]))
+                - float(a[1]) * (float(b[0]) * float(c[2]) - float(b[2]) * float(c[0]))
+                + float(a[2]) * (float(b[0]) * float(c[1]) - float(b[1]) * float(c[0]))
+            ) / 6.0
+            for ia, ib in ((triangle[0], triangle[1]), (triangle[1], triangle[2]), (triangle[2], triangle[0])):
+                lo, hi = sorted((int(ia), int(ib)))
+                key = (lo, hi)
+                sign = 1 if int(ia) == lo else -1
+                count, balance = edge_counts.get(key, (0, 0))
+                edge_counts[key] = (count + 1, balance + sign)
+        winding_probe = {
+            "triangle_count": int(len(target_surface.triangles)),
+            "unique_edge_count": int(len(edge_counts)),
+            "boundary_edge_count": int(sum(1 for count, _balance in edge_counts.values() if count == 1)),
+            "nonmanifold_edge_count": int(sum(1 for count, _balance in edge_counts.values() if count > 2)),
+            "oriented_edge_imbalance_count": int(sum(1 for count, balance in edge_counts.values() if count == 2 and balance != 0)),
+            "signed_volume_abs": abs(float(signed_volume)),
+        }
+        log("tunic-winding-probe=%s" % json.dumps(winding_probe, sort_keys=True))
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
     def arrangement_world(name):
         raw = next((value for value in getattr(avatar, "ArrangementPoints", ()) if str(value).split("|", 1)[0] == name), None)
