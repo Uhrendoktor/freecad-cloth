@@ -104,7 +104,8 @@ def test_coplanar_adjacent_triangles_at_shared_edge_are_not_ambiguous():
 def test_closed_convex_corner_tie_resolves_deterministically():
     surface = _box()
     hits = [target_surface_anchor(surface, (15.0, 0.0, 15.0)) for _ in range(3)]
-    assert all(hit.distance == 5.0 for hit in hits)
+    assert all(abs(hit.distance - (50.0 ** 0.5)) < 1e-12 for hit in hits)
+    assert all(hit.point == (10.0, 0.0, 10.0) for hit in hits)
     assert len({hit.triangle_index for hit in hits}) == 1
     assert hits[0].normal in ((1.0, 0.0, 0.0), (0.0, 0.0, 1.0))
 
