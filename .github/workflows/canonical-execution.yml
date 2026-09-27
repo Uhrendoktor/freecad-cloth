@@ -207,7 +207,7 @@ jobs:
                 tests/test_tunic_audit_contract.py \
                 tests/test_readme_visual_contract.py \
                 tests/test_sketcher_bootstrap_contract.py \
-                tests/test_canonical_python_validation_contract.py
+                tests/test_canonical_python_validation_contract.py \
                 tests/test_contact_control_contract.py
             ')"
           cleanup() {
@@ -473,9 +473,9 @@ jobs:
 
   diagnostic-contact-controls:
     name: Diagnostic contact controls (manual only)
-    if: ${{ github.event_name == 'pull_request' && github.head_ref == 'agent/contact-controls-2484-supervisor-20260927' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_diagnostics == 'contact' }}
     needs: [local_runner_readiness]
-    runs-on: ${{ inputs.runner_mode == 'hosted' && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ${{ inputs.runner_mode == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 12
     env:
       FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix
