@@ -398,6 +398,7 @@ static MeshCollider makeConcaveShell(double friction = 0.0) {
 
 TEST(MeshCollider, DeepParticleInsideClosedMeshMovesOutside) {
     MeshCollider mesh = makeTetrahedron(0.0);
+    mesh.setName("drape-target-authoritative");
 
     Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
     std::vector<Particle> particles;
@@ -411,6 +412,7 @@ TEST(MeshCollider, DeepParticleInsideClosedMeshMovesOutside) {
 
 TEST(MeshCollider, ConcaveClosedShellInteriorMovesOutside) {
     MeshCollider mesh = makeConcaveShell(0.0);
+    mesh.setName("drape-target-authoritative");
 
     Eigen::Vector3d initialPos(0.0, 0.0, 0.7);
     std::vector<Particle> particles;
