@@ -25,6 +25,21 @@ def test_contact_control_contract():
     assert '"solver_collision_triangle_count"' in source
     assert "App.exit()" in source
     assert "QApplication.instance()" in source
+    assert "iterations=1" in source
+    assert '"iterations": 1' in source
+    assert '"case_id": "0-cube-contact"' in source
+    assert '"case_id": "0a-avatar-contact"' in source
+    assert '"collision_source_triangle_count"' in source
+    assert '"solver_collision_triangle_count"' in source
+    assert "faulthandler.dump_traceback_later(30.0, repeat=True" in source
+    assert "contact-controls-progress.log" in source
+    assert "_progress(" in source
+    assert "setsid /opt/freecad/AppRun" in workflow
+    assert "contact-controls-supervisor=timeout" in workflow
+    assert "artifacts/contact-controls/app-run.log" in workflow
+    assert "if: always()" in workflow
+    assert "if-no-files-found: warn" in workflow
+    assert "retention-days: 14" in workflow
     assert "faulthandler.dump_traceback_later(30.0, repeat=True" in source
     assert "contact-controls-progress.log" in source
     assert "_progress(" in source
