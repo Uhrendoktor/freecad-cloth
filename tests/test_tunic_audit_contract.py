@@ -147,7 +147,8 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     assert "open_book_angles[side]" in source
     assert 'open_book_angles["front"]' in source
     assert 'open_book_angles["back"]' in source
-    assert "float(opening_angle)" not in source
+    assert 'float(open_book_angles["front"])' in source
+    assert 'float(open_book_angles["back"])' in source
     assert "initial-solver-stitch-spans-mm=" in source
     assert "def target_relative_piece_placement(side):" not in source
     assert "target_ys) - clearance" not in audit
