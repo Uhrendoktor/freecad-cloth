@@ -11,8 +11,6 @@ import sys
 from pathlib import Path
 
 import FreeCAD as App
-import FreeCADGui as Gui
-import Part
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -33,18 +31,6 @@ OUT.mkdir(parents=True, exist_ok=True)
 THICKNESS_MM = 0.5
 PROBE_HALF_SIZE_MM = 1.5
 PENETRATION_MM = 0.75
-
-
-def _events():
-    Gui.updateGui()
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
-    app = QtWidgets.QApplication.instance()
-    if app is not None:
-        app.processEvents()
-    Gui.updateGui()
 
 
 def _normalize(v):
@@ -102,14 +88,14 @@ def _basis(normal):
     return u, v
 
 
-def _make_probe_system(center, normal, offset, size=36.0, nx=4, ny=4):
+def _make_probe_system(center, normal, offset, width=180.0, height=260.0, nx=12, ny=18):
     u, v = _basis(normal)
     system = ClothSystem.grid(
-        size,
-        size,
+        width,
+        height,
         nx=nx,
         ny=ny,
-        origin=(-size / 2.0, -size / 2.0, offset),
+        origin=(-width / 2.0, -height / 2.0, offset),
     )
     for particle in system.particles:
         local = particle.position()
@@ -128,16 +114,22 @@ def _make_probe_system(center, normal, offset, size=36.0, nx=4, ny=4):
             d = (row + 1) * nx + col
             e = d + 1
             triangles.extend(((a, b, e), (a, e, d)))
-    return system, tuple(triangles)
-    
-
+    center_row = ny // 2
+    center_col = nx // 2
+    probe_indices = tuple(
+        row * nx + col
+        for row in range(center_row - 1, center_row + 1)
+        for col in range(center_col - 1, center_col + 1)
+    )
+    return system, tuple(triangles), probe_indices
 def _signed_plane(point, face_center, normal):
     return _dot(_sub(point, face_center), normal)
 
 
 def _run_backend(surface, face_center, normal, offset, label):
     print("contact-control backend-build label=%s offset=%s" % (label, offset), flush=True)
-    system, triangles = _make_probe_system(face_center, normal, offset)
+    _write_stage("backend-build:%s" % label)
+    system, triangles, probe_indices = _make_probe_system(face_center, normal, offset)
     backend = TissuBackend(
         system,
         triangles=triangles,
@@ -147,7 +139,7 @@ def _run_backend(surface, face_center, normal, offset, label):
         collision_mode="mesh",
     )
     initial = tuple(backend.positions())
-    print("contact-control step-start label=%s particles=%d" % (label, len(initial)), flush=True)
+    _write_stage("step-start:%s" % label)
     backend.step(
         dt=1.0 / 120.0,
         iterations=8,
@@ -155,9 +147,9 @@ def _run_backend(surface, face_center, normal, offset, label):
         surface=backend.solver_collision_surface,
     )
     final = tuple(backend.positions())
-    print("contact-control step-done label=%s" % label, flush=True)
-    initial_signed = min(_signed_plane(p, face_center, normal) for p in initial)
-    final_signed = min(_signed_plane(p, face_center, normal) for p in final)
+    _write_stage("step-done:%s" % label)
+    initial_signed = min(_signed_plane(initial[index], face_center, normal) for index in probe_indices)
+    final_signed = min(_signed_plane(final[index], face_center, normal) for index in probe_indices)
     delta = final_signed - initial_signed
     if offset < 0.0:
         if delta > 0.25:
@@ -173,8 +165,6 @@ def _run_backend(surface, face_center, normal, offset, label):
         "initial_signed_plane_mm": initial_signed,
         "final_signed_plane_mm": final_signed,
         "signed_plane_delta_mm": delta,
-        "initial_positions": initial,
-        "final_positions": final,
         "state": state,
         "finite": bool(backend.finite()),
         "solver_triangles": len(getattr(backend.solver_collision_surface, "triangles", ())),
@@ -206,6 +196,10 @@ def _save_probe_view(name, avatar=None, target_box=None, probe=None):
 
 
 
+def _write_stage(stage):
+    (OUT / "stage.txt").write_text(str(stage) + "\n", encoding="utf-8")
+
+
 def _write_manifest(results, error=None):
     payload = {
         "schema": 1,
@@ -220,7 +214,7 @@ def _write_manifest(results, error=None):
     (OUT / "manifest.json").write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
 
 def _cube_control():
-    print("contact-control cube-start", flush=True)
+    _write_stage("cube-start")
     doc = App.newDocument("TissuContactControlCube")
     cube = doc.addObject("Part::Feature", "TargetCube")
     cube.Shape = Part.makeBox(100.0, 100.0, 100.0, App.Vector(-50.0, -50.0, -50.0))
@@ -246,14 +240,7 @@ def _cube_control():
     inside = _run_backend(surface, face_center, normal, -PENETRATION_MM, "cube_inside")
     outside = _run_backend(surface, face_center, normal, PENETRATION_MM, "cube_outside")
 
-    probe = doc.addObject("Part::Feature", "ProbeCloth")
-    _set_probe_shape(probe, inside["initial_positions"])
-    _save_probe_view("cube-inside-step-0.png", target_box=cube, probe=probe)
-    _set_probe_shape(probe, inside["final_positions"])
-    _save_probe_view("cube-inside-step-1.png", target_box=cube, probe=probe)
-
-    doc.close()
-    print("contact-control cube-done", flush=True)
+    _write_stage("cube-done")
     return {
         "rung": "0",
         "target": "cube",
@@ -261,24 +248,23 @@ def _cube_control():
         "solver_triangles": len(surface.triangles),
         "inside": {k: v for k, v in inside.items() if k not in {"initial_positions", "final_positions"}},
         "outside": {k: v for k, v in outside.items() if k not in {"initial_positions", "final_positions"}},
-        "screenshots": ["cube-inside-step-0.png", "cube-inside-step-1.png"],
         "topology": validate_mesh(surface.vertices, surface.triangles, prefer_trimesh=False).__dict__,
     }
 
 
 def _avatar_control():
     doc = App.newDocument("TissuContactControlAvatar")
-    print("contact-control avatar-create-start", flush=True)
+    _write_stage("avatar-create-start")
     source = __import__("freecad_cloth.avatar.AvatarCommands", fromlist=["create_avatar"]).create_avatar(
         attach_collision=False,
         doc=doc,
     )
-    print("contact-control avatar-created vertices=%s triangles=%s" % (
+    _write_stage("avatar-created vertices=%s triangles=%s" % (
         int(getattr(source, "MeshVertexCount", 0)),
         int(getattr(source, "MeshTriangleCount", 0)),
-    ), flush=True)
+    ))
     full = surface_from_freecad(source, 1.0, 3.0)
-    print("contact-control avatar-surface-built triangles=%d" % len(full.triangles), flush=True)
+    _write_stage("avatar-surface-built triangles=%d" % len(full.triangles))
     solver_surface = coarsen_collision_surface(full, 2048)
     if len(solver_surface.triangles) != 2048:
         raise RuntimeError("expected exactly 2048 solver collision triangles, got %d" % len(solver_surface.triangles))
@@ -298,12 +284,6 @@ def _avatar_control():
     inside = _run_backend(solver_surface, face_center, normal, -PENETRATION_MM, "avatar_inside")
     outside = _run_backend(solver_surface, face_center, normal, PENETRATION_MM, "avatar_outside")
 
-    probe = doc.addObject("Part::Feature", "ProbeCloth")
-    _set_probe_shape(probe, inside["initial_positions"])
-    _save_probe_view("avatar-inside-step-0.png", avatar=source, probe=probe)
-    _set_probe_shape(probe, inside["final_positions"])
-    _save_probe_view("avatar-inside-step-1.png", avatar=source, probe=probe)
-
     solver_metrics = validate_mesh(solver_surface.vertices, solver_surface.triangles, prefer_trimesh=False)
     doc.close()
     return {
@@ -319,16 +299,15 @@ def _avatar_control():
         "probe_outward_normal": normal,
         "inside": {k: v for k, v in inside.items() if k not in {"initial_positions", "final_positions"}},
         "outside": {k: v for k, v in outside.items() if k not in {"initial_positions", "final_positions"}},
-        "screenshots": ["avatar-inside-step-0.png", "avatar-inside-step-1.png"],
     }
 
 
 def main():
     results = []
     try:
-        print("contact-control main-start", flush=True)
+        _write_stage("main-start")
         results.append(_cube_control())
-        print("contact-control cube-manifest", flush=True)
+        _write_stage("cube-complete")
         _write_manifest(results)
         results.append(_avatar_control())
         _write_manifest(results)
@@ -374,10 +353,6 @@ def main():
             app = getattr(App, "ActiveDocument", None)
             if app is not None:
                 App.closeDocument(app.Name)
-        except Exception:
-            pass
-        try:
-            Gui.updateGui()
         except Exception:
             pass
 
