@@ -159,3 +159,12 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     gate = source.index("assert_drape_diagnostics(json.load(handle).get(\"panels\", ()))")
     assert "drape-metrics=" in source[:gate]
     assert "gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]
+
+def test_canonical_tunic_contact_order_experiment_is_explicit_and_pinned():
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    script = (ROOT / "docker" / "freecad-ci" / "apply-tissu-contact-fix.py").read_text(encoding="utf-8")
+    assert 'os.environ["CLOTH_TISSU_CONTACT_BEFORE_CONSTRAINTS"] = "1"' in audit
+    assert "CLOTH_TISSU_CONTACT_BEFORE_CONSTRAINTS" in script
+    assert "ContactOrderingDefaultIsPostConstraint" in script
+    assert "ContactOrderingExperimentIsPreConstraint" in script
+    assert "tunic-contact-order=collide-before-constraints" in audit
