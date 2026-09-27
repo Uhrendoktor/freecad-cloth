@@ -21,7 +21,13 @@ def test_readme_turntable_uses_real_blanket_drape_motion():
     assert "stage=simulation-pass" in source
     assert "stage=validation-pass" in source
     assert "stage=draped-render-pass" in source
-    assert "BLANKET_PARTICLE_DISTANCE = 16.0" in source
+    assert "BLANKET_PARTICLE_DISTANCE = 12.0" in source
+    assert "BLANKET_START_Z = 90.0" in source
+    assert "target_x = 0.375 * BLANKET_SIZE" in source
+    assert "abs(float(mesh_positions[index][0]) + target_x)" in source
+    assert "abs(float(mesh_positions[index][0]) - target_x)" in source
+    assert "span < 0.75 * BLANKET_SIZE" in source
+    assert "opposite-inset-top-edge" in source
     assert "scene.SolverSubsteps = 1" in source
     assert 'set_avatar_collision_source(scene, cube, thickness=2.0, deflection=1.0)' in source
     assert 'arranged_objects = [cube, panel]' in source
