@@ -349,6 +349,32 @@ bool segmentTriangleHit(
     EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
 }
 
+TEST(MeshCollider, SweptCrossingThinSurfaceIsProjectedOutside) {
+    const std::vector<Eigen::Vector3d> vertices = {
+        {0.0, 0.0, 0.0},
+        {2.0, 0.0, 0.0},
+        {0.0, 0.0, 2.0},
+        {2.0, 0.0, 2.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {
+        {0, 1, 2},
+        {2, 1, 3},
+    };
+    MeshCollider mesh(vertices, triangles, 0.0);
+
+    std::vector<Particle> particles;
+    particles.emplace_back(Eigen::Vector3d(1.0, 1.0, 1.0));
+    particles[0].setPosition(Eigen::Vector3d(1.0, -1.0, 1.0));
+    particles[0].setOldPosition(Eigen::Vector3d(1.0, 1.0, 1.0));
+
+    mesh.resolve(particles, 0.016, 0.05);
+
+    EXPECT_NEAR(particles[0].getPosition().y(), 0.05, 1e-9);
+    EXPECT_GT(
+        (particles[0].getPosition() - particles[0].getOldPosition()).norm(),
+        0.0);
+}
+
 TEST(MeshCollider, ClosedMeshKeepsOutsideContactOutside) {
     MeshCollider mesh = makeTetrahedron(0.0);
     Eigen::Vector3d initialPos(1.0, -0.01, 0.75);
