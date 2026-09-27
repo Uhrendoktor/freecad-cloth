@@ -126,6 +126,12 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "tetrahedronContains" in script
     assert "ClosedMeshKeepsOutsideContactOutside" in script
     assert "OpenMeshRetainsLegacyContactDirection" in script
+    assert "Solver.cpp ordering anchor mismatch" in script
+    assert "solver_cpp = solver.read_text" in script
+    assert "for (int i = 0; i < m_iterations; i++)" in script
+    assert "collider->resolve(m_particles, dt, world.getThickness())" in script
+    assert "solveConstraints(dt)" in script
+    assert 'tissu-solver-order=collider-before-each-constraint-iteration' in dockerfile
 
     tunic = workflow[workflow.index("  gui-tunic-visual:") : workflow.index("\n  gui-", workflow.index("  gui-tunic-visual:") + 5)]
     assert "FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix" in tunic
