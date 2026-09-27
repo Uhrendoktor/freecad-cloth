@@ -30,6 +30,17 @@ def _tissu_collision_triangle_limit():
     return value
 
 
+def _resolve_tissu_friction(value):
+    """Return a finite authored collider-friction coefficient in [0, 1]."""
+    try:
+        friction = float(value)
+    except (TypeError, ValueError):
+        return 0.5
+    if not 0.0 <= friction <= 1.0:
+        raise ValueError("Tissu collision friction must be between 0 and 1")
+    return friction
+
+
 def _to_tissu_position(position):
     x, y, z = position
     return (float(x) / _MM, float(z) / _MM, float(y) / _MM)
@@ -91,6 +102,7 @@ class TissuBackend(ClothSimulationBackend):
         stitches: Iterable[Tuple[int, int]] = (),
         collision_surface: CollisionSurface | None = None,
         collision_mode: str = "torso-envelope",
+        collision_friction: float = 0.5,
     ):
         try:
             from tissu import Simulation
@@ -104,6 +116,7 @@ class TissuBackend(ClothSimulationBackend):
         self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins))
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
         self._source_collision_surface = collision_surface
+        self._collision_friction = _resolve_tissu_friction(collision_friction)
         collision_limit = _tissu_collision_triangle_limit()
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
             collision_surface = coarsen_collision_surface(collision_surface, collision_limit)
@@ -142,11 +155,12 @@ class TissuBackend(ClothSimulationBackend):
                     f"drape-torso-{index}",
                     np.asarray(_to_tissu_position(center), dtype=np.float64),
                     float(radius_mm) / _MM,
-                    friction=0.5,
+                    friction=self._collision_friction,
                 )
             return
         vtx, idx = _to_tissu_mesh(self._collision_surface)
-        self._sim.add_mesh_from_arrays("drape-target", vtx, idx, friction=0.5)
+        self._sim.add_mesh_from_arrays("drape-target", vtx, idx, friction=self._collision_friction)
+        print("cloth-tissu-collision-friction=%.3f" % self._collision_friction, flush=True)
 
     def _build(self, Simulation):
         import numpy as np
