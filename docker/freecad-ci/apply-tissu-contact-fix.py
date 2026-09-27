@@ -569,6 +569,7 @@ class StitchConstraint""",
 namespace Tissu {""",
         """#include "physics/StitchConstraint.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 
@@ -857,7 +858,7 @@ TEST(StitchConstraint, SolverPreservesLongFreeSpaceCorrection) {
 TEST(StitchConstraint, SolverDoesNotClipTangentCorrection) {
     World world;
     world.setGravity(Eigen::Vector3d::Zero());
-    world.setThickness(0.5);
+    world.setThickness(0.0);
     world.addCollider(makeWall(0.0));
 
     Solver solver;
