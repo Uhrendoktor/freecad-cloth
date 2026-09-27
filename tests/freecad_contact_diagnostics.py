@@ -292,7 +292,7 @@ def control_0a():
         )
         piece.Placement = placement
         piece.Sketch.Placement = placement
-        scene = _prepare_scene(doc, doc.getObject("DrapeTarget").SourceObject, piece, gravity=(0.0, 0.0, -9810.0))
+        scene = _prepare_scene(doc, doc.getObject("DrapeTarget").SourceObject, piece, gravity=(0.0, 0.0, 0.0))
         return _run_case(doc, scene, avatar, "0a")
     finally:
         try:
