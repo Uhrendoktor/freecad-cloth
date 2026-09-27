@@ -554,6 +554,13 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
     EXPECT_GT(particles[0].getPosition().y(), 1.9);
 }
 
+"""
+    if "TEST(MeshCollider, ClosedMeshSweptContactPreventsTunneling)" not in test_cpp:
+        anchor = "TEST(MeshCollider, ParticleOutsideMeshDoesNotChangePosition) {"
+        if test_cpp.count(anchor) != 1:
+            raise RuntimeError("MeshCollider swept-contact insertion anchor missing")
+        test_cpp = test_cpp.replace(anchor, swept_tunneling_test + anchor, 1)
+
     deep_containment_test = """TEST(MeshCollider, ClosedMeshRecoversDeepInteriorParticle) {
     MeshCollider mesh = makeTetrahedron(0.0);
 
