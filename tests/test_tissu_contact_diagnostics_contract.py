@@ -97,4 +97,5 @@ def test_cube_ladder_caches_collision_proximity_mesh():
     assert "proximity_mesh = trimesh.Trimesh(" in source
     assert "proximity_mesh.nearest.on_surface" in source
     assert "_surface_signed_clearance(positions, source_shape, collision_surface, proximity_mesh)" in source
-    assert "simulation_panel.step(step - current_step)" in source
+    assert "for step in CHECKPOINTS:" in source
+    assert "scene.Steps = int(step)" in source
