@@ -8,7 +8,7 @@ from freecad_cloth.pattern.PatternDerivedGeometry import Notch, PatternMark, add
 from freecad_cloth.sewing.SewingSemantics import SeamConstraint, validate_seam_graph
 from freecad_cloth.sewing.SewingObjects import _edge_length, _edge_points
 from freecad_cloth.avatar.AvatarCollision import AvatarSpec, CollisionSurface, surface_from_triangles
-from freecad_cloth.common.DrapeVisualSanity import assert_drape_diagnostics
+from test_tissu_collision_decimation_contract import (\n    test_native_decimation_hits_exact_2048_and_is_deterministic,\n    test_native_decimation_fails_closed_when_api_is_unavailable,\n    test_native_decimation_rejects_fragmented_output,\n    test_native_decimation_preserves_closed_source_contract,\n)\nfrom freecad_cloth.common.DrapeVisualSanity import assert_drape_diagnostics
 from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
 from fixtures.garment_fixtures import two_piece_rectangle, mirrored_pair, multi_piece
 
