@@ -4,6 +4,7 @@ The reference solver remains the deterministic fallback. Tissu is imported lazil
 so installations without the optional wheel keep the existing backend usable.
 """
 from copy import deepcopy
+from math import isfinite
 from typing import Iterable, Sequence, Tuple
 import os
 
@@ -14,6 +15,7 @@ from freecad_cloth.simulation.ClothSolver import ClothSystem
 _MM = 1000.0
 _TISSU_SUBSTEPS_DEFAULT = 1
 _TISSU_COLLISION_TRIANGLES_DEFAULT = 0
+_TISSU_STITCH_COMPLIANCE_DEFAULT = 0.0
 
 
 def _tissu_substeps():
@@ -27,6 +29,20 @@ def _tissu_collision_triangle_limit():
     value = int(os.environ.get("CLOTH_TISSU_COLLISION_TRIANGLES", str(_TISSU_COLLISION_TRIANGLES_DEFAULT)))
     if value < 0:
         raise ValueError("CLOTH_TISSU_COLLISION_TRIANGLES must be >= 0")
+    return value
+
+
+def _tissu_stitch_compliance(explicit=None):
+    raw = (
+        _TISSU_STITCH_COMPLIANCE_DEFAULT
+        if explicit is None
+        else explicit
+    )
+    if explicit is None:
+        raw = os.environ.get("CLOTH_TISSU_STITCH_COMPLIANCE", raw)
+    value = float(raw)
+    if not isfinite(value) or value < 0.0:
+        raise ValueError("CLOTH_TISSU_STITCH_COMPLIANCE must be finite and >= 0")
     return value
 
 
@@ -91,6 +107,7 @@ class TissuBackend(ClothSimulationBackend):
         stitches: Iterable[Tuple[int, int]] = (),
         collision_surface: CollisionSurface | None = None,
         collision_mode: str = "torso-envelope",
+        stitch_compliance: float | None = None,
     ):
         try:
             from tissu import Simulation
@@ -103,6 +120,7 @@ class TissuBackend(ClothSimulationBackend):
         self._triangles = tuple(tuple(int(i) for i in tri) for tri in triangles)
         self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins))
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
+        self._stitch_compliance = _tissu_stitch_compliance(stitch_compliance)
         self._source_collision_surface = collision_surface
         collision_limit = _tissu_collision_triangle_limit()
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
@@ -131,6 +149,11 @@ class TissuBackend(ClothSimulationBackend):
     @property
     def time(self):
         return self._time
+
+    @property
+    def stitch_compliance(self):
+        """Return the compliance applied to every canonical Tissu stitch."""
+        return self._stitch_compliance
 
     def _add_collision(self):
         import numpy as np
@@ -161,7 +184,9 @@ class TissuBackend(ClothSimulationBackend):
         for index in self._pin_indices:
             self._sim.solver.add_pin(int(index), np.asarray(positions[index], dtype=np.float64), 0.0)
         for a, b in self._stitches:
-            self._sim.solver.add_stitch(int(a), int(b), 0.0)
+            self._sim.solver.add_stitch(
+                int(a), int(b), 0.0, self._stitch_compliance
+            )
         self._add_collision()
 
     def step(self, dt=1.0 / 60.0, iterations=8, gravity=(0.0, 0.0, -9810.0), sphere=None, surface=None):
@@ -192,8 +217,11 @@ class TissuBackend(ClothSimulationBackend):
 
     def set_stitches(self, pairs: Iterable[Tuple[int, int]], compliance=0.0):
         self._stitches = tuple((int(a), int(b)) for a, b in pairs)
+        self._stitch_compliance = _tissu_stitch_compliance(compliance)
         for a, b in self._stitches:
-            self._sim.solver.add_stitch(int(a), int(b), float(compliance))
+            self._sim.solver.add_stitch(
+                int(a), int(b), 0.0, self._stitch_compliance
+            )
 
     def positions(self):
         return tuple(_from_tissu_position(p) for p in self._sim.positions)
