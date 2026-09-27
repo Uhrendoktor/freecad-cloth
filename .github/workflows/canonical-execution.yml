@@ -464,6 +464,110 @@ jobs:
           if-no-files-found: error
           compression-level: 1
 
+  diagnostic-contact-controls:
+    name: Diagnostic Tissu contact controls 0/0a
+    needs: [local_runner_readiness]
+    if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'diagnostic/contact-controls-2484-') }}
+    runs-on: ${{ fromJSON('["ubuntu-latest"]') }}
+    timeout-minutes: 8
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull published FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Run diagnostic controls
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/diagnostic-contact-controls
+          mkdir -p artifacts/diagnostic-contact-controls
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e DISPLAY=:99 \
+            -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace \
+            -e QT_X11_NO_MITSHM=1 \
+            -e QT_QPA_PLATFORM=xcb \
+            -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SIMULATION_BACKEND=tissu \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/diagnostic-contact-controls
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 120s /opt/freecad/AppRun /workspace/tests/freecad_contact_diagnostics.py > /workspace/artifacts/diagnostic-contact-controls/diagnostic.log 2>&1
+              test -s /workspace/docs/images/generated/cloth-simulation-diagnostic-control-0-step-000.png
+              test -s /workspace/docs/images/generated/cloth-simulation-diagnostic-control-0-step-001.png
+              test -s /workspace/docs/images/generated/cloth-simulation-diagnostic-control-0a-step-000.png
+              test -s /workspace/docs/images/generated/cloth-simulation-diagnostic-control-0a-step-001.png
+              test -s /workspace/docs/images/generated/diagnostic-control-results.json
+              cp /workspace/docs/images/generated/diagnostic-control-results.json /workspace/artifacts/diagnostic-contact-controls/
+              cp /workspace/docs/images/generated/cloth-simulation-diagnostic-control-*.png /workspace/artifacts/diagnostic-contact-controls/ 2>/dev/null || true
+              cp /tmp/xvfb.log /workspace/artifacts/diagnostic-contact-controls/xvfb.log 2>/dev/null || true
+              cp /tmp/openbox.log /workspace/artifacts/diagnostic-contact-controls/openbox.log 2>/dev/null || true
+              cp /tmp/triangle-install.log /workspace/artifacts/diagnostic-contact-controls/triangle-install.log 2>/dev/null || true
+            '
+      - name: Validate diagnostic manifest
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("artifacts/diagnostic-contact-controls/diagnostic-control-results.json")
+          payload = json.loads(path.read_text(encoding="utf-8"))
+          controls = payload.get("controls", [])
+          assert len(controls) == 2, controls
+          assert {c["case_id"] for c in controls} == {"0", "0a"}, controls
+          for control in controls:
+              assert control["finite_before"] is True, control
+              assert control["finite_after"] is True, control
+              assert control["solver_collision_triangle_count"] is not None, control
+              assert control["checkpoint_steps"] == [0, 1], control
+          print("diagnostic-contact-controls-manifest=passed")
+          print("diagnostic-contact-controls-first-failure=%r" % payload.get("first_failure"))
+          PY
+      - name: Prepare human visual review bundle
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/visual-review/diagnostic-contact-controls
+          cp artifacts/diagnostic-contact-controls/* artifacts/visual-review/diagnostic-contact-controls/ 2>/dev/null || true
+          cp docs/images/generated/cloth-simulation-diagnostic-control-*.png artifacts/visual-review/diagnostic-contact-controls/ 2>/dev/null || true
+          {
+            echo "# Diagnostic contact-control visual review"
+            echo
+            echo "Human inspection is mandatory before interpreting the contact result."
+            echo "Inspect both control 0 and control 0a at steps 0 and 1."
+            echo "Automated manifest validation does not substitute for image review."
+          } > artifacts/visual-review/diagnostic-contact-controls/README.md
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: diagnostic-contact-controls
+          path: |
+            artifacts/diagnostic-contact-controls/**
+            artifacts/visual-review/diagnostic-contact-controls/**
+            docs/images/generated/cloth-simulation-diagnostic-control-*.png
+            docs/images/generated/diagnostic-control-results.json
+            docs/images/generated/gui-progress.log
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 1
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
     needs: [local_runner_readiness]
