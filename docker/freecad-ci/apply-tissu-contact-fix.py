@@ -371,7 +371,6 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         raise RuntimeError("MeshCollider regression test body anchor mismatch")
     test_cpp = test_cpp.replace(old, new, 1)
     test_cpp += """
-    
 TEST(MeshCollider, HintedSparseMeshResolvesInteriorOutward) {
     const std::vector<Eigen::Vector3d> vertices = {
         {0.0, 0.0, 0.0},
