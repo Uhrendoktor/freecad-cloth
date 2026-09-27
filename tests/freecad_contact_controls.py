@@ -50,6 +50,7 @@ def _progress(message):
     _PROGRESS_HANDLE.flush()
 
 _PROGRESS_HANDLE.write("\n=== contact controls start ===\n")
+_PROGRESS_HANDLE.write("entrypoint __name__=%r\n" % __name__)
 _PROGRESS_HANDLE.flush()
 faulthandler.dump_traceback_later(30.0, repeat=True, file=_PROGRESS_HANDLE)
 
@@ -499,5 +500,5 @@ def main():
             pass
 
 
-if __name__ == "__main__":
+if __name__ == "__main__" or os.environ.get("CLOTH_CONTACT_CONTROLS_EXECUTE") == "1":
     raise SystemExit(main())
