@@ -19,12 +19,6 @@ on:
         required: false
         type: string
         default: ""
-      wiki_operation:
-        description: "Wiki bridge operation for manual runs."
-        required: false
-        type: choice
-        default: none
-        options: [none, publish, import]
   schedule:
     - cron: '0 3 * * *'
 
@@ -88,7 +82,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          WIKI_OPERATION: ${{ inputs.wiki_operation || 'publish' }}
         run: |
           set -euo pipefail
           grace_seconds=45
@@ -119,7 +112,6 @@ jobs:
             --repo "$REPO" \
             --ref "$ref" \
             -f runner_mode=hosted \
-            -f wiki_operation="$WIKI_OPERATION" \
             -f fallback_source_run="$GITHUB_RUN_ID"
           echo "runner-watchdog=hosted-dispatch ref=$ref source_run=$GITHUB_RUN_ID"
           sleep 2
@@ -971,60 +963,6 @@ jobs:
           fi
           git commit -m "ci: publish stable README turntables"
           git push origin "HEAD:$branch"
-  wiki-bridge:
-    name: GitHub Wiki bridge
-    needs: [local_runner_readiness]
-    if: >-
-      ${{ needs.local_runner_readiness.result == 'success' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.wiki_operation != 'none')) }}
-    permissions:
-      contents: write
-      pull-requests: write
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
-    timeout-minutes: 10
-    env:
-      WIKI_OPERATION: ${{ github.event_name == 'push' && 'publish' || inputs.wiki_operation }}
-      WIKI_REMOTE_URL: https://x-access-token:${{ secrets.WIKI_SYNC_TOKEN }}@github.com/Uhrendoktor/freecad-cloth.wiki.git
-    steps:
-      - name: Log selected execution mode
-        run: |
-          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
-          echo "runner=$RUNNER_NAME"
-          echo "wiki-operation=$WIKI_OPERATION"
-      - uses: actions/checkout@v5
-        with:
-          ref: main
-      - name: Require wiki sync credential
-        env:
-          WIKI_SYNC_TOKEN: ${{ secrets.WIKI_SYNC_TOKEN }}
-        run: |
-          set -euo pipefail
-          if [ -z "$WIKI_SYNC_TOKEN" ]; then
-            echo "::error::WIKI_SYNC_TOKEN is not configured. Add a token with write access to the freecad-cloth wiki repository."
-            exit 1
-          fi
-      - name: Publish repository wiki source
-        if: ${{ env.WIKI_OPERATION == 'publish' }}
-        run: python3 tools/wiki_bridge.py publish
-      - name: Import direct wiki edits into a pull request
-        if: ${{ env.WIKI_OPERATION == 'import' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          python3 tools/wiki_bridge.py import
-          if git diff --quiet -- wiki; then
-            echo "GitHub Wiki already matches repository source."
-            exit 0
-          fi
-          branch="agent/wiki-import-${GITHUB_RUN_ID}"
-          git switch -c "$branch"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add wiki
-          git commit -m "docs: import GitHub Wiki changes"
-          git push --set-upstream origin "$branch"
-          gh pr create --base main --head "$branch" --title "docs: import GitHub Wiki changes" --body "Imports direct edits from the GitHub Wiki into the repository-owned human documentation source. Merge this PR to make the imported wiki content canonical."
-
   maintenance-cleanup:
     name: Repository retention cleanup
     if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * *' }}
