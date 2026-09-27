@@ -30,6 +30,15 @@ def _tissu_collision_triangle_limit():
     return value
 
 
+def _tissu_stitch_compliance():
+    value = float(os.environ.get("CLOTH_TISSU_STITCH_COMPLIANCE", "0.0"))
+    if not value >= 0.0:
+        raise ValueError("CLOTH_TISSU_STITCH_COMPLIANCE must be >= 0")
+    if value != value or value in (float("inf"), float("-inf")):
+        raise ValueError("CLOTH_TISSU_STITCH_COMPLIANCE must be finite")
+    return value
+
+
 def _to_tissu_position(position):
     x, y, z = position
     return (float(x) / _MM, float(z) / _MM, float(y) / _MM)
@@ -160,8 +169,12 @@ class TissuBackend(ClothSimulationBackend):
             raise RuntimeError("Tissu did not preserve cloth particle ordering")
         for index in self._pin_indices:
             self._sim.solver.add_pin(int(index), np.asarray(positions[index], dtype=np.float64), 0.0)
-        for a, b in self._stitches:
-            self._sim.solver.add_stitch(int(a), int(b), 0.0)
+        stitch_compliance = _tissu_stitch_compliance()
+        print(
+            "cloth-tissu-stitch-compliance=%.12g" % stitch_compliance,
+            flush=True,
+        )
+        self.set_stitches(self._stitches, compliance=stitch_compliance)
         self._add_collision()
 
     def step(self, dt=1.0 / 60.0, iterations=8, gravity=(0.0, 0.0, -9810.0), sphere=None, surface=None):
