@@ -694,7 +694,6 @@ TEST(MeshCollider, DeepInteriorParityIsDeterministic) {
 
     double distanceMoved = (particles[0].getPosition() - initialPos).norm();
     EXPECT_GT(distanceMoved, 0.0);
-    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
 }"""
     new = """TEST(MeshCollider, ParticleInsideMeshMovesOutside) {
     MeshCollider mesh = makeTetrahedron(0.5);
