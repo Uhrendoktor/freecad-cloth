@@ -83,6 +83,7 @@ private:
     )
 
     cpp = cpp.read_text(encoding="utf-8")
+    cpp_path = ROOT / "core/src/physics/MeshCollider.cpp"
     include_old = '#include "physics/Particle.hpp"\n\nnamespace Tissu {'
     include_new = """#include "physics/Particle.hpp"
 
