@@ -192,6 +192,9 @@ def run_acceptance():
             panel.snap_to_target_button.click()
             _events()
             reloaded.recompute()
+            snap_status = str(panel.status.text())
+            if "unavailable" in snap_status.lower():
+                raise RuntimeError("Snap-to-target action failed through the real Simulation UI: %s" % snap_status)
 
             fitting = next((obj for obj in reloaded.Objects if getattr(obj, "FittingType", "") == "FittingScene"), None)
             if fitting is None:
