@@ -18,7 +18,9 @@ Workbench ownership is explicit: `pattern`, `sewing`, `avatar`, and `simulation`
 
 ## Non-negotiable CI contract
 
-There is exactly one workflow: `.github/workflows/canonical-execution.yml`.
+There is exactly one **canonical engineering/test workflow**: `.github/workflows/canonical-execution.yml`. It owns code, GUI, simulation, benchmark, runner and release-validation execution.
+
+A separate documentation-only workflow, `.github/workflows/wiki-sync.yml`, is intentionally allowed. It triggers only on `push` to `main` when files under `wiki/**` change. It must not grow into a general CI workflow.
 
 ### Runner routing
 
@@ -28,11 +30,11 @@ Trusted `push`, scheduled, and manual runs are local-first: the canonical workfl
 
 A small hosted `runner_watchdog` waits up to 45 seconds for the local sentinel. When the local runner does not start, it dispatches the same canonical workflow in explicit `runner_mode=hosted` mode and cancels the stalled source run. Manual `workflow_dispatch` with `runner_mode=hosted` still forces the hosted path.
 
-There is no `pull_request_target` broker, privileged runner discovery token, second workflow, periodic five-minute validation schedule, or duplicate runner heartbeat. The single daily schedule remains for repository maintenance and runner/fallback coverage.
+There is no `pull_request_target` broker, privileged runner discovery token, second **engineering** workflow, periodic five-minute validation schedule, or duplicate runner heartbeat. `wiki-sync.yml` is the sole exception because it is path-scoped documentation publishing, not engineering CI. The single daily schedule remains for repository maintenance and runner/fallback coverage.
 
 The canonical FreeCAD image is Python 3.12-based. PR checkouts use the immutable PR head SHA with persisted checkout credentials disabled.
 
-Do not replace, duplicate, or casually refactor this routing. Preserve the existing Docker/Xvfb path that launches real FreeCAD and captures the validated GUI states and artifacts. Any UI, workflow, runner, or simulation-facing change must use the canonical workflow as its acceptance path. Never weaken screenshot, geometry, simulation, or artifact assertions to make CI green.
+Do not replace, duplicate, or casually refactor this routing. The Wiki publishing workflow is intentionally separate and must remain path-scoped to `wiki/**`; do not move it into the canonical engineering workflow. Preserve the existing Docker/Xvfb path that launches real FreeCAD and captures the validated GUI states and artifacts. Any UI, workflow, runner, or simulation-facing change must use the canonical workflow as its acceptance path. Never weaken screenshot, geometry, simulation, or artifact assertions to make CI green.
 
 ## Required verification
 
@@ -83,11 +85,11 @@ Simulation presents target validity before Run/Step. `Run` is primary, `Step` is
 
 ## Documentation bridge
 
-Human-facing documentation is maintained under `wiki/` and published to the GitHub Wiki by the canonical workflow. Development and agent-specific guidance lives under `docs/agents/`.
+Human-facing documentation is maintained under `wiki/` and published to the GitHub Wiki by the separate path-scoped `wiki-sync.yml` workflow. Development and agent-specific guidance lives under `docs/agents/`.
 
 Agents should edit `wiki/*.md` through the repository so the existing GitHub MCP can read and write the source normally. Do not make direct Wiki UI edits unless they are deliberately imported with the manual **import** wiki operation; the import creates a normal pull request so the repository stays canonical.
 
-The bridge requires the repository Actions secret `WIKI_SYNC_TOKEN` with permission to clone and push `Uhrendoktor/freecad-cloth.wiki.git`. The canonical workflow keeps the project-wide single-workflow contract; wiki publishing and importing are jobs inside `.github/workflows/canonical-execution.yml`.
+The bridge requires the repository Actions secret `WIKI_SYNC_TOKEN` with permission to clone and push `Uhrendoktor/freecad-cloth.wiki.git`. Wiki publishing is deliberately outside the canonical engineering workflow so documentation changes do not trigger or alter engineering CI.
 
 ## Agent state
 
