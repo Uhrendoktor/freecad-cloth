@@ -86,7 +86,7 @@ def test_invalid_seam_recompute_guard_blocks_without_rethrowing():
             Enabled=True,
             CollisionVertexCount=3,
             CollisionTriangleCount=1,
-            SourceSignature=repr(("Body", "Body", ("Shape", 123), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0)),
+            SourceSignature=repr(("Body", ("ShapeHash", 123), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0)),
         ),
         SimulationState="READY_FOR_SIMULATION",
         InvalidationReason="",
@@ -101,7 +101,8 @@ def test_invalid_seam_recompute_guard_blocks_without_rethrowing():
     finally:
         SimulationStaleGuard._ORIGINAL_EXECUTE = original
 
-    assert scene.SimulationState == "BLOCKED"
+    assert scene.SimulationState == "STALE"
+    assert scene.InvalidationReason.startswith("source, placement, tessellation or collision thickness changed")
     assert "seam-1: Changed reference" in scene.InvalidationReason
 
 
