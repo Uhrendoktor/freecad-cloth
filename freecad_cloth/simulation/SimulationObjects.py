@@ -497,6 +497,13 @@ class SimulationProxy:
             panel_data,
             int(getattr(obj, "StitchSamples", 8)),
         )
+        import os
+        if os.environ.get("CLOTH_TISSU_DISABLE_STITCHES") == "1":
+            seam_pairs = ()
+            seam_pair_records = tuple(
+                (seam_id, piece_a_name, piece_b_name, ())
+                for seam_id, piece_a_name, piece_b_name, _pairs in seam_pair_records
+            )
         system.add_stitches(seam_pairs)
         first = panel_data[str(pieces[0].PieceId)] if pieces else None
         boundary = (

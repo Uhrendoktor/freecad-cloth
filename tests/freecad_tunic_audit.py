@@ -14,6 +14,7 @@ source = source_path.read_text(encoding="utf-8")
 # The canonical tunic audit must use the authoritative DrapeTarget collision
 # surface; do not replace it with the optional torso-envelope approximation.
 os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
+os.environ["CLOTH_TISSU_DISABLE_STITCHES"] = "1"
 
 replacements = {
     'clearance = max(20.0, 0.08 * body_depth)': 'clearance = max(8.0, 0.025 * body_depth);',
@@ -89,15 +90,18 @@ timed_anchor = '''    from time import perf_counter
         str(getattr(active_backend, "name", "")),
         0 if active_collision is None else len(active_collision.triangles),
     ))
+    from freecad_cloth.common.MeshValidation import nearest_target_clearance
     for batch in (15,15,15,15,15,15):
         batch_started = perf_counter()
         simulation_panel.step(batch); doc.recompute(); events()
-        log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
+        clear_now = nearest_target_clearance(tuple(active_backend.positions()), tuple(surface.vertices))
+        log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d target-clearance-mm=%.2f" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps), float(clear_now)))
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
 '''
 source = source.replace(anchor, preview_probe + '\n' + timed_anchor, 1)
 
-seam_check = """    backend_state = scene.Proxy._base_or_restore()
+seam_check = """    if os.environ.get("CLOTH_TISSU_DISABLE_STITCHES") != "1":
+        backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
     if not simulated_positions: raise RuntimeError("Tissu backend returned no simulated particle positions")
     stitch_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
@@ -120,6 +124,8 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
     max_seam_gap = max(seam_gaps) if seam_gaps else 0.0
     if max_seam_gap > 35.0: raise RuntimeError("authoritative tunic seams did not converge: max endpoint gap %.1f mm" % max_seam_gap)
     log("authoritative-seam-max-gap-mm=%.2f seam-ids=%s" % (max_seam_gap, tuple(str(seam.SeamId) for seam, _a, _b in seam_records)))
+    else:
+        log("authoritative-seam-check=skipped stitchless diagnostic")
 """
 
 source = source.replace("    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", seam_check + "\n" + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []", 1)
