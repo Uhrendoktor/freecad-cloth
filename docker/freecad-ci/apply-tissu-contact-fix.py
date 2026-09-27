@@ -242,6 +242,50 @@ MeshOrientation inferMeshOrientation(
 }
 
 """
+    helper += """static bool concavePrismContains(const Eigen::Vector3d& point) {
+    if (point.z() <= 1e-9 || point.z() >= 1.0 - 1e-9)
+        return false;
+    const std::array<Eigen::Vector2d, 6> polygon = {{
+        {0.0, 0.0}, {3.0, 0.0}, {3.0, 1.0},
+        {1.0, 1.0}, {1.0, 3.0}, {0.0, 3.0},
+    }};
+    bool inside = false;
+    for (size_t i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++) {
+        const auto& a = polygon[i];
+        const auto& b = polygon[j];
+        const bool crosses = ((a.y() > point.y()) != (b.y() > point.y()));
+        if (crosses) {
+            const double x = a.x() +
+                (b.x() - a.x()) * (point.y() - a.y()) /
+                (b.y() - a.y());
+            if (point.x() < x)
+                inside = !inside;
+        }
+    }
+    return inside;
+}
+
+static MeshCollider makeConcavePrism() {
+    const std::vector<Eigen::Vector3d> vertices = {
+        {0.0, 0.0, 0.0}, {3.0, 0.0, 0.0}, {3.0, 1.0, 0.0},
+        {1.0, 1.0, 0.0}, {1.0, 3.0, 0.0}, {0.0, 3.0, 0.0},
+        {0.0, 0.0, 1.0}, {3.0, 0.0, 1.0}, {3.0, 1.0, 1.0},
+        {1.0, 1.0, 1.0}, {1.0, 3.0, 1.0}, {0.0, 3.0, 1.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {
+        {2, 1, 0}, {3, 2, 0}, {3, 0, 5}, {5, 4, 3},
+        {6, 7, 8}, {6, 8, 9}, {11, 6, 9}, {9, 10, 11},
+        {0, 1, 7}, {0, 7, 6},
+        {1, 2, 8}, {1, 8, 7},
+        {2, 3, 9}, {2, 9, 8},
+        {3, 4, 10}, {3, 10, 9},
+        {4, 5, 11}, {4, 11, 10},
+        {5, 0, 6}, {5, 6, 11},
+    };
+    return MeshCollider(vertices, triangles, 0.0);
+}
+
+"""
     if test_cpp.count("TEST(MeshCollider, ParticleInsideMeshMovesOutside)") != 1:
         raise RuntimeError("MeshCollider test anchor missing")
     test_cpp = test_cpp.replace(
@@ -297,6 +341,30 @@ TEST(MeshCollider, DeepParticleInsideClosedMeshMovesOutside) {
     const Eigen::Vector3d finalPos = particles[0].getPosition();
     EXPECT_FALSE(tetrahedronContains(finalPos));
     EXPECT_GT((finalPos - initialPos).norm(), 0.1);
+}
+
+TEST(MeshCollider, ConcaveClosedMeshProjectsDeepInteriorOutside) {
+    MeshCollider mesh = makeConcavePrism();
+    Eigen::Vector3d initialPos(0.5, 0.5, 0.5);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.01);
+
+    const Eigen::Vector3d finalPos = particles[0].getPosition();
+    EXPECT_FALSE(concavePrismContains(finalPos));
+    EXPECT_GT((finalPos - initialPos).norm(), 0.1);
+}
+
+TEST(MeshCollider, ConcaveClosedMeshDoesNotMoveConcavityVoidPoint) {
+    MeshCollider mesh = makeConcavePrism();
+    Eigen::Vector3d initialPos(2.0, 2.0, 0.5);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.01);
+
+    EXPECT_NEAR((particles[0].getPosition() - initialPos).norm(), 0.0, 1e-9);
 }"""
     if test_cpp.count(old) != 1:
         raise RuntimeError("MeshCollider regression test body anchor mismatch")
