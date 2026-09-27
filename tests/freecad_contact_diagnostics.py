@@ -351,5 +351,6 @@ def run():
     return payload
 
 
-if __name__ == "__main__":
-    run()
+# FreeCAD AppRun invokes test modules as scripts without reliably populating __main__.
+# Keep the diagnostic entrypoint unconditional so the harness cannot silently idle.
+run()
