@@ -35,7 +35,7 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     assert 'right_pairs[-1][1]' in source
     assert 'left_pairs[-1][0]' in source
     assert 'left_pairs[0][1]' in source
-    assert 'requires four unique outer shoulder pins' in source
+    assert 'len(shoulder_pin_indices) != 4' in source
     assert 'target_surface = collision_surface(' in source
     assert 'target_source.Mesh.BoundBox' not in source
 
