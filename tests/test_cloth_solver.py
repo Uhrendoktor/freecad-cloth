@@ -126,13 +126,6 @@ def test_tissu_collider_friction_mesh_path_forwards_explicit_value(monkeypatch):
     assert calls[0][1]["friction"] == 0.85
 
 
-if __name__ == "__main__":
-    for name, test in sorted(globals().items()):
-        if name.startswith("test_") and callable(test):
-            test()
-    print("cloth solver tests passed")
-
-
 @pytest.mark.parametrize(
     "raw, expected",
     [
@@ -189,3 +182,11 @@ def test_tissu_collider_friction_sphere_path_remains_default(monkeypatch):
     assert len(calls) == 1
     assert calls[0][0] == "sphere"
     assert calls[0][2]["friction"] == 0.5
+
+if __name__ == "__main__":
+    for name, test in sorted(globals().items()):
+        if name.startswith("test_") and callable(test):
+            test()
+    print("cloth solver tests passed")
+
+
