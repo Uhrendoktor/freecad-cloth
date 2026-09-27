@@ -89,6 +89,7 @@ class TissuBackend(ClothSimulationBackend):
         triangles: Sequence[Tuple[int, int, int]],
         pins: Iterable[int] = (),
         stitches: Iterable[Tuple[int, int]] = (),
+        attachments: Iterable[Tuple[int, int, float]] = (),
         collision_surface: CollisionSurface | None = None,
         collision_mode: str = "torso-envelope",
     ):
@@ -103,6 +104,8 @@ class TissuBackend(ClothSimulationBackend):
         self._triangles = tuple(tuple(int(i) for i in tri) for tri in triangles)
         self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins))
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
+        self._attachments = tuple((int(particle_id), int(target_vertex_id), float(rest_length)) for particle_id, target_vertex_id, rest_length in attachments)
+        self._attachment_collider = None
         self._source_collision_surface = collision_surface
         collision_limit = _tissu_collision_triangle_limit()
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
@@ -163,6 +166,51 @@ class TissuBackend(ClothSimulationBackend):
         for a, b in self._stitches:
             self._sim.solver.add_stitch(int(a), int(b), 0.0)
         self._add_collision()
+        self._add_attachments()
+
+    def _add_attachments(self):
+        if not self._attachments:
+            return
+        if self._collision_mode != "mesh" or self._collision_surface is None:
+            raise RuntimeError("Tissu attachments require the authoritative mesh collision surface")
+        if self._attachment_collider is None:
+            for collider in self._sim.world.get_colliders():
+                if str(collider.get_name()) == "drape-target":
+                    self._attachment_collider = collider
+                    break
+        if self._attachment_collider is None:
+            raise RuntimeError("Tissu attachment target collider drape-target is missing")
+        vertex_count = len(self._collision_surface.vertices)
+        particle_count = len(self._initial.particles)
+        for particle_id, target_vertex_id, rest_length in self._attachments:
+            if not 0 <= particle_id < particle_count:
+                raise ValueError("Tissu attachment particle id is outside the cloth particle range")
+            if not 0 <= target_vertex_id < vertex_count:
+                raise ValueError("Tissu attachment target vertex id is outside the collision mesh range")
+            if rest_length < 0.0:
+                raise ValueError("Tissu attachment rest length must be non-negative")
+            self._sim.solver.add_attachment(
+                particle_id,
+                self._attachment_collider,
+                target_vertex_id,
+                0.0,
+                rest_length,
+            )
+
+    @property
+    def attachment_records(self):
+        return self._attachments
+
+    def add_attachments(self, attachments: Iterable[Tuple[int, int, float]]):
+        normalized = tuple(
+            (int(particle_id), int(target_vertex_id), float(rest_length))
+            for particle_id, target_vertex_id, rest_length in attachments
+        )
+        for particle_id, _target_vertex_id, _rest_length in self._attachments:
+            if self._sim is not None:
+                self._sim.solver.remove_attachment(int(particle_id))
+        self._attachments = normalized
+        self._add_attachments()
 
     def step(self, dt=1.0 / 60.0, iterations=8, gravity=(0.0, 0.0, -9810.0), sphere=None, surface=None):
         if dt <= 0 or iterations < 1:
