@@ -733,7 +733,7 @@ def _ladder_record(case_id, rung, target, source, before, after, triangles, pane
                 for item in seam_before
             ],
         },
-        "checkpoints": [checkpoint, checkpoint_after],
+        "checkpoints": checkpoints,
         "finite": after_finite,
         "connected_components": _connected_components(after, triangles),
         "max_seam_gap_mm": max((item.get("max_gap_mm") or 0.0) for item in seam_after) if seam_after else 0.0,
@@ -915,6 +915,8 @@ def _run_cube_ladder():
     records = []
     for rung, case_id, piece_specs, pin_mode, seam_mode in specs:
         record = _run_ladder_case(case_id, rung, piece_specs, pin_mode, seam_mode)
+        if records:
+            record["predecessor_case_id"] = records[-1]["case_id"]
         if not record["control"]["fixture_contract_pass"]:
             _progress("cube-ladder: stopping after first structural failure at rung=%d" % rung)
             break
