@@ -85,3 +85,9 @@ def test_translation_anchor_is_outside_after_bounded_move():
     placed = (0.0 + delta[0], 0.0 + delta[1], 30.0 + delta[2])
     assert point_inside_closed_surface(surface, placed) is False
     assert nearest_surface_distance(surface, (placed,)) >= 8.0 - 1e-6
+
+
+def test_minimum_outward_clearance_rejects_inward_points():
+    from freecad_cloth.avatar.TargetPlacement import minimum_outward_clearance
+    assert minimum_outward_clearance(_plane(), ((0.0, 0.0, 8.0),)) == 8.0
+    assert minimum_outward_clearance(_plane(), ((0.0, 0.0, -2.0),)) < 0.0
