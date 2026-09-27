@@ -243,8 +243,12 @@ jobs:
               assert case["solver"]["gravity_z_mm_s2"] == 0.0, case
               assert case["collision"]["source_triangles"] > 0, case
               assert case["collision"]["solver_triangles"] > 0, case
-              assert len(case["checkpoints"]) == 2, case
-              assert [checkpoint["step"] for checkpoint in case["checkpoints"]] == [0, 1], case
+              if int(case["case"]["rung"]) in {1, 2, 3, 4, 5}:
+                  assert len(case["checkpoints"]) == 6, case
+                  assert [checkpoint["step"] for checkpoint in case["checkpoints"]] == [0, 1, 5, 15, 45, 90], case
+              else:
+                  assert len(case["checkpoints"]) == 2, case
+                  assert [checkpoint["step"] for checkpoint in case["checkpoints"]] == [0, 1], case
               assert case["finite"], case
               assert case["checkpoints"][0]["finite"], case
               assert case["checkpoints"][1]["finite"], case
