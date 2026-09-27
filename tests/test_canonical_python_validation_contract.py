@@ -52,8 +52,8 @@ def test_tunic_audit_replaces_hard_exit_and_writes_failure_diagnostics():
     assert 'source = source.replace(\'getattr(os, "_" + "exit")(0)\', \'raise SystemExit(0)\')' in audit
     assert "tunic-audit-diagnostics-path=" in audit
     assert "traceback.format_exc()" in audit
-    assert '_TUNIC_SOURCE_FAILURE = error' in audit
-    assert '_TUNIC_SOURCE_FAILURE_TRACEBACK = traceback.format_exc()' in audit
+    assert 'globals()["_TUNIC_SOURCE_FAILURE"] = error' in audit
+    assert 'globals()["_TUNIC_SOURCE_FAILURE_TRACEBACK"] = traceback.format_exc()' in audit
     assert "tunic-audit-source-traceback-begin" in audit
     assert "tunic-audit-gui-log-tail-begin" in audit
     assert "docs/images/generated/tunic-audit-diagnostics.txt" in workflow
