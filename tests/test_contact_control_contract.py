@@ -40,9 +40,12 @@ def test_contact_control_contract():
     assert "if: always()" in workflow
     assert "if-no-files-found: warn" in workflow
     assert 'CLOTH_CONTACT_CONTROLS_EXECUTE=1' in workflow
-    assert "FreeCAD AppRun does not provide a reliable __main__ namespace" in source
-    assert "\nmain()\n" in source
+    assert "FreeCAD AppRun may evaluate the script in more than one namespace" in source
+    assert '_CLOTH_CONTACT_CONTROLS_RAN' in source
+    assert 'CLOTH_CONTACT_CONTROLS_EXECUTE' in source
     assert 'entrypoint __name__=' in source
+    assert 'Gui.getDocument(doc.Name)' in source
+    assert 'def _save_probe_view(doc, name' in source
     assert "retention-days: 14" in workflow
     assert "faulthandler.dump_traceback_later(30.0, repeat=True" in source
     assert "contact-controls-progress.log" in source
