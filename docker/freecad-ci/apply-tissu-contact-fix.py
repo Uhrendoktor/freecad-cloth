@@ -317,8 +317,6 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         """    void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,
                         double squaredRadius,
                         std::vector<int>& outTriangles) const;
-    void queryBoxRecursive(int nodeIdx, const Eigen::AlignedBox3d& box,
-                           std::vector<int>& outTriangles) const;
     int closestRecursive(int nodeIdx, const Eigen::Vector3d& point,
                          const std::vector<Eigen::Vector3d>& vertices,
                          double& bestDistSq) const;""",
