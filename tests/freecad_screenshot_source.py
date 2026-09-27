@@ -22,6 +22,147 @@ LOG = os.path.join(OUT, "gui-progress.log")
 MANIFEST = os.path.join(OUT, "gui-screenshot-manifest.txt")
 METRICS = os.path.join(OUT, "drape-visual-metrics.json")
 
+CONTACT_PROBE = None
+
+
+def _run_tunic_contact_probe(scene, source_surface, solver_surface, simulation_panel):
+    """Research-only derived contact/containment/stitch telemetry for the canonical tunic."""
+    import math
+    import numpy as np
+    import trimesh
+
+    global CONTACT_PROBE
+    source_mesh = trimesh.Trimesh(
+        vertices=np.asarray(source_surface.vertices, dtype=float),
+        faces=np.asarray(source_surface.triangles, dtype=int),
+        process=False,
+    )
+    solver_mesh = trimesh.Trimesh(
+        vertices=np.asarray(solver_surface.vertices, dtype=float),
+        faces=np.asarray(solver_surface.triangles, dtype=int),
+        process=False,
+    )
+    stitch_pairs = tuple(
+        pair
+        for pairs in getattr(scene.Proxy, "seam_stitch_pairs", {}).values()
+        for pair in pairs
+    )
+    if not stitch_pairs:
+        raise RuntimeError("tunic contact probe requires exact solver stitch provenance")
+
+    def stats(positions, previous_distances=None, previous_inside=None):
+        points = np.asarray(positions, dtype=float)
+        closest, distances, triangle_ids = source_mesh.nearest.on_surface(points)
+        inside = source_mesh.contains(points)
+        signed = np.where(inside, -distances, distances)
+        near = distances <= 2.0
+        response = {"away": 0, "toward": 0, "stable": 0}
+        distance_delta = None
+        if previous_distances is not None:
+            delta = distances - previous_distances
+            for value in delta[near]:
+                if value > 1e-6:
+                    response["away"] += 1
+                elif value < -1e-6:
+                    response["toward"] += 1
+                else:
+                    response["stable"] += 1
+            distance_delta = {
+                "min_mm": float(np.min(delta)) if len(delta) else 0.0,
+                "max_mm": float(np.max(delta)) if len(delta) else 0.0,
+                "mean_mm": float(np.mean(delta)) if len(delta) else 0.0,
+            }
+        transitions = {}
+        if previous_inside is not None:
+            transitions = {
+                "inside_to_inside": int(np.logical_and(previous_inside, inside).sum()),
+                "inside_to_outside": int(np.logical_and(previous_inside, ~inside).sum()),
+                "outside_to_inside": int(np.logical_and(~previous_inside, inside).sum()),
+                "outside_to_outside": int(np.logical_and(~previous_inside, ~inside).sum()),
+            }
+        stitch_lengths = [
+            math.sqrt(sum((float(positions[a][axis]) - float(positions[b][axis])) ** 2 for axis in range(3)))
+            for a, b in stitch_pairs
+        ]
+        return {
+            "particle_count": int(len(points)),
+            "inside_count": int(inside.sum()),
+            "outside_count": int((~inside).sum()),
+            "within_2mm_count": int(near.sum()),
+            "min_abs_signed_distance_mm": float(np.min(np.abs(signed))) if len(signed) else float("inf"),
+            "min_signed_distance_mm": float(np.min(signed)) if len(signed) else float("inf"),
+            "max_signed_distance_mm": float(np.max(signed)) if len(signed) else float("-inf"),
+            "mean_signed_distance_mm": float(np.mean(signed)) if len(signed) else 0.0,
+            "response_from_distance_change": response,
+            "distance_change_mm": distance_delta,
+            "inside_outside_transitions": transitions,
+            "stitch_pair_count": int(len(stitch_lengths)),
+            "stitch_max_length_mm": float(max(stitch_lengths)) if stitch_lengths else 0.0,
+            "stitch_mean_length_mm": float(sum(stitch_lengths) / len(stitch_lengths)) if stitch_lengths else 0.0,
+            "solver_triangle_id_min": int(np.min(triangle_ids)) if len(triangle_ids) else -1,
+            "solver_face_count": int(len(solver_surface.triangles)),
+            "source_face_count": int(len(source_surface.triangles)),
+            "watertight_source": bool(source_mesh.is_watertight),
+        }
+
+    records = []
+    backend = scene.Proxy._base_or_restore().backend
+    positions = tuple(backend.positions())
+    previous_distances = None
+    previous_inside = None
+    for step in range(31):
+        current = stats(positions, previous_distances, previous_inside)
+        current["step"] = int(step)
+        current["solver_surface_vertices"] = int(len(solver_surface.vertices))
+        records.append(current)
+        if step == 30:
+            break
+        previous_points = np.asarray(positions, dtype=float)
+        previous_closest, previous_distances, _previous_triangles = source_mesh.nearest.on_surface(previous_points)
+        previous_inside = source_mesh.contains(previous_points)
+        simulation_panel.step(1)
+        scene.Document.recompute()
+        events()
+        positions = tuple(backend.positions())
+
+    first_contact_steps = [int(row["step"]) for row in records if row["within_2mm_count"] > 0]
+    contact_transition_steps = [
+        int(row["step"])
+        for row in records
+        if row["response_from_distance_change"]["away"]
+        or row["response_from_distance_change"]["toward"]
+    ]
+    CONTACT_PROBE = {
+        "kind": "research-only-derived-tunictissu-contact-probe",
+        "states": records,
+        "first_within_2mm_step": min(first_contact_steps) if first_contact_steps else None,
+        "first_response_change_step": min(contact_transition_steps) if contact_transition_steps else None,
+        "source_triangle_count": int(len(source_surface.triangles)),
+        "solver_triangle_count": int(len(solver_surface.triangles)),
+        "source_watertight": bool(source_mesh.is_watertight),
+        "method": {
+            "surface_distance": "trimesh.nearest.on_surface",
+            "inside_outside": "trimesh.contains on authoritative closed source mesh",
+            "response_direction": "derived from per-step surface-distance change for particles within 2mm",
+            "stitch_length": "exact scene.Proxy.seam_stitch_pairs particle positions",
+        },
+    }
+    log(
+        "tunic-contact-probe=passed states=%d source_triangles=%d solver_triangles=%d first_within_2mm=%s first_response_change=%s"
+        % (
+            len(records),
+            len(source_surface.triangles),
+            len(solver_surface.triangles),
+            CONTACT_PROBE["first_within_2mm_step"],
+            CONTACT_PROBE["first_response_change_step"],
+        )
+    )
+    simulation_panel.reset()
+    scene.Document.recompute()
+    events()
+    return CONTACT_PROBE
+
+
 
 def log(message):
     with open(LOG, "a", encoding="utf-8") as handle:
