@@ -464,6 +464,7 @@ jobs:
           if-no-files-found: error
           compression-level: 1
 
+  # Diagnostic branch-only evidence job; never part of the release graph.
   diagnostic-contact-controls:
     name: Diagnostic Tissu contact controls 0/0a
     needs: [local_runner_readiness]
