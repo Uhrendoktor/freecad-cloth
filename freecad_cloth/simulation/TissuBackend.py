@@ -5,6 +5,7 @@ so installations without the optional wheel keep the existing backend usable.
 """
 from copy import deepcopy
 from typing import Iterable, Sequence, Tuple
+import math
 import os
 
 from freecad_cloth.avatar.AvatarCollision import CollisionSurface, coarsen_collision_surface
@@ -14,6 +15,37 @@ from freecad_cloth.simulation.ClothSolver import ClothSystem
 _MM = 1000.0
 _TISSU_SUBSTEPS_DEFAULT = 1
 _TISSU_COLLISION_TRIANGLES_DEFAULT = 0
+
+
+def _collision_orientation_hint(surface):
+    """Return closure/orientation metadata from the authoritative source mesh.
+
+    The hint is computed before solver-facing coarsening so a reduced,
+    non-watertight triangle subset never gets asked to prove closure itself.
+    """
+    if surface is None:
+        return False, 1.0
+    surface.validate()
+    edges = {}
+    signed_volume = 0.0
+    for ia, ib, ic in surface.triangles:
+        a, b, c = surface.vertices[ia], surface.vertices[ib], surface.vertices[ic]
+        signed_volume += (
+            float(a[0]) * (float(b[1]) * float(c[2]) - float(b[2]) * float(c[1]))
+            - float(a[1]) * (float(b[0]) * float(c[2]) - float(b[2]) * float(c[0]))
+            + float(a[2]) * (float(b[0]) * float(c[1]) - float(b[1]) * float(c[0]))
+        ) / 6.0
+        for start, end in ((ia, ib), (ib, ic), (ic, ia)):
+            key = (min(start, end), max(start, end))
+            count, winding = edges.get(key, (0, 0))
+            edges[key] = (count + 1, winding + (1 if start == key[0] else -1))
+    closed = bool(edges) and all(
+        count == 2 and winding == 0 for count, winding in edges.values()
+    )
+    if not closed or not math.isfinite(signed_volume) or abs(signed_volume) <= 1e-12:
+        return False, 1.0
+    return True, 1.0 if signed_volume > 0.0 else -1.0
+
 
 
 def _tissu_substeps():
@@ -104,15 +136,22 @@ class TissuBackend(ClothSimulationBackend):
         self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins))
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
         self._source_collision_surface = collision_surface
+        (
+            self._collision_closed_manifold_hint,
+            self._collision_outward_normal_sign_hint,
+        ) = _collision_orientation_hint(self._source_collision_surface)
         collision_limit = _tissu_collision_triangle_limit()
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
             collision_surface = coarsen_collision_surface(collision_surface, collision_limit)
             print(
-                "cloth-tissu-collision source_triangles=%d solver_triangles=%d limit=%d"
+                "cloth-tissu-collision source_triangles=%d solver_triangles=%d limit=%d "
+                "source_closed_manifold=%s source_outward_normal_sign=%s"
                 % (
                     len(self._source_collision_surface.triangles),
                     len(collision_surface.triangles),
                     collision_limit,
+                    str(self._collision_closed_manifold_hint).lower(),
+                    self._collision_outward_normal_sign_hint,
                 ),
                 flush=True,
             )
@@ -146,7 +185,14 @@ class TissuBackend(ClothSimulationBackend):
                 )
             return
         vtx, idx = _to_tissu_mesh(self._collision_surface)
-        self._sim.add_mesh_from_arrays("drape-target", vtx, idx, friction=0.5)
+        self._sim.add_mesh_from_arrays(
+            "drape-target",
+            vtx,
+            idx,
+            friction=0.5,
+            closed_manifold=self._collision_closed_manifold_hint,
+            outward_normal_sign=self._collision_outward_normal_sign_hint,
+        )
 
     def _build(self, Simulation):
         import numpy as np
