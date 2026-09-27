@@ -23,11 +23,9 @@ os.environ["CLOTH_TISSU_SUBSTEPS"] = "1"
 os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
 os.environ["CLOTH_TISSU_COLLISION_TRIANGLES"] = "2048"
 
-from freecad_cloth.avatar.AvatarCollision import coarsen_collision_surface
+from freecad_cloth.avatar.AvatarCollision import coarsen_collision_surface, surface_from_freecad
 from freecad_cloth.common.MeshValidation import validate_mesh
 from freecad_cloth.simulation.ClothSolver import ClothSystem
-from freecad_cloth.simulation.DrapeTarget import collision_surface, refresh_drape_target, target_status
-from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
 from freecad_cloth.simulation.TissuBackend import TissuBackend
 
 OUT = Path(os.environ.get("CLOTH_CONTACT_CONTROLS_DIR", "artifacts/contact-controls"))
@@ -104,38 +102,41 @@ def _basis(normal):
     return u, v
 
 
-def _make_probe_system(center, normal, offset):
+def _make_probe_system(center, normal, offset, size=36.0, nx=4, ny=4):
     u, v = _basis(normal)
-    points = []
-    for su, sv in (
-        (-PROBE_HALF_SIZE_MM, -PROBE_HALF_SIZE_MM),
-        (PROBE_HALF_SIZE_MM, -PROBE_HALF_SIZE_MM),
-        (PROBE_HALF_SIZE_MM, PROBE_HALF_SIZE_MM),
-        (-PROBE_HALF_SIZE_MM, PROBE_HALF_SIZE_MM),
-    ):
-        points.append(_add(_add(center, _scale(normal, offset)), _add(_scale(u, su), _scale(v, sv))))
-
     system = ClothSystem.grid(
-        2.0 * PROBE_HALF_SIZE_MM,
-        2.0 * PROBE_HALF_SIZE_MM,
-        nx=2,
-        ny=2,
-        origin=points[0],
+        size,
+        size,
+        nx=nx,
+        ny=ny,
+        origin=(-size / 2.0, -size / 2.0, offset),
     )
-    # Replace the axis-aligned grid with the tangent-space square above while
-    # keeping the existing four-particle topology and constraints intact.
-    for particle, position in zip(system.particles, points):
-        particle.x, particle.y, particle.z = position
-        particle.px, particle.py, particle.pz = position
-    triangles = ((0, 1, 3), (0, 3, 2))
-    return system, triangles
+    for particle in system.particles:
+        local = particle.position()
+        point = _add(
+            _add(center, _scale(normal, local[2])),
+            _add(_scale(u, local[0]), _scale(v, local[1])),
+        )
+        particle.x, particle.y, particle.z = point
+        particle.px, particle.py, particle.pz = point
 
+    triangles = []
+    for row in range(ny - 1):
+        for col in range(nx - 1):
+            a = row * nx + col
+            b = a + 1
+            d = (row + 1) * nx + col
+            e = d + 1
+            triangles.extend(((a, b, e), (a, e, d)))
+    return system, tuple(triangles)
+    
 
 def _signed_plane(point, face_center, normal):
     return _dot(_sub(point, face_center), normal)
 
 
 def _run_backend(surface, face_center, normal, offset, label):
+    print("contact-control backend-build label=%s offset=%s" % (label, offset), flush=True)
     system, triangles = _make_probe_system(face_center, normal, offset)
     backend = TissuBackend(
         system,
@@ -146,6 +147,7 @@ def _run_backend(surface, face_center, normal, offset, label):
         collision_mode="mesh",
     )
     initial = tuple(backend.positions())
+    print("contact-control step-start label=%s particles=%d" % (label, len(initial)), flush=True)
     backend.step(
         dt=1.0 / 120.0,
         iterations=8,
@@ -153,6 +155,7 @@ def _run_backend(surface, face_center, normal, offset, label):
         surface=backend.solver_collision_surface,
     )
     final = tuple(backend.positions())
+    print("contact-control step-done label=%s" % label, flush=True)
     initial_signed = min(_signed_plane(p, face_center, normal) for p in initial)
     final_signed = min(_signed_plane(p, face_center, normal) for p in final)
     delta = final_signed - initial_signed
@@ -217,6 +220,7 @@ def _write_manifest(results, error=None):
     (OUT / "manifest.json").write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
 
 def _cube_control():
+    print("contact-control cube-start", flush=True)
     doc = App.newDocument("TissuContactControlCube")
     cube = doc.addObject("Part::Feature", "TargetCube")
     cube.Shape = Part.makeBox(100.0, 100.0, 100.0, App.Vector(-50.0, -50.0, -50.0))
@@ -249,6 +253,7 @@ def _cube_control():
     _save_probe_view("cube-inside-step-1.png", target_box=cube, probe=probe)
 
     doc.close()
+    print("contact-control cube-done", flush=True)
     return {
         "rung": "0",
         "target": "cube",
@@ -263,22 +268,17 @@ def _cube_control():
 
 def _avatar_control():
     doc = App.newDocument("TissuContactControlAvatar")
-    scene = create_quality_simulation_scene(doc)
-    target = scene.DrapeTarget
-    source = getattr(target, "SourceObject", None)
-    if source is None:
-        raise RuntimeError("production DrapeTarget has no source object")
-    status = target_status(target)
-    if str(status.get("state", "")) != "ready":
-        refresh_drape_target(target)
-        status = target_status(target)
-    if str(status.get("state", "")) != "ready":
-        raise RuntimeError("production DrapeTarget is not ready: %s" % status)
-    full = collision_surface(
-        source,
-        float(getattr(target, "CollisionDeflection", 1.0)),
-        float(getattr(target, "CollisionThickness", 0.0)),
+    print("contact-control avatar-create-start", flush=True)
+    source = __import__("freecad_cloth.avatar.AvatarCommands", fromlist=["create_avatar"]).create_avatar(
+        attach_collision=False,
+        doc=doc,
     )
+    print("contact-control avatar-created vertices=%s triangles=%s" % (
+        int(getattr(source, "MeshVertexCount", 0)),
+        int(getattr(source, "MeshTriangleCount", 0)),
+    ), flush=True)
+    full = surface_from_freecad(source, 1.0, 3.0)
+    print("contact-control avatar-surface-built triangles=%d" % len(full.triangles), flush=True)
     solver_surface = coarsen_collision_surface(full, 2048)
     if len(solver_surface.triangles) != 2048:
         raise RuntimeError("expected exactly 2048 solver collision triangles, got %d" % len(solver_surface.triangles))
@@ -326,7 +326,9 @@ def _avatar_control():
 def main():
     results = []
     try:
+        print("contact-control main-start", flush=True)
         results.append(_cube_control())
+        print("contact-control cube-manifest", flush=True)
         _write_manifest(results)
         results.append(_avatar_control())
         _write_manifest(results)
