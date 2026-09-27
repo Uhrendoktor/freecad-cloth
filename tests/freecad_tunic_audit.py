@@ -76,24 +76,26 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
     log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
 '''
-anchor = '''    for batch in (15,15,15,15,15,15):
-        simulation_panel.step(batch); doc.recompute(); events()
-'''
-if anchor not in source:
-    raise RuntimeError("simulation batch anchor missing")
-timed_anchor = '''    from time import perf_counter
-    simulation_started = perf_counter()
-    active_backend = scene.Proxy._base_or_restore().backend
-    active_collision = getattr(active_backend, "_collision_surface", None)
-    log("tunic-simulation-start particles=%d iterations=%d substeps=%d backend=%s collision_triangles=%d" % (
-        int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps),
-        str(getattr(active_backend, "name", "")),
-        0 if active_collision is None else len(active_collision.triangles),
-    ))
-    for batch in (15,15,15,15,15,15):
+anchor = '''    for batch_index, batch in enumerate((15,15,15,15,15,15), 1):
         batch_started = perf_counter()
         simulation_panel.step(batch); doc.recompute(); events()
         log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
+        if batch_index == 1:
+            delay_steps = int(getattr(active_backend, "_stitch_delay_steps", -1))
+            stitch_steps = int(getattr(active_backend, "_stitch_steps", -1))
+            stitches_armed = bool(getattr(active_backend, "_stitches_armed", True))
+            source_surface = getattr(active_backend, "_source_collision_surface", None) or getattr(active_backend, "_collision_surface", None)
+            if delay_steps != 15 or stitch_steps != 15 or stitches_armed or source_surface is None:
+                raise RuntimeError("delayed stitch activation boundary was not preserved at step 15")
+            from freecad_cloth.common.MeshValidation import nearest_target_clearance
+            preactivation_clearance = nearest_target_clearance(tuple(active_backend.positions()), tuple(source_surface.vertices))
+            if not active_backend.finite():
+                raise RuntimeError("collision-only preactivation state is not finite")
+            log("tissu-stitch-delay configured=%d activation-step=%d pair-count=%d target-clearance-before-activation-mm=%.3f" % (
+                delay_steps, delay_steps + 1, len(getattr(active_backend, "_stitches", ())), preactivation_clearance
+            ))
+            if float(preactivation_clearance) < 8.0:
+                raise RuntimeError("collision-only preactivation target clearance %.3f mm is below 8.00 mm" % preactivation_clearance)
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
 '''
 source = source.replace(anchor, preview_probe + '\n' + timed_anchor, 1)
