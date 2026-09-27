@@ -138,13 +138,19 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert 'artifacts/tissu-provenance.txt' in workflow
 
 def test_canonical_tunic_fixture_matches_validated_start_geometry():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert 'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)' in audit
-    assert 'front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)' in audit
-    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance'," in audit
-    assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance'," in audit
-    assert "'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))'," in audit
-
+    audit_tissu = (ROOT / "tests" / "freecad_tunic_audit_tissu.py").read_text(encoding="utf-8")
+    assert "def open_book_piece_placement(side, outline):" in source
+    assert "piece.Placement = open_book_piece_placement(side, outline)" in source
+    assert "open-book-pivot=" in source
+    assert "initial-solver-stitch-spans-mm=" in source
+    assert "def target_relative_piece_placement(side):" not in source
+    assert "target_ys) - clearance" not in audit
+    assert "target_ys) + clearance" not in audit
+    assert 'y = target_box.YMin - clearance if side == "front" else target_box.YMax + clearance' not in audit_tissu
+    assert "front, front_outline = make_piece(\"VisualTunicFront\", \"back\", 0.78, 0.18)" in audit
+    assert "back, back_outline = make_piece(\"VisualTunicBack\", \"front\", 0.76, 0.12)" in audit
 
 def test_tunic_visual_diagnostics_are_authoritative_after_persistence():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
