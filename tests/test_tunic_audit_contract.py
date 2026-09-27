@@ -122,6 +122,10 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert '/opt/conda/envs/freecad/bin/cmake --build build' in dockerfile
     assert '--target _cloth_sdk_core unit_tests' in dockerfile
     assert "--gtest_filter='MeshCollider.*'" in dockerfile
+    assert "rayIntersectionCount" in script
+    assert "if (t < -kRayEpsilon)" in script
+    assert "if (std::abs(t) <= kRayEpsilon)" in script
+    assert "if (w < -1.0e-9 || w > 1.0 + 1.0e-9)" in script
     assert "ParticleInsideMeshMovesOutside" in script
     assert "tetrahedronContains" in script
     assert "ClosedMeshKeepsOutsideContactOutside" in script
