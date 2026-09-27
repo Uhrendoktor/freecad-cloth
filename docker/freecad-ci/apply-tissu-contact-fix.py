@@ -215,6 +215,7 @@ MeshOrientation inferMeshOrientation(
         collider->resolve(m_particles, dt, world.getThickness());
 
     solveSelfCollisions(dt, world.getThickness());"""
+    # The second collider pass is the isolated fixed-point discriminator; no solver-budget change is intended.
     solver_new = """    const auto& colliders = world.getColliders();
     for (auto& collider : colliders)
         collider->resolve(m_particles, dt, world.getThickness());
