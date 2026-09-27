@@ -251,6 +251,25 @@ class _SurfaceIndex:
                 raise ValueError(
                     "target projection is ambiguous across opposing surface normals"
                 )
+            local_scored = []
+            for candidate in nearest:
+                local_vector = _vsub(query, candidate.point)
+                local_length = _norm(local_vector)
+                if local_length <= 1e-12:
+                    local_scored = []
+                    break
+                local_direction = _vmul(local_vector, 1.0 / local_length)
+                local_scored.append((_dot(candidate.normal, local_direction), candidate))
+            local_scored = tuple(
+                sorted(
+                    local_scored,
+                    key=lambda item: (item[0], -item[1].triangle_index),
+                    reverse=True,
+                )
+            )
+            if len(local_scored) >= 2 and local_scored[0][0] - local_scored[1][0] > 0.25:
+                return local_scored[0][1]
+
             direction = _normalize(tuple(float(v) for v in preferred_normal))
             scored = tuple(
                 (
@@ -259,7 +278,13 @@ class _SurfaceIndex:
                 )
                 for candidate in nearest
             )
-            scored = tuple(sorted(scored, key=lambda item: (item[0], -item[1].triangle_index), reverse=True))
+            scored = tuple(
+                sorted(
+                    scored,
+                    key=lambda item: (item[0], -item[1].triangle_index),
+                    reverse=True,
+                )
+            )
             if len(scored) < 2 or scored[0][0] - scored[1][0] <= 0.25:
                 raise ValueError(
                     "target projection is ambiguous across opposing surface normals"
