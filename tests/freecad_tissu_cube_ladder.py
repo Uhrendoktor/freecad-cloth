@@ -69,8 +69,21 @@ def _seam_geometry(backend, seam_stitch_pairs):
     return result
 
 
-def _surface_signed_clearance(points, source_shape, collision_surface):
-    unsigned = _nearest_surface_distance(points, collision_surface)
+def _surface_signed_clearance(points, source_shape, collision_surface, proximity_mesh=None):
+    unsigned = None
+    if proximity_mesh is not None:
+        try:
+            import numpy as np
+            import trimesh  # noqa: F401
+            if points:
+                _, distances, _ = proximity_mesh.nearest.on_surface(
+                    np.asarray(points, dtype=float)
+                )
+                unsigned = float(np.min(distances)) if len(distances) else float("inf")
+        except (ImportError, RuntimeError, TypeError, ValueError):
+            unsigned = None
+    if unsigned is None:
+        unsigned = _nearest_surface_distance(points, collision_surface)
     if unsigned is None:
         return None, None
     inside = False
@@ -84,12 +97,13 @@ def _surface_signed_clearance(points, source_shape, collision_surface):
     return float(-unsigned if inside else unsigned), float(unsigned)
 
 
-def _checkpoint_record(step, image, positions, panel_triangles, source_shape, collision_surface, base):
+def _checkpoint_record(step, image, positions, panel_triangles, source_shape, collision_surface, base, proximity_mesh):
     finite = all(math.isfinite(float(c)) for point in positions for c in point)
     signed_clearance, unsigned_clearance = _surface_signed_clearance(
         positions,
         source_shape,
         collision_surface,
+        proximity_mesh,
     )
     seam_geometry = _seam_geometry(base.backend, base.seam_stitch_pairs)
     return {
@@ -239,8 +253,19 @@ def _run_ladder_case(case_id):
             raise RuntimeError("%s cube source shape is invalid" % case_id)
 
         seam_pre = _seam_geometry(base.backend, base.seam_stitch_pairs)
+        proximity_mesh = None
+        try:
+            import numpy as np
+            import trimesh
+            proximity_mesh = trimesh.Trimesh(
+                vertices=np.asarray(getattr(collision_surface, "vertices", ()), dtype=float),
+                faces=np.asarray(getattr(collision_surface, "triangles", ()), dtype=int),
+                process=False,
+            )
+        except (ImportError, RuntimeError, TypeError, ValueError):
+            proximity_mesh = None
         signed_before, unsigned_before = _surface_signed_clearance(
-            positions, source_shape, collision_surface
+            positions, source_shape, collision_surface, proximity_mesh
         )
         bounds = {
             "x_min": min(point[0] for point in positions),
@@ -287,6 +312,7 @@ def _run_ladder_case(case_id):
                     source_shape,
                     collision_surface,
                     base,
+                    proximity_mesh,
                 )
             )
             images[int(step)] = str(image.relative_to(OUT))
