@@ -146,6 +146,29 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     assert "'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))'," in audit
 
 
+def test_tunic_shoulder_attachment_contract_uses_existing_tissu_attachment_api():
+    simulation_objects = (ROOT / "freecad_cloth" / "simulation" / "SimulationObjects.py").read_text(encoding="utf-8")
+    tissu_backend = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    assert "def _tunic_shoulder_attachment_records" in simulation_objects
+    assert 'if "tunic" not in seam_key or "shoulder" not in seam_key' in simulation_objects
+    assert 'endpoint_pairs = (stitch_pairs[0], stitch_pairs[-1])' in simulation_objects
+    assert '"attachments": attachments' in simulation_objects
+    assert "attachments: Iterable[Tuple[int, Tuple[float, float, float], float]] = ()" in tissu_backend
+    assert 'self._sim.attach(' in tissu_backend
+    assert '"drape-target"' in tissu_backend
+    assert "local_anchors=" in tissu_backend
+    assert 'rest_length=float(rest_length) / _MM' in tissu_backend
+
+
+def test_tissu_ci_attachment_regression_is_pinned_and_executed():
+    dockerfile = (ROOT / "docker" / "freecad-ci" / "Dockerfile").read_text(encoding="utf-8")
+    script = (ROOT / "docker" / "freecad-ci" / "apply-tissu-contact-fix.py").read_text(encoding="utf-8")
+    expected = "Cloth.AttachmentMaintainsRestDistanceUnderSolverStep"
+    assert expected in dockerfile
+    assert "TEST(Cloth, AttachmentMaintainsRestDistanceUnderSolverStep)" in script
+    assert "tests/physics/test_cloth.cpp" in script
+
+
 def test_tunic_visual_diagnostics_are_authoritative_after_persistence():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     metrics_write = source.index('json.dump(payload, handle, indent=2, sort_keys=True)')
