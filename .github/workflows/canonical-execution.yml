@@ -501,6 +501,70 @@ jobs:
           echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
           docker cp "$PWD/." "$carrier:/workspace/"
 
+      - name: Run tunic collision/stitch probe
+        if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'agent/1986-') }}
+        env:
+          CLOTH_SIMULATION_BACKEND: tissu
+          CLOTH_TISSU_SUBSTEPS: 1
+          CLOTH_TISSU_COLLISION_MODE: mesh
+          CLOTH_TISSU_COLLISION_TRIANGLES: 2048
+          GITHUB_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e CLOTH_SIMULATION_BACKEND="${CLOTH_SIMULATION_BACKEND}" \
+            -e CLOTH_TISSU_SUBSTEPS="${CLOTH_TISSU_SUBSTEPS}" \
+            -e CLOTH_TISSU_COLLISION_MODE="${CLOTH_TISSU_COLLISION_MODE}" \
+            -e CLOTH_TISSU_COLLISION_TRIANGLES="${CLOTH_TISSU_COLLISION_TRIANGLES}" \
+            -e TUNIC_COLLISION_PROBE_OUT=/workspace/artifacts/tunic-collision-probe.json \
+            -e GITHUB_SHA="${GITHUB_SHA}" \
+            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "${FREECAD_TUNIC_IMAGE}" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 trimesh rtree >/tmp/tunic-probe-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_tunic_collision_probe.py
+            '
+      - name: Validate tunic collision/stitch probe
+        if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'agent/1986-') }}
+        run: |
+          set -euo pipefail
+          test -s artifacts/tunic-collision-probe.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          payload = json.loads(Path("artifacts/tunic-collision-probe.json").read_text(encoding="utf-8"))
+          assert len(payload["states"]) == 31, payload
+          assert payload["states"][0]["step"] == 0
+          assert payload["states"][-1]["step"] == 30
+          assert payload["source_triangle_count"] == 26756, payload
+          assert payload["solver_triangle_count"] == 2048, payload
+          assert payload["production_config"]["pin_mode"] == "None", payload
+          assert payload["production_config"]["pin_selection"] == [], payload
+          assert payload["production_config"]["particle_distance_mm"] > 0, payload
+          assert payload["production_config"]["solver_iterations"] >= 1, payload
+          print("tunic-collision-probe-contract=passed first_contact_step=%s initial_stitch_max_mm=%.3f final_stitch_max_mm=%.3f" % (
+              payload["first_contact_step"],
+              payload["states"][0]["stitch_lengths_mm"]["max_mm"],
+              payload["states"][-1]["stitch_lengths_mm"]["max_mm"],
+          ))
+          PY
+      - name: Upload tunic collision/stitch probe
+        if: ${{ always() && github.event_name == 'pull_request' && startsWith(github.head_ref, 'agent/1986-') }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: tunic-collision-probe
+          path: artifacts/tunic-collision-probe.json
+          if-no-files-found: error
+          compression-level: 1
+
       - name: Run native-Sketcher tunic audit
         env:
           CLOTH_SIMULATION_BACKEND: tissu
