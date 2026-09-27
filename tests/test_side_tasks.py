@@ -71,11 +71,6 @@ def test_sewing_edge_points_apply_rotated_piece_placement_once():
     assert (start.x, start.y, start.z) == (10.0, -1.0, 2.2)
     assert (end.x, end.y, end.z) == (7.0, -1.0, 2.2)
 
-if __name__=='__main__':
-    for name,fn in globals().copy().items():
-        if name.startswith('test_'): fn()
-    print('side-task tests passed')
-
 def test_drape_visual_diagnostics_accept_clean_result():
     assert_drape_diagnostics((
         {
@@ -100,3 +95,9 @@ def test_drape_visual_diagnostics_reject_detached_collapsed_or_below_hem():
             assert "drape visual acceptance failed closed" in str(exc)
         else:
             raise AssertionError("fatal drape diagnostics were accepted")
+
+if __name__=='__main__':
+    for name,fn in globals().copy().items():
+        if name.startswith('test_'): fn()
+    print('side-task tests passed')
+
