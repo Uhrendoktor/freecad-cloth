@@ -337,6 +337,19 @@ def style_mesh(obj, label):
         pass
 
 
+def _signed_wrap_panel_angle(panel_y, target_y, seam_height, side, max_inward_cos=0.35):
+    """Return an explicit outward-side X-axis wrap angle in degrees."""
+    from math import acos, degrees
+    seam_height = float(seam_height)
+    if seam_height <= 0.0:
+        raise ValueError("seam height must be positive")
+    ratio = (float(target_y) - float(panel_y)) / seam_height
+    limit = max(0.0, min(0.999, float(max_inward_cos)))
+    ratio = max(-limit, min(limit, ratio))
+    base = degrees(acos(ratio))
+    return (180.0 - base) if side == "front" else base
+
+
 def simulation():
     import os
     os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
@@ -384,15 +397,19 @@ def simulation():
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
-    rot = App.Rotation(App.Vector(1,0,0), 90.0)
+    target_y = (min(target_ys) + max(target_ys)) / 2.0
+    wrap_seam_height = max(1.0, 0.92 * garment_height)
     def target_relative_piece_placement(side):
         if side == "front":
             y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
+            angle = _signed_wrap_panel_angle(y, target_y, wrap_seam_height, "front")
         elif side == "back":
             y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
+            angle = _signed_wrap_panel_angle(y, target_y, wrap_seam_height, "back")
         else:
             raise ValueError("tunic target-relative side must be front or back")
-        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
+        rotation = App.Rotation(App.Vector(1,0,0), angle)
+        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rotation)
     def make_piece(name, side, neckline_ratio, neckline_drop):
         sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(side); piece.Sketch.Placement = piece.Placement; return piece, outline
     front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
