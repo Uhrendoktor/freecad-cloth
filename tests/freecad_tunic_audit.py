@@ -149,7 +149,10 @@ if "--syntax-check" in sys.argv:
     raise SystemExit(0)
 
 # The source uses the production simulation path; this wrapper only stabilizes
-# the tunic fixture and verifies the realtime Tissu selector.
+# the tunic fixture and verifies the realtime Tissu selector. The single canonical
+# compliance discriminator is injected through the existing Tissu add_stitch ABI.
+os.environ["CLOTH_TISSU_STITCH_COMPLIANCE"] = "0.001"
+print("tunic-stitch-compliance=0.001", flush=True)
 exec(compiled_source, globals(), globals())
 print("tunic-audit-process-exit=success", flush=True)
 os._exit(0)
