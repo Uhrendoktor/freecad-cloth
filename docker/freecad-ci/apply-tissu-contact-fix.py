@@ -380,54 +380,14 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     stitch_header.write_text(stitch_text, encoding="utf-8")
 
     stitch_source = stitch_cpp.read_text(encoding="utf-8")
-    old_stitch = """#include "physics/StitchConstraint.hpp"
-
-namespace Tissu {
-
-StitchConstraint::StitchConstraint(int idA, int idB, double compliance)
-    : m_idA(idA), m_idB(idB) {
-    m_compliance = compliance;
-}
-
-void StitchConstraint::solve(std::vector<Particle>& particles, double dt) {
-    Particle& pA = particles[m_idA];
-    Particle& pB = particles[m_idB];
-
-    Eigen::Vector3d delta = pA.getPosition() - pB.getPosition();
-    double currentLength = delta.norm();
-    if (currentLength < 1e-6)
-        return;
-
-    double wA = pA.getInverseMass();
-    double wB = pB.getInverseMass();
-    double wSum = wA + wB;
-    if (wSum == 0.0)
-        return;
-
-    Eigen::Vector3d norm = delta / currentLength;
-    double C = currentLength;
-    double alphaHat = m_compliance / (dt * dt);
-    double deltaLambda = (-C - alphaHat * m_lambda) / (wSum + alphaHat);
-    m_lambda += deltaLambda;
-
-    pA.setPosition(pA.getPosition() + wA * norm * deltaLambda);
-    pB.setPosition(pB.getPosition() - wB * norm * deltaLambda);
-}
-
-} // namespace Tissu"""
-    new_stitch = """#include "physics/StitchConstraint.hpp"
-
-#include <cmath>
-
-namespace Tissu {
-
-StitchConstraint::StitchConstraint(int idA, int idB, double compliance)
-    : m_idA(idA), m_idB(idB) {
-    m_compliance = compliance;
-}
-
-void StitchConstraint::solve(std::vector<Particle>& particles, double dt) {
-    solveBounded(particles, dt, std::numeric_limits<double>::infinity());
+    stitch_start_marker = "void StitchConstraint::solve(std::vector<Particle>& particles, double dt) {"
+    stitch_end_marker = "\n} // namespace Tissu"
+    if stitch_source.count(stitch_start_marker) != 1 or stitch_source.count(stitch_end_marker) != 1:
+        raise RuntimeError("StitchConstraint.cpp function-boundary anchors mismatch")
+    stitch_start = stitch_source.index(stitch_start_marker)
+    stitch_end = stitch_source.index(stitch_end_marker, stitch_start)
+    new_stitch = """void StitchConstraint::solve(std::vector<Particle>& particles, double dt) {
+    solveBounded(particles, dt, -1.0);
 }
 
 void StitchConstraint::solveBounded(std::vector<Particle>& particles,
@@ -450,21 +410,22 @@ void StitchConstraint::solveBounded(std::vector<Particle>& particles,
     double C = currentLength;
     double alphaHat = m_compliance / (dt * dt);
     double deltaLambda = (-C - alphaHat * m_lambda) / (wSum + alphaHat);
-    if (std::isfinite(maxCorrection)) {
-        const double correctionLimit = maxCorrection < 0.0 ? 0.0 : maxCorrection;
+    if (maxCorrection > 0.0) {
         const double relativeCorrection = std::abs(deltaLambda) * wSum;
-        if (relativeCorrection > correctionLimit)
-            deltaLambda = std::copysign(correctionLimit / wSum, deltaLambda);
+        if (relativeCorrection > maxCorrection)
+            deltaLambda = std::copysign(maxCorrection / wSum, deltaLambda);
     }
     m_lambda += deltaLambda;
 
     pA.setPosition(pA.getPosition() + wA * norm * deltaLambda);
     pB.setPosition(pB.getPosition() - wB * norm * deltaLambda);
 }
-
-} // namespace Tissu"""
-    if stitch_source.count(old_stitch) != 1:
-        raise RuntimeError("StitchConstraint.cpp anchor mismatch")
+"""
+    stitch_source = stitch_source[:stitch_start] + new_stitch + stitch_source[stitch_end:]
+    if "void StitchConstraint::solveBounded" not in stitch_source:
+        raise RuntimeError("StitchConstraint.cpp bounded solve replacement failed")
+    if stitch_source.count("void StitchConstraint::solve(std::vector<Particle>& particles, double dt)") != 1:
+        raise RuntimeError("StitchConstraint.cpp solve function preservation check failed")
     stitch_cpp.write_text(stitch_source.replace(old_stitch, new_stitch), encoding="utf-8")
 
     stitch_test_text = stitch_test.read_text(encoding="utf-8")
