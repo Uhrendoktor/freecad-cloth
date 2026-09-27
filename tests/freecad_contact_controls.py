@@ -318,7 +318,7 @@ def _cube_control():
     _set_probe_shape(probe, inside["final_positions"])
     _save_probe_view(doc, "cube-inside-step-1.png", target_box=cube, probe=probe)
 
-    doc.close()
+    App.closeDocument(doc.Name)
     topology = validate_mesh(surface.vertices, surface.triangles, prefer_trimesh=False).__dict__
     return {
         "case_id": "0-cube-contact",
@@ -405,7 +405,7 @@ def _avatar_control():
     _progress("avatar control: export step-0/step-1 images")
     source_metrics = validate_mesh(full.vertices, full.triangles, prefer_trimesh=False)
     solver_metrics = validate_mesh(solver_surface.vertices, solver_surface.triangles, prefer_trimesh=False)
-    doc.close()
+    App.closeDocument(doc.Name)
     return {
         "case_id": "0a-avatar-contact",
         "predecessor_case_id": "0-cube-contact",
