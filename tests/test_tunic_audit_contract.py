@@ -123,6 +123,9 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert '--target _cloth_sdk_core unit_tests' in dockerfile
     assert "--gtest_filter='MeshCollider.*'" in dockerfile
     assert "ParticleInsideMeshMovesOutside" in script
+    assert "DeepInteriorPointMovesOutsideClosedMesh" in script
+    assert "DeepInteriorClosedMeshHandlesReversedWinding" in script
+    assert "rayIntersectionCount" in script
     assert "tetrahedronContains" in script
     assert "ClosedMeshKeepsOutsideContactOutside" in script
     assert "OpenMeshRetainsLegacyContactDirection" in script
