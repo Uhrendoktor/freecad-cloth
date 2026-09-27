@@ -513,7 +513,8 @@ static bool closedMeshContains(
     const std::vector<std::array<int, 3>>& triangles,
     const Eigen::Vector3d& point) {
     constexpr double epsilon = 1e-9;
-    for (const auto& tri : triangles) {
+    const auto outwardTriangles = orientOutward(vertices, triangles);
+    for (const auto& tri : outwardTriangles) {
         const Eigen::Vector3d& a = vertices[tri[0]];
         const Eigen::Vector3d& b = vertices[tri[1]];
         const Eigen::Vector3d& c = vertices[tri[2]];
