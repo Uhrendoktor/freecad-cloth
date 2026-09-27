@@ -197,6 +197,8 @@ int BVH::rayIntersectionCountRecursive(
 
     const int leftCount = rayIntersectionCountRecursive(
         node.left, origin, direction, vertices);
+    // Any ambiguous child invalidates the complete parity query; never fold
+    // an indeterminate branch into a seemingly valid intersection count.
     if (leftCount < 0)
         return -1;
 
