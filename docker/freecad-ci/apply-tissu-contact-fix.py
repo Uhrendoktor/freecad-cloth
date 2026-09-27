@@ -816,7 +816,7 @@ TEST(StitchConstraint, ParticleShareSamePosition) {""",
     stitch_test.write_text(
         stitch_test_text
         + """
-        
+
 TEST(StitchConstraint, SolverClipsLargeCorrectionAtFirstMeshCrossing) {
     World world;
     world.setGravity(Eigen::Vector3d::Zero());
