@@ -505,15 +505,45 @@ def simulation():
         hem_z=hem_z,
         seam_records=seam_records,
         proxy=proxy,
-    ); bounds = []
+    )
+    bounds = []
     for panel in scene.DrapePanels:
-        b = panel.Mesh.BoundBox; bounds.append((b.XMin,b.XMax,b.YMin,b.YMax,b.ZMin,b.ZMax))
-    log("drape-bounds=%s" % (bounds,)); task_dock.hide(); events()
-    for direction, method_name in (("front","viewFront"),("rear","viewRear"),("left","viewLeft"),("right","viewRight"),("top","viewTop"),("bottom","viewBottom")):
-        getattr(view, method_name)(); view.fitAll(); events(); save("cloth-simulation-draped-%s.png" % direction, "Simulation Workbench draped %s" % direction, "same sewn tunic after %d real steps; six-side audit from native Sketcher pattern sources" % int(scene.Steps))
+        b = panel.Mesh.BoundBox
+        bounds.append((b.XMin, b.XMax, b.YMin, b.YMax, b.ZMin, b.ZMax))
+    log("drape-bounds=%s" % (bounds,))
+    task_dock.hide()
+    events()
+    for direction, method_name in (
+        ("front", "viewFront"),
+        ("rear", "viewRear"),
+        ("left", "viewLeft"),
+        ("right", "viewRight"),
+        ("top", "viewTop"),
+        ("bottom", "viewBottom"),
+    ):
+        getattr(view, method_name)()
+        view.fitAll()
+        events()
+        save(
+            "cloth-simulation-draped-%s.png" % direction,
+            "Simulation Workbench draped %s" % direction,
+            "same sewn tunic after %d real steps; six-side audit from native Sketcher pattern sources"
+            % int(scene.Steps),
+        )
         if direction == "front":
-            save("cloth-simulation-draped.png", "Simulation Workbench draped front", "legacy front screenshot alias; native Sketcher tunic source")
-    task_dock.show(); task_dock.raise_(); events(); close_task(); App.closeDocument(doc.Name)
+            save(
+                "cloth-simulation-draped.png",
+                "Simulation Workbench draped front",
+                "legacy front screenshot alias; native Sketcher tunic source",
+            )
+    from freecad_cloth.common.DrapeVisualSanity import assert_drape_diagnostics
+    with open(METRICS, "r", encoding="utf-8") as handle:
+        assert_drape_diagnostics(json.load(handle).get("panels", ()))
+    task_dock.show()
+    task_dock.raise_()
+    events()
+    close_task()
+    App.closeDocument(doc.Name)
 
 
 def main():
