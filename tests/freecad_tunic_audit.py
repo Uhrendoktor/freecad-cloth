@@ -1,4 +1,5 @@
 """CI entry point for the full tunic visual/simulation audit."""
+import json
 from pathlib import Path
 import os
 import re
