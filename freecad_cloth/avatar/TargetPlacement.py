@@ -183,3 +183,19 @@ def nearest_surface_distance(surface, points):
             )
             minimum = min(minimum, _norm(_sub(point, closest)))
     return minimum
+
+
+def minimum_outward_clearance(surface, points, *, tolerance=1e-6):
+    """Return the minimum signed clearance along each nearest triangle normal.
+
+    Positive values mean points lie on the outward side of their nearest
+    local surface triangle; negative values are evidence of penetration.
+    """
+    minimum = float("inf")
+    for point in points:
+        hit = target_surface_anchor(surface, point)
+        signed = _dot(_sub(tuple(float(value) for value in point), hit.point), hit.normal)
+        minimum = min(minimum, signed)
+    if minimum < -float(tolerance):
+        return minimum
+    return max(0.0, minimum)
