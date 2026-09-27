@@ -311,7 +311,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     )
     solver_source = solver_source.replace(
         "void Solver::solveConstraints(double dt) {\n"
-        "    ZoneScopedN("Solve Constraints");\n"
+        "    ZoneScopedN(\"Solve Constraints\");\n"
         "    if (m_batches.empty()) {\n"
         "        for (const auto& constraint : m_constraints)\n"
         "            constraint->solve(m_particles, dt);\n"
