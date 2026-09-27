@@ -175,16 +175,18 @@ class TissuBackend(ClothSimulationBackend):
             self._sim.solver.add_pin(int(index), np.asarray(positions[index], dtype=np.float64), 0.0)
         self._pending_stitches = tuple(self._stitches)
         if not self._stitch_delay_steps:
-            self._activate_stitches()
+            self._activate_stitches(activation_step=0)
         self._add_collision()
 
-    def _activate_stitches(self):
+    def _activate_stitches(self, activation_step=None):
         if self._stitch_activation_step is not None:
             return
         for a, b in self._pending_stitches:
             self._sim.solver.add_stitch(int(a), int(b), 0.0)
         self._pending_stitches = ()
-        self._stitch_activation_step = int(self._stitch_step)
+        self._stitch_activation_step = (
+            int(self._stitch_step) if activation_step is None else int(activation_step)
+        )
         print(
             "cloth-tissu-stitches delay=%d activation-step=%d pairs=%d"
             % (self._stitch_delay_steps, self._stitch_activation_step, len(self._stitches)),
@@ -210,7 +212,7 @@ class TissuBackend(ClothSimulationBackend):
         _gx, _gy, gz = gravity
         self._sim.gravity = float(gz) / _MM
         if self._pending_stitches and self._stitch_step >= self._stitch_delay_steps:
-            self._activate_stitches()
+            self._activate_stitches(activation_step=self._stitch_step + 1)
         self._sim.step(float(dt))
         self._iterations = int(iterations)
         self._time += float(dt)
