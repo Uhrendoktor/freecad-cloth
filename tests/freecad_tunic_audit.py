@@ -80,6 +80,49 @@ anchor = '''    for batch in (15,15,15,15,15,15):
 '''
 if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
+seam_rest_probe = '''    def _seam_state_snapshot(stage):
+        backend_state = scene.Proxy._base_or_restore()
+        backend = backend_state.backend
+        positions = tuple(backend.positions())
+        stitch_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {}) or {}
+        records = []
+        for seam_id, pairs in sorted(stitch_pairs_by_seam.items()):
+            for pair_index, (ga, gb) in enumerate(pairs):
+                a = positions[int(ga)]
+                b = positions[int(gb)]
+                distance = ((a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2) ** 0.5
+                records.append({
+                    "seam_id": str(seam_id),
+                    "pair_index": int(pair_index),
+                    "particle_a": int(ga),
+                    "particle_b": int(gb),
+                    "distance_mm": round(float(distance), 6),
+                    "rest_distance_mm": 0.0,
+                    "rest_distance_source": "TissuBackend.add_stitch(a,b,0.0)",
+                })
+        distances = sorted(item["distance_mm"] for item in records)
+        per_seam_max = {}
+        for item in records:
+            per_seam_max[item["seam_id"]] = max(float(item["distance_mm"]), float(per_seam_max.get(item["seam_id"], 0.0)))
+        median = 0.0 if not distances else (float(distances[len(distances)//2]) if len(distances) % 2 else 0.5 * float(distances[len(distances)//2 - 1] + distances[len(distances)//2]))
+        payload = {
+            "schema": 1,
+            "stage": str(stage),
+            "simulation_step": int(scene.Steps),
+            "backend": str(getattr(backend, "name", "")),
+            "pair_count": int(len(records)),
+            "rest_distance_mm": 0.0,
+            "min_distance_mm": round(float(min(distances)), 6) if distances else None,
+            "median_distance_mm": round(median, 6),
+            "max_distance_mm": round(float(max(distances)), 6) if distances else None,
+            "per_seam_max_distance_mm": {key: round(value, 6) for key, value in sorted(per_seam_max.items())},
+            "pairs": records,
+        }
+        log("tunic-seam-rest-state-json=" + __import__("json").dumps(payload, sort_keys=True, separators=(",", ":")))
+        return payload
+
+    seam_pre_state = _seam_state_snapshot("pre-step")
+'''
 timed_anchor = '''    from time import perf_counter
     simulation_started = perf_counter()
     active_backend = scene.Proxy._base_or_restore().backend
@@ -89,9 +132,36 @@ timed_anchor = '''    from time import perf_counter
         str(getattr(active_backend, "name", "")),
         0 if active_collision is None else len(active_collision.triangles),
     ))
-    for batch in (15,15,15,15,15,15):
+    for batch_index, batch in enumerate((15,15,15,15,15,15)):
         batch_started = perf_counter()
-        simulation_panel.step(batch); doc.recompute(); events()
+        if batch_index == 0:
+            simulation_panel.step(1); doc.recompute(); events()
+            seam_post_state = _seam_state_snapshot("after-step-1")
+            before_by_key = {(item["seam_id"], item["pair_index"]): float(item["distance_mm"]) for item in seam_pre_state["pairs"]}
+            delta_records = []
+            for item in seam_post_state["pairs"]:
+                key = (item["seam_id"], item["pair_index"])
+                pre_distance = float(before_by_key.get(key, 0.0))
+                delta_records.append({
+                    "seam_id": item["seam_id"],
+                    "pair_index": int(item["pair_index"]),
+                    "pre_distance_mm": round(pre_distance, 6),
+                    "post_distance_mm": round(float(item["distance_mm"]), 6),
+                    "distance_delta_mm": round(float(item["distance_mm"]) - pre_distance, 6),
+                    "rest_distance_mm": 0.0,
+                })
+            delta_payload = {
+                "schema": 1,
+                "stage": "pre-to-after-step-1",
+                "rest_distance_mm": 0.0,
+                "pair_count": int(len(delta_records)),
+                "max_abs_delta_mm": round(max((abs(float(item["distance_delta_mm"])) for item in delta_records), default=0.0), 6),
+                "pairs": delta_records,
+            }
+            log("tunic-seam-rest-state-delta-json=" + __import__("json").dumps(delta_payload, sort_keys=True, separators=(",", ":")))
+            simulation_panel.step(14); doc.recompute(); events()
+        else:
+            simulation_panel.step(batch); doc.recompute(); events()
         log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
 '''
