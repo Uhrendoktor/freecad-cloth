@@ -124,12 +124,18 @@ def _install_quality_backend_hook():
             )
         )
         pins = tuple(getattr(system, "pins", {}).keys())
-        stitches = tuple((int(c.a), int(c.b)) for c in getattr(system, "stitches", ()))
+        stitch_constraints = tuple(getattr(system, "stitches", ()))
+        stitches = tuple((int(c.a), int(c.b)) for c in stitch_constraints)
+        stitch_compliances = {float(getattr(c, "compliance", 0.0)) for c in stitch_constraints}
+        if len(stitch_compliances) > 1:
+            raise RuntimeError("Tissu requires a uniform stitch compliance for the canonical adapter")
+        stitch_compliance = next(iter(stitch_compliances), 0.0)
         base.backend = TissuBackend(
             system,
             triangles=triangles,
             pins=pins,
             stitches=stitches,
+            stitch_compliance=stitch_compliance,
             collision_surface=getattr(base, "collision_surface", None),
         )
         if getattr(base.backend, "name", None) != "tissu":
