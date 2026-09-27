@@ -84,17 +84,27 @@ MeshOrientation inferMeshOrientation(
     std::unordered_map<std::uint64_t, std::pair<int, int>> edges;
     edges.reserve(triangles.size() * 3);
 
+    Eigen::Vector3d center = Eigen::Vector3d::Zero();
+    for (const auto& vertex : vertices)
+        center += vertex;
+    center /= static_cast<double>(vertices.size());
+
     double signedVolume = 0.0;
     for (const auto& tri : triangles) {
         const int ids[3] = {tri.a, tri.b, tri.c};
-        signedVolume +=
-            ids[0] < static_cast<int>(vertices.size()) &&
-                    ids[1] < static_cast<int>(vertices.size()) &&
-                    ids[2] < static_cast<int>(vertices.size())
-                ? vertices[ids[0]].dot(
-                      vertices[ids[1]].cross(vertices[ids[2]])) /
-                      6.0
-                : 0.0;
+        if (ids[0] < 0 || ids[1] < 0 || ids[2] < 0 ||
+            ids[0] >= static_cast<int>(vertices.size()) ||
+            ids[1] >= static_cast<int>(vertices.size()) ||
+            ids[2] >= static_cast<int>(vertices.size())) {
+            return {};
+        }
+        const Eigen::Vector3d& a = vertices[ids[0]];
+        const Eigen::Vector3d& b = vertices[ids[1]];
+        const Eigen::Vector3d& c = vertices[ids[2]];
+        const Eigen::Vector3d localA = a - center;
+        const Eigen::Vector3d localB = b - center;
+        const Eigen::Vector3d localC = c - center;
+        signedVolume += localA.dot(localB.cross(localC)) / 6.0;
 
         for (int edgeIndex = 0; edgeIndex < 3; ++edgeIndex) {
             const int from = ids[edgeIndex];
@@ -342,6 +352,43 @@ TEST(MeshCollider, OrientedSparseMeshPreservesOutsideContact) {
     mesh.resolve(particles, 0.016, 0.1);
 
     EXPECT_LT(particles[0].getPosition().y(), initialPos.y());
+}
+
+TEST(MeshCollider, OrientedSparseMeshIsTranslationInvariant) {
+    const std::vector<Eigen::Vector3d> baseVertices = {
+        {0.0, 0.0, 0.0},
+        {2.0, 0.0, 0.0},
+        {1.0, 0.0, 2.0},
+        {1.0, 2.0, 1.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {
+        {0, 2, 1},
+        {0, 1, 3},
+        {1, 2, 3},
+    };
+    const Eigen::Vector3d offset(37.0, -91.0, 123.0);
+
+    std::vector<Eigen::Vector3d> translatedVertices;
+    translatedVertices.reserve(baseVertices.size());
+    for (const auto& vertex : baseVertices)
+        translatedVertices.push_back(vertex + offset);
+
+    MeshCollider baseMesh(baseVertices, triangles, 0.0);
+    MeshCollider translatedMesh(translatedVertices, triangles, 0.0);
+
+    Eigen::Vector3d baseParticle(1.0, 0.01, 0.75);
+    Eigen::Vector3d translatedParticle = baseParticle + offset;
+    std::vector<Particle> baseParticles{Particle(baseParticle)};
+    std::vector<Particle> translatedParticles{Particle(translatedParticle)};
+
+    baseMesh.resolve(baseParticles, 0.016, 0.1);
+    translatedMesh.resolve(translatedParticles, 0.016, 0.1);
+
+    Eigen::Vector3d expectedTranslation = translatedParticles[0].getPosition() -
+                                          baseParticles[0].getPosition();
+    EXPECT_NEAR(expectedTranslation.x(), offset.x(), 1.0e-9);
+    EXPECT_NEAR(expectedTranslation.y(), offset.y(), 1.0e-9);
+    EXPECT_NEAR(expectedTranslation.z(), offset.z(), 1.0e-9);
 }"""
     if test_cpp.count(old) != 1:
         raise RuntimeError("MeshCollider regression test body anchor mismatch")
