@@ -11,6 +11,18 @@ if str(ROOT) not in sys.path:
 source_path = Path(__file__).with_name("freecad_screenshot_source.py")
 source = source_path.read_text(encoding="utf-8")
 
+# Keep source-rewrite failures visible in the same artifact path used by the GUI
+# job. This is diagnostics only; every existing replacement remains fail-closed.
+preflight_log = Path(os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")) / "gui-progress.log"
+preflight_log.parent.mkdir(parents=True, exist_ok=True)
+
+
+def preflight(message):
+    with open(preflight_log, "a", encoding="utf-8") as handle:
+        handle.write(message + "\n")
+
+
+preflight("tunic-audit-preflight-start")
 # The canonical tunic audit must use the authoritative DrapeTarget collision
 # surface; do not replace it with the optional torso-envelope approximation.
 os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
@@ -40,11 +52,15 @@ replacements = {
     '            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance',
     'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',
 }
-for old, new in replacements.items():
+for index, (old, new) in enumerate(replacements.items(), 1):
     if old not in source:
+        preflight("tunic-audit-preflight-replacement-miss=%d" % index)
         raise RuntimeError(f"audit replacement did not match source: {old}")
     source = source.replace(old, new, 1)
+    preflight("tunic-audit-preflight-replacement=%d passed" % index)
 
+
+preflight("tunic-audit-preflight-replacements-passed")
 
 preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
     if "ClothRealtimePreview" not in Gui.listCommands():
