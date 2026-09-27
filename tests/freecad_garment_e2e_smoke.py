@@ -606,6 +606,12 @@ def run_acceptance():
             )
             for piece in scene.ClothPieces
         }
+        original_native_sketch_placements = {
+            str(piece.PieceId): (
+                getattr(getattr(piece, "Sketch", None), "Placement", None)
+            )
+            for piece in scene.ClothPieces
+        }
         quality_panel.snap_to_target_button.click()
         _events()
         doc.recompute()
@@ -629,6 +635,10 @@ def run_acceptance():
         }
         if snapped == original_fitting_placements:
             raise RuntimeError("target snap did not change any fitting piece placement")
+        if getattr(fitting_scene, "DrapeTarget", None) is not getattr(scene, "DrapeTarget", None):
+            raise RuntimeError("target snap changed the persistent target identity")
+        if str(getattr(fitting_scene, "FitStatus", "")) != "Target-aware arrangement applied":
+            raise RuntimeError("target snap did not expose the expected fitting status")
         if not quality_panel.reset_arrangement_button.isEnabled():
             raise RuntimeError("target snap did not enable Reset arrangement")
         quality_panel.reset_arrangement_button.click()
@@ -648,6 +658,14 @@ def run_acceptance():
         }
         if restored_fitting_placements != original_fitting_placements:
             raise RuntimeError("Reset arrangement did not restore the exact pre-snap placements")
+        restored_native_sketch_placements = {
+            str(piece.PieceId): (
+                getattr(getattr(piece, "Sketch", None), "Placement", None)
+            )
+            for piece in scene.ClothPieces
+        }
+        if restored_native_sketch_placements != original_native_sketch_placements:
+            raise RuntimeError("Reset arrangement did not restore the exact native Sketch placements")
         _close_task()
         _wait_task_close()
         quality_panel.quality.setCurrentText("Fast")
