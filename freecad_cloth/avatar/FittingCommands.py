@@ -453,6 +453,121 @@ def snap_pattern_pieces_to_target(pieces=None, clearance=8.0, max_translation=60
                     break
 
             if accepted_step is None:
+                # The panel-center objective can stall when front/back projections
+                # disagree locally. Solve the same single rigid translation from
+                # the cached PatternMesh samples instead of introducing per-piece motion.
+                sample_errors = []
+                weighted_sample_step = App.Vector(0.0, 0.0, 0.0)
+                sample_weight_total = 0.0
+                for piece in selected:
+                    for point in sample_cache[piece]:
+                        preferred_direction = tuple(
+                            float(point[index]) - float(surface.center[index])
+                            for index in range(3)
+                        )
+                        projection = nearest_target_projection(
+                            point,
+                            surface,
+                            preferred_normal=preferred_direction,
+                        )
+                        target_point = tuple(
+                            float(projection.point[index])
+                            + float(projection.normal[index]) * required
+                            for index in range(3)
+                        )
+                        error_vector = tuple(
+                            target_point[index] - float(point[index])
+                            for index in range(3)
+                        )
+                        error_norm = sum(value * value for value in error_vector) ** 0.5
+                        sample_errors.append(error_norm)
+                        if error_norm <= 1e-9:
+                            continue
+                        weight = max(error_norm, 1e-6)
+                        weighted_sample_step += App.Vector(
+                            error_vector[0] * weight,
+                            error_vector[1] * weight,
+                            error_vector[2] * weight,
+                        )
+                        sample_weight_total += weight
+
+                sample_proximity_error = (
+                    sum(value * value for value in sample_errors) ** 0.5
+                )
+                if sample_weight_total > 0.0:
+                    sample_step = weighted_sample_step * (1.0 / sample_weight_total)
+                    for scale in (
+                        1.0,
+                        0.5,
+                        0.25,
+                        0.125,
+                        0.0625,
+                        0.03125,
+                        0.015625,
+                        0.0078125,
+                    ):
+                        step = sample_step * scale
+                        proposed = total_translation + step
+                        if proposed.Length > float(max_translation) + 1e-9:
+                            continue
+                        test_sample_errors = []
+                        for piece in selected:
+                            for point in sample_cache[piece]:
+                                test_point = tuple(
+                                    float(point[index]) + float(step[index])
+                                    for index in range(3)
+                                )
+                                preferred_direction = tuple(
+                                    float(test_point[index]) - float(surface.center[index])
+                                    for index in range(3)
+                                )
+                                test_projection = nearest_target_projection(
+                                    test_point,
+                                    surface,
+                                    preferred_normal=preferred_direction,
+                                )
+                                test_target = tuple(
+                                    float(test_projection.point[index])
+                                    + float(test_projection.normal[index]) * required
+                                    for index in range(3)
+                                )
+                                test_sample_errors.append(
+                                    sum(
+                                        (test_target[index] - test_point[index]) ** 2
+                                        for index in range(3)
+                                    )
+                                    ** 0.5
+                                )
+                        test_sample_proximity_error = (
+                            sum(value * value for value in test_sample_errors) ** 0.5
+                        )
+                        if test_sample_proximity_error >= sample_proximity_error - 1e-6:
+                            continue
+                        candidate_clearances = []
+                        for piece in selected:
+                            translated_samples = tuple(
+                                tuple(
+                                    float(point[index]) + float(step[index])
+                                    for index in range(3)
+                                )
+                                for point in sample_cache[piece]
+                            )
+                            candidate_clearances.append(
+                                minimum_signed_clearance(
+                                    translated_samples,
+                                    surface,
+                                ).minimum_signed_clearance
+                            )
+                        if any(
+                            value < required - 1e-6
+                            for value in candidate_clearances
+                        ):
+                            continue
+                        accepted_step = step
+                        accepted_proximity_error = test_sample_proximity_error
+                        break
+
+            if accepted_step is None:
                 # A common rigid transform has one shared translation. When the
                 # per-panel nearest-surface projections disagree locally, solve
                 # that rigid degree of freedom from the aggregate garment
