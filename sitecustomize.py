@@ -131,6 +131,7 @@ def _install_quality_backend_hook():
             pins=pins,
             stitches=stitches,
             collision_surface=getattr(base, "collision_surface", None),
+            collision_friction=float(getattr(obj, "FabricFriction", 0.5)),
         )
         if getattr(base.backend, "name", None) != "tissu":
             raise RuntimeError("canonical GUI simulation did not select Tissu")
