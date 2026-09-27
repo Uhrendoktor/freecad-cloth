@@ -301,21 +301,76 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
             Eigen::Vector3d newPosition = cp + normal * thickness;"""
     probe_old = """        double distance = toParticle.norm();
 
-        if (distance <= thickness) {"""
+        bool insideClosedMesh = false;
+        bool sweptContact = false;
+        int sweptTriangle = -1;
+        double sweptT = 0.0;
+        if (m_closedManifold) {
+            const Eigen::Vector3d startPosition = particle.getOldPosition();
+            const Eigen::Vector3d endPosition = particle.getPosition();
+            const double displacement = (endPosition - startPosition).norm();
+
+            if (displacement > thickness + 1e-9) {
+                sweptContact = findSweptContact(
+                    startPosition, endPosition, thickness, sweptTriangle, sweptT);
+                if (sweptContact) {
+                    triIdx = sweptTriangle;
+                    const Triangle& sweptTri = m_bvh.getTriangle(triIdx);
+                    a = m_worldVertices[sweptTri.a];
+                    b = m_worldVertices[sweptTri.b];
+                    c = m_worldVertices[sweptTri.c];
+                    cp = startPosition + (endPosition - startPosition) * sweptT;
+                    toParticle = endPosition - cp;
+                    distance = toParticle.norm();
+                }
+            }
+
+            if (!sweptContact && distance > thickness) {
+                const bool containmentProbe =
+                    !m_containmentBootstrapped ||
+                    displacement + 1e-9 >= distance;
+                if (containmentProbe)
+                    insideClosedMesh = pointInsideClosedMesh(endPosition);
+            }
+        }
+
+        if (distance <= thickness || insideClosedMesh || sweptContact) {"""
     probe_new = """        double distance = toParticle.norm();
 
         bool insideClosedMesh = false;
-        if (m_closedManifold && distance > thickness) {
-            const double displacement =
-                (particle.getPosition() - particle.getOldPosition()).norm();
-            const bool containmentProbe =
-                !m_containmentBootstrapped ||
-                displacement + 1e-9 >= distance;
-            if (containmentProbe)
-                insideClosedMesh = pointInsideClosedMesh(particle.getPosition());
+        bool sweptContact = false;
+        int sweptTriangle = -1;
+        double sweptT = 0.0;
+        if (m_closedManifold) {
+            const Eigen::Vector3d startPosition = particle.getOldPosition();
+            const Eigen::Vector3d endPosition = particle.getPosition();
+            const double displacement = (endPosition - startPosition).norm();
+
+            if (displacement > thickness + 1e-9) {
+                sweptContact = findSweptContact(
+                    startPosition, endPosition, thickness, sweptTriangle, sweptT);
+                if (sweptContact) {
+                    triIdx = sweptTriangle;
+                    const Triangle& sweptTri = m_bvh.getTriangle(triIdx);
+                    a = m_worldVertices[sweptTri.a];
+                    b = m_worldVertices[sweptTri.b];
+                    c = m_worldVertices[sweptTri.c];
+                    cp = startPosition + (endPosition - startPosition) * sweptT;
+                    toParticle = endPosition - cp;
+                    distance = toParticle.norm();
+                }
+            }
+
+            if (!sweptContact && distance > thickness) {
+                const bool containmentProbe =
+                    !m_containmentBootstrapped ||
+                    displacement + 1e-9 >= distance;
+                if (containmentProbe)
+                    insideClosedMesh = pointInsideClosedMesh(endPosition);
+            }
         }
 
-        if (distance <= thickness || insideClosedMesh) {"""
+        if (distance <= thickness || insideClosedMesh || sweptContact) {"""
     if cpp.count(probe_old) != 1:
         raise RuntimeError("MeshCollider.cpp containment probe anchor mismatch")
     cpp = cpp.replace(probe_old, probe_new, 1)
