@@ -244,7 +244,6 @@ bool segmentTriangleHit(
                         sweptT = candidateT;
                         sweptPoint = oldPosition + segment * candidateT;
                         sweptNormal = candidateNormal;
-                        triIdx = candidate;
                     }
                 }
             }
@@ -256,12 +255,11 @@ bool segmentTriangleHit(
                 distance = 0.0;
             }
 
-            const Eigen::Vector3d faceNormalRaw =
-                (b - a).cross(c - a);
-            const double faceNormalLength = faceNormalRaw.norm();
-            if (faceNormalLength <= 1e-12)
+            Eigen::Vector3d faceNormal = sweptHit
+                ? sweptNormal
+                : (b - a).cross(c - a).normalized();
+            if (faceNormal.norm() <= 1e-12)
                 continue;
-            Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
 
             Eigen::Vector3d normal = faceNormal;
             if (sweptHit) {
