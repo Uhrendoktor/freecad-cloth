@@ -340,7 +340,7 @@ TEST(MeshCollider, OrientedSparseMeshPreservesOutsideContact) {
 
     mesh.resolve(particles, 0.016, 0.1);
 
-    EXPECT_GT(particles[0].getPosition().y(), initialPos.y() - 0.01);
+    EXPECT_LT(particles[0].getPosition().y(), initialPos.y());
 }"""
     if test_cpp.count(old) != 1:
         raise RuntimeError("MeshCollider regression test body anchor mismatch")
