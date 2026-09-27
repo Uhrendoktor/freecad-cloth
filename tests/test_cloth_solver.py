@@ -1,3 +1,5 @@
+import pytest
+
 from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
 
 
@@ -96,3 +98,65 @@ if __name__ == "__main__":
         if name.startswith("test_") and callable(test):
             test()
     print("cloth solver tests passed")
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        (None, 0.5),
+        ("0.85", 0.85),
+        ("0", 0.0),
+        ("1", 1.0),
+    ],
+)
+def test_tissu_collider_friction_accepts_bounded_values(monkeypatch, raw, expected):
+    from freecad_cloth.simulation.TissuBackend import _tissu_collider_friction
+
+    if raw is None:
+        monkeypatch.delenv("CLOTH_TISSU_COLLIDER_FRICTION", raising=False)
+    else:
+        monkeypatch.setenv("CLOTH_TISSU_COLLIDER_FRICTION", raw)
+    assert _tissu_collider_friction() == expected
+
+
+@pytest.mark.parametrize("raw", ["not-a-number", "nan", "inf", "-inf", "-0.01", "1.01"])
+def test_tissu_collider_friction_fails_closed(monkeypatch, raw):
+    from freecad_cloth.simulation.TissuBackend import _tissu_collider_friction
+
+    monkeypatch.setenv("CLOTH_TISSU_COLLIDER_FRICTION", raw)
+    with pytest.raises(ValueError, match=r"finite number in \[0, 1\]"):
+        _tissu_collider_friction()
+
+
+def test_tissu_collider_friction_sphere_path_remains_default(monkeypatch):
+    from freecad_cloth.simulation import TissuBackend as backend_module
+    from freecad_cloth.simulation.TissuBackend import TissuBackend
+
+    calls = []
+
+    class FakeSim:
+        def add_sphere(self, *args, **kwargs):
+            calls.append(("sphere", args, kwargs))
+
+        def add_mesh_from_arrays(self, *args, **kwargs):
+            calls.append(("mesh", args, kwargs))
+
+    backend = TissuBackend.__new__(TissuBackend)
+    backend._sim = FakeSim()
+    backend._collision_surface = object()
+    backend._collision_mode = "torso-envelope"
+
+    monkeypatch.setenv("CLOTH_TISSU_COLLIDER_FRICTION", "0.85")
+    monkeypatch.setattr(
+        backend_module,
+        "_collision_envelope",
+        lambda _surface: (((0.0, 0.0, 0.0), 10.0),),
+    )
+    backend._add_collision()
+    assert calls == [("sphere", ("drape-torso-0",), {
+        "friction": 0.5,
+        "radius": 0.01,
+    })] or (
+        calls and calls[0][0] == "sphere"
+        and calls[0][2]["friction"] == 0.5
+    )
