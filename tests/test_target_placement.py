@@ -108,3 +108,20 @@ def test_minimum_outward_clearance_rejects_inward_points():
     from freecad_cloth.avatar.TargetPlacement import minimum_outward_clearance
     assert minimum_outward_clearance(_plane(), ((0.0, 0.0, 8.0),)) == 8.0
     assert minimum_outward_clearance(_plane(), ((0.0, 0.0, -2.0),)) < 0.0
+
+
+def test_box_corner_anchor_is_deterministic_across_shared_surface_normals():
+    hit = target_surface_anchor(_box(), (15.0, 15.0, 15.0))
+    assert hit.point == (10.0, 10.0, 10.0)
+    assert abs(hit.normal[0] - hit.normal[1]) < 1e-9
+    assert abs(hit.normal[1] - hit.normal[2]) < 1e-9
+    assert hit.normal[0] > 0.0
+
+
+def test_central_closed_surface_anchor_remains_fail_closed_when_multiple_regions_tie():
+    try:
+        target_surface_anchor(_box(), (0.0, 0.0, 0.0))
+    except ValueError as exc:
+        assert "ambiguous" in str(exc)
+    else:
+        raise AssertionError("central multi-region target anchor was guessed")
