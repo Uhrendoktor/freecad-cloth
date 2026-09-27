@@ -235,14 +235,13 @@ MeshOrientation inferMeshOrientation(
         '#include "physics/Solver.hpp"\n',
         '#include "physics/Solver.hpp"\n#include "engine/World.hpp"\n#include "physics/Collider.hpp"\n',
         1,
-    )
-    )
     cloth_test_cpp = cloth_test_cpp.replace(
         "#include <gtest/gtest.h>\n",
         "#include <gtest/gtest.h>\n#include <memory>\n",
         1,
     )
     )
+    post_collision_test = """
 class DisplacingCollider final : public Collider {
 public:
     void resolve(std::vector<Particle>& particles, double, double) override {
@@ -325,7 +324,7 @@ TEST(Solver, ReprojectsAfterPostCollisionConstraintPass) {
     EXPECT_NEAR(particles[particleA].getPosition().x(), 0.5, 1e-9);
 }
 
-"""
+    """
     if cloth_test_cpp.count("TEST(Cloth, ClearFabric)") != 1:
         throw RuntimeError("Cloth test anchor missing")
     cloth_test_cpp = cloth_test_cpp.replace(
