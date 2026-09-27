@@ -147,7 +147,6 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     assert "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance'," not in audit
     assert "y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance" in source
     assert "'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))'," in audit
-z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))'," in audit
 
 
 def test_tunic_visual_diagnostics_are_authoritative_after_persistence():
