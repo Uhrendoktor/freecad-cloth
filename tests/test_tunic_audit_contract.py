@@ -129,6 +129,8 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "SolverClipsEnteringCrossingIntoClosedSurface" in script
     assert "SolverAllowsExitFromClosedSurface" in script
     assert "SolverPreservesFreeSpaceStitchConvergence" in script
+    assert "for (const auto& pin : m_transientPins)" in script
+    assert "for (const auto& attach : m_attachments)" in script
     assert "direction.dot(outwardNormal) >= -epsilon" in script
     assert "m_lambda = previousLambda +\n        proposedDeltaLambda * lambdaScale;" in script
 
