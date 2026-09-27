@@ -386,14 +386,25 @@ TEST(MeshCollider, ParallelOutsideMotionDoesNotFalsePositive) {
                         const std::vector<Eigen::Vector3d>& vertices) const;""",
         """    void query(const Eigen::Vector3d& point, double radius,
                std::vector<int>& outTriangles) const;
-    void query(const Eigen::AlignedBox3d& box,
-               std::vector<int>& outTriangles) const;
     int closestTriangle(const Eigen::Vector3d& point,
                         const std::vector<Eigen::Vector3d>& vertices) const;""",
         "BVH box query declaration",
     )
 
     bvh_header_text = bvh_header.read_text(encoding="utf-8")
+    private_anchor = "private:\n"
+    if bvh_header_text.count(private_anchor) != 1:
+        raise RuntimeError("BVH private anchor mismatch")
+    bvh_header_text = bvh_header_text.replace(
+        private_anchor,
+        """private:
+    friend class MeshCollider;
+    void query(const Eigen::AlignedBox3d& box,
+               std::vector<int>& outTriangles) const;
+
+""",
+        1,
+    )
     recursive_anchor = "void queryRecursive(int nodeIdx, const Eigen::Vector3d& point,"
     if bvh_header_text.count(recursive_anchor) != 1:
         raise RuntimeError("BVH box helper declaration: expected one stable source anchor")
