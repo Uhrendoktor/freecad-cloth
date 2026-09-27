@@ -539,9 +539,9 @@ jobs:
           for result in manifest["results"]:
               assert result["inside"]["finite"], result
               assert result["outside"]["finite"], result
-              assert result["solver_triangles"] > 0, result
-          avatar = next(result for result in manifest["results"] if result["rung"] == "0a")
-          assert avatar["solver_triangles"] == 2048, avatar
+              assert result["solver_collision_triangle_count"] > 0, result
+          avatar = next(result for result in manifest["results"] if result["case_id"] == "0a-avatar-contact")
+          assert avatar["solver_collision_triangle_count"] == 2048, avatar
           print("diagnostic-manifest=valid")
           PY
       - name: Upload contact control evidence
@@ -551,6 +551,7 @@ jobs:
           name: diagnostic-contact-controls
           path: artifacts/contact-controls/
           if-no-files-found: error
+          retention-days: 14
           compression-level: 1
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
