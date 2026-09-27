@@ -196,6 +196,7 @@ class TissuBackend(ClothSimulationBackend):
     def reset(self):
         from tissu import Simulation
         self._time = 0.0
+        self._completed_steps = 0
         self._build(Simulation)
 
     def pin(self, indices: Iterable[int]):
