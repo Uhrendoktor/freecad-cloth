@@ -126,7 +126,11 @@ MeshOrientation inferMeshOrientation(
 
     for (const auto& [key, edge] : edges) {
         (void)key;
-        if (edge.first != 2 || edge.second != 0)
+        // Closed-manifold detection only requires two incident faces per
+        // undirected edge. Production tessellations can contain locally
+        // inconsistent winding; signed volume below still supplies the global
+        // outward normal direction for the resolved contact.
+        if (edge.first != 2)
             return {};
     }
     if (std::abs(signedVolume) <= 1.0e-12)
