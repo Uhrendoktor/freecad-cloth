@@ -30,7 +30,9 @@ def main() -> int:
 
     header = ROOT / "core/include/physics/MeshCollider.hpp"
     cpp = ROOT / "core/src/physics/MeshCollider.cpp"
+    solver = ROOT / "core/src/physics/Solver.cpp"
     test = ROOT / "tests/physics/test_mesh_collider.cpp"
+    stitch_test = ROOT / "tests/physics/test_stitch_constraint.cpp"
 
     replace_once(
         header,
@@ -207,6 +209,156 @@ MeshOrientation inferMeshOrientation(
         cpp = cpp.replace(old, new, 1)
     Path(cpp_path := ROOT / "core/src/physics/MeshCollider.cpp").write_text(cpp, encoding="utf-8")
 
+    solver_cpp = solver.read_text(encoding="utf-8")
+    solver_anchor = """    const auto& colliders = world.getColliders();
+    for (auto& collider : colliders)
+        collider->resolve(m_particles, dt, world.getThickness());
+
+    solveSelfCollisions(dt, world.getThickness());"""
+    solver_replacement = """    const auto& colliders = world.getColliders();
+    for (auto& collider : colliders)
+        collider->resolve(m_particles, dt, world.getThickness());
+
+    // Bounded contact-ordering discriminator: preserve the existing collider
+    // projection, re-enforce stitches once, then immediately re-project with
+    // the same collider before self-collision.
+    solveConstraints(dt);
+
+    for (auto& collider : colliders)
+        collider->resolve(m_particles, dt, world.getThickness());
+
+    solveSelfCollisions(dt, world.getThickness());"""
+    if solver_cpp.count(solver_anchor) != 1:
+        raise RuntimeError("Solver.cpp step ordering anchor mismatch")
+    solver_cpp = solver_cpp.replace(solver_anchor, solver_replacement, 1)
+    solver.write_text(solver_cpp, encoding="utf-8")
+
+    stitch_text = stitch_test.read_text(encoding="utf-8")
+    if "#include <array>" not in stitch_text:
+        stitch_text = stitch_text.replace(
+            "#include <vector>\n",
+            "#include <array>\n#include <memory>\n#include <vector>\n",
+            1,
+        )
+    if '#include "engine/World.hpp"' not in stitch_text:
+        stitch_text = stitch_text.replace(
+            '#include "physics/Particle.hpp"\n',
+            '#include "engine/World.hpp"\n#include "physics/MeshCollider.hpp"\n#include "physics/Particle.hpp"\n',
+            1,
+        )
+    if "TEST(StitchConstraint, SolverReprojectsAfterPostConstraintStitchPass)" in stitch_text:
+        raise RuntimeError("post-stitch regression already present in pinned source")
+
+    regression = r"""
+static bool regressionTetrahedronContains(const Eigen::Vector3d& point) {
+    const std::vector<Eigen::Vector3d> vertices = {
+        {0.0, 0.0, 0.0},
+        {2.0, 0.0, 0.0},
+        {1.0, 0.0, 2.0},
+        {1.0, 2.0, 1.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {
+        {0, 2, 1},
+        {0, 1, 3},
+        {1, 2, 3},
+        {0, 3, 2},
+    };
+    const Eigen::Vector3d center =
+        (vertices[0] + vertices[1] + vertices[2] + vertices[3]) / 4.0;
+    constexpr double epsilon = 1e-9;
+
+    for (const auto& tri : triangles) {
+        const auto& a = vertices[tri[0]];
+        const auto& b = vertices[tri[1]];
+        const auto& c = vertices[tri[2]];
+        Eigen::Vector3d normal = (b - a).cross(c - a).normalized();
+        if ((center - a).dot(normal) > 0.0)
+            normal = -normal;
+        if ((point - a).dot(normal) > epsilon)
+            return false;
+    }
+    return true;
+}
+
+TEST(StitchConstraint, SolverReprojectsAfterPostConstraintStitchPass) {
+    World world;
+    world.setGravity(Eigen::Vector3d::Zero());
+    world.setThickness(0.05);
+
+    const std::vector<Eigen::Vector3d> vertices = {
+        {0.0, 0.0, 0.0},
+        {2.0, 0.0, 0.0},
+        {1.0, 0.0, 2.0},
+        {1.0, 2.0, 1.0},
+    };
+    const std::vector<std::array<int, 3>> triangles = {
+        {0, 2, 1},
+        {0, 1, 3},
+        {1, 2, 3},
+        {0, 3, 2},
+    };
+    world.addCollider(std::make_shared<MeshCollider>(vertices, triangles, 0.0));
+
+    Solver solver;
+    solver.setSubsteps(1);
+    solver.setIterations(1);
+
+    const int moving = solver.addParticle(
+        Particle(Eigen::Vector3d(3.0, 0.04, 0.75)));
+    const int anchor = solver.addParticle(
+        Particle(Eigen::Vector3d(1.0, 0.04, 0.75)));
+    solver.setParticleInverseMass(anchor, 0.0);
+    solver.addStitch(moving, anchor, 0.0);
+
+    solver.update(world, 0.016);
+
+    const Eigen::Vector3d position = solver.getParticles()[moving].getPosition();
+    EXPECT_FALSE(regressionTetrahedronContains(position));
+    EXPECT_GT((position - Eigen::Vector3d(3.0, 0.04, 0.75)).norm(), 0.0);
+}
+
+TEST(StitchConstraint, SolverStillConvergesFreeSpaceAfterPostConstraintPass) {
+    World world;
+    world.setGravity(Eigen::Vector3d::Zero());
+
+    Solver solver;
+    solver.setSubsteps(1);
+    solver.setIterations(1);
+
+    const int moving = solver.addParticle(
+        Particle(Eigen::Vector3d(-2.0, 0.0, 0.0)));
+    const int anchor = solver.addParticle(
+        Particle(Eigen::Vector3d(-1.0, 0.0, 0.0)));
+    solver.setParticleInverseMass(anchor, 0.0);
+    solver.addStitch(moving, anchor, 0.0);
+
+    solver.update(world, 0.016);
+
+    EXPECT_NEAR(
+        solver.getParticles()[moving].getPosition().x(),
+        -1.0,
+        1e-6);
+}
+"""
+    stitch_text = stitch_text.rstrip(" \t\r\n") + "\n\n" + regression.strip("\r\n") + "\n"
+    stitch_test.write_text(stitch_text, encoding="utf-8")
+
+    first_collider = solver_cpp.find("for (auto& collider : colliders)")
+    post_stitch = solver_cpp.find("solveConstraints(dt);", first_collider)
+    second_collider = solver_cpp.find(
+        "for (auto& collider : colliders)", post_stitch + 1
+    )
+    if not (
+        first_collider >= 0
+        and post_stitch > first_collider
+        and second_collider > post_stitch
+    ):
+        raise RuntimeError("post-stitch collider projection ordering anchor missing")
+    if "TEST(StitchConstraint, SolverReprojectsAfterPostConstraintStitchPass)" not in stitch_text:
+        raise RuntimeError("post-stitch collider native regression missing")
+    if "TEST(StitchConstraint, SolverStillConvergesFreeSpaceAfterPostConstraintPass)" not in stitch_text:
+        raise RuntimeError("free-space stitch regression missing")
+
     test_cpp = test.read_text(encoding="utf-8")
     test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
     helper = """static bool tetrahedronContains(const Eigen::Vector3d& point) {
@@ -294,7 +446,9 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     expected = {
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
+        "core/src/physics/Solver.cpp",
         "tests/physics/test_mesh_collider.cpp",
+        "tests/physics/test_stitch_constraint.cpp",
     }
     if set(changed.splitlines()) != expected:
         raise RuntimeError(f"unexpected patched files: {changed!r}")
@@ -303,6 +457,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     print(f"Tissu source commit: {EXPECTED_COMMIT}")
     print(f"Tissu contact fix script sha256: {script_sha}")
     print("Tissu contact fix: applied and self-checked")
+    print("Tissu post-stitch collider ordering: applied and self-checked")
     return 0
 
 
