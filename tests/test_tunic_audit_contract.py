@@ -145,6 +145,7 @@ def test_canonical_tunic_fixture_matches_open_book_start_geometry():
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in audit
     assert "required_indices = (1, 2, 5, 7)" in audit
     assert "open_book_placement" in audit
+    assert "launch_anchor" in audit
     assert "open-book-initial-stitch-spans-mm=" in audit
     assert "y = min(target_ys) - clearance" not in audit
     assert "y = max(target_ys) + clearance" not in audit
