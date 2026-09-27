@@ -419,10 +419,27 @@ bool isDeepInterior(
                 normal =
                     faceNormalRaw / faceNormalLength * m_outwardNormalSign;
             } else {
-                // Preserve the exact legacy near-surface contact response.
-                normal = (distance > 1e-6)
-                             ? toParticle.normalized()
-                             : ((b - a).cross(c - a)).normalized();
+                Eigen::Vector3d faceNormalRaw = (b - a).cross(c - a);
+                const double faceNormalLength = faceNormalRaw.norm();
+                if (faceNormalLength <= 1e-12)
+                    continue;
+                Eigen::Vector3d faceNormal = faceNormalRaw / faceNormalLength;
+
+                Eigen::Vector3d normal = faceNormal;
+                if (distance > 1e-6) {
+                    normal = toParticle / distance;
+                    if (m_closedManifold) {
+                        const Eigen::Vector3d outwardNormal =
+                            faceNormal * m_outwardNormalSign;
+                        // A particle on the interior side of a closed, consistently
+                        // oriented surface must be resolved along the outward
+                        // normal; outside contact preserves the existing vector.
+                        if (normal.dot(outwardNormal) < 0.0)
+                            normal = -normal;
+                    }
+                } else if (m_closedManifold) {
+                    normal *= m_outwardNormalSign;
+                }
             }
 
             Eigen::Vector3d newPosition = cp + normal * thickness;""",
@@ -674,16 +691,25 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     EXPECT_GT(particles[0].getPosition().y(), initialPos.y());
 }
 """
-    if test_cpp.count("TEST(MeshCollider, ParticleInsideMeshMovesOutside) {") != 1:
+    test_anchor = "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {"
+    if test_cpp.count(test_anchor) != 1:
         raise RuntimeError("MeshCollider particle-inside insertion anchor mismatch")
     test_cpp = test_cpp.replace(
-        "TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
-        helper + additional_tests + "
-TEST(MeshCollider, ParticleInsideMeshMovesOutside) {",
+        test_anchor,
+        helper + additional_tests + test_anchor,
         1,
     )
-    if test_cpp.count("TEST(MeshCollider, ParticleOutsideMeshDoesNotChangePosition) {") != 1:
-        raise RuntimeError("MeshCollider outside-particle insertion anchor mismatch")
+
+    old_body = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
+    EXPECT_GT(distanceMoved, 0.0);
+}"""
+    new_body = """    double distanceMoved = (particles[0].getPosition() - initialPos).norm();
+    EXPECT_GT(distanceMoved, 0.0);
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+}"""
+    if test_cpp.count(old_body) != 1:
+        raise RuntimeError("MeshCollider distance-moved anchor mismatch")
+    test_cpp = test_cpp.replace(old_body, new_body, 1)
     test.write_text(test_cpp, encoding="utf-8")
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
