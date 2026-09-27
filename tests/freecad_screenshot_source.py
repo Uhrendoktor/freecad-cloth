@@ -518,6 +518,8 @@ def simulation():
     log("pin-mode=None solver-pins=0")
     log("target-collision-mode=mesh")
     log("step0-target-vertex-clearance-mm=%.2f required-mm=%.2f" % (float(initial_clearance), float(clearance)))
+    activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
+    simulation_panel = SimulationQualityTaskPanel(scene)
     solver_surface = getattr(backend, "solver_collision_surface", None) or getattr(backend, "_collision_surface", None)
     if solver_surface is None or len(getattr(solver_surface, "triangles", ())) != 2048:
         raise RuntimeError("tunic penetration diagnostic did not receive the frozen 2048-triangle solver surface")
@@ -589,8 +591,7 @@ def simulation():
     log("tunic-source=freecad-native-sketcher edges=%d front=%s back=%s" % (len(front.Sketch.Geometry),front.Sketch.Name,back.Sketch.Name))
     if int(getattr(avatar, "MeshVertexCount", 0)) <= 100 or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100:
         raise RuntimeError("visual fixture does not contain a real humanoid mesh")
-    activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
-    simulation_panel = SimulationQualityTaskPanel(scene); task_dock = show_task(simulation_panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset")); view = Gui.activeDocument().activeView(); view.setCameraType("Orthographic"); view.viewFront(); view.fitAll(); events(); task_dock.hide(); events(); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical sewn tunic generated from native Sketcher pattern sources on production mannequin"); task_dock.show(); task_dock.raise_(); events()
+    task_dock = show_task(simulation_panel, "Simulation Workbench arranged", ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset")); view = Gui.activeDocument().activeView(); view.setCameraType("Orthographic"); view.viewFront(); view.fitAll(); events(); task_dock.hide(); events(); save("cloth-simulation-arranged.png", "Simulation Workbench arranged", "vertical sewn tunic generated from native Sketcher pattern sources on production mannequin"); task_dock.show(); task_dock.raise_(); events()
     for batch in (15,15,15,15,15,15):
         simulation_panel.step(batch); doc.recompute(); events()
     if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
