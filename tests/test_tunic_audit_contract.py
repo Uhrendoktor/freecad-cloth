@@ -146,6 +146,16 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     assert "'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))'," in audit
 
 
+def test_tunic_screenshot_fixture_uses_production_semantic_seam_abi():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "front_edge_ids[1], back_edge_ids[1], \"TunicRightSide\"" in source
+    assert "front_edge_ids[2], back_edge_ids[6], \"TunicRightShoulder\"" in source
+    assert "front_edge_ids[6], back_edge_ids[2], \"TunicLeftShoulder\"" in source
+    assert "front_edge_ids[7], back_edge_ids[7], \"TunicLeftSide\"" in source
+    assert "SemanticEdgeIds" in source
+    assert 'for edge_a, edge_b, seam_id in ((2,2,"TunicRightShoulder"),(5,5,"TunicLeftShoulder")):' not in source
+
+
 def test_tunic_visual_diagnostics_are_authoritative_after_persistence():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     metrics_write = source.index('json.dump(payload, handle, indent=2, sort_keys=True)')
