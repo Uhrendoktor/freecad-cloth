@@ -32,6 +32,7 @@ OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 BLANKET_SIZE = 200.0  # Validated 200 mm release fixture; keep pins/placement derived from this value.
 BLANKET_PARTICLE_DISTANCE = 12.0  # Match the validated blanket-over-cube release fixture; contract requires >= 12 mm.
 BLANKET_START_Z = 95.0  # Validated fixture recut: keep the authored 200 mm square close enough to reach the cube.
+BLANKET_START_Y = -20.0  # Place the pinned +Y boundary 10 mm inside the cube footprint.
 # The README fixture uses the same pinned Tissu mesh-collision runtime as the
 # canonical turntable job and the validated 200 mm blanket visual example.
 os.environ["CLOTH_SIMULATION_BACKEND"] = "tissu"
@@ -408,7 +409,7 @@ def build_simulation_state(doc):
     blanket = create_pattern_piece_from_selected_sketch(name="Blanket", allowance=0.0, grainline=0.0)
     if blanket.Sketch is not sketch:
         raise RuntimeError("pattern piece did not retain native sketch")
-    placement = App.Placement(App.Vector(0.0, 0.0, BLANKET_START_Z), App.Rotation())
+    placement = App.Placement(App.Vector(0.0, BLANKET_START_Y, BLANKET_START_Z), App.Rotation())
     blanket.Placement = placement
     blanket.Sketch.Placement = placement
 
