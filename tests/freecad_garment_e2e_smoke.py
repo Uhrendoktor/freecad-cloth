@@ -722,8 +722,10 @@ def run_acceptance():
             after = float(snapped_relative_rotations[key])
             if abs(before - after) > 1e-6:
                 raise RuntimeError("target snap changed relative piece rotation; placement was not shared-rigid")
-        if "persistent DrapeTarget" not in str(quality_panel.status.text()):
-            raise RuntimeError("target snap did not report a successful public UI status")
+        snap_status = str(quality_panel.status.text())
+        print("target-snap-status=%s" % snap_status, flush=True)
+        if "persistent DrapeTarget" not in snap_status:
+            raise RuntimeError("target snap did not report a successful public UI status: %s" % snap_status)
         if not quality_panel.reset_arrangement_button.isEnabled():
             raise RuntimeError("target snap did not enable the public Reset arrangement control")
         quality_panel.reset_arrangement_button.click()
