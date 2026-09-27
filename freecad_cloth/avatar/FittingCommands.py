@@ -93,11 +93,34 @@ def _migrate_visual_output_references(scene):
         setattr(scene, name, names)
 
 def _ensure_fitting_runtime_properties(scene):
+    _ensure_avatar_proxy_link_global(scene)
     if "DrapeTarget" not in getattr(scene, "PropertiesList", ()):
         scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")
     if "GarmentAnchors" not in getattr(scene, "PropertiesList", ()):
         scene.addProperty("App::PropertyStringList", "GarmentAnchors", "Arrangement")
         scene.GarmentAnchors = []
+    return scene
+
+
+def _ensure_avatar_proxy_link_global(scene):
+    """Keep the persisted avatar link valid across native Garment scopes."""
+    properties = getattr(scene, "PropertiesList", ())
+    if "AvatarProxy" not in properties:
+        scene.addProperty("App::PropertyLinkGlobal", "AvatarProxy", "Fitting")
+        return scene
+    try:
+        type_id = str(scene.getTypeIdOfProperty("AvatarProxy"))
+    except (AttributeError, RuntimeError):
+        type_id = ""
+    if type_id == "App::PropertyLinkGlobal":
+        return scene
+    if type_id != "App::PropertyLink":
+        raise RuntimeError("FittingScene AvatarProxy must be a document-global link")
+    current = getattr(scene, "AvatarProxy", None)
+    scene.removeProperty("AvatarProxy")
+    scene.addProperty("App::PropertyLinkGlobal", "AvatarProxy", "Fitting")
+    if current is not None:
+        scene.AvatarProxy = current
     return scene
 
 
@@ -114,7 +137,7 @@ def create_fitting_scene():
     obj.addProperty("App::PropertyString", "FittingType", "Fitting").FittingType = "FittingScene"
     obj.addProperty("App::PropertyString", "MeasurementData", "Measurements").MeasurementData = BodyMeasurements().to_json()
     obj.addProperty("App::PropertyString", "MeasurementUnit", "Measurements").MeasurementUnit = "mm"
-    obj.addProperty("App::PropertyLink", "AvatarProxy", "Fitting")
+    obj.addProperty("App::PropertyLinkGlobal", "AvatarProxy", "Fitting")
     obj.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Fitting")
     obj.addProperty("App::PropertyLinkListGlobal", "PatternPieces", "Fitting")
     obj.addProperty("App::PropertyStringList", "PiecePlacements", "Fitting").PiecePlacements = []
