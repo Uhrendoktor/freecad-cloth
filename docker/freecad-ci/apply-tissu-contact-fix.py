@@ -403,6 +403,7 @@ private:""",
         ROOT / "core/src/physics/MeshCollider.cpp",
         """} // namespace
 
+
 MeshCollider::MeshCollider(const std::string& meshPath, double friction) {""",
         """namespace Tissu {
 
