@@ -162,7 +162,9 @@ def run():
             "gravity_z_mm_s2": 0.0,
         }
 
-        _write_cloth_mesh(doc, "StaticProbe", (static_point, static_point, static_point), (0.2, 0.7, 0.2))
+        static_basis_a = (static_point[0] + 4.0, static_point[1], static_point[2])
+        static_basis_b = (static_point[0], static_point[1] + 4.0, static_point[2])
+        _write_cloth_mesh(doc, "StaticProbe", (static_point, static_basis_a, static_basis_b), (0.2, 0.7, 0.2))
         _render(OUT / "control-0-static.png")
         control0 = _manifest_entry(
             0, "static-surface-probe", "exact-makehuman-drapetarget", 1, "None", "none",
