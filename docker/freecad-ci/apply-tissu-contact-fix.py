@@ -339,11 +339,6 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
     stub_py.write_text(stub_text.replace(stub_old, stub_new, 1), encoding="utf-8")
 
     test_cpp = test.read_text(encoding="utf-8")
-    first_test_old = """    mesh.resolve(particles, 0.016, 1.0);"""
-    first_test_new = """    mesh.resolve(particles, 0.016, 0.1);"""
-    if test_cpp.count(first_test_old) != 1:
-        raise RuntimeError("MeshCollider deep-containment regression anchor mismatch")
-    test_cpp = test_cpp.replace(first_test_old, first_test_new, 1)
     if "#include <array>" not in test_cpp:
         test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
 
@@ -421,6 +416,25 @@ void MeshCollider::resolve(std::vector<Particle>& particles, double dt,
         if test_cpp.count(anchor) != 1:
             raise RuntimeError("MeshCollider closed-mesh regression insertion anchor missing")
         test_cpp = test_cpp.replace(anchor, closed_test + anchor, 1)
+
+    deep_containment_test = """TEST(MeshCollider, ClosedMeshRecoversDeepInteriorParticle) {
+    MeshCollider mesh = makeTetrahedron(0.0);
+
+    const Eigen::Vector3d initialPos(1.0, 0.5, 0.75);
+    std::vector<Particle> particles;
+    particles.emplace_back(initialPos);
+
+    mesh.resolve(particles, 0.016, 0.1);
+
+    EXPECT_FALSE(tetrahedronContains(particles[0].getPosition()));
+}
+
+"""
+    if "TEST(MeshCollider, ClosedMeshRecoversDeepInteriorParticle)" not in test_cpp:
+        anchor = "TEST(MeshCollider, ParticleOutsideMeshDoesNotChangePosition) {"
+        if test_cpp.count(anchor) != 1:
+            raise RuntimeError("MeshCollider deep-containment insertion anchor mismatch")
+        test_cpp = test_cpp.replace(anchor, deep_containment_test + anchor, 1)
 
     open_test = """TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     const std::vector<Eigen::Vector3d> vertices = {
