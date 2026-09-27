@@ -68,6 +68,7 @@ def main() -> int:
 #include <cmath>
 #include <cstdint>
 #include <unordered_map>
+#include <limits>
 #include <utility>
 
 namespace Tissu {
@@ -213,6 +214,73 @@ MeshOrientation inferMeshOrientation(
             "MeshCollider.cpp contact response",
         ),
     ]
+    entering_helper = """bool MeshCollider::firstEnteringSegmentHit(
+    const Eigen::Vector3d& start,
+    const Eigen::Vector3d& end,
+    double& hitT,
+    Eigen::Vector3d& hitNormal) const {
+    if (!m_closedManifold)
+        return false;
+
+    const Eigen::Vector3d direction = end - start;
+    if (direction.squaredNorm() <= 1e-18)
+        return false;
+
+    constexpr double epsilon = 1e-10;
+    double bestT = std::numeric_limits<double>::infinity();
+    Eigen::Vector3d bestNormal = Eigen::Vector3d::Zero();
+
+    for (const auto& tri : m_triangles) {
+        const Eigen::Vector3d& a = m_worldVertices[tri.a];
+        const Eigen::Vector3d& b = m_worldVertices[tri.b];
+        const Eigen::Vector3d& c = m_worldVertices[tri.c];
+        const Eigen::Vector3d edge1 = b - a;
+        const Eigen::Vector3d edge2 = c - a;
+        const Eigen::Vector3d pvec = direction.cross(edge2);
+        const double determinant = edge1.dot(pvec);
+        if (std::abs(determinant) <= epsilon)
+            continue;
+        const double inverseDeterminant = 1.0 / determinant;
+        const Eigen::Vector3d tvec = start - a;
+        const double u = tvec.dot(pvec) * inverseDeterminant;
+        if (u < -epsilon || u > 1.0 + epsilon)
+            continue;
+        const Eigen::Vector3d qvec = tvec.cross(edge1);
+        const double v = direction.dot(qvec) * inverseDeterminant;
+        if (v < -epsilon || u + v > 1.0 + epsilon)
+            continue;
+        const double candidateT = edge2.dot(qvec) * inverseDeterminant;
+        if (candidateT <= epsilon || candidateT >= 1.0 - epsilon)
+            continue;
+
+        Eigen::Vector3d faceNormal = edge1.cross(edge2);
+        const double normalLength = faceNormal.norm();
+        if (normalLength <= epsilon)
+            continue;
+        faceNormal /= normalLength;
+        const Eigen::Vector3d outwardNormal =
+            faceNormal * m_outwardNormalSign;
+
+        // Entering means travel against the authoritative outward normal.
+        // Exit and tangent events are deliberately left to the collider pass.
+        if (direction.dot(outwardNormal) >= -epsilon)
+            continue;
+
+        if (candidateT < bestT) {
+            bestT = candidateT;
+            bestNormal = outwardNormal;
+        }
+    }
+
+    if (!std::isfinite(bestT))
+        return false;
+
+    hitT = bestT;
+    hitNormal = bestNormal;
+    return true;
+}
+
+""";
     for old, new, label in replace_cpp:
         count = cpp.count(old)
         if count != 1:
@@ -300,6 +368,9 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         raise RuntimeError("MeshCollider regression test body anchor mismatch")
     test_cpp = test_cpp.replace(old, new, 1)
     test.write_text(test_cpp, encoding="utf-8")
+
+    if "firstEnteringSegmentHit" not in entering_helper:
+        raise RuntimeError("stitch entering helper self-check marker missing")
 
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
