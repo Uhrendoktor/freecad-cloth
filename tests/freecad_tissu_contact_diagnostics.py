@@ -5,6 +5,7 @@ runtime without changing physics, solver budgets, canonical fixtures, or release
 """
 from __future__ import annotations
 
+import faulthandler
 import json
 import math
 import os
@@ -23,6 +24,12 @@ import Part
 OUT = Path(os.environ.get("CLOTH_DIAGNOSTIC_DIR", "artifacts/tissu-contact-diagnostics"))
 OUT.mkdir(parents=True, exist_ok=True)
 PROGRESS = OUT / "progress.log"
+_PROGRESS_HANDLE = PROGRESS.open("a", encoding="utf-8", buffering=1)
+faulthandler.enable(file=_PROGRESS_HANDLE)
+_PROGRESS_HANDLE.write("\n=== diagnostic contact controls start ===\n")
+_PROGRESS_HANDLE.write("entrypoint __name__=%r\n" % __name__)
+_PROGRESS_HANDLE.flush()
+faulthandler.dump_traceback_later(30.0, repeat=True, file=_PROGRESS_HANDLE)
 STEPS = (0, 1)
 PARTICLE_DISTANCE = 24.0
 
@@ -381,5 +388,5 @@ def main():
     print(json.dumps(manifest, indent=2, sort_keys=True), flush=True)
 
 
-if __name__ == "__main__":
-    main()
+if __name__ == "__main__" or os.environ.get("CLOTH_CONTACT_DIAGNOSTICS_EXECUTE") == "1":
+    raise SystemExit(main())
