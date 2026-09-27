@@ -5,9 +5,10 @@ so installations without the optional wheel keep the existing backend usable.
 """
 from copy import deepcopy
 from typing import Iterable, Sequence, Tuple
+from time import perf_counter
 import os
 
-from freecad_cloth.avatar.AvatarCollision import CollisionSurface, coarsen_collision_surface
+from freecad_cloth.avatar.AvatarCollision import CollisionSurface
 from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 
@@ -47,6 +48,143 @@ def _to_tissu_mesh(surface):
     vertices = [np.asarray(_to_tissu_position(v), dtype=np.float64) for v in surface.vertices]
     triangles = [[int(a), int(c), int(b)] for a, b, c in surface.triangles]
     return vertices, triangles
+
+
+def _surface_topology_stats(surface):
+    """Return connectivity and manifold metrics for a triangle surface."""
+    vertex_count = len(surface.vertices)
+    edge_counts = {}
+    edge_directions = {}
+    parents = list(range(vertex_count))
+
+    def find(index):
+        while parents[index] != index:
+            parents[index] = parents[parents[index]]
+            index = parents[index]
+        return index
+
+    def union(left, right):
+        root_left = find(left)
+        root_right = find(right)
+        if root_left != root_right:
+            parents[root_right] = root_left
+
+    finite = all(
+        all(float(value) == float(value) and abs(float(value)) < 1.0e12 for value in vertex)
+        for vertex in surface.vertices
+    )
+    for triangle in surface.triangles:
+        if len(triangle) != 3:
+            return {
+                "finite": finite,
+                "vertices": vertex_count,
+                "faces": len(surface.triangles),
+                "components": 0,
+                "boundary_edges": 0,
+                "nonmanifold_edges": 1,
+                "closed_manifold": False,
+            }
+        a, b, c = (int(index) for index in triangle)
+        union(a, b)
+        union(b, c)
+        union(c, a)
+        for left, right in ((a, b), (b, c), (c, a)):
+            key = (min(left, right), max(left, right))
+            edge_counts[key] = edge_counts.get(key, 0) + 1
+            edge_directions.setdefault(key, []).append((left, right))
+
+    triangle_vertices = {
+        int(index)
+        for triangle in surface.triangles
+        for index in triangle
+    }
+    components = len({find(index) for index in triangle_vertices}) if triangle_vertices else 0
+    boundary_edges = sum(1 for count in edge_counts.values() if count == 1)
+    nonmanifold_edges = sum(1 for count in edge_counts.values() if count > 2)
+    closed = bool(edge_counts) and not boundary_edges and not nonmanifold_edges
+    if closed:
+        closed = all(
+            len(directions) == 2 and
+            directions[0][0] == directions[1][1] and
+            directions[0][1] == directions[1][0]
+            for directions in edge_directions.values()
+        )
+    return {
+        "finite": finite,
+        "vertices": vertex_count,
+        "faces": len(surface.triangles),
+        "components": components,
+        "boundary_edges": boundary_edges,
+        "nonmanifold_edges": nonmanifold_edges,
+        "closed_manifold": closed,
+    }
+
+
+def _decimate_collision_surface_native(surface, max_triangles=2048):
+    """Use FreeCAD Mesh::decimate to build the solver-facing collision surface."""
+    limit = int(max_triangles)
+    surface.validate()
+    if limit < 1:
+        raise ValueError("max_triangles must be positive")
+
+    source_stats = _surface_topology_stats(surface)
+    if not source_stats["finite"] or source_stats["components"] != 1 or source_stats["nonmanifold_edges"]:
+        raise RuntimeError(
+            "source collision surface is not a finite connected triangle manifold: %s"
+            % source_stats
+        )
+    if source_stats["faces"] <= limit:
+        return surface, dict(source_stats, decimation_ms=0.0, method="passthrough")
+
+    started = perf_counter()
+    try:
+        import FreeCAD as App
+        import Mesh
+    except (ImportError, ModuleNotFoundError) as exc:
+        raise RuntimeError("FreeCAD Mesh decimation is unavailable") from exc
+
+    mesh = Mesh.Mesh()
+    vectors = [App.Vector(*vertex) for vertex in surface.vertices]
+    mesh.addFacets([
+        (vectors[a], vectors[b], vectors[c])
+        for a, b, c in surface.triangles
+    ])
+    decimate = getattr(mesh, "decimate", None)
+    if not callable(decimate):
+        raise RuntimeError("FreeCAD Mesh object does not expose absolute decimation")
+    decimate(limit)
+
+    raw_vertices, raw_faces = getattr(mesh, "Topology", ((), ()))
+    points = tuple(
+        (float(vertex.x), float(vertex.y), float(vertex.z))
+        for vertex in raw_vertices
+    )
+    triangles = tuple(
+        tuple(int(index) for index in face)
+        for face in raw_faces
+    )
+    result = CollisionSurface(points, triangles, surface.region, surface.thickness)
+    result.validate()
+    result_stats = _surface_topology_stats(result)
+    result_stats["decimation_ms"] = 1000.0 * (perf_counter() - started)
+    result_stats["method"] = "freecad-mesh-decimate"
+
+    if result_stats["faces"] != limit:
+        raise RuntimeError(
+            "FreeCAD decimation did not produce the exact collision budget: %s"
+            % result_stats
+        )
+    if not result_stats["finite"] or result_stats["components"] != 1 or result_stats["nonmanifold_edges"]:
+        raise RuntimeError(
+            "FreeCAD decimation produced fragmented/non-manifold collision geometry: %s"
+            % result_stats
+        )
+    if source_stats["closed_manifold"] and not result_stats["closed_manifold"]:
+        raise RuntimeError(
+            "FreeCAD decimation destroyed closed-manifold collision topology: %s"
+            % result_stats
+        )
+    return result, result_stats
 
 
 def _collision_envelope(surface):
@@ -106,12 +244,24 @@ class TissuBackend(ClothSimulationBackend):
         self._source_collision_surface = collision_surface
         collision_limit = _tissu_collision_triangle_limit()
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
-            collision_surface = coarsen_collision_surface(collision_surface, collision_limit)
+            collision_surface, stats = _decimate_collision_surface_native(
+                collision_surface,
+                collision_limit,
+            )
             print(
-                "cloth-tissu-collision source_triangles=%d solver_triangles=%d limit=%d"
+                "cloth-tissu-collision method=%s source_triangles=%d solver_triangles=%d"
+                " solver_vertices=%d components=%d boundary_edges=%d nonmanifold_edges=%d"
+                " closed_manifold=%s decimation_ms=%.1f limit=%d"
                 % (
+                    stats["method"],
                     len(self._source_collision_surface.triangles),
-                    len(collision_surface.triangles),
+                    stats["faces"],
+                    stats["vertices"],
+                    stats["components"],
+                    stats["boundary_edges"],
+                    stats["nonmanifold_edges"],
+                    stats["closed_manifold"],
+                    stats["decimation_ms"],
                     collision_limit,
                 ),
                 flush=True,
