@@ -88,3 +88,37 @@ def test_workflow_validator_matches_shared_manifest():
     assert 'case["solver"]["backend"]' in WORKFLOW
     assert 'case["collision"]["solver_triangles"]' in WORKFLOW
     assert 'case["checkpoints"]' in WORKFLOW
+
+
+def test_cube_ladder_is_typed_and_fail_closed():
+    assert "def _run_cube_ladder():" in SOURCE
+    assert '"rung-1-cube-pinned"' in SOURCE
+    assert '"rung-2-cube-unpinned"' in SOURCE
+    assert '"rung-3-cube-two-piece-no-seam"' in SOURCE
+    assert '"rung-4-cube-small-span-seam"' in SOURCE
+    assert '"rung-5-cube-large-span-seam"' in SOURCE
+    assert '"Automatic", "none"' in SOURCE
+    assert '"None", "none"' in SOURCE
+    assert '"None", "one-full-span-seam"' in SOURCE
+    assert 'base_b_small = App.Placement(App.Vector(68.0, -60.0, 58.5)' in SOURCE
+    assert 'base_b_large = App.Placement(App.Vector(100.0, -60.0, 58.5)' in SOURCE
+    assert 'Seam(str(pieces[0].PieceId), 1, str(pieces[1].PieceId), 3' in SOURCE
+    assert 'first structural failure' in SOURCE
+    assert '"human_review_required": True' in SOURCE
+    assert '"seam_world_spans_mm"' in SOURCE
+
+
+def test_ladder_does_not_change_frozen_solver_contract():
+    assert 'scene.Steps = 1' in SOURCE
+    assert 'scene.SolverIterations = 1' in SOURCE or 'SolverIterations = 1' in SOURCE
+    assert 'scene.SolverSubsteps = 1' in SOURCE or 'SolverSubsteps = 1' in SOURCE
+    assert 'scene.TimeStep = 1.0 / 120.0' in SOURCE
+    assert 'scene.GravityZ = 0.0' in SOURCE
+    assert 'scene.FabricFriction = 0.5' in SOURCE
+
+
+def test_workflow_supports_opt_in_ladder_without_new_workflow():
+    assert "diagnostic_ladder:" in WORKFLOW
+    assert "CLOTH_DIAGNOSTIC_LADDER" in WORKFLOW
+    assert "supervisor/tissu-cube-ladder-2481" in WORKFLOW
+    assert "diagnostic-tissu-contact:" in WORKFLOW
