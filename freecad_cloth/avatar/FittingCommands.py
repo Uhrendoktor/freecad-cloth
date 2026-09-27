@@ -561,15 +561,105 @@ def _minimum_signed_surface_clearance(surface, points):
     return minimum
 
 
+def _world_target_surface(target):
+    import FreeCAD as App
+    from freecad_cloth.avatar.AvatarCollision import CollisionSurface
+    from freecad_cloth.simulation.DrapeTarget import collision_surface
+
+    source = getattr(target, "SourceObject", None)
+    if source is None:
+        raise ValueError("DrapeTarget has no source object")
+    local = collision_surface(
+        source,
+        float(getattr(target, "CollisionDeflection", 1.0)),
+        float(getattr(target, "CollisionThickness", 0.0)),
+    )
+    placement = getattr(source, "Placement", None)
+    if placement is None:
+        return local
+    world_vertices = []
+    for point in local.vertices:
+        value = placement.multVec(App.Vector(*point))
+        world_vertices.append((float(value.x), float(value.y), float(value.z)))
+    surface = CollisionSurface(tuple(world_vertices), tuple(local.triangles), str(local.region), float(local.thickness))
+    surface.validate()
+    return surface
+
+
+def _piece_world_samples(piece, deflection=1.0):
+    import FreeCAD as App
+    shape = getattr(piece, "Shape", None)
+    placement = getattr(piece, "Placement", None)
+    if shape is not None and not getattr(shape, "isNull", lambda: True)():
+        tessellate = getattr(shape, "tessellate", None)
+        if callable(tessellate):
+            points, _triangles = tessellate(float(deflection))
+            if points:
+                result = []
+                for point in points:
+                    value = placement.multVec(point) if placement is not None else point
+                    result.append((float(value.x), float(value.y), float(value.z)))
+                return tuple(result)
+        vertices = getattr(shape, "Vertexes", ())
+        if vertices:
+            return tuple(
+                tuple(float(v) for v in (placement.multVec(vertex.Point) if placement is not None else vertex.Point))
+                for vertex in vertices
+            )
+    raise ValueError("pattern piece %s has no usable geometry samples" % getattr(piece, "Name", "<unnamed>"))
+
+
+def _nearest_surface_projection(surface, point):
+    from freecad_cloth.avatar.TargetAwarePlacement import _closest_point_on_triangle, _triangle_normal, SurfaceHit
+    best = None
+    best_key = None
+    for triangle_index in range(len(surface.triangles)):
+        ia, ib, ic = surface.triangles[triangle_index]
+        closest = _closest_point_on_triangle(
+            point,
+            surface.vertices[ia],
+            surface.vertices[ib],
+            surface.vertices[ic],
+        )
+        squared_distance = sum(
+            (float(point[i]) - float(closest[i])) ** 2
+            for i in range(3)
+        )
+        key = (round(squared_distance, 12), triangle_index)
+        if best is None or key < best_key:
+            best = SurfaceHit(
+                triangle_index,
+                closest,
+                _triangle_normal(surface, triangle_index),
+                squared_distance ** 0.5,
+            )
+            best_key = key
+    if best is None:
+        raise TargetPlacementError("DrapeTarget collision surface has no triangles")
+    return best
+
+
+def _minimum_signed_surface_clearance(surface, points):
+    minimum = float("inf")
+    for point in points:
+        hit = _nearest_surface_projection(surface, point)
+        signed = sum(
+            (float(point[i]) - float(hit.point[i])) * float(hit.normal[i])
+            for i in range(3)
+        )
+        minimum = min(minimum, float(signed))
+    if minimum == float("inf"):
+        raise TargetPlacementError("pattern piece has no geometry samples")
+    return minimum
+
+
 def snap_pieces_to_target(pattern_pieces=None, clearance=8.0, max_translation=600.0, max_rotation=45.0):
     """Apply one shared rigid garment transform transactionally.
 
     Persistent garment anchors provide stable authored metadata and the preferred
-    target correspondence. When their pairwise geometry cannot be represented by
-    one rigid transform (common for mixed-size panels), the solver falls back to a
-    shared translation derived from whole-piece surface projections. The fallback
-    still preserves every authored pairwise displacement/rotation and is guarded
-    by full-geometry signed-clearance validation.
+    correspondence. When their geometry cannot be represented by one bounded
+    rigid transform, fall back to one shared translation derived from whole-piece
+    projections. The authored pairwise displacement/rotation remains invariant.
     """
     import FreeCAD as App
     from freecad_cloth.avatar.TargetAwarePlacement import TargetPlacementError, RigidDelta, solve_rigid_z, target_surface_anchor, wrap_normal
@@ -586,7 +676,12 @@ def snap_pieces_to_target(pattern_pieces=None, clearance=8.0, max_translation=60
         raise ValueError("target-aware placement requires at least one pattern piece")
     piece_ids = {str(piece.PieceId) for piece in pieces}
     anchors_by_piece = _default_anchor_map(scene, pieces)
-    anchors = [anchor for pid in sorted(anchors_by_piece) for anchor in anchors_by_piece[pid] if pid in piece_ids]
+    anchors = [
+        anchor
+        for pid in sorted(anchors_by_piece)
+        for anchor in anchors_by_piece[pid]
+        if pid in piece_ids
+    ]
     if len(anchors) < 2:
         raise TargetPlacementError("target-aware placement requires at least two persistent anchors")
     surface = _world_target_surface(target)
@@ -601,38 +696,57 @@ def snap_pieces_to_target(pattern_pieces=None, clearance=8.0, max_translation=60
         normal = wrap_normal(anchor.wrap_direction)
         hit = target_surface_anchor(surface, (source.x, source.y, source.z), normal)
         desired = tuple(
-            hit.point[i] + hit.normal[i] * (float(getattr(surface, "thickness", 0.0)) + float(clearance))
+            hit.point[i]
+            + hit.normal[i] * (float(getattr(surface, "thickness", 0.0)) + float(clearance))
             for i in range(3)
         )
         source_points.append((float(source.x), float(source.y), float(source.z)))
         target_points.append(desired)
+
     delta = solve_rigid_z(
         source_points,
         target_points,
         max_translation=float(max_translation),
         max_rotation=float(max_rotation),
     )
+
     if delta.residual_max > tolerance:
         delta_mode = "group-translation-fallback"
         centers = []
         desired = []
         for piece in pieces:
             samples = _piece_world_samples(piece, 1.0)
-            center = tuple(sum(point[i] for point in samples) / len(samples) for i in range(3))
+            center = tuple(
+                sum(point[i] for point in samples) / len(samples)
+                for i in range(3)
+            )
             projection = _nearest_surface_projection(surface, center)
             centers.append(center)
             desired.append(tuple(
-                projection.point[i] + projection.normal[i] * (float(getattr(surface, "thickness", 0.0)) + float(clearance))
+                projection.point[i]
+                + projection.normal[i] * (
+                    float(getattr(surface, "thickness", 0.0)) + float(clearance)
+                )
                 for i in range(3)
             ))
         shared_translation = tuple(
-            sum(desired[index][axis] - centers[index][axis] for index in range(len(pieces))) / len(pieces)
+            sum(
+                desired[index][axis] - centers[index][axis]
+                for index in range(len(pieces))
+            ) / len(pieces)
             for axis in range(3)
         )
-        travel = (sum(float(value) * float(value) for value in shared_translation)) ** 0.5
+        travel = sum(float(value) ** 2 for value in shared_translation) ** 0.5
         if travel > float(max_translation) + 1e-9:
-            raise TargetPlacementError("target-aware group translation exceeds %.3f mm" % float(max_translation))
-        delta = RigidDelta(tuple(float(value) for value in shared_translation), 0.0, float(delta.residual_max))
+            raise TargetPlacementError(
+                "target-aware group translation exceeds %.3f mm"
+                % float(max_translation)
+            )
+        delta = RigidDelta(
+            tuple(float(value) for value in shared_translation),
+            0.0,
+            float(delta.residual_max),
+        )
 
     snapshots = []
     previous_piece_placements = list(getattr(scene, "PiecePlacements", ()) or ())
@@ -644,9 +758,18 @@ def snap_pieces_to_target(pattern_pieces=None, clearance=8.0, max_translation=60
         for piece in pieces:
             placement = piece.Placement
             sketch = getattr(piece, "Sketch", None)
-            snapshots.append((piece, App.Placement(placement), None if sketch is None else App.Placement(sketch.Placement)))
+            snapshots.append(
+                (
+                    piece,
+                    App.Placement(placement),
+                    None if sketch is None else App.Placement(sketch.Placement),
+                )
+            )
             base = rotation.multVec(placement.Base) + translation
-            updated = App.Placement(base, rotation.multiply(placement.Rotation))
+            updated = App.Placement(
+                base,
+                rotation.multiply(placement.Rotation),
+            )
             piece.Placement = updated
             if sketch is not None:
                 sketch.Placement = updated
@@ -655,7 +778,10 @@ def snap_pieces_to_target(pattern_pieces=None, clearance=8.0, max_translation=60
         placed_surface = _world_target_surface(target)
         reports = []
         for piece in pieces:
-            clearance_actual = _minimum_signed_surface_clearance(placed_surface, _piece_world_samples(piece, 1.0))
+            clearance_actual = _minimum_signed_surface_clearance(
+                placed_surface,
+                _piece_world_samples(piece, 1.0),
+            )
             if clearance_actual + 1e-6 < float(clearance):
                 raise TargetPlacementError(
                     "shared rigid placement for %s left %.3f mm signed clearance; required %.3f mm"
@@ -665,7 +791,10 @@ def snap_pieces_to_target(pattern_pieces=None, clearance=8.0, max_translation=60
 
         from freecad_cloth.avatar.AvatarFitting import PiecePlacement
         placement_values = []
-        for piece in sorted(pieces, key=lambda item: str(item.PieceId)):
+        for piece in sorted(
+            pieces,
+            key=lambda item: str(item.PieceId),
+        ):
             base = piece.Placement.Base
             rotation_state = piece.Placement.Rotation
             axis = rotation_state.Axis
@@ -677,10 +806,16 @@ def snap_pieces_to_target(pattern_pieces=None, clearance=8.0, max_translation=60
                     (float(axis.x), float(axis.y), float(axis.z)),
                 ).to_string()
             )
-        existing = {str(value.split("|", 1)[0]): value for value in getattr(scene, "PiecePlacements", ()) or ()}
+        existing = {
+            str(value.split("|", 1)[0]): value
+            for value in getattr(scene, "PiecePlacements", ()) or ()
+        }
         for value in placement_values:
             existing[value.split("|", 1)[0]] = value
-        scene.PiecePlacements = [existing[key] for key in sorted(existing)]
+        scene.PiecePlacements = [
+            existing[key]
+            for key in sorted(existing)
+        ]
         scene.FitStatus = "Target-aware placement applied"
         doc.recompute()
         return {
