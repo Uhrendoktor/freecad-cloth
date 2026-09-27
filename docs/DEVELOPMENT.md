@@ -84,3 +84,11 @@ Simulation presents target validity before Run/Step. `Run` is primary, `Step` is
 ## Agent state
 
 Keep `AGENT_STATUS.md` and `TOOL_STATE.md` compact. They are the durable coordination records; do not create a new status document for every session.
+
+## Simulation review evidence
+
+Simulation changes are governed by [SIMULATION_REVIEW.md](SIMULATION_REVIEW.md) and root issue #2492. Actual rendered screenshots are the primary human-review evidence; logs, metrics and artifact archives are secondary.
+
+For same-repository pull requests, the canonical tunic visual job publishes the PNGs to a per-PR evidence branch and posts them inline in the PR conversation. Fork pull requests deliberately do not receive write credentials, so the contributor must paste the actual PNGs into the governing PR/issue manually.
+
+A simulation change is not considered visually reviewed until a human records what the rendered geometry does and the screenshots correspond to the exact commit under discussion.
