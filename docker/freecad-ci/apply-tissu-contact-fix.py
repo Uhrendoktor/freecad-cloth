@@ -620,7 +620,7 @@ void StitchConstraint::solveSwept(
         "Solver unbatched stitch dispatch",
     )
 
-    const stitch_test = ROOT / "tests/physics/test_stitch_constraint.cpp";
+    stitch_test = ROOT / "tests/physics/test_stitch_constraint.cpp"
     let_stitch_test = stitch_test.read_text(encoding="utf-8");
     replace_once(
         stitch_test,
