@@ -665,9 +665,9 @@ def run_acceptance():
         if set(home_relative_rotations) != set(snapped_relative_rotations):
             raise RuntimeError("target snap changed the authored piece rotation relationships")
         for key in home_relative_rotations:
-            before = home_relative_rotations[key]
-            after = snapped_relative_rotations[key]
-            if any(abs(float(before[index]) - float(after[index])) > 1e-6 for index in range(4)):
+            before = float(home_relative_rotations[key])
+            after = float(snapped_relative_rotations[key])
+            if abs(before - after) > 1e-6:
                 raise RuntimeError("target snap changed relative piece rotation; placement was not shared-rigid")
         if "persistent DrapeTarget" not in str(quality_panel.status.text()):
             raise RuntimeError("target snap did not report a successful public UI status")
