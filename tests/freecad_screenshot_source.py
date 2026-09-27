@@ -384,17 +384,45 @@ def simulation():
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
-    rot = App.Rotation(App.Vector(1,0,0), 90.0)
-    def target_relative_piece_placement(side):
-        if side == "front":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
-        elif side == "back":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
-        else:
-            raise ValueError("tunic target-relative side must be front or back")
-        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
+    def open_book_piece_placement(side, outline):
+        from math import asin, degrees, isfinite
+        if side not in ("front", "back"):
+            raise ValueError("open-book tunic side must be front or back")
+        if len(outline) < 8:
+            raise ValueError("open-book tunic outline is incomplete")
+        right_shoulder_mid = (
+            0.5 * (float(outline[2][0]) + float(outline[3][0])),
+            0.5 * (float(outline[2][1]) + float(outline[3][1])),
+        )
+        left_shoulder_mid = (
+            0.5 * (float(outline[5][0]) + float(outline[6][0])),
+            0.5 * (float(outline[5][1]) + float(outline[6][1])),
+        )
+        local_shoulder = App.Vector(
+            0.5 * (right_shoulder_mid[0] + left_shoulder_mid[0]),
+            0.5 * (right_shoulder_mid[1] + left_shoulder_mid[1]),
+            0.0,
+        )
+        pivot = App.Vector(
+            x_mid,
+            0.5 * (shoulder_left.y + shoulder_right.y),
+            shoulder_z,
+        )
+        required_offset = 0.5 * body_depth + clearance
+        lever_arm = float(local_shoulder.y)
+        if not isfinite(required_offset) or not isfinite(lever_arm) or lever_arm <= 0.0:
+            raise RuntimeError("open-book tunic geometry is degenerate")
+        sine = required_offset / lever_arm
+        if sine <= 0.0 or sine >= 1.0:
+            raise RuntimeError("open-book tunic geometry cannot place the panel outside the target depth")
+        opening_angle = degrees(asin(sine))
+        sign = -1.0 if side == "front" else 1.0
+        rotation = App.Rotation(App.Vector(1, 0, 0), 90.0 + sign * opening_angle)
+        translation = pivot - rotation.multVec(local_shoulder)
+        return App.Placement(translation, rotation)
+
     def make_piece(name, side, neckline_ratio, neckline_drop):
-        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = target_relative_piece_placement(side); piece.Sketch.Placement = piece.Placement; return piece, outline
+        sketch, outline = _make_tunic_sketch(doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop); doc.recompute(); piece = _adopt_sketch(sketch, name, 10.0, 0.0); piece.Label = name; piece.Placement = open_book_piece_placement(side, outline); piece.Sketch.Placement = piece.Placement; return piece, outline
     front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
@@ -417,6 +445,23 @@ def simulation():
     if not solver_pins:
         system = getattr(backend, "system", None)
         solver_pins = tuple(sorted(int(i) for i in getattr(system, "pins", {}).keys()))
+    initial_positions = tuple(backend.positions())
+    stitch_pairs_by_seam = getattr(proxy, "seam_stitch_pairs", {})
+    if not stitch_pairs_by_seam:
+        raise RuntimeError("open-book tunic launch has no exact solver stitch provenance")
+    initial_spans = {}
+    for seam_id, stitch_pairs in sorted(stitch_pairs_by_seam.items()):
+        initial_spans[str(seam_id)] = round(float(_post_drape_seam_gap(tuple(stitch_pairs), initial_positions)), 6)
+    initial_seam_span = max(initial_spans.values()) if initial_spans else 0.0
+    log("open-book-pivot=(%.3f,%.3f,%.3f) opening-angle-deg=%.6f body-depth-mm=%.3f required-offset-mm=%.3f" % (
+        float(x_mid),
+        float(0.5 * (shoulder_left.y + shoulder_right.y)),
+        float(shoulder_z),
+        float(opening_angle),
+        float(body_depth),
+        float(0.5 * body_depth + clearance),
+    ))
+    log("initial-solver-stitch-spans-mm=%s max=%.3f" % (initial_spans, initial_seam_span))
     if str(getattr(scene, "PinMode", "")) != "None":
         raise RuntimeError("canonical tunic must use PinMode=None")
     if solver_pins:
