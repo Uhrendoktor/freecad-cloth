@@ -473,7 +473,7 @@ jobs:
 
   diagnostic-contact-controls:
     name: Diagnostic contact controls (manual only)
-    if: ${{ github.event_name == 'pull_request' && github.head_ref == 'agent/contact-controls-2484-supervisor-r1-20260927' }}
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.number == 2491 }}
     needs: [local_runner_readiness]
     runs-on: ${{ inputs.runner_mode == 'hosted' && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 12
