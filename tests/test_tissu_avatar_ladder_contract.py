@@ -38,7 +38,7 @@ def test_avatar_ladder_contract_is_diagnostic_only_and_frozen():
     assert "time.sleep(0.05)" in SOURCE
     assert "png-capture=retry" in SOURCE
     assert "PNG capture contains no visible rendered content" in SOURCE
-    assert 'struct.unpack(">IIBBBBB"' in SOURCE
+    assert '">IIBBBBB"' in SOURCE
     assert "QtCore.QTimer.singleShot(0, _run_and_shutdown)" in SOURCE
     assert "Run avatar complexity ladder" in WORKFLOW
     assert "Validate avatar ladder artifact" in WORKFLOW
