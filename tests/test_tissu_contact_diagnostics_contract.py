@@ -109,7 +109,11 @@ def test_cube_ladder_caches_collision_proximity_mesh():
 
 def test_cube_ladder_bootstrap_faulthandler_is_freecad_safe():
     source = (ROOT / "tests" / "freecad_tissu_cube_ladder.py").read_text(encoding="utf-8")
-    assert "faulthandler.enable(all_threads=True)" in source
-    assert "faulthandler.dump_traceback_later(30.0, repeat=True)" in source
-    assert "_FAULTHANDLER_HANDLE" not in source
-    assert "file=_FAULTHANDLER_HANDLE" not in source
+    assert "import freecad_tissu_contact_diagnostics as _contact" in source
+    assert "App = _contact.App" in source
+    assert "Gui = _contact.Gui" in source
+    assert "Part = _contact.Part" in source
+    assert "_TRACE_HANDLE = _BOOT_LOG.open(" in source
+    assert "faulthandler.enable(file=_TRACE_HANDLE, all_threads=True)" in source
+    assert "faulthandler.dump_traceback_later(30.0, repeat=True, file=_TRACE_HANDLE)" in source
+    assert "file=sys.stderr" not in source
