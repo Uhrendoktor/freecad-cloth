@@ -90,5 +90,37 @@ def test_workflow_validator_matches_shared_manifest():
     assert 'case["checkpoints"]' in WORKFLOW
 
 
-def test_diagnostic_job_has_no_obsolete_branch_trigger():
-    assert "supervisor/tissu-contact-controls-2484-20260927" not in WORKFLOW
+def test_cube_ladder_diagnostic_job_has_scoped_branch_trigger():
+    assert "contains(github.event.pull_request.head.ref, 'cube-ladder-2481')" in WORKFLOW
+
+
+
+def test_cube_ladder_caches_collision_proximity_mesh():
+    source = (ROOT / "tests" / "freecad_tissu_cube_ladder.py").read_text(encoding="utf-8")
+    assert "proximity_mesh = trimesh.Trimesh(" in source
+    assert "proximity_mesh.nearest.on_surface" in source
+    assert "_surface_signed_clearance(" in source
+    assert "source_shape," in source
+    assert "collision_surface," in source
+    assert "proximity_mesh," in source
+    assert "for step in CHECKPOINTS:" in source
+    assert "scene.Steps = int(step)" in source
+
+
+def test_cube_ladder_bootstrap_faulthandler_is_freecad_safe():
+    source = (ROOT / "tests" / "freecad_tissu_cube_ladder.py").read_text(encoding="utf-8")
+    assert "runpy.run_path(" in source
+    assert "before-shared-helper-runpath" in source
+    assert "after-shared-helper-runpath" in source
+    assert "_TRACE_HANDLE = _BOOT_LOG.open(" in source
+    assert "faulthandler.enable(file=_TRACE_HANDLE, all_threads=True)" in source
+    assert "faulthandler.dump_traceback_later(30.0, repeat=True, file=_TRACE_HANDLE)" in source
+    assert "file=sys.stderr" not in source
+    assert '_boot("entrypoint-name=%r" % __name__)' in source
+    assert '_freecad_entrypoint_name = Path(__file__).stem' in source
+    assert '_freecad_gui_hosted = bool(getattr(App, "GuiUp", False))' in source
+    assert 'def _schedule_freecad_main():' in source
+    assert 'QtCore.QTimer.singleShot(0, _run_and_shutdown)' in source
+    assert '_boot("freecad-hosted-entrypoint")' in source
+    assert '__name__ == _freecad_entrypoint_name' in source
+    assert '_boot("direct-entrypoint")' in source

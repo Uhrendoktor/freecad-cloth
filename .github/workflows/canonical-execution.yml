@@ -125,7 +125,7 @@ jobs:
 
   diagnostic-tissu-contact:
     name: Diagnostic Tissu contact controls
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls) || (github.event_name == 'pull_request' && contains(github.event.pull_request.head.ref, 'cube-ladder-2481')) }}
     needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 15
@@ -134,6 +134,7 @@ jobs:
       packages: read
     env:
       FREECAD_TUNISU_IMAGE: freecad-cloth-ci:tissu-contact-fix
+      CLOTH_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Log selected execution mode
         run: |
@@ -142,7 +143,7 @@ jobs:
           echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: docker/login-action@v3
         with:
@@ -196,6 +197,71 @@ jobs:
               echo "diagnostic-contact-supervisor=finished status=$APP_STATUS" | tee -a /workspace/artifacts/tissu-contact-diagnostics/app-run.log
               exit "$APP_STATUS"
             '
+      - name: Run cube complexity ladder
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/tissu-contact-diagnostics/cube-ladder
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu \
+            -e CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0 \
+            -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/tissu-contact-diagnostics \
+            -e CLOTH_HEAD_SHA="$CLOTH_HEAD_SHA" \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_TUNISU_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/tissu-contact-diagnostics
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=10s 600s /opt/freecad/AppRun /workspace/tests/freecad_tissu_cube_ladder.py 2>&1 | tee /workspace/artifacts/tissu-contact-diagnostics/cube-ladder-run.log
+            '
+      - name: Validate cube ladder artifact
+        run: |
+          set -euo pipefail
+          test -s artifacts/tissu-contact-diagnostics/cube-ladder-manifest.json
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          root = Path("artifacts/tissu-contact-diagnostics")
+          data = json.loads((root / "cube-ladder-manifest.json").read_text(encoding="utf-8"))
+          assert data["schema"] == 1, data
+          assert data["purpose"] == "diagnostic-only-cube-complexity-ladder", data
+          assert data["release_gate_effect"] == "none", data
+          assert data["source_head_sha"] == os.environ["CLOTH_HEAD_SHA"], data
+          assert data["checkpoint_steps"] == [0, 1, 5, 15, 45, 90], data
+          assert len(data["cases"]) == 5, data
+          expected = [
+              ("rung-1-cube-pinned", 1, 1, "Automatic", "none"),
+              ("rung-2-cube-unpinned", 2, 1, "None", "none"),
+              ("rung-3-cube-two-piece-no-seam", 3, 2, "None", "none"),
+              ("rung-4-cube-two-piece-small-seam", 4, 2, "None", "small"),
+              ("rung-5-cube-two-piece-large-seam", 5, 2, "None", "large"),
+          ]
+          for record, spec in zip(data["cases"], expected):
+              case = record["case"]
+              assert (case["id"], case["rung"], case["piece_count"], case["pin_mode"], case["seam_mode"]) == spec, record
+              assert record["finite"], record
+              assert record["solver"]["backend"] == "tissu", record
+              assert record["solver"]["iterations"] == 1, record
+              assert record["solver"]["substeps"] == 1, record
+              assert abs(record["solver"]["timestep_s"] - 1/120) < 1e-12, record
+              assert record["solver"]["gravity_z_mm_s2"] == 0.0, record
+              assert len(record["checkpoints"]) == 6, record
+              assert [x["step"] for x in record["checkpoints"]] == [0, 1, 5, 15, 45, 90], record
+              for image in record["images"]:
+                  assert (root / "cube-ladder" / image.split("/", 1)[-1]).is_file(), image
+          small = data["cases"][3]["pre_step"]["seam_world_spans_mm"]
+          large = data["cases"][4]["pre_step"]["seam_world_spans_mm"]
+          assert len(small) == 1 and len(large) == 1, data
+          assert large[0]["max_span_mm"] > small[0]["max_span_mm"] + 20.0, (small, large)
+          assert data["structural_validation"]["first_failing_rung"] in {None, 1, 2, 3, 4, 5}
+          print("cube-ladder-artifact=passed")
+          PY
       - name: Capture provenance
         run: |
           set -euo pipefail
@@ -745,17 +811,20 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RUN_ID: ${{ github.run_id }}
           REPOSITORY: ${{ github.repository }}
+          EVIDENCE_HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           review_root="docs/images/generated"
           evidence_branch="simulation-evidence/pr-$PR_NUMBER"
           worktree="$RUNNER_TEMP/simulation-evidence"
           rm -rf "$worktree"
-          git -c http.extraheader="AUTHORIZATION: bearer $GH_TOKEN" fetch origin "refs/heads/$evidence_branch:refs/remotes/origin/$evidence_branch" || true
+          git remote set-url origin "https://github.com/$REPOSITORY.git"
+          gh auth setup-git
+          git fetch origin "refs/heads/$evidence_branch:refs/remotes/origin/$evidence_branch" || true
           if git show-ref --verify --quiet "refs/remotes/origin/$evidence_branch"; then
             git worktree add --detach "$worktree" "refs/remotes/origin/$evidence_branch"
           else
-            git worktree add --detach "$worktree" "$GITHUB_SHA"
+            git worktree add --detach "$worktree" "$EVIDENCE_HEAD"
             git -C "$worktree" switch --orphan "$evidence_branch"
             git -C "$worktree" rm -rf . >/dev/null 2>&1 || true
           fi
@@ -767,7 +836,8 @@ jobs:
           printf '%s\n' '# Simulation visual evidence' '' "PR #$PR_NUMBER, canonical workflow run $RUN_ID." '' 'Human review starts with the rendered PNGs. Logs and manifests are secondary evidence.' > "$dest/README.md"
           if [ ${#images[@]} -gt 0 ]; then
             (cd "$worktree" && git add "pr-$PR_NUMBER/run-$RUN_ID" && git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "simulation evidence PR #$PR_NUMBER run $RUN_ID")
-            git -C "$worktree" -c http.extraheader="AUTHORIZATION: bearer $GH_TOKEN" push origin "HEAD:$evidence_branch"
+            git -C "$worktree" remote set-url origin "https://github.com/$REPOSITORY.git"
+            git -C "$worktree" push origin "HEAD:$evidence_branch"
           fi
           body="$RUNNER_TEMP/simulation-review.md"
           {

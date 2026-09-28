@@ -24,3 +24,20 @@ def test_pytest_contract_module_has_a_real_test_entrypoint():
     source = Path(__file__).read_text(encoding="utf-8")
     assert "def test_canonical_python_job_executes_pytest_contract_modules" in source
     assert "def test_pytest_contract_module_has_a_real_test_entrypoint" in source
+
+
+def test_simulation_evidence_publisher_uses_authenticated_checked_out_head():
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    start = workflow.index("      - name: Publish inline simulation evidence for human review")
+    end = workflow.index("  gui-turntables:", start)
+    publisher = workflow[start:end]
+    assert "EVIDENCE_HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}" in publisher
+    assert 'git remote set-url origin "https://github.com/$REPOSITORY.git"' in publisher
+    assert "gh auth setup-git" in publisher
+    assert 'git -C "$worktree" remote set-url origin "https://github.com/$REPOSITORY.git"' in publisher
+    assert "http.extraheader" not in publisher
+    assert 'git worktree add --detach "$worktree" "$EVIDENCE_HEAD"' in publisher
+    assert 'git worktree add --detach "$worktree" "$GITHUB_SHA"' not in publisher
+    assert 'git fetch origin "refs/heads/$evidence_branch:refs/remotes/origin/$evidence_branch"' in publisher
+# Exact-head validation recut marker; behavior unchanged.
+# Final exact-head cube diagnostic trigger marker; behavior unchanged.
