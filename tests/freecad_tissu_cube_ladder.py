@@ -462,6 +462,7 @@ def main():
         "schema": 1,
         "purpose": "diagnostic-only-cube-complexity-ladder",
         "release_gate_effect": "none",
+        "source_head_sha": os.environ.get("CLOTH_HEAD_SHA", ""),
         "solver_settings_frozen": {
             "backend_requested": os.environ.get("CLOTH_SIMULATION_BACKEND", "tissu"),
             "particle_distance_mm": 24.0,
