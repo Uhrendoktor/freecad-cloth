@@ -125,7 +125,7 @@ jobs:
 
   diagnostic-tissu-contact:
     name: Diagnostic Tissu contact controls
-    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls) || (github.event_name == 'pull_request' && contains(github.event.pull_request.head.ref, 'cube-ladder-2481')) }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls) || (github.event_name == 'pull_request' && (contains(github.event.pull_request.head.ref, 'cube-ladder-2481') || contains(github.event.pull_request.head.ref, 'avatar-ladder-2482'))) }}
     needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 15
@@ -262,6 +262,90 @@ jobs:
           assert data["structural_validation"]["first_failing_rung"] in {None, 1, 2, 3, 4, 5}
           print("cube-ladder-artifact=passed")
           PY
+      - name: Run avatar complexity ladder
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/tissu-contact-diagnostics/avatar-ladder
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu \
+            -e CLOTH_TISSU_COLLISION_MODE=mesh -e CLOTH_TISSU_COLLISION_TRIANGLES=2048 \
+            -e CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0 \
+            -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/tissu-contact-diagnostics \
+            -e CLOTH_HEAD_SHA="$CLOTH_HEAD_SHA" \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_TUNISU_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/tissu-contact-diagnostics
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=10s 600s /opt/freecad/AppRun /workspace/tests/freecad_tissu_avatar_ladder.py 2>&1 | tee /workspace/artifacts/tissu-contact-diagnostics/avatar-ladder-run.log
+            '
+      - name: Validate avatar ladder artifact
+        run: |
+          set -euo pipefail
+          test -s artifacts/tissu-contact-diagnostics/avatar-ladder-manifest.json
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path("artifacts/tissu-contact-diagnostics")
+          data = json.loads((root / "avatar-ladder-manifest.json").read_text(encoding="utf-8"))
+          assert data["schema"] == 1, data
+          assert data["purpose"] == "diagnostic-only-avatar-complexity-ladder", data
+          assert data["release_gate_effect"] == "none", data
+          assert data["source_head_sha"] == os.environ["CLOTH_HEAD_SHA"], data
+          assert data["checkpoint_steps"] == [0, 1, 5, 15, 45, 90], data
+          assert len(data["cases"]) == 5, data
+          expected = [
+              ("rung-6-avatar-pinned", 6, 1, "Automatic", "none"),
+              ("rung-7-avatar-unpinned", 7, 1, "None", "none"),
+              ("rung-8-avatar-two-piece-no-seam", 8, 2, "None", "none"),
+              ("rung-9-avatar-two-piece-small-seam", 9, 2, "None", "small"),
+              ("rung-10-avatar-two-piece-large-seam", 10, 2, "None", "large"),
+          ]
+          for record, spec in zip(data["cases"], expected):
+              case = record["case"]
+              assert (case["id"], case["rung"], case["piece_count"], case["pin_mode"], case["seam_mode"]) == spec, record
+              assert record["finite"], record
+              assert record["solver"]["backend"] == "tissu", record
+              assert record["solver"]["iterations"] == 1, record
+              assert record["solver"]["substeps"] == 1, record
+              assert abs(record["solver"]["timestep_s"] - 1/120) < 1e-12, record
+              assert record["solver"]["gravity_z_mm_s2"] == 0.0, record
+              assert record["collision"]["source_triangles"] > 10000, record
+              assert record["collision"]["solver_triangles"] == 2048, record
+              assert record["collision"]["target_topology_summary"]["vertices"] > 10000, record
+              assert len(record["checkpoints"]) == 6, record
+              assert [x["step"] for x in record["checkpoints"]] == [0, 1, 5, 15, 45, 90], record
+              for image in record["images"]:
+                  assert (root / image).is_file(), image
+
+          assert data["cases"][0]["collision"]["source_triangles"] == data["cases"][1]["collision"]["source_triangles"], data
+          assert data["cases"][0]["collision"]["solver_triangles"] == data["cases"][4]["collision"]["solver_triangles"] == 2048, data
+          assert data["cases"][0]["control"]["placement_offsets_mm"]["right_x"] is None, data
+          assert data["cases"][1]["control"]["placement_offsets_mm"]["right_x"] is None, data
+          assert data["cases"][2]["control"]["placement_offsets_mm"]["right_x"] == 0.5, data
+          assert data["cases"][3]["control"]["placement_offsets_mm"]["right_x"] == 0.5, data
+          assert data["cases"][4]["control"]["placement_offsets_mm"]["right_x"] == 80.0, data
+          small = data["cases"][3]["pre_step"]["seam_world_spans_mm"]
+          large = data["cases"][4]["pre_step"]["seam_world_spans_mm"]
+          assert len(small) == 1 and len(large) == 1, data
+          assert small[0]["pair_count"] == 6 and large[0]["pair_count"] == 6, data
+          assert small[0]["min_span_mm"] < 1.0, small
+          assert small[0]["max_span_mm"] < 1.0, small
+          assert 79.0 <= large[0]["min_span_mm"] <= 81.0, large
+          assert 79.0 <= large[0]["max_span_mm"] <= 81.0, large
+          assert large[0]["seam_id"] == small[0]["seam_id"] == "avatar-seam", (small, large)
+          assert large[0]["max_span_mm"] > small[0]["max_span_mm"] + 20.0, (small, large)
+          assert data["structural_validation"]["first_failing_rung"] in {None, 6, 7, 8, 9, 10}, data
+          print("avatar-ladder-artifact=passed")
+          PY
       - name: Capture provenance
         run: |
           set -euo pipefail
@@ -392,7 +476,8 @@ jobs:
                 tests/test_readme_visual_contract.py \
                 tests/test_sketcher_bootstrap_contract.py \
                 tests/test_canonical_python_validation_contract.py \
-                tests/test_tissu_contact_diagnostics_contract.py
+                tests/test_tissu_contact_diagnostics_contract.py \
+                tests/test_tissu_avatar_ladder_contract.py
             ')"
           cleanup() {
             set +e
