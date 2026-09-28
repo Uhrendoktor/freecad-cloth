@@ -752,7 +752,7 @@ jobs:
           evidence_branch="simulation-evidence/pr-$PR_NUMBER"
           worktree="$RUNNER_TEMP/simulation-evidence"
           rm -rf "$worktree"
-          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.git"
+          gh auth setup-git
           git fetch origin "refs/heads/$evidence_branch:refs/remotes/origin/$evidence_branch" || true
           if git show-ref --verify --quiet "refs/remotes/origin/$evidence_branch"; then
             git worktree add --detach "$worktree" "refs/remotes/origin/$evidence_branch"
@@ -769,7 +769,7 @@ jobs:
           printf '%s\n' '# Simulation visual evidence' '' "PR #$PR_NUMBER, canonical workflow run $RUN_ID." '' 'Human review starts with the rendered PNGs. Logs and manifests are secondary evidence.' > "$dest/README.md"
           if [ ${#images[@]} -gt 0 ]; then
             (cd "$worktree" && git add "pr-$PR_NUMBER/run-$RUN_ID" && git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "simulation evidence PR #$PR_NUMBER run $RUN_ID")
-            git -C "$worktree" -c http.extraheader="AUTHORIZATION: bearer $GH_TOKEN" push origin "HEAD:$evidence_branch"
+            git -C "$worktree" push origin "HEAD:$evidence_branch"
           fi
           body="$RUNNER_TEMP/simulation-review.md"
           {
