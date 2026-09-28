@@ -541,7 +541,21 @@ def _run_and_shutdown():
 _boot("entrypoint-name=%r" % __name__)
 _boot("entrypoint-argv0=%r" % (sys.argv[0] if sys.argv else ""))
 _freecad_entrypoint_name = Path(__file__).stem
-_direct_script_invocation = __name__ == _freecad_entrypoint_name
-if __name__ == "__main__" or _direct_script_invocation:
+_freecad_gui_hosted = bool(getattr(App, "GuiUp", False))
+
+
+def _schedule_freecad_main():
+    try:
+        from PySide import QtCore
+    except ImportError:
+        from PySide2 import QtCore
+    _boot("freecad-hosted-entrypoint")
+    _boot("entrypoint:schedule-main")
+    QtCore.QTimer.singleShot(0, _run_and_shutdown)
+
+
+if __name__ == "__main__":
     _boot("direct-entrypoint")
     _run_and_shutdown()
+elif _freecad_gui_hosted or __name__ == _freecad_entrypoint_name:
+    _schedule_freecad_main()
