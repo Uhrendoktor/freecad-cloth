@@ -428,7 +428,11 @@ def _run_ladder_case(case_id):
                 "source_signature": target_sig,
                 "source_triangles": int(target_sig["source_triangles"]),
                 "solver_triangles": int(solver_triangles),
-                "target_bounds": list(getattr(getattr(avatar, "Shape", None), "BoundBox", ())),
+                "target_bounds": {
+                    "x_min": float(avatar.Shape.BoundBox.XMin), "x_max": float(avatar.Shape.BoundBox.XMax),
+                    "y_min": float(avatar.Shape.BoundBox.YMin), "y_max": float(avatar.Shape.BoundBox.YMax),
+                    "z_min": float(avatar.Shape.BoundBox.ZMin), "z_max": float(avatar.Shape.BoundBox.ZMax),
+                },
                 "target_topology_summary": {
                     "vertices": int(target_sig["source_vertices"]),
                     "triangles": int(target_sig["source_triangles"]),
@@ -510,7 +514,7 @@ def _structural_ladder_checks(records):
             and len(record["checkpoints"]) == len(CHECKPOINTS)
             and [item["step"] for item in record["checkpoints"]] == list(CHECKPOINTS)
         )
-        if rung <= 8:
+        if rung <= 7:
             ok = ok and record["case"]["piece_count"] == 1 and record["pre_step"]["seam_pairs"] == []
         elif rung == 8:
             ok = ok and record["case"]["piece_count"] == 2 and record["pre_step"]["seam_pairs"] == []
