@@ -23,40 +23,33 @@ def _boot(message):
 import faulthandler
 import json
 import math
-import runpy
 import time
 
 _boot("script-start")
-_boot("before-import-FreeCAD")
-import FreeCAD as App
-_boot("import-FreeCAD-complete")
-import FreeCADGui as Gui
-_boot("import-FreeCADGui-complete")
-import Part
-_boot("import-Part-complete")
+_boot("before-import-contact-diagnostics")
+import freecad_tissu_contact_diagnostics as _contact
+_boot("import-contact-diagnostics-complete")
+App = _contact.App
+Gui = _contact.Gui
+Part = _contact.Part
+_boot("before-own-faulthandler")
 try:
     faulthandler.enable(file=_TRACE_HANDLE, all_threads=True)
     faulthandler.dump_traceback_later(30.0, repeat=True, file=_TRACE_HANDLE)
-    _boot("diagnostic-imports-complete")
+    _boot("diagnostic-faulthandler-ready")
 except (AttributeError, OSError, RuntimeError, ValueError) as exc:
     _boot("diagnostic-faulthandler-unavailable=%r" % (exc,))
 
-_boot("before-shared-helper-runpath")
-_shared = runpy.run_path(
-    str(Path(__file__).with_name("freecad_tissu_contact_diagnostics.py")),
-    run_name="freecad_tissu_contact_diagnostics",
-)
-_boot("after-shared-helper-runpath")
-_build_piece = _shared["_build_piece"]
-_build_scene = _shared["_build_scene"]
-_connected_components = _shared["_connected_components"]
-_events = _shared["_events"]
-_mesh_geometry = _shared["_mesh_geometry"]
-_nearest_surface_distance = _shared["_nearest_surface_distance"]
-_progress = _shared["_progress"]
-_screenshot = _shared["_screenshot"]
-_shutdown_gui = _shared["_shutdown_gui"]
-_target_signature = _shared["_target_signature"]
+_build_piece = _contact._build_piece
+_build_scene = _contact._build_scene
+_connected_components = _contact._connected_components
+_events = _contact._events
+_mesh_geometry = _contact._mesh_geometry
+_nearest_surface_distance = _contact._nearest_surface_distance
+_progress = _contact._progress
+_screenshot = _contact._screenshot
+_shutdown_gui = _contact._shutdown_gui
+_target_signature = _contact._target_signature
 
 CHECKPOINTS = (0, 1, 5, 15, 45, 90)
 
