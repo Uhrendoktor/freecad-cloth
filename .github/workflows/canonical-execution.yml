@@ -258,6 +258,12 @@ jobs:
           small = data["cases"][3]["pre_step"]["seam_world_spans_mm"]
           large = data["cases"][4]["pre_step"]["seam_world_spans_mm"]
           assert len(small) == 1 and len(large) == 1, data
+          assert small[0]["pair_count"] == 6 and large[0]["pair_count"] == 6, data
+          assert small[0]["max_span_mm"] < 1.0, small
+          assert small[0]["min_span_mm"] < 1.0, small
+          assert 79.0 <= large[0]["min_span_mm"] <= 81.0, large
+          assert 79.0 <= large[0]["max_span_mm"] <= 81.0, large
+          assert large[0]["seam_id"] == small[0]["seam_id"] == "avatar-seam", (small, large)
           assert large[0]["max_span_mm"] > small[0]["max_span_mm"] + 20.0, (small, large)
           assert data["structural_validation"]["first_failing_rung"] in {None, 1, 2, 3, 4, 5}
           print("cube-ladder-artifact=passed")
