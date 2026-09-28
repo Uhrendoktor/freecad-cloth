@@ -467,6 +467,10 @@ def _run_ladder_case(case_id):
             ),
             "contact_mode": "avatar-diagnostic",
             "control": {
+                "placement_offsets_mm": {
+                    "left_x": -120.0,
+                    "right_x": spec["right_offset"],
+                },
                 "pre_step_seam_count": len(base.seam_stitch_pairs),
                 "pre_step_seam_pair_count": sum(
                     len(pairs) for pairs in base.seam_stitch_pairs.values()
