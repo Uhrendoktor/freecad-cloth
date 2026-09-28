@@ -27,5 +27,6 @@ def test_cube_ladder_contract_is_diagnostic_only_and_frozen():
     assert "runpy.run_path(" in source
     assert "before-shared-helper-runpath" in source
     assert "after-shared-helper-runpath" in source
+    assert '"right_x": 20.0' in source
     assert "Run cube complexity ladder" in workflow
     assert "Validate cube ladder artifact" in workflow
