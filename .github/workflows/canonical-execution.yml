@@ -166,7 +166,6 @@ jobs:
             -e CLOTH_TISSU_SUBSTEPS=1 -e CLOTH_TISSU_COLLISION_MODE=mesh \
             -e CLOTH_TISSU_COLLISION_TRIANGLES=2048 \
             -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/tissu-contact-diagnostics \
-            -e CLOTH_HEAD_SHA="$CLOTH_HEAD_SHA" \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_TUNISU_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
@@ -208,6 +207,7 @@ jobs:
             -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu \
             -e CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0 \
             -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/tissu-contact-diagnostics \
+            -e CLOTH_HEAD_SHA="$CLOTH_HEAD_SHA" \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_TUNISU_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
@@ -225,6 +225,7 @@ jobs:
           test -s artifacts/tissu-contact-diagnostics/cube-ladder-manifest.json
           python3 - <<'PY'
           import json
+          import os
           from pathlib import Path
 
           root = Path("artifacts/tissu-contact-diagnostics")
