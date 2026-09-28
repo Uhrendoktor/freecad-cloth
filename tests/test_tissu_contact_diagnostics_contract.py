@@ -117,5 +117,6 @@ def test_cube_ladder_bootstrap_faulthandler_is_freecad_safe():
     assert "faulthandler.dump_traceback_later(30.0, repeat=True, file=_TRACE_HANDLE)" in source
     assert "file=sys.stderr" not in source
     assert '_boot("entrypoint-name=%r" % __name__)' in source
-    assert 'Path(sys.argv[0]).resolve() == Path(__file__).resolve()' in source
+    assert '_freecad_entrypoint_name = Path(__file__).stem' in source
+    assert '__name__ == _freecad_entrypoint_name' in source
     assert '_boot("direct-entrypoint")' in source
