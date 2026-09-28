@@ -118,5 +118,9 @@ def test_cube_ladder_bootstrap_faulthandler_is_freecad_safe():
     assert "file=sys.stderr" not in source
     assert '_boot("entrypoint-name=%r" % __name__)' in source
     assert '_freecad_entrypoint_name = Path(__file__).stem' in source
+    assert '_freecad_gui_hosted = bool(getattr(App, "GuiUp", False))' in source
+    assert 'def _schedule_freecad_main():' in source
+    assert 'QtCore.QTimer.singleShot(0, _run_and_shutdown)' in source
+    assert '_boot("freecad-hosted-entrypoint")' in source
     assert '__name__ == _freecad_entrypoint_name' in source
     assert '_boot("direct-entrypoint")' in source
