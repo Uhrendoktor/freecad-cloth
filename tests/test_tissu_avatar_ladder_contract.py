@@ -43,3 +43,20 @@ def test_avatar_ladder_contract_is_diagnostic_only_and_frozen():
     assert "Run avatar complexity ladder" in WORKFLOW
     assert "Validate avatar ladder artifact" in WORKFLOW
     assert "avatar-ladder-2482" in WORKFLOW
+
+
+def test_avatar_ladder_seam_controls_encode_near_zero_and_production_scale_pairs():
+    assert "reversed_b=True" in SOURCE
+    assert '"right_offset": 0.5' in SOURCE
+    assert '"right_offset": 80.0' in SOURCE
+    assert "max_span_mm" in SOURCE
+    assert "min_span_mm" in SOURCE
+
+
+def test_avatar_ladder_screenshot_path_is_fail_closed():
+    assert "def _avatar_png_has_visible_content(path, minimum_pixels=128):" in SOURCE
+    assert "def _avatar_screenshot(view, path):" in SOURCE
+    assert "view.redraw()" in SOURCE
+    assert "time.sleep(0.05)" in SOURCE
+    assert "png-capture=retry" in SOURCE
+    assert "PNG capture contains no visible rendered content" in SOURCE
