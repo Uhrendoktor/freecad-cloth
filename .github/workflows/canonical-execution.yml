@@ -134,6 +134,7 @@ jobs:
       packages: read
     env:
       FREECAD_TUNISU_IMAGE: freecad-cloth-ci:tissu-contact-fix
+      CLOTH_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Log selected execution mode
         run: |
@@ -142,7 +143,7 @@ jobs:
           echo "runner=$RUNNER_NAME"
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: docker/login-action@v3
         with:
@@ -165,6 +166,7 @@ jobs:
             -e CLOTH_TISSU_SUBSTEPS=1 -e CLOTH_TISSU_COLLISION_MODE=mesh \
             -e CLOTH_TISSU_COLLISION_TRIANGLES=2048 \
             -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/tissu-contact-diagnostics \
+            -e CLOTH_HEAD_SHA="$CLOTH_HEAD_SHA" \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_TUNISU_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
@@ -230,6 +232,7 @@ jobs:
           assert data["schema"] == 1, data
           assert data["purpose"] == "diagnostic-only-cube-complexity-ladder", data
           assert data["release_gate_effect"] == "none", data
+          assert data["source_head_sha"] == os.environ["CLOTH_HEAD_SHA"], data
           assert data["checkpoint_steps"] == [0, 1, 5, 15, 45, 90], data
           assert len(data["cases"]) == 5, data
           expected = [
