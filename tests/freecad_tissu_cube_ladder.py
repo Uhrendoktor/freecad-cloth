@@ -14,11 +14,11 @@ from pathlib import Path
 OUT = Path(os.environ.get("CLOTH_DIAGNOSTIC_DIR", "artifacts/tissu-contact-diagnostics"))
 OUT.mkdir(parents=True, exist_ok=True)
 _BOOT_LOG = OUT / "cube-ladder-bootstrap.log"
+_TRACE_HANDLE = _BOOT_LOG.open("a", encoding="utf-8", buffering=1)
 
 def _boot(message):
-    with _BOOT_LOG.open("a", encoding="utf-8") as handle:
-        handle.write(str(message) + "\n")
-        handle.flush()
+    _TRACE_HANDLE.write(str(message) + "\n")
+    _TRACE_HANDLE.flush()
 
 import faulthandler
 import json
@@ -34,8 +34,8 @@ _boot("import-FreeCADGui-complete")
 import Part
 _boot("import-Part-complete")
 try:
-    faulthandler.enable(all_threads=True)
-    faulthandler.dump_traceback_later(30.0, repeat=True)
+    faulthandler.enable(file=_TRACE_HANDLE, all_threads=True)
+    faulthandler.dump_traceback_later(30.0, repeat=True, file=_TRACE_HANDLE)
     _boot("diagnostic-imports-complete")
 except (AttributeError, OSError, RuntimeError, ValueError) as exc:
     _boot("diagnostic-faulthandler-unavailable=%r" % (exc,))
