@@ -266,9 +266,7 @@ def _run_ladder_case(case_id):
             )
         except (ImportError, RuntimeError, TypeError, ValueError):
             proximity_mesh = None
-        signed_before, unsigned_before = _surface_signed_clearance(
-            positions, source_shape, collision_surface, proximity_mesh
-        )
+        signed_before, unsigned_before = _surface_signed_clearance(positions, source_shape, collision_surface, proximity_mesh)
         bounds = {
             "x_min": min(point[0] for point in positions),
             "x_max": max(point[0] for point in positions),
