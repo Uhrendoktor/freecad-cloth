@@ -544,11 +544,11 @@ def main():
     _progress("avatar-ladder: start")
     records = []
     for case_id in (
-        "rung-1-avatar-pinned",
-        "rung-2-avatar-unpinned",
-        "rung-3-avatar-two-piece-no-seam",
-        "rung-4-avatar-two-piece-small-seam",
-        "rung-5-avatar-two-piece-large-seam",
+        "rung-6-avatar-pinned",
+        "rung-7-avatar-unpinned",
+        "rung-8-avatar-two-piece-no-seam",
+        "rung-9-avatar-two-piece-small-seam",
+        "rung-10-avatar-two-piece-large-seam",
     ):
         records.append(_run_ladder_case(case_id))
     manifest = {
@@ -569,7 +569,7 @@ def main():
         "stop_rule": {
             "first_failing_rung": True,
             "human_visual_review_required": True,
-            "strongest_alternative": "target/contact behavior is sound; seam/rest-state integration is causal",
+            "strongest_alternative": "avatar target/contact is causal; seam interaction is not",
         },
         "cases": records,
         "structural_validation": _structural_ladder_checks(records),
