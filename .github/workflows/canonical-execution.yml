@@ -745,17 +745,19 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RUN_ID: ${{ github.run_id }}
           REPOSITORY: ${{ github.repository }}
+          EVIDENCE_HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           review_root="docs/images/generated"
           evidence_branch="simulation-evidence/pr-$PR_NUMBER"
           worktree="$RUNNER_TEMP/simulation-evidence"
           rm -rf "$worktree"
-          git -c http.extraheader="AUTHORIZATION: bearer $GH_TOKEN" fetch origin "refs/heads/$evidence_branch:refs/remotes/origin/$evidence_branch" || true
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.git"
+          git fetch origin "refs/heads/$evidence_branch:refs/remotes/origin/$evidence_branch" || true
           if git show-ref --verify --quiet "refs/remotes/origin/$evidence_branch"; then
             git worktree add --detach "$worktree" "refs/remotes/origin/$evidence_branch"
           else
-            git worktree add --detach "$worktree" "$GITHUB_SHA"
+            git worktree add --detach "$worktree" "$EVIDENCE_HEAD"
             git -C "$worktree" switch --orphan "$evidence_branch"
             git -C "$worktree" rm -rf . >/dev/null 2>&1 || true
           fi
