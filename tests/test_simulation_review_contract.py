@@ -11,4 +11,3 @@ def test_review_protocol_and_templates_exist():
     assert "actual rendered PNG screenshots" in protocol
     assert (ROOT / ".github/PULL_REQUEST_TEMPLATE/simulation-review.md").is_file()
     assert (ROOT / ".github/ISSUE_TEMPLATE/simulation-review.md").is_file()
-
