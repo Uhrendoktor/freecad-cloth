@@ -540,7 +540,8 @@ def _run_and_shutdown():
 
 _boot("entrypoint-name=%r" % __name__)
 _boot("entrypoint-argv0=%r" % (sys.argv[0] if sys.argv else ""))
-_direct_script_invocation = bool(sys.argv) and Path(sys.argv[0]).resolve() == Path(__file__).resolve()
+_freecad_entrypoint_name = Path(__file__).stem
+_direct_script_invocation = __name__ == _freecad_entrypoint_name
 if __name__ == "__main__" or _direct_script_invocation:
     _boot("direct-entrypoint")
     _run_and_shutdown()
