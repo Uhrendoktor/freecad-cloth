@@ -538,5 +538,9 @@ def _run_and_shutdown():
     os._exit(status)
 
 
-if __name__ == "__main__":
+_boot("entrypoint-name=%r" % __name__)
+_boot("entrypoint-argv0=%r" % (sys.argv[0] if sys.argv else ""))
+_direct_script_invocation = bool(sys.argv) and Path(sys.argv[0]).resolve() == Path(__file__).resolve()
+if __name__ == "__main__" or _direct_script_invocation:
+    _boot("direct-entrypoint")
     _run_and_shutdown()
