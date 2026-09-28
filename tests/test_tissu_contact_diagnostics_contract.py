@@ -90,8 +90,8 @@ def test_workflow_validator_matches_shared_manifest():
     assert 'case["checkpoints"]' in WORKFLOW
 
 
-def test_diagnostic_job_has_no_obsolete_branch_trigger():
-    assert "supervisor/tissu-contact-controls-2484-20260927" not in WORKFLOW
+def test_cube_ladder_diagnostic_job_has_scoped_branch_trigger():
+    assert "contains(github.event.pull_request.head.ref, 'cube-ladder-2481')" in WORKFLOW
 
 
 
