@@ -1,4 +1,5 @@
 """Screenshot-backed cube complexity ladder for the diagnostic harness.
+# Exact-head validation note: this source is exercised only from its PR head.
 # Validation note: this diagnostic consumes the shared schema-1 cube ladder manifest.
 
 This module is diagnostic-only. It reuses the existing Tissu/FreeCAD runtime and
