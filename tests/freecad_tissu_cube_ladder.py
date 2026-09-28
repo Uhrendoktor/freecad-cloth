@@ -33,8 +33,9 @@ import FreeCADGui as Gui
 _boot("import-FreeCADGui-complete")
 import Part
 _boot("import-Part-complete")
-faulthandler.enable(file=sys.stderr, all_threads=True)
-faulthandler.dump_traceback_later(30.0, repeat=True, file=sys.stderr)
+_FAULTHANDLER_HANDLE = _BOOT_LOG.open("a", encoding="utf-8", buffering=1)
+faulthandler.enable(file=_FAULTHANDLER_HANDLE, all_threads=True)
+faulthandler.dump_traceback_later(30.0, repeat=True, file=_FAULTHANDLER_HANDLE)
 _boot("diagnostic-imports-complete")
 
 from freecad_tissu_contact_diagnostics import (
