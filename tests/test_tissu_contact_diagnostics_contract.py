@@ -105,3 +105,11 @@ def test_cube_ladder_caches_collision_proximity_mesh():
     assert "proximity_mesh," in source
     assert "for step in CHECKPOINTS:" in source
     assert "scene.Steps = int(step)" in source
+
+
+def test_cube_ladder_bootstrap_faulthandler_is_freecad_safe():
+    source = (ROOT / "tests" / "freecad_tissu_cube_ladder.py").read_text(encoding="utf-8")
+    assert "faulthandler.enable(all_threads=True)" in source
+    assert "faulthandler.dump_traceback_later(30.0, repeat=True)" in source
+    assert "_FAULTHANDLER_HANDLE" not in source
+    assert "file=_FAULTHANDLER_HANDLE" not in source
