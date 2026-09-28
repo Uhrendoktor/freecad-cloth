@@ -24,5 +24,8 @@ def test_cube_ladder_contract_is_diagnostic_only_and_frozen():
     assert "seam_world_spans_mm" in source
     assert "first_failing_rung" in source
     assert "CLOTH_CONTACT_DIAGNOSTICS_EXECUTE" in workflow
+    assert "runpy.run_path(" in source
+    assert "before-shared-helper-runpath" in source
+    assert "after-shared-helper-runpath" in source
     assert "Run cube complexity ladder" in workflow
     assert "Validate cube ladder artifact" in workflow
