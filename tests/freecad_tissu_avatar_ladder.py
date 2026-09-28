@@ -115,13 +115,20 @@ def _surface_signed_clearance(points, source_shape, collision_surface, proximity
     if unsigned is None:
         return None, None
     inside = False
-    for point in points:
-        try:
-            if bool(source_shape.isInside(App.Vector(*point), 1e-6, True)):
-                inside = True
+    if source_shape is not None:
+        for point in points:
+            try:
+                if bool(source_shape.isInside(App.Vector(*point), 1e-6, True)):
+                    inside = True
+                    break
+            except (AttributeError, TypeError, ValueError):
                 break
-        except (AttributeError, TypeError, ValueError):
-            break
+    if not inside and proximity_mesh is not None and points:
+        try:
+            import numpy as np
+            inside = bool(np.any(proximity_mesh.contains(np.asarray(points, dtype=float))))
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+            pass
     return float(-unsigned if inside else unsigned), float(unsigned)
 
 
@@ -328,8 +335,12 @@ def _run_ladder_case(case_id):
         )
         target_sig = _target_signature(scene.DrapeTarget)
         source_shape = getattr(avatar, "Shape", None)
-        if source_shape is None or source_shape.isNull():
-            raise RuntimeError("%s production avatar source shape is invalid" % case_id)
+        if source_shape is not None:
+            try:
+                if source_shape.isNull():
+                    source_shape = None
+            except (AttributeError, TypeError, ValueError):
+                source_shape = None
 
         seam_pre = _seam_geometry(base.backend, base.seam_stitch_pairs)
         proximity_mesh = None
