@@ -7,15 +7,23 @@ frozen solver settings; it does not participate in release acceptance.
 """
 from __future__ import annotations
 
+import faulthandler
 import json
 import math
 import os
+import sys
 import time
 from pathlib import Path
 
 import FreeCAD as App
+_boot("import-FreeCAD-complete")
 import FreeCADGui as Gui
+_boot("import-FreeCADGui-complete")
 import Part
+_boot("import-Part-complete")
+faulthandler.enable(file=sys.stderr, all_threads=True)
+faulthandler.dump_traceback_later(30.0, repeat=True, file=sys.stderr)
+_boot("diagnostic-imports-complete")
 
 from freecad_tissu_contact_diagnostics import (
     _build_piece,
@@ -32,6 +40,15 @@ from freecad_tissu_contact_diagnostics import (
 
 OUT = Path(os.environ.get("CLOTH_DIAGNOSTIC_DIR", "artifacts/tissu-contact-diagnostics"))
 OUT.mkdir(parents=True, exist_ok=True)
+_BOOT_LOG = OUT / "cube-ladder-bootstrap.log"
+
+def _boot(message):
+    with _BOOT_LOG.open("a", encoding="utf-8") as handle:
+        handle.write(str(message) + "\n")
+        handle.flush()
+
+_boot("script-start")
+_boot("before-import-FreeCAD")
 CHECKPOINTS = (0, 1, 5, 15, 45, 90)
 
 
@@ -202,6 +219,7 @@ def _case_spec(case_id):
 
 
 def _run_ladder_case(case_id):
+    _boot(f"case-start={case_id}")
     spec = _case_spec(case_id)
     doc = App.newDocument("TissuCubeLadder" + case_id.replace("-", "").title())
     started = time.perf_counter()
@@ -296,14 +314,18 @@ def _run_ladder_case(case_id):
         images = {}
         checkpoints = []
         for step in CHECKPOINTS:
+            _boot(f"checkpoint-before-recompute case={case_id} step={step}")
             scene.Steps = int(step)
             doc.recompute()
+            _boot(f"checkpoint-after-recompute case={case_id} step={step}")
             _events()
             image = OUT / "cube-ladder" / case_id / ("step-%03d.png" % int(step))
             image.parent.mkdir(parents=True, exist_ok=True)
             view.viewAxonometric()
             _events()
+            _boot(f"checkpoint-before-screenshot case={case_id} step={step}")
             _screenshot(view, image)
+            _boot(f"checkpoint-after-screenshot case={case_id} step={step}")
             positions = _positions_tuple(base.backend)
             checkpoints.append(
                 _checkpoint_record(
@@ -397,9 +419,13 @@ def _run_ladder_case(case_id):
                 "solver/collision budgets unchanged; release gate unaffected"
             ),
         }
+        _boot(f"case-complete={case_id} runtime_ms={record["runtime_ms"]}")
         return record
     finally:
-        App.closeDocument(doc.Name)
+        try:
+            _boot(f"case-finally={case_id}")
+        finally:
+            App.closeDocument(doc.Name)
 
 
 def _structural_ladder_checks(records):
@@ -448,6 +474,7 @@ def _structural_ladder_checks(records):
 
 
 def main():
+    _boot("main-entered")
     _progress("cube-ladder: start")
     records = []
     for case_id in (
@@ -483,6 +510,7 @@ def main():
     }
     path = OUT / "cube-ladder-manifest.json"
     path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+    _boot("all-cases-complete")
     _progress("cube-ladder: manifest-written")
     print(json.dumps(manifest, indent=2, sort_keys=True), flush=True)
     return 0
@@ -495,7 +523,9 @@ def _run_and_shutdown():
     except BaseException as exc:
         _progress("cube-ladder: main-failed=%r" % (exc,))
     finally:
+        _boot(f"shutdown-status={status}")
         _shutdown_gui()
+        faulthandler.cancel_dump_traceback_later()
     os._exit(status)
 
 
