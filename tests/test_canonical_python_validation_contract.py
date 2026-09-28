@@ -40,3 +40,4 @@ def test_simulation_evidence_publisher_uses_authenticated_checked_out_head():
     assert 'git worktree add --detach "$worktree" "$GITHUB_SHA"' not in publisher
     assert 'git fetch origin "refs/heads/$evidence_branch:refs/remotes/origin/$evidence_branch"' in publisher
 # Exact-head validation recut marker; behavior unchanged.
+# Final exact-head cube diagnostic trigger marker; behavior unchanged.
