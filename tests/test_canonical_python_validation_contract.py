@@ -33,7 +33,9 @@ def test_simulation_evidence_publisher_uses_authenticated_checked_out_head():
     end = workflow.index("  gui-turntables:", start)
     publisher = workflow[start:end]
     assert "EVIDENCE_HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}" in publisher
-    assert 'git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.git"' in publisher
+    assert "gh auth setup-git" in publisher
+    assert 'git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.git"' not in publisher
     assert 'git worktree add --detach "$worktree" "$EVIDENCE_HEAD"' in publisher
     assert 'git worktree add --detach "$worktree" "$GITHUB_SHA"' not in publisher
     assert 'git fetch origin "refs/heads/$evidence_branch:refs/remotes/origin/$evidence_branch"' in publisher
+    assert 'git -C "$worktree" -c http.extraheader="AUTHORIZATION: bearer $GH_TOKEN" push origin "HEAD:$evidence_branch"' not in publisher
