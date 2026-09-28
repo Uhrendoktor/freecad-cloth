@@ -392,6 +392,41 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
           compression-level: 1
+  diagnostic-tunic-substeps:
+    name: Diagnostic tunic Tissu substep probe
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls || github.event_name == 'pull_request' && contains(github.event.pull_request.head.ref, 'tissu-substeps-tunic-2570') }}
+    needs: [local_runner_readiness]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+    env:
+      FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix
+      CLOTH_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build pinned Tissu validation image
+        run: docker build --pull --progress=plain -t "$FREECAD_TUNIC_IMAGE" -f docker/freecad-ci/Dockerfile .
+      - name: Run bounded substep probe
+        run: bash tests/tissu_substep_probe.sh
+      - name: Upload substep probe evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: tissu-substep-probe
+          path: artifacts/tissu-substep-probe/**
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 1
   python:
     name: Python and FreeCAD non-GUI tests
     needs: [local_runner_readiness]
