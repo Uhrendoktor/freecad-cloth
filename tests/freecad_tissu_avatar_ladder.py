@@ -296,7 +296,7 @@ def _run_ladder_case(case_id):
             placement = App.Placement(
                 App.Vector(
                     float(frame["x_mid"] + x_offset),
-                    float(frame["panel_y"]),
+                    float(frame["panel_y"] + 120.0),
                     float(frame["z_mid"] - panel_height / 2.0),
                 ),
                 rotation,
@@ -397,7 +397,7 @@ def _run_ladder_case(case_id):
             _events()
             image = OUT / "avatar-ladder" / case_id / ("step-%03d.png" % int(step))
             image.parent.mkdir(parents=True, exist_ok=True)
-            view.viewAxonometric()
+            view.viewFront()
             _events()
             _boot(f"checkpoint-before-screenshot case={case_id} step={step}")
             _screenshot(view, image)
