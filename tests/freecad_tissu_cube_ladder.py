@@ -221,7 +221,7 @@ def _case_spec(case_id):
             "piece_count": 2,
             "pin_mode": "None",
             "seam_mode": "large",
-            "right_x": 0.0,
+            "right_x": 20.0,
         },
     }
     return dict(table[case_id])
