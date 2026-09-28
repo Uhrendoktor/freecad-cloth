@@ -23,6 +23,7 @@ def _boot(message):
 import faulthandler
 import json
 import math
+import runpy
 import time
 
 _boot("script-start")
@@ -40,18 +41,22 @@ try:
 except (AttributeError, OSError, RuntimeError, ValueError) as exc:
     _boot("diagnostic-faulthandler-unavailable=%r" % (exc,))
 
-from freecad_tissu_contact_diagnostics import (
-    _build_piece,
-    _build_scene,
-    _connected_components,
-    _events,
-    _mesh_geometry,
-    _nearest_surface_distance,
-    _progress,
-    _screenshot,
-    _shutdown_gui,
-    _target_signature,
+_boot("before-shared-helper-runpath")
+_shared = runpy.run_path(
+    str(Path(__file__).with_name("freecad_tissu_contact_diagnostics.py")),
+    run_name="freecad_tissu_contact_diagnostics",
 )
+_boot("after-shared-helper-runpath")
+_build_piece = _shared["_build_piece"]
+_build_scene = _shared["_build_scene"]
+_connected_components = _shared["_connected_components"]
+_events = _shared["_events"]
+_mesh_geometry = _shared["_mesh_geometry"]
+_nearest_surface_distance = _shared["_nearest_surface_distance"]
+_progress = _shared["_progress"]
+_screenshot = _shared["_screenshot"]
+_shutdown_gui = _shared["_shutdown_gui"]
+_target_signature = _shared["_target_signature"]
 
 CHECKPOINTS = (0, 1, 5, 15, 45, 90)
 
