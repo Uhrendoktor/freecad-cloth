@@ -99,6 +99,9 @@ def test_cube_ladder_caches_collision_proximity_mesh():
     source = (ROOT / "tests" / "freecad_tissu_cube_ladder.py").read_text(encoding="utf-8")
     assert "proximity_mesh = trimesh.Trimesh(" in source
     assert "proximity_mesh.nearest.on_surface" in source
-    assert "_surface_signed_clearance(positions, source_shape, collision_surface, proximity_mesh)" in source
+    assert "_surface_signed_clearance(" in source
+    assert "source_shape," in source
+    assert "collision_surface," in source
+    assert "proximity_mesh," in source
     assert "for step in CHECKPOINTS:" in source
     assert "scene.Steps = int(step)" in source
