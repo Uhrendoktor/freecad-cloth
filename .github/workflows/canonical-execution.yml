@@ -819,11 +819,11 @@ jobs:
           worktree="$RUNNER_TEMP/simulation-evidence"
           rm -rf "$worktree"
           git remote set-url origin "https://x-access-token:$GH_TOKEN@github.com/$REPOSITORY.git"
-          git fetch --no-tags origin "refs/heads/$evidence_branch:refs/remotes/origin/$evidence_branch" || true
+          git fetch origin "refs/heads/$evidence_branch:refs/remotes/origin/$evidence_branch" || true
           if git show-ref --verify --quiet "refs/remotes/origin/$evidence_branch"; then
             git worktree add --detach "$worktree" "refs/remotes/origin/$evidence_branch"
           else
-            git worktree add --detach "$worktree" HEAD
+            git worktree add --detach "$worktree" "$EVIDENCE_HEAD"
             git -C "$worktree" switch --orphan "$evidence_branch"
             git -C "$worktree" rm -rf . >/dev/null 2>&1 || true
           fi
