@@ -185,28 +185,33 @@ def _build_avatar_scene(doc):
     shoulder_left = arrangement_world("shoulder_left")
     shoulder_right = arrangement_world("shoulder_right")
     hip_point = arrangement_world("hip")
-    target_mesh = getattr(avatar, "Mesh", None)
-    target_vertices = []
-    topology = getattr(target_mesh, "Topology", None) if target_mesh is not None else None
-    if topology is not None:
-        raw_vertices, _raw_faces = topology
-        target_vertices = [App.Vector(v.x, v.y, v.z) for v in raw_vertices]
+    from freecad_cloth.simulation.DrapeTarget import collision_surface
+    target_surface = collision_surface(
+        avatar,
+        float(getattr(target, "CollisionDeflection", 1.0)),
+        float(getattr(target, "CollisionThickness", 0.0)),
+    )
+    target_vertices = [App.Vector(*vertex) for vertex in getattr(target_surface, "vertices", ())]
     if not target_vertices:
-        box = getattr(getattr(avatar, "Shape", None), "BoundBox", None)
-        if box is None:
-            raise RuntimeError("diagnostic avatar has no mesh or shape bounds")
-        target_y = float(box.YMin)
-    else:
-        target_y_candidates = [
-            float(point.y)
-            for point in target_vertices
-            if abs(float(point.x) - float((shoulder_left.x + shoulder_right.x) / 2.0)) <= max(
-                40.0, abs(float(shoulder_right.x - shoulder_left.x)) * 0.9
-            )
-            and float(hip_point.z) - 100.0 <= float(point.z) <= float(shoulder_left.z) + 100.0
-        ]
-        target_y = min(target_y_candidates) if target_y_candidates else min(float(point.y) for point in target_vertices)
-    body_depth = max(120.0, min(260.0, abs(float(max(point.y for point in target_vertices)) - float(min(point.y for point in target_vertices)))) if target_vertices else 180.0)
+        raise RuntimeError("diagnostic avatar DrapeTarget has no authoritative world-space vertices")
+    x_mid_target = (float(shoulder_left.x) + float(shoulder_right.x)) / 2.0
+    target_y_candidates = [
+        float(point.y)
+        for point in target_vertices
+        if abs(float(point.x) - x_mid_target) <= max(
+            40.0, abs(float(shoulder_right.x - shoulder_left.x)) * 0.9
+        )
+        and float(hip_point.z) - 100.0 <= float(point.z) <= float(shoulder_left.z) + 100.0
+    ]
+    target_y = min(target_y_candidates) if target_y_candidates else min(float(point.y) for point in target_vertices)
+    body_depth = max(
+        120.0,
+        min(
+            260.0,
+            float(max(point.y for point in target_vertices))
+            - float(min(point.y for point in target_vertices)),
+        ),
+    )
     clearance = max(20.0, 0.08 * body_depth)
     x_mid = (float(shoulder_left.x) + float(shoulder_right.x)) / 2.0
     z_mid = (float(shoulder_left.z) + float(hip_point.z)) / 2.0
@@ -440,9 +445,9 @@ def _run_ladder_case(case_id):
                 "source_triangles": int(target_sig["source_triangles"]),
                 "solver_triangles": int(solver_triangles),
                 "target_bounds": {
-                    "x_min": float(avatar.Shape.BoundBox.XMin), "x_max": float(avatar.Shape.BoundBox.XMax),
-                    "y_min": float(avatar.Shape.BoundBox.YMin), "y_max": float(avatar.Shape.BoundBox.YMax),
-                    "z_min": float(avatar.Shape.BoundBox.ZMin), "z_max": float(avatar.Shape.BoundBox.ZMax),
+                    "x_min": float(avatar.Mesh.BoundBox.XMin), "x_max": float(avatar.Mesh.BoundBox.XMax),
+                    "y_min": float(avatar.Mesh.BoundBox.YMin), "y_max": float(avatar.Mesh.BoundBox.YMax),
+                    "z_min": float(avatar.Mesh.BoundBox.ZMin), "z_max": float(avatar.Mesh.BoundBox.ZMax),
                 },
                 "target_topology_summary": {
                     "vertices": int(target_sig["source_vertices"]),
