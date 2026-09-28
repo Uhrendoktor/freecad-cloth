@@ -7,14 +7,26 @@ frozen solver settings; it does not participate in release acceptance.
 """
 from __future__ import annotations
 
+import os
+import sys
+from pathlib import Path
+
+OUT = Path(os.environ.get("CLOTH_DIAGNOSTIC_DIR", "artifacts/tissu-contact-diagnostics"))
+OUT.mkdir(parents=True, exist_ok=True)
+_BOOT_LOG = OUT / "cube-ladder-bootstrap.log"
+
+def _boot(message):
+    with _BOOT_LOG.open("a", encoding="utf-8") as handle:
+        handle.write(str(message) + "\n")
+        handle.flush()
+
 import faulthandler
 import json
 import math
-import os
-import sys
 import time
-from pathlib import Path
 
+_boot("script-start")
+_boot("before-import-FreeCAD")
 import FreeCAD as App
 _boot("import-FreeCAD-complete")
 import FreeCADGui as Gui
@@ -38,17 +50,6 @@ from freecad_tissu_contact_diagnostics import (
     _target_signature,
 )
 
-OUT = Path(os.environ.get("CLOTH_DIAGNOSTIC_DIR", "artifacts/tissu-contact-diagnostics"))
-OUT.mkdir(parents=True, exist_ok=True)
-_BOOT_LOG = OUT / "cube-ladder-bootstrap.log"
-
-def _boot(message):
-    with _BOOT_LOG.open("a", encoding="utf-8") as handle:
-        handle.write(str(message) + "\n")
-        handle.flush()
-
-_boot("script-start")
-_boot("before-import-FreeCAD")
 CHECKPOINTS = (0, 1, 5, 15, 45, 90)
 
 
