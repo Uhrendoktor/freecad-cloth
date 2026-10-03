@@ -802,7 +802,7 @@ jobs:
                   echo "tunic-audit-termination=process-exit exit_code=$APP_STATUS"
                 fi
                 echo "--- freecad process snapshot ---"
-                ps -efww | grep -E '(/opt/freecad|FreeCAD|freecad_tunic)' | grep -v grep || true
+                ps -efww | grep -E "(/opt/freecad|FreeCAD|freecad_tunic)" | grep -v grep || true
                 echo "--- Xvfb log ---"
                 cat /tmp/xvfb.log || true
                 echo "--- openbox log ---"
