@@ -27,7 +27,10 @@ def test_sewing_command_exposes_contextual_activation():
     state["active"] = True
     assert command.IsActive() is True
     assert command.Activated() == 17
-    assert command.GetResources() == {"MenuText": "Do Sewing", "ToolTip": "sewing tooltip"}
+    resources = command.GetResources()
+    assert resources["MenuText"] == "Do Sewing"
+    assert resources["ToolTip"] == "sewing tooltip"
+    assert resources["Pixmap"].endswith("clothsewing_dosewing.svg")
 
 
 def test_sewing_command_accepts_explicit_public_menu_text():
