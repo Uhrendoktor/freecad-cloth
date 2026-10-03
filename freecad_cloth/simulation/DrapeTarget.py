@@ -35,10 +35,25 @@ def collision_surface(target, deflection=1.0, thickness=0.0) -> CollisionSurface
     return surface_from_freecad(target, float(deflection), float(thickness))
 
 
+def _point_coordinates(point):
+    """Normalize iterable and FreeCAD-vector points to deterministic triples."""
+    try:
+        values = tuple(point)
+    except TypeError:
+        values = None
+    if values is not None and len(values) >= 3:
+        return tuple(round(float(c), 6) for c in values[:3])
+    return (
+        round(float(getattr(point, "x")), 6),
+        round(float(getattr(point, "y")), 6),
+        round(float(getattr(point, "z")), 6),
+    )
+
+
 def _digest_surface(vertices, triangles):
     """Return a deterministic digest of the complete collision topology."""
     payload = {
-        "vertices": [tuple(round(float(c), 6) for c in vertex) for vertex in vertices],
+        "vertices": [_point_coordinates(vertex) for vertex in vertices],
         "triangles": [tuple(int(i) for i in triangle) for triangle in triangles],
     }
     encoded = json.dumps(payload, separators=(",", ":"), ensure_ascii=True).encode("ascii")
