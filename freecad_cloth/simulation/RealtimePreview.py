@@ -98,7 +98,7 @@ class _Preview:
         self.scene = scene
         self.timer = QtCore.QTimer()
         self.timer.setTimerType(QtCore.Qt.PreciseTimer)
-        self.timer.setInterval(33)
+        self.timer.setInterval(16)
         self.timer.timeout.connect(self.tick)
         self.running = False
         self._saved = {

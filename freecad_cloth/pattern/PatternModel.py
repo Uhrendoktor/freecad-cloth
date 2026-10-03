@@ -1,6 +1,6 @@
 """Shared, FreeCAD-independent pattern value model.
 
-These dataclasses are canonical in-memory/headless representations. Persisted
+These dataclasses are canonical in-memory/headless representations; the persisted
 FreeCAD document objects remain the persistence authority and round-trip these
 values rather than being replaced by a second database/model.
 """
