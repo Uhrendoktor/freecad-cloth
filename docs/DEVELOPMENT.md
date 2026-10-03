@@ -50,20 +50,29 @@ A passing utility script is not a substitute for public workbench acceptance.
 
 ## Agent execution contract
 
-Before changing code: inspect current `main`, open PRs/issues, active release gates, and the canonical workflow. Re-cut implementation branches from current `main`.
+Before changing code, verify the target branch HEAD and read only the canonical documentation relevant to the requested change. Inspect a governing issue/PR only when its number is known or the task is explicitly about its work.
 
-Every implementation issue/PR should identify:
+Do not enumerate the repository's entire issue/PR history. Do not ingest all open issues or PRs because they are linked from a task. Closed issues, merged PRs, old branches, historical runs and artifact archives are not current context.
 
-- authoritative data model/API;
-- allowed files and dependencies;
-- focused tests and real-FreeCAD acceptance;
-- expected screenshots/artifacts;
-- explicit non-goals;
-- whether the canonical workflow must remain unchanged.
+When a task depends on a live coordination issue, use the current issue body as the coordination summary and inspect child issues only for the specific hypothesis being tested. Do not treat historical child-issue prose as implementation authority.
 
-Use one focused concern per PR. Do not revive stale branches or multiply workflows. Before merge: inspect the diff and changed files, verify terminal-green CI, merge, verify the merge, then delete the source branch.
+Re-cut implementation branches from the current target HEAD. Before merge: inspect the diff and changed files, verify terminal-green CI for the exact head, merge, verify the merge, then delete the source branch when permitted.
 
 When an issue is closed, use an explicit GitHub state reason (`completed`, `duplicate`, or `not_planned`) and record the reason in the issue conversation. Do not close an unresolved engineering problem merely to reduce queue size.
+
+## Task prompt contract
+
+For non-trivial agent work, keep the prompt bounded and explicit:
+
+1. Objective.
+2. Current evidence and exact commit/head.
+3. Authoritative source.
+4. Scope.
+5. Non-goals/frozen behavior.
+6. Acceptance evidence.
+7. Falsifier or stop condition.
+
+Do not paste large historical conversations or logs. Give a link/identifier and ask the agent to inspect only the relevant evidence.
 
 ## UI/UX contract
 
@@ -83,12 +92,10 @@ Simulation presents target validity before Run/Step. `Run` is primary, `Step` is
 
 ## Agent state
 
-Keep `AGENT_STATUS.md` and `TOOL_STATE.md` compact. They are the durable coordination records; do not create a new status document for every session.
+Keep `AGENT_STATUS.md` and `TOOL_STATE.md` compact. They are current-state summaries, not historical experiment logs.
 
 ## Simulation review evidence
 
 Simulation changes are governed by [SIMULATION_REVIEW.md](SIMULATION_REVIEW.md) and root issue #2492. Actual rendered screenshots are the primary human-review evidence; logs, metrics and artifact archives are secondary.
 
-For same-repository pull requests, the canonical tunic visual job publishes the PNGs to a per-PR evidence branch and posts them inline in the PR conversation. Fork pull requests deliberately do not receive write credentials, so the contributor must paste the actual PNGs into the governing PR/issue manually.
-
-A simulation change is not considered visually reviewed until a human records what the rendered geometry does and the screenshots correspond to the exact commit under discussion.
+A simulation change is not considered visually reviewed until a human records what the rendered geometry does and the screenshots correspond to the exact commit under discussion. Fork PRs do not receive write credentials for evidence publication; contributors must attach the rendered evidence manually in the governing PR/issue.
