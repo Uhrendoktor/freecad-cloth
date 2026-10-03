@@ -49,10 +49,10 @@ class ClothSystem:
         stitches: Iterable[DistanceConstraint] = (),
         pins: Iterable[int] = (),
     ):
-        self.particles = list(particles)
-        self.constraints = list(constraints)
-        self.stitches = []
-        self.pins = {}
+        self.particles: list[Particle] = list(particles)
+        self.constraints: list[DistanceConstraint] = list(constraints)
+        self.stitches: list[DistanceConstraint] = []
+        self.pins: dict[int, tuple[float, float, float]] = {}
         self.add_stitches(stitches)
         self.pin(pins)
 
@@ -85,7 +85,7 @@ class ClothSystem:
         def index(i: int, j: int) -> int:
             return j * nx + i
 
-        constraints = []
+        constraints: list[DistanceConstraint] = []
         for j in range(ny):
             for i in range(nx):
                 if i + 1 < nx:
@@ -110,7 +110,7 @@ class ClothSystem:
 
     def add_stitches(
         self,
-        pairs: Iterable[tuple[int, int]] | Iterable[DistanceConstraint],
+        pairs: Iterable[tuple[int, int] | DistanceConstraint],
         compliance: float = 0.0,
     ) -> None:
         """Append sewing constraints, deriving zero-rest length from particle positions."""
