@@ -10,7 +10,7 @@ The release target is a complete, public FreeCAD workflow, not a feature-count c
 | P1 | Repeatable garment-CAD workflow | curved authoring, Sketcher constraints, robust semantic repair, 1:N/M:N/free sewing, arrangement points, material/quality lifecycle, production 2D export |
 | Production | Manufacturing + fidelity | higher-fidelity avatar provider, richer targets, diagnostics, grading/nesting/validation, advanced construction, optional solver backends |
 
-## P0 release gates — COMPLETE FOR THE RELEASE-CLOSEOUT SCENARIO
+## P0 release-closeout gates — historical baseline
 
 1. Native Sketcher-backed PatternPieces can form a multi-piece garment.
 2. Semantic seams persist through recompute/save/reload and never silently retarget invalid topology.
