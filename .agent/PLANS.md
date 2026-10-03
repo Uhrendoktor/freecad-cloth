@@ -33,4 +33,4 @@ The result that would invalidate the approach.
 ## Result
 Final change, remaining risks and follow-up after verification.
 
-Keep the plan concrete and current. Do not turn it into a history log.
+Keep the plan concrete, current, and smaller than the governing issue/PR. Do not turn it into a history log.
