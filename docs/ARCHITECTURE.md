@@ -22,9 +22,9 @@ freecad_cloth/
 └── gui.py         # shared workbench registration base
 ```
 
-The only Python files intentionally outside this tree are the FreeCAD bootstrap files `Init.py` and `InitGui.py` at repository root. They delegate to package-owned implementations. There are no root-level Pattern/Sewing/Avatar/Drape/Simulation implementation shims.
+Domain implementation lives under `freecad_cloth/`. FreeCAD itself has two supported loader layouts: the classic root `Init.py`/`InitGui.py` pair and the modern namespaced `freecad/freecad_cloth/__init__.py` + `init_gui.py` adapters. They are alternate entry points into the same package, not competing implementations.
 
-Internal imports use the package namespace (`freecad_cloth.<domain>.<module>`). Historical top-level imports are migrated at their callers instead of being restored.
+Internal imports use the package namespace (`freecad_cloth.<domain>.<module>`). `freecad_cloth.sewing.SeamGraph` is the canonical seam graph; semantic edge-reference authority lives in `freecad_cloth.pattern.SeamReference`. `freecad_cloth.sewing.SeamReference` is compatibility-only. Historical top-level imports are migrated at their callers instead of being restored.
 
 ## Dependency direction
 

@@ -1,4 +1,9 @@
-"""FreeCAD boundary integration for simulation quality and fabric controls."""
+"""Canonical FreeCAD boundary integration for simulation quality and fabric controls.
+
+The ``V2`` filename is retained for compatibility with existing internal callers;
+it is the current runtime authority, not an experimental second implementation.
+Do not create a ``V3``/parallel runtime module.
+"""
 from math import ceil
 import weakref
 
