@@ -2,7 +2,7 @@
 import ast
 from pathlib import Path
 
-from InitGui import SEWING_COMMAND_GROUPS, SEWING_TOOLBAR_COMMANDS, ClothSewingWorkbench
+from freecad_cloth.sewing.workbench import COMMAND_GROUPS as SEWING_COMMAND_GROUPS, TOOLBAR_COMMANDS as SEWING_TOOLBAR_COMMANDS, ClothSewingWorkbench
 from freecad_cloth.gui import ClothWorkbenchBase
 from freecad_cloth.sewing.workbench import _validate_sewing_command_groups
 
