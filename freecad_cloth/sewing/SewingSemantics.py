@@ -25,9 +25,9 @@ class SeamConstraint:
     ) -> None:
         self._seam = Seam(
             piece_a=piece_a,
-            edge_a=edge_a,
+            edge_a=self._legacy_edge(edge_a),
             piece_b=piece_b,
-            edge_b=edge_b,
+            edge_b=self._legacy_edge(edge_b),
             id=id,
             reversed_b=bool(reversed_b),
         )
