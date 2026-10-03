@@ -129,7 +129,8 @@ jobs:
           CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g \
             -e PYTHONPATH=/workspace -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
-              python3 -c "import triangle; print(triangle.__file__)" >/tmp/triangle-install.log 2>&1
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              python3 -c "import triangle; print(triangle.__file__)" >>/tmp/triangle-install.log 2>&1
               test "$(python3 -c "import sys; print(sys.version_info[:2])")" = "(3, 12)"
               python3 -m compileall -q .
               python3 -m pytest --version
