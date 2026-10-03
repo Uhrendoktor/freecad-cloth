@@ -166,7 +166,7 @@ jobs:
             -e CLOTH_TISSU_SUBSTEPS=1 -e CLOTH_TISSU_COLLISION_MODE=mesh \
             -e CLOTH_TISSU_COLLISION_TRIANGLES=2048 \
             -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/tissu-contact-diagnostics \
-            -v "$PWD:/workspace" -w /workspace "$FREECAD_TUNISU_IMAGE" bash -lc '
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_TUNIC_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/tissu-contact-diagnostics
@@ -208,7 +208,7 @@ jobs:
             -e CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0 \
             -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/tissu-contact-diagnostics \
             -e CLOTH_HEAD_SHA="$CLOTH_HEAD_SHA" \
-            -v "$PWD:/workspace" -w /workspace "$FREECAD_TUNISU_IMAGE" bash -lc '
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_TUNIC_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/tissu-contact-diagnostics
@@ -274,7 +274,7 @@ jobs:
             -e CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0 \
             -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/tissu-contact-diagnostics \
             -e CLOTH_HEAD_SHA="$CLOTH_HEAD_SHA" \
-            -v "$PWD:/workspace" -w /workspace "$FREECAD_TUNISU_IMAGE" bash -lc '
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_TUNIC_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/tissu-contact-diagnostics
@@ -349,7 +349,7 @@ jobs:
       - name: Capture provenance
         run: |
           set -euo pipefail
-          docker run --rm "$FREECAD_TUNISU_IMAGE" bash -lc "cat /opt/tissu-provenance.txt" > artifacts/tissu-provenance.txt
+          docker run --rm "$FREECAD_TUNIC_IMAGE" bash -lc "cat /opt/tissu-provenance.txt" > artifacts/tissu-provenance.txt
           test -s artifacts/tissu-provenance.txt
           grep -q '^tissu-source-commit=c28a3c7504ddc782bef844ab5bd4cd0bde14b628$' artifacts/tissu-provenance.txt
           grep -q '^tissu-contact-fix-sha256=[0-9a-f]\{64\}$' artifacts/tissu-provenance.txt
@@ -794,9 +794,9 @@ jobs:
           if docker pull "$image_ref"; then
             docker tag "$image_ref" "$FREECAD_TUNIC_IMAGE"
             echo "tissu-image=published-cache-hit"
-          elif [ "$needs_build" -eq 1 ] || { [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; }; then
+          elif [ "$needs_build" -eq 1 ] || [ "$GITHUB_EVENT_NAME" = "pull_request" ] || { [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; } || { [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; }; then
             docker build --pull --progress=plain -t "$image_ref" -t "$FREECAD_TUNIC_IMAGE" -f docker/freecad-ci/Dockerfile .
-            if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            if { [ "$GITHUB_EVENT_NAME" = "push" ] || [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; } && [ "$GITHUB_REF" = "refs/heads/main" ]; then
               docker push "$image_ref"
               echo "tissu-image=rebuilt-and-published"
             else
@@ -847,7 +847,7 @@ jobs:
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_TUNIC_IMAGE" bash -lc '
               set -u -o pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              : > /tmp/triangle-install.log
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated /workspace/artifacts/tunic-audit
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
@@ -1131,7 +1131,7 @@ jobs:
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_TISSU_IMAGE" bash -lc '
               set -euo pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              : > /tmp/triangle-install.log
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
