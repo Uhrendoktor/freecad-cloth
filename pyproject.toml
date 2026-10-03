@@ -59,7 +59,6 @@ select = [
   "I",
   "B",
   "SIM",
-  "RUF100",
   "PGH003",
 ]
 ignore = ["E501", "E402"]
