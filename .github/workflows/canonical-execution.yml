@@ -173,7 +173,7 @@ jobs:
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 10); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.1; done
+              for i in $(seq 1 100); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.05; done
               xdpyinfo -display :99 >/dev/null 2>&1
               rm -f /workspace/artifacts/tissu-contact-diagnostics/app-run.log
               setsid /opt/freecad/AppRun /workspace/tests/freecad_tissu_contact_diagnostics.py > /workspace/artifacts/tissu-contact-diagnostics/app-run.log 2>&1 &
@@ -215,7 +215,7 @@ jobs:
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 10); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.1; done
+              for i in $(seq 1 100); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.05; done
               xdpyinfo -display :99 >/dev/null 2>&1
               PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=3s 180s /opt/freecad/AppRun /workspace/tests/freecad_tissu_cube_ladder.py 2>&1 | tee /workspace/artifacts/tissu-contact-diagnostics/cube-ladder-run.log
             '
@@ -281,7 +281,7 @@ jobs:
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 10); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.1; done
+              for i in $(seq 1 100); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.05; done
               xdpyinfo -display :99 >/dev/null 2>&1
               PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=3s 180s /opt/freecad/AppRun /workspace/tests/freecad_tissu_avatar_ladder.py 2>&1 | tee /workspace/artifacts/tissu-contact-diagnostics/avatar-ladder-run.log
             '
@@ -539,7 +539,7 @@ jobs:
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 10); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.1; done
+              for i in $(seq 1 100); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.05; done
               xdpyinfo -display :99 >/dev/null 2>&1
               timeout --signal=TERM --kill-after=3s 30s /opt/freecad/AppRun /workspace/tests/freecad_sewing_creation_smoke.py
               test -s /workspace/artifacts/sewing-creation-smoke.log
@@ -638,7 +638,7 @@ jobs:
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 10); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.1; done
+              for i in $(seq 1 100); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.05; done
               xdpyinfo -display :99 >/dev/null 2>&1
               timeout --signal=TERM --kill-after=3s 30s /opt/freecad/AppRun /workspace/tests/freecad_sketcher_acceptance.py > /workspace/artifacts/sketcher-acceptance.log 2>&1
               grep -q "native Sketcher acceptance passed" /workspace/artifacts/sketcher-acceptance.log
@@ -711,7 +711,7 @@ jobs:
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 10); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.1; done
+              for i in $(seq 1 100); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.05; done
               xdpyinfo -display :99 >/dev/null 2>&1
               timeout --signal=TERM --kill-after=3s 30s /opt/freecad/AppRun /workspace/tests/freecad_pattern_export_smoke.py
               test -s /workspace/artifacts/pattern-production-export.log
@@ -854,7 +854,7 @@ jobs:
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 10); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.1; done
+              for i in $(seq 1 100); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.05; done
               xdpyinfo -display :99 >/dev/null 2>&1
 
               app_log=/workspace/artifacts/tunic-audit/freecad-tunic-audit.log
@@ -871,12 +871,12 @@ jobs:
               setsid /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py > "$app_log" 2>&1 &
               APP_PID=$!
               TIMED_OUT=0
-              APP_DEADLINE=$((SECONDS + 60))
-              echo "tunic-audit-supervisor=started pid=$APP_PID deadline_seconds=60"
+              APP_DEADLINE=$((SECONDS + 45))
+              echo "tunic-audit-supervisor=started pid=$APP_PID deadline_seconds=45"
               while kill -0 "$APP_PID" 2>/dev/null; do
                 if [ "$SECONDS" -ge "$APP_DEADLINE" ]; then
                   TIMED_OUT=1
-                  echo "tunic-audit-supervisor=timeout pid=$APP_PID elapsed_seconds=120" | tee -a "$app_log"
+                  echo "tunic-audit-supervisor=timeout pid=$APP_PID elapsed_seconds=45" | tee -a "$app_log"
                   kill -TERM -- "-$APP_PID" 2>/dev/null || kill -TERM "$APP_PID" 2>/dev/null || true
                   sleep 5
                   kill -KILL -- "-$APP_PID" 2>/dev/null || kill -KILL "$APP_PID" 2>/dev/null || true
@@ -1161,7 +1161,7 @@ jobs:
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 10); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.1; done
+              for i in $(seq 1 100); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.05; done
               xdpyinfo -display :99 >/dev/null 2>&1
               timeout --signal=TERM --kill-after=3s 15s /opt/freecad/AppRun /workspace/tests/freecad_avatar_screenshot.py
               timeout --signal=TERM --kill-after=3s 90s /opt/freecad/AppRun /workspace/tests/freecad_simulation_turntable.py
@@ -1330,7 +1330,7 @@ jobs:
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 10); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.1; done
+              for i in $(seq 1 100); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.05; done
               xdpyinfo -display :99 >/dev/null 2>&1
               timeout --signal=TERM --kill-after=3s 30s /opt/freecad/AppRun -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth /workspace/tests/freecad_visual_examples.py
             '
@@ -1534,7 +1534,7 @@ jobs:
             Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
             openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
             trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-            for i in $(seq 1 10); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.1; done
+            for i in $(seq 1 100); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.05; done
             xdpyinfo -display :99 >/dev/null 2>&1
             for wb in Pattern Sewing Simulation; do
               echo "=== benchmark: $wb ==="
