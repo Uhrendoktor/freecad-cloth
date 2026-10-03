@@ -408,8 +408,7 @@ def main():
             )
         )
         log(
-            "blanket-backend-contract=passed requested={} active={}".format(
-                os.environ.get("CLOTH_SIMULATION_BACKEND", "auto"),
+            "blanket-backend-contract=passed active={}".format(
                 getattr(scene.Proxy._base_or_restore().backend, "name", "unknown"),
             )
         )
