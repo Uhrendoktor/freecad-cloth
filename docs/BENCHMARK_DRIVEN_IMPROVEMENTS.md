@@ -1,7 +1,8 @@
 # Benchmark-driven workbench improvements
 
-Issue: #478  
-Benchmark source: canonical workbench benchmark artifact from run 221 (7-sample medians).
+> Historical analysis: this document records the benchmark study associated with closed issue #478 and run 221. It is not a live task list or current performance baseline. Re-run the benchmark on the current main before using any number for a decision.
+
+
 
 ## Baseline
 
@@ -13,9 +14,9 @@ Benchmark source: canonical workbench benchmark artifact from run 221 (7-sample 
 
 The measured initialization cost is below 0.4 ms for every workbench. It is therefore not a useful optimization target at this stage.
 
-## Prioritized improvements
+## Historical improvement proposals
 
-### 1. Protect the Sewing public command surface (P1)
+### 1. Protect the Sewing public command surface
 
 **Measured signal:** Sewing exposes 32 registered commands with only 12 related test files, while Simulation has 13 commands with 28 related test files. Sewing therefore has the thinnest test-to-command coverage of the three workbenches.
 
@@ -25,7 +26,7 @@ The measured initialization cost is below 0.4 ms for every workbench. It is ther
 
 **Regression boundary:** this checks the public command contract only; it does not execute FreeCAD GUI commands or alter workbench behavior.
 
-### 2. Keep Sewing discoverability progressive (P1)
+### 2. Keep Sewing discoverability progressive
 
 **Measured signal:** 32 registered commands are concentrated in one workbench, more than twice Simulation's 13-command surface.
 
@@ -35,7 +36,7 @@ The measured initialization cost is below 0.4 ms for every workbench. It is ther
 
 **Regression boundary:** menu/toolbar composition remains a UI-contract test and does not constrain internal semantic APIs.
 
-### 3. Avoid speculative startup micro-optimization (P2)
+### 3. Avoid speculative startup micro-optimization
 
 **Measured signal:** Pattern 0.327 ms, Sewing 0.364 ms, Simulation 0.343 ms median initialization over seven samples.
 

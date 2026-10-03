@@ -60,23 +60,22 @@ state. Visual geometry and collision geometry should be allowed to differ.
 Changing a provider, pose, or collision geometry must invalidate target-dependent
 derived simulation state deterministically.
 
-## Feature sequencing
+## Conceptual maturity sequencing
+
+The stages below are a design taxonomy, not an implementation checklist. Do not infer whether an item is implemented from its column or wording; verify the current code, tests, and live state records.
+
 
 ### Prototype
 
-- Keep the existing Pattern → Sewing → Arrange/Fit → Simulate pipeline stable.
-- Finish the public end-to-end FreeCAD/Xvfb fixture.
-- Finish target-authoritative collision and invalidation acceptance.
-- Finish material/quality controls.
-- Establish package boundaries without changing the FreeCAD entry points.
+- Establish native Pattern/Sewing/DrapeTarget boundaries.
+- Establish deterministic arrangement and a reference simulation path.
+- Establish save/reload and stale-state invalidation semantics.
 
 ### MVP
 
-- Make the complete multi-piece garment workflow repeatable.
-- Add measurement-driven mannequin controls and generic FreeCAD target selection.
-- Add fit inspection and basic measurement tools.
-- Complete production pattern export and validation.
-- Add clear material presets and reproducible simulation quality modes.
+- Harden semantic references and topology repair.
+- Support richer sewing relationships and fitting controls.
+- Provide reproducible quality/material modes and production-oriented 2D output.
 
 ### Production
 

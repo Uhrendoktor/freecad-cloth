@@ -1,6 +1,6 @@
 """Compatibility adapters for the canonical :mod:`PatternModel` seam.
 
-``PatternModel.Seam`` is the authoritative semantic representation. This
+``PatternModel.Seam`` is the canonical immutable in-memory/value representation; the persisted FreeCAD Seam object is the document authority. This
 module keeps the older ``SeamConstraint`` API available while delegating seam
 identity, endpoints, ranges, and reversal to the canonical model.
 """

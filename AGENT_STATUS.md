@@ -5,13 +5,12 @@ Compact live supervisor/recovery record. Do not use this file as an experiment l
 ## Repository
 - Repository: Uhrendoktor/freecad-cloth
 - Default branch: main
-- Current main HEAD at last audit: 65e271a8bd2bd2ca5d8a9051c794808d8d59f5b9
++ Current main HEAD at last audit: 3723ff3df8841c76e73156f01b4ea26964d86ccb
 - Canonical workflow: .github/workflows/canonical-execution.yml; exactly one workflow.
 - Root coordination ledger: #2492.
 - No production Tissu contact repair is merged.
 
 ## Current open diagnostic/research lanes
-- #2578 — native-Sketcher tunic audit diagnostics for GUI/process failures.
 - #2577 — independent human challenge of a proposed Tissu substep production remedy.
 - #2576 — bounded Tissu substep probe (16/20/32).
 - #2575 — avatar collision coarsening/coverage audit.

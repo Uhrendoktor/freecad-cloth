@@ -27,3 +27,27 @@ def test_planning_and_live_state_documents_are_explicitly_separated():
     assert "Issue/PR history is task-local evidence" in docs_readme
     assert "historical baseline" in roadmap
     assert "not a current implementation or release-status record" in research
+
+
+
+def test_agent_instructions_use_live_ledger_pointer_instead_of_hardcoding_one_issue():
+    text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    assert "current coordination ledger named in" in text
+    assert "currently #2492" in text
+
+
+def test_architecture_distinguishes_persisted_authority_from_headless_value_types():
+    architecture = (ROOT / "docs" / "ARCHITECTURE.md").read_text(encoding="utf-8")
+    model = (ROOT / "freecad_cloth" / "pattern" / "PatternModel.py").read_text(encoding="utf-8")
+    assert "persisted FreeCAD Seam object is the document-level source of truth" in architecture
+    assert "canonical immutable in-memory/value representation" in architecture
+    assert "persisted" in model and "in-memory/headless" in model
+
+
+def test_historical_planning_docs_do_not_present_closed_issues_as_active_work():
+    feature_matrix = (ROOT / "docs" / "FEATURE_MATRIX.md").read_text(encoding="utf-8")
+    library = (ROOT / "docs" / "LIBRARY_EVALUATION.md").read_text(encoding="utf-8")
+    benchmark = (ROOT / "docs" / "BENCHMARK_DRIVEN_IMPROVEMENTS.md").read_text(encoding="utf-8")
+    assert "not an implementation checklist" in feature_matrix
+    assert "Those issues are closed" in library
+    assert "not a live task list" in benchmark

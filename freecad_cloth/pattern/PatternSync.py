@@ -1,6 +1,6 @@
-"""Authoritative source snapshots for the Pattern -> Sewing -> Simulation flow.
+"""Canonical source snapshots for the Pattern -> Sewing -> Simulation flow.
 
-The semantic model remains in :mod:`PatternModel`/:mod:`SeamGraph`.  This module
+The canonical headless value model is in :mod:`PatternModel`; :mod:`SeamGraph` is the processing graph projected from those values.  This module
 contains only immutable, derived synchronization metadata.  UI/document objects
 can retain a snapshot while a simulation is running without creating another
 mutable copy of pattern or seam semantics.

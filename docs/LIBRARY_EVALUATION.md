@@ -6,7 +6,7 @@ Supervisor evaluation for `freecad-cloth`. External libraries are adapters/tools
 
 The project-wide supported Python baseline is **3.12 or newer**. This is reflected in packaging and the canonical FreeCAD CI runtime so optional Tissu integration can execute inside the same FreeCAD Python environment. Current upstream Tissu documentation requires Python >=3.12.
 
-## Ranked candidates
+## Candidate matrix (research reference)
 
 | Candidate | Capability | Proposed use | License / risk | Decision |
 |---|---|---|---|---|
@@ -36,11 +36,9 @@ The project-wide supported Python baseline is **3.12 or newer**. This is reflect
 9. Run the backend inside the same Python 3.12 FreeCAD runtime used by CI before calling it runtime-compatible.
 10. Keep Tissu optional until parity and packaging are demonstrated.
 
-## First low-risk implementation targets
+## Historical research tasks
 
-- **#480**: DXF export adapter using `ezdxf` behind the canonical export IR.
-- **#481**: `trimesh` validation/proximity adapter for mesh sanity and CPU-vs-Tissu metrics.
-- **#479**: umbrella research/benchmark task for Tissu and the broader library matrix.
+The library investigation was tracked through issues #479–#481. Those issues are closed; the entries are retained only as historical traceability. They are not current implementation work items.
 
 ## Architecture rules
 

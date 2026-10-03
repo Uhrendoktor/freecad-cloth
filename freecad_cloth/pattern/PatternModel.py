@@ -1,4 +1,9 @@
-"""Shared, FreeCAD-independent pattern data model."""
+"""Shared, FreeCAD-independent pattern value model.
+
+These dataclasses are canonical in-memory/headless representations. Persisted
+FreeCAD document objects remain the persistence authority and round-trip these
+values rather than being replaced by a second database/model.
+"""
 from dataclasses import dataclass, field
 from typing import List, Tuple, Union
 
@@ -29,7 +34,7 @@ class PatternPiece:
 
 @dataclass(frozen=True)
 class Seam:
-    """The authoritative semantic sewing contract.
+    """Canonical immutable in-memory sewing contract.
 
     Edge references may be integer outline indices or stable semantic edge
     identifiers supplied by an adapter. Alignment, stitch grouping, reversal,
