@@ -26,11 +26,11 @@ def main():
         init_gui = ROOT / "InitGui.py"
         exec(compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"), globals(), globals())
         Gui.updateGui()
-        from freecad_cloth.simulation.RealtimePreview import _prepare, _select_preview_backend
+        from freecad_cloth.simulation.RealtimePreview import _prepare
         from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
         scene = create_quality_simulation_scene(doc)
         _prepare(scene)
-        backend = _select_preview_backend(scene)
+        backend = scene.Proxy._base_or_restore().backend
         # _prepare builds the realtime-quality system; avoid an extra GUI panel entirely.
         view = Gui.activeDocument().activeView() if Gui.activeDocument() else None
         times = []
