@@ -23,7 +23,7 @@ def _write_png(path: Path, width: int, height: int, pixels: list[tuple[int, int,
     rows = []
     for row_start in range(0, len(pixels), width):
         row = pixels[row_start : row_start + width]
-        rows.append(b"\\x00" + b"".join(bytes(rgb) for rgb in row))
+        rows.append(b"\x00" + b"".join(bytes(rgb) for rgb in row))
     payload = zlib.compress(b"".join(rows))
     ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
     path.write_bytes(
