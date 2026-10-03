@@ -187,7 +187,7 @@ def test_tunic_visual_diagnostics_are_authoritative_after_persistence():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     metrics_write = source.index("json.dump(payload, handle, indent=2, sort_keys=True)")
     gate = source.index('assert_drape_diagnostics(json.load(handle).get("panels", ()))')
-    screenshot = source.index('"cloth-simulation-draped-%s.png" % direction')
+    screenshot = source.index('f"cloth-simulation-draped-{direction}.png"')
     assert metrics_write < screenshot < gate
 
 
