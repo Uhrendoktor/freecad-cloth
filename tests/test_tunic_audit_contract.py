@@ -182,6 +182,7 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     assert "tunic-simulation-start" in audit
     assert "realtime-preview=passed backend=tissu" in audit
 
+
 def test_tunic_visual_diagnostics_are_authoritative_after_persistence():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     metrics_write = source.index("json.dump(payload, handle, indent=2, sort_keys=True)")
