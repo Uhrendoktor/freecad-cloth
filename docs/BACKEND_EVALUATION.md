@@ -6,9 +6,12 @@
 
 ## Backend contract
 
-`ClothSimulationBackend` is the only solver boundary. PatternIR/SewingGraph/SimulationScene/DrapeTarget remain authoritative. Backend implementations may be optional and must not mutate authoritative FreeCAD geometry.
+`ClothSimulationBackend` is the only solver boundary. PatternIR/SewingGraph/ClothSystem/DrapeTarget remain authoritative. Backend implementations may be optional and must not mutate authoritative FreeCAD geometry.
 
-## Candidate ladder
+## Runtime policy
+
+Tissu is the sole runtime solver. Keep `ClothBackend` as the application boundary and use `ClothSolver` only for deterministic solver-input construction. A new native backend is a future replacement candidate only after profiling and contract-level benchmark evidence.
+
 
 1. **CPU XPBD reference** — release correctness baseline and deterministic comparison target.
 2. **Tissu** — serious cloth-specific optional backend. Upstream currently exposes XPBD distance/bending/pin/stitch constraints, mesh/kinematic colliders and self-collision, plus a Python package. Its repository currently requires Python >=3.12. Tissu is therefore technically compatible with the project runtime baseline, but remains sandboxed until constraint/collision parity and packaging are demonstrated. See https://github.com/evanrock520-ciencias/Tissu.
