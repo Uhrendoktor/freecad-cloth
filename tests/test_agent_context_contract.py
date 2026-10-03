@@ -110,3 +110,9 @@ def test_dead_screenshot_runner_and_stack_inspection_are_removed():
     assert "freecad_screenshot.py" not in pattern_commands
     assert "inspect.stack" not in sitecustomize
     assert "freecad_screenshot.py" not in sitecustomize
+
+def test_tissu_ci_handoff_is_fail_closed_for_heterogeneous_stitch_compliance():
+    source = (ROOT / "sitecustomize.py").read_text(encoding="utf-8")
+    assert "stitch_compliances" in source
+    assert "cannot preserve heterogeneous stitch compliance" in source
+    assert "stitch_compliance=stitch_compliances[0] if stitch_compliances else 0.0" in source
