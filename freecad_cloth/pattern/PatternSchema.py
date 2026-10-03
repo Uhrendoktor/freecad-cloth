@@ -6,7 +6,7 @@ import json
 from dataclasses import asdict, dataclass, field
 from typing import cast
 
-type JSONValue = None | bool | int | float | str | list[JSONValue] | dict[str, JSONValue]
+type JSONValue = object
 type JSONObject = dict[str, JSONValue]
 type JSONRecord = dict[str, JSONValue]
 
