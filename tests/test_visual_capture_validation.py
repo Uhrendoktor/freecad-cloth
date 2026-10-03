@@ -27,7 +27,7 @@ def _write_png(path: Path, width: int, height: int, pixels: list[tuple[int, int,
     payload = zlib.compress(b"".join(rows))
     ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
     path.write_bytes(
-        b"\\x89PNG\\r\\n\\x1a\\n"
+        b"\x89PNG\r\n\x1a\n"
         + _chunk(b"IHDR", ihdr)
         + _chunk(b"IDAT", payload)
         + _chunk(b"IEND", b"")
