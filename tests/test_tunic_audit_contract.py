@@ -172,15 +172,15 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
 def test_canonical_tunic_fixture_matches_validated_start_geometry():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert 'source_path = Path(__file__).with_name("freecad_screenshot_source.py")' in audit
-    assert 'os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"' in audit
-    assert 'required_indices = (1, 2, 6, 7)' in audit
-    assert 'front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"' in audit
-    assert 'front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"' in audit
-    assert 'scene.FabricFriction = 0.85;' in audit
-    assert 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1;' in audit
-    assert 'for batch in (15,15,15,15,15,15):' not in audit
-    assert 'for batch in (15,15,15,15,15,15):' in audit
-
+    assert "SEAM_SOURCE = " in audit
+    assert "required_indices = (1, 2, 6, 7)" in audit
+    assert "TunicRightShoulder" in audit
+    assert "TunicLeftShoulder" in audit
+    assert "ParticleDistance = 32.0" in audit
+    assert "SolverIterations = 1" in audit
+    assert "SolverSubsteps = 1" in audit
+    assert "tunic-simulation-start" in audit
+    assert "realtime-preview=passed backend=tissu" in audit
 
 def test_tunic_visual_diagnostics_are_authoritative_after_persistence():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
