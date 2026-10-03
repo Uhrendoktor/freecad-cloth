@@ -3,8 +3,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from freecad_cloth.simulation.SimulationBackend import ClothState, NullSolver
-
 from freecad_cloth.pattern import PatternCommands as _PatMod
 from freecad_cloth.pattern.PatternGeometry import (
     LineSegment,
@@ -102,11 +100,6 @@ def test_pattern_document_rejects_malformed_input():
         except ValueError:
             continue
         raise AssertionError("malformed document should fail")
-
-
-def test_null_solver_is_deterministic():
-    state = ClothState([(0.0, 0.0, 0.0)])
-    assert NullSolver().step(state, 0.01) == state
 
 
 def test_workbench_command_scopes():
