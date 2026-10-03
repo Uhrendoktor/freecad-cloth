@@ -1,6 +1,6 @@
 """FreeCAD-independent sewing-piece pairing and assembly metadata.
 
-``PatternModel.Seam`` is the semantic source of truth.  ``SewingPair`` is a
+The persisted FreeCAD Seam object is the document source of truth; ``PatternModel.Seam`` is its canonical immutable in-memory/value representation.  ``SewingPair`` is a
 user-facing adapter that references that canonical seam and stores only
 presentation-level pairing metadata.
 """
