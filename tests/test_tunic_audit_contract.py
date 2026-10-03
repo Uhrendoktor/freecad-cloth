@@ -100,7 +100,6 @@ def test_simulation_proxy_serializes_only_rebuildable_metadata():
 
 def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
-    workflow = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     canonical = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     yaml = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
     assert "ParticleDistance = 32.0" in source
