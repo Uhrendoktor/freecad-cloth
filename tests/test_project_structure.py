@@ -129,13 +129,20 @@ def test_workflow_actions_use_immutable_release_pins():
 
     root = Path(__file__).resolve().parents[1]
     workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
-    pins = dict(re.findall(r"uses: (actions/(?:checkout|upload-artifact|download-artifact)|docker/login-action)@([0-9a-f]{40}) # (v[0-9.]+)", workflow))
-    assert pins == {
-        "actions/checkout": "3d3c42e5aac5ba805825da76410c181273ba90b1",
-        "actions/upload-artifact": "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
-        "actions/download-artifact": "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
-        "docker/login-action": "dbcb813823bdd20940b903addbd779551569679f",
+    references = re.findall(
+        r"uses: (actions/(?:checkout|upload-artifact|download-artifact)|docker/login-action)@([0-9a-f]{40}) # (v[0-9.]+)",
+        workflow,
+    )
+    expected = {
+        "actions/checkout": ("3d3c42e5aac5ba805825da76410c181273ba90b1", "v7.0.1"),
+        "actions/upload-artifact": ("043fb46d1a93c77aae656e7c1c64a875d1fc6a0a", "v7.0.1"),
+        "actions/download-artifact": ("3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c", "v8.0.1"),
+        "docker/login-action": ("dbcb813823bdd20940b903addbd779551569679f", "v4.6.0"),
     }
+    found = {}
+    for action, sha, version in references:
+        found.setdefault(action, set()).add((sha, version))
+    assert {action: next(iter(values)) for action, values in found.items()} == expected
 
 def test_modern_loader_does_not_mutate_sys_path():
     root = Path(__file__).resolve().parents[1]
