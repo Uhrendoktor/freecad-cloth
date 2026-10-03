@@ -139,7 +139,7 @@ def checkpoint_metrics(backend, pins, initial_pins, target_vertices, triangles, 
 def run():
     signal.signal(signal.SIGALRM, _timeout_handler)
     signal.alarm(TIMEOUT_SECONDS)
-    backend_requested = os.environ.get("CLOTH_SIMULATION_BACKEND", "auto")
+    backend_requested = "tissu"
     collision_mode = os.environ.get("CLOTH_TISSU_COLLISION_MODE", "mesh")
     log("backend=%s collision=%s timeout=%ss" % (backend_requested, collision_mode, TIMEOUT_SECONDS))
     doc = None
