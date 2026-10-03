@@ -218,6 +218,42 @@ def _seam_coherence(panels, seam_records, proxy=None):
         "method": "solver-stitch-pairs",
     }
 
+def _tunic_adherence_metrics(vertices, target_vertices, hem_z, shoulder_z, particle_distance):
+    import numpy as np
+    points = np.asarray(vertices, dtype=np.float64)
+    target = np.asarray(target_vertices, dtype=np.float64)
+    if points.size == 0 or target.size == 0:
+        return {
+            "near_target_fraction": 0.0,
+            "median_target_vertex_distance_mm": None,
+            "torso_coverage_fraction": 0.0,
+            "centroid_z": None,
+            "centroid_z_relative_to_hem": None,
+        }
+    distances = []
+    chunk_size = 256
+    for start in range(0, len(points), chunk_size):
+        chunk = points[start:start + chunk_size]
+        delta = chunk[:, None, :] - target[None, :, :]
+        squared = np.einsum("ijk,ijk->ij", delta, delta, optimize=True)
+        distances.extend(np.sqrt(np.min(squared, axis=1)).tolist())
+    distances_array = np.asarray(distances, dtype=np.float64)
+    height = max(1.0, float(shoulder_z) - float(hem_z))
+    near_band = max(64.0, 2.0 * float(particle_distance))
+    torso_low = float(hem_z) - 0.25 * height
+    torso_high = float(shoulder_z) + 0.15 * height
+    centroid_z = float(np.mean(points[:, 2]))
+    return {
+        "near_target_fraction": float(np.mean(distances_array <= near_band)),
+        "near_target_band_mm": near_band,
+        "median_target_vertex_distance_mm": float(np.median(distances_array)),
+        "torso_coverage_fraction": float(np.mean((points[:, 2] >= torso_low) & (points[:, 2] <= torso_high))),
+        "torso_band_z": [torso_low, torso_high],
+        "centroid_z": centroid_z,
+        "centroid_z_relative_to_hem": (centroid_z - float(hem_z)) / height,
+    }
+
+
 def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=None, seam_records=(), proxy=None):
     from freecad_cloth.common.DrapeFailureClassifier import classify_drape, summarize_classification
     from freecad_cloth.common.DrapeVisualSanity import inspect_drape, summarize
@@ -237,7 +273,18 @@ def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=No
         metrics = inspect_drape(vertices, avatar_vertices, target_height=target_height, target_width=target_width)
         mesh_result = validate_mesh(vertices, triangles, prefer_trimesh=False)
         classification = classify_drape(metrics, components=mesh_result.components, target_width=target_width)
-        record = {"panel": str(getattr(panel, "Label", getattr(panel, "Name", ""))), **summarize(metrics)}
+        adherence = _tunic_adherence_metrics(
+            vertices,
+            avatar_vertices,
+            hem_z,
+            shoulder_z,
+            getattr(proxy, "ParticleDistance", 32.0) if proxy is not None else 32.0,
+        )
+        record = {
+            "panel": str(getattr(panel, "Label", getattr(panel, "Name", ""))),
+            **summarize(metrics),
+            "tunic_adherence": adherence,
+        }
         diagnostics = []
         if not metrics.finite:
             raise RuntimeError("draped panel %s contains non-finite geometry" % record["panel"])
@@ -257,6 +304,16 @@ def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=No
             diagnostics.append("below-hem-candidate")
         if float(metrics.centroid[2]) > float(shoulder_z) + upper_margin:
             diagnostics.append("centroid-above-shoulder-candidate")
+        if (
+            adherence["centroid_z"] is not None
+            and adherence["centroid_z"] < float(hem_z) - 0.50 * max(1.0, float(shoulder_z) - float(hem_z))
+            and adherence["torso_coverage_fraction"] < 0.25
+        ):
+            diagnostics.append("fallen-below-avatar-candidate")
+        if adherence["torso_coverage_fraction"] < 0.25:
+            diagnostics.append("torso-coverage-candidate")
+        if adherence["near_target_fraction"] < 0.05:
+            diagnostics.append("avatar-adherence-candidate")
         record["connected_components"] = int(mesh_result.components)
         record["failure_classification"] = summarize_classification(classification)
         record["diagnostics"] = diagnostics
