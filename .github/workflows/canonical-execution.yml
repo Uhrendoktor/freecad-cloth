@@ -46,6 +46,46 @@ permissions:
   packages: read
 
 jobs:
+  python_style_migration:
+    name: One-time Ruff source normalization
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/architecture-tooling-docs' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install Ruff
+        run: python -m pip install --disable-pip-version-check ruff==0.16.10
+      - name: Apply Ruff fixes and formatting
+        run: |
+          set -euo pipefail
+          ruff check --fix --unsafe-fixes . || true
+          ruff format .
+      - name: Commit normalized Python sources
+        run: |
+          set -euo pipefail
+          if git log -1 --format=%s | grep -Fq '[stylebot]'; then
+            echo 'Ruff migration commit already present.'
+            exit 0
+          fi
+          if git diff --quiet; then
+            echo 'Ruff produced no source changes.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A -- '*.py'
+          git commit -m 'style: normalize Python sources [stylebot]'
+          git push origin HEAD:agent/architecture-tooling-docs
+  local_runner_readiness:
+    name: Selected runner readiness
   local_runner_readiness:
     name: Selected runner readiness
     if: ${{ github.event_name != 'schedule' }}
