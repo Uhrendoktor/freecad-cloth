@@ -175,11 +175,14 @@ def render_motion(
         )
         frame_min_z = min(float(vertex[2]) for vertex in frame_vertices)
         frame_clearance = frame_min_z - float(cube_top_z)
-        if frame_drape.state == "structurally-plausible" and frame_clearance <= 35.0:
-            if best_drape is None:
-                best_drape = frame_drape
-                best_drape_clearance = frame_clearance
-                best_drape_step = target_step
+        if (
+            frame_drape.state == "structurally-plausible"
+            and frame_clearance <= 35.0
+            and best_drape is None
+        ):
+            best_drape = frame_drape
+            best_drape_clearance = frame_clearance
+            best_drape_step = target_step
                 log(
                     "blanket-drape-gate=passed step=%d clearance_mm=%.2f vertical_ratio=%.3f lateral_ratio=%.3f"
                     % (
