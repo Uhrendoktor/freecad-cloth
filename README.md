@@ -22,9 +22,13 @@ FreeCAD/Sketcher owns editable geometry and document persistence; Cloth owns gar
 
 Start with [Installation](docs/INSTALLATION.md), then run the [Blanket over Cube](docs/EXAMPLES.md) example before the full tunic acceptance path. The [Release gates](docs/RELEASE_GATES.md) define what “complete” means for this repository and explicitly separate implemented behavior from the commercial-feature roadmap.
 
+## Agent orientation
+
+Agent-specific instructions live in [AGENTS.md](AGENTS.md). It is intentionally separate from the human README and is a current, task-scoped contract. For live repository state, use `AGENT_STATUS.md` and `TOOL_STATE.md`; do not infer current state from old issue/PR history or release-closeout prose.
+
 ## Screenshots and simulation media
 
-The canonical FreeCAD/Xvfb workflow publishes validated GUI states to a stable `docs/screenshots` branch. The basic example proves real cloth motion; the advanced tunic example is published from the authoritative tunic visual audit.
+The published FreeCAD/Xvfb media is evidence from specific validated runs. It is useful as a reproducible example of the workflow, but it is not a claim that the current `main` diagnostic state is green. Current simulation investigations are tracked under #2492 and must be judged from exact-head evidence.
 
 ### Pattern design
 
