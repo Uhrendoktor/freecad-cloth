@@ -193,8 +193,8 @@ class SewingNetworkTaskPanel:
     def _range(self, row, column):
         try:
             value = float(self.table.item(row, column).text())
-        except (TypeError, ValueError):
-            raise ValueError("range values must be numeric")
+        except (TypeError, ValueError) as exc:
+            raise ValueError("range values must be numeric") from exc
         if not 0.0 <= value <= 1.0:
             raise ValueError("range values must be between 0 and 1")
         return value
