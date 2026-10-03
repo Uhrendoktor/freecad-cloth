@@ -28,8 +28,8 @@ def parse_points(value):
         return normalize_points(
             tuple(tuple(float(v) for v in item.split(",")) for item in value.split(";"))
         )
-    except (TypeError, ValueError):
-        raise ValueError("invalid drafting boundary")
+    except (TypeError, ValueError) as exc:
+        raise ValueError("invalid drafting boundary") from exc
 
 
 def move_point(points, index, x, y):
