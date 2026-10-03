@@ -229,8 +229,8 @@ def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision():
         def __init__(self):
             self.calls = []
 
-        def step(self, dt, iterations, gravity, sphere, surface):
-            self.calls.append((dt, iterations, gravity, sphere, surface))
+        def step(self, dt, iterations, gravity, surface):
+            self.calls.append((dt, iterations, gravity, surface))
 
         def positions(self):
             return ()
