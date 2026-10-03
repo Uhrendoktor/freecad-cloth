@@ -1,3 +1,5 @@
+> Planning matrix only: this document describes sequencing and desired capability boundaries. It is not a live implementation-status record. Verify current behavior against the current branch, `AGENT_STATUS.md`, and `TOOL_STATE.md`.
+
 # Feature matrix and UI/UX roadmap
 
 This document is the supervisor-level planning reference for turning the three

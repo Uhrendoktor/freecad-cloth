@@ -1,27 +1,24 @@
 # FreeCAD Cloth documentation
 
-This directory is intentionally small. Read the documents in this order:
-
-1. **[USER_GUIDE.md](USER_GUIDE.md)** — first-run human workflow, recovery, and visual inspection.
-2. **WORKBENCH_GUIDE.md** — detailed workflow and UI behavior.
-3. **ARCHITECTURE.md** — authoritative data, dependency and invalidation contracts.
-4. **PROJECT_STRUCTURE.md** — canonical package/module tree and FreeCAD bootstrap layout.
-5. **[ROADMAP.md](../ROADMAP.md)** — prototype → MVP → production scope and release gates.
-6. **RESEARCH.md** — condensed CLO/garment-workflow research and FreeCAD mapping.
-7. **DEVELOPMENT.md** — testing, CI, screenshots, agent handoff and contribution rules.
+This directory is intentionally small. Read only the document relevant to the task; do not load the whole directory by default.
 
 ## Source of truth
 
-- `README.md` is the project-level orientation.
-- `AGENT_STATUS.md` is the current machine-readable supervisor/release record.
-- `TOOL_STATE.md` is the compact execution-policy/state record.
-- `docs/PROJECT_STRUCTURE.md` is the source of truth for where implementation modules belong.
-- `docs/ARCHITECTURE.md` is the source of truth for domain ownership and dependency direction.
-- `docs/` contains durable guidance, not dated scratch notes.
+- `README.md` — project-level human orientation.
+- `AGENTS.md` — portable agent contract and context firewall.
+- `AGENT_STATUS.md` — current machine-readable supervisor/release record.
+- `TOOL_STATE.md` — compact execution-policy/state record.
+- `docs/PROJECT_STRUCTURE.md` — source of truth for implementation module placement.
+- `docs/ARCHITECTURE.md` — source of truth for domain ownership and dependency direction.
+- `docs/ROADMAP.md` — durable roadmap; not live status.
+- `docs/RESEARCH.md` — design research; not live status.
+- `docs/DEVELOPMENT.md` — testing, CI, screenshots and contribution rules.
 
-## Documentation rule
+## Context policy
 
-Prefer updating an existing canonical document over adding a new note. Dated audit material belongs in the relevant issue/PR or in the compact supervisor state, not as another permanent document. If a new document is genuinely necessary, link it here and explain why it cannot fit an existing contract.
+Current state comes from the current branch/HEAD plus the two compact state files. Issue/PR history is task-local evidence, not repository-wide context. Closed issues, old branches, old runs and old artifacts are historical unless the task explicitly requests historical reconstruction.
+
+Prefer updating an existing canonical document over creating another status/proposal note. Dated evidence belongs in its governing issue/PR. Keep permanent docs focused on durable contracts.
 
 ## Workbench model
 

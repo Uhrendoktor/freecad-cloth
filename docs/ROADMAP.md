@@ -7,10 +7,10 @@ The release target is a complete, public FreeCAD workflow, not a feature-count c
 | Stage | Goal | Main work |
 |---|---|---|
 | P0 | Safe end-to-end garment slice | Pattern → Sewing → Arrange → DrapeTarget → Simulation → Save/Reload → Invalidate → Rebuild |
-| P1 | Repeatable garment-CAD workflow | curved authoring, Sketcher constraints, robust semantic repair, 1:N/M:N/free sewing, arrangement points, material/quality lifecycle, production 2D export |
+| P1 | Remaining repeatable garment-CAD work | richer curved authoring, explicit semantic repair/remap, richer fitting controls, multi-size foundations, expanded production validation |
 | Production | Manufacturing + fidelity | higher-fidelity avatar provider, richer targets, diagnostics, grading/nesting/validation, advanced construction, optional solver backends |
 
-## P0 release gates — COMPLETE FOR THE RELEASE-CLOSEOUT SCENARIO
+## P0 release-closeout gates — historical baseline
 
 1. Native Sketcher-backed PatternPieces can form a multi-piece garment.
 2. Semantic seams persist through recompute/save/reload and never silently retarget invalid topology.
@@ -21,15 +21,13 @@ The release target is a complete, public FreeCAD workflow, not a feature-count c
 7. Target/pattern/sewing edits produce explicit stale derived state; document recompute remains safe.
 8. One canonical FreeCAD/Xvfb scenario proves the public workflow and preserves the four PNG artifacts.
 
-## P1 priorities — FUTURE ENHANCEMENTS
+## P1 priorities — REMAINING ENHANCEMENTS
 
-- Curved pattern authoring through native Sketcher/Part geometry.
-- Explicit topology repair/remap UI for semantic edge IDs.
-- Transactional Segment, Free, 1:N and M:N sewing with length-aware correspondence.
-- Arrangement points, wrap, superimpose and reset.
-- Parametric mannequin measurements and basic poses.
-- Particle-distance and physical fabric presets.
-- Seam allowance, notches, grainline/internal marks, grading foundations and TechDraw/DXF/SVG output.
+- Richer curved-pattern authoring and clearer topology-repair/remap workflows for semantic edge identities.
+- Additional mannequin measurement/pose and fitting controls where the current public workflow is still limited.
+- Sewing-assistance and correspondence UX beyond the existing transactional semantic seam model.
+- Multi-size/grading foundations and stronger production-pattern validation.
+- Expanded fit/quality inspection that consumes existing simulation results without creating a second simulation model.
 
 ## Production priorities — FUTURE ENHANCEMENTS
 
@@ -50,12 +48,8 @@ A feature moves from prototype to MVP when it is required for a repeatable garme
 
 Do not pull a visible CLO feature forward merely because it exists in CLO. Stabilize authority, invalidation, recovery, persistence and public-workbench acceptance first.
 
-## Current release state
+## Historical release-closeout note
 
-- P0 release-closeout is complete and validated on merged main; there is no pending release candidate.
-- Final timing repair PR #1195 is merged. The canonical PR validation passed, followed by merged-main validation of the complete graph and README publication.
-- The three README turntable GIFs are 73 frames at 640x480 with uniform 8cs frame timing; the canonical workflow asserts that timing fail-closed. Representative rendered frames were inspected, and the final publication audit matched the authoritative merged-main run #3990 artifact bytes to the `docs/screenshots` Git blobs at commit `f276d1f5f51eb4d3d9ade58aa28c8fffd3fbc7d5`. The same content-addressed check covers the published blanket motion GIF and draped front PNG.
-- The 16-frame blanket motion GIF remains validated at 10cs/frame and is published on `docs/screenshots`; its motion, mesh connectivity, drape plausibility, and material presentation were inspected.
-- The canonical FreeCAD/Xvfb workflow remains the sole workflow and fail-closed. No simulation geometry thresholds, frame-count contracts, validation assertions, or workflow topology were weakened to reach release state.
-- Repository retention/branch cleanup is implemented by the scheduled maintenance job. The connector does not expose branch deletion, so full remote branch purge is not claimed; this is an operational retention-policy limitation rather than a release-code blocker.
-- The three missing public Sewing command SVG assets were merged in PR #1077; packaging already includes `resources/**/*`. The P1 and Production items listed above remain future enhancements rather than active release blockers.
+The P0 release-closeout was completed in September 2026 at a specific merged-main state. Its detailed run IDs, artifact hashes, screenshot dimensions and historical PR references are intentionally not repeated here.
+
+Those historical artifacts remain useful evidence when reconstructing that release event, but they are not current repository state. For current state use `AGENT_STATUS.md`, `TOOL_STATE.md`, and the exact current branch/commit.
