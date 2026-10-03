@@ -188,11 +188,17 @@ class TissuBackend(ClothSimulationBackend):
         self._build(Simulation)
 
     def pin(self, indices: Iterable[int]):
-        import numpy as np
-        self._pin_indices = tuple(dict.fromkeys(int(i) for i in indices))
-        for index in self._pin_indices:
-            position = self.positions()[index]
-            self._sim.solver.add_pin(int(index), np.asarray(_to_tissu_position(position), dtype=np.float64), 0.0)
+        requested = tuple(dict.fromkeys(int(i) for i in indices))
+        if requested == self._pin_indices:
+            return
+        if self._time > 0.0:
+            raise RuntimeError(
+                "TissuBackend cannot replace pins after simulation has advanced; "
+                "reset the simulation before changing pins"
+            )
+        self._pin_indices = requested
+        from tissu import Simulation
+        self._build(Simulation)
 
     def set_stitches(self, pairs: Iterable[Tuple[int, int]], compliance=0.0):
         requested = tuple((int(a), int(b)) for a, b in pairs)
