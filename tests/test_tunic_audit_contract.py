@@ -140,6 +140,9 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "artifacts/tunic-audit/freecad-tunic-audit.log" in workflow
     assert "artifacts/tunic-audit/runtime-diagnostics.log" in workflow
     assert "Report tunic audit diagnostics" in workflow
+    tunic = workflow[workflow.index("  gui-tunic-visual:") : workflow.index("\n  gui-", workflow.index("  gui-tunic-visual:") + 5)]
+    assert '"$FREECAD_TUNIC_IMAGE" bash -lc' in tunic
+    assert "$FREECAD_TUNISU_IMAGE" not in tunic
     assert "artifacts/tissu-provenance.txt" in workflow
 
 def test_canonical_tunic_fixture_matches_validated_start_geometry():
