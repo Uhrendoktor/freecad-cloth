@@ -74,7 +74,7 @@ This project is licensed under the GNU Lesser General Public License v2.1 or lat
 
 ## Development
 
-Simulation changes follow a screenshot-first human-review protocol documented in [docs/SIMULATION_REVIEW.md](docs/SIMULATION_REVIEW.md) and coordinated through issue #2492.
+Simulation changes follow a screenshot-first human-review protocol documented in [docs/SIMULATION_REVIEW.md](docs/SIMULATION_REVIEW.md). The current coordination ledger is named in `AGENT_STATUS.md` and must be used as the live issue reference.
 
 There is one canonical GitHub Actions workflow: `.github/workflows/canonical-execution.yml`. It runs Python/core checks, real FreeCAD/Xvfb GUI coverage, the basic blanket visual fixture, semantic seam/mesh sanity checks, 360° turntables and actual step-by-step simulation motion GIFs.
 
