@@ -29,9 +29,9 @@ on:
     - cron: '0 3 * * *'
 
 concurrency:
-  # PR validation is long-running and should complete once started; a new synchronize event must not cancel active GUI evidence jobs.
+  # One agent owns a PR; superseded runs are stale evidence and may be cancelled.
   group: ${{ github.event_name == 'pull_request' && format('canonical-pr-{0}', github.event.pull_request.number) || format('canonical-{0}-{1}-{2}', github.workflow, github.event_name, github.ref) }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
