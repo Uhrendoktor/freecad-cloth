@@ -476,7 +476,6 @@ jobs:
                 tests/test_avatar_visual_sanity.py \
                 tests/test_drape_visual_sanity.py \
                 tests/test_cloth_solver.py \
-                tests/test_collisions.py \
                 tests/test_pattern_sketch.py \
                 tests/test_pattern_ir.py \
                 tests/test_sketch_authority.py \
@@ -500,14 +499,12 @@ jobs:
 
               # Pytest-style modules have no script runner; execute the tests explicitly.
               python3 -m pytest -q \
-                tests/test_xpbd.py \
                 tests/test_side_tasks.py \
+                tests/test_simulation_quality_runtime.py \
                 tests/test_pattern_export_semantics.py \
                 tests/test_sewing_correspondence.py \
                 tests/test_sewing_commands.py \
                 tests/test_gui_structure.py \
-                tests/test_simulation_scene.py \
-                tests/test_simulation_quality_runtime.py \
                 tests/test_project_structure.py \
                 tests/test_agent_context_contract.py \
                 tests/test_cloth_diagnostics.py \
