@@ -33,7 +33,7 @@ class HumanoidMeshTests(unittest.TestCase):
         self.assertEqual(data.triangles, ((0, 1, 2), (0, 2, 3), (0, 2, 3)))
 
     def test_mesh_data_rejects_invalid_indices(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(HumanoidMeshError):
             MeshData(((0.0, 0.0, 0.0),) * 3, ((0, 1, 3),)).validate()
 
     def test_real_source_is_pinned(self):
