@@ -28,7 +28,7 @@ Do not:
 
 Instead, read the smallest set of files needed for the task. Search GitHub narrowly by exact issue/PR number, file path, symbol, or hypothesis. Prefer current main plus one governing issue/PR over broad history.
 
-For simulation work, #2492 is the canonical coordination issue. Its child lanes are independent evidence sources, not a substitute for current main. Read a child lane only when its hypothesis matches the task.
+For simulation work, use the current coordination ledger named in `AGENT_STATUS.md` (currently #2492). Its child lanes are independent evidence sources, not a substitute for current main. Read a child lane only when its hypothesis matches the task.
 
 ## Task prompt contract
 
