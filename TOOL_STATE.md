@@ -9,7 +9,7 @@ supervisor_issue: 2492
 workflow_count: 1
 workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; mandatory_human_screenshot_review; artifact_link_alone_insufficient; no_second_workflow
-main_head_at_audit: dc14d06734d0d986dd31b4427e0327cd74ae6a65
+main_head_at_audit: 65e271a8bd2bd2ca5d8a9051c794808d8d59f5b9
 production_tissu_fix_merged: false
 active_diagnostics: 2578,2577,2576,2575,2571,2554,2545
 completed_diagnostics: 2537,2482,2535,2540
