@@ -469,6 +469,7 @@ jobs:
                 tests/test_simulation_scene.py \
                 tests/test_simulation_quality_runtime.py \
                 tests/test_project_structure.py \
+                tests/test_agent_context_contract.py \
                 tests/test_cloth_diagnostics.py \
                 tests/test_seam_graph.py \
                 tests/test_workbench_icons.py \
