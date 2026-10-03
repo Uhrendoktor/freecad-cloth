@@ -13,6 +13,12 @@ def test_agent_context_contract_stays_compact_and_current_first():
     assert "read the smallest set of files needed" in text
 
 
+def test_issue_agent_metadata_is_not_project_state():
+    text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    assert "YAML front matter or agent-routing fields" in text
+    assert "not repository state" in text
+
+
 def test_repository_has_one_canonical_roadmap_and_no_duplicate_packaging_proposal():
     root_roadmap = (ROOT / "ROADMAP.md").read_text(encoding="utf-8")
     assert root_roadmap.count("docs/ROADMAP.md") == 1
