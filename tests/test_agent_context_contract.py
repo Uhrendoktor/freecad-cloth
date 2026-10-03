@@ -34,7 +34,7 @@ def test_planning_and_live_state_documents_are_explicitly_separated():
 def test_agent_instructions_use_live_ledger_pointer_without_hardcoding_an_issue():
     text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
     assert "current coordination ledger named in" in text
-    assert not re.search(r"#\\d+", text)
+    assert not re.search(r"#\d+", text)
 
 
 def test_architecture_distinguishes_persisted_authority_from_headless_value_types():
@@ -58,7 +58,7 @@ def test_historical_planning_docs_do_not_present_closed_issues_as_active_work():
 def test_live_coordination_documents_do_not_hardcode_a_specific_issue():
     for path in (ROOT / "README.md", ROOT / "docs" / "DEVELOPMENT.md", ROOT / ".github" / "ISSUE_TEMPLATE" / "simulation-review.md"):
         text = path.read_text(encoding="utf-8")
-        assert not re.search(r"#\\d+", text)
+        assert not re.search(r"#\d+", text)
         assert "AGENT_STATUS.md" in text
 
 
