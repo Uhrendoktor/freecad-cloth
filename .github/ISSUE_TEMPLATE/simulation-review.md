@@ -28,4 +28,4 @@ Paste or link actual rendered screenshots here. They must be visible without dow
 Use only historical evidence that materially distinguishes the current hypothesis. Summarize it; do not paste long issue/PR conversations.
 
 ## Decision
-This issue is not an implementation authority when a newer PR or explicit current-state record designates another source. Use #2492 as the simulation coordination ledger when applicable.
+This issue is not an implementation authority when a newer PR or explicit current-state record designates another source. Use the live coordination ledger named in `AGENT_STATUS.md` when applicable.
