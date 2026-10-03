@@ -26,6 +26,12 @@ Domain implementation lives under `freecad_cloth/`. FreeCAD itself has two suppo
 
 Internal imports use the package namespace (`freecad_cloth.<domain>.<module>`). `freecad_cloth.sewing.SeamGraph` is the canonical seam graph; semantic edge-reference authority lives in `freecad_cloth.pattern.SeamReference`. `freecad_cloth.sewing.SeamReference` is compatibility-only. Historical top-level imports are migrated at their callers instead of being restored.
 
+## Packaging metadata authority
+
+`package.xml` is FreeCAD Addon Manager metadata: it describes the installed addon/workbench content and its manifest-facing class anchor. `pyproject.toml` is Python build/package metadata for the `freecad-cloth` distribution. Do not assume their version values or content entries must match.
+
+The current FreeCAD bootstrap registers Pattern, Sewing, and Simulation workbench classes from the same implementation tree. The manifest's `<classname>` is packaging metadata for the addon content item; inspect `InitGui.py` or `freecad/freecad_cloth/init_gui.py` to enumerate the actual registered GUI workbenches.
+
 ## Dependency direction
 
 ```text
