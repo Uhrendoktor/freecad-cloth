@@ -171,26 +171,15 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
 
 def test_canonical_tunic_fixture_matches_validated_start_geometry():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert (
-        'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)'
-        in audit
-    )
-    assert (
-        'front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)'
-        in audit
-    )
-    assert (
-        "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance': '            y = min(target_ys) - clearance',"
-        in audit
-    )
-    assert (
-        "'            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance': '            y = max(target_ys) + clearance',"
-        in audit
-    )
-    assert (
-        "'upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))': 'upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))',"
-        in audit
-    )
+    assert 'source_path = Path(__file__).with_name("freecad_screenshot_source.py")' in audit
+    assert 'os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"' in audit
+    assert 'required_indices = (1, 2, 6, 7)' in audit
+    assert 'front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"' in audit
+    assert 'front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"' in audit
+    assert 'scene.FabricFriction = 0.85;' in audit
+    assert 'scene.ParticleDistance = 32.0; scene.SolverIterations = 1; scene.SolverSubsteps = 1;' in audit
+    assert 'for batch in (15,15,15,15,15,15):' not in audit
+    assert 'for batch in (15,15,15,15,15,15):' in audit
 
 
 def test_tunic_visual_diagnostics_are_authoritative_after_persistence():
