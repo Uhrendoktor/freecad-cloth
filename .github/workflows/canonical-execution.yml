@@ -745,6 +745,7 @@ jobs:
     permissions:
       contents: write
       issues: write
+      packages: write
       pull-requests: write
     needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
@@ -779,7 +780,34 @@ jobs:
           needs_build=0
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
             git fetch origin main --depth=1
-            if git diff --name-only "origin/main...HEAD" | grep -Eq '^docker/freecad-ci/(Dockerfile|apply-tissu-contact-fix.py)      - name: Capture Tissu provenance
+            if git diff --name-only "origin/main...HEAD" | grep -Eq '^docker/freecad-ci/(Dockerfile|apply-tissu-contact-fix.py)$'; then
+              needs_build=1
+            fi
+          elif [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            if git diff --name-only HEAD^ HEAD | grep -Eq '^docker/freecad-ci/(Dockerfile|apply-tissu-contact-fix.py)$'; then
+              needs_build=1
+            fi
+          else
+            needs_build=1
+          fi
+
+          if docker pull "$image_ref"; then
+            docker tag "$image_ref" "$FREECAD_TUNIC_IMAGE"
+            echo "tissu-image=published-cache-hit"
+          elif [ "$needs_build" -eq 1 ] || { [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; }; then
+            docker build --pull --progress=plain -t "$image_ref" -t "$FREECAD_TUNIC_IMAGE" -f docker/freecad-ci/Dockerfile .
+            if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; then
+              docker push "$image_ref"
+              echo "tissu-image=rebuilt-and-published"
+            else
+              echo "tissu-image=rebuilt-local"
+            fi
+          else
+            echo "required published Tissu image is unavailable: $image_ref"
+            echo "docker-freecad-sources-unchanged=true"
+            exit 1
+          fi
+      - name: Capture Tissu provenance
         run: |
           set -euo pipefail
           mkdir -p artifacts
