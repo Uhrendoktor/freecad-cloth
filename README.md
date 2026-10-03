@@ -42,7 +42,7 @@ The Sewing workbench is documented in [Examples](docs/EXAMPLES.md) and covered b
 
 ![Blanket over cube motion](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-blanket-motion.gif)
 
-### Advanced example — tunic
+### Advanced example — tunic (historical published evidence)
 
 ![Advanced tunic validation](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-front.png)
 
