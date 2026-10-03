@@ -99,3 +99,14 @@ def test_path_specific_agent_instructions_are_narrow_and_scoped():
         assert len(text.splitlines()) <= 14
     assert "AGENTS.md" not in simulation
     assert "AGENTS.md" not in workflows
+
+
+def test_dead_screenshot_runner_and_stack_inspection_are_removed():
+    root = ROOT
+    pattern_commands = (root / "freecad_cloth" / "pattern" / "PatternCommands.py").read_text(encoding="utf-8")
+    sitecustomize = (root / "sitecustomize.py").read_text(encoding="utf-8")
+    assert not (root / "tests" / "freecad_screenshot.py").exists()
+    assert "inspect.stack" not in pattern_commands
+    assert "freecad_screenshot.py" not in pattern_commands
+    assert "inspect.stack" not in sitecustomize
+    assert "freecad_screenshot.py" not in sitecustomize
