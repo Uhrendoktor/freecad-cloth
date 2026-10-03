@@ -135,7 +135,12 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert 'TISSU_FIX_SHA256=' in dockerfile
     assert 'tissu-cpp-regression-result=passed' in dockerfile
     assert 'docker run --rm "$FREECAD_TUNIC_IMAGE" bash -lc' in workflow
-    assert 'artifacts/tissu-provenance.txt' in workflow
+    assert "PYTHONUNBUFFERED=1" in workflow
+    assert "setsid /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py" in workflow
+    assert "artifacts/tunic-audit/freecad-tunic-audit.log" in workflow
+    assert "artifacts/tunic-audit/runtime-diagnostics.log" in workflow
+    assert "Report tunic audit diagnostics" in workflow
+    assert "artifacts/tissu-provenance.txt" in workflow
 
 def test_canonical_tunic_fixture_matches_validated_start_geometry():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
