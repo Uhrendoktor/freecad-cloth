@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Protocol
 
+
 class DrapeMetrics(Protocol):
     """Describe the metric attributes consumed by the evidence classifier."""
 
