@@ -118,7 +118,7 @@ def _png_has_visible_content(path):
     return False
 
 
-def wait_for_gui_ready(timeout_seconds=15.0):
+def wait_for_gui_ready(timeout_seconds=5.0)
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
         window = Gui.getMainWindow()
@@ -132,41 +132,19 @@ def wait_for_gui_ready(timeout_seconds=15.0):
 
 
 def save_png(view, path, state):
-    deadline = time.monotonic() + 2.0
-    capture_index = 0
-    while time.monotonic() < deadline:
-        capture_index += 1
-        temp_path = path + ".capture-%d.tmp.png" % capture_index
-        try:
-            if hasattr(view, "redraw"):
-                view.redraw()
-            events()
-            time.sleep(0.05)
-            if hasattr(view, "redraw"):
-                view.redraw()
-            events()
-            view.saveImage(temp_path, 640, 480, "White")
-            if os.path.isfile(temp_path) and os.path.getsize(temp_path) >= 1000:
-                with open(temp_path, "rb") as handle:
-                    header = handle.read(24)
-                valid_dimensions = (
-                    header[:8] == b"\x89PNG\r\n\x1a\n"
-                    and int.from_bytes(header[16:20], "big") == 640
-                    and int.from_bytes(header[20:24], "big") == 480
-                )
-                if valid_dimensions and _png_has_visible_content(temp_path):
-                    os.replace(temp_path, path)
-                    log("png-capture=passed state=%s attempts=%d" % (state, capture_index))
-                    return
-            log("png-capture=retry state=%s attempts=%d" % (state, capture_index))
-        finally:
-            try:
-                os.remove(temp_path)
-            except FileNotFoundError:
-                pass
-        time.sleep(0.05)
-    raise RuntimeError("PNG capture contains no visible rendered content for %s" % state)
-
+    started = time.perf_counter()
+    view.saveImage(path, 640, 480, "White")
+    if not os.path.isfile(path) or os.path.getsize(path) < 1000:
+        raise RuntimeError("failed or suspiciously small screenshot: %s" % path)
+    with open(path, "rb") as handle:
+        header = handle.read(24)
+    if header[:8] != b"\x89PNG\r\n\x1a\n":
+        raise RuntimeError("screenshot is not PNG: %s" % path)
+    width = int.from_bytes(header[16:20], "big")
+    height = int.from_bytes(header[20:24], "big")
+    if (width, height) != (640, 480):
+        raise RuntimeError("screenshot has unexpected dimensions for %s: %sx%s" % (state, width, height))
+    log("png-capture=passed state=%s elapsed_ms=%.2f" % (state, 1000.0 * (time.perf_counter() - started)))
 def combined_center(objects):
     boxes = []
     for obj in objects:

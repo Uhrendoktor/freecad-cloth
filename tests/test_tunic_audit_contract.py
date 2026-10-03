@@ -5,6 +5,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 # The canonical native-Sketcher outline uses edges 3/5 as the shoulder seams.
+# Simulation performance is a bounded correctness contract; longer benchmark history belongs elsewhere.
 # Keep front/back semantic edge IDs independent; never fall back to one piece's IDs.
 
 def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
@@ -100,13 +101,19 @@ def test_simulation_proxy_serializes_only_rebuildable_metadata():
 
 def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    canonical = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
     assert "ParticleDistance = 32.0" in source
     assert "SolverIterations = 1" in source
     assert "SolverSubsteps = 1" in source
-    assert 'CLOTH_TISSU_COLLISION_MODE: mesh' in workflow
-    assert 'CLOTH_TISSU_COLLISION_TRIANGLES: 2048' in workflow
-    assert 'tunic-simulation-start' in source
+    assert "simulation_panel.step(90)" in source
+    assert "CLOTH_TISSU_COLLISION_MODE: mesh" in workflow
+    assert "CLOTH_TISSU_COLLISION_TRIANGLES: 2048" in workflow
+    assert "CLOTH_TUNIC_SIMULATION_BUDGET_MS: 3000" in workflow
+    assert "tunic-simulation-budget-ms" in source
+    assert "tunic_adherence" in canonical
+    assert "fallen-below-avatar-candidate" in canonical
+    assert "torso-coverage-candidate" in canonical
 
 
 def test_tissu_ci_image_is_pinned_and_self_regressing():
@@ -129,7 +136,12 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
 
     tunic = workflow[workflow.index("  gui-tunic-visual:") : workflow.index("\n  gui-", workflow.index("  gui-tunic-visual:") + 5)]
     assert "FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix" in tunic
-    assert "docker build --pull --progress=plain" in tunic
+    assert "Prepare Tissu runtime image" in tunic
+    assert "tissu-contact-fix-" in tunic
+    assert "docker pull" in tunic
+    assert "packages: read" in tunic
+    assert "packages: write" not in tunic
+    assert "needs: [local_runner_readiness, tissu_runtime_publish]" in tunic
     assert 'docker run --rm --init' in tunic
     assert '"$FREECAD_TUNIC_IMAGE" bash -lc' in tunic
     assert 'TISSU_FIX_SHA256=' in dockerfile
@@ -167,3 +179,27 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     gate = source.index("assert_drape_diagnostics(json.load(handle).get(\"panels\", ()))")
     assert "drape-metrics=" in source[:gate]
     assert "gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]
+
+
+def test_tissu_realtime_benchmark_contract():
+    benchmark = (ROOT / "tests" / "freecad_realtime_benchmark.py").read_text(encoding="utf-8")
+    assert "FRAME_BUDGET_MS = 1000.0 / 60.0" in benchmark
+    assert 'result["backend"] != "tissu"' in benchmark
+    assert 'result["p95_frame_ms"] > 33.333' in benchmark
+
+
+def test_tissu_runtime_publisher_is_trusted_only():
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    publisher = workflow[workflow.index("  tissu_runtime_publish:") : workflow.index("\n  gui-tunic-visual:", workflow.index("  tissu_runtime_publish:"))]
+    assert "packages: write" in publisher
+    assert "github.event_name == 'push' && github.ref == 'refs/heads/main'" in publisher
+    assert "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'" in publisher
+    assert "docker push \"$image_ref\"" in publisher
+
+def test_turntable_screenshot_capture_is_single_shot_and_timed():
+    source = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
+    save_section = source[source.index("def save_png(view, path, state):"):source.index("\ndef combined_center")]
+    assert "view.saveImage(path, 640, 480, \"White\")" in save_section
+    assert "deadline = time.monotonic()" not in save_section
+    assert "time.sleep(0.05)" not in save_section
+    assert "elapsed_ms" in save_section
