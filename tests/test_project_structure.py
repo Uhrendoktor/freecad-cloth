@@ -124,6 +124,21 @@ def test_pattern_domain_does_not_import_seam_reference_through_compatibility_nam
 
 
 
+def test_pr_simulation_execution_and_publication_are_privilege_separated():
+    root = Path(__file__).resolve().parents[1]
+    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    gui = workflow.split("  gui-tunic-visual:", 1)[1].split("  publish-pr-simulation-evidence:", 1)[0]
+    publish = workflow.split("  publish-pr-simulation-evidence:", 1)[1].split("  gui-turntables:", 1)[0]
+    assert "permissions:" not in gui
+    assert "actions/checkout@" in gui
+    assert "contents: write" in publish
+    assert "pull-requests: write" in publish
+    assert "runs-on: ubuntu-latest" in publish
+    assert "actions/download-artifact@" in publish
+    assert "actions/checkout@" not in publish
+    assert "without executing PR code" in publish
+
+
 def test_workflow_actions_use_immutable_release_pins():
     import re
 
