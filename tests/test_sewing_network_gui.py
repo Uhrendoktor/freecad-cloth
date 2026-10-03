@@ -108,6 +108,7 @@ def test_network_task_panel_cancel_aborts_transaction_and_refreshes_warning():
     panel.network = Network()
     panel.warning = Label()
     panel.status = Label()
+    panel.correspondence = Label()
     panel._transaction_active = True
     panel.reject()
     assert App.ActiveDocument.calls == [("abort",), ("recompute",)]
