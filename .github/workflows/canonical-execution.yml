@@ -543,23 +543,6 @@ jobs:
               timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_sewing_creation_smoke.py
               test -s /workspace/artifacts/sewing-creation-smoke.log
             '
-      - name: Report tunic audit diagnostics
-        if: ${{ always() }}
-        run: |
-          set +e
-          echo "=== native-Sketcher tunic audit runtime diagnostics ==="
-          if [ -f artifacts/tunic-audit/runtime-diagnostics.log ]; then
-            cat artifacts/tunic-audit/runtime-diagnostics.log
-          else
-            echo "runtime-diagnostics.log was not produced"
-          fi
-          echo "=== native-Sketcher tunic audit application log ==="
-          if [ -f artifacts/tunic-audit/freecad-tunic-audit.log ]; then
-            cat artifacts/tunic-audit/freecad-tunic-audit.log
-          else
-            echo "freecad-tunic-audit.log was not produced"
-          fi
-          exit 0
       - name: Restore workspace from Docker volume
         if: ${{ always() }}
         run: |
@@ -846,7 +829,7 @@ jobs:
               set +e
               setsid /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py > "$app_log" 2>&1 &
               APP_PID=$!
-              APP_DEADLINE=$((SECONDS + 360))
+              APP_DEADLINE=$((SECONDS + 300))
               echo "tunic-audit-supervisor=started pid=$APP_PID deadline_seconds=360"
               while kill -0 "$APP_PID" 2>/dev/null; do
                 if [ "$SECONDS" -ge "$APP_DEADLINE" ]; then
@@ -906,6 +889,23 @@ jobs:
           docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
           docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
 
+      - name: Report tunic audit diagnostics
+        if: ${{ always() }}
+        run: |
+          set +e
+          echo "=== native-Sketcher tunic audit runtime diagnostics ==="
+          if [ -f artifacts/tunic-audit/runtime-diagnostics.log ]; then
+            cat artifacts/tunic-audit/runtime-diagnostics.log
+          else
+            echo "runtime-diagnostics.log was not produced"
+          fi
+          echo "=== native-Sketcher tunic audit application log ==="
+          if [ -f artifacts/tunic-audit/freecad-tunic-audit.log ]; then
+            cat artifacts/tunic-audit/freecad-tunic-audit.log
+          else
+            echo "freecad-tunic-audit.log was not produced"
+          fi
+          exit 0
       - name: Validate visual and simulation evidence
         run: |
           set -euo pipefail
@@ -963,6 +963,9 @@ jobs:
             docs/images/generated/gui-screenshot-manifest.txt
             artifacts/garment-e2e.log
             artifacts/tissu-provenance.txt
+            artifacts/tunic-audit/freecad-tunic-audit.log
+            artifacts/tunic-audit/freecad-realtime-benchmark.log
+            artifacts/tunic-audit/runtime-diagnostics.log
           if-no-files-found: error
           compression-level: 1
 
