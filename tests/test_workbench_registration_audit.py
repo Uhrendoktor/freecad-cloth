@@ -67,7 +67,10 @@ def test_workbench_command_groups_do_not_overlap():
             )
         ),
         "Simulation": _commands(
-            ("freecad_cloth.simulation.SimulationCommands", "freecad_cloth.simulation.DrapeCommands")
+            (
+                "freecad_cloth.simulation.SimulationCommands",
+                "freecad_cloth.simulation.DrapeCommands",
+            )
         )
         | {"ClothRealtimePreview"},
     }
