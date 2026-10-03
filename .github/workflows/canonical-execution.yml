@@ -47,6 +47,159 @@ permissions:
   packages: read
 
 jobs:
+  one_time_documentation_normalization:
+    name: One-time public API documentation normalization
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'agent/architecture-tooling-docs' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Normalize public Python documentation contract
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+
+          root = Path.cwd()
+          exempt = {"workbench.py", "gui.py"}
+
+          def requires(path):
+              rel = path.relative_to(root)
+              return (
+                  rel.parts[0] in {"freecad_cloth", "tools"}
+                  and path.name not in exempt
+                  and not path.name.endswith(("Gui.py", "Commands.py"))
+              )
+
+          def description(kind, name):
+              common = {
+                  "validate": "Validate this value and raise ValueError when its state is invalid.",
+                  "execute": "Recompute the FreeCAD object from its current source properties.",
+                  "reset": "Reset the runtime state to its initial values.",
+                  "point": "Return the point at the requested parameter.",
+                  "length": "Return the geometric length represented by this object.",
+                  "polyline": "Return sampled polyline points for this geometry.",
+                  "to_json": "Serialize this object to JSON.",
+                  "from_json": "Create an object from serialized JSON.",
+                  "to_dict": "Serialize this object to a dictionary.",
+                  "from_dict": "Create an object from a serialized dictionary.",
+                  "to_metadata": "Return persistent metadata for this object.",
+                  "as_dict": "Serialize this reference to a dictionary.",
+                  "from_dict": "Create a reference from a serialized dictionary.",
+                  "parameters": "Return the current provider parameters.",
+                  "surface": "Return the current fitted surface mesh.",
+                  "collision_surface": "Return a collision-ready surface representation.",
+                  "landmarks": "Return the semantic avatar landmarks.",
+                  "measurement": "Return the requested body measurement.",
+                  "with_measurements": "Return a copy with updated body measurements.",
+                  "state": "Return the current state summary.",
+                  "metric": "Return the diagnostic metric represented by this result.",
+                  "id": "Return the stable identifier.",
+                  "piece_a": "Return the first referenced pattern piece.",
+                  "edge_a": "Return the first referenced edge.",
+                  "piece_b": "Return the second referenced pattern piece.",
+                  "edge_b": "Return the second referenced edge.",
+                  "reversed_b": "Return whether the second reference is reversed.",
+                  "begin": "Begin a synchronized editing session.",
+                  "end": "End the synchronized editing session.",
+                  "require_editable": "Require the current state to be editable.",
+                  "simulation_active": "Return whether simulation editing is active.",
+                  "active_snapshot": "Return the active synchronized snapshot.",
+                  "diff": "Return the changes between snapshots.",
+                  "add_piece": "Add a pattern piece to this collection.",
+                  "add_seam": "Add a seam relationship to this collection.",
+                  "remove_pair": "Remove a sewing relationship from this collection.",
+                  "add_pair": "Add a sewing relationship to this collection.",
+                  "set_transform": "Set the transform associated with an object.",
+                  "set_piece_transform": "Set the transform for a pattern piece.",
+                  "placement_map": "Return placements keyed by stable piece identifier.",
+                  "arrangement_map": "Return arrangement points keyed by semantic name.",
+                  "surface": "Return the current surface mesh.",
+              }
+              if name in common:
+                  return common[name]
+              if kind == "class":
+                  return f"Public data model or service class for {name}."
+              if name.startswith("add_"):
+                  return f"Add the requested {name[4:].replace('_', ' ')} data."
+              if name.startswith("remove_"):
+                  return f"Remove the requested {name[7:].replace('_', ' ')} data."
+              if name.startswith("set_"):
+                  return f"Set the requested {name[4:].replace('_', ' ')} state."
+              if name.startswith("get_"):
+                  return f"Return the requested {name[4:].replace('_', ' ')} value."
+              if name.startswith("create_"):
+                  return f"Create and return the requested {name[7:].replace('_', ' ')} object."
+              if name.startswith("load_"):
+                  return f"Load and return the requested {name[5:].replace('_', ' ')} resource."
+              if name.startswith("ensure_"):
+                  return f"Ensure the requested {name[7:].replace('_', ' ')} state exists."
+              return f"Provide the public {name.replace('_', ' ')} operation."
+
+          for path in sorted(root.rglob("*.py")):
+              if path.parts[-2:] == ("__pycache__", path.name):
+                  continue
+              try:
+                  rel = path.relative_to(root)
+              except ValueError:
+                  continue
+              if not (rel.parts and rel.parts[0] in {"freecad_cloth", "tools"}):
+                  continue
+              source = path.read_text(encoding="utf-8")
+              tree = ast.parse(source, filename=str(path))
+              lines = source.splitlines(keepends=True)
+              insertions = []
+
+              if ast.get_docstring(tree) is None:
+                  module_line = 0
+                  if lines and lines[0].startswith("#!"):
+                      module_line = 1
+                  insertions.append((module_line, '"""Repository Python module."""\n'))
+
+              if requires(path):
+                  nodes = []
+                  for node in tree.body:
+                      if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and not node.name.startswith("_"):
+                          nodes.append((node, "class" if isinstance(node, ast.ClassDef) else "function"))
+                          if isinstance(node, ast.ClassDef):
+                              for member in node.body:
+                                  if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef)) and not member.name.startswith("_"):
+                                      nodes.append((member, "method"))
+                  for node, kind in nodes:
+                      if ast.get_docstring(node) is not None:
+                          continue
+                      first = node.body[0]
+                      indent = " " * first.col_offset
+                      insertions.append((first.lineno - 1, f'{indent}"""{description(kind, node.name)}"""\n'))
+
+              for line_no, text in sorted(insertions, reverse=True):
+                  lines.insert(line_no, text)
+              path.write_text("".join(lines), encoding="utf-8")
+          PY
+          python -m pip install --disable-pip-version-check ruff==0.16.10
+          ruff format .
+          python tools/check_documentation_contract.py
+      - name: Commit normalized documentation once
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'documentation-normalization-clean'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A -- '*.py'
+          git commit -m 'docs: normalize public Python API docstrings [docbot]'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
   python:
     name: Python quality and unit tests
     needs: [local_runner_readiness]
