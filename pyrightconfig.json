@@ -23,5 +23,13 @@
   "typeCheckingMode": "standard",
   "reportMissingImports": "none",
   "reportMissingModuleSource": "none",
-  "pythonVersion": "3.12"
+  "pythonVersion": "3.12",
+  "strict": [
+    "freecad_cloth/common/DrapeFailureClassifier.py",
+    "freecad_cloth/common/DrapeVisualSanity.py",
+    "freecad_cloth/pattern/PatternSchema.py",
+    "freecad_cloth/simulation/ClothBackend.py",
+    "freecad_cloth/simulation/ClothSolver.py"
+  ],
+  "reportUnnecessaryTypeIgnoreComment": "error"
 }
