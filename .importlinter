@@ -6,6 +6,9 @@ name = Pattern must not depend on Simulation
 type = forbidden
 source_modules = freecad_cloth.pattern
 forbidden_modules = freecad_cloth.simulation
+ignore_imports =
+    freecad_cloth.sewing.workbench -> freecad_cloth.avatar.AvatarCommands
+    freecad_cloth.sewing.workbench -> freecad_cloth.avatar.FittingCommands
 
 [importlinter:contract:sewing-no-simulation]
 name = Sewing must not depend on Simulation
