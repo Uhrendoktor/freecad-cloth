@@ -122,6 +122,21 @@ def test_pattern_domain_does_not_import_seam_reference_through_compatibility_nam
     assert not offenders, offenders
 
 
+
+def test_modern_loader_does_not_mutate_sys_path():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "freecad" / "freecad_cloth" / "init_gui.py").read_text(encoding="utf-8")
+    assert "sys.path" not in source
+
+
+def test_ci_tissu_hook_is_explicit_and_has_no_import_time_pip_install():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "sitecustomize.py").read_text(encoding="utf-8")
+    assert "CLOTH_CI_ENABLE_TISSU" in source
+    assert 'os.environ.get("DISPLAY") == ":99"' in source
+    assert 'os.environ.get("CLOTH_CI_ENABLE_TISSU", "0") == "1"' in source
+    assert '"pip"' not in source
+
 def test_freecad_classic_and_modern_loader_surfaces_are_documented_and_aligned():
     root = Path(__file__).resolve().parents[1]
     classic = (root / "InitGui.py").read_text(encoding="utf-8")
