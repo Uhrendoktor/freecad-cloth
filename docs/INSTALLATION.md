@@ -18,7 +18,7 @@ The repository publishes its exact CI image and dependency versions in `.github/
 3. Restart FreeCAD.
 4. Select **Cloth Pattern**, **Cloth Sewing**, or **Cloth Simulation** from the workbench selector.
 
-The repository root contains the required FreeCAD bootstrap files `Init.py` and `InitGui.py`; do not move those files below another directory level.
+The repository supports both FreeCAD loader layouts: the classic root `Init.py`/`InitGui.py` layout for direct `Mod/freecad-cloth/` installation and the modern namespaced `freecad/freecad_cloth/` layout used by FreeCAD's package-aware loader. Both load the same `freecad_cloth/` implementation package.
 
 For an existing installation, remove the previous `freecad-cloth` directory before replacing it so stale Python modules cannot remain on the module search path.
 
