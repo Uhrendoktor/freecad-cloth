@@ -80,6 +80,13 @@ Persistent inputs include quality/resolution, material, collision settings, pins
 
 Run/Step must check target and derived-state validity before advancing. Reset is recovery. Stale state includes an actionable reason and a rebuild/refresh path. Document recompute must remain safe when a target becomes stale.
 
+Backends must treat `set_stitches()` as replacement of the requested semantic stitch set. If a backend cannot remove registered constraints after stepping, it must reject a changed stitch set rather than accumulate stale constraints; reset/rebuild is the explicit recovery path.
+
+
+Persistent inputs include quality/resolution, material, collision settings, pins/stitches and solver controls. Particles/triangles/constraints/numerical state are derived. Input changes invalidate derived state.
+
+Run/Step must check target and derived-state validity before advancing. Reset is recovery. Stale state includes an actionable reason and a rebuild/refresh path. Document recompute must remain safe when a target becomes stale.
+
 ## Diagnostics
 
 Use structured diagnostics with severity, semantic/object ID, location/range where possible, message and remediation. At minimum cover invalid pattern topology, invalid seam ranges, correspondence mismatch, missing marks, arrangement penetration, stale target/derived state and solver instability. Future fit/stress/strain/pressure maps should consume simulation results rather than become a second simulation model.
