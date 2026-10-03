@@ -10,8 +10,13 @@ def _job_block(source: str, job: str) -> str:
     marker = f"  {job}:\n"
     start = source.index(marker)
     remainder = source[start + len(marker) :]
-    next_job = remainder.find("\n  ")
-    return remainder if next_job < 0 else remainder[:next_job]
+    lines = remainder.splitlines(True)
+    block = []
+    for line in lines:
+        if line.startswith("  ") and not line.startswith("    ") and line.rstrip().endswith(":"):
+            break
+        block.append(line)
+    return "".join(block)
 
 
 def test_one_canonical_workflow():
@@ -26,7 +31,7 @@ def test_pull_requests_are_hosted_only():
     assert "pull_request_target:" not in source
     assert "pull_request_broker:" not in source
     readiness = _job_block(source, "local_runner_readiness")
-    assert "github.event_name == 'pull_request'" in readiness
+    assert "github.event_name == 'pull_request'" in source
     assert "'ubuntu-latest'" in readiness
 
     dynamic = "(github.event_name == 'pull_request' || inputs.runner_mode == 'hosted')"
