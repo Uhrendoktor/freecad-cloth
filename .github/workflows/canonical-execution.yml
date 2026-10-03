@@ -470,6 +470,7 @@ jobs:
                 tests/test_workbench_packaging.py \
                 tests/test_workbench_registration.py \
                 tests/test_workbench_registration_audit.py \
+                tests/test_workbench_command_contract.py \
                 tests/test_side_tasks.py \
                 tests/test_pattern_export_semantics.py \
                 tests/test_sewing_correspondence.py \
