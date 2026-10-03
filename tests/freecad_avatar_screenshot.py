@@ -144,7 +144,8 @@ def main():
     window = wait_for_gui_ready()
 
     init_gui = os.path.join(ROOT, "InitGui.py")
-    exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
+    with open(init_gui, encoding="utf-8") as handle:
+        exec(compile(handle.read(), init_gui, "exec"), globals(), globals())
     events()
     hide_task_docks(window)
 
