@@ -13,6 +13,7 @@ This directory is intentionally small. Read only the document relevant to the ta
 - `docs/ROADMAP.md` — durable roadmap; not live status.
 - `docs/RESEARCH.md` — design research; not live status.
 - `docs/DEVELOPMENT.md` — testing, CI, screenshots and contribution rules.
+- `freecad/freecad_cloth/` — modern FreeCAD loader adapters; not a second implementation tree.
 
 ## Context policy
 
