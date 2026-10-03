@@ -12,10 +12,7 @@ except ImportError:
     Gui = None
 
 # Install the target execute/recompute guard before GUI workbench activation.
-try:
-    import freecad_cloth.simulation.DrapeTarget  # noqa: F401
-except ImportError:
-    pass
+import freecad_cloth.simulation.DrapeTarget  # noqa: F401
 
 from freecad_cloth.pattern.workbench import ClothPatternWorkbench
 from freecad_cloth.sewing.workbench import ClothSewingWorkbench
