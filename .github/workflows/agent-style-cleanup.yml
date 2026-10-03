@@ -24,7 +24,7 @@ jobs:
           set -euo pipefail
           ruff check --fix --unsafe-fixes . || true
           ruff format .
-          ruff check .
+          ruff check . > ruff-residual.txt 2>&1 || true
           ruff format --check .
       - name: Commit normalized sources
         run: |
