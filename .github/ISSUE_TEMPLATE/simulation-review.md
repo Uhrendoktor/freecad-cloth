@@ -8,6 +8,9 @@ assignees: []
 
 ## Question / hypothesis
 
+## Current commit / governing issue or PR
+State the exact head SHA and the one issue/PR that governs this experiment.
+
 ## What remains frozen
 
 ## Expected visual result
@@ -21,7 +24,8 @@ Paste or link actual rendered screenshots here. They must be visible without dow
 
 ## Numeric / diagnostic evidence
 
-## Related PRs / historical evidence
+## Historical context
+Use only historical evidence that materially distinguishes the current hypothesis. Summarize it; do not paste long issue/PR conversations.
 
 ## Decision
-Do not use this issue as an implementation authority when a newer PR is designated by the canonical ledger.
+This issue is not an implementation authority when a newer PR or explicit current-state record designates another source. Use #2492 as the simulation coordination ledger when applicable.
