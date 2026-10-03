@@ -93,7 +93,4 @@ def install():
     _INSTALLED = True
 
 
-try:
-    install()
-except (ImportError, AttributeError, TypeError):
-    pass
+install()
