@@ -177,6 +177,8 @@ _FATAL_VISUAL_DIAGNOSTICS = frozenset({
     "lateral-detached-candidate",
     "collapsed-candidate",
     "below-hem-candidate",
+    "fallen-below-avatar-candidate",
+    "torso-coverage-candidate",
 })
 
 
