@@ -73,3 +73,14 @@ Decision: Keep each kind of agent knowledge in one canonical location:
 - GitHub issue/PR: task-local evidence, experiments and review discussion.
 
 Operational rule: prefer one authoritative location per fact and link to it instead of copying the same claim into multiple status/proposal files.
+
+## D-0007 — Agent-oriented verification gates
+
+Date: 2026-10-04  
+Status: accepted
+
+Decision: Use strict Pyright on deterministic core modules, Hypothesis property/stateful tests, CrossHair contracts for a small pure-function surface, high-confidence Vulture checks, and PR-only new-duplication detection.
+
+Why: Multi-agent failures are often semantically plausible but structurally or behaviorally wrong. Deterministic gates reduce the repository knowledge an agent must retain and turn architecture, typing and code-entropy constraints into executable checks.
+
+Consequences: Strict typing is expanded incrementally rather than imposed on dynamic FreeCAD GUI surfaces all at once. Vulture blocks only 100%-confidence dead code. jscpd compares pull requests with the base branch so historical duplication does not become an artificial migration blocker. CrossHair remains limited to deterministic, side-effect-free contracts.
