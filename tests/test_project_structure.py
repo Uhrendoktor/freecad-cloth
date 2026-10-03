@@ -24,6 +24,14 @@ def test_only_bootstrap_python_files_remain_at_root():
     assert {path.name for path in root.glob("*.py")} <= {"Init.py", "InitGui.py", "sitecustomize.py"}
 
 
+
+def test_root_initgui_does_not_swallow_drapetarget_import_errors():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "InitGui.py").read_text(encoding="utf-8")
+    assert "import freecad_cloth.simulation.DrapeTarget" in source
+    assert "try:\n    import freecad_cloth.simulation.DrapeTarget" not in source
+    assert "except ImportError:" not in source.split("import freecad_cloth.simulation.DrapeTarget", 1)[0]
+
 def test_freecad_entry_points_remain_at_root():
     root = Path(__file__).resolve().parents[1]
     assert (root / "Init.py").is_file()
