@@ -11,7 +11,7 @@ workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312
 validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; mandatory_human_screenshot_review; artifact_link_alone_insufficient; no_second_workflow
 main_head_at_audit: dc14d06734d0d986dd31b4427e0327cd74ae6a65
 production_tissu_fix_merged: false
-active_diagnostics: 2577,2576,2575,2571,2554,2545
+active_diagnostics: 2578,2577,2576,2575,2571,2554,2545
 completed_diagnostics: 2537,2482,2535,2540
 historical_release_project_issue: 1017
 agent_context_policy: current_head_first; task_scoped_docs; no_broad_issue_pr_history
