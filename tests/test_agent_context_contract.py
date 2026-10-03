@@ -60,3 +60,15 @@ def test_live_coordination_documents_do_not_hardcode_the_current_issue():
         text = path.read_text(encoding="utf-8")
         assert "#2492" not in text
         assert "AGENT_STATUS.md" in text
+
+
+def test_path_specific_agent_instructions_are_narrow_and_scoped():
+    root = ROOT / ".github" / "instructions"
+    simulation = (root / "simulation.instructions.md").read_text(encoding="utf-8")
+    workflows = (root / "workflows.instructions.md").read_text(encoding="utf-8")
+    for text, marker in ((simulation, "freecad_cloth/simulation"), (workflows, ".github/workflows")):
+        assert text.startswith("---\napplyTo:")
+        assert marker in text
+        assert len(text.splitlines()) <= 14
+    assert "AGENTS.md" not in simulation
+    assert "AGENTS.md" not in workflows
