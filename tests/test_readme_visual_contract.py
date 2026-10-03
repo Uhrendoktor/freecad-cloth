@@ -25,7 +25,7 @@ def test_turntable_still_uses_persistent_drape_target():
         encoding="utf-8"
     )
 
-    assert "DrapeTarget" in source
+    assert "set_avatar_collision_source" in source
     assert "create_drape_target" in objects
     assert "assign_drape_target" in objects
 
