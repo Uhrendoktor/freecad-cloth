@@ -20,6 +20,9 @@ class DrapeVisualMetrics:
     target_vertex_clearance: float | None
     finite: bool
     state: str
+    near_target_fraction: float = 0.0
+    near_target_band_mm: float = 64.0
+    median_target_vertex_distance_mm: float | None = None
 
 
 def _bounds(vertices: Sequence[Point3]) -> Tuple[float, float, float, float, float, float]:
@@ -36,16 +39,66 @@ def _centroid(vertices: Sequence[Point3]) -> Point3:
     return tuple(sum(float(v[i]) for v in vertices) / count for i in range(3))  # type: ignore[return-value]
 
 
-def minimum_vertex_distance(source: Sequence[Point3], target: Sequence[Point3]) -> float | None:
+def vertex_distance_profile(
+    source: Sequence[Point3],
+    target: Sequence[Point3],
+    *,
+    near_band_mm: float = 64.0,
+) -> tuple[float | None, float | None, float, float]:
+    """Return min, median, and near-target fraction in one distance pass.
+
+    The nearest-distance distribution is computed once because CI also needs
+    to distinguish "one vertex touches the avatar" from broad cloth adherence.
+    The operation is still chunked and vectorized so it does not allocate the
+    full source-by-target distance matrix.
+    """
+    near_band = max(0.0, float(near_band_mm))
     if not source or not target:
-        return None
-    best = float("inf")
-    for a in source:
-        for b in target:
-            d2 = sum((float(a[i]) - float(b[i])) ** 2 for i in range(3))
-            if d2 < best:
-                best = d2
-    return sqrt(best) if isfinite(best) else None
+        return None, None, 0.0, near_band
+    try:
+        import numpy as np
+        source_array = np.asarray(source, dtype=np.float64)
+        target_array = np.asarray(target, dtype=np.float64)
+        best_squared = float("inf")
+        nearest_distances = []
+        chunk_size = 256
+        for start in range(0, len(source_array), chunk_size):
+            chunk = source_array[start:start + chunk_size]
+            delta = chunk[:, None, :] - target_array[None, :, :]
+            distances_squared = np.einsum("ijk,ijk->ij", delta, delta, optimize=True)
+            nearest_squared = np.min(distances_squared, axis=1)
+            best_chunk = float(np.min(nearest_squared))
+            if best_chunk < best_squared:
+                best_squared = best_chunk
+            nearest_distances.extend(np.sqrt(nearest_squared).tolist())
+        if not nearest_distances:
+            return None, None, 0.0, near_band
+        median_distance = float(np.median(np.asarray(nearest_distances, dtype=np.float64)))
+        near_fraction = sum(distance <= near_band for distance in nearest_distances) / float(len(nearest_distances))
+        minimum = sqrt(best_squared) if isfinite(best_squared) else None
+        return minimum, median_distance, float(near_fraction), near_band
+    except ImportError:
+        distances = []
+        best = float("inf")
+        for a in source:
+            nearest = float("inf")
+            for b in target:
+                d2 = sum((float(a[i]) - float(b[i])) ** 2 for i in range(3))
+                if d2 < nearest:
+                    nearest = d2
+            if isfinite(nearest):
+                distance = sqrt(nearest)
+                distances.append(distance)
+                best = min(best, nearest)
+        if not distances:
+            return None, None, 0.0, near_band
+        return sqrt(best) if isfinite(best) else None, median(distances), sum(
+            distance <= near_band for distance in distances
+        ) / float(len(distances)), near_band
+
+
+def minimum_vertex_distance(source: Sequence[Point3], target: Sequence[Point3]) -> float | None:
+    return vertex_distance_profile(source, target)[0]
 
 
 def seam_correspondence_gap(
@@ -98,6 +151,7 @@ def inspect_drape(
     *,
     target_height: float | None = None,
     target_width: float | None = None,
+    particle_distance_mm: float = 32.0,
 ) -> DrapeVisualMetrics:
     """Return deterministic structural evidence for a generated drape.
 
@@ -122,7 +176,12 @@ def inspect_drape(
     lateral_width = max(spans[0], spans[1])
     vertical_span_ratio = vertical / float(target_height) if target_height and target_height > 0 else 0.0
     lateral_span_ratio = lateral_width / float(target_width) if target_width and target_width > 0 else 0.0
-    clearance = minimum_vertex_distance(garment_vertices, target_vertices)
+    near_band = max(64.0, 2.0 * float(particle_distance_mm))
+    clearance, median_distance, near_fraction, near_band = vertex_distance_profile(
+        garment_vertices,
+        target_vertices,
+        near_band_mm=near_band,
+    )
     centroid = _centroid(garment_vertices)
 
     state = "structurally-plausible"
@@ -138,7 +197,11 @@ def inspect_drape(
     return DrapeVisualMetrics(
         len(garment_vertices), b, spans, centroid,
         vertical_span_ratio, lateral_span_ratio, clearance,
-        True, state,
+        True,
+        state,
+        float(near_fraction),
+        float(near_band),
+        median_distance,
     )
 
 
@@ -153,6 +216,9 @@ def summarize(metrics: DrapeVisualMetrics) -> dict:
         "lateral_span_ratio": metrics.lateral_span_ratio,
         "target_vertex_clearance": metrics.target_vertex_clearance,
         "finite": metrics.finite,
+        "near_target_fraction": metrics.near_target_fraction,
+        "near_target_band_mm": metrics.near_target_band_mm,
+        "median_target_vertex_distance_mm": metrics.median_target_vertex_distance_mm,
     }
 
 
@@ -162,6 +228,9 @@ _FATAL_VISUAL_DIAGNOSTICS = frozenset({
     "lateral-detached-candidate",
     "collapsed-candidate",
     "below-hem-candidate",
+    "fallen-below-avatar-candidate",
+    "torso-coverage-candidate",
+    "avatar-adherence-candidate",
 })
 
 
