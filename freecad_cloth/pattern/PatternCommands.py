@@ -64,8 +64,8 @@ def _create_native_sketch_for_piece(obj):
 
     try:
         points = [(float(p[0]), float(p[1])) for p in ast.literal_eval(str(obj.SewingOutline))]
-    except (ValueError, SyntaxError, TypeError, IndexError):
-        raise ValueError("selected pattern piece has no valid sewing outline")
+    except (ValueError, SyntaxError, TypeError, IndexError) as exc:
+        raise ValueError("selected pattern piece has no valid sewing outline") from exc
     piece = PatternPiece(
         obj.Label,
         points,
