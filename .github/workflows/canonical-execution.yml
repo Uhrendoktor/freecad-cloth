@@ -153,7 +153,7 @@ jobs:
       - name: Build pinned Tissu validation image
         run: |
           set -euo pipefail
-          docker build --pull --progress=plain -t "$FREECAD_TUNISU_IMAGE" -f docker/freecad-ci/Dockerfile .
+          docker build --pull --progress=plain -t "$FREECAD_TUNIC_IMAGE" -f docker/freecad-ci/Dockerfile .
       - name: Run one-step contact controls
         run: |
           set -euo pipefail
@@ -829,11 +829,13 @@ jobs:
               set +e
               setsid /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py > "$app_log" 2>&1 &
               APP_PID=$!
+              TIMED_OUT=0
               APP_DEADLINE=$((SECONDS + 300))
-              echo "tunic-audit-supervisor=started pid=$APP_PID deadline_seconds=360"
+              echo "tunic-audit-supervisor=started pid=$APP_PID deadline_seconds=300"
               while kill -0 "$APP_PID" 2>/dev/null; do
                 if [ "$SECONDS" -ge "$APP_DEADLINE" ]; then
-                  echo "tunic-audit-supervisor=timeout pid=$APP_PID elapsed_seconds=360" | tee -a "$app_log"
+                  TIMED_OUT=1
+                  echo "tunic-audit-supervisor=timeout pid=$APP_PID elapsed_seconds=300" | tee -a "$app_log"
                   kill -TERM -- "-$APP_PID" 2>/dev/null || kill -TERM "$APP_PID" 2>/dev/null || true
                   sleep 5
                   kill -KILL -- "-$APP_PID" 2>/dev/null || kill -KILL "$APP_PID" 2>/dev/null || true
@@ -847,7 +849,7 @@ jobs:
 
               {
                 echo "tunic-audit-supervisor=finished status=$APP_STATUS"
-                if [ "$APP_STATUS" -eq 124 ]; then
+                if [ "$TIMED_OUT" -eq 1 ]; then
                   echo "tunic-audit-termination=timeout"
                 elif [ "$APP_STATUS" -ge 128 ]; then
                   echo "tunic-audit-termination=signal signal=$((APP_STATUS - 128))"
