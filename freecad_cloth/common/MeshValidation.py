@@ -1,7 +1,7 @@
 """Optional non-authoritative mesh validation helpers.
 
 This module deliberately does not make trimesh a runtime dependency.  The
-adapter is downstream of PatternIR/SimulationScene/DrapeTarget and is intended
+adapter is downstream of PatternIR/ClothSystem/DrapeTarget and is intended
 for acceptance diagnostics, backend comparisons, and developer tooling.
 """
 from __future__ import annotations
