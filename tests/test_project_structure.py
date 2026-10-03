@@ -34,10 +34,9 @@ def test_root_initgui_does_not_swallow_drapetarget_import_errors():
     source = (root / "InitGui.py").read_text(encoding="utf-8")
     assert "import freecad_cloth.simulation.DrapeTarget" in source
     assert "try:\n    import freecad_cloth.simulation.DrapeTarget" not in source
-    assert (
-        "except ImportError:"
-        not in source.split("import freecad_cloth.simulation.DrapeTarget", 1)[0]
-    )
+    prefix, _separator, suffix = source.partition("import freecad_cloth.simulation.DrapeTarget")
+    assert "except ImportError:" not in prefix
+    assert not suffix.lstrip().startswith("except ImportError:")
 
 
 def test_freecad_entry_points_remain_at_root():
