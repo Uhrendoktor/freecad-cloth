@@ -25,6 +25,7 @@ jobs:
           ruff check --fix --unsafe-fixes . || true
           ruff format .
           ruff check . > ruff-residual.txt 2>&1 || true
+          cat ruff-residual.txt
           ruff format --check .
       - name: Commit normalized sources
         run: |
