@@ -57,11 +57,18 @@ def test_freecad_extension_package_uses_namespace_gui_entry_point():
     assert "from freecad_cloth." in source
 
 
-def test_freecad_package_metadata_declares_root_gui_workbench():
+def test_freecad_package_metadata_declares_all_bundled_gui_workbenches():
     metadata = (ROOT / "package.xml").read_text(encoding="utf-8")
     assert '<package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">' in metadata
-    assert "<classname>ClothPatternWorkbench</classname>" in metadata
-    assert "<subdirectory>./</subdirectory>" in metadata
+    for classname in (
+        "ClothPatternWorkbench",
+        "ClothSewingWorkbench",
+        "ClothSimulationWorkbench",
+    ):
+        assert f"<classname>{classname}</classname>" in metadata
+    assert metadata.count("<workbench>") == 3
+    assert metadata.count("<subdirectory>./</subdirectory>") == 3
+    assert "<freecadmin>1.1.0</freecadmin>" in metadata
     assert "exec(compile(init_gui" not in metadata
 
 
