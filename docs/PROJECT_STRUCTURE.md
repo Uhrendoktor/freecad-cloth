@@ -16,11 +16,11 @@ The repository is both a normal Python project and a directly installable FreeCA
 │   ├── avatar/                     # avatar model, fitting, collision, GUI
 │   ├── pattern/                    # pattern geometry, objects, IR, sketch, GUI
 │   ├── sewing/                     # canonical sewing graph, references, network, GUI
+│   └── simulation/                 # solver, draping, targets, diagnostics, GUI
 ├── freecad/
 │   └── freecad_cloth/
 │       ├── __init__.py             # modern FreeCAD namespace entry point
 │       └── init_gui.py              # modern namespaced GUI bootstrap
-│   └── simulation/                 # solver, draping, targets, diagnostics, GUI
 ├── tests/
 ├── docs/
 └── .github/workflows/
