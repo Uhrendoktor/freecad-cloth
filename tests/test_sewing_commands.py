@@ -30,7 +30,7 @@ def test_sewing_command_exposes_contextual_activation():
     resources = command.GetResources()
     assert resources["MenuText"] == "Do Sewing"
     assert resources["ToolTip"] == "sewing tooltip"
-    assert resources["Pixmap"].endswith("clothsewing_dosewing.svg")
+    assert "Pixmap" not in resources
 
 
 def test_sewing_command_accepts_explicit_public_menu_text():
@@ -38,7 +38,7 @@ def test_sewing_command_accepts_explicit_public_menu_text():
     resources = command.GetResources()
     assert resources["MenuText"] == "Create M:N Sewing"
     assert resources["ToolTip"] == "tooltip"
-    assert resources["Pixmap"].endswith("clothsewing_createmnsewing.svg")
+    assert "Pixmap" not in resources
 
 
 def test_all_registered_sewing_commands_have_stable_user_facing_labels():
