@@ -843,7 +843,8 @@ def main():
     Gui.getMainWindow().show()
     events()
     init_gui = os.path.join(ROOT, "InitGui.py")
-    exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
+    with open(init_gui, encoding="utf-8") as handle:
+        exec(compile(handle.read(), init_gui, "exec"), globals(), globals())
     events()
     run_canonical_acceptance()
     pattern_and_sewing()
