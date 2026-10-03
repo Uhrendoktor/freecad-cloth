@@ -46,30 +46,6 @@ permissions:
   packages: read
 
 jobs:
-  sync_main_once:
-    name: Synchronize PR branch with main
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/agent/architecture-tooling-docs' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: agent/architecture-tooling-docs
-          fetch-depth: 0
-      - name: Merge current main into PR branch
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git fetch origin main
-          if git merge-base --is-ancestor origin/main HEAD; then
-            echo 'main-is-already-ancestor'
-            exit 0
-          fi
-          git merge --no-edit origin/main
-          git push origin HEAD:agent/architecture-tooling-docs
   python_style_migration:
     name: One-time Ruff source normalization
     if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/agent/architecture-tooling-docs') || (github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/architecture-tooling-docs') }}
