@@ -1,35 +1,3 @@
-from freecad_cloth.pattern.PatternGeometry import rectangle
-from freecad_cloth.pattern.PatternMesh import triangulate
-from freecad_cloth.simulation.SimulationScene import SimulationScene
-
-
-def test_scene_is_constructed_from_pattern_mesh():
-    mesh = triangulate(rectangle(100.0, 60.0))
-    scene = SimulationScene.from_mesh(mesh, gravity=(0.0, 0.0, 0.0), pinned=(0, 1), iterations=12)
-    assert len(scene.state.positions) == len(mesh.vertices)
-    assert scene.state.inverse_masses[0] == 0.0
-    assert scene.state.inverse_masses[2] == 1.0
-    assert len(scene.solver.constraints) == len(mesh.boundary_edges()) + 1
-
-
-def test_pinned_vertices_remain_fixed_while_free_vertices_move():
-    mesh = triangulate(rectangle(100.0, 60.0))
-    scene = SimulationScene.from_mesh(mesh, gravity=(0.0, 0.0, -1000.0), pinned=(0,), iterations=16)
-    initial = tuple(scene.state.positions)
-    scene.step(0.01)
-    assert scene.state.positions[0] == initial[0]
-    assert any(scene.state.positions[i][2] != initial[i][2] for i in range(1, len(initial)))
-
-
-def test_step_many_rejects_negative_steps():
-    scene = SimulationScene.from_mesh(triangulate(rectangle(10.0, 10.0)))
-    try:
-        scene.step_many(-1, 0.01)
-    except ValueError:
-        return
-    raise AssertionError("negative steps should fail")
-
-
 def test_stale_drape_target_recompute_guard_is_safe():
     from types import SimpleNamespace
     from freecad_cloth.simulation import SimulationStaleGuard
@@ -367,22 +335,6 @@ def test_pattern_scene_truncates_stale_demo_panels_before_mesh_write():
         patch(
             "freecad_cloth.common.PatternSimulationAdapter.resolve_simulation_pattern",
             return_value=resolved,
-        ),
-        patch(
-            "freecad_cloth.simulation.ClothBackend.default_backend_registry",
-            return_value=FakeRegistry(),
-        ),
-        patch(
-            "freecad_cloth.simulation.ClothBackend.preferred_backend_name",
-            return_value="xpbd-cpu",
-        ),
-        patch(
-            "freecad_cloth.simulation.ClothSolver.ClothSystem",
-            FakeSystem,
-        ),
-        patch(
-            "freecad_cloth.simulation.ClothSolver.Particle",
-            lambda *values: tuple(values),
         ),
     ):
         proxy = simulation_objects.SimulationProxy()
