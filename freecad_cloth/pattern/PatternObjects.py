@@ -17,8 +17,8 @@ def _parse_points(value):
         return []
     try:
         return [(float(p[0]), float(p[1])) for p in ast.literal_eval(str(value))]
-    except (ValueError, SyntaxError, TypeError, IndexError):
-        raise ValueError("invalid pattern boundary")
+    except (ValueError, SyntaxError, TypeError, IndexError) as exc:
+        raise ValueError("invalid pattern boundary") from exc
 
 
 def _rectangle_points(width, height):
