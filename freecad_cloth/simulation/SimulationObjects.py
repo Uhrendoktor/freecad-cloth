@@ -1,5 +1,7 @@
 """FreeCAD-facing deterministic cloth simulation scene objects."""
 
+PIN_MODE_NAMES = ("Automatic", "None", "Explicit")
+
 
 def _mesh_object(doc, name, label):
     obj = doc.addObject("Mesh::Feature", name)
@@ -527,6 +529,17 @@ class SimulationProxy:
         right = ClothSystem.grid(100.0, 60.0, nx, ny, origin=(0.0, -30.0, 90.0))
         offset = len(left.particles)
         particles = left.particles + right.particles
+        tris = []
+        for j in range(ny - 1):
+            for i in range(nx - 1):
+                a = j * nx + i
+                b = a + 1
+                c = (j + 1) * nx + i + 1
+                d = (j + 1) * nx + i
+                tris.extend(((a, b, c), (a, c, d)))
+        triangles = tuple(tris) + tuple(
+            (a + offset, b + offset, c + offset) for a, b, c in tris
+        )
         constraints = list(left.constraints) + [
             type(c)(c.a + offset, c.b + offset, c.rest, c.compliance) for c in right.constraints
         ]
