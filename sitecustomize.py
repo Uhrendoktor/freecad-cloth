@@ -16,53 +16,6 @@ if QtGui is not None:
 
         QPixmap.pixel = _pixel
 
-# The six-side GUI fixture starts from the standard pattern-piece factory and
-# then replaces its rectangle with a custom tunic outline. Keep this workaround
-# limited to the screenshot runner; initialization failures elsewhere must be
-# visible rather than silently ignored.
-import inspect
-
-
-def _called_from_screenshot_runner():
-    return any(
-        frame.filename.endswith("/tests/freecad_screenshot.py")
-        or frame.filename.endswith("\\tests\\freecad_screenshot.py")
-        for frame in inspect.stack(context=0)
-    )
-
-
-if _called_from_screenshot_runner():
-    from freecad_cloth.pattern import PatternCommands
-
-    _original_factory = PatternCommands.create_pattern_piece_from_parameters
-    if not getattr(_original_factory, "_cloth_gui_custom_outline", False):
-        def _create_pattern_piece_from_parameters(*args, **kwargs):
-            obj = _original_factory(*args, **kwargs)
-            if "GeometryAuthority" in obj.PropertiesList:
-                obj.GeometryAuthority = "PatternParameters"
-            obj.GeometryMode = "Custom"
-            return obj
-
-        _create_pattern_piece_from_parameters._cloth_gui_custom_outline = True
-        PatternCommands.create_pattern_piece_from_parameters = _create_pattern_piece_from_parameters
-
-    # The fixture's scene builder has already assigned the production avatar as
-    # the target source. Reassigning the same App::PropertyLink during the GUI
-    # path can make FreeCAD rebuild the dependency graph and stall in recompute.
-    # Keep refresh semantics unchanged everywhere else, but make this redundant
-    # screenshot-only refresh a no-op.
-    from freecad_cloth.simulation import DrapeTarget
-    _original_refresh_drape_target = DrapeTarget.refresh_drape_target
-    if not getattr(_original_refresh_drape_target, "_cloth_gui_refresh_guard", False):
-        def _refresh_drape_target_for_gui(target):
-            source = getattr(target, "SourceObject", None)
-            if source is not None and str(getattr(target, "TargetStatus", "")) == "ready":
-                return target
-            return _original_refresh_drape_target(target)
-
-        _refresh_drape_target_for_gui._cloth_gui_refresh_guard = True
-        DrapeTarget.refresh_drape_target = _refresh_drape_target_for_gui
-
 # Canonical GUI validation must use the production Tissu backend, not the
 # reference XPBD backend. The GUI workflow runs with DISPLAY=:99; keep this
 # enforcement scoped to that environment so the unit suite can still exercise

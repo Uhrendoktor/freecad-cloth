@@ -17,7 +17,6 @@ def create_garment(name="Garment"):
 
 def create_pattern_piece_from_parameters(name, width, height, allowance, grainline):
     import FreeCAD as App
-    import inspect
     from freecad_cloth.pattern.PatternModel import PatternPiece
     from freecad_cloth.pattern.PatternObjects import add_pattern_piece
     from freecad_cloth.pattern.PatternGeometry import rectangle
@@ -33,10 +32,8 @@ def create_pattern_piece_from_parameters(name, width, height, allowance, grainli
     obj.GeometryMode = "Rectangle"
     obj.Label = name
     doc.recompute()
-    in_six_side_screenshot = any(frame.function == "simulation" and frame.filename.endswith("/tests/freecad_screenshot.py") for frame in inspect.stack(context=0))
-    if not in_six_side_screenshot:
-        _create_native_sketch_for_piece(obj)
-        doc.recompute()
+    _create_native_sketch_for_piece(obj)
+    doc.recompute()
     return obj
 
 
