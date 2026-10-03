@@ -48,8 +48,17 @@ EXPECTED = {
 }
 
 
+_COMMAND_PATHS = {
+    "PatternCommands": ROOT / "freecad_cloth" / "pattern" / "PatternCommands.py",
+    "PatternMarks": ROOT / "freecad_cloth" / "pattern" / "PatternMarks.py",
+    "SewingCommands": ROOT / "freecad_cloth" / "sewing" / "SewingCommands.py",
+    "FittingCommands": ROOT / "freecad_cloth" / "avatar" / "FittingCommands.py",
+    "SimulationCommands": ROOT / "freecad_cloth" / "simulation" / "SimulationCommands.py",
+}
+
+
 def _literal_commands(module_name):
-    tree = ast.parse((ROOT / f"{module_name}.py").read_text(encoding="utf-8"))
+    tree = ast.parse(_COMMAND_PATHS[module_name].read_text(encoding="utf-8"))
     for node in tree.body:
         if isinstance(node, ast.Assign) and any(
             isinstance(target, ast.Name) and target.id == "COMMANDS"
